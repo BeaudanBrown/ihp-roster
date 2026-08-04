@@ -95,8 +95,9 @@ sendStaffPasskeySetupLink ::
     Text ->
     IO ()
 sendStaffPasskeySetupLink staffId purpose successMessage = do
+    ensureNotImpersonatingAccountSecurity
     redirectPermissionDeniedUnless
-        (currentUserIsSuperAdmin || hasRole VenueOwner)
+        (currentUserIsUnimpersonatedSuperAdmin || hasRole VenueOwner)
         "Only the venue owner or a super admin can send passkey setup links."
     maybeTarget <- fetchCurrentVenueStaffUser staffId
     case maybeTarget of

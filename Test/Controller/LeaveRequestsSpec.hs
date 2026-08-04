@@ -12,6 +12,8 @@ import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, readMVar, takeMVar)
 import Control.Exception.Safe (SomeException, try)
 import Control.Monad (zipWithM)
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.ByteString.Lazy.Char8 as LByteString
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -199,6 +201,39 @@ tests = aroundAll withDatabaseTestContext do
                 lefts results `shouldSatisfy` null
                 mapM_ (`responseStatusShouldBe` status302) (rights results)
                 query @UnavailabilityBlackout |> filterWhere (#venueId, unpackId venue.id) |> fetchCount >>= (`shouldBe` 1)
+
+        it "uses effective staff ownership with actual founder audit attribution" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Impersonated Self-Service Leave Venue"
+                founder <- createUserRecordWithPlatformRole "leave-impersonated-founder@example.com" "staff" (Just SuperAdmin) True
+                worker <- createUserRecord "leave-impersonated-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue worker Worker
+                staff <- createStaffRecord venue (Just worker) "Leave" "Worker"
+                today <- utctDay <$> getCurrentTime
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    _ <- callActionWithParams
+                        StartSupportImpersonationAction
+                        [("userId", cs (inputValue worker.id))]
+                    callActionWithParams CreateLeaveRequestAction
+                        [ ("responseContext", "self-service")
+                        , ("startDate", cs (tshow (addDays 2 today)))
+                        , ("endDate", cs (tshow (addDays 3 today)))
+                        , ("notes", "Effective worker request")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                leaveRequest <- query @LeaveRequest |> fetchOne
+                leaveRequest.staffId `shouldBe` unpackId staff.id
+                leaveEvent <- query @LeaveRequestEvent |> filterWhere (#eventType, LeaveRequestEventTypeEnumCreated) |> fetchOne
+                leaveEvent.actorUserId `shouldBe` unpackId founder.id
+                leaveEvent.payload `shouldSatisfy` \case
+                    Aeson.Object payload -> case AesonKeyMap.lookup "requestContext" payload of
+                        Just (Aeson.Object requestContext) ->
+                            AesonKeyMap.lookup "accessMode" requestContext == Just (Aeson.String "impersonation")
+                                && AesonKeyMap.lookup "effectiveUserId" requestContext == Just (Aeson.toJSON worker.id)
+                        _ -> False
+                    _ -> False
 
         it "rejects a self-service unavailable range at inclusive blackout boundaries with the visible reason" $ withContext do
             withCleanDb do

@@ -126,7 +126,7 @@ parseSubmittedStaff =
 
 currentUserCanAccessStaffDocumentsFor :: (?context :: ControllerContext) => Staff -> IO Bool
 currentUserCanAccessStaffDocumentsFor staff =
-    pure (hasRole Manager || staff.userId == Just (unpackId authenticatedCurrentUser.id))
+    pure (hasRole Manager || staff.userId == Just (unpackId effectiveCurrentUser.id))
 
 data RsaScanUpload = RsaScanUpload
     { rsaScanFileName     :: !Text

@@ -120,6 +120,83 @@ tests = aroundAll withDatabaseTestContext do
                 adminResponse `responseStatusShouldBe` status302
                 profileResponse `responseStatusShouldBe` status200
                 profileResponse `responseBodyShouldContain` "impersonation-effective-worker@example.com"
+                profileResponse `responseBodyShouldContain` "href=\"/Support\""
+                profileResponse `responseBodyShouldContain` "support-venue-switch"
+                profileResponse `responseBodyShouldNotContain` "href=\"/Admin\""
+                profileResponse `responseBodyShouldNotContain` "href=\"/Xero\""
+
+        it "applies the effective user's profile-completeness gate" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Profile Gate Impersonation Venue"
+                founder <- createUserRecordWithPlatformRole "impersonation-profile-gate-founder@example.com" "staff" (Just SuperAdmin) True
+                worker <- createUserRecord "impersonation-incomplete-worker@example.com" "staff" False
+                _ <- createVenueMembershipRecord venue worker Worker
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    _ <- callActionWithParams
+                        StartSupportImpersonationAction
+                        [("userId", cs (inputValue worker.id))]
+                    callAction RosterWeeksAction
+
+                response `responseStatusShouldBe` status302
+                lookup "Location" (Wai.responseHeaders response) `shouldBe` Just "http://localhost/EditProfile"
+
+        it "stores private roster preferences for the effective user" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Preference Ownership Impersonation Venue"
+                founder <- createUserRecordWithPlatformRole "impersonation-preference-founder@example.com" "staff" (Just SuperAdmin) True
+                worker <- createUserRecord "impersonation-preference-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue worker Worker
+                _ <- createStaffRecord venue (Just worker) "Preference" "Worker"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    _ <- callActionWithParams
+                        StartSupportImpersonationAction
+                        [("userId", cs (inputValue worker.id))]
+                    callActionWithParams
+                        (UpdateRosterLayoutPreferenceAction 0)
+                        [("rosterLayoutMode", "day_columns")]
+
+                response `responseStatusShouldBe` status302
+                workerPreference <- query @UserPreference
+                    |> filterWhere (#userId, unpackId worker.id)
+                    |> fetchOne
+                workerPreference.rosterLayoutMode `shouldBe` DayColumns
+                query @UserPreference
+                    |> filterWhere (#userId, unpackId founder.id)
+                    |> fetchCount
+                    >>= (`shouldBe` 0)
+
+        it "enforces the effective venue-role matrix across manager admin and owner routes" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Role Matrix Impersonation Venue"
+                founder <- createUserRecordWithPlatformRole "impersonation-role-matrix-founder@example.com" "staff" (Just SuperAdmin) True
+                roleTargets <- forM
+                    [ (Worker, status302, status302, status302)
+                    , (Supervisor, status302, status302, status302)
+                    , (Manager, status200, status302, status302)
+                    , (VenueAdmin, status200, status200, status302)
+                    , (VenueOwner, status200, status200, status200)
+                    ]
+                    \(role, leaveStatus, adminStatus, xeroStatus) -> do
+                        user <- createUserRecord ("impersonation-role-" <> inputValue role <> "@example.com") "staff" True
+                        _ <- createVenueMembershipRecord venue user role
+                        _ <- createStaffRecord venue (Just user) (inputValue role) "Target"
+                        pure (user, leaveStatus, adminStatus, xeroStatus)
+
+                withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    forM_ roleTargets \(target, leaveStatus, adminStatus, xeroStatus) -> do
+                        _ <- callActionWithParams
+                            StartSupportImpersonationAction
+                            [("userId", cs (inputValue target.id))]
+                        leaveResponse <- callAction LeaveRequestsAction
+                        adminResponse <- callAction AdminAction
+                        xeroResponse <- callAction XeroAction
+                        leaveResponse `responseStatusShouldBe` leaveStatus
+                        adminResponse `responseStatusShouldBe` adminStatus
+                        xeroResponse `responseStatusShouldBe` xeroStatus
+                        _ <- callAction ExitSupportImpersonationAction
+                        pure ()
 
         it "blocks credential management while preserving the effective profile" $ withContext do
             withCleanDb do

@@ -146,8 +146,8 @@ submittedDisplayMode = do
 
 currentSubmittedRole :: (?context :: ControllerContext) => Maybe Text
 currentSubmittedRole
-    | currentUserIsSuperAdmin = Just "support_super_admin"
-    | otherwise = venueRoleToText <$> currentVenueRoleOrNothing
+    | currentUserIsUnimpersonatedSuperAdmin = Just "support_super_admin"
+    | otherwise = venueRoleToText <$> effectiveVenueRoleOrNothing
 
 requestParamText :: (?request :: Request) => Text -> Maybe Text
 requestParamText paramName =

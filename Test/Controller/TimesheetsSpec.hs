@@ -26,6 +26,7 @@ import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar)
 import Control.Exception (SomeException, try)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
@@ -296,6 +297,51 @@ tests = aroundAll withDatabaseTestContext do
                         |> filterWhere (#staffId, unpackId staff.id)
                         |> fetchOne
                 testHadBreak entry `shouldBe` False
+
+        it "uses effective worker ownership and actual founder attribution for timesheets" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Impersonated Worker Timesheet Venue"
+                founder <- createUserRecordWithPlatformRole "timesheet-impersonated-founder@example.com" "staff" (Just SuperAdmin) True
+                workerUser <- createUserRecord "timesheet-impersonated-worker@example.com" "staff" True
+                otherUser <- createUserRecord "timesheet-impersonated-other@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue workerUser Worker
+                _ <- createVenueMembershipRecord venue otherUser Worker
+                worker <- createStaffRecord venue (Just workerUser) "Effective" "Worker"
+                otherStaff <- createStaffRecord venue (Just otherUser) "Other" "Worker"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel worker
+                _ <- makeStaffTimesheetProducing payLevel otherStaff
+                shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
+                let entryParams staffId =
+                        [ ("weekOffset", "0")
+                        , ("staffId", idToParam staffId)
+                        , ("shiftTypeId", idToParam shiftType.id)
+                        , ("workedOn", "2025-01-07")
+                        , ("startTime", "09:00")
+                        , ("endTime", "17:00")
+                        ]
+
+                (tamperedResponse, ownResponse) <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    _ <- callActionWithParams
+                        StartSupportImpersonationAction
+                        [("userId", cs (inputValue workerUser.id))]
+                    tamperedResponse <- callActionWithParams CreateTimesheetEntryAction (entryParams otherStaff.id)
+                    ownResponse <- callActionWithParams CreateTimesheetEntryAction (entryParams worker.id)
+                    pure (tamperedResponse, ownResponse)
+
+                tamperedResponse `responseStatusShouldBe` status403
+                ownResponse `responseStatusShouldBe` status302
+                entry <- query @TimesheetEntry |> fetchOne
+                entry.staffId `shouldBe` unpackId worker.id
+                version <- query @TimesheetEntryVersion |> filterWhere (#versionAction, EntryVersionActionEnumCreated) |> fetchOne
+                version.actorUserId `shouldBe` unpackId founder.id
+                version.payload `shouldSatisfy` \case
+                    Aeson.Object payload -> case AesonKeyMap.lookup "requestContext" payload of
+                        Just (Aeson.Object requestContext) ->
+                            AesonKeyMap.lookup "accessMode" requestContext == Just (Aeson.String "impersonation")
+                                && AesonKeyMap.lookup "effectiveUserId" requestContext == Just (Aeson.toJSON workerUser.id)
+                        _ -> False
+                    _ -> False
 
         it "parses the generated explicit false had-break transport as no break" $ withContext do
             withCleanDb do

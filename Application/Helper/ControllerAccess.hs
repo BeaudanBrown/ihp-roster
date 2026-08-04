@@ -342,7 +342,7 @@ ensureRecordInCurrentVenue venueId = do
 
 emitSupportModeScopeFactWhenActive :: (?context :: ControllerContext) => IO ()
 emitSupportModeScopeFactWhenActive =
-    when (currentUserIsSuperAdmin && isNothing currentVenueMembershipOrNothing) do
+    when (currentUserIsUnimpersonatedSuperAdmin && isNothing currentVenueMembershipOrNothing) do
         emitScopeFact BepisSupportScopeFact "support-mode"
 
 emitImpersonationScopeFactWhenActive :: (?context :: ControllerContext) => IO ()

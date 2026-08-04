@@ -4,8 +4,8 @@
 module Web.View.StaffProfileForm where
 
 import Application.Helper.Controller (assignableVenueRolesFor,
-                                      currentUserIsSuperAdmin,
-                                      currentVenueRoleOrNothing, venueRoleLabel,
+                                      currentUserIsUnimpersonatedSuperAdmin,
+                                      effectiveVenueRoleOrNothing, venueRoleLabel,
                                       venueRoleToText)
 import Application.Helper.FrontendContract.OrderedRange.Runtime
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
@@ -369,7 +369,7 @@ renderStaffRoleField fields (Just membership) = [hsx|
 
 assignableVenueRoles :: (?context :: ControllerContext) => [VenueRoleEnum]
 assignableVenueRoles =
-    assignableVenueRolesFor currentUserIsSuperAdmin currentVenueRoleOrNothing
+    assignableVenueRolesFor currentUserIsUnimpersonatedSuperAdmin effectiveVenueRoleOrNothing
 
 renderVenueRoleOption :: VenueMembership -> VenueRoleEnum -> Html
 renderVenueRoleOption membership venueRole = [hsx|

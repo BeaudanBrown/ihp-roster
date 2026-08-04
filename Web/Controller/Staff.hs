@@ -552,11 +552,11 @@ validateSubmittedStaffVenueRole staff (Just membership) maybeSubmittedRoleText =
   where
     validateRole submittedRole = do
         let existingRole = membership.venueRole
-        if not (canAssignVenueRole currentUserIsSuperAdmin currentVenueRoleOrNothing existingRole submittedRole)
+        if not (canAssignVenueRole currentUserIsUnimpersonatedSuperAdmin effectiveVenueRoleOrNothing existingRole submittedRole)
             then do
                 setErrorMessage "Only the venue owner or a super admin can assign venue owner access."
                 pure Nothing
-            else if membership.userId == unpackId currentUser.id && not (hasVenueRole submittedRole VenueAdmin)
+            else if membership.userId == unpackId effectiveCurrentUser.id && not (hasVenueRole submittedRole VenueAdmin)
                 then do
                     setErrorMessage "You cannot remove your own admin access."
                     pure Nothing

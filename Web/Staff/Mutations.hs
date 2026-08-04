@@ -166,7 +166,7 @@ trialStaffInvitationTouchedResources staff =
 staffRemovalBlockReason :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> IO (Maybe Text)
 staffRemovalBlockReason staff
     | staff.venueId /= unpackId currentVenueId = pure (Just "Choose staff from the current venue.")
-    | staff.userId == Just (unpackId currentUser.id) = pure (Just "You cannot remove your own staff access.")
+    | staff.userId == Just (unpackId effectiveCurrentUser.id) = pure (Just "You cannot remove your own staff access.")
     | isJust staff.archivedAt || not staff.isActive = pure (Just "That staff member has already been removed.")
     | otherwise = do
         maybeMembership <- case staff.userId of
@@ -197,7 +197,7 @@ removeStaffMember staff
                         |> filterWhere (#userId, linkedUserId)
                         |> filterWhere (#isActive, True)
                         |> fetchOneOrNothing
-            if lockedStaff.userId == Just (unpackId currentUser.id)
+            if lockedStaff.userId == Just (unpackId effectiveCurrentUser.id)
                 then pure (Left "You cannot remove your own staff access.")
                 else if maybe False ((== VenueOwner) . (.venueRole)) maybeMembership
                     then pure (Left "Venue owners cannot be removed from staff.")

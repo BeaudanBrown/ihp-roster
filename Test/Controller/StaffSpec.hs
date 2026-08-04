@@ -1704,6 +1704,49 @@ tests = aroundAll withDatabaseTestContext do
                 auditEvent <- query @AuditEvent |> filterWhere (#targetId, unpackId membership.id) |> fetchOne
                 auditEvent.eventType `shouldBe` "venue_role_changed"
 
+        it "uses effective admin limits and hides credential controls while impersonating" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Impersonated Staff Governance Venue"
+                founder <- createUserRecordWithPlatformRole "staff-governance-founder@example.com" "staff" (Just SuperAdmin) True
+                effectiveAdmin <- createUserRecord "staff-governance-admin@example.com" "staff" True
+                targetUser <- createUserRecord "staff-governance-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue effectiveAdmin VenueAdmin
+                targetMembership <- createVenueMembershipRecord venue targetUser Worker
+                _ <- createStaffRecord venue (Just effectiveAdmin) "Effective" "Admin"
+                targetStaff <- createStaffRecord venue (Just targetUser) "Role" "Target"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+
+                (editResponse, updateResponse) <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    _ <- callActionWithParams
+                        StartSupportImpersonationAction
+                        [("userId", cs (inputValue effectiveAdmin.id))]
+                    editResponse <- callActionWithParams (EditStaffAction targetStaff.id) [("weekOffset", "0")]
+                    updateResponse <- callActionWithParams (UpdateStaffAction targetStaff.id)
+                        [ ("section", "profile")
+                        , ("firstName", "Role")
+                        , ("lastName", "Target")
+                        , ("preferredName", "")
+                        , ("phone", "0400000000")
+                        , ("emergencyContactName", "Jordan Crew")
+                        , ("emergencyContactPhone", "0411111111")
+                        , ("idealShiftsPerWeek", "4")
+                        , ("isActive", "on")
+                        , ("employmentBasis", "casual")
+                        , ("payRateSelection", "")
+                        , ("venueRole", "venue_owner")
+                        , ("weekOffset", "0")
+                        , ("rosterGroupIds", cs (tshow rosterGroup.id))
+                        ]
+                    pure (editResponse, updateResponse)
+
+                editResponse `responseStatusShouldBe` status200
+                editResponse `responseBodyShouldNotContain` "<option value=\"venue_owner\""
+                editResponse `responseBodyShouldNotContain` "Email passkey setup"
+                editResponse `responseBodyShouldNotContain` "Email recovery link"
+                updateResponse `responseStatusShouldBe` status200
+                preservedMembership <- fetch targetMembership.id
+                preservedMembership.venueRole `shouldBe` Worker
+
         it "shows active imported Xero pay items in the staff pay override dropdown" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Imported Pay Item Venue"

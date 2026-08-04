@@ -1,5 +1,6 @@
 module Web.View.RosterWeeks.Show where
 
+import Application.Helper.Controller (currentUserIsImpersonating)
 import qualified Application.Helper.FrontendContract.Passkey.Runtime as Passkey
 import Application.Helper.FrontendContract.Surface.Roster.Chrome (RosterFullscreenState (..),
                                                                   rosterFullscreenRootAttrs)
@@ -83,6 +84,7 @@ renderRosterWeekShell ShowView { .. } =
 
 renderPasskeySetupPrompt :: (?context :: ControllerContext) => Bool -> Maybe Passkey.PasskeySetupPromptMode -> Html
 renderPasskeySetupPrompt _ Nothing = mempty
+renderPasskeySetupPrompt _ (Just _) | currentUserIsImpersonating = mempty
 renderPasskeySetupPrompt strongAuthenticationRequired (Just promptMode) = [hsx|
     <div {...Passkey.passkeySetupPromptAttrs (tshow currentUser.id) promptMode}>
         {renderPasskeySetupPromptDialog (passkeySetupModeFromPrompt strongAuthenticationRequired promptMode) (pathTo RosterWeeksAction)}
