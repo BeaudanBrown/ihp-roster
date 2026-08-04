@@ -23,7 +23,7 @@ import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays)
 import Generated.Types hiding (createRosterNotificationRun)
 import IHP.ControllerPrelude
-import IHP.ModelSupport (sqlExecDiscardResult, withTransaction)
+import IHP.ModelSupport (withTransaction)
 
 rosterNotificationDeliveryJobKind :: Text
 rosterNotificationDeliveryJobKind = "roster_notification_delivery"
@@ -205,7 +205,6 @@ createRosterNotificationRun ::
     IO RosterNotificationRun
 createRosterNotificationRun actor suppliedRosterWeek =
     withTransaction do
-        sqlExecDiscardResult "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ" ()
         persistedActor <- fetch actor.id
         rosterWeek <- fetch suppliedRosterWeek.id
         unless rosterWeek.isLive (fail "Roster notification runs require a live roster")
