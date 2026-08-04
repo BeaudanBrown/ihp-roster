@@ -253,6 +253,14 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Impersonation Selector Venue"
                 founder <- createUserRecordWithPlatformRole "selector-founder@example.com" "staff" (Just SuperAdmin) True
                 _ <- createVenueMembershipRecord venue founder VenueOwner
+                founderStaff <- query @Staff
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#userId, Just (unpackId founder.id))
+                    |> fetchOne
+                _ <- founderStaff
+                    |> set #firstName "Founder"
+                    |> set #lastName "Support"
+                    |> updateRecord
                 worker <- createUserRecord "selector-ada-lovelace@example.com" "staff" True
                 workerMembership <- createVenueMembershipRecord venue worker Worker
                 workerStaff <- query @Staff
@@ -298,6 +306,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "app-mobile-menu-toggle d-xl-none"
                 response `responseBodyShouldContain` "app-mobile-nav d-xl-none"
                 response `responseBodyShouldContain` "Super admin"
+                response `responseBodyShouldContain` "Founder — Venue Owner"
                 response `responseBodyShouldContain` "Ally L. — Worker"
                 response `responseBodyShouldContain` "Ally B. — Manager"
                 response `responseBodyShouldContain` "Venue user — Supervisor"
@@ -339,14 +348,15 @@ tests = aroundAll withDatabaseTestContext do
                     getSession @(Id User) effectiveUserSessionKey `shouldReturn` Nothing
                     getSession @Text impersonationSessionIdSessionKey `shouldReturn` Nothing
 
-                    unsafeReturnResponse <- callActionWithParams
-                        SwitchSupportImpersonationAction
-                        [ ("userId", cs (inputValue targetUser.id))
-                        , ("next", "https://evil.example/steal")
-                        ]
-                    unsafeReturnResponse `responseStatusShouldBe` status302
-                    lookup HTTP.hLocation (Wai.responseHeaders unsafeReturnResponse)
-                        `shouldBe` Just "http://localhost/RosterWeeks"
+                    forM_ ["https://evil.example/steal", "/\\evil.example/steal"] \unsafePath -> do
+                        unsafeReturnResponse <- callActionWithParams
+                            SwitchSupportImpersonationAction
+                            [ ("userId", cs (inputValue targetUser.id))
+                            , ("next", unsafePath)
+                            ]
+                        unsafeReturnResponse `responseStatusShouldBe` status302
+                        lookup HTTP.hLocation (Wai.responseHeaders unsafeReturnResponse)
+                            `shouldBe` Just "http://localhost/RosterWeeks"
 
         it "requires a fresh passkey verification before entering impersonation" $ withContext do
             withCleanDb do

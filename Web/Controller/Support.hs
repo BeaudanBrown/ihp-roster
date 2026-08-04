@@ -409,3 +409,4 @@ isSafeReturnPath candidate =
     Text.isPrefixOf "/" candidate
     && not (Text.isPrefixOf "//" candidate)
     && not (Text.isInfixOf "://" candidate)
+    && Text.all (\character -> character >= ' ' && character /= '\\') candidate

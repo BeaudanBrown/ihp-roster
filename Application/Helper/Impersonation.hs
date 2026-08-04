@@ -41,8 +41,7 @@ initSupportImpersonationOptions = do
             |> filterWhere (#isActive, True)
             |> filterWhere (#archivedAt, Nothing)
             |> fetch
-        let selectableMemberships =
-                filter ((/= unpackId authenticatedCurrentUser.id) . (.userId)) memberships
+        let selectableMemberships = memberships
         unless (null selectableMemberships) do
             users <- query @User
                 |> filterWhereIn (#id, map (Id . (.userId)) selectableMemberships)
