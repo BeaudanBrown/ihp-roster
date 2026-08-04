@@ -1,4 +1,66 @@
-/* Leave request page-specific layout and list styles. */
+/* Leave request page-specific layout, SidePanel, and list styles. */
+
+.leave-side-panel-card {
+    width: 100%;
+}
+
+.leave-side-panel-tabs {
+    gap: 0.35rem;
+    margin-bottom: 0.85rem;
+}
+
+.leave-side-panel-tab {
+    flex: 1 1 0;
+}
+
+.leave-staff-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+}
+
+.leave-staff-table th,
+.leave-staff-table td {
+    padding: 0.5rem 0.35rem;
+    border-bottom: 1px solid var(--app-border);
+    vertical-align: middle;
+}
+
+.leave-staff-sort-button {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: 700;
+}
+
+.leave-staff-panel-entry {
+    cursor: pointer;
+    transition: background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.leave-staff-panel-entry:hover,
+.leave-staff-panel-entry:focus-visible,
+.leave-staff-panel-entry.is-linked-highlight-source {
+    background: var(--app-accent-softer);
+    box-shadow: inset 3px 0 0 var(--app-accent);
+    outline: none;
+}
+
+.leave-staff-count-total,
+.leave-staff-count-pending {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.leave-staff-count-pending {
+    color: var(--app-muted);
+}
+
+.leave-blackout-settings article {
+    background: var(--app-white-alpha-015);
+}
 
 .leave-request-accordion .accordion-button {
     display: flex;
@@ -94,6 +156,12 @@
 .leave-request-row {
     padding: 0.7rem 0;
     border-bottom: 1px solid var(--app-border-alpha-70);
+    transition: background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.leave-request-row.is-linked-highlight-member {
+    background: var(--app-accent-softer);
+    box-shadow: inset 3px 0 0 var(--app-accent);
 }
 
 .leave-request-list-body .leave-request-row:last-child {

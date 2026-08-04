@@ -107,7 +107,7 @@ leaveRequestsSurfaceScope scope =
 
 leaveRequestsCandidateMountedFragments :: LeaveRequestsScopeValue -> [FrontendSurfaceMountedFragment]
 leaveRequestsCandidateMountedFragments _ =
-    unavailabilityBlackoutsMountedFragment : leaveAvailabilityWarningsMountedFragment : leaveRequestsSectionMountedFragments
+    unavailabilityBlackoutsMountedFragment : leaveSidePanelMountedFragment : leaveAvailabilityWarningsMountedFragment : leaveRequestsSectionMountedFragments
 
 unavailabilityBlackoutsMountedFragment :: FrontendSurfaceMountedFragment
 unavailabilityBlackoutsMountedFragment =
@@ -117,6 +117,16 @@ unavailabilityBlackoutsMountedFragment =
         (appendQueryParams
             (pathTo ShowleaveRequestsContentLiveFragmentAction)
             [("fragment", surfaceFragmentNameValue @Surface.LeaveRequestsSurface @Surface.UnavailabilityBlackouts)])
+        FrontendSurfaceReplace
+
+leaveSidePanelMountedFragment :: FrontendSurfaceMountedFragment
+leaveSidePanelMountedFragment =
+    frontendSurfaceMountedFragmentFor @Surface.LeaveRequestsSurface @Surface.LeaveSidePanelContent
+        noSurfaceFields
+        noSurfaceFields
+        (appendQueryParams
+            (pathTo ShowleaveRequestsContentLiveFragmentAction)
+            [("fragment", surfaceFragmentNameValue @Surface.LeaveRequestsSurface @Surface.LeaveSidePanelContent)])
         FrontendSurfaceReplace
 
 leaveAvailabilityWarningsMountedFragment :: FrontendSurfaceMountedFragment

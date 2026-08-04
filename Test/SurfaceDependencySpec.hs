@@ -139,7 +139,7 @@ tests = do
             actorLiveFragmentsRefreshKeys (leaveRequestsSurfaceScope scopeValue) approvedResources candidates
                 `shouldBe` passiveFragmentKeys approvedResources (leaveRequestsSurfaceScope scopeValue) candidates
             map (.mountedFragmentTargetId) affectedByBlackouts `shouldBe` ["unavailability-blackouts"]
-            map (.mountedFragmentTargetId) affectedByWarnings `shouldBe` ["leave-availability-warnings"]
+            map (.mountedFragmentTargetId) affectedByWarnings `shouldBe` ["leave-side-panel-content", "leave-availability-warnings"]
             map (.mountedFragmentTargetId) affectedByPending `shouldBe` ["leave-pending-count", "leave-pending-list"]
             map (.mountedFragmentTargetId) affectedByApproved `shouldBe` ["leave-approved-count", "leave-approved-list"]
 
@@ -147,7 +147,7 @@ tests = do
             let scopeValue = LeaveRequestsScopeValue (fromWords 10 0 0 0)
             let configJson = frontendSurfaceMountConfigJson (leaveRequestsSurfaceImpl scopeValue).surfaceImplMountConfig
 
-            Text.count "\"fragmentKey\":" configJson `shouldBe` 10
+            Text.count "\"fragmentKey\":" configJson `shouldBe` 11
             configJson `shouldSatisfy` Text.isInfixOf "\"subscription\":{\"scope\":{"
             configJson `shouldSatisfy` (not . Text.isInfixOf "\"resyncFragments\"")
             configJson `shouldSatisfy` (not . Text.isInfixOf "\"mountState\"")

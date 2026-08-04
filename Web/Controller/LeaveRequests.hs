@@ -289,6 +289,7 @@ requestedLeaveRequestsFragment :: (?request :: Request) => LeaveRequestsFragment
 requestedLeaveRequestsFragment =
     case paramOrDefault @Text "leave-requests-content" "fragment" of
         "unavailability-blackouts" -> UnavailabilityBlackouts
+        "leave-side-panel-content"  -> LeaveSidePanelContent
         "leave-availability-warnings" -> LeaveAvailabilityWarnings
         "leave-section-count"         -> LeaveRequestsSectionCount requestedLeaveSection
         "leave-section-list"          -> LeaveRequestsSectionList requestedLeaveSection

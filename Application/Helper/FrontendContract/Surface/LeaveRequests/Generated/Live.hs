@@ -7,10 +7,12 @@ module Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Live
     , leaveRequestsLiveScope
     , leaveSectionCountLiveFragment
     , leaveSectionListLiveFragment
+    , leaveSidePanelContentLiveFragment
     , matchLeaveAvailabilityWarningsLiveFragment
     , matchLeaveRequestsLiveScope
     , matchLeaveSectionCountLiveFragment
     , matchLeaveSectionListLiveFragment
+    , matchLeaveSidePanelContentLiveFragment
     , matchUnavailabilityBlackoutsLiveFragment
     , unavailabilityBlackoutsLiveFragment
     ) where
@@ -92,6 +94,19 @@ matchLeaveSectionListLiveFragment =
     matchFrontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
         @Types1.LeaveSectionList
+
+leaveSidePanelContentLiveFragment :: SurfaceFragmentKey
+leaveSidePanelContentLiveFragment =
+    frontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
+        @Types1.LeaveSidePanelContent
+        noSurfaceFields
+
+matchLeaveSidePanelContentLiveFragment :: SurfaceFragmentKey -> Maybe ()
+matchLeaveSidePanelContentLiveFragment =
+    matchFrontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
+        @Types1.LeaveSidePanelContent
 
 unavailabilityBlackoutsLiveFragment :: SurfaceFragmentKey
 unavailabilityBlackoutsLiveFragment =

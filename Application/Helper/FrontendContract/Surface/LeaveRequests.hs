@@ -15,6 +15,37 @@ module Application.Helper.FrontendContract.Surface.LeaveRequests
     , LeaveRequestsSectionResource
     , LeaveRequestsSurface
     , LeaveRequestsScope
+    , LeaveSidePanelContent
+    , LeaveStaffPeriodsHighlight
+    , LeaveStaffHighlightSourceRole
+    , LeaveStaffHighlightMemberRole
+    , LeaveStaffHighlightPinRole
+    , LeaveStaffPanelSort
+    , LeaveStaffPanelSortRootRole
+    , LeaveStaffPanelSortRowRole
+    , LeaveStaffPanelSortControlRole
+    , LeaveStaffPanelSortRow
+    , StaffRowKey
+    , StaffName
+    , StaffRole
+    , PeriodCount
+    , PendingCount
+    , NameSortKey
+    , RoleSortKey
+    , CountSortKey
+    , LeaveSidePanelTabs
+    , LeaveSidePanelTabRole
+    , StaffTabKey
+    , SettingsTabKey
+    , LeaveSidePanel
+    , LeaveSidePanelRootRole
+    , LeaveSidePanelMainRole
+    , LeaveSidePanelPanelRole
+    , LeaveSidePanelToggleRole
+    , LeaveSidePanelLabelRole
+    , LeaveSidePanelState
+    , Collapsed
+    , Expanded
     , ArchiveLeaveRequestsPage
     , ArchivePage
     , ApproveLeaveRequest
@@ -36,6 +67,7 @@ data LeaveRequestsScope
 data VenueId
 
 data LeaveRequestsContent
+data LeaveSidePanelContent
 data UnavailabilityBlackouts
 data LeaveAvailabilityWarnings
 data LeaveSection
@@ -56,6 +88,40 @@ data ArchivePage
 data None
 data LeaveArchivePageContent
 
+data LeaveStaffPeriodsHighlight
+data LeaveStaffHighlightSourceRole
+data LeaveStaffHighlightMemberRole
+data LeaveStaffHighlightPinRole
+
+data LeaveStaffPanelSort
+data LeaveStaffPanelSortRootRole
+data LeaveStaffPanelSortRowRole
+data LeaveStaffPanelSortControlRole
+data LeaveStaffPanelSortRow
+data StaffRowKey
+data StaffName
+data StaffRole
+data PeriodCount
+data PendingCount
+data NameSortKey
+data RoleSortKey
+data CountSortKey
+
+data LeaveSidePanelTabs
+data LeaveSidePanelTabRole
+data StaffTabKey
+data SettingsTabKey
+
+data LeaveSidePanel
+data LeaveSidePanelRootRole
+data LeaveSidePanelMainRole
+data LeaveSidePanelPanelRole
+data LeaveSidePanelToggleRole
+data LeaveSidePanelLabelRole
+data LeaveSidePanelState
+data Collapsed
+data Expanded
+
 type UnavailabilityBlackoutsResource = Resource UnavailabilityBlackouts '[ Field VenueId 'WireUUID ]
 type LeaveAvailabilityWarningsResource = Resource LeaveAvailabilityWarnings '[ Field VenueId 'WireUUID ]
 type LeaveRequestsSectionResource = Resource LeaveRequestsSection '[ Field VenueId 'WireUUID, Field LeaveSection 'WireText ]
@@ -73,6 +139,13 @@ type LeaveRequestsSurface =
              , 'Eager
              , 'Live
              , 'DependsOn UnavailabilityBlackoutsResource '[ 'FromScope VenueId ]
+             ]
+         , Fragment LeaveSidePanelContent
+            '[]
+            '[ 'MountTarget LeaveSidePanelContent '[]
+             , 'Eager
+             , 'Live
+             , 'DependsOn LeaveAvailabilityWarningsResource '[ 'FromScope VenueId ]
              ]
          , Fragment LeaveAvailabilityWarnings
             '[]
@@ -136,6 +209,56 @@ type LeaveRequestsSurface =
              , 'HtmxTarget ('HtmxId UnavailabilityBlackouts)
              , 'HtmxSwap 'HtmxNoSwap
              , 'HtmxPushUrl 'HtmxPushUrlFalse
+             ]
+         , BrowserInboundDto LeaveStaffPanelSortRow
+            '[ Field StaffRowKey 'WireText
+             , Field StaffName 'WireText
+             , Field StaffRole 'WireText
+             , Field PeriodCount 'WireInt
+             , Field PendingCount 'WireInt
+             ]
+         , BrowserRole LeaveStaffPanelSortRootRole
+         , BrowserRole LeaveStaffPanelSortRowRole
+         , BrowserRole LeaveStaffPanelSortControlRole
+         , CompleteSetSort LeaveStaffPanelSort LeaveStaffPanelSortRootRole LeaveStaffPanelSortRowRole LeaveStaffPanelSortControlRole LeaveStaffPanelSortRow
+            '[ SortKey NameSortKey
+                '[ SortComparator StaffName 'SortText 'FollowSortDirection
+                 , SortComparator StaffRowKey 'SortOpaque 'AlwaysAscending
+                 ]
+             , SortKey RoleSortKey
+                '[ SortComparator StaffRole 'SortText 'FollowSortDirection
+                 , SortComparator StaffName 'SortText 'AlwaysAscending
+                 , SortComparator StaffRowKey 'SortOpaque 'AlwaysAscending
+                 ]
+             , SortKey CountSortKey
+                '[ SortComparator PeriodCount 'SortInteger 'FollowSortDirection
+                 , SortComparator PendingCount 'SortInteger 'FollowSortDirection
+                 , SortComparator StaffName 'SortText 'AlwaysAscending
+                 , SortComparator StaffRowKey 'SortOpaque 'AlwaysAscending
+                 ]
+             ]
+            NameSortKey
+            'SortAscending
+         , BrowserRole LeaveSidePanelTabRole
+         , TabSet LeaveSidePanelTabs LeaveSidePanelTabRole '[ StaffTabKey, SettingsTabKey ] StaffTabKey
+         , BrowserRole LeaveSidePanelRootRole
+         , BrowserRole LeaveSidePanelMainRole
+         , BrowserRole LeaveSidePanelPanelRole
+         , BrowserRole LeaveSidePanelToggleRole
+         , BrowserRole LeaveSidePanelLabelRole
+         , BrowserClosedState LeaveSidePanelState '[ Collapsed, Expanded ]
+         , SidePanel LeaveSidePanel LeaveSidePanelRootRole LeaveSidePanelMainRole LeaveSidePanelPanelRole LeaveSidePanelToggleRole LeaveSidePanelLabelRole LeaveSidePanelState Collapsed Expanded
+         , BrowserRole LeaveStaffHighlightSourceRole
+         , BrowserRole LeaveStaffHighlightMemberRole
+         , BrowserRole LeaveStaffHighlightPinRole
+         , LinkedHighlight LeaveStaffPeriodsHighlight LeaveStaffHighlightSourceRole LeaveStaffHighlightMemberRole
+            '[ 'ActivateOnHover
+             , 'ActivateOnFocus
+             , 'ActivateOnKeyboard
+             , 'ActivateWithPin LeaveStaffHighlightPinRole
+             ]
+            '[ 'HighlightMatchingSource
+             , 'HighlightMatchingMember
              ]
          , DomToken LeaveRequestsContent
          , DomToken LeaveArchivePageContent

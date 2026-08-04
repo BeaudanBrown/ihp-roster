@@ -3,7 +3,20 @@
 module Web.View.LeaveRequests.Index where
 
 import Application.Helper.Controller (leaveRequestIsArchivedOn)
+import Application.Helper.FrontendContract.AppShell (OpenRosterStaffEditDialog)
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             appShellActionByMarker,
+                                                             applyAppShellActionAttrs)
+import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
+import Application.Helper.FrontendContract.Surface.LeaveRequests.SidePanel (leaveSidePanelRenderAttrs)
+import Application.Helper.FrontendContract.Surface.LeaveRequests.StaffPanel (LeaveSidePanelTab (..),
+                                                                             LeaveStaffPanelSortKey (..),
+                                                                             leaveSidePanelTabAttrs,
+                                                                             leaveStaffPanelSortControlAttrs,
+                                                                             leaveStaffPanelSortRootAttrs,
+                                                                             leaveStaffPanelSortRowAttrs)
+import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Action as LeaveRequestsAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             SurfaceImpl,
@@ -14,6 +27,7 @@ import Application.Helper.FrontendContract.Surface.Values
 import Data.Coerce (coerce)
 import Data.List (sortOn)
 import Data.Ord (Down (..))
+import qualified Data.Text as Text
 import Web.LeaveRequests.AvailabilityWarnings
 import Web.LeaveRequests.Blackouts
 import Web.View.Prelude
@@ -27,10 +41,18 @@ leaveRequestsActionRoute actionUrl =
         , actionRouteExtraAttrs = []
         }
 
+data LeaveStaffPanelEntry = LeaveStaffPanelEntry
+    { panelStaff        :: !Staff
+    , panelStaffRole    :: !Text
+    , panelPeriodCount  :: !Int
+    , panelPendingCount :: !Int
+    }
+
 data IndexView = IndexView
     { leaveRequests        :: [LeaveRequest]
     , staffMembers         :: [Staff]
     , currentViewerStaffId :: Maybe UUID
+    , staffPanelEntries    :: [LeaveStaffPanelEntry]
     , today                :: Day
     , archivePage          :: Int
     , archiveIsOpen        :: Bool
@@ -46,6 +68,10 @@ leaveRequestsShellId = "leave-requests-shell"
 
 leaveRequestsContentFragmentId :: Text
 leaveRequestsContentFragmentId = "leave-requests-content"
+
+leaveStaffPeriodsLinkedHighlight :: SurfaceIR.LinkedHighlightIR
+leaveStaffPeriodsLinkedHighlight =
+    surfaceLinkedHighlightValue @Surface.LeaveRequestsSurface @Surface.LeaveStaffPeriodsHighlight
 
 leaveSectionCountFragmentKind, leaveSectionListFragmentKind :: Text
 leaveSectionCountFragmentKind = "leave-section-count"
@@ -92,21 +118,36 @@ renderLeaveRequestsShell IndexView { .. } =
                 , appPanelDescription = Nothing
                 , appPanelHasActions = False
                 , appPanelActions = mempty
-                , appPanelHasCustomHeader = False
-                , appPanelCustomHeader = mempty
+                , appPanelHasCustomHeader = True
+                , appPanelCustomHeader = [hsx|<div class="d-flex justify-content-end">{renderSidePanelToggle leaveSidePanelRenderAttrs}</div>|]
                 , appPanelClass = "overflow-hidden"
                 , appPanelBodyClass = ""
                 , appPanelBody = renderleaveRequestsContentLiveFragment leaveRequests staffMembers currentViewerStaffId today archivePage archiveIsOpen warningThreshold warningPeriods
                 }
+        mainRegion =
+            renderSidePanelMainRegion leaveSidePanelRenderAttrs SidePanelRegionConfig
+                { sidePanelRegionId = Just "leave-requests-main-region"
+                , sidePanelRegionClass = "col-12 col-xl-8 col-xxl-9 leave-requests-layout-main"
+                , sidePanelRegionExtraAttrs = []
+                }
+                leaveRequestsPanel
+        layout =
+            renderSidePanelLayout leaveSidePanelRenderAttrs SidePanelRegionConfig
+                { sidePanelRegionId = Just "leave-side-panel-layout"
+                , sidePanelRegionClass = "row g-4 align-items-start leave-side-panel-layout"
+                , sidePanelRegionExtraAttrs = []
+                }
+                [hsx|
+                    {mainRegion}
+                    {renderLeaveSidePanelWithSwap Nothing venueToday blackouts leaveRequests staffMembers staffPanelEntries}
+                |]
         page = renderAppPage (AppPageConfig
             { appPageTitle = "Unavailability"
             , appPageDescription = Nothing
             , appPageActions = mempty
             , appPageHelpTopic = Just (PageHelpTopicId "leave")
             , appPageWidthClass = ""
-            , appPageBody =
-                renderUnavailabilityBlackoutsLiveFragment venueToday blackouts leaveRequests staffMembers
-                    <> leaveRequestsPanel
+            , appPageBody = layout
             })
         mountedPage = case liveUpdateSurface of
             Just surface -> renderFrontendSurfaceMount surface page
@@ -117,25 +158,98 @@ renderLeaveRequestsShell IndexView { .. } =
         </section>
     |]
 
+renderLeaveSidePanelWithSwap :: (?context :: ControllerContext) => Maybe Text -> Day -> [UnavailabilityBlackout] -> [LeaveRequest] -> [Staff] -> [LeaveStaffPanelEntry] -> Html
+renderLeaveSidePanelWithSwap maybeSwapOob venueToday blackouts leaveRequests staffMembers staffPanelEntries =
+    renderSidePanelPanelRegion leaveSidePanelRenderAttrs SidePanelRegionConfig
+        { sidePanelRegionId = Just (surfaceFragmentTargetId @Surface.LeaveRequestsSurface @Surface.LeaveSidePanelContent noSurfaceFields)
+        , sidePanelRegionClass = "col-12 col-xl-4 col-xxl-3 leave-side-panel"
+        , sidePanelRegionExtraAttrs = maybe [] (\swap -> [("hx-swap-oob", swap)]) maybeSwapOob
+        }
+        [hsx|
+            <div class="app-panel app-side-panel-scroll leave-side-panel-card">
+                <div class="app-panel-body app-side-panel-scroll-body">
+                    <div class="nav nav-pills leave-side-panel-tabs" role="tablist" aria-label="Unavailability side panel">
+                        <button class="nav-link active leave-side-panel-tab" id="leave-staff-tab" type="button" role="tab"
+                                data-bs-toggle="tab" data-bs-target="#leave-staff-pane" aria-controls="leave-staff-pane"
+                                aria-selected="true" {...leaveSidePanelTabAttrs LeaveStaffTab}>Staff</button>
+                        <button class="nav-link leave-side-panel-tab" id="leave-settings-tab" type="button" role="tab"
+                                data-bs-toggle="tab" data-bs-target="#leave-settings-pane" aria-controls="leave-settings-pane"
+                                aria-selected="false" {...leaveSidePanelTabAttrs LeaveSettingsTab}>Settings</button>
+                    </div>
+                    <div class="tab-content leave-side-panel-tab-content">
+                        <div class="tab-pane show active" id="leave-staff-pane" role="tabpanel" aria-labelledby="leave-staff-tab" tabindex="0">
+                            {renderLeaveStaffPanel staffPanelEntries}
+                        </div>
+                        <div class="tab-pane" id="leave-settings-pane" role="tabpanel" aria-labelledby="leave-settings-tab" tabindex="0">
+                            {renderUnavailabilityBlackoutsLiveFragment venueToday blackouts leaveRequests staffMembers}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        |]
+
+renderLeaveStaffPanel :: (?context :: ControllerContext) => [LeaveStaffPanelEntry] -> Html
+renderLeaveStaffPanel entries = [hsx|
+    <table class="leave-staff-table" {...leaveStaffPanelSortRootAttrs}>
+        <thead><tr>
+            <th scope="col" aria-sort="none"><button type="button" class="leave-staff-sort-button" {...leaveStaffPanelSortControlAttrs LeaveStaffSortByName}>Name</button></th>
+            <th scope="col" aria-sort="none"><button type="button" class="leave-staff-sort-button" {...leaveStaffPanelSortControlAttrs LeaveStaffSortByRole}>Role</button></th>
+            <th scope="col" aria-sort="none"><button type="button" class="leave-staff-sort-button" {...leaveStaffPanelSortControlAttrs LeaveStaffSortByCount}>Periods</button></th>
+            <th scope="col"><span class="visually-hidden">Locate unavailable periods</span></th>
+        </tr></thead>
+        <tbody>{forEach (sortOn (Text.toCaseFold . leaveStaffName . (.panelStaff)) entries) renderLeaveStaffPanelEntry}</tbody>
+    </table>
+|]
+
+renderLeaveStaffPanelEntry :: (?context :: ControllerContext) => LeaveStaffPanelEntry -> Html
+renderLeaveStaffPanelEntry entry =
+    SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightSource leaveStaffPeriodsLinkedHighlight staffKey $
+        applyAppShellActionAttrs
+            (appShellActionByMarker @OpenRosterStaffEditDialog)
+            AppShellActionRoute
+                { appShellActionRouteUrl = pathTo (EditStaffAction entry.panelStaff.id)
+                , appShellActionRouteFields = []
+                , appShellActionRouteCustomHtmx = []
+                , appShellActionRouteStandardUrl = Nothing
+                , appShellActionRouteExtraAttrs = []
+                }
+            [hsx|
+                <tr class="leave-staff-panel-entry" role="button" tabindex="0"
+                    {...leaveStaffPanelSortRowAttrs staffKey staffName roleLabel entry.panelPeriodCount entry.panelPendingCount}>
+                    <th scope="row">{staffName}</th>
+                    <td>{roleLabel}</td>
+                    <td><span class="leave-staff-count-total">{entry.panelPeriodCount}</span> <span class="leave-staff-count-pending">({entry.panelPendingCount})</span></td>
+                    <td>{locateButton}</td>
+                </tr>
+            |]
+  where
+    staffKey = "staff:" <> tshow entry.panelStaff.id
+    staffName = leaveStaffName entry.panelStaff
+    roleLabel = Text.toTitle (Text.replace "_" " " entry.panelStaffRole)
+    locateButton =
+        SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightPin leaveStaffPeriodsLinkedHighlight staffKey [hsx|
+            <button type="button" class="btn btn-sm btn-outline-secondary app-icon-button leave-staff-locate-button"
+                    aria-label={"Locate unavailable periods for " <> staffName} aria-pressed="false">
+                <i class="bi bi-eye" aria-hidden="true"></i>
+            </button>
+        |]
+
+leaveStaffName :: Staff -> Text
+leaveStaffName staff = staff.firstName <> " " <> staff.lastName
+
 renderUnavailabilityBlackoutsLiveFragment :: (?context :: ControllerContext) => Day -> [UnavailabilityBlackout] -> [LeaveRequest] -> [Staff] -> Html
 renderUnavailabilityBlackoutsLiveFragment today blackouts leaveRequests staffMembers =
     renderUnavailabilityBlackoutsValidationFragment today blackouts leaveRequests staffMembers Nothing
 
 renderUnavailabilityBlackoutsValidationFragment :: (?context :: ControllerContext) => Day -> [UnavailabilityBlackout] -> [LeaveRequest] -> [Staff] -> Maybe UnavailabilityBlackout -> Html
 renderUnavailabilityBlackoutsValidationFragment today persistedBlackouts leaveRequests staffMembers submittedBlackout = [hsx|
-    <section id={surfaceFragmentTargetId @Surface.LeaveRequestsSurface @Surface.UnavailabilityBlackouts noSurfaceFields} class="mb-4">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <div class="d-flex flex-wrap justify-content-between gap-2 align-items-start mb-3">
-                    <div>
-                        <h2 class="h5 mb-1">Submission blackout periods</h2>
-                        <p class="small app-muted mb-0">Staff cannot add unavailable time that overlaps these inclusive dates.</p>
-                    </div>
-                </div>
-                {if currentUserCanManageBlackouts then renderCreateBlackoutForm today createFormBlackout else mempty}
-                {renderBlackoutPeriods leaveRequests staffMembers renderedBlackouts}
-            </div>
+    <section id={surfaceFragmentTargetId @Surface.LeaveRequestsSurface @Surface.UnavailabilityBlackouts noSurfaceFields} class="leave-blackout-settings">
+        <div class="mb-3">
+            <h2 class="h5 mb-1">Submission blackout periods</h2>
+            <p class="small app-muted mb-0">Staff cannot add unavailable time that overlaps these inclusive dates.</p>
         </div>
+        {if currentUserCanManageBlackouts then renderCreateBlackoutForm today createFormBlackout else mempty}
+        {renderBlackoutPeriods leaveRequests staffMembers renderedBlackouts}
     </section>
 |]
   where
@@ -165,23 +279,23 @@ renderCreateBlackoutForm today blackout =
         (LeaveRequestsAction.createUnavailabilityBlackoutAction fields)
         (leaveRequestsActionRouteWithStandard (pathTo CreateUnavailabilityBlackoutAction))
         [hsx|
-            <div class="row g-2 align-items-end mb-3">
-                <div class="col-12 col-md-3">
+            <div class="row g-2 mb-3">
+                <div class="col-12">
                     <label class="form-label" for="blackout-start-date">First blocked date</label>
                     <input id="blackout-start-date" class={blackoutInputClass (getValidationFailure #startDate blackout)} type="date" name={surfaceFieldNameFrom @Surface.StartDate fields} value={tshow blackout.startDate} min={tshow today} required/>
                     {renderBlackoutStartDateError blackout}
                 </div>
-                <div class="col-12 col-md-3">
+                <div class="col-12">
                     <label class="form-label" for="blackout-end-date">Last blocked date</label>
                     <input id="blackout-end-date" class={blackoutInputClass (getValidationFailure #endDate blackout)} type="date" name={surfaceFieldNameFrom @Surface.EndDate fields} value={tshow blackout.endDate} min={tshow today} required/>
                     {renderBlackoutEndDateError blackout}
                 </div>
-                <div class="col-12 col-md-4">
+                <div class="col-12">
                     <label class="form-label" for="blackout-reason">Staff-visible reason</label>
                     <input id="blackout-reason" class={blackoutInputClass (getValidationFailure #reason blackout)} type="text" name={surfaceFieldNameFrom @Surface.Reason fields} value={blackout.reason} minlength="3" maxlength="160" required/>
                     {renderBlackoutReasonError blackout}
                 </div>
-                <div class="col-12 col-md-2 d-grid">
+                <div class="col-12 d-grid">
                     <button class="btn btn-primary" type="submit">Add blackout</button>
                 </div>
             </div>
@@ -252,11 +366,11 @@ renderUpdateBlackoutForm blackout = [hsx|
             (LeaveRequestsAction.updateUnavailabilityBlackoutAction fields)
             (leaveRequestsActionRouteWithStandard (pathTo (UpdateUnavailabilityBlackoutAction blackout.id)))
             [hsx|
-                <div class="row g-2 align-items-end">
-                    <div class="col-12 col-md-3"><label class="form-label">First blocked date</label><input class={blackoutInputClass (getValidationFailure #startDate blackout)} type="date" name={surfaceFieldNameFrom @Surface.StartDate fields} value={tshow blackout.startDate} required/>{renderBlackoutStartDateError blackout}</div>
-                    <div class="col-12 col-md-3"><label class="form-label">Last blocked date</label><input class={blackoutInputClass (getValidationFailure #endDate blackout)} type="date" name={surfaceFieldNameFrom @Surface.EndDate fields} value={tshow blackout.endDate} required/>{renderBlackoutEndDateError blackout}</div>
-                    <div class="col-12 col-md-4"><label class="form-label">Staff-visible reason</label><input class={blackoutInputClass (getValidationFailure #reason blackout)} type="text" name={surfaceFieldNameFrom @Surface.Reason fields} value={blackout.reason} minlength="3" maxlength="160" required/>{renderBlackoutReasonError blackout}</div>
-                    <div class="col-12 col-md-2 d-grid"><button class="btn btn-outline-primary" type="submit">Save blackout</button></div>
+                <div class="row g-2">
+                    <div class="col-12"><label class="form-label">First blocked date</label><input class={blackoutInputClass (getValidationFailure #startDate blackout)} type="date" name={surfaceFieldNameFrom @Surface.StartDate fields} value={tshow blackout.startDate} required/>{renderBlackoutStartDateError blackout}</div>
+                    <div class="col-12"><label class="form-label">Last blocked date</label><input class={blackoutInputClass (getValidationFailure #endDate blackout)} type="date" name={surfaceFieldNameFrom @Surface.EndDate fields} value={tshow blackout.endDate} required/>{renderBlackoutEndDateError blackout}</div>
+                    <div class="col-12"><label class="form-label">Staff-visible reason</label><input class={blackoutInputClass (getValidationFailure #reason blackout)} type="text" name={surfaceFieldNameFrom @Surface.Reason fields} value={blackout.reason} minlength="3" maxlength="160" required/>{renderBlackoutReasonError blackout}</div>
+                    <div class="col-12 d-grid"><button class="btn btn-outline-primary" type="submit">Save blackout</button></div>
                 </div>
             |]
 
@@ -626,7 +740,8 @@ renderManagerSectionList listFragmentId requests staffMembers currentViewerStaff
                 |]
 
 renderManagerLeaveRequestRow :: (?context :: ControllerContext) => [Staff] -> Maybe UUID -> Bool -> LeaveRequest -> Html
-renderManagerLeaveRequestRow staffMembers currentViewerStaffId showActions leaveRequest = [hsx|
+renderManagerLeaveRequestRow staffMembers currentViewerStaffId showActions leaveRequest =
+    SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightMember leaveStaffPeriodsLinkedHighlight ("staff:" <> tshow leaveRequest.staffId) Nothing [hsx|
     <article class="leave-request-row">
         <div class="leave-request-row-staff">
             <div class="leave-request-row-name">{resolveStaffName leaveRequest.staffId staffMembers}</div>

@@ -15,6 +15,7 @@ module Web.LeaveRequests.ReadModel
     , renderLeaveRequestsFragmentFromReadModel
     ) where
 
+import Application.Helper.Controller (venueRoleToText)
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Action as LeaveRequestsAction
@@ -25,7 +26,9 @@ import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldE
 import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.Profiling
+import Application.Helper.Staff (isTrialStaff)
 import Data.Coerce (coerce)
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
@@ -41,6 +44,7 @@ data LeaveRequestsReadModel = LeaveRequestsReadModel
     { leaveReadModelRequests             :: [LeaveRequest]
     , leaveReadModelStaffMembers         :: [Staff]
     , leaveReadModelCurrentViewerStaffId :: Maybe UUID.UUID
+    , leaveReadModelStaffPanelEntries    :: [LeaveStaffPanelEntry]
     , leaveReadModelToday                :: Day
     , leaveReadModelWarningThreshold     :: Maybe Int
     , leaveReadModelWarningPeriods       :: [AvailabilityWarningPeriod]
@@ -50,6 +54,7 @@ data LeaveRequestsReadModel = LeaveRequestsReadModel
 
 data LeaveRequestsFragment
     = LeaveRequestsContent
+    | LeaveSidePanelContent
     | UnavailabilityBlackouts
     | LeaveAvailabilityWarnings
     | LeaveRequestsSectionCount !Text
@@ -92,6 +97,7 @@ fetchLeaveRequestsReadModel = do
     leaveReadModelRequests <- profileActionSpan "leave.fetch_requests" fetchVisibleLeaveRequests
     leaveReadModelCurrentViewerStaffId <- fmap (fmap (coerce . get #id)) fetchCurrentUserStaff
     leaveReadModelToday <- liftIO (utctDay <$> getCurrentTime)
+    leaveReadModelStaffPanelEntries <- profileActionSpan "leave.build_staff_panel" (buildLeaveStaffPanelEntries leaveReadModelToday leaveReadModelStaffMembers leaveReadModelRequests)
     venueConfig <- profileActionSpan "leave.fetch_venue_config" fetchVenueConfig
     leaveReadModelVenueToday <- profileActionSpan "leave.fetch_venue_today" (currentVenueCalendarDay venueConfig)
     leaveReadModelBlackouts <- profileActionSpan "leave.fetch_blackouts" (fetchCurrentAndFutureUnavailabilityBlackouts leaveReadModelVenueToday)
@@ -102,6 +108,35 @@ fetchLeaveRequestsReadModel = do
                 (\threshold -> buildAvailabilityWarningPeriods threshold leaveReadModelStaffMembers leaveReadModelRequests)
                 leaveReadModelWarningThreshold
     pure LeaveRequestsReadModel { .. }
+
+buildLeaveStaffPanelEntries :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Day -> [Staff] -> [LeaveRequest] -> IO [LeaveStaffPanelEntry]
+buildLeaveStaffPanelEntries today staffMembers leaveRequests = do
+    let eligibleStaff = filter (\staff -> staff.isActive && isNothing staff.archivedAt) staffMembers
+    let linkedUserIds = mapMaybe (.userId) eligibleStaff
+    memberships <-
+        if null linkedUserIds
+            then pure []
+            else query @VenueMembership
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhereIn (#userId, linkedUserIds)
+                |> filterWhere (#isActive, True)
+                |> fetch
+    let membershipsByUserId = Map.fromList [(membership.userId, membership) | membership <- memberships]
+    let currentAndFutureRequests = activeLeaveRequests leaveRequests today
+    let periodCountByStaffId = Map.fromListWith (+) [(request.staffId, 1 :: Int) | request <- currentAndFutureRequests]
+    let pendingCountByStaffId = Map.fromListWith (+) [(request.staffId, 1 :: Int) | request <- currentAndFutureRequests, request.status == LeaveRequestStatusEnumPending]
+    pure
+        [ LeaveStaffPanelEntry
+            { panelStaff = staff
+            , panelStaffRole =
+                if isTrialStaff staff
+                    then "trial"
+                    else maybe (venueRoleToText Worker) (venueRoleToText . (.venueRole)) (staff.userId >>= (`Map.lookup` membershipsByUserId))
+            , panelPeriodCount = Map.findWithDefault 0 (unpackId staff.id) periodCountByStaffId
+            , panelPendingCount = Map.findWithDefault 0 (unpackId staff.id) pendingCountByStaffId
+            }
+        | staff <- eligibleStaff
+        ]
 
 renderLeaveRequestsFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequestsFragment -> IO (Maybe Blaze.Html)
 renderLeaveRequestsFragment fragment =
@@ -122,6 +157,14 @@ renderLeaveRequestsFragmentFromReadModel renderMode readModel fragment =
                 currentLeaveArchiveOpen
                 readModel.leaveReadModelWarningThreshold
                 readModel.leaveReadModelWarningPeriods
+        LeaveSidePanelContent ->
+            renderLeaveSidePanelWithSwap
+                (fragmentRenderSwap renderMode)
+                readModel.leaveReadModelToday
+                readModel.leaveReadModelBlackouts
+                readModel.leaveReadModelRequests
+                readModel.leaveReadModelStaffMembers
+                readModel.leaveReadModelStaffPanelEntries
         UnavailabilityBlackouts ->
             renderUnavailabilityBlackoutsLiveFragment readModel.leaveReadModelVenueToday readModel.leaveReadModelBlackouts readModel.leaveReadModelRequests readModel.leaveReadModelStaffMembers
         LeaveAvailabilityWarnings ->
@@ -131,6 +174,9 @@ renderLeaveRequestsFragmentFromReadModel renderMode readModel fragment =
         LeaveRequestsSectionList section ->
             renderLeaveSectionListLiveFragment section readModel.leaveReadModelRequests readModel.leaveReadModelStaffMembers readModel.leaveReadModelCurrentViewerStaffId readModel.leaveReadModelToday archivePagination archivedPageRequests
     where
+        fragmentRenderSwap = \case
+            FragmentPlain        -> Nothing
+            FragmentOob swapAttr -> swapAttr
         contentRenderer = case renderMode of
             FragmentPlain        -> renderleaveRequestsContentLiveFragment
             FragmentOob swapAttr -> renderleaveRequestsContentLiveFragmentWithSwap swapAttr
@@ -139,11 +185,12 @@ renderLeaveRequestsFragmentFromReadModel renderMode readModel fragment =
         archivedPageRequests = archivePageItems archivePagination archivedRequests
 
 leaveRequestsIndexView :: (?context :: ControllerContext, ?request :: Request) => LeaveRequestsReadModel -> IndexView
-leaveRequestsIndexView LeaveRequestsReadModel { leaveReadModelRequests, leaveReadModelStaffMembers, leaveReadModelCurrentViewerStaffId, leaveReadModelToday, leaveReadModelWarningThreshold, leaveReadModelWarningPeriods, leaveReadModelVenueToday, leaveReadModelBlackouts } =
+leaveRequestsIndexView LeaveRequestsReadModel { leaveReadModelRequests, leaveReadModelStaffMembers, leaveReadModelCurrentViewerStaffId, leaveReadModelStaffPanelEntries, leaveReadModelToday, leaveReadModelWarningThreshold, leaveReadModelWarningPeriods, leaveReadModelVenueToday, leaveReadModelBlackouts } =
     IndexView
         { leaveRequests = leaveReadModelRequests
         , staffMembers = leaveReadModelStaffMembers
         , currentViewerStaffId = leaveReadModelCurrentViewerStaffId
+        , staffPanelEntries = leaveReadModelStaffPanelEntries
         , today = leaveReadModelToday
         , archivePage = currentLeaveArchivePage
         , archiveIsOpen = currentLeaveArchiveOpen

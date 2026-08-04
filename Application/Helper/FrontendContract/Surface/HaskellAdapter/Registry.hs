@@ -112,6 +112,7 @@ type RegisteredSurfaceFragmentAdapterHomes =
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterRow
      , SurfaceFragmentAdapterHome RosterDayTimelineAdapterFamily Roster.RosterDayTimelineContent
      , SurfaceFragmentAdapterHome LeaveRequestsAdapterFamily LeaveRequests.UnavailabilityBlackouts
+     , SurfaceFragmentAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveSidePanelContent
      , SurfaceFragmentAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveAvailabilityWarnings
      , SurfaceFragmentAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveSectionCount
      , SurfaceFragmentAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveSectionList

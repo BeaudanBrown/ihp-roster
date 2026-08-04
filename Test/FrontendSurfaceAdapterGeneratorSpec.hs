@@ -397,6 +397,7 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
                         , ("roster", "roster-row")
                         , ("roster-day-timeline", "roster-day-timeline-content")
                         , ("leave-requests", "unavailability-blackouts")
+                        , ("leave-requests", "leave-side-panel-content")
                         , ("leave-requests", "leave-availability-warnings")
                         , ("leave-requests", "leave-section-count")
                         , ("leave-requests", "leave-section-list")

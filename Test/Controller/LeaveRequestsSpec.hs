@@ -607,6 +607,51 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "leave-requests-content"
                 response `responseBodyShouldContain` "id=\"leave-requests-content\""
 
+        it "renders the complete manager Staff and Settings side panel" $ withContext do
+            withCleanDb do
+                today <- utctDay <$> getCurrentTime
+                now <- getCurrentTime
+                venue <- createVenueWithConfig "Leave Side Panel Venue"
+                manager <- createUserRecord "leave-side-panel-manager@example.com" "staff" True
+                workerUser <- createUserRecord "leave-side-panel-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue workerUser Worker
+                worker <- createStaffRecord venue (Just workerUser) "Ava" "Available"
+                trial <- createStaffRecord venue Nothing "Tia" "Trial"
+                inactive <- createStaffRecord venue Nothing "Ina" "Inactive" >>= updateRecord . set #isActive False
+                archived <- createStaffRecord venue Nothing "Arlo" "Archived" >>= updateRecord . set #archivedAt (Just now)
+                _ <- createLeaveRequestRecord venue worker (addDays 1 today) (addDays 2 today) LeaveRequestStatusEnumPending
+                _ <- createLeaveRequestRecord venue worker (addDays 3 today) (addDays 4 today) LeaveRequestStatusEnumApproved
+                _ <- createLeaveRequestRecord venue worker (addDays (-3) today) (addDays (-2) today) LeaveRequestStatusEnumPending
+                _ <- createLeaveRequestRecord venue trial (addDays 5 today) (addDays 6 today) LeaveRequestStatusEnumPending
+                _ <- createLeaveRequestRecord venue inactive (addDays 7 today) (addDays 8 today) LeaveRequestStatusEnumPending
+                _ <- createLeaveRequestRecord venue archived (addDays 9 today) (addDays 10 today) LeaveRequestStatusEnumPending
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction LeaveRequestsAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-bepis-leave-requests-leave-side-panel-root=\"true\""
+                response `responseBodyShouldContain` "data-bepis-leave-requests-leave-side-panel-toggle=\"true\""
+                response `responseBodyShouldContain` "data-bepis-leave-requests-leave-side-panel-tab=\"staff\""
+                response `responseBodyShouldContain` "data-bepis-leave-requests-leave-side-panel-tab=\"settings\""
+                response `responseBodyShouldContain` "data-bepis-leave-requests-leave-staff-panel-sort-root=\"true\""
+                response `responseBodyShouldContain` "data-bepis-leave-requests-leave-staff-highlight-source=\"staff:"
+                response `responseBodyShouldContain` "data-bepis-leave-requests-leave-staff-highlight-member=\"staff:"
+                response `responseBodyShouldContain` "data-bepis-leave-requests-leave-staff-highlight-pin=\"staff:"
+                body <- responseBody response
+                let bodyText = cs (LByteString.unpack body)
+                    staffPane = fst (Text.breakOn "id=\"leave-settings-pane\"" (snd (Text.breakOn "id=\"leave-staff-pane\"" bodyText)))
+                Text.isInfixOf "Ava Available" staffPane `shouldBe` True
+                Text.isInfixOf "Tia Trial" staffPane `shouldBe` True
+                Text.isInfixOf "Ina Inactive" staffPane `shouldBe` False
+                Text.isInfixOf "Arlo Archived" staffPane `shouldBe` False
+                response `responseBodyShouldContain` "leave-staff-count-total\">2</span>"
+                response `responseBodyShouldContain` "leave-staff-count-pending\">(1)</span>"
+                response `responseBodyShouldContain` cs (pathTo (EditStaffAction worker.id))
+                response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
+                response `responseBodyShouldContain` "Submission blackout periods"
+
         it "denies the leave review page to ordinary staff" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
