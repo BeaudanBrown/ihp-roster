@@ -5,10 +5,14 @@ module Application.Helper.Impersonation
     , exitCurrentImpersonation
     , impersonationSessionIdSessionKey
     , initImpersonationContext
+    , initSupportImpersonationOptions
     ) where
 
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
+import qualified Data.Map.Strict as Map
+import Data.List (sortOn)
+import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
 import Generated.Types
@@ -20,12 +24,70 @@ import Application.Helper.Audit (AuditEventType (..),
                                  recordAuditEvent, recordCurrentUserAuditEvent)
 import Application.Helper.ControllerContext
 import Application.Helper.Htmx (requestAuditSourceChannel)
+import Application.VenueRole (venueRoleLabel)
 
 effectiveUserSessionKey :: ByteString
 effectiveUserSessionKey = "supportImpersonationEffectiveUserId"
 
 impersonationSessionIdSessionKey :: ByteString
 impersonationSessionIdSessionKey = "supportImpersonationSessionId"
+
+initSupportImpersonationOptions :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+initSupportImpersonationOptions = do
+    putContext (SupportImpersonationOptions [])
+    when (currentUserIsSuperAdmin && isJust currentVenueOrNothing) do
+        memberships <- query @VenueMembership
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#isActive, True)
+            |> filterWhere (#archivedAt, Nothing)
+            |> fetch
+        let selectableMemberships =
+                filter ((/= unpackId authenticatedCurrentUser.id) . (.userId)) memberships
+        unless (null selectableMemberships) do
+            users <- query @User
+                |> filterWhereIn (#id, map (Id . (.userId)) selectableMemberships)
+                |> filterWhere (#deactivatedAt, Nothing)
+                |> fetch
+            staffRows <- query @Staff
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhereIn (#userId, map (Just . (.userId)) selectableMemberships)
+                |> fetch
+            let usersById = Map.fromList [(unpackId user.id, user) | user <- users]
+            let staffByUserId = Map.fromList [(userId, staff) | staff <- staffRows, Just userId <- [staff.userId]]
+            let candidates = mapMaybe (supportImpersonationCandidate usersById staffByUserId) selectableMemberships
+            let nameCounts = Map.fromListWith (+) [(Text.toCaseFold baseName, 1 :: Int) | (_, _, baseName, _) <- candidates]
+            let options =
+                    candidates
+                        |> map (supportImpersonationOption nameCounts)
+                        |> sortOn (Text.toCaseFold . (.supportImpersonationLabel))
+            putContext (SupportImpersonationOptions options)
+
+supportImpersonationCandidate
+    :: Map.Map UUID User
+    -> Map.Map UUID Staff
+    -> VenueMembership
+    -> Maybe (Id User, VenueRoleEnum, Text, Text)
+supportImpersonationCandidate usersById staffByUserId membership = do
+    user <- Map.lookup membership.userId usersById
+    staff <- Map.lookup membership.userId staffByUserId
+    let baseName = fromMaybe staff.firstName staff.preferredName
+    pure (user.id, membership.venueRole, baseName, staff.lastName)
+
+supportImpersonationOption
+    :: Map.Map Text Int
+    -> (Id User, VenueRoleEnum, Text, Text)
+    -> SupportImpersonationOption
+supportImpersonationOption nameCounts (userId, venueRole, baseName, lastName) =
+    SupportImpersonationOption
+        { supportImpersonationUserId = userId
+        , supportImpersonationLabel = disambiguatedName <> " — " <> venueRoleLabel venueRole
+        , supportImpersonationRole = venueRole
+        }
+    where
+        disambiguatedName
+            | Map.findWithDefault 0 (Text.toCaseFold baseName) nameCounts > 1 =
+                baseName <> " " <> Text.take 1 lastName <> "."
+            | otherwise = baseName
 
 initImpersonationContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 initImpersonationContext = do

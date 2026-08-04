@@ -248,6 +248,90 @@ tests = aroundAll withDatabaseTestContext do
             ClientSession.decrypt key encrypted `shouldSatisfy` isJust
             ClientSession.decrypt key tampered `shouldBe` Nothing
 
+        it "renders active venue users in desktop and mobile impersonation selectors without emails" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Impersonation Selector Venue"
+                founder <- createUserRecordWithPlatformRole "selector-founder@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord venue founder VenueOwner
+                worker <- createUserRecord "selector-ada-lovelace@example.com" "staff" True
+                workerMembership <- createVenueMembershipRecord venue worker Worker
+                workerStaff <- query @Staff
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#userId, Just (unpackId worker.id))
+                    |> fetchOne
+                _ <- workerStaff
+                    |> set #firstName "Ada"
+                    |> set #lastName "Lovelace"
+                    |> set #preferredName (Just "Ally")
+                    |> updateRecord
+                manager <- createUserRecord "selector-ada-byron@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                managerStaff <- query @Staff
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#userId, Just (unpackId manager.id))
+                    |> fetchOne
+                _ <- managerStaff
+                    |> set #firstName "Ada"
+                    |> set #lastName "Byron"
+                    |> set #preferredName (Just "Ally")
+                    |> updateRecord
+                inactiveUser <- createUserRecord "selector-inactive@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue inactiveUser Supervisor
+                inactiveAt <- getCurrentTime
+                _ <- inactiveUser |> set #deactivatedAt (Just inactiveAt) |> updateRecord
+                inactiveMembershipUser <- createUserRecord "selector-archived@example.com" "staff" True
+                inactiveMembership <- createVenueMembershipRecord venue inactiveMembershipUser VenueAdmin
+                _ <- inactiveMembership
+                    |> set #isActive False
+                    |> set #archivedAt (Just inactiveAt)
+                    |> updateRecord
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    callAction SupportAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "id=\"support-impersonation-user\""
+                response `responseBodyShouldContain` "id=\"support-impersonation-user-mobile\""
+                response `responseBodyShouldContain` "Super admin"
+                response `responseBodyShouldContain` "Ally L. — Worker"
+                response `responseBodyShouldContain` "Ally B. — Manager"
+                response `responseBodyShouldNotContain` worker.email
+                response `responseBodyShouldNotContain` manager.email
+                response `responseBodyShouldNotContain` inactiveUser.email
+                response `responseBodyShouldNotContain` inactiveMembershipUser.email
+                workerMembership.venueRole `shouldBe` Worker
+
+        it "switches effective users and exits through safe full-page return paths" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Impersonation Selector Transition Venue"
+                founder <- createUserRecordWithPlatformRole "selector-transition-founder@example.com" "staff" (Just SuperAdmin) True
+                targetUser <- createUserRecord "selector-transition-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue targetUser Manager
+
+                withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    enterResponse <- callActionWithParams
+                        SwitchSupportImpersonationAction
+                        [ ("userId", cs (inputValue targetUser.id))
+                        , ("next", "/LeaveRequests?weekOffset=1")
+                        ]
+                    enterResponse `responseStatusShouldBe` status302
+                    lookup HTTP.hLocation (Wai.responseHeaders enterResponse)
+                        `shouldBe` Just "http://localhost/LeaveRequests?weekOffset=1"
+                    getSession @(Id User) effectiveUserSessionKey `shouldReturn` Just targetUser.id
+                    impersonationSessionId <- getSession @Text impersonationSessionIdSessionKey
+                    impersonationSessionId `shouldSatisfy` isJust
+
+                    exitResponse <- callActionWithParams
+                        SwitchSupportImpersonationAction
+                        [ ("userId", "")
+                        , ("next", "/Timesheets")
+                        ]
+                    exitResponse `responseStatusShouldBe` status302
+                    lookup HTTP.hLocation (Wai.responseHeaders exitResponse)
+                        `shouldBe` Just "http://localhost/Timesheets"
+                    getSession @(Id User) effectiveUserSessionKey `shouldReturn` Nothing
+                    getSession @Text impersonationSessionIdSessionKey `shouldReturn` Nothing
+
         it "requires a fresh passkey verification before entering impersonation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Impersonation Passkey Venue"

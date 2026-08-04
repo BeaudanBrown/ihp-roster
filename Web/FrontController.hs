@@ -9,7 +9,8 @@ import Application.Helper.Feedback (SupportUnreadFeedbackCount (..),
                                     fetchSupportUnreadFeedbackCount)
 import Application.Helper.Impersonation (effectiveUserSessionKey,
                                          impersonationSessionIdSessionKey,
-                                         initImpersonationContext)
+                                         initImpersonationContext,
+                                         initSupportImpersonationOptions)
 import Application.Helper.Profiling (initRequestProfiling, profileActionSpan)
 import qualified Control.Exception as Exception
 import qualified Data.Text.IO as TextIO
@@ -88,6 +89,7 @@ instance InitControllerContext WebApplication where
                 putContext (Nothing :: Maybe User)
         initCurrentVenueContext
         initImpersonationContext
+        initSupportImpersonationOptions
         initBillingNavigationContext
         initFeedbackContext
 

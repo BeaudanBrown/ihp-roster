@@ -192,7 +192,8 @@ a:not(.btn):hover {
     margin: 0;
 }
 
-.support-venue-switch-form {
+.support-venue-switch-form,
+.support-impersonation-switch-form {
     min-width: calc(12rem * var(--app-density-control-scale));
 }
 
@@ -307,9 +308,16 @@ a:not(.btn):hover {
     text-align: center;
 }
 
-.app-mobile-nav-venue {
+.app-mobile-nav-support-controls {
+    display: flex;
+    flex-direction: column;
+    gap: calc(0.65rem * var(--app-density-space-scale));
     padding-bottom: calc(0.85rem * var(--app-density-space-scale));
     border-bottom: 1px solid var(--app-border);
+}
+
+.app-mobile-nav-support-controls form {
+    width: 100%;
 }
 
 .app-mobile-nav-logout {

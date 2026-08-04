@@ -3,7 +3,12 @@
 module Web.View.Layout (defaultLayout, Html) where
 
 import Application.Billing.Stripe (StripeOwnerNavigationVisibility (..))
-import Application.Helper.Controller (currentSupportVenueOptions,
+import Application.Helper.Controller (EffectiveUser (..),
+                                      ImpersonationRequestContext (..),
+                                      SupportImpersonationOption (..),
+                                      currentImpersonationOrNothing,
+                                      currentSupportImpersonationOptions,
+                                      currentSupportVenueOptions,
                                       currentUserIsImpersonating,
                                       currentVenueMembershipOrNothing,
                                       currentVenueOrNothing)
@@ -58,6 +63,7 @@ renderAppHeader =
                     <a class="navbar-brand fw-semibold" href={RosterWeeksAction}>Bepis</a>
                     <div class="app-header-desktop-actions d-none d-md-flex align-items-center gap-2 ms-auto">
                         {renderWhenAudience SupportAudience (renderSupportVenueSwitcher "support-venue-switch" "support-venue-switch-form")}
+                        {renderWhenAudience SupportAudience (renderSupportImpersonationSwitcher "support-impersonation-user" "support-impersonation-switch-form")}
                         {renderWhenAudience StaffProfileAudience renderDesktopFeedbackButton}
                         <div class="navbar-nav app-header-nav d-flex flex-row gap-1 align-items-center">
                             {renderDesktopNavLinks}
@@ -79,7 +85,10 @@ renderAppHeader =
                     <button type="button" class="btn-close btn-close-white app-mobile-nav-close" data-bs-dismiss="offcanvas" aria-label="Close navigation menu"></button>
                 </div>
                 <div class="offcanvas-body app-mobile-nav-body">
-                    {renderWhenAudience SupportAudience (renderSupportVenueSwitcher "support-venue-switch-mobile" "support-venue-switch-form app-mobile-nav-venue")}
+                    <div class="app-mobile-nav-support-controls">
+                        {renderWhenAudience SupportAudience (renderSupportVenueSwitcher "support-venue-switch-mobile" "support-venue-switch-form")}
+                        {renderWhenAudience SupportAudience (renderSupportImpersonationSwitcher "support-impersonation-user-mobile" "support-impersonation-switch-form")}
+                    </div>
                     <nav class="app-mobile-nav-list" aria-label="Primary navigation">
                         {renderMobileNavLinks}
                     </nav>
@@ -226,6 +235,30 @@ renderSupportVenueOption :: Venue -> Html
 renderSupportVenueOption venue = [hsx|
     <option value={venue.id} selected={Just venue.id == fmap (.id) currentVenueOrNothing}>
         {venue.name}
+    </option>
+|]
+
+renderSupportImpersonationSwitcher :: (?context :: ControllerContext, ?request :: Request) => Text -> Text -> Html
+renderSupportImpersonationSwitcher switchId formClass = [hsx|
+    <form class={formClass} method="POST" action={SwitchSupportImpersonationAction}>
+        <input type="hidden" name="next" value={TextEncoding.decodeUtf8 getRequestPathAndQuery}/>
+        <div class="input-group input-group-sm">
+            <label class="input-group-text" for={switchId}>View as</label>
+            <select id={switchId} class="form-select" name="userId" onchange="this.form.submit()">
+                <option value="" selected={isNothing currentImpersonationOrNothing}>Super admin</option>
+                {forEach currentSupportImpersonationOptions renderSupportImpersonationOption}
+            </select>
+        </div>
+    </form>
+|]
+
+renderSupportImpersonationOption :: (?context :: ControllerContext) => SupportImpersonationOption -> Html
+renderSupportImpersonationOption userOption = [hsx|
+    <option
+        value={userOption.supportImpersonationUserId}
+        selected={Just userOption.supportImpersonationUserId == fmap (get #id . effectiveUserRecord . impersonationEffectiveUser) currentImpersonationOrNothing}
+    >
+        {userOption.supportImpersonationLabel}
     </option>
 |]
 

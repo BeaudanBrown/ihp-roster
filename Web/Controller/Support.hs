@@ -245,6 +245,30 @@ instance Controller SupportController where
         setSuccessMessage "Returned to Super admin mode."
         redirectTo SupportAction
 
+    action currentAction@SwitchSupportImpersonationAction = runBepis currentAction BepisMutationAction do
+        let selectedUserId = Text.strip (paramOrDefault @Text "" "userId")
+        let nextPath = paramOrNothing @Text "next"
+        if Text.null selectedUserId
+            then do
+                void (exitCurrentImpersonation "selector_exit")
+                setSuccessMessage "Returned to Super admin mode."
+                case nextPath of
+                    Just safePath | isSafeReturnPath safePath -> redirectToPath safePath
+                    _ -> redirectTo SupportAction
+            else do
+                ensureCurrentVenue
+                ensureFreshPasskeyReady
+                case parseUUIDText selectedUserId of
+                    Nothing -> renderAccessDenied
+                    Just userId ->
+                        enterCurrentVenueImpersonation (Id userId) >>= \case
+                            Nothing -> renderAccessDenied
+                            Just _ -> do
+                                setSuccessMessage "Support impersonation started."
+                                case nextPath of
+                                    Just safePath | isSafeReturnPath safePath -> redirectToPath safePath
+                                    _ -> redirectTo RosterWeeksAction
+
     action currentAction@SwitchSupportVenueAction = runBepis currentAction BepisPageAction do
         void (exitCurrentImpersonation "venue_switch")
         let venueId = (coerce (param @UUID "venueId") :: Id Venue)

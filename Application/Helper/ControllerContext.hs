@@ -34,6 +34,15 @@ authenticatedCurrentUser =
 
 newtype SupportVenueOptions = SupportVenueOptions { supportVenueOptions :: [Venue] }
 
+newtype SupportImpersonationOptions = SupportImpersonationOptions { supportImpersonationOptions :: [SupportImpersonationOption] }
+
+data SupportImpersonationOption = SupportImpersonationOption
+    { supportImpersonationUserId :: !(Id User)
+    , supportImpersonationLabel  :: !Text
+    , supportImpersonationRole   :: !VenueRoleEnum
+    }
+    deriving (Eq, Show)
+
 data CurrentVenueSelection = CurrentVenueSelection
     { requestedVenueId :: !(Maybe (Id Venue))
     , resolvedVenueId  :: !(Maybe (Id Venue))
@@ -141,6 +150,13 @@ currentSupportVenueOptionsOrNothing =
 
 currentSupportVenueOptions :: (?context :: ControllerContext) => [Venue]
 currentSupportVenueOptions = fromMaybe [] currentSupportVenueOptionsOrNothing
+
+currentSupportImpersonationOptions :: (?context :: ControllerContext) => [SupportImpersonationOption]
+currentSupportImpersonationOptions =
+    case unsafePerformIO (maybeFromContext @SupportImpersonationOptions) of
+        Nothing                                      -> []
+        Just (SupportImpersonationOptions userOptions) -> userOptions
+{-# NOINLINE currentSupportImpersonationOptions #-}
 
 currentVenueRole :: (?context :: ControllerContext) => VenueRoleEnum
 currentVenueRole =
