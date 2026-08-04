@@ -348,7 +348,7 @@ tests = aroundAll withDatabaseTestContext do
                     getSession @(Id User) effectiveUserSessionKey `shouldReturn` Nothing
                     getSession @Text impersonationSessionIdSessionKey `shouldReturn` Nothing
 
-                    forM_ ["https://evil.example/steal", "/\\evil.example/steal"] \unsafePath -> do
+                    forM_ ["https://evil.example/steal", "/\\evil.example/steal", "/\DEL/steal"] \unsafePath -> do
                         unsafeReturnResponse <- callActionWithParams
                             SwitchSupportImpersonationAction
                             [ ("userId", cs (inputValue targetUser.id))

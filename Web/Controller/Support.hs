@@ -25,6 +25,7 @@ import Application.PublicHolidays.Job (enqueuePublicHolidayRefreshJob,
 import Application.Support.LiveUpdates
 import Application.VenueOnboardingInvitation.Mutations (withVenueOnboardingInvitationRenewalLock)
 import Control.Monad (forM, forM_, void)
+import Data.Char (isControl)
 import Data.Coerce (coerce)
 import qualified Data.Text as Text
 import Web.Controller.Prelude
@@ -409,4 +410,4 @@ isSafeReturnPath candidate =
     Text.isPrefixOf "/" candidate
     && not (Text.isPrefixOf "//" candidate)
     && not (Text.isInfixOf "://" candidate)
-    && Text.all (\character -> character >= ' ' && character /= '\\') candidate
+    && Text.all (\character -> not (isControl character) && character /= '\\') candidate
