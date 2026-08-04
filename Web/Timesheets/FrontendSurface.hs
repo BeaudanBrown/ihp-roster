@@ -10,10 +10,12 @@ module Web.Timesheets.FrontendSurface
     , timesheetsDaySurfaceImpl
     , timesheetsSurfaceImpl
     , timesheetsSurfaceMountConfig
+    , timesheetStaffCardsLinkedHighlight
     , timesheetsSurfaceScopeKey
     , timesheetsSurfaceFragmentKeys
     ) where
 
+import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
                                                          SurfaceScope,
                                                          surfaceScopeKey)
@@ -69,6 +71,10 @@ timesheetsSurfaceScope scope =
 
 timesheetsSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
 timesheetsSurfaceFragmentKeys = map (.mountedFragmentKey)
+
+timesheetStaffCardsLinkedHighlight :: SurfaceIR.LinkedHighlightIR
+timesheetStaffCardsLinkedHighlight =
+    surfaceLinkedHighlightValue @Surface.TimesheetsSurface @Surface.TimesheetStaffCardsHighlight
 
 timesheetsCandidateMountedFragments :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> [FrontendSurfaceMountedFragment]
 timesheetsCandidateMountedFragments scope mountState =

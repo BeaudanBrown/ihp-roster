@@ -871,6 +871,14 @@ tests = describe "FrontendSurface DSL foundation" do
             `shouldContain` [HtmxOption (HtmxActionSyncIR (HtmxTypedSyntaxIR "closest #timesheet-week-shell:replace" ["timesheet-week-shell"]))]
         navigateAction.htmxActionOptions
             `shouldSatisfy` all (\case HtmxOption HtmxActionCustomHtmxIR {} -> False; _ -> True)
+        map (.linkedHighlightName) surface.surfaceLinkedHighlights
+            `shouldBe` ["timesheet-staff-cards-highlight"]
+        map (.completeSetSortName) surface.surfaceCompleteSetSorts
+            `shouldBe` ["timesheet-staff-panel-sort"]
+        map (.tabSetName) surface.surfaceTabSets
+            `shouldBe` ["timesheet-side-panel-tabs"]
+        map (.sidePanelName) surface.surfaceSidePanels
+            `shouldBe` ["timesheet-side-panel"]
 
     it "renders only browser-reachable contracts for the unregistered fixture" do
         frontendSurfaceFixtureTypeScript `shouldContainText` "export type ContractFixtureSurfaceFragmentKey ="
