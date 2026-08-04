@@ -1889,18 +1889,25 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [("weekOffset", "0"), ("staffFilterId", idToParam workerB.id)]
+                        [("weekOffset", "0"), ("staffFilterId", idToParam workerA.id)]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "timesheet-side-panel"
                 response `responseBodyShouldContain` "timesheet-staff-panel-entry"
+                response `responseBodyShouldContain` "data-bepis-timesheets-timesheet-side-panel-root=\"true\""
+                response `responseBodyShouldContain` "data-bepis-timesheets-timesheet-side-panel-toggle=\"true\""
+                response `responseBodyShouldContain` "data-bepis-timesheets-timesheet-side-panel-tab=\"staff\""
+                response `responseBodyShouldContain` "data-bepis-timesheets-timesheet-staff-panel-sort-root=\"true\""
+                response `responseBodyShouldContain` "data-bepis-timesheets-timesheet-staff-highlight-source=\"staff:"
+                response `responseBodyShouldContain` "data-bepis-timesheets-timesheet-staff-highlight-member=\"staff:"
+                response `responseBodyShouldContain` "data-bepis-timesheets-timesheet-staff-highlight-pin=\"staff:"
                 response `responseBodyShouldContain` "Ava Counted"
                 response `responseBodyShouldContain` "Bea Unfiltered"
                 response `responseBodyShouldContain` "timesheet-staff-count-total\">2</span>"
                 response `responseBodyShouldContain` "timesheet-staff-count-approved\">(1)</span>"
                 response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
                 response `responseBodyShouldContain` cs (pathTo (EditStaffAction workerA.id))
-                response `responseBodyShouldNotContain` "timesheet-entry-staff-name\">Ava Counted"
+                response `responseBodyShouldNotContain` "timesheet-entry-staff-name\">Bea Unfiltered"
 
         it "renders FrontendSurface refresh urls with only current staff filter state" $ withContext do
             withCleanDb do
