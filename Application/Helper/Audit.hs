@@ -1,5 +1,6 @@
 module Application.Helper.Audit
     ( module Application.Helper.Audit.Vocabulary
+    , attachImpersonationAuditRequestContext
     , recordAuditEvent
     , recordAuditEventWithFactKind
     , recordCurrentUserAuditEvent
@@ -17,6 +18,7 @@ module Application.Helper.Audit
 
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as AesonKeyMap
+import qualified Data.Function as Function
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -103,20 +105,31 @@ data AuditAccessMode
 
 attachAuditRequestContext :: AuditAccessMode -> Aeson.Value -> Aeson.Value
 attachAuditRequestContext accessMode payload =
+    case accessMode of
+        FounderSupportAuditAccess ->
+            attachRequestContext
+                (Aeson.object ["accessMode" Aeson..= ("support" :: Text)])
+                payload
+        ImpersonationAuditAccess impersonationContext ->
+            attachImpersonationAuditRequestContext
+                (get #id (effectiveUserRecord impersonationContext.impersonationEffectiveUser))
+                (Aeson.toJSON impersonationContext.impersonationSessionId)
+                payload
+
+attachImpersonationAuditRequestContext :: Id User -> Aeson.Value -> Aeson.Value -> Aeson.Value
+attachImpersonationAuditRequestContext effectiveUserId sessionIdValue =
+    attachRequestContext $
+        Aeson.object
+            [ "accessMode" Aeson..= ("impersonation" :: Text)
+            , "effectiveUserId" Aeson..= effectiveUserId
+            , "impersonationSessionId" Aeson..= sessionIdValue
+            ]
+
+attachRequestContext :: Aeson.Value -> Aeson.Value -> Aeson.Value
+attachRequestContext requestContext payload =
     case payload of
         Aeson.Object fields -> Aeson.Object (AesonKeyMap.insert "requestContext" requestContext fields)
         other               -> Aeson.object ["payload" Aeson..= other, "requestContext" Aeson..= requestContext]
-  where
-    requestContext =
-        case accessMode of
-            FounderSupportAuditAccess ->
-                Aeson.object ["accessMode" Aeson..= ("support" :: Text)]
-            ImpersonationAuditAccess impersonationContext ->
-                Aeson.object
-                    [ "accessMode" Aeson..= ("impersonation" :: Text)
-                    , "effectiveUserId" Aeson..= get #id (effectiveUserRecord impersonationContext.impersonationEffectiveUser)
-                    , "impersonationSessionId" Aeson..= impersonationContext.impersonationSessionId
-                    ]
 
 recordUserAuthenticationAuditEvent ::
     (?modelContext :: ModelContext) =>
@@ -278,7 +291,7 @@ updateVenueMembershipRoleWithAuditInCurrentTransaction ::
     Aeson.Value ->
     IO VenueMembership
 updateVenueMembershipRoleWithAuditInCurrentTransaction =
-    updateVenueMembershipRoleWithAuditPayloadContext (\payload -> payload)
+    updateVenueMembershipRoleWithAuditPayloadContext Function.id
 
 updateCurrentUserVenueMembershipRoleWithAuditInCurrentTransaction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

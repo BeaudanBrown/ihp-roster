@@ -10,6 +10,7 @@ import Application.Support.LiveUpdates
 import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar)
 import Control.Exception (SomeException, try)
+import qualified Data.Aeson as Aeson
 import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude
@@ -270,25 +271,53 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetchCount
                     >>= (`shouldBe` 1)
 
-        it "clears malformed or unauthorized impersonation session state" $ withContext do
+        it "restores the authenticated staff context immediately after exit" $ withContext do
             withCleanDb do
-                venue <- createVenueWithConfig "Tampered Impersonation Venue"
-                ordinaryUser <- createUserRecord "impersonation-tampered@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue ordinaryUser Worker
-                ordinaryStaff <- createStaffRecord venue (Just ordinaryUser) "Tampered" "User"
+                venue <- createVenueWithConfig "Impersonation Staff Restore Venue"
+                superAdmin <- createUserRecordWithPlatformRole "impersonation-staff-actual@example.com" "staff" (Just SuperAdmin) True
+                _ <- createVenueMembershipRecord venue superAdmin VenueOwner
+                actualStaff <- createStaffRecord venue (Just superAdmin) "Actual" "Founder"
+                targetUser <- createUserRecord "impersonation-staff-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue targetUser Worker
+                _ <- createStaffRecord venue (Just targetUser) "Effective" "Target"
 
-                response <- withPasskeyVerifiedUserAndCurrentVenue ordinaryUser venue.id do
+                withUserAndCurrentVenue superAdmin venue.id do
                     withCurrentControllerContext do
-                        (effectiveUserRecord effectiveRequestUser).id `shouldBe` ordinaryUser.id
-                        fmap (.id) effectiveStaffOrNothing `shouldBe` Just ordinaryStaff.id
-                    setSession effectiveUserSessionKey ordinaryUser.id
+                        fmap (.id) effectiveStaffOrNothing `shouldBe` Just actualStaff.id
+                        Just _ <- enterCurrentVenueImpersonation targetUser.id
+                        _ <- exitCurrentImpersonation "test_exit"
+                        fmap (.id) effectiveStaffOrNothing `shouldBe` Just actualStaff.id
+
+        it "audits and clears malformed impersonation session state" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Malformed Impersonation Venue"
+                superAdmin <- createUserRecordWithPlatformRole "impersonation-malformed@example.com" "staff" (Just SuperAdmin) True
+                targetUser <- createUserRecord "impersonation-malformed-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue targetUser Worker
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
+                    setSession effectiveUserSessionKey targetUser.id
                     setSession impersonationSessionIdSessionKey ("not-a-uuid" :: Text)
-                    response <- callAction RosterWeeksAction
+                    response <- callAction SupportAction
                     getSession @(Id User) effectiveUserSessionKey `shouldReturn` Nothing
                     getSession @Text impersonationSessionIdSessionKey `shouldReturn` Nothing
                     pure response
 
-                response `responseStatusShouldBe` status302
+                response `responseStatusShouldBe` status200
+                expiry <- query @AuditEvent
+                    |> filterWhere (#eventType, "support_impersonation_expired")
+                    |> fetchOne
+                expiry.actorUserId `shouldBe` unpackId superAdmin.id
+                expiry.targetId `shouldBe` unpackId targetUser.id
+                expiry.payload `shouldBe`
+                    Aeson.object
+                        [ "reason" Aeson..= ("invalid_session_state" :: Text)
+                        , "requestContext" Aeson..= Aeson.object
+                            [ "accessMode" Aeson..= ("impersonation" :: Text)
+                            , "effectiveUserId" Aeson..= targetUser.id
+                            , "impersonationSessionId" Aeson..= ("not-a-uuid" :: Text)
+                            ]
+                        ]
 
         it "mounts support live surface metadata for super admins" $ withContext do
             withCleanDb do

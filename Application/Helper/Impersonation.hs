@@ -15,7 +15,9 @@ import Generated.Types
 import IHP.Controller.Context (putContext)
 import IHP.ControllerPrelude
 
-import Application.Helper.Audit (AuditEventType (..), recordAuditEvent,
+import Application.Helper.Audit (AuditEventType (..),
+                                 attachImpersonationAuditRequestContext,
+                                 recordAuditEvent,
                                  recordCurrentUserAuditEvent)
 import Application.Helper.ControllerContext
 import Application.Helper.Htmx (requestAuditSourceChannel)
@@ -34,14 +36,14 @@ initImpersonationContext = do
     maybeSessionIdText <- withRequestContext (getSession @Text impersonationSessionIdSessionKey)
     let maybeSessionId = maybeSessionIdText >>= UUID.fromText
     case (maybeEffectiveUserId, maybeSessionId) of
-        (Nothing, Nothing) -> pure ()
+        (Nothing, Nothing) | isNothing maybeSessionIdText -> pure ()
         (Just effectiveUserId, Just sessionId)
             | currentUserIsSuperAdmin && isJust currentVenueOrNothing ->
                 resolveImpersonationRequestContext effectiveUserId sessionId >>= \case
                     Just impersonationContext -> activateImpersonationContext impersonationContext
                     Nothing -> expireImpersonationSession effectiveUserId sessionId "target_unavailable"
-        (maybeEffectiveUserId', maybeSessionId') ->
-            expireIncompleteImpersonationSession maybeEffectiveUserId' maybeSessionId'
+        (maybeEffectiveUserId', _) ->
+            expireIncompleteImpersonationSession maybeEffectiveUserId' maybeSessionIdText
 
 enterCurrentVenueImpersonation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -150,28 +152,31 @@ expireImpersonationSession ::
     Text ->
     IO ()
 expireImpersonationSession effectiveUserId sessionId reason = do
-    recordImpersonationExpiry effectiveUserId sessionId reason
+    recordImpersonationExpiry effectiveUserId (Aeson.toJSON sessionId) reason
     clearImpersonationSession
     withRequestContext (setErrorMessage "Support impersonation ended because the selected user is no longer available.")
 
 expireIncompleteImpersonationSession ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     Maybe (Id User) ->
-    Maybe UUID ->
+    Maybe Text ->
     IO ()
-expireIncompleteImpersonationSession maybeEffectiveUserId maybeSessionId = do
-    forM_ ((,) <$> maybeEffectiveUserId <*> maybeSessionId) \(effectiveUserId, sessionId) ->
-        recordImpersonationExpiry effectiveUserId sessionId "invalid_session_state"
+expireIncompleteImpersonationSession maybeEffectiveUserId maybeSessionIdText = do
+    forM_ maybeEffectiveUserId \effectiveUserId ->
+        recordImpersonationExpiry
+            effectiveUserId
+            (maybe Aeson.Null Aeson.toJSON maybeSessionIdText)
+            "invalid_session_state"
     clearImpersonationSession
     withRequestContext (setErrorMessage "Support impersonation ended because its session state was invalid.")
 
 recordImpersonationExpiry ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     Id User ->
-    UUID ->
+    Aeson.Value ->
     Text ->
     IO ()
-recordImpersonationExpiry effectiveUserId sessionId reason =
+recordImpersonationExpiry effectiveUserId sessionIdValue reason =
     when (currentUserIsSuperAdmin && isJust currentVenueOrNothing) do
         void $
             recordAuditEvent
@@ -180,21 +185,17 @@ recordImpersonationExpiry effectiveUserId sessionId reason =
                 SupportImpersonationExpiredAudit
                 "users"
                 (unpackId effectiveUserId)
-                ( Aeson.object
-                    [ "reason" Aeson..= reason
-                    , "requestContext" Aeson..= Aeson.object
-                        [ "accessMode" Aeson..= ("impersonation" :: Text)
-                        , "effectiveUserId" Aeson..= effectiveUserId
-                        , "impersonationSessionId" Aeson..= sessionId
-                        ]
-                    ]
+                ( attachImpersonationAuditRequestContext
+                    effectiveUserId
+                    sessionIdValue
+                    (Aeson.object ["reason" Aeson..= reason])
                 )
                 requestAuditSourceChannel
 
-clearImpersonationSession :: (?context :: ControllerContext) => IO ()
+clearImpersonationSession :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 clearImpersonationSession = do
     withRequestContext do
         deleteSession effectiveUserSessionKey
         deleteSession impersonationSessionIdSessionKey
     putContext (Nothing :: Maybe ImpersonationRequestContext)
-    putContext (EffectiveStaffContext Nothing)
+    initAuthenticatedEffectiveStaffContext
