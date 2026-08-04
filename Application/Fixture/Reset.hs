@@ -55,6 +55,7 @@ applicationTableNames =
     , "roster_days"
     , "roster_week_slot_definitions"
     , "roster_slots"
+    , "roster_notification_runs"
     , "staff_shift_preferences"
     , "leave_requests"
     , "leave_request_events"

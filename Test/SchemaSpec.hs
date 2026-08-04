@@ -289,6 +289,18 @@ tests = describe "Schema" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE app_jobs"
 
+    it "retains immutable roster notification snapshots and indexes their delivery jobs" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        migrationSqlText <- TextIO.readFile "Application/Migration/1785813100.sql"
+        forM_ [schemaSqlText, migrationSqlText] \sqlText -> do
+            sqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE roster_notification_runs"
+            sqlText `shouldSatisfy` Text.isInfixOf "roster_snapshot JSONB NOT NULL"
+            sqlText `shouldSatisfy` Text.isInfixOf "recipient_snapshot JSONB NOT NULL"
+            sqlText `shouldSatisfy` Text.isInfixOf "skipped_recipient_snapshot JSONB NOT NULL"
+            sqlText `shouldSatisfy` Text.isInfixOf "idx_app_jobs_related"
+            sqlText `shouldSatisfy` Text.isInfixOf "ON app_jobs (related_table, related_id);"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_roster_notification_runs_immutable BEFORE UPDATE OR DELETE ON roster_notification_runs"
+
     it "stores roster and timesheet time only as authoritative instant boundaries" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "starts_at TIMESTAMP WITH TIME ZONE"

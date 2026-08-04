@@ -905,6 +905,28 @@ CREATE TABLE roster_slots (
     FOREIGN KEY (roster_week_slot_definition_id) REFERENCES roster_week_slot_definitions (id) ON DELETE RESTRICT,
     FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
+CREATE TABLE roster_notification_runs (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    roster_group_id UUID NOT NULL,
+    roster_week_id UUID NOT NULL,
+    week_offset INT NOT NULL,
+    week_start DATE NOT NULL,
+    snapshot_schema_version INT DEFAULT 1 NOT NULL,
+    roster_snapshot JSONB NOT NULL,
+    recipient_snapshot JSONB NOT NULL,
+    skipped_recipient_snapshot JSONB NOT NULL,
+    requested_by_user_id UUID NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE RESTRICT,
+    FOREIGN KEY (roster_week_id) REFERENCES roster_weeks (id) ON DELETE RESTRICT,
+    FOREIGN KEY (requested_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK (snapshot_schema_version > 0),
+    CHECK (jsonb_typeof(roster_snapshot) = 'object'),
+    CHECK (jsonb_typeof(recipient_snapshot) = 'array'),
+    CHECK (jsonb_typeof(skipped_recipient_snapshot) = 'array')
+);
 CREATE TABLE staff_shift_preferences (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -1891,6 +1913,7 @@ CREATE UNIQUE INDEX idx_roster_week_slot_definitions_active_name ON roster_week_
 CREATE INDEX idx_roster_slots_day ON roster_slots (roster_day_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_roster_slots_staff ON roster_slots (staff_id) WHERE staff_id IS NOT NULL AND deleted_at IS NULL;
 CREATE INDEX idx_roster_slots_shift_type ON roster_slots (shift_type_id) WHERE shift_type_id IS NOT NULL AND deleted_at IS NULL;
+CREATE INDEX idx_roster_notification_runs_group_week_created ON roster_notification_runs (roster_group_id, week_offset, created_at DESC);
 CREATE UNIQUE INDEX idx_roster_slots_active_cell ON roster_slots (roster_day_id, row_index, roster_week_slot_definition_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_staff_pay_versions_staff_effective ON staff_pay_versions (staff_id, effective_from DESC, created_at DESC);
 CREATE UNIQUE INDEX idx_staff_pay_versions_one_open ON staff_pay_versions (staff_id) WHERE effective_to IS NULL;
@@ -1914,6 +1937,7 @@ CREATE UNIQUE INDEX idx_public_holidays_unique_null_safe ON public_holidays (jur
 CREATE INDEX idx_app_jobs_pending ON app_jobs (status, run_at, created_at);
 CREATE INDEX idx_app_jobs_kind_created_at ON app_jobs (job_kind, created_at DESC);
 CREATE INDEX idx_app_jobs_venue_created_at ON app_jobs (venue_id, created_at DESC);
+CREATE INDEX idx_app_jobs_related ON app_jobs (related_table, related_id);
 CREATE UNIQUE INDEX idx_app_jobs_active_dedupe ON app_jobs (dedupe_key) WHERE dedupe_key IS NOT NULL AND (status = 'job_status_not_started' OR status = 'job_status_running' OR status = 'job_status_retry');
 CREATE INDEX idx_timesheet_entries_venue_staff ON timesheet_entries (venue_id, staff_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_timesheet_entries_venue_starts_at ON timesheet_entries (venue_id, starts_at) WHERE deleted_at IS NULL;
@@ -2008,6 +2032,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION enforce_roster_notification_run_immutability()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    RAISE EXCEPTION 'roster notification runs are immutable retained communication records';
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION prevent_xero_imported_pay_item_identity_change()
 RETURNS TRIGGER
 AS $$
@@ -2086,6 +2118,7 @@ CREATE TRIGGER prevent_locked_staff_pay_version_imported_item_update BEFORE UPDA
 CREATE TRIGGER prevent_locked_shift_pay_version_imported_item_update BEFORE UPDATE ON shift_type_pay_versions FOR EACH ROW EXECUTE FUNCTION prevent_locked_shift_pay_version_change();
 CREATE TRIGGER prevent_locked_shift_pay_version_payroll_label_update BEFORE UPDATE ON shift_type_pay_versions FOR EACH ROW EXECUTE FUNCTION prevent_locked_shift_pay_version_label_change();
 CREATE TRIGGER prevent_hard_delete_roster_weeks BEFORE DELETE ON roster_weeks FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER enforce_roster_notification_runs_immutable BEFORE UPDATE OR DELETE ON roster_notification_runs FOR EACH ROW EXECUTE FUNCTION enforce_roster_notification_run_immutability();
 CREATE TRIGGER prevent_hard_delete_roster_days BEFORE DELETE ON roster_days FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_roster_slots BEFORE DELETE ON roster_slots FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_staff_shift_preferences BEFORE DELETE ON staff_shift_preferences FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
