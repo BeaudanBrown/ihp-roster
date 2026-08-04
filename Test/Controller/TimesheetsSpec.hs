@@ -121,7 +121,7 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Timesheet Current Week Venue"
                 user <- createUserRecord "timesheet-current-week@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user Worker
-                _ <- createStaffRecord venue (Just user) "Current" "Week"
+                staff <- createStaffRecord venue (Just user) "Current" "Week"
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 today <- utctDay <$> getCurrentTime
                 let expectedOffset = venueWeekOffsetForDay venueConfig today
@@ -151,6 +151,13 @@ tests = aroundAll withDatabaseTestContext do
                         ]
                 legacyWeekResponse `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders legacyWeekResponse)
+                    `shouldBe` Just "http://localhost/ShowTimesheetWeek?weekOffset=4"
+
+                unauthorizedFilterResponse <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 4 }
+                        [("staffFilterId", idToParam staff.id)]
+                unauthorizedFilterResponse `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders unauthorizedFilterResponse)
                     `shouldBe` Just "http://localhost/ShowTimesheetWeek?weekOffset=4"
 
         it "ignores retired direct-route display params" $ withContext do

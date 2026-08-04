@@ -27,6 +27,7 @@ module Web.Timesheets.Projection
     , parseCreateTimesheetEntryFromSuggestionState
     , parseNavigateTimesheetWeekState
     , parseUnapproveTimesheetEntryState
+    , canonicalTimesheetStaffFilter
     , parseUpdateTimesheetFiltersState
     , timesheetStaffFilterFromRequest
     , viewerHasTimesheetSuggestionOnDay
@@ -93,6 +94,16 @@ data TimesheetProjectionFragment
     | TimesheetProjectionDayColumns
     | TimesheetProjectionDaySection !Int
     deriving (Eq, Show)
+
+canonicalTimesheetStaffFilter :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Maybe UUID.UUID -> IO (Maybe UUID.UUID)
+canonicalTimesheetStaffFilter requestedStaffFilterId
+    | not (hasRole Manager) = pure Nothing
+    | otherwise = do
+        staffMembers <- fetchLinkedActiveVenueStaff currentVenueId
+        pure do
+            staffFilterId <- requestedStaffFilterId
+            guard (any (\staff -> staffCanProduceTimesheets staff && unpackId (get #id staff) == staffFilterId) staffMembers)
+            pure staffFilterId
 
 fetchTimesheetDataForWeek :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Day -> Day -> Bool -> Maybe UUID.UUID -> IO ([TimesheetEntry], [Staff], Maybe UUID.UUID, Maybe UUID.UUID)
 fetchTimesheetDataForWeek weekStartDate weekEndDate hideApproved requestedStaffFilterId = do
