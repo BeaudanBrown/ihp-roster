@@ -6,6 +6,9 @@ import {
     rosterStaffHighlightPinDomAttr,
     rosterStaffHighlightSourceDomAttr,
     surfaceDomAttr,
+    timesheetsTimesheetStaffHighlightMemberDomAttr,
+    timesheetsTimesheetStaffHighlightPinDomAttr,
+    timesheetsTimesheetStaffHighlightSourceDomAttr,
 } from "../generated/contracts";
 import { createLinkedHighlightController } from "../linked-highlight/runtime";
 import { assertEqual, test } from "./harness";
@@ -94,6 +97,10 @@ function rosterMount(): MiniElement {
     return new MiniElement({ [surfaceDomAttr]: "roster" });
 }
 
+function timesheetsMount(): MiniElement {
+    return new MiniElement({ [surfaceDomAttr]: "timesheets" });
+}
+
 test("linked highlighting applies closed source/member/order effects inside one mount", () => {
     const controller = createLinkedHighlightController();
     const mount = rosterMount();
@@ -143,6 +150,30 @@ test("linked highlighting applies closed source/member/order effects inside one 
     controller.reconcile(mount as unknown as Element);
     assertEqual(pin.getAttribute("aria-pressed"), "false");
     assertEqual(first.classList.contains("is-linked-highlight-member"), false);
+});
+
+test("Timesheets staff pin highlights persisted and suggestion cards across side-panel reconciliation", () => {
+    const controller = createLinkedHighlightController();
+    const mount = timesheetsMount();
+    const source = mount.append(new MiniElement({ [timesheetsTimesheetStaffHighlightSourceDomAttr]: "staff:opaque" }));
+    const pin = mount.append(new MiniElement({ [timesheetsTimesheetStaffHighlightPinDomAttr]: "staff:opaque", "aria-pressed": "false" }));
+    const persistedCard = mount.append(new MiniElement({ [timesheetsTimesheetStaffHighlightMemberDomAttr]: "staff:opaque" }));
+    const suggestionCard = mount.append(new MiniElement({ [timesheetsTimesheetStaffHighlightMemberDomAttr]: "staff:opaque" }));
+
+    controller.togglePin(pin as unknown as Element);
+    assertEqual(persistedCard.classList.contains("is-linked-highlight-member"), true);
+    assertEqual(suggestionCard.classList.contains("is-linked-highlight-member"), true);
+
+    mount.removeChild(source);
+    mount.removeChild(pin);
+    const replacementSource = mount.append(new MiniElement({ [timesheetsTimesheetStaffHighlightSourceDomAttr]: "staff:opaque" }));
+    const replacementPin = mount.append(new MiniElement({ [timesheetsTimesheetStaffHighlightPinDomAttr]: "staff:opaque", "aria-pressed": "false" }));
+    controller.reconcile(mount as unknown as Element);
+
+    assertEqual(replacementSource.classList.contains("is-linked-highlight-source"), true);
+    assertEqual(replacementPin.getAttribute("aria-pressed"), "true");
+    assertEqual(persistedCard.classList.contains("is-linked-highlight-member"), true);
+    assertEqual(suggestionCard.classList.contains("is-linked-highlight-member"), true);
 });
 
 test("linked highlighting reports opaque pin changes without changing generic pin behavior", () => {

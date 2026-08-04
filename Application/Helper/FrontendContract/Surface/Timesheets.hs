@@ -9,6 +9,7 @@ module Application.Helper.FrontendContract.Surface.Timesheets
     , TimesheetDay
     , TimesheetDayColumns
     , TimesheetDaySection
+    , TimesheetSidePanelContent
     , TimesheetWeekBoundaryConfig
     , TimesheetStaffCardsHighlight
     , TimesheetStaffHighlightSourceRole
@@ -74,6 +75,7 @@ data TimesheetToolbar
 data TimesheetWeekToolbar
 data TimesheetDayColumns
 data TimesheetDaySection
+data TimesheetSidePanelContent
 data DayOffset
 
 data TimesheetDay
@@ -221,6 +223,13 @@ type TimesheetFragmentBundle =
          , 'DependsOn TimesheetWeekResource '[ 'FromScope VenueId, 'FromScope WeekOffset ]
          , 'DependsOn TimesheetWeekBoundaryConfigResource '[ 'FromScope VenueId ]
          , 'DependsOn TimePickerConfigResource '[ 'FromScope VenueId ]
+         ]
+     , Fragment TimesheetSidePanelContent
+        '[]
+        '[ 'MountTarget TimesheetSidePanelContent '[]
+         , 'Eager
+         , 'Live
+         , 'DependsOn TimesheetWeekResource '[ 'FromScope VenueId, 'FromScope WeekOffset ]
          ]
      , Fragment TimesheetDaySection
         '[ Field DayOffset 'WireInt ]

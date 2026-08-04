@@ -5,10 +5,12 @@
 module Application.Helper.FrontendContract.Surface.Timesheets.Generated.Live
     ( matchTimesheetDayColumnsLiveFragment
     , matchTimesheetDaySectionLiveFragment
+    , matchTimesheetSidePanelContentLiveFragment
     , matchTimesheetToolbarLiveFragment
     , matchTimesheetWeekLiveScope
     , timesheetDayColumnsLiveFragment
     , timesheetDaySectionLiveFragment
+    , timesheetSidePanelContentLiveFragment
     , timesheetToolbarLiveFragment
     , timesheetWeekLiveScope
     ) where
@@ -56,6 +58,19 @@ matchTimesheetDaySectionLiveFragment =
     matchFrontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
         @Types1.TimesheetDaySection
+
+timesheetSidePanelContentLiveFragment :: SurfaceFragmentKey
+timesheetSidePanelContentLiveFragment =
+    frontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
+        @Types1.TimesheetSidePanelContent
+        noSurfaceFields
+
+matchTimesheetSidePanelContentLiveFragment :: SurfaceFragmentKey -> Maybe ()
+matchTimesheetSidePanelContentLiveFragment =
+    matchFrontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
+        @Types1.TimesheetSidePanelContent
 
 timesheetToolbarLiveFragment :: SurfaceFragmentKey
 timesheetToolbarLiveFragment =

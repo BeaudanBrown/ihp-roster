@@ -27,6 +27,7 @@ import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 import Web.Timesheets.Paths (timesheetDayColumnsFragmentUrl,
                              timesheetDaySectionFragmentUrl,
+                             timesheetSidePanelFragmentUrl,
                              timesheetToolbarFragmentUrl)
 
 -- | Logical live invalidation scope. Filter/query state intentionally lives in
@@ -80,6 +81,7 @@ timesheetsCandidateMountedFragments :: TimesheetWeekScopeValue -> TimesheetsMoun
 timesheetsCandidateMountedFragments scope mountState =
     [ timesheetToolbarMountedFragment mountState scope.timesheetWeekWeekOffset
     , timesheetDayColumnsMountedFragment mountState scope.timesheetWeekWeekOffset
+    , timesheetSidePanelMountedFragment mountState scope.timesheetWeekWeekOffset
     ] <> map (timesheetDaySectionMountedFragment mountState scope.timesheetWeekWeekOffset) [0 .. 6]
 
 timesheetWeekScopeFields :: TimesheetWeekScopeValue -> SurfaceFields (SurfaceScopeFieldSpecs Surface.TimesheetsSurface Surface.TimesheetWeek)
@@ -107,6 +109,14 @@ timesheetDayColumnsMountedFragment mountState weekOffset =
         noSurfaceFields
         noSurfaceFields
         (timesheetDayColumnsFragmentUrl weekOffset mountState.timesheetsMountStaffFilterId)
+        FrontendSurfaceReplace
+
+timesheetSidePanelMountedFragment :: TimesheetsMountStateValue -> Int -> FrontendSurfaceMountedFragment
+timesheetSidePanelMountedFragment mountState weekOffset =
+    frontendSurfaceMountedFragmentFor @Surface.TimesheetsSurface @Surface.TimesheetSidePanelContent
+        noSurfaceFields
+        noSurfaceFields
+        (timesheetSidePanelFragmentUrl weekOffset mountState.timesheetsMountStaffFilterId)
         FrontendSurfaceReplace
 
 timesheetDaySectionMountedFragment :: TimesheetsMountStateValue -> Int -> Int -> FrontendSurfaceMountedFragment

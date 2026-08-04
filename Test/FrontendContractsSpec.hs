@@ -129,6 +129,19 @@ tests = describe "Frontend contract generator foundation" do
             ]
             (\expected -> frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf expected)
 
+    it "generates Timesheets side-panel, tabs, complete-set sort, and linked-highlight roles" do
+        forM_
+            [ "export const timesheetsTimesheetSidePanelRootDomAttr = \"data-bepis-timesheets-timesheet-side-panel-root\" as const;"
+            , "export const timesheetsTimesheetStaffHighlightSourceDomAttr = \"data-bepis-timesheets-timesheet-staff-highlight-source\" as const;"
+            , "export const timesheetsTimesheetStaffHighlightMemberDomAttr = \"data-bepis-timesheets-timesheet-staff-highlight-member\" as const;"
+            , "export type TimesheetSidePanelTabsKey = \"staff\" | \"settings\";"
+            , "export type TimesheetStaffPanelSortRow = { staffRowKey: string; staffName: string; staffRole: string; entryCount: number; approvedCount: number };"
+            , "export const FrontendSurfaceSidePanelRegistry"
+            , "export const FrontendSurfaceLinkedHighlightRegistry"
+            , "export const FrontendSurfaceCompleteSetSortRegistry"
+            ]
+            (\expected -> frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf expected)
+
     it "generates roster image-export roles, format, and exact payload parsers" do
         forM_
             [ "export const rosterImageExportTriggerDomAttr = \"data-bepis-roster-image-export-trigger\" as const;"

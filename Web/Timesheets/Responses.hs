@@ -74,6 +74,8 @@ selectTimesheetMountedFragments _ fragments mountedFragments =
             isJust (SurfaceLive.matchTimesheetToolbarLiveFragment mountedFragment.mountedFragmentKey)
         TimesheetProjectionDayColumns ->
             isJust (SurfaceLive.matchTimesheetDayColumnsLiveFragment mountedFragment.mountedFragmentKey)
+        TimesheetProjectionSidePanel ->
+            isJust (SurfaceLive.matchTimesheetSidePanelContentLiveFragment mountedFragment.mountedFragmentKey)
         TimesheetProjectionDaySection dayOffset ->
             SurfaceLive.matchTimesheetDaySectionLiveFragment mountedFragment.mountedFragmentKey
                 == Just (dayOffset, ())
@@ -94,13 +96,13 @@ respondWithTimesheetWeekFragmentsUpdate weekOffset staffFilterId =
     profileActionSpan "timesheets.page.fragments_update" do
         let requestKey = TimesheetProjectionRequest weekOffset staffFilterId
         setHtmxPushUrl (timesheetWeekUrl weekOffset staffFilterId)
-        respondWithTimesheetFragments requestKey [TimesheetProjectionToolbar, TimesheetProjectionDayColumns] mempty
+        respondWithTimesheetFragments requestKey [TimesheetProjectionToolbar, TimesheetProjectionDayColumns, TimesheetProjectionSidePanel] mempty
 
 respondWithTimesheetPreferenceUpdate :: (?context :: ControllerContext, ?request :: Request) => Int -> Maybe UUID.UUID -> IO ()
 respondWithTimesheetPreferenceUpdate weekOffset staffFilterId =
     respondWithTimesheetActorFragments
         (TimesheetProjectionRequest weekOffset staffFilterId)
-        [TimesheetProjectionToolbar, TimesheetProjectionDayColumns]
+        [TimesheetProjectionToolbar, TimesheetProjectionDayColumns, TimesheetProjectionSidePanel]
         mempty
 
 respondWithTimesheetDaySectionUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Day -> Maybe UUID.UUID -> Text -> Bool -> IO ()

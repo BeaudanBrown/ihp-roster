@@ -35,6 +35,7 @@ module Web.Timesheets.Projection
     , weekOffsetFromParamOrEntry
     ) where
 
+import Application.Helper.Controller (venueRoleToText)
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
@@ -55,6 +56,7 @@ import Application.RosterShiftAssignment (RosterShiftAssignment (StaffAssignment
                                           rosterShiftAssignment)
 import Application.VenueTime.Model
 import Control.Monad (guard)
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Data.Time.Calendar (Day, addDays, diffDays)
 import Data.Time.Clock (getCurrentTime, utctDay)
@@ -81,6 +83,7 @@ data TimesheetWeekProjection = TimesheetWeekProjection
     , timesheetSuggestionsVisible   :: Bool
     , timesheetStaffFilterId        :: Maybe UUID.UUID
     , timesheetCurrentViewerStaffId :: Maybe UUID.UUID
+    , timesheetStaffPanelEntries    :: [TimesheetStaffPanelEntry]
     }
 
 data TimesheetProjectionRequest = TimesheetProjectionRequest
@@ -92,6 +95,7 @@ data TimesheetProjectionRequest = TimesheetProjectionRequest
 data TimesheetProjectionFragment
     = TimesheetProjectionToolbar
     | TimesheetProjectionDayColumns
+    | TimesheetProjectionSidePanel
     | TimesheetProjectionDaySection !Int
     deriving (Eq, Show)
 
@@ -105,7 +109,7 @@ canonicalTimesheetStaffFilter requestedStaffFilterId
             guard (any (\staff -> staffCanProduceTimesheets staff && unpackId (get #id staff) == staffFilterId) staffMembers)
             pure staffFilterId
 
-fetchTimesheetDataForWeek :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Day -> Day -> Bool -> Maybe UUID.UUID -> IO ([TimesheetEntry], [Staff], Maybe UUID.UUID, Maybe UUID.UUID)
+fetchTimesheetDataForWeek :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Day -> Day -> Bool -> Maybe UUID.UUID -> IO ([TimesheetEntry], [Staff], Maybe UUID.UUID, Maybe UUID.UUID, [TimesheetStaffPanelEntry])
 fetchTimesheetDataForWeek weekStartDate weekEndDate hideApproved requestedStaffFilterId = do
     staffMembers <- fetchLinkedActiveVenueStaff currentVenueId
 
@@ -118,10 +122,6 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate hideApproved requestedStaffF
                         else Nothing
                 else Nothing
 
-    let applyApprovedFilter queryBuilder =
-            if hideApproved
-                then queryBuilder |> filterWhere (#isApproved, False)
-                else queryBuilder
     let (weekStartsAt, weekEndsAt) = requireMelbourneDateRangeUTC weekStartDate weekEndDate
     let baseQuery =
             query @TimesheetEntry
@@ -130,29 +130,55 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate hideApproved requestedStaffF
                 |> filterWhereLessThan (#startsAt, weekEndsAt)
                 |> filterWhere (#deletedAt, Nothing)
 
-    entries <-
+    allManagerEntries <-
         if hasRole Manager
-            then
-                case validStaffFilterId of
-                    Just staffFilterId ->
-                        applyApprovedFilter
-                            (baseQuery |> filterWhere (#staffId, staffFilterId))
-                            |> orderByAsc #startsAt
-                            |> fetch
-                    Nothing ->
-                        applyApprovedFilter baseQuery
-                            |> orderByAsc #startsAt
-                            |> fetch
-            else
-                case maybeCurrentViewerStaff of
-                    Nothing -> pure []
-                    Just staff ->
-                        applyApprovedFilter
-                            (baseQuery |> filterWhere (#staffId, unpackId (get #id staff)))
-                            |> orderByAsc #startsAt
-                            |> fetch
+            then baseQuery |> orderByAsc #startsAt |> fetch
+            else pure []
+    workerEntries <-
+        if hasRole Manager
+            then pure []
+            else case maybeCurrentViewerStaff of
+                Nothing -> pure []
+                Just staff ->
+                    baseQuery
+                        |> filterWhere (#staffId, unpackId (get #id staff))
+                        |> orderByAsc #startsAt
+                        |> fetch
+    let authorizedEntries = if hasRole Manager then allManagerEntries else workerEntries
+    let entries = authorizedEntries
+            |> filter (not . (hideApproved &&) . (.isApproved))
+            |> filter (\entry -> maybe True (== entry.staffId) validStaffFilterId)
+    staffPanelEntries <-
+        if hasRole Manager
+            then buildTimesheetStaffPanelEntries staffMembers allManagerEntries
+            else pure []
 
-    pure (entries, staffMembers, validStaffFilterId, unpackId . get #id <$> maybeCurrentViewerStaff)
+    pure (entries, staffMembers, validStaffFilterId, unpackId . get #id <$> maybeCurrentViewerStaff, staffPanelEntries)
+
+buildTimesheetStaffPanelEntries :: (?modelContext :: ModelContext, ?context :: ControllerContext) => [Staff] -> [TimesheetEntry] -> IO [TimesheetStaffPanelEntry]
+buildTimesheetStaffPanelEntries staffMembers entries = do
+    let eligibleStaff = filter staffCanProduceTimesheets staffMembers
+    let linkedUserIds = mapMaybe (.userId) eligibleStaff
+    memberships <-
+        if null linkedUserIds
+            then pure []
+            else query @VenueMembership
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhereIn (#userId, linkedUserIds)
+                |> filterWhere (#isActive, True)
+                |> fetch
+    let membershipsByUserId = Map.fromList [(membership.userId, membership) | membership <- memberships]
+    let entryCountByStaffId = Map.fromListWith (+) [(entry.staffId, 1 :: Int) | entry <- entries]
+    let approvedCountByStaffId = Map.fromListWith (+) [(entry.staffId, 1 :: Int) | entry <- entries, entry.isApproved]
+    pure
+        [ TimesheetStaffPanelEntry
+            { panelStaff = staff
+            , panelStaffRole = maybe (venueRoleToText Worker) (venueRoleToText . (.venueRole)) (staff.userId >>= (`Map.lookup` membershipsByUserId))
+            , panelEntryCount = Map.findWithDefault 0 (unpackId staff.id) entryCountByStaffId
+            , panelApprovedCount = Map.findWithDefault 0 (unpackId staff.id) approvedCountByStaffId
+            }
+        | staff <- eligibleStaff
+        ]
 
 fetchTimesheetSuggestionsForWeek :: (?modelContext :: ModelContext, ?context :: ControllerContext) => VenueConfig -> Int -> Maybe UUID.UUID -> [Staff] -> Maybe UUID.UUID -> IO [TimesheetSuggestion]
 fetchTimesheetSuggestionsForWeek venueConfig weekOffset validStaffFilterId staffMembers currentViewerStaffId = do
@@ -319,7 +345,7 @@ fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset =
     let weekStartDate = venueWeekStartDate venueConfig weekOffset
     let weekEndDate = addDays 6 weekStartDate
 
-    (entries, staffMembers, validStaffFilterId, currentViewerStaffId) <- profileActionSpan "timesheets.fetch_week_data" (fetchTimesheetDataForWeek weekStartDate weekEndDate hideApproved staffFilterId)
+    (entries, staffMembers, validStaffFilterId, currentViewerStaffId, staffPanelEntries) <- profileActionSpan "timesheets.fetch_week_data" (fetchTimesheetDataForWeek weekStartDate weekEndDate hideApproved staffFilterId)
     suggestions <-
         if showTimesheetSuggestions
             then profileActionSpan "timesheets.fetch_suggestions" (fetchTimesheetSuggestionsForWeek venueConfig weekOffset validStaffFilterId staffMembers currentViewerStaffId)
@@ -343,6 +369,7 @@ fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset =
             , timesheetSuggestionsVisible = showTimesheetSuggestions
             , timesheetStaffFilterId = validStaffFilterId
             , timesheetCurrentViewerStaffId = currentViewerStaffId
+            , timesheetStaffPanelEntries = staffPanelEntries
             }
 
 -- Action authority is evaluated against the viewer's full Timesheets scope.
@@ -387,7 +414,7 @@ fetchAuthorizedTimesheetSuggestionsForWeek weekOffset staffFilterId = do
     venueConfig <- fetchVenueConfig
     let weekStartDate = venueWeekStartDate venueConfig weekOffset
     let weekEndDate = addDays 6 weekStartDate
-    (_, staffMembers, validStaffFilterId, currentViewerStaffId) <- fetchTimesheetDataForWeek weekStartDate weekEndDate False staffFilterId
+    (_, staffMembers, validStaffFilterId, currentViewerStaffId, _) <- fetchTimesheetDataForWeek weekStartDate weekEndDate False staffFilterId
     fetchTimesheetSuggestionsForWeek venueConfig weekOffset validStaffFilterId staffMembers currentViewerStaffId
 
 -- Ad-hoc creation stays suggestion-aware even when cards are hidden, so the
@@ -414,6 +441,8 @@ renderTimesheetProjectionFragmentFromProjection renderMode projection fragment =
             Just (toolbarRenderer (timesheetIndexView projection))
         TimesheetProjectionDayColumns ->
             Just (columnsRenderer (timesheetIndexView projection))
+        TimesheetProjectionSidePanel ->
+            Just (sidePanelRenderer (timesheetIndexView projection))
         TimesheetProjectionDaySection dayOffset ->
             Just (dayRenderer (timesheetDayRenderModelFromProjection projection dayOffset))
     where
@@ -423,6 +452,9 @@ renderTimesheetProjectionFragmentFromProjection renderMode projection fragment =
         columnsRenderer = case renderMode of
             FragmentPlain        -> renderTimesheetDayColumns
             FragmentOob swapAttr -> renderTimesheetDayColumnsWithSwap swapAttr
+        sidePanelRenderer = case renderMode of
+            FragmentPlain        -> renderTimesheetSidePanel
+            FragmentOob swapAttr -> renderTimesheetSidePanelWithSwap swapAttr
         dayRenderer = case renderMode of
             FragmentPlain        -> renderDaySection
             FragmentOob swapAttr -> renderDaySectionWithSwap swapAttr
@@ -443,7 +475,7 @@ timesheetDayRenderModelFromProjection projection dayOffset =
         }
 
 timesheetIndexView :: (?context :: ControllerContext) => TimesheetWeekProjection -> IndexView
-timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetSuggestions, timesheetStaffMembers, timesheetShiftTypes, timesheetToday, timesheetEditWindowDays, timesheetWeekOffset, timesheetWeekStartDate, timesheetWeekEndDate, timesheetHideApproved, timesheetSuggestionsVisible, timesheetStaffFilterId, timesheetCurrentViewerStaffId } =
+timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetSuggestions, timesheetStaffMembers, timesheetShiftTypes, timesheetToday, timesheetEditWindowDays, timesheetWeekOffset, timesheetWeekStartDate, timesheetWeekEndDate, timesheetHideApproved, timesheetSuggestionsVisible, timesheetStaffFilterId, timesheetCurrentViewerStaffId, timesheetStaffPanelEntries } =
     IndexView
         { entries = timesheetEntries
         , suggestions = timesheetSuggestions
@@ -458,6 +490,7 @@ timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetSuggesti
         , showTimesheetSuggestions = timesheetSuggestionsVisible
         , selectedStaffFilterId = timesheetStaffFilterId
         , currentViewerStaffId = timesheetCurrentViewerStaffId
+        , staffPanelEntries = timesheetStaffPanelEntries
         , frontendSurfaceImpl = Just surfaceImpl
         }
     where

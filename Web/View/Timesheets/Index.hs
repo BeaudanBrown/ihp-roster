@@ -6,11 +6,14 @@ module Web.View.Timesheets.Index where
 
 import Application.Helper.Controller (currentVenueId, isWithinEditWindow)
 import Application.Helper.FrontendContract.AppShell (EditTimesheetEntryDialog,
+                                                     OpenRosterStaffEditDialog,
                                                      OpenTimesheetEntryDialog)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
+                                                             applyAppShellActionAttrs,
                                                              renderAppShellActionLink)
 import Application.Helper.FrontendContract.HorizontalScroll.Runtime
+import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
 import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             SurfaceImpl,
@@ -20,10 +23,18 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
+import Application.Helper.FrontendContract.Surface.Timesheets.SidePanel (timesheetSidePanelRenderAttrs)
+import Application.Helper.FrontendContract.Surface.Timesheets.StaffPanel (TimesheetSidePanelTab (..),
+                                                                          TimesheetStaffPanelSortKey (..),
+                                                                          timesheetSidePanelTabAttrs,
+                                                                          timesheetStaffPanelSortControlAttrs,
+                                                                          timesheetStaffPanelSortRootAttrs,
+                                                                          timesheetStaffPanelSortRowAttrs)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Url (appendQueryParams)
 import Application.PayAssignment (StaffPayAssignment (..),
                                   staffAssignmentAllowsTimesheets)
+import Application.VenueRole (parseVenueRole, venueRoleLabel)
 import Application.VenueTime.Model
 import Data.Fixed (Pico)
 import qualified Data.Text as Text
@@ -32,6 +43,7 @@ import Data.Time.Clock (NominalDiffTime, diffUTCTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Data.UUID (UUID)
+import Web.Timesheets.FrontendSurface (timesheetStaffCardsLinkedHighlight)
 import Web.Timesheets.Paths (createTimesheetEntryFromSuggestionUrl,
                              editTimesheetEntryUrl,
                              newTimesheetEntryFromSuggestionUrl,
@@ -39,6 +51,13 @@ import Web.Timesheets.Paths (createTimesheetEntryFromSuggestionUrl,
                              timesheetWeekUrl)
 import Web.Timesheets.Suggestion
 import Web.View.Prelude
+
+data TimesheetStaffPanelEntry = TimesheetStaffPanelEntry
+    { panelStaff         :: !Staff
+    , panelStaffRole     :: !Text
+    , panelEntryCount    :: !Int
+    , panelApprovedCount :: !Int
+    }
 
 data IndexView = IndexView
     { entries                  :: [TimesheetEntry]
@@ -54,6 +73,7 @@ data IndexView = IndexView
     , showTimesheetSuggestions :: Bool
     , selectedStaffFilterId    :: Maybe UUID
     , currentViewerStaffId     :: Maybe UUID
+    , staffPanelEntries        :: [TimesheetStaffPanelEntry]
     , frontendSurfaceImpl      :: Maybe (SurfaceImpl Surface.TimesheetsSurface)
     }
 
@@ -93,31 +113,49 @@ instance View IndexView where
 
 renderTimesheetWeekShell :: IndexView -> Html
 renderTimesheetWeekShell view@IndexView { .. } =
-    let page = renderAppPage (AppPageConfig
+    let mainPanel =
+            renderAppPanel AppPanelConfig
+                { appPanelTitle = Nothing
+                , appPanelDescription = Nothing
+                , appPanelHasActions = False
+                , appPanelActions = mempty
+                , appPanelHasCustomHeader = True
+                , appPanelCustomHeader = renderTimesheetWeekToolbar view
+                , appPanelClass = "overflow-hidden"
+                , appPanelBodyClass = ""
+                , appPanelBody = [hsx|
+                    <div class="timesheet-week-frame app-horizontal-frame"
+                         data-timesheet-layout="day_columns"
+                         {...horizontalSnapAttrs (HorizontalSnapNearestItem ".timesheet-day-panel")}
+                         {...horizontalDragAttrs (HorizontalDragConfig Nothing)}>
+                        {renderTimesheetDayColumns view}
+                    </div>
+                |]
+                }
+        mainRegion =
+            renderSidePanelMainRegion timesheetSidePanelRenderAttrs SidePanelRegionConfig
+                { sidePanelRegionId = Just "timesheet-main-region"
+                , sidePanelRegionClass = "col-12 col-xl-8 col-xxl-9 timesheet-layout-main"
+                , sidePanelRegionExtraAttrs = []
+                }
+                mainPanel
+        sidePanelLayout =
+            renderSidePanelLayout timesheetSidePanelRenderAttrs SidePanelRegionConfig
+                { sidePanelRegionId = Just "timesheet-side-panel-layout"
+                , sidePanelRegionClass = "row g-4 align-items-start timesheet-side-panel-layout"
+                , sidePanelRegionExtraAttrs = []
+                }
+                [hsx|
+                    {mainRegion}
+                    {renderTimesheetSidePanel view}
+                |]
+        page = renderAppPage (AppPageConfig
             { appPageTitle = "Timesheets"
             , appPageDescription = Nothing
             , appPageActions = mempty
             , appPageHelpTopic = Just (PageHelpTopicId "timesheets")
             , appPageWidthClass = ""
-            , appPageBody =
-                renderAppPanel AppPanelConfig
-                    { appPanelTitle = Nothing
-                    , appPanelDescription = Nothing
-                    , appPanelHasActions = False
-                    , appPanelActions = mempty
-                    , appPanelHasCustomHeader = True
-                    , appPanelCustomHeader = renderTimesheetWeekToolbar view
-                    , appPanelClass = "overflow-hidden"
-                    , appPanelBodyClass = ""
-                    , appPanelBody = [hsx|
-                        <div class="timesheet-week-frame app-horizontal-frame"
-                             data-timesheet-layout="day_columns"
-                             {...horizontalSnapAttrs (HorizontalSnapNearestItem ".timesheet-day-panel")}
-                             {...horizontalDragAttrs (HorizontalDragConfig Nothing)}>
-                            {renderTimesheetDayColumns view}
-                        </div>
-                    |]
-                    }
+            , appPageBody = sidePanelLayout
             })
         pageWithFrontendSurface =
             case frontendSurfaceImpl of
@@ -184,26 +222,108 @@ renderTimesheetWeekHeader weekOffset weekStartDate hideApproved showTimesheetSug
             , weekNavigationLabelClass = ""
             , weekNavigationNext = renderTimesheetWeekNavigationLink ">" (timesheetWeekUrl (weekOffset + 1) selectedStaffFilterId) (weekOffset + 1) selectedStaffFilterId
             }
-        , weekToolbarSettings = renderTimesheetWeekMoreMenu weekOffset hideApproved showTimesheetSuggestions selectedStaffFilterId staffMembers
-        , weekToolbarAuxiliary = mempty
+        , weekToolbarSettings = mempty
+        , weekToolbarAuxiliary = renderSidePanelToggle timesheetSidePanelRenderAttrs
         }
 
-renderTimesheetWeekMoreMenu :: (?context :: ControllerContext) => Int -> Bool -> Bool -> Maybe UUID -> [Staff] -> Html
-renderTimesheetWeekMoreMenu weekOffset hideApproved showTimesheetSuggestions selectedStaffFilterId staffMembers =
-    let menuTriggerId = "timesheet-week-more-menu-trigger" :: Text
-     in [hsx|
-    <div class="dropdown">
-        {renderAppSettingsMenuButton menuTriggerId "Timesheet settings"}
-        <div class="dropdown-menu dropdown-menu-end p-2 app-action-menu" aria-labelledby={menuTriggerId}>
-            <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Filters</div>
-            <div class="timesheet-settings-toggle-grid mb-2">
-                {renderTimesheetHideApprovedPreferenceForm weekOffset selectedStaffFilterId hideApproved}
-                {renderTimesheetShowSuggestionsPreferenceForm weekOffset selectedStaffFilterId showTimesheetSuggestions}
+renderTimesheetSidePanel :: (?context :: ControllerContext) => IndexView -> Html
+renderTimesheetSidePanel = renderTimesheetSidePanelWithSwap Nothing
+
+renderTimesheetSidePanelWithSwap :: (?context :: ControllerContext) => Maybe Text -> IndexView -> Html
+renderTimesheetSidePanelWithSwap maybeSwapOob view =
+    renderSidePanelPanelRegion timesheetSidePanelRenderAttrs SidePanelRegionConfig
+        { sidePanelRegionId = Just "timesheet-side-panel-content"
+        , sidePanelRegionClass = "col-12 col-xl-4 col-xxl-3 timesheet-side-panel"
+        , sidePanelRegionExtraAttrs = maybe [] (\swap -> [("hx-swap-oob", swap)]) maybeSwapOob
+        }
+        [hsx|
+            <div class="app-panel app-side-panel-scroll timesheet-side-panel-card">
+                <div class="app-panel-body app-side-panel-scroll-body">
+                    {if currentUserIsManager then renderManagerTimesheetSidePanel view else renderWorkerTimesheetSettings view}
+                </div>
             </div>
-            {when currentUserIsManager (renderTimesheetStaffFilterForm weekOffset selectedStaffFilterId staffMembers)}
+        |]
+
+renderManagerTimesheetSidePanel :: (?context :: ControllerContext) => IndexView -> Html
+renderManagerTimesheetSidePanel view = [hsx|
+    <div class="nav nav-pills timesheet-side-panel-tabs" role="tablist" aria-label="Timesheet side panel">
+        <button class="nav-link active" id="timesheet-staff-tab" type="button" role="tab"
+                data-bs-toggle="tab" data-bs-target="#timesheet-staff-pane" aria-controls="timesheet-staff-pane"
+                aria-selected="true" {...timesheetSidePanelTabAttrs TimesheetStaffTab}>Staff</button>
+        <button class="nav-link" id="timesheet-settings-tab" type="button" role="tab"
+                data-bs-toggle="tab" data-bs-target="#timesheet-settings-pane" aria-controls="timesheet-settings-pane"
+                aria-selected="false" {...timesheetSidePanelTabAttrs TimesheetSettingsTab}>Settings</button>
+    </div>
+    <div class="tab-content timesheet-side-panel-tab-content">
+        <div class="tab-pane show active" id="timesheet-staff-pane" role="tabpanel" aria-labelledby="timesheet-staff-tab" tabindex="0">
+            {renderTimesheetStaffPanel view.weekOffset view.staffMembers view.staffPanelEntries}
+        </div>
+        <div class="tab-pane" id="timesheet-settings-pane" role="tabpanel" aria-labelledby="timesheet-settings-tab" tabindex="0">
+            {renderTimesheetSettings view}
         </div>
     </div>
 |]
+
+renderWorkerTimesheetSettings :: (?context :: ControllerContext) => IndexView -> Html
+renderWorkerTimesheetSettings view = [hsx|
+    <h2 class="h5">Settings</h2>
+    {renderTimesheetSettings view}
+|]
+
+renderTimesheetSettings :: (?context :: ControllerContext) => IndexView -> Html
+renderTimesheetSettings IndexView { weekOffset, hideApproved, showTimesheetSuggestions, selectedStaffFilterId, staffMembers } = [hsx|
+    <div class="timesheet-settings-toggle-grid mb-2">
+        {renderTimesheetHideApprovedPreferenceForm weekOffset selectedStaffFilterId hideApproved}
+        {renderTimesheetShowSuggestionsPreferenceForm weekOffset selectedStaffFilterId showTimesheetSuggestions}
+    </div>
+    {when currentUserIsManager (renderTimesheetStaffFilterForm weekOffset selectedStaffFilterId staffMembers)}
+|]
+
+renderTimesheetStaffPanel :: (?context :: ControllerContext) => Int -> [Staff] -> [TimesheetStaffPanelEntry] -> Html
+renderTimesheetStaffPanel weekOffset staffMembers entries = [hsx|
+    <table class="timesheet-staff-table" {...timesheetStaffPanelSortRootAttrs}>
+        <thead><tr>
+            <th scope="col" aria-sort="none"><button type="button" class="timesheet-staff-sort-button" {...timesheetStaffPanelSortControlAttrs TimesheetStaffSortByName}>Name</button></th>
+            <th scope="col" aria-sort="none"><button type="button" class="timesheet-staff-sort-button" {...timesheetStaffPanelSortControlAttrs TimesheetStaffSortByRole}>Role</button></th>
+            <th scope="col" aria-sort="none"><button type="button" class="timesheet-staff-sort-button" {...timesheetStaffPanelSortControlAttrs TimesheetStaffSortByCount}>Entries</button></th>
+            <th scope="col"><span class="visually-hidden">Locate entries</span></th>
+        </tr></thead>
+        <tbody>{forEach (sortOn (Text.toCaseFold . staffDisplayName staffMembers . (.panelStaff)) entries) (renderTimesheetStaffPanelEntry weekOffset staffMembers)}</tbody>
+    </table>
+|]
+
+renderTimesheetStaffPanelEntry :: (?context :: ControllerContext) => Int -> [Staff] -> TimesheetStaffPanelEntry -> Html
+renderTimesheetStaffPanelEntry weekOffset staffMembers entry =
+    SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightSource timesheetStaffCardsLinkedHighlight staffKey $
+        applyAppShellActionAttrs
+            (appShellActionByMarker @OpenRosterStaffEditDialog)
+            AppShellActionRoute
+                { appShellActionRouteUrl = appendQueryParams (pathTo (EditStaffAction entry.panelStaff.id)) [("weekOffset", tshow weekOffset)]
+                , appShellActionRouteFields = []
+                , appShellActionRouteCustomHtmx = []
+                , appShellActionRouteStandardUrl = Nothing
+                , appShellActionRouteExtraAttrs = []
+                }
+            [hsx|
+                <tr class="timesheet-staff-panel-entry" role="button" tabindex="0"
+                    {...timesheetStaffPanelSortRowAttrs staffKey staffName roleLabel entry.panelEntryCount entry.panelApprovedCount}>
+                    <th scope="row">{staffName}</th>
+                    <td>{roleLabel}</td>
+                    <td><span class="timesheet-staff-count-total">{entry.panelEntryCount}</span> <span class="timesheet-staff-count-approved">({entry.panelApprovedCount})</span></td>
+                    <td>{locateButton}</td>
+                </tr>
+            |]
+  where
+    staffKey = "staff:" <> tshow entry.panelStaff.id
+    staffName = staffDisplayName staffMembers entry.panelStaff
+    roleLabel = maybe (Text.toTitle (Text.replace "_" " " entry.panelStaffRole)) venueRoleLabel (parseVenueRole entry.panelStaffRole)
+    locateButton =
+        SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightPin timesheetStaffCardsLinkedHighlight staffKey [hsx|
+            <button type="button" class="btn btn-sm btn-outline-secondary app-icon-button timesheet-staff-locate-button"
+                    aria-label={"Locate entries for " <> staffName} aria-pressed="false">
+                <i class="bi bi-eye" aria-hidden="true"></i>
+            </button>
+        |]
 
 renderTimesheetHideApprovedPreferenceForm :: Int -> Maybe UUID -> Bool -> Html
 renderTimesheetHideApprovedPreferenceForm weekOffset selectedStaffFilterId hideApproved =
@@ -439,35 +559,41 @@ renderEntryCard model@TimesheetDayRenderModel { dayToday, dayEditWindowDays, day
     editUrl = editTimesheetEntryUrl (get #id entry) dayWeekOffset dayStaffFilterId
 
 renderTimesheetCard :: (?context :: ControllerContext) => TimesheetDayRenderModel -> TimesheetEntry -> Text -> Maybe Text -> Html -> Html -> Html
-renderTimesheetCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes } entry cardClass suggestionId cardOverlay cardAction = [hsx|
-    <article class={cardClass}
-             data-timesheet-entry-approved={boolParam entry.isApproved}
-             data-timesheet-suggestion-id={suggestionId}>
-        {cardOverlay}
-        <div class="timesheet-entry-main">
-            <div class="timesheet-entry-identity">
-                <div class="timesheet-entry-staff-name">{staffName}</div>
-                <div class="timesheet-entry-shift-type">{shiftTypeLabel}</div>
-            </div>
-
-            <div class="timesheet-entry-time">
-                <div class="timesheet-entry-time-range">
-                    {renderCompactTimeRange (timesheetEntryStartTime entry) (timesheetEntryEndTime entry)}
-                </div>
-                <div class="timesheet-entry-meta">Shift: {renderDuration entry}</div>
-                <div class="timesheet-entry-meta timesheet-entry-break-meta">Break: <span class="timesheet-entry-break-summary">{renderBreakSummary entry}</span></div>
-            </div>
-
-            <div class="timesheet-entry-actions">
-                {cardAction}
-            </div>
-        </div>
-
-        {renderEntryComments entry}
-        {renderTimesheetShapeBar defaultTimesheetTimelineScale entry}
-    </article>
-|]
+renderTimesheetCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes } entry cardClass suggestionId cardOverlay cardAction =
+    SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightMember
+        timesheetStaffCardsLinkedHighlight
+        ("staff:" <> tshow entry.staffId)
+        Nothing
+        card
   where
+    card = [hsx|
+        <article class={cardClass}
+                 data-timesheet-entry-approved={boolParam entry.isApproved}
+                 data-timesheet-suggestion-id={suggestionId}>
+            {cardOverlay}
+            <div class="timesheet-entry-main">
+                <div class="timesheet-entry-identity">
+                    <div class="timesheet-entry-staff-name">{staffName}</div>
+                    <div class="timesheet-entry-shift-type">{shiftTypeLabel}</div>
+                </div>
+
+                <div class="timesheet-entry-time">
+                    <div class="timesheet-entry-time-range">
+                        {renderCompactTimeRange (timesheetEntryStartTime entry) (timesheetEntryEndTime entry)}
+                    </div>
+                    <div class="timesheet-entry-meta">Shift: {renderDuration entry}</div>
+                    <div class="timesheet-entry-meta timesheet-entry-break-meta">Break: <span class="timesheet-entry-break-summary">{renderBreakSummary entry}</span></div>
+                </div>
+
+                <div class="timesheet-entry-actions">
+                    {cardAction}
+                </div>
+            </div>
+
+            {renderEntryComments entry}
+            {renderTimesheetShapeBar defaultTimesheetTimelineScale entry}
+        </article>
+    |]
     staffName = case find (\staff -> unpackId (get #id staff) == entry.staffId) dayStaffMembers of
         Just staff -> staff.firstName <> " " <> staff.lastName
         Nothing    -> "Unknown" :: Text

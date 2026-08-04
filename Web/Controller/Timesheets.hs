@@ -20,6 +20,7 @@ import Web.Timesheets.Paths (editTimesheetEntryUrl,
                              newTimesheetEntryUrl,
                              timesheetDayColumnsFragmentUrl,
                              timesheetDaySectionFragmentUrl,
+                             timesheetSidePanelFragmentUrl,
                              timesheetToolbarFragmentUrl, timesheetWeekUrl)
 import Web.Timesheets.Projection
 import Web.Timesheets.Responses
@@ -104,6 +105,14 @@ instance Controller TimesheetsController where
             redirectToPath (timesheetToolbarFragmentUrl weekOffset selectedStaffFilterId)
         let requestKey = TimesheetProjectionRequest weekOffset selectedStaffFilterId
         respondWithTimesheetFragment requestKey TimesheetProjectionToolbar
+
+    action currentAction@ShowtimesheetSidePanelContentLiveFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
+        let requestedStaffFilterId = timesheetStaffFilterFromRequest
+        selectedStaffFilterId <- canonicalTimesheetStaffFilter requestedStaffFilterId
+        when (timesheetRequestNeedsCanonicalRedirect requestedStaffFilterId selectedStaffFilterId) do
+            redirectToPath (timesheetSidePanelFragmentUrl weekOffset selectedStaffFilterId)
+        let requestKey = TimesheetProjectionRequest weekOffset selectedStaffFilterId
+        respondWithTimesheetFragment requestKey TimesheetProjectionSidePanel
 
     action currentAction@ShowtimesheetDayColumnsLiveFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         let requestedStaffFilterId = timesheetStaffFilterFromRequest

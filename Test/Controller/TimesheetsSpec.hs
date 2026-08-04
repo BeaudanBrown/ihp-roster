@@ -238,9 +238,12 @@ tests = aroundAll withDatabaseTestContext do
                 mountConfig.mountState `shouldBe` Aeson.object
                     ["staffFilterId" Aeson..= (Nothing :: Maybe Text)]
                 fragmentKeys
-                    `shouldBe` [TimesheetsLive.timesheetToolbarLiveFragment, TimesheetsLive.timesheetDayColumnsLiveFragment]
+                    `shouldBe` [ TimesheetsLive.timesheetToolbarLiveFragment
+                               , TimesheetsLive.timesheetDayColumnsLiveFragment
+                               , TimesheetsLive.timesheetSidePanelContentLiveFragment
+                               ]
                         <> map TimesheetsLive.timesheetDaySectionLiveFragment [0 .. 6]
-                fragmentTargets `shouldBe` ["timesheet-week-toolbar", "timesheet-day-columns"] <> map (\dayOffset -> "timesheet-day-section-" <> tshow dayOffset) [0 .. 6]
+                fragmentTargets `shouldBe` ["timesheet-week-toolbar", "timesheet-day-columns", "timesheet-side-panel-content"] <> map (\dayOffset -> "timesheet-day-section-" <> tshow dayOffset) [0 .. 6]
                 fragmentUrls `shouldSatisfy` all (Text.isInfixOf "weekOffset=2")
                 fragmentUrls `shouldSatisfy` all (not . Text.isInfixOf "showApproved")
                 fragmentUrls `shouldSatisfy` all (not . Text.isInfixOf "showAllStaff")
@@ -314,7 +317,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "data-live-update-surface="
                 response `responseBodyShouldNotContain` "id=\"timesheet-week-shell\" hx-history-elt"
 
-        it "renders declared timesheet toolbar and day-columns fragment targets" $ withContext do
+        it "renders declared Timesheets toolbar, day-columns, and side-panel fragment targets" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Layout Fragment Venue"
                 manager <- createUserRecord "timesheet-layout-fragment-manager@example.com" "staff" True
@@ -325,6 +328,8 @@ tests = aroundAll withDatabaseTestContext do
                     callAction ShowtimesheetToolbarLiveFragmentAction { weekOffset = 0 }
                 columnsResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction ShowtimesheetDayColumnsLiveFragmentAction { weekOffset = 0 }
+                sidePanelResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction ShowtimesheetSidePanelContentLiveFragmentAction { weekOffset = 0 }
 
                 toolbarResponse `responseStatusShouldBe` status200
                 toolbarResponse `responseBodyShouldContain` "id=\"timesheet-week-toolbar\""
@@ -333,6 +338,9 @@ tests = aroundAll withDatabaseTestContext do
                 columnsResponse `responseBodyShouldContain` "id=\"timesheet-day-columns\""
                 columnsResponse `responseBodyShouldNotContain` "data-live-update-surface="
                 columnsResponse `responseBodyShouldContain` "id=\"timesheet-day-section-0\""
+                sidePanelResponse `responseStatusShouldBe` status200
+                sidePanelResponse `responseBodyShouldContain` "id=\"timesheet-side-panel-content\""
+                sidePanelResponse `responseBodyShouldContain` "data-bepis-timesheets-timesheet-side-panel-panel=\"true\""
 
         it "lets super-admin create timesheet entries for venue staff without a staff identity" $ withContext do
             withCleanDb do
@@ -1828,6 +1836,10 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "name=\"showAllStaff\""
                 response `responseBodyShouldContain` "Hide approved"
                 response `responseBodyShouldContain` "Show suggestions"
+                response `responseBodyShouldContain` "timesheet-side-panel"
+                response `responseBodyShouldContain` "<h2 class=\"h5\">Settings</h2>"
+                response `responseBodyShouldNotContain` "id=\"timesheet-staff-tab\""
+                response `responseBodyShouldNotContain` "timesheet-staff-panel-entry"
                 response `responseBodyShouldNotContain` ">Show all staff</span>"
 
         it "defaults managers to all authorized staff and applies persisted display preferences" $ withContext do
@@ -1857,6 +1869,38 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "aria-pressed=\"true\""
                 response `responseBodyShouldContain` "timesheet-entry-staff-name\">Ava Hours"
                 response `responseBodyShouldNotContain` "timesheet-entry-card\" data-timesheet-entry-approved=\"true\""
+
+        it "renders complete manager side-panel counts independently of filters and display preferences" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Side Panel Venue"
+                manager <- createUserRecord "timesheet-side-panel-manager@example.com" "staff" True
+                workerAUser <- createUserRecord "timesheet-side-panel-a@example.com" "staff" True
+                workerBUser <- createUserRecord "timesheet-side-panel-b@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue workerAUser Worker
+                _ <- createVenueMembershipRecord venue workerBUser Worker
+                workerA <- createStaffRecord venue (Just workerAUser) "Ava" "Counted"
+                workerB <- createStaffRecord venue (Just workerBUser) "Bea" "Unfiltered"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel workerA
+                _ <- makeStaffTimesheetProducing payLevel workerB
+                _ <- createTimesheetEntryRecord venue workerA (fromGregorian 2025 1 7)
+                _ <- createApprovedTimesheetEntryRecord venue workerA manager (fromGregorian 2025 1 8)
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
+                        [("weekOffset", "0"), ("staffFilterId", idToParam workerB.id)]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "timesheet-side-panel"
+                response `responseBodyShouldContain` "timesheet-staff-panel-entry"
+                response `responseBodyShouldContain` "Ava Counted"
+                response `responseBodyShouldContain` "Bea Unfiltered"
+                response `responseBodyShouldContain` "timesheet-staff-count-total\">2</span>"
+                response `responseBodyShouldContain` "timesheet-staff-count-approved\">(1)</span>"
+                response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
+                response `responseBodyShouldContain` cs (pathTo (EditStaffAction workerA.id))
+                response `responseBodyShouldNotContain` "timesheet-entry-staff-name\">Ava Counted"
 
         it "renders FrontendSurface refresh urls with only current staff filter state" $ withContext do
             withCleanDb do

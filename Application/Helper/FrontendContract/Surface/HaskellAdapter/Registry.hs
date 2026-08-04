@@ -97,6 +97,7 @@ type RegisteredSurfaceScopeAdapterHomes =
 type RegisteredSurfaceFragmentAdapterHomes =
     '[ SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetToolbar
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetDayColumns
+     , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetSidePanelContent
      , SurfaceFragmentAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetDaySection
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterContent
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterGridToolbar

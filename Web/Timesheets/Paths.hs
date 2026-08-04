@@ -7,6 +7,7 @@ module Web.Timesheets.Paths
     , newTimesheetEntryUrl
     , timesheetDayColumnsFragmentUrl
     , timesheetDaySectionFragmentUrl
+    , timesheetSidePanelFragmentUrl
     , timesheetToolbarFragmentUrl
     , timesheetStateQueryParams
     , timesheetWeekResetUrl
@@ -40,6 +41,12 @@ timesheetToolbarFragmentUrl :: Int -> Maybe UUID -> Text
 timesheetToolbarFragmentUrl weekOffset staffFilterId =
     replaceQueryParams
         (pathTo ShowtimesheetToolbarLiveFragmentAction { weekOffset })
+        (timesheetStateQueryParams weekOffset staffFilterId)
+
+timesheetSidePanelFragmentUrl :: Int -> Maybe UUID -> Text
+timesheetSidePanelFragmentUrl weekOffset staffFilterId =
+    replaceQueryParams
+        (pathTo ShowtimesheetSidePanelContentLiveFragmentAction { weekOffset })
         (timesheetStateQueryParams weekOffset staffFilterId)
 
 timesheetDayColumnsFragmentUrl :: Int -> Maybe UUID -> Text

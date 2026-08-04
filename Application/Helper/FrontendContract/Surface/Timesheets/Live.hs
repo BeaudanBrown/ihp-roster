@@ -3,10 +3,12 @@ module Application.Helper.FrontendContract.Surface.Timesheets.Live
     , activeTimesheetWeekScopesWithBus
     , matchTimesheetDayColumnsLiveFragment
     , matchTimesheetDaySectionLiveFragment
+    , matchTimesheetSidePanelContentLiveFragment
     , matchTimesheetToolbarLiveFragment
     , matchTimesheetWeekLiveScope
     , timesheetDayColumnsLiveFragment
     , timesheetDaySectionLiveFragment
+    , timesheetSidePanelContentLiveFragment
     , timesheetToolbarLiveFragment
     , timesheetWeekLiveScope
     ) where
@@ -14,9 +16,11 @@ module Application.Helper.FrontendContract.Surface.Timesheets.Live
 import Application.Helper.FrontendContract.Surface.Live (SurfaceScope)
 import Application.Helper.FrontendContract.Surface.Timesheets.Generated.Live (matchTimesheetDayColumnsLiveFragment,
                                                                               matchTimesheetDaySectionLiveFragment,
+                                                                              matchTimesheetSidePanelContentLiveFragment,
                                                                               matchTimesheetToolbarLiveFragment,
                                                                               timesheetDayColumnsLiveFragment,
                                                                               timesheetDaySectionLiveFragment,
+                                                                              timesheetSidePanelContentLiveFragment,
                                                                               timesheetToolbarLiveFragment,
                                                                               timesheetWeekLiveScope)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Generated.Live as Generated

@@ -66,6 +66,7 @@ data TimesheetsController
     | ShowTimesheetWeekAction { weekOffset :: !Int }
     | ShowtimesheetToolbarLiveFragmentAction { weekOffset :: !Int }
     | ShowtimesheetDayColumnsLiveFragmentAction { weekOffset :: !Int }
+    | ShowtimesheetSidePanelContentLiveFragmentAction { weekOffset :: !Int }
     | ShowTimesheetDaySectionFragmentAction { weekOffset :: !Int, dayOffset :: !Int }
     | ToggleTimesheetHideApprovedAction
     | ToggleTimesheetShowSuggestionsAction

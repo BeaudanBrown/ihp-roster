@@ -853,7 +853,7 @@ tests = describe "FrontendSurface DSL foundation" do
         map (.scopeName) surface.surfaceScopes `shouldBe` ["timesheet-week"]
         map (.scopeOptions) surface.surfaceScopes `shouldBe` [[AuthorizeCurrentVenueIR "venueId"]]
         map (.mountStateName) surface.surfaceMountStates `shouldBe` ["timesheets-mount-state"]
-        map (.fragmentName) surface.surfaceFragments `shouldBe` ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"]
+        map (.fragmentName) surface.surfaceFragments `shouldBe` ["timesheet-toolbar", "timesheet-day-columns", "timesheet-side-panel-content", "timesheet-day-section"]
         surface.surfaceBrowserDomTokens `shouldBe` ["timesheet-week-shell"]
         surface.surfaceFragments
             |> find (\fragment -> fragment.fragmentName == "timesheet-day-section")
@@ -899,7 +899,7 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type TimesheetsMountConfig ="
         frontendSurfaceContractsTypeScript `shouldNotContainText` "TimesheetsTimesheetsMountStateMountState"
         frontendSurfaceContractsTypeScript `shouldNotContainText` "export type TimesheetsMountState ="
-        frontendSurfaceContractsTypeScript `shouldContainText` "\"timesheets\":[\"timesheet-toolbar\",\"timesheet-day-columns\",\"timesheet-day-section\"]"
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"timesheets\":[\"timesheet-toolbar\",\"timesheet-day-columns\",\"timesheet-side-panel-content\",\"timesheet-day-section\"]"
         frontendSurfaceContractsTypeScript `shouldNotContainText` "timesheetsSurfaceManifest"
 
     it "renders marker-indexed roster column-edit roles and closed states" do
