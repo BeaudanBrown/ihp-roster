@@ -1,6 +1,7 @@
 import { test, expect, Page } from '@playwright/test';
 import {
     liveFragmentsRefreshEvent,
+    rosterStaffHighlightDefaultDomAttr,
     rosterStaffHighlightMemberDomAttr,
     rosterStaffHighlightOrderDomAttr,
     rosterStaffHighlightPinDomAttr,
@@ -119,6 +120,7 @@ test.describe('Roster staff shift highlight', () => {
             .locator(`[${toggleRootDomAttr}]`)
             .filter({ hasText: 'Live' });
         await expect(liveToggle.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
+        await expect(page.locator(`[${rosterStaffHighlightDefaultDomAttr}]`)).toHaveCount(0);
 
         const publishResponse = page.waitForResponse((response) =>
             response.request().method() === 'POST' && new URL(response.url()).pathname.includes('ToggleRosterWeekLiveStatus'),
@@ -126,6 +128,12 @@ test.describe('Roster staff shift highlight', () => {
         await liveToggle.click();
         expect((await publishResponse).ok()).toBe(true);
         await expect(liveToggle.locator(`[${toggleInputDomAttr}]`)).toBeChecked({ timeout: E2E_TIMEOUT.liveUpdate });
+        const ownDefaultOwner = page.locator(`[${rosterStaffHighlightDefaultDomAttr}]`);
+        await expect(ownDefaultOwner).toHaveCount(1);
+        const ownStaffKey = await ownDefaultOwner.getAttribute(rosterStaffHighlightDefaultDomAttr);
+        expect(ownStaffKey).toBeTruthy();
+        const ownMembers = page.locator(`[${rosterStaffHighlightMemberDomAttr}="${ownStaffKey}"]`);
+        await expect(page.locator(`[${rosterStaffHighlightMemberDomAttr}="${ownStaffKey}"].is-linked-highlight-member`)).toHaveCount(await ownMembers.count());
 
         await hoverStaffRow(page, staffKey);
         const highlightedCells = page.locator(`.roster-grid [role="gridcell"][${rosterStaffHighlightMemberDomAttr}="${staffKey}"].is-linked-highlight-member`);
@@ -138,6 +146,7 @@ test.describe('Roster staff shift highlight', () => {
         await liveToggle.click();
         expect((await draftResponse).ok()).toBe(true);
         await expect(liveToggle.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked({ timeout: E2E_TIMEOUT.liveUpdate });
+        await expect(page.locator(`[${rosterStaffHighlightDefaultDomAttr}]`)).toHaveCount(0);
     });
 
     test('highlights assigned shift cards in the day-column view', async ({ page }) => {

@@ -35,7 +35,7 @@ tests = do
             rendered `shouldSatisfy` any (Text.isInfixOf "Ctrl")
             rendered `shouldSatisfy` any (Text.isInfixOf "Option, or Alt")
             rendered `shouldSatisfy` any (Text.isInfixOf "Turn Live on")
-            rendered `shouldSatisfy` any (Text.isInfixOf "hide the Staff/Settings panel temporarily")
+            rendered `shouldSatisfy` any (Text.isInfixOf "hide the Staff/Templates/Settings panel temporarily")
             rendered `shouldSatisfy` any (Text.isInfixOf "press Escape")
             rendered `shouldSatisfy` any (Text.isInfixOf "Part-time shifts")
             rendered `shouldSatisfy` any (Text.isInfixOf "pay configuration warning")
@@ -45,7 +45,7 @@ tests = do
             let rendered = flattenHelpText (filterPageHelpTopic defaultPageHelpContext roster)
             rendered `shouldSatisfy` all (not . Text.isInfixOf "drag")
             rendered `shouldSatisfy` all (not . Text.isInfixOf "Turn Live on")
-            rendered `shouldSatisfy` all (not . Text.isInfixOf "Staff/Settings panel")
+            rendered `shouldSatisfy` all (not . Text.isInfixOf "Staff/Templates/Settings panel")
             rendered `shouldSatisfy` any (Text.isInfixOf "future roster")
 
     describe "timesheet help copy" do

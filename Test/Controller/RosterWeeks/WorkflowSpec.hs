@@ -1268,6 +1268,8 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` ("data-bepis-roster-staff-highlight-default=\"staff:" <> cs (tshow staffMember.id) <> "\"")
                 response `responseBodyShouldContain` "Quick tools"
                 response `responseBodyShouldContain` "Settings"
+                response `responseBodyShouldContain` "data-bepis-roster-self-service-panel-tab=\"quick-tools\""
+                response `responseBodyShouldContain` "data-bepis-roster-self-service-panel-tab=\"settings\""
                 response `responseBodyShouldContain` "Own shifts highlighted"
                 response `responseBodyShouldNotContain` "No roster exists for this week yet."
 

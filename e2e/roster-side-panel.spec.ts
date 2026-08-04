@@ -5,8 +5,9 @@ import {
     rosterSidePanelRootDomAttr,
     rosterSidePanelStates,
     rosterSidePanelToggleDomAttr,
+    rosterSelfServicePanelTabDomAttr,
 } from '../frontend/ts/generated/contracts';
-import { openRoster } from './test-helpers';
+import { gotoWhenReady, loginAs, openRoster } from './test-helpers';
 import { E2E_TIMEOUT } from './timeouts';
 
 test.describe('Roster side-panel toggle', () => {
@@ -47,5 +48,26 @@ test.describe('Roster side-panel toggle', () => {
         await page.keyboard.press('Escape');
         await expect(shell).toHaveAttribute(rosterSidePanelDomAttr, rosterSidePanelStates.collapsed);
         await expect(staffPanel).toBeVisible();
+    });
+
+    test('gives ordinary staff Quick tools and Settings with mobile SidePanel behavior', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
+        await gotoWhenReady(page, '/RosterWeeks', '#roster-week-shell');
+
+        const quickToolsTab = page.locator(`[${rosterSelfServicePanelTabDomAttr}="quick-tools"]`);
+        const settingsTab = page.locator(`[${rosterSelfServicePanelTabDomAttr}="settings"]`);
+        await expect(quickToolsTab).toHaveAttribute('aria-selected', 'true');
+        await expect(page.locator('#roster-self-service-quick-tools-pane')).toBeVisible();
+
+        await settingsTab.click();
+        await expect(settingsTab).toHaveAttribute('aria-selected', 'true');
+        await expect(page.locator('#roster-self-service-settings-pane')).toBeVisible();
+        await expect(page.locator('#highlight-own-live-shifts')).toBeVisible();
+
+        const toggle = page.locator(`[${rosterSidePanelToggleDomAttr}="true"]`);
+        await toggle.click();
+        await expect(page.locator(`[${rosterSidePanelRootDomAttr}="true"]`)).toHaveAttribute(rosterSidePanelDomAttr, rosterSidePanelStates.expanded);
+        await expect(page.locator('#roster-staff-self-service-panel-fragment')).toBeHidden();
     });
 });

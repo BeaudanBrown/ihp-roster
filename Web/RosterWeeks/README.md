@@ -36,6 +36,8 @@ inventory here.
   behavior belongs in the shared interaction runtime.
 - Roster writes validate venue/group scope and current Staff/Open/pay state at
   the server boundary, regardless of rendered controls.
+- The shared SidePanel owns only visibility and responsive mechanics. Roster
+  owns Staff/Templates/Settings content, permissions, and linked highlighting.
 - Emailing a live roster is an explicit editor action. One immutable run
   snapshots its audience and roster; each recipient sees only their own assigned
   shifts and the snapshot's Open shifts. Durable jobs continue if the roster
