@@ -95,9 +95,9 @@ respondWithTimesheetWeekFragmentsUpdate weekOffset staffFilterId =
         setHtmxPushUrl (timesheetWeekUrl weekOffset staffFilterId)
         respondWithTimesheetPreferenceUpdate weekOffset staffFilterId
 
-respondWithTimesheetPreferenceUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Maybe UUID.UUID -> IO ()
+respondWithTimesheetPreferenceUpdate :: (?context :: ControllerContext, ?request :: Request) => Int -> Maybe UUID.UUID -> IO ()
 respondWithTimesheetPreferenceUpdate weekOffset staffFilterId =
-    respondWithTimesheetFragments
+    respondWithTimesheetActorFragments
         (TimesheetProjectionRequest weekOffset staffFilterId)
         [TimesheetProjectionToolbar, TimesheetProjectionDayColumns]
         mempty

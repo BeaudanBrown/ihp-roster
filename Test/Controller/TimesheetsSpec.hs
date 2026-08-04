@@ -143,7 +143,12 @@ tests = aroundAll withDatabaseTestContext do
 
                 legacyWeekResponse <- withUserAndCurrentVenue user venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 4 }
-                        [("showApproved", "true"), ("showAllStaff", "false"), ("showSuggestions", "false")]
+                        [ ("showApproved", "true")
+                        , ("showAllStaff", "false")
+                        , ("showSuggestions", "false")
+                        , ("hideApproved", "false")
+                        , ("showTimesheetSuggestions", "false")
+                        ]
                 legacyWeekResponse `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders legacyWeekResponse)
                     `shouldBe` Just "http://localhost/ShowTimesheetWeek?weekOffset=4"
@@ -188,8 +193,12 @@ tests = aroundAll withDatabaseTestContext do
                 suggestionResponse `responseStatusShouldBe` status200
                 lookup "HX-Push-Url" (responseHeaders suggestionResponse)
                     `shouldBe` Nothing
-                suggestionResponse `responseBodyShouldContain` "id=\"timesheet-week-toolbar\""
-                suggestionResponse `responseBodyShouldContain` "id=\"timesheet-day-columns\""
+                suggestionResponse `responseBodyShouldNotContain` "id=\"timesheet-week-toolbar\""
+                suggestionResponse `responseBodyShouldNotContain` "id=\"timesheet-day-columns\""
+                let preferenceRefreshHeader = cs <$> lookup "HX-Trigger" (responseHeaders suggestionResponse)
+                preferenceRefreshHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
+                preferenceRefreshHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"timesheet-toolbar\"")
+                preferenceRefreshHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"timesheet-day-columns\"")
 
                 preferences <- query @UserPreference
                     |> filterWhere (#userId, unpackId user.id)

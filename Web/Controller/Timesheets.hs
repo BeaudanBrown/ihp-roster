@@ -75,7 +75,7 @@ instance Controller TimesheetsController where
 
     action currentAction@ShowTimesheetWeekAction { weekOffset } = runBepis currentAction BepisPageAction do
         let selectedStaffFilterId = timesheetStaffFilterFromRequest
-        if any hasParam ["showApproved", "showAllStaff", "showSuggestions"]
+        if any hasParam ["showApproved", "showAllStaff", "showSuggestions", "hideApproved", "showTimesheetSuggestions"]
             then redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
             else renderTimesheetWeekPage weekOffset selectedStaffFilterId
 
