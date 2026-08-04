@@ -9,8 +9,9 @@ module Application.Helper.View.Audience
     , renderWhenAudience
     ) where
 
-import Application.Helper.Controller (currentUserIsSuperAdmin,
-                                      currentVenueRoleOrNothing, hasRole)
+import Application.Helper.Controller (currentUserIsImpersonating,
+                                      currentUserIsSuperAdmin,
+                                      effectiveVenueRoleOrNothing, hasRole)
 import Generated.Types
 import IHP.ViewPrelude
 
@@ -28,7 +29,7 @@ currentUserIsSupportAdmin :: (?context :: ControllerContext) => Bool
 currentUserIsSupportAdmin = currentUserIsSuperAdmin
 
 currentUserIsVenueOwner :: (?context :: ControllerContext) => Bool
-currentUserIsVenueOwner = currentVenueRoleOrNothing == Just VenueOwner
+currentUserIsVenueOwner = effectiveVenueRoleOrNothing == Just VenueOwner
 
 currentUserCanSeeXero :: (?context :: ControllerContext) => Bool
 currentUserCanSeeXero = hasRole VenueOwner
@@ -46,7 +47,7 @@ currentUserMatchesAudience :: (?context :: ControllerContext) => ViewAudience ->
 currentUserMatchesAudience audience =
     case audience of
         AnySignedInAudience -> isJust currentUserOrNothing
-        StaffProfileAudience -> isJust currentUserOrNothing && not currentUserIsSupportAdmin
+        StaffProfileAudience -> isJust currentUserOrNothing && (not currentUserIsSupportAdmin || currentUserIsImpersonating)
         ManagerAudience     -> currentUserIsManager
         XeroAudience        -> currentUserCanSeeXero
         AdminAudience       -> currentUserIsAdmin

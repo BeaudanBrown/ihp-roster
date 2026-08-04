@@ -72,6 +72,9 @@ data ImpersonationRequestContext = ImpersonationRequestContext
 actualAuthenticatedUser :: (?context :: ControllerContext) => ActualUser
 actualAuthenticatedUser = ActualUser authenticatedCurrentUser
 
+effectiveCurrentUser :: (?context :: ControllerContext) => User
+effectiveCurrentUser = effectiveUserRecord effectiveRequestUser
+
 effectiveRequestUser :: (?context :: ControllerContext) => EffectiveUser
 effectiveRequestUser =
     maybe
@@ -82,6 +85,12 @@ effectiveRequestUser =
 currentImpersonationOrNothing :: (?context :: ControllerContext) => Maybe ImpersonationRequestContext
 currentImpersonationOrNothing = unsafePerformIO (join <$> maybeFromContext @(Maybe ImpersonationRequestContext))
 {-# NOINLINE currentImpersonationOrNothing #-}
+
+currentUserIsImpersonating :: (?context :: ControllerContext) => Bool
+currentUserIsImpersonating = isJust currentImpersonationOrNothing
+
+currentUserIsUnimpersonatedSuperAdmin :: (?context :: ControllerContext) => Bool
+currentUserIsUnimpersonatedSuperAdmin = currentUserIsSuperAdmin && not currentUserIsImpersonating
 
 effectiveVenueMembershipOrNothing :: (?context :: ControllerContext) => Maybe VenueMembership
 effectiveVenueMembershipOrNothing =

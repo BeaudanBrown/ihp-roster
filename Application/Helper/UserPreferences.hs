@@ -16,7 +16,8 @@ module Application.Helper.UserPreferences
     , upsertCurrentUserShowWageEstimates
     ) where
 
-import Application.Helper.Controller (enumFromText, hasRole)
+import Application.Helper.Controller (effectiveCurrentUser, enumFromText,
+                                      hasRole)
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -57,7 +58,7 @@ rosterLayoutModeLabel mode =
 fetchCurrentUserPreferenceRecord :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Maybe UserPreference)
 fetchCurrentUserPreferenceRecord =
     query @UserPreference
-        |> filterWhere (#userId, unpackId currentUser.id)
+        |> filterWhere (#userId, unpackId effectiveCurrentUser.id)
         |> fetchOneOrNothing
 
 fetchCurrentUserRosterPreferences :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO UserRosterPreferences
@@ -90,7 +91,7 @@ upsertCurrentUserRosterLayoutMode layoutMode = do
                 |> updateRecord
         Nothing ->
             newRecord @UserPreference
-                |> set #userId (unpackId currentUser.id)
+                |> set #userId (unpackId effectiveCurrentUser.id)
                 |> set #rosterLayoutMode layoutMode
                 |> createRecord
 
@@ -108,7 +109,7 @@ upsertCurrentUserShowRosterWarnings showRosterWarnings = do
                 |> updateRecord
         Nothing ->
             newRecord @UserPreference
-                |> set #userId (unpackId currentUser.id)
+                |> set #userId (unpackId effectiveCurrentUser.id)
                 |> set #showShiftTypeHighlights hideRosterWarnings
                 |> createRecord
 
@@ -125,6 +126,6 @@ upsertCurrentUserShowWageEstimates showWageEstimates = do
                 |> updateRecord
         Nothing ->
             newRecord @UserPreference
-                |> set #userId (unpackId currentUser.id)
+                |> set #userId (unpackId effectiveCurrentUser.id)
                 |> set #showWageEstimates showWageEstimates
                 |> createRecord

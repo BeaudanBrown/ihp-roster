@@ -36,8 +36,8 @@ updateCurrentUserProfile openSection staffInput submittedSelections = do
             staff <- upsertCurrentUserStaff staffInput
             replaceStaffShiftPreferences staff submittedSelections
             let isProfileCompleted = requiredProfileFieldsCompleted staff
-            let wasProfileCompleted = currentUser.isProfileCompleted
-            currentUser
+            let wasProfileCompleted = effectiveCurrentUser.isProfileCompleted
+            effectiveCurrentUser
                 |> set #isProfileCompleted isProfileCompleted
                 |> updateRecord
             pure ProfileUpdateMutationResult
@@ -82,7 +82,7 @@ upsertCurrentUserStaff staff = do
             createdStaff <-
                 staff
                     |> set #venueId (unpackId currentVenueId)
-                    |> set #userId (Just (unpackId (get #id currentUser)))
+                    |> set #userId (Just (unpackId (get #id effectiveCurrentUser)))
                     |> createRecord
             defaultRosterGroup <- fetchCurrentVenueDefaultRosterGroup
             syncStaffRosterGroupAssignments createdStaff [defaultRosterGroup.id]

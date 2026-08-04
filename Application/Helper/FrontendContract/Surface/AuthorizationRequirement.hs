@@ -27,7 +27,7 @@ authorizeSurfaceScopeRequirement ::
 authorizeSurfaceScopeRequirement (RequireCurrentVenue venueId) =
     pure (currentVenueMatches venueId)
 authorizeSurfaceScopeRequirement (RequireCurrentVenueUser venueId userId) =
-    pure (currentVenueMatches venueId && userId == unpackId authenticatedCurrentUser.id)
+    pure (currentVenueMatches venueId && userId == unpackId effectiveCurrentUser.id)
 authorizeSurfaceScopeRequirement (RequireCurrentVenueStaff venueId staffId) =
     if currentVenueMatches venueId
         then do
@@ -36,7 +36,7 @@ authorizeSurfaceScopeRequirement (RequireCurrentVenueStaff venueId staffId) =
                     |> filterWhere (#id, Id staffId :: Id Staff)
                     |> filterWhere (#venueId, venueId)
                     |> fetchOneOrNothing
-            pure (maybe False (\staff -> staff.userId == Just (unpackId authenticatedCurrentUser.id)) maybeStaff)
+            pure (maybe False (\staff -> staff.userId == Just (unpackId effectiveCurrentUser.id)) maybeStaff)
         else pure False
 authorizeSurfaceScopeRequirement (RequireCurrentVenueRosterGroup venueId rosterGroupId) =
     if currentVenueMatches venueId

@@ -4,6 +4,7 @@ module Web.View.Layout (defaultLayout, Html) where
 
 import Application.Billing.Stripe (StripeOwnerNavigationVisibility (..))
 import Application.Helper.Controller (currentSupportVenueOptions,
+                                      currentUserIsImpersonating,
                                       currentVenueMembershipOrNothing,
                                       currentVenueOrNothing)
 import Application.Helper.FrontendContract.AppShell (OpenFeedbackDialog)
@@ -161,7 +162,7 @@ renderOwnerBillingMobileNavLink =
 
 ownerBillingNavigationIsVisible :: (?context :: ControllerContext) => Bool
 ownerBillingNavigationIsVisible =
-    not currentUserIsSupportAdmin
+    (not currentUserIsSupportAdmin || currentUserIsImpersonating)
         && currentUserIsVenueOwner
         && (fromFrozenContext @StripeOwnerNavigationVisibility).ownerBillingNavigationVisible
 

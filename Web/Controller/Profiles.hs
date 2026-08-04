@@ -45,8 +45,8 @@ instance Controller ProfilesController where
     action currentAction@EditProfileAction = runBepis currentAction BepisFormAction $
         profileActionSpan "profile.page.render" do
             maybeExistingStaff <- profileActionSpan "profile.page.fetch_staff" fetchCurrentUserStaff
-            let staff = fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff
-            let currentUserEmail = currentUser.email
+            let staff = fromMaybe (buildNewCurrentUserStaff effectiveCurrentUser) maybeExistingStaff
+            let currentUserEmail = effectiveCurrentUser.email
             let openSection = normalizeProfileOpenSection (paramOrDefault @Text "" "section")
             (preferenceWeekdays, selectedShiftPreferences) <- profileActionSpan "profile.page.fetch_preferences" (profilePreferenceViewData maybeExistingStaff)
             passkeys <- profileActionSpan "profile.page.fetch_passkeys" fetchCurrentUserPasskeys
@@ -64,7 +64,7 @@ instance Controller ProfilesController where
             profileActionSpan "profile.content_fragment.fetch_staff" fetchCurrentUserStaff >>= \case
                 Nothing -> accessDeniedUnless False
                 Just staff -> do
-                    let currentUserEmail = currentUser.email
+                    let currentUserEmail = effectiveCurrentUser.email
                     (preferenceWeekdays, selectedShiftPreferences) <- profileActionSpan "profile.content_fragment.fetch_preferences" (profilePreferenceViewData (Just staff))
                     passkeys <- profileActionSpan "profile.content_fragment.fetch_passkeys" fetchCurrentUserPasskeys
                     leaveRequests <- profileActionSpan "profile.content_fragment.fetch_leave_requests" fetchCurrentUserLeaveRequests
@@ -78,8 +78,8 @@ instance Controller ProfilesController where
     action currentAction@UpdateProfileAction = runBepis currentAction BepisMutationAction do
         maybeExistingStaff <- fetchCurrentUserStaff
         let submissionResult = parseProfileSurfaceSubmission
-        let staff = fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff
-        let currentUserEmail = currentUser.email
+        let staff = fromMaybe (buildNewCurrentUserStaff effectiveCurrentUser) maybeExistingStaff
+        let currentUserEmail = effectiveCurrentUser.email
         let openSection =
                 case submissionResult of
                     Right (SubmittedStaffShiftPreferences _) -> "preferences"

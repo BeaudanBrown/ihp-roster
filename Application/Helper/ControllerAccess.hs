@@ -65,7 +65,7 @@ requiredProfileFieldsCompleted staff =
 
 isOperationallyActive :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Bool
 isOperationallyActive
-    | currentUserIsSuperAdmin = pure True
+    | currentUserIsUnimpersonatedSuperAdmin = pure True
     | otherwise =
         maybe False requiredProfileFieldsCompleted <$> fetchCurrentUserStaff
 
@@ -79,7 +79,7 @@ ensureProfileCompleted = do
 
 hasRole :: (?context :: ControllerContext) => VenueRoleEnum -> Bool
 hasRole minimumRole =
-    currentUserIsSuperAdmin || maybe False (`hasVenueRole` minimumRole) currentVenueRoleOrNothing
+    currentUserIsUnimpersonatedSuperAdmin || maybe False (`hasVenueRole` minimumRole) effectiveVenueRoleOrNothing
 
 ensureCurrentVenueOrSupportRedirect :: (?context :: ControllerContext, ?request :: Request) => IO ()
 ensureCurrentVenueOrSupportRedirect =
@@ -120,7 +120,7 @@ ensureCurrentVenue = do
 
 isCurrentVenueManuallyReadOnly :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Bool
 isCurrentVenueManuallyReadOnly
-    | currentUserIsSuperAdmin = pure False
+    | currentUserIsUnimpersonatedSuperAdmin = pure False
     | otherwise = do
         maybeControl <-
             query @VenueBillingControl
@@ -293,7 +293,7 @@ parsePasskeyVerifiedAt value = do
     pure (posixSecondsToUTCTime (fromInteger seconds :: POSIXTime))
 
 currentUserCanUseStaffSelfService :: (?context :: ControllerContext) => Bool
-currentUserCanUseStaffSelfService = not currentUserIsSuperAdmin
+currentUserCanUseStaffSelfService = not currentUserIsUnimpersonatedSuperAdmin
 
 ensureStaffSelfServiceAccess :: (?context :: ControllerContext, ?request :: Request) => IO ()
 ensureStaffSelfServiceAccess = do
@@ -301,17 +301,19 @@ ensureStaffSelfServiceAccess = do
     emitScopeFact (BepisRoleScopeFact BepisStaffRole) "staff-self-service"
 
 fetchCurrentUserPasskeys :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [Passkey]
-fetchCurrentUserPasskeys =
-    query @Passkey
-        |> filterWhere (#userId, unpackId authenticatedCurrentUser.id)
-        |> orderByAsc #createdAt
-        |> fetch
+fetchCurrentUserPasskeys
+    | currentUserIsImpersonating = pure []
+    | otherwise =
+        query @Passkey
+            |> filterWhere (#userId, unpackId authenticatedCurrentUser.id)
+            |> orderByAsc #createdAt
+            |> fetch
 
 fetchCurrentUserStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe Staff)
 fetchCurrentUserStaff =
     query @Staff
         |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#userId, Just (coerce (get #id authenticatedCurrentUser)))
+        |> filterWhere (#userId, Just (coerce (get #id effectiveCurrentUser)))
         |> fetchOneOrNothing
 
 staffInCurrentVenueOrNothing :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID -> IO (Maybe Staff)

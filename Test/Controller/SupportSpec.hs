@@ -101,6 +101,26 @@ tests = aroundAll withDatabaseTestContext do
                 auditEvent.actorUserId `shouldBe` unpackId superAdmin.id
                 auditEvent.targetId `shouldBe` unpackId targetUser.id
 
+        it "applies worker authorization and self-service ownership while impersonating" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Worker Authorization Impersonation Venue"
+                founder <- createUserRecordWithPlatformRole "impersonation-worker-founder@example.com" "staff" (Just SuperAdmin) True
+                worker <- createUserRecord "impersonation-effective-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue worker Worker
+                _ <- createStaffRecord venue (Just worker) "Effective" "Worker"
+
+                (adminResponse, profileResponse) <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    _ <- callActionWithParams
+                        StartSupportImpersonationAction
+                        [("userId", cs (inputValue worker.id))]
+                    adminResponse <- callAction AdminAction
+                    profileResponse <- callAction EditProfileAction
+                    pure (adminResponse, profileResponse)
+
+                adminResponse `responseStatusShouldBe` status302
+                profileResponse `responseStatusShouldBe` status200
+                profileResponse `responseBodyShouldContain` "impersonation-effective-worker@example.com"
+
         it "rejects client tampering with signed impersonation session material" $ withContext do
             key <- ClientSession.getKey "Config/client_session_key.aes"
             encrypted <- ClientSession.encryptIO key "supportImpersonationEffectiveUserId=target&supportImpersonationSessionId=session"
