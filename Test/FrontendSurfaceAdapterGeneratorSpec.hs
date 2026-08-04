@@ -382,6 +382,7 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
                     `shouldBe`
                         [ ("timesheets", "timesheet-toolbar")
                         , ("timesheets", "timesheet-day-columns")
+                        , ("timesheets", "timesheet-side-panel-content")
                         , ("timesheets", "timesheet-day-section")
                         , ("roster", "roster-content")
                         , ("roster", "roster-grid-toolbar")

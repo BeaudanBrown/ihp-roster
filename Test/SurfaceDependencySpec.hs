@@ -98,7 +98,7 @@ tests = do
             let affectedByWeek = planMountedFragments (Set.fromList [timesheetWeekResource venueId 2]) (timesheetsSurfaceScope scopeValue) candidates
 
             map (.mountedFragmentTargetId) affectedByDay `shouldBe` ["timesheet-day-section-4"]
-            map (.mountedFragmentTargetId) affectedByWeek `shouldBe` ["timesheet-week-toolbar", "timesheet-day-columns"]
+            map (.mountedFragmentTargetId) affectedByWeek `shouldBe` ["timesheet-week-toolbar", "timesheet-day-columns", "timesheet-side-panel-content"]
 
         it "coalesces actor mount keys through the same dependency plan as passive subscriptions" do
             let venueId = fromWords 1 0 0 0
