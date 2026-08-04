@@ -379,7 +379,7 @@ fetchRosterPanelTemplateLibrary rosterGroup
 fetchRosterStaffSelfServicePanel :: (?context :: ControllerContext, ?modelContext :: ModelContext) => VenueConfig -> Id RosterGroup -> Int -> IO (Maybe RosterStaffSelfServicePanel)
 fetchRosterStaffSelfServicePanel venueConfig rosterGroupId weekOffset
     | hasRole Manager = pure Nothing
-    | currentUserIsSuperAdmin = pure Nothing
+    | currentUserIsUnimpersonatedSuperAdmin = pure Nothing
     | otherwise = do
         maybeStaff <- fetchCurrentUserStaff
         case maybeStaff of

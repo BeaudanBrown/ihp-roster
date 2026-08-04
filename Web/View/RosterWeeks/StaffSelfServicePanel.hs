@@ -6,6 +6,7 @@ module Web.View.RosterWeeks.StaffSelfServicePanel
     , rosterStaffSelfServiceTimesheetSurfaceId
     ) where
 
+import Application.Helper.Controller (currentUserIsUnimpersonatedSuperAdmin)
 import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl,
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
@@ -29,7 +30,7 @@ renderRosterStaffSelfServicePanelFragment :: (?context :: ControllerContext) => 
 renderRosterStaffSelfServicePanelFragment Nothing = mempty
 renderRosterStaffSelfServicePanelFragment (Just panel)
     | currentUserIsManager = mempty
-    | currentUserIsSupportAdmin = mempty
+    | currentUserIsUnimpersonatedSuperAdmin = mempty
     | otherwise = [hsx|
         <div id={rosterStaffSelfServicePanelFragmentId}
              class="col-12 col-xl-4 col-xxl-3 roster-layout-side roster-staff-self-service-panel">

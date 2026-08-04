@@ -397,12 +397,12 @@ renderStaffRemovalConfirmation staff weekOffset maybeRosterGroupId =
 
 canRenderStaffRemoval :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> IO Bool
 canRenderStaffRemoval staff
-    | not (currentUserIsSuperAdmin || hasRole VenueAdmin) = pure False
+    | not (currentUserIsUnimpersonatedSuperAdmin || hasRole VenueAdmin) = pure False
     | otherwise = isNothing <$> staffRemovalBlockReason staff
 
 ensureCanRemoveStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 ensureCanRemoveStaff =
-    redirectPermissionDeniedUnless (currentUserIsSuperAdmin || hasRole VenueAdmin) "Only venue admins and owners can remove staff members."
+    redirectPermissionDeniedUnless (currentUserIsUnimpersonatedSuperAdmin || hasRole VenueAdmin) "Only venue admins and owners can remove staff members."
 
 emptyStaffPayRateSelection :: SubmittedPayRateSelection
 emptyStaffPayRateSelection = SubmittedPayRateSelection Nothing Nothing True
