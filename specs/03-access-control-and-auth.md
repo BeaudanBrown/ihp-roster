@@ -82,7 +82,8 @@ The product must not rely on global in-app business roles without venue boundari
 - Desktop and mobile headers render a second support-only selector beside the
   venue selector. `Super admin` exits immediately; current-venue options include
   active users with active memberships and show preferred/first name plus role,
-  never email. Duplicate displayed first names append the last-name initial.
+  never email. A member without the optional active linked Staff row uses
+  `Venue user`; duplicate displayed first names append the last-name initial.
   Selection is a full-page POST that requires fresh passkey verification for
   entry, accepts only same-origin return paths, and leaves normal route guards to
   authorize the returned page. The selected option is the only impersonation

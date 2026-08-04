@@ -279,6 +279,8 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue inactiveUser Supervisor
                 inactiveAt <- getCurrentTime
                 _ <- inactiveUser |> set #deactivatedAt (Just inactiveAt) |> updateRecord
+                userWithoutStaff <- createUserRecord "selector-no-staff@example.com" "staff" False
+                _ <- createVenueMembershipRecord venue userWithoutStaff Supervisor
                 inactiveMembershipUser <- createUserRecord "selector-archived@example.com" "staff" True
                 inactiveMembership <- createVenueMembershipRecord venue inactiveMembershipUser VenueAdmin
                 _ <- inactiveMembership
@@ -298,8 +300,10 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Super admin"
                 response `responseBodyShouldContain` "Ally L. — Worker"
                 response `responseBodyShouldContain` "Ally B. — Manager"
+                response `responseBodyShouldContain` "Venue user — Supervisor"
                 response `responseBodyShouldNotContain` worker.email
                 response `responseBodyShouldNotContain` manager.email
+                response `responseBodyShouldNotContain` userWithoutStaff.email
                 response `responseBodyShouldNotContain` inactiveUser.email
                 response `responseBodyShouldNotContain` inactiveMembershipUser.email
                 workerMembership.venueRole `shouldBe` Worker

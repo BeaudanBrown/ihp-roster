@@ -51,6 +51,8 @@ initSupportImpersonationOptions = do
             staffRows <- query @Staff
                 |> filterWhere (#venueId, unpackId currentVenueId)
                 |> filterWhereIn (#userId, map (Just . (.userId)) selectableMemberships)
+                |> filterWhere (#isActive, True)
+                |> filterWhere (#archivedAt, Nothing)
                 |> fetch
             let usersById = Map.fromList [(unpackId user.id, user) | user <- users]
             let staffByUserId = Map.fromList [(userId, staff) | staff <- staffRows, Just userId <- [staff.userId]]
@@ -66,18 +68,18 @@ supportImpersonationCandidate
     :: Map.Map UUID User
     -> Map.Map UUID Staff
     -> VenueMembership
-    -> Maybe (Id User, VenueRoleEnum, Text, Text)
+    -> Maybe (Id User, VenueRoleEnum, Text, Maybe Text)
 supportImpersonationCandidate usersById staffByUserId membership = do
     user <- Map.lookup membership.userId usersById
-    staff <- Map.lookup membership.userId staffByUserId
-    let baseName = fromMaybe staff.firstName staff.preferredName
-    pure (user.id, membership.venueRole, baseName, staff.lastName)
+    let maybeStaff = Map.lookup membership.userId staffByUserId
+    let baseName = maybe "Venue user" (\staff -> fromMaybe staff.firstName staff.preferredName) maybeStaff
+    pure (user.id, membership.venueRole, baseName, (.lastName) <$> maybeStaff)
 
 supportImpersonationOption
     :: Map.Map Text Int
-    -> (Id User, VenueRoleEnum, Text, Text)
+    -> (Id User, VenueRoleEnum, Text, Maybe Text)
     -> SupportImpersonationOption
-supportImpersonationOption nameCounts (userId, venueRole, baseName, lastName) =
+supportImpersonationOption nameCounts (userId, venueRole, baseName, maybeLastName) =
     SupportImpersonationOption
         { supportImpersonationUserId = userId
         , supportImpersonationLabel = disambiguatedName <> " — " <> venueRoleLabel venueRole
@@ -85,7 +87,8 @@ supportImpersonationOption nameCounts (userId, venueRole, baseName, lastName) =
         }
     where
         disambiguatedName
-            | Map.findWithDefault 0 (Text.toCaseFold baseName) nameCounts > 1 =
+            | Map.findWithDefault 0 (Text.toCaseFold baseName) nameCounts > 1
+            , Just lastName <- maybeLastName =
                 baseName <> " " <> Text.take 1 lastName <> "."
             | otherwise = baseName
 
