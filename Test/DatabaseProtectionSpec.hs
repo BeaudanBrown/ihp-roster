@@ -331,7 +331,7 @@ tests = aroundAll withDatabaseTestContext do
                 wholeShiftBreak `shouldSatisfy` isRight
 
     describe "roster template persistence constraints" do
-        it "enforces active names, one private draft, and structurally valid scoped shifts" $ withContext do
+        it "enforces reserved names, one private draft, and structurally valid scoped shifts" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Template constraints"
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
@@ -395,6 +395,12 @@ tests = aroundAll withDatabaseTestContext do
                 templateId :: UUID <- sqlQueryScalar
                     "SELECT id FROM roster_templates WHERE roster_group_id = ? AND name = 'Opening'"
                     (Only (unpackId rosterGroup.id))
+                sqlExecDiscardResult "UPDATE roster_templates SET deleted_at = NOW() WHERE id = ?" (Only templateId)
+                duplicateDeletedName <- try
+                    (sqlExecDiscardResult
+                        "INSERT INTO roster_templates (roster_group_id, name, scale) VALUES (?, 'OPENING', 'week')"
+                        (Only (unpackId rosterGroup.id)))
+                    :: IO (Either SomeException ())
                 sqlExecDiscardResult
                     "UPDATE roster_template_designs SET draft_owner_user_id = NULL, draft_name = NULL, template_id = ?, version_number = 1 WHERE id = ?"
                     (templateId, firstDesignId)
@@ -416,6 +422,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 duplicateName `shouldSatisfy` isLeft
                 duplicateDraft `shouldSatisfy` isLeft
+                duplicateDeletedName `shouldSatisfy` isLeft
                 invalidDayIndex `shouldSatisfy` isLeft
                 validOpen `shouldSatisfy` isRight
                 malformedAssigned `shouldSatisfy` isLeft

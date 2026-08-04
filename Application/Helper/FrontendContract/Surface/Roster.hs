@@ -27,7 +27,6 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterTemplateLibrary
     , RosterTemplate
     , RosterTemplateDraft
-    , RosterTemplateDesigner
     , RosterSlotsStructure
     , RosterSlotsContent
     , RosterWeekBoundaryConfig
@@ -193,7 +192,6 @@ data RosterWeekStructure
 data RosterTemplateLibrary
 data RosterTemplate
 data RosterTemplateDraft
-data RosterTemplateDesigner
 data TemplateId
 data UserId
 data RosterSlotsStructure

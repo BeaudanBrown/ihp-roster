@@ -108,7 +108,7 @@ CREATE TABLE roster_template_shifts (
     FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE RESTRICT
 );
 
-CREATE UNIQUE INDEX idx_roster_templates_active_name ON roster_templates (roster_group_id, LOWER(btrim(name))) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX idx_roster_templates_name ON roster_templates (roster_group_id, LOWER(btrim(name)));
 CREATE INDEX idx_roster_templates_group_updated ON roster_templates (roster_group_id, updated_at DESC) WHERE deleted_at IS NULL;
 CREATE UNIQUE INDEX idx_roster_template_designs_one_draft_per_user ON roster_template_designs (draft_owner_user_id) WHERE draft_owner_user_id IS NOT NULL;
 CREATE UNIQUE INDEX idx_roster_template_designs_saved_version ON roster_template_designs (template_id, version_number) WHERE template_id IS NOT NULL;
