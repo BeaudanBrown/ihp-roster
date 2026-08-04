@@ -142,6 +142,12 @@ tests = describe "Frontend contract generator foundation" do
             ]
             (\expected -> frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf expected)
 
+    it "generates the Roster own-live-shift default linked-highlight role" do
+        frontendContractsTypeScript
+            `shouldSatisfy` Text.isInfixOf "export const rosterStaffHighlightDefaultDomAttr = \"data-bepis-roster-staff-highlight-default\" as const;"
+        frontendContractsTypeScript
+            `shouldSatisfy` Text.isInfixOf "\"defaultRoleAttribute\":rosterStaffHighlightDefaultDomAttr"
+
     it "generates roster image-export roles, format, and exact payload parsers" do
         forM_
             [ "export const rosterImageExportTriggerDomAttr = \"data-bepis-roster-image-export-trigger\" as const;"

@@ -7,13 +7,17 @@
 module Application.Helper.FrontendContract.Surface.Roster.StaffPanel
     ( RosterStaffPanelSortKey (..)
     , RosterStaffPanelTab (..)
+    , RosterSelfServicePanelTab (..)
+    , rosterStaffHighlightDefaultAttrs
     , rosterStaffPanelSortControlAttrs
     , rosterStaffPanelSortRootAttrs
     , rosterStaffPanelSortRowAttrs
     , rosterStaffPanelTabAttrs
+    , rosterSelfServicePanelTabAttrs
     ) where
 
 import Application.Helper.FrontendContract.Surface.CompleteSetSort
+import Application.Helper.FrontendContract.Surface.LinkedHighlight (frontendSurfaceLinkedHighlightDefaultAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Roster as Roster
 import Application.Helper.FrontendContract.Surface.TabSet
 import Application.Helper.FrontendContract.Surface.Values
@@ -30,6 +34,15 @@ data RosterStaffPanelTab
     | RosterTemplatesTab
     | RosterSettingsTab
     deriving (Eq, Show)
+
+data RosterSelfServicePanelTab
+    = RosterQuickToolsTab
+    | RosterSelfServiceSettingsTab
+    deriving (Eq, Show)
+
+rosterStaffHighlightDefaultAttrs :: Text -> [(Text, Text)]
+rosterStaffHighlightDefaultAttrs =
+    frontendSurfaceLinkedHighlightDefaultAttrs (surfaceLinkedHighlightValue @Roster.RosterSurface @Roster.StaffShiftsHighlight)
 
 rosterStaffPanelSortRootAttrs :: [(Text, Text)]
 rosterStaffPanelSortRootAttrs =
@@ -65,3 +78,10 @@ rosterStaffPanelTabAttrs = \case
         surfaceTabSetAttrs @Roster.RosterSurface @Roster.RosterStaffPanelTabs @Roster.TemplatesTabKey
     RosterSettingsTab ->
         surfaceTabSetAttrs @Roster.RosterSurface @Roster.RosterStaffPanelTabs @Roster.SettingsTabKey
+
+rosterSelfServicePanelTabAttrs :: RosterSelfServicePanelTab -> [(Text, Text)]
+rosterSelfServicePanelTabAttrs = \case
+    RosterQuickToolsTab ->
+        surfaceTabSetAttrs @Roster.RosterSurface @Roster.RosterSelfServicePanelTabs @Roster.QuickToolsTabKey
+    RosterSelfServiceSettingsTab ->
+        surfaceTabSetAttrs @Roster.RosterSurface @Roster.RosterSelfServicePanelTabs @Roster.SettingsTabKey

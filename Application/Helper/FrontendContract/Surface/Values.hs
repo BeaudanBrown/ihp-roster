@@ -914,6 +914,8 @@ qualifySurfaceLinkedHighlight highlight =
     qualifyActivation = \case
         LinkedHighlightPinActivationIR roleAttribute ->
             LinkedHighlightPinActivationIR (qualifySurfaceBrowserAttribute @spec roleAttribute)
+        LinkedHighlightDefaultActivationIR roleAttribute ->
+            LinkedHighlightDefaultActivationIR (qualifySurfaceBrowserAttribute @spec roleAttribute)
         activation -> activation
     qualifyEffect = \case
         LinkedHighlightOrderedMemberBoundsEffectIR stateAttribute ->

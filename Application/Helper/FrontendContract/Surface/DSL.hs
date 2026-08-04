@@ -184,6 +184,7 @@ data LinkedHighlightActivation
     | ActivateOnFocus
     | ActivateOnKeyboard
     | ActivateWithPin Type
+    | ActivateWithDefault Type
 
 -- | Closed presentation effects supported by linked highlighting. CSS class
 -- names remain browser-module-owned transient state; Haskell selects only the

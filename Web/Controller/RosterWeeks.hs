@@ -1377,7 +1377,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
         timelineTodayUrl <- profileActionSpan "roster.page.timeline_today_url" (buildRosterTimelineTodayUrl currentRosterGroup.id)
 
         case rosterDataOrNothing of
-            Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } ->
+            Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } ->
                 let visibleRosterWeek =
                         if rosterWeek.isLive || hasRole Manager
                             then Just rosterWeek
@@ -1412,6 +1412,8 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
                                 , rosterWagePrediction
                                 , showWageEstimates
                                 , showRosterWarnings
+                                , highlightOwnLiveShifts
+                                , currentViewerStaffKey
                                 , publicHolidays = rosterPublicHolidays
                                 , passkeySetupPrompt
                                 , passkeyStrongAuthenticationRequired

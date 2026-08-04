@@ -162,6 +162,7 @@ data LinkedHighlightActivationIR
     | LinkedHighlightFocusActivationIR
     | LinkedHighlightKeyboardActivationIR
     | LinkedHighlightPinActivationIR !BrowserAttributeIR
+    | LinkedHighlightDefaultActivationIR !BrowserAttributeIR
     deriving (Eq, Show)
 
 data LinkedHighlightEffectIR
@@ -176,6 +177,7 @@ linkedHighlightActivationName = \case
     LinkedHighlightFocusActivationIR -> deriveFrontendSurfaceTypeName @Focus DomTokenName
     LinkedHighlightKeyboardActivationIR -> deriveFrontendSurfaceTypeName @Keyboard DomTokenName
     LinkedHighlightPinActivationIR {} -> deriveFrontendSurfaceTypeName @Pin DomTokenName
+    LinkedHighlightDefaultActivationIR {} -> "default"
 
 linkedHighlightEffectName :: LinkedHighlightEffectIR -> Text
 linkedHighlightEffectName = \case

@@ -451,6 +451,9 @@ instance ReflectLinkedHighlightActivation 'ActivateOnKeyboard where
 instance Typeable pinRole => ReflectLinkedHighlightActivation ('ActivateWithPin pinRole) where
     reflectLinkedHighlightActivation = LinkedHighlightPinActivationIR (reflectedBrowserAttribute @pinRole BrowserRoleName)
 
+instance Typeable defaultRole => ReflectLinkedHighlightActivation ('ActivateWithDefault defaultRole) where
+    reflectLinkedHighlightActivation = LinkedHighlightDefaultActivationIR (reflectedBrowserAttribute @defaultRole BrowserRoleName)
+
 class ReflectLinkedHighlightEffectList (effects :: [LinkedHighlightEffect]) where
     reflectLinkedHighlightEffectList :: [LinkedHighlightEffectIR]
 
@@ -873,6 +876,8 @@ qualifyLinkedHighlight surfaceName highlight =
     qualifyActivation = \case
         LinkedHighlightPinActivationIR roleAttribute ->
             LinkedHighlightPinActivationIR (qualifyBrowserAttribute surfaceName roleAttribute)
+        LinkedHighlightDefaultActivationIR roleAttribute ->
+            LinkedHighlightDefaultActivationIR (qualifyBrowserAttribute surfaceName roleAttribute)
         activation -> activation
     qualifyEffect = \case
         LinkedHighlightOrderedMemberBoundsEffectIR stateAttribute ->

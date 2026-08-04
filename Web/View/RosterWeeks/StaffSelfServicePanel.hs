@@ -8,16 +8,23 @@ module Web.View.RosterWeeks.StaffSelfServicePanel
 
 import Application.Helper.Controller (currentUserIsUnimpersonatedSuperAdmin)
 import Application.Helper.FrontendContract.Surface.Roster.SidePanel (rosterSidePanelRenderAttrs)
+import Application.Helper.FrontendContract.Surface.Roster.StaffPanel (RosterSelfServicePanelTab (..),
+                                                                      rosterSelfServicePanelTabAttrs)
 import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl,
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
 import Data.Time.Calendar (diffDays)
 import Web.LeaveRequests.SelfService (renderSelfServiceLeaveFormMount)
+import Web.RosterWeeks.Dom (rosterSelfServiceQuickToolsPaneId,
+                            rosterSelfServiceQuickToolsTabId,
+                            rosterSelfServiceSettingsPaneId,
+                            rosterSelfServiceSettingsTabId)
 import Web.RosterWeeks.Types (RosterStaffSelfServicePanel (..))
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        TimesheetsMountStateValue (..),
                                        timesheetsDaySurfaceImpl)
 import Web.View.Prelude
+import Web.View.RosterWeeks.SettingsPanel (renderRosterOwnLiveShiftHighlightPreferenceForm)
 import Web.View.Timesheets.Index (TimesheetDayRenderModel (..),
                                   renderDaySection)
 
@@ -39,25 +46,77 @@ renderRosterStaffSelfServicePanelFragment (Just panel)
             , sidePanelRegionExtraAttrs = []
             }
             [hsx|
-                <div class="app-side-panel-scroll-body roster-staff-self-service-stack">
-                    <div class="app-panel roster-quick-tool-panel">
-                        <div class="app-panel-body p-0 roster-quick-tool-panel-body">
-                            <div id={rosterStaffSelfServiceTimesheetSurfaceId}
-                                 class="roster-quick-tool-timesheet">
-                                {renderFrontendSurfaceMount (timesheetSurface panel) (renderDaySection (timesheetDayModel panel))}
-                            </div>
+                <div class="app-panel app-side-panel-scroll roster-staff-panel">
+                    <div class="app-panel-body">
+                        <div class="nav nav-pills roster-staff-panel-tabs" role="tablist" aria-label="Roster side panel">
+                            <button class="nav-link active roster-staff-panel-tab"
+                                    id={rosterSelfServiceQuickToolsTabId}
+                                    type="button"
+                                    role="tab"
+                                    data-bs-toggle="tab"
+                                    data-bs-target={"#" <> rosterSelfServiceQuickToolsPaneId}
+                                    aria-controls={rosterSelfServiceQuickToolsPaneId}
+                                    aria-selected="true"
+                                    {...rosterSelfServicePanelTabAttrs RosterQuickToolsTab}>
+                                <i class="bi bi-lightning" aria-hidden="true"></i>
+                                <span>Quick tools</span>
+                            </button>
+                            <button class="nav-link roster-staff-panel-tab"
+                                    id={rosterSelfServiceSettingsTabId}
+                                    type="button"
+                                    role="tab"
+                                    data-bs-toggle="tab"
+                                    data-bs-target={"#" <> rosterSelfServiceSettingsPaneId}
+                                    aria-controls={rosterSelfServiceSettingsPaneId}
+                                    aria-selected="false"
+                                    {...rosterSelfServicePanelTabAttrs RosterSelfServiceSettingsTab}>
+                                <i class="bi bi-sliders" aria-hidden="true"></i>
+                                <span>Settings</span>
+                            </button>
                         </div>
-                    </div>
-
-                    <div class="app-panel roster-quick-tool-panel">
-                        <div class="app-panel-body">
-                            <div class="roster-staff-panel-header">
-                                <div>
-                                    <h2 class="h5 mb-1">Unavailability</h2>
-                                    <div class="roster-staff-panel-summary">Add unavailable time</div>
+                        <div class="tab-content roster-staff-panel-tab-content">
+                            <div class="tab-pane show active roster-staff-panel-pane"
+                                 id={rosterSelfServiceQuickToolsPaneId}
+                                 role="tabpanel"
+                                 aria-labelledby={rosterSelfServiceQuickToolsTabId}
+                                 tabindex="0">
+                                <div class="app-side-panel-scroll-body roster-staff-self-service-stack">
+                                    <div class="app-panel roster-quick-tool-panel">
+                                        <div class="app-panel-body p-0 roster-quick-tool-panel-body">
+                                            <div id={rosterStaffSelfServiceTimesheetSurfaceId}
+                                                 class="roster-quick-tool-timesheet">
+                                                {renderFrontendSurfaceMount (timesheetSurface panel) (renderDaySection (timesheetDayModel panel))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="app-panel roster-quick-tool-panel">
+                                        <div class="app-panel-body">
+                                            <div class="roster-staff-panel-header">
+                                                <div>
+                                                    <h2 class="h5 mb-1">Unavailability</h2>
+                                                    <div class="roster-staff-panel-summary">Add unavailable time</div>
+                                                </div>
+                                            </div>
+                                            {forEach panel.quickToolsStaffMembers (\staff -> renderSelfServiceLeaveFormMount "roster" False staff panel.quickToolsLeaveRequest [])}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            {forEach panel.quickToolsStaffMembers (\staff -> renderSelfServiceLeaveFormMount "roster" False staff panel.quickToolsLeaveRequest [])}
+                            <div class="tab-pane roster-staff-panel-pane roster-staff-panel-settings-pane"
+                                 id={rosterSelfServiceSettingsPaneId}
+                                 role="tabpanel"
+                                 aria-labelledby={rosterSelfServiceSettingsTabId}
+                                 tabindex="0">
+                                <div class="roster-settings-stack">
+                                    <section class="roster-settings-section">
+                                        <div class="roster-settings-section-heading">
+                                            <i class="bi bi-eye" aria-hidden="true"></i>
+                                            <h2 class="h6 mb-0">Display</h2>
+                                        </div>
+                                        {renderRosterOwnLiveShiftHighlightPreferenceForm panel.quickToolsRosterWeekOffset panel.quickToolsRosterGroupId panel.quickToolsHighlightOwnLiveShifts}
+                                    </section>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

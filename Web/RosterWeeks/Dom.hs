@@ -26,6 +26,12 @@ module Web.RosterWeeks.Dom
     , rosterStaffPanelTemplatesTabId
     , rosterStaffPanelSettingsPaneId
     , rosterStaffPanelSettingsTabId
+    , rosterStaffPanelTemplatesPaneId
+    , rosterStaffPanelTemplatesTabId
+    , rosterSelfServiceQuickToolsPaneId
+    , rosterSelfServiceQuickToolsTabId
+    , rosterSelfServiceSettingsPaneId
+    , rosterSelfServiceSettingsTabId
     , rosterWeekShellId
     ) where
 
@@ -96,6 +102,12 @@ rosterStaffPanelSettingsTabId = "roster-staff-panel-settings-tab"
 rosterStaffPanelStaffPaneId = "roster-staff-panel-staff-pane"
 rosterStaffPanelTemplatesPaneId = "roster-staff-panel-templates-pane"
 rosterStaffPanelSettingsPaneId = "roster-staff-panel-settings-pane"
+
+rosterSelfServiceQuickToolsTabId, rosterSelfServiceSettingsTabId, rosterSelfServiceQuickToolsPaneId, rosterSelfServiceSettingsPaneId :: Text
+rosterSelfServiceQuickToolsTabId = "roster-self-service-quick-tools-tab"
+rosterSelfServiceSettingsTabId = "roster-self-service-settings-tab"
+rosterSelfServiceQuickToolsPaneId = "roster-self-service-quick-tools-pane"
+rosterSelfServiceSettingsPaneId = "roster-self-service-settings-pane"
 
 rosterDaySectionDomId :: Id RosterDay -> Text
 rosterDaySectionDomId rosterDayId =

@@ -74,6 +74,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , StaffHighlightSourceRole
     , StaffHighlightMemberRole
     , StaffHighlightPinRole
+    , StaffHighlightDefaultRole
     , StaffHighlightOrderState
     , RosterStaffPanelSort
     , StaffPanelSortRootRole
@@ -93,6 +94,9 @@ module Application.Helper.FrontendContract.Surface.Roster
     , StaffTabKey
     , TemplatesTabKey
     , SettingsTabKey
+    , RosterSelfServicePanelTabs
+    , SelfServicePanelTabRole
+    , QuickToolsTabKey
     , RosterSidePanel
     , SidePanelRootRole
     , SidePanelMainRole
@@ -298,6 +302,7 @@ data StaffShiftsHighlight
 data StaffHighlightSourceRole
 data StaffHighlightMemberRole
 data StaffHighlightPinRole
+data StaffHighlightDefaultRole
 data StaffHighlightOrderState
 
 data RosterStaffPanelSort
@@ -319,6 +324,9 @@ data StaffPanelTabRole
 data StaffTabKey
 data TemplatesTabKey
 data SettingsTabKey
+data RosterSelfServicePanelTabs
+data SelfServicePanelTabRole
+data QuickToolsTabKey
 
 data RosterSidePanel
 data SidePanelRootRole
@@ -811,6 +819,8 @@ type RosterStaffPanelBrowserBundle =
         'SortAscending
      , BrowserRole StaffPanelTabRole
      , TabSet RosterStaffPanelTabs StaffPanelTabRole '[ StaffTabKey, TemplatesTabKey, SettingsTabKey ] StaffTabKey
+     , BrowserRole SelfServicePanelTabRole
+     , TabSet RosterSelfServicePanelTabs SelfServicePanelTabRole '[ QuickToolsTabKey, SettingsTabKey ] QuickToolsTabKey
      ]
 
 type RosterChromeBrowserBundle =
@@ -904,12 +914,14 @@ type RosterLinkedHighlightBundle =
     '[ BrowserRole StaffHighlightSourceRole
      , BrowserRole StaffHighlightMemberRole
      , BrowserRole StaffHighlightPinRole
+     , BrowserRole StaffHighlightDefaultRole
      , BrowserState StaffHighlightOrderState
      , LinkedHighlight StaffShiftsHighlight StaffHighlightSourceRole StaffHighlightMemberRole
         '[ 'ActivateOnHover
          , 'ActivateOnFocus
          , 'ActivateOnKeyboard
          , 'ActivateWithPin StaffHighlightPinRole
+         , 'ActivateWithDefault StaffHighlightDefaultRole
          ]
         '[ 'HighlightMatchingSource
          , 'HighlightMatchingMember

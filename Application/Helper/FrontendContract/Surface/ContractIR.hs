@@ -486,7 +486,7 @@ validateLinkedHighlights surface =
     validateHighlight highlight =
         requireAttribute "source role" roleMarkers highlight.linkedHighlightSourceRole
             <> requireAttribute "member role" roleMarkers highlight.linkedHighlightMemberRole
-            <> concatMap requirePinRole highlight.linkedHighlightActivations
+            <> concatMap requireActivationRole highlight.linkedHighlightActivations
             <> concatMap requireOrderState highlight.linkedHighlightEffects
             <> validateUnique surface.surfaceName ("linked highlight " <> highlight.linkedHighlightName <> " activation") (map linkedHighlightActivationName highlight.linkedHighlightActivations)
             <> validateUnique surface.surfaceName ("linked highlight " <> highlight.linkedHighlightName <> " effect") (map linkedHighlightEffectName highlight.linkedHighlightEffects)
@@ -499,8 +499,9 @@ validateLinkedHighlights surface =
             | isEmpty = [diagnostic ("missing-linked-highlight-" <> label) (highlightLabel highlight <> " must declare at least one " <> label)]
             | otherwise = []
 
-    requirePinRole = \case
+    requireActivationRole = \case
         LinkedHighlightPinActivationIR role -> requireAttribute "pin role" roleMarkers role
+        LinkedHighlightDefaultActivationIR role -> requireAttribute "default role" roleMarkers role
         _ -> []
 
     requireOrderState = \case

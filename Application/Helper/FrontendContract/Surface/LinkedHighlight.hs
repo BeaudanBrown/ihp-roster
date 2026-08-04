@@ -4,7 +4,8 @@
 {-# LANGUAGE OverloadedStrings   #-}
 
 module Application.Helper.FrontendContract.Surface.LinkedHighlight
-    ( frontendSurfaceLinkedHighlightMemberAttrs
+    ( frontendSurfaceLinkedHighlightDefaultAttrs
+    , frontendSurfaceLinkedHighlightMemberAttrs
     , frontendSurfaceLinkedHighlightPinAttrs
     , frontendSurfaceLinkedHighlightSourceAttrs
     , withFrontendSurfaceLinkedHighlightMember
@@ -38,6 +39,12 @@ frontendSurfaceLinkedHighlightMemberAttrs highlight membershipKey maybeOrderKey 
             (Nothing, Just _) ->
                 error ("Linked highlight " <> cs highlight.linkedHighlightName <> " does not declare ordered members")
 
+frontendSurfaceLinkedHighlightDefaultAttrs :: LinkedHighlightIR -> Text -> [(Text, Text)]
+frontendSurfaceLinkedHighlightDefaultAttrs highlight membershipKey =
+    case linkedHighlightDefaultRole highlight of
+        Just roleAttribute -> [(roleAttribute.browserAttributeDomAttribute, membershipKey)]
+        Nothing -> error ("Linked highlight " <> cs highlight.linkedHighlightName <> " does not declare default activation")
+
 frontendSurfaceLinkedHighlightPinAttrs :: LinkedHighlightIR -> Text -> [(Text, Text)]
 frontendSurfaceLinkedHighlightPinAttrs highlight membershipKey =
     case linkedHighlightPinRole highlight of
@@ -61,6 +68,13 @@ linkedHighlightPinRole highlight =
     uniqueAttribute "pin role"
         [ roleAttribute
         | LinkedHighlightPinActivationIR roleAttribute <- highlight.linkedHighlightActivations
+        ]
+
+linkedHighlightDefaultRole :: LinkedHighlightIR -> Maybe BrowserAttributeIR
+linkedHighlightDefaultRole highlight =
+    uniqueAttribute "default role"
+        [ roleAttribute
+        | LinkedHighlightDefaultActivationIR roleAttribute <- highlight.linkedHighlightActivations
         ]
 
 linkedHighlightOrderState :: LinkedHighlightIR -> Maybe BrowserAttributeIR

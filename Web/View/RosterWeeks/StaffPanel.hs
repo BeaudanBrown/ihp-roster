@@ -128,6 +128,18 @@ renderRosterStaffPanelTabs showTemplates staffContent templateContent settingsCo
         </button>
         {renderRosterTemplatesTab showTemplates}
         <button class="nav-link roster-staff-panel-tab"
+                id={rosterStaffPanelTemplatesTabId}
+                type="button"
+                role="tab"
+                data-bs-toggle="tab"
+                data-bs-target={"#" <> rosterStaffPanelTemplatesPaneId}
+                aria-controls={rosterStaffPanelTemplatesPaneId}
+                aria-selected="false"
+                {...rosterStaffPanelTabAttrs RosterTemplatesTab}>
+            <i class="bi bi-clipboard" aria-hidden="true"></i>
+            <span>Templates</span>
+        </button>
+        <button class="nav-link roster-staff-panel-tab"
                 id={rosterStaffPanelSettingsTabId}
                 type="button"
                 role="tab"

@@ -12,6 +12,7 @@ import {
     rosterTemplateDesignerTemplateReferenceCompatibilityDomAttr,
     rosterTemplateDesignerTemplateReferenceTargetDomAttr,
     rosterShiftGroupHighlightMemberDomAttr,
+    rosterStaffHighlightDefaultDomAttr,
     rosterStaffHighlightMemberDomAttr,
     rosterStaffHighlightOrderDomAttr,
     rosterStaffHighlightPinDomAttr,
@@ -20,6 +21,7 @@ import {
     rosterStaffPanelSortRootDomAttr,
     rosterStaffPanelSortRowDomAttr,
     rosterStaffPanelTabDomAttr,
+    rosterSelfServicePanelTabDomAttr,
     parseRosterStaffPanelSortRow,
     timesheetWeekShellDomToken,
     type TimesheetsSurfaceFragmentKey,
@@ -89,8 +91,9 @@ test("generated linked-highlight registry owns roster roles and closed behavior"
         sourceRoleAttribute: rosterStaffHighlightSourceDomAttr,
         memberRoleAttribute: rosterStaffHighlightMemberDomAttr,
         pinRoleAttribute: rosterStaffHighlightPinDomAttr,
+        defaultRoleAttribute: rosterStaffHighlightDefaultDomAttr,
         orderStateAttribute: rosterStaffHighlightOrderDomAttr,
-        activations: ["hover", "focus", "keyboard", "pin"],
+        activations: ["hover", "focus", "keyboard", "pin", "default"],
         effects: ["matching-source", "matching-member", "ordered-member-bounds"],
     });
     assertEqual(shiftGroupHighlight?.memberRoleAttribute, rosterShiftGroupHighlightMemberDomAttr);
@@ -158,10 +161,13 @@ test("generated complete-set sort registry owns roster row parsing and comparato
 });
 
 test("generated tab-set registry owns roster tab keys and default", () => {
-    const [definition] = FrontendSurfaceTabSetRegistry.roster;
-    assertEqual(definition?.tabRoleAttribute, rosterStaffPanelTabDomAttr);
-    assertDeepEqual(definition?.keys, ["staff", "templates", "settings"]);
-    assertEqual(definition?.defaultKey, "staff");
+    const [managerTabs, selfServiceTabs] = FrontendSurfaceTabSetRegistry.roster;
+    assertEqual(managerTabs?.tabRoleAttribute, rosterStaffPanelTabDomAttr);
+    assertDeepEqual(managerTabs?.keys, ["staff", "templates", "settings"]);
+    assertEqual(managerTabs?.defaultKey, "staff");
+    assertEqual(selfServiceTabs?.tabRoleAttribute, rosterSelfServicePanelTabDomAttr);
+    assertDeepEqual(selfServiceTabs?.keys, ["quick-tools", "settings"]);
+    assertEqual(selfServiceTabs?.defaultKey, "quick-tools");
 });
 
 test("browser-reachable surface DOM tokens are generated as tree-shakeable feature constants", () => {

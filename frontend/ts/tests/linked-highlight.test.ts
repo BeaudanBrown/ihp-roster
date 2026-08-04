@@ -1,6 +1,7 @@
 import {
     rosterShiftGroupHighlightMemberDomAttr,
     rosterShiftGroupHighlightSourceDomAttr,
+    rosterStaffHighlightDefaultDomAttr,
     rosterStaffHighlightMemberDomAttr,
     rosterStaffHighlightOrderDomAttr,
     rosterStaffHighlightPinDomAttr,
@@ -150,6 +151,34 @@ test("linked highlighting applies closed source/member/order effects inside one 
     controller.reconcile(mount as unknown as Element);
     assertEqual(pin.getAttribute("aria-pressed"), "false");
     assertEqual(first.classList.contains("is-linked-highlight-member"), false);
+});
+
+test("Roster own live-shift default yields to hover and pin then restores deterministically", () => {
+    const controller = createLinkedHighlightController();
+    const mount = rosterMount();
+    mount.append(new MiniElement({ [rosterStaffHighlightDefaultDomAttr]: "staff:own" }));
+    const ownSource = mount.append(new MiniElement({ [rosterStaffHighlightSourceDomAttr]: "staff:own" }));
+    const otherSource = mount.append(new MiniElement({ [rosterStaffHighlightSourceDomAttr]: "staff:other" }));
+    const otherPin = mount.append(new MiniElement({ [rosterStaffHighlightPinDomAttr]: "staff:other", "aria-pressed": "false" }));
+    const ownShift = mount.append(new MiniElement({ [rosterStaffHighlightMemberDomAttr]: "staff:own" }));
+    const otherShift = mount.append(new MiniElement({ [rosterStaffHighlightMemberDomAttr]: "staff:other" }));
+
+    controller.reconcile(mount as unknown as Element);
+    assertEqual(ownSource.classList.contains("is-linked-highlight-source"), true);
+    assertEqual(ownShift.classList.contains("is-linked-highlight-member"), true);
+    assertEqual(otherShift.classList.contains("is-linked-highlight-member"), false);
+
+    controller.pointerEntered(otherSource as unknown as Element, null);
+    assertEqual(ownShift.classList.contains("is-linked-highlight-member"), false);
+    assertEqual(otherShift.classList.contains("is-linked-highlight-member"), true);
+
+    controller.togglePin(otherPin as unknown as Element);
+    controller.pointerLeft(otherSource as unknown as Element, null);
+    assertEqual(otherShift.classList.contains("is-linked-highlight-member"), true);
+
+    controller.togglePin(otherPin as unknown as Element);
+    assertEqual(ownShift.classList.contains("is-linked-highlight-member"), true);
+    assertEqual(otherShift.classList.contains("is-linked-highlight-member"), false);
 });
 
 test("Timesheets staff pin highlights persisted and suggestion cards across side-panel reconciliation", () => {

@@ -1265,7 +1265,16 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "name=\"responseContext\" value=\"self-service\""
                 response `responseBodyShouldContain` "data-bepis-surface=\"self-service-leave\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"create-self-service-leave-request\""
+                response `responseBodyShouldContain` ("data-bepis-roster-staff-highlight-default=\"staff:" <> cs (tshow staffMember.id) <> "\"")
+                response `responseBodyShouldContain` "Quick tools"
+                response `responseBodyShouldContain` "Settings"
+                response `responseBodyShouldContain` "Own shifts highlighted"
                 response `responseBodyShouldNotContain` "No roster exists for this week yet."
+
+                _ <- updateRecord (rosterWeek |> set #isLive False)
+                draftResponse <- withUser user do
+                    callAction (ShowRosterWeekAction 0)
+                draftResponse `responseBodyShouldNotContain` "data-bepis-roster-staff-highlight-default"
 
         it "hides roster warning controls and highlights from staff" $ withContext do
             withCleanDb do
@@ -1629,7 +1638,11 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Venue A"
                 worker <- createUserRecord "roster-worker-own-highlight@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue worker Worker
+                staffMember <- createStaffRecord venue (Just worker) "Worker" "Viewer"
+                slotName <- fetchSlotNameRecord venue "Early"
                 rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                _ <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
 
                 response <- withUserAndCurrentVenue worker venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -1643,6 +1656,11 @@ tests = aroundAll withDatabaseTestContext do
                     |> filterWhere (#userId, unpackId worker.id)
                     |> fetchOne
                 preferences.highlightOwnLiveShifts `shouldBe` False
+
+                refreshedResponse <- withUserAndCurrentVenue worker venue.id do
+                    callAction (ShowRosterWeekAction 0)
+                refreshedResponse `responseBodyShouldNotContain` "data-bepis-roster-staff-highlight-default"
+                refreshedResponse `responseBodyShouldContain` "Own shifts not highlighted"
 
         it "allows wage estimates when roster end times are hidden" $ withContext do
             withCleanDb do
@@ -2094,6 +2112,11 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` cs rosterStaffPanelFragmentId
                 response `responseBodyShouldContain` "&quot;staffName&quot;:&quot;Alpha&quot;"
                 response `responseBodyShouldContain` "&quot;assignedShifts&quot;:1"
+                response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"staff\""
+                response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"templates\""
+                response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"settings\""
+                response `responseBodyShouldContain` "id=\"roster-template-panel-mount\""
+                response `responseBodyShouldContain` "Own shifts highlighted"
 
         it "manager roster staff panel fragment only shows staff applicable to the selected roster group" $ withContext do
             withCleanDb do

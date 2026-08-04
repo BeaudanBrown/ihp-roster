@@ -56,6 +56,8 @@ data ShowView = ShowView
     , rosterWagePrediction               :: Maybe RosterWagePrediction
     , showWageEstimates      :: Bool
     , showRosterWarnings     :: Bool
+    , highlightOwnLiveShifts :: Bool
+    , currentViewerStaffKey  :: Maybe Text
     , publicHolidays         :: Map Day Text
     , shiftTypes             :: [ShiftType]
     , passkeySetupPrompt     :: Maybe PasskeySetupPromptMode
@@ -109,22 +111,23 @@ data RosterStaffPanelEntry = RosterStaffPanelEntry
     }
 
 data RosterStaffPanelRenderModel = RosterStaffPanelRenderModel
-    { staffPanelRosterWeek            :: Maybe RosterWeek
-    , staffPanelWeekOffset            :: Int
-    , staffPanelWeekStartDate         :: Day
-    , staffPanelRosterGroups          :: [RosterGroup]
-    , staffPanelCurrentRosterGroup    :: RosterGroup
-    , staffPanelAssignmentFilters     :: RosterAssignmentFilters
-    , staffPanelViewCapabilities      :: RosterViewCapabilities
-    , staffPanelRosterLayoutMode      :: RosterLayoutModeEnum
-    , staffPanelShowWageEstimates     :: Bool
-    , staffPanelShowRosterWarnings    :: Bool
-    , staffPanelViewMode              :: RosterGridViewMode
-    , staffPanelScope                 :: RosterStaffPanelScope
-    , staffPanelEntries               :: [RosterStaffPanelEntry]
-    , staffPanelTemplateLibrary       :: Maybe RosterTemplateLibrary
-    , staffPanelTemplateUserId        :: Maybe (Id User)
-    , staffPanelNotificationPanelData :: Maybe RosterNotificationPanelData
+    { staffPanelRosterWeek             :: Maybe RosterWeek
+    , staffPanelWeekOffset             :: Int
+    , staffPanelWeekStartDate          :: Day
+    , staffPanelRosterGroups           :: [RosterGroup]
+    , staffPanelCurrentRosterGroup     :: RosterGroup
+    , staffPanelAssignmentFilters      :: RosterAssignmentFilters
+    , staffPanelViewCapabilities       :: RosterViewCapabilities
+    , staffPanelRosterLayoutMode       :: RosterLayoutModeEnum
+    , staffPanelShowWageEstimates      :: Bool
+    , staffPanelShowRosterWarnings     :: Bool
+    , staffPanelHighlightOwnLiveShifts :: Bool
+    , staffPanelViewMode               :: RosterGridViewMode
+    , staffPanelScope                  :: RosterStaffPanelScope
+    , staffPanelEntries                :: [RosterStaffPanelEntry]
+    , staffPanelTemplateLibrary        :: Maybe RosterTemplateLibrary
+    , staffPanelTemplateUserId         :: Maybe (Id User)
+    , staffPanelNotificationPanelData  :: Maybe RosterNotificationPanelData
     }
 
 data RosterStaffSelfServicePanel = RosterStaffSelfServicePanel
@@ -139,6 +142,7 @@ data RosterStaffSelfServicePanel = RosterStaffSelfServicePanel
     , quickToolsTimesheetWeekOffset     :: Int
     , quickToolsTimesheetWeekStartDate  :: Day
     , quickToolsTimesheetEditWindowDays :: Int
+    , quickToolsHighlightOwnLiveShifts  :: Bool
     }
 
 data RosterAssignmentFilters = RosterAssignmentFilters
@@ -182,6 +186,8 @@ data RosterRenderData = RosterRenderData
     , rosterWagePrediction               :: Maybe RosterWagePrediction
     , showWageEstimates     :: Bool
     , showRosterWarnings    :: Bool
+    , highlightOwnLiveShifts :: Bool
+    , currentViewerStaffKey :: Maybe Text
     , rosterPublicHolidays  :: Map Day Text
 }
 
@@ -212,6 +218,8 @@ data RosterGridRenderModel = RosterGridRenderModel
     , gridRosterWagePrediction               :: Maybe RosterWagePrediction
     , gridShowWageEstimates     :: Bool
     , gridShowRosterWarnings    :: Bool
+    , gridHighlightOwnLiveShifts :: Bool
+    , gridCurrentViewerStaffKey :: Maybe Text
     , gridPublicHolidays        :: Map Day Text
     , gridPublishAttempted      :: Bool
     , gridViewMode              :: RosterGridViewMode

@@ -1,7 +1,8 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Web.View.RosterWeeks.SettingsPanel
-    ( renderRosterSettingsPanel
+    ( renderRosterOwnLiveShiftHighlightPreferenceForm
+    , renderRosterSettingsPanel
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
@@ -24,6 +25,7 @@ import Application.RosterNotification (RosterNotificationAudience (..),
 import Web.RosterWeeks.Dom (rosterEmailButtonId, rosterWeekShellId)
 import Web.RosterWeeks.FrontendSurface (rosterLayoutModeActivationRef)
 import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl, rosterCopyWeekUrl,
+                              rosterOwnLiveShiftHighlightPreferenceUrl,
                               rosterWageEstimatePreferenceUrl,
                               rosterWarningPreferenceUrl, rosterWeekUrl)
 import Web.RosterWeeks.Types (RosterAssignmentFilters (..),
@@ -42,12 +44,12 @@ rosterWeekShellSyncRoute actionUrl =
         }
 
 renderRosterSettingsPanel :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> Html
-renderRosterSettingsPanel RosterStaffPanelRenderModel { staffPanelRosterWeek, staffPanelWeekOffset, staffPanelWeekStartDate, staffPanelRosterGroups, staffPanelCurrentRosterGroup, staffPanelAssignmentFilters, staffPanelViewCapabilities, staffPanelRosterLayoutMode, staffPanelShowWageEstimates, staffPanelShowRosterWarnings, staffPanelViewMode, staffPanelNotificationPanelData } = [hsx|
+renderRosterSettingsPanel RosterStaffPanelRenderModel { staffPanelRosterWeek, staffPanelWeekOffset, staffPanelWeekStartDate, staffPanelRosterGroups, staffPanelCurrentRosterGroup, staffPanelAssignmentFilters, staffPanelViewCapabilities, staffPanelRosterLayoutMode, staffPanelShowWageEstimates, staffPanelShowRosterWarnings, staffPanelHighlightOwnLiveShifts, staffPanelViewMode, staffPanelNotificationPanelData } = [hsx|
     <div class="roster-settings-panel">
         {when (length staffPanelRosterGroups > 1) $ renderRosterSettingsSection "bi-people" "Roster group" (renderRosterGroupSwitcher staffPanelWeekOffset staffPanelRosterGroups staffPanelCurrentRosterGroup)}
         {renderRosterSettingsSection "bi-layout-split" "Roster layout" (renderRosterLayoutSection staffPanelWeekOffset staffPanelCurrentRosterGroup.id staffPanelRosterLayoutMode staffPanelViewMode)}
         {when (staffPanelViewCapabilities.canManageRosterWarnings || staffPanelViewCapabilities.canViewWageEstimates) $
-            renderRosterSettingsSection "bi-eye" "Display" (renderRosterDisplayPreferencesSection staffPanelWeekOffset staffPanelCurrentRosterGroup.id staffPanelViewCapabilities staffPanelShowWageEstimates staffPanelShowRosterWarnings)}
+            renderRosterSettingsSection "bi-eye" "Display" (renderRosterDisplayPreferencesSection staffPanelWeekOffset staffPanelCurrentRosterGroup.id staffPanelViewCapabilities staffPanelShowWageEstimates staffPanelShowRosterWarnings staffPanelHighlightOwnLiveShifts)}
         {when staffPanelViewCapabilities.canManageAssignmentFilter $
             renderRosterSettingsSection "bi-shield-check" "Prevent assignment" (renderRosterAssignmentFiltersSection staffPanelWeekOffset staffPanelCurrentRosterGroup.id staffPanelAssignmentFilters)}
         {when (staffPanelViewCapabilities.canCopyRosterWeek || shouldShowRosterSortForm staffPanelRosterWeek staffPanelViewCapabilities) $
@@ -124,13 +126,26 @@ renderRosterLayoutModeOption selectedLayoutMode layoutMode =
         <label class="btn btn-outline-secondary btn-sm" for={inputId}>{rosterLayoutModeLabel layoutMode}</label>
     |]
 
-renderRosterDisplayPreferencesSection :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterViewCapabilities -> Bool -> Bool -> Html
-renderRosterDisplayPreferencesSection weekOffset rosterGroupId viewCapabilities showWageEstimates showRosterWarnings = [hsx|
+renderRosterDisplayPreferencesSection :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterViewCapabilities -> Bool -> Bool -> Bool -> Html
+renderRosterDisplayPreferencesSection weekOffset rosterGroupId viewCapabilities showWageEstimates showRosterWarnings highlightOwnLiveShifts = [hsx|
     <div class="roster-settings-toggle-grid">
         {when viewCapabilities.canManageRosterWarnings (renderRosterWarningPreferenceForm weekOffset rosterGroupId showRosterWarnings)}
         {renderRosterWageEstimatePreferenceForm weekOffset rosterGroupId viewCapabilities showWageEstimates}
+        {renderRosterOwnLiveShiftHighlightPreferenceForm weekOffset rosterGroupId highlightOwnLiveShifts}
     </div>
 |]
+
+renderRosterOwnLiveShiftHighlightPreferenceForm :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Bool -> Html
+renderRosterOwnLiveShiftHighlightPreferenceForm weekOffset rosterGroupId highlightOwnLiveShifts =
+    renderFrontendSurfaceActionForm
+        (RosterAction.toggleRosterOwnLiveShiftHighlightAction fields)
+        (rosterWeekShellSyncRoute (rosterOwnLiveShiftHighlightPreferenceUrl weekOffset rosterGroupId))
+            { actionRouteStandardUrl = Just (rosterOwnLiveShiftHighlightPreferenceUrl weekOffset rosterGroupId)
+            , actionRouteExtraAttrs = [("class", "mb-0")]
+            }
+        [hsx|<div class="roster-display-toggle">{renderRosterOwnLiveShiftHighlightToggle fields highlightOwnLiveShifts}</div>|]
+  where
+    fields = RosterAction.toggleRosterOwnLiveShiftHighlightActionFields highlightOwnLiveShifts
 
 renderRosterWarningPreferenceForm :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Bool -> Html
 renderRosterWarningPreferenceForm weekOffset rosterGroupId showRosterWarnings =
@@ -157,6 +172,20 @@ renderRosterWageEstimatePreferenceForm weekOffset rosterGroupId viewCapabilities
             [hsx|<div class="roster-display-toggle">{renderRosterWageEstimateToggle fields showWageEstimates}</div>|]
   where
     fields = RosterAction.toggleRosterWageEstimatesActionFields showWageEstimates
+
+renderRosterOwnLiveShiftHighlightToggle :: SurfaceActionFields Surface.RosterSurface Surface.ToggleRosterOwnLiveShiftHighlight -> Bool -> Html
+renderRosterOwnLiveShiftHighlightToggle fields highlightOwnLiveShifts =
+    renderAppToggleButton $
+        ( defaultAppToggleStateButtonConfig
+            "highlight-own-live-shifts"
+            (surfaceToggleScalarField @Surface.HighlightOwnLiveShifts fields True False)
+            highlightOwnLiveShifts
+            [hsx|<span class="small">Own shifts highlighted</span>|]
+            [hsx|<span class="small">Own shifts not highlighted</span>|]
+        )
+            { appToggleButtonClass = "btn-sm w-100 justify-content-start"
+            , appToggleSubmitPolicy = ToggleSubmitImmediate
+            }
 
 renderRosterWarningToggle :: SurfaceActionFields Surface.RosterSurface Surface.ToggleRosterWarnings -> Bool -> Html
 renderRosterWarningToggle fields showRosterWarnings =

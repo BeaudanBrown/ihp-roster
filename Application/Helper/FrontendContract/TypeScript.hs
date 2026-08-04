@@ -598,7 +598,7 @@ renderFrontendSurfaceLinkedHighlightContracts :: [SurfaceIR] -> [Text]
 renderFrontendSurfaceLinkedHighlightContracts surfaces =
     [ "export type FrontendSurfaceLinkedHighlightActivation = " <> renderStringUnion activationNames <> ";"
     , "export type FrontendSurfaceLinkedHighlightEffect = " <> renderStringUnion effectNames <> ";"
-    , "export type FrontendSurfaceLinkedHighlightDefinition = { name: string; sourceRoleAttribute: string; memberRoleAttribute: string; pinRoleAttribute: string | null; orderStateAttribute: string | null; activations: ReadonlyArray<FrontendSurfaceLinkedHighlightActivation>; effects: ReadonlyArray<FrontendSurfaceLinkedHighlightEffect> };"
+    , "export type FrontendSurfaceLinkedHighlightDefinition = { name: string; sourceRoleAttribute: string; memberRoleAttribute: string; pinRoleAttribute: string | null; defaultRoleAttribute: string | null; orderStateAttribute: string | null; activations: ReadonlyArray<FrontendSurfaceLinkedHighlightActivation>; effects: ReadonlyArray<FrontendSurfaceLinkedHighlightEffect> };"
     , "export const FrontendSurfaceLinkedHighlightRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceLinkedHighlightDefinition>> = " <> objectLiteral entries <> ";"
     , ""
     ]
@@ -610,6 +610,7 @@ renderFrontendSurfaceLinkedHighlightContracts surfaces =
             , LinkedHighlightFocusActivationIR
             , LinkedHighlightKeyboardActivationIR
             , LinkedHighlightPinActivationIR emptyAttribute
+            , LinkedHighlightDefaultActivationIR emptyAttribute
             ]
     effectNames =
         map linkedHighlightEffectName
@@ -628,6 +629,7 @@ renderLinkedHighlight surface highlight = objectLiteral
     , ("sourceRoleAttribute", surfaceBrowserAttributeConstName surface highlight.linkedHighlightSourceRole)
     , ("memberRoleAttribute", surfaceBrowserAttributeConstName surface highlight.linkedHighlightMemberRole)
     , ("pinRoleAttribute", maybe "null" (surfaceBrowserAttributeConstName surface) (linkedHighlightPinRole highlight))
+    , ("defaultRoleAttribute", maybe "null" (surfaceBrowserAttributeConstName surface) (linkedHighlightDefaultRole highlight))
     , ("orderStateAttribute", maybe "null" (surfaceBrowserAttributeConstName surface) (linkedHighlightOrderState highlight))
     , ("activations", arrayLiteral (map (quote . linkedHighlightActivationName) highlight.linkedHighlightActivations))
     , ("effects", arrayLiteral (map (quote . linkedHighlightEffectName) highlight.linkedHighlightEffects))
@@ -636,6 +638,10 @@ renderLinkedHighlight surface highlight = objectLiteral
 linkedHighlightPinRole :: LinkedHighlightIR -> Maybe BrowserAttributeIR
 linkedHighlightPinRole highlight =
     listToMaybe [attribute | LinkedHighlightPinActivationIR attribute <- highlight.linkedHighlightActivations]
+
+linkedHighlightDefaultRole :: LinkedHighlightIR -> Maybe BrowserAttributeIR
+linkedHighlightDefaultRole highlight =
+    listToMaybe [attribute | LinkedHighlightDefaultActivationIR attribute <- highlight.linkedHighlightActivations]
 
 linkedHighlightOrderState :: LinkedHighlightIR -> Maybe BrowserAttributeIR
 linkedHighlightOrderState highlight =

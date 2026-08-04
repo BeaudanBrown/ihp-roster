@@ -44,6 +44,7 @@ import Application.Helper.FrontendContract.Surface.Roster.ImageExport (rosterIma
                                                                        rosterImageExportProjectionAttrs,
                                                                        rosterImageExportRowAttrs)
 import Application.Helper.FrontendContract.Surface.Roster.SidePanel (rosterSidePanelRenderAttrs)
+import Application.Helper.FrontendContract.Surface.Roster.StaffPanel (rosterStaffHighlightDefaultAttrs)
 import Application.Helper.FrontendContract.Surface.Roster.TemplateApplication (rosterTemplateDayTargetAttrs,
                                                                                rosterTemplateWeekTargetAttrs)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
@@ -122,7 +123,7 @@ renderrosterContentLiveFragmentWithSwap maybeSwapOob gridModel =
     regionConfig = SidePanelRegionConfig
         { sidePanelRegionId = Just rosterContentFragmentId
         , sidePanelRegionClass = rosterContentColumnClasses gridModel
-        , sidePanelRegionExtraAttrs = maybe [] (\swap -> [("hx-swap-oob", swap)]) maybeSwapOob
+        , sidePanelRegionExtraAttrs = maybe [] (\swap -> [("hx-swap-oob", swap)]) maybeSwapOob <> rosterOwnLiveShiftHighlightAttrs gridModel
         }
 
 renderRosterLayout :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
@@ -149,6 +150,7 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
                     , staffPanelRosterLayoutMode = gridModel.gridRosterLayoutMode
                     , staffPanelShowWageEstimates = gridModel.gridShowWageEstimates
                     , staffPanelShowRosterWarnings = gridModel.gridShowRosterWarnings
+                    , staffPanelHighlightOwnLiveShifts = gridModel.gridHighlightOwnLiveShifts
                     , staffPanelViewMode = gridViewMode
                     , staffPanelScope = RosterStaffPanelCurrentGroup
                     , staffPanelEntries = gridPanelStaff
@@ -178,6 +180,12 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
             { interactionShellHtmxSync = Just ("#" <> rosterWeekShellId <> ":replace")
             , interactionShellIntentForms = rosterIntentForms rosterSurfaceScope (rosterWeekIsEditable gridRosterWeek)
             } layout
+
+rosterOwnLiveShiftHighlightAttrs :: RosterGridRenderModel -> [(Text, Text)]
+rosterOwnLiveShiftHighlightAttrs gridModel =
+    case (gridModel.gridRosterWeek, gridModel.gridHighlightOwnLiveShifts, gridModel.gridCurrentViewerStaffKey) of
+        (Just rosterWeek, True, Just staffKey) | rosterWeek.isLive -> rosterStaffHighlightDefaultAttrs staffKey
+        _ -> []
 
 rosterContentColumnClasses :: (?context :: ControllerContext) => RosterGridRenderModel -> Text
 rosterContentColumnClasses gridModel =

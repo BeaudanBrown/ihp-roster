@@ -179,7 +179,7 @@ rosterGridRenderModelFromProjection viewCapabilities projection@RosterRenderData
     rosterGridRenderModelFromProjectionWithGroups rosterGroups currentRosterGroup viewCapabilities RosterWeekGridView projection
 
 rosterGridRenderModelFromProjectionWithGroups :: (?context :: ControllerContext) => [RosterGroup] -> RosterGroup -> RosterViewCapabilities -> RosterGridViewMode -> RosterRenderData -> RosterGridRenderModel
-rosterGridRenderModelFromProjectionWithGroups rosterGroups currentRosterGroup viewCapabilities gridViewMode RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData = notificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } =
+rosterGridRenderModelFromProjectionWithGroups rosterGroups currentRosterGroup viewCapabilities gridViewMode RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData = notificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } =
     RosterGridRenderModel
         { gridRosterWeek = visibleRosterWeekForCurrentUser rosterWeek
         , gridRosterDays = rosterDays
@@ -207,6 +207,8 @@ rosterGridRenderModelFromProjectionWithGroups rosterGroups currentRosterGroup vi
         , gridRosterWagePrediction = rosterWagePrediction
         , gridShowWageEstimates = showWageEstimates
         , gridShowRosterWarnings = showRosterWarnings
+        , gridHighlightOwnLiveShifts = highlightOwnLiveShifts
+        , gridCurrentViewerStaffKey = currentViewerStaffKey
         , gridPublicHolidays = rosterPublicHolidays
         , gridPublishAttempted = False
         , gridViewMode = gridViewMode
@@ -260,7 +262,7 @@ renderRosterStaffPanelFromProjectionWithMode renderMode rosterData =
                     FragmentOob swapAttr -> renderrosterStaffPanelLiveFragmentWithSwap swapAttr panelModel
 
 rosterStaffPanelRenderModelFromProjection :: (?context :: ControllerContext, ?request :: Request) => RosterStaffPanelScope -> RosterRenderData -> RosterStaffPanelRenderModel
-rosterStaffPanelRenderModelFromProjection panelScope RosterRenderData { rosterWeek, rosterGroups, currentRosterGroup, weekStartDate, assignmentFilters, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData = notificationPanelData, rosterLayoutMode, showWageEstimates, showRosterWarnings } =
+rosterStaffPanelRenderModelFromProjection panelScope RosterRenderData { rosterWeek, rosterGroups, currentRosterGroup, weekStartDate, assignmentFilters, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData = notificationPanelData, rosterLayoutMode, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts } =
     RosterStaffPanelRenderModel
         { staffPanelRosterWeek = visibleRosterWeekForCurrentUser rosterWeek
         , staffPanelWeekOffset = rosterWeek.weekOffset
@@ -272,6 +274,7 @@ rosterStaffPanelRenderModelFromProjection panelScope RosterRenderData { rosterWe
         , staffPanelRosterLayoutMode = rosterLayoutMode
         , staffPanelShowWageEstimates = showWageEstimates
         , staffPanelShowRosterWarnings = showRosterWarnings
+        , staffPanelHighlightOwnLiveShifts = highlightOwnLiveShifts
         , staffPanelViewMode = currentRosterGridViewMode
         , staffPanelScope = panelScope
         , staffPanelEntries = panelStaff
@@ -298,6 +301,8 @@ fetchVisibleRosterReadModel rosterGroupId weekOffset = profileActionSpan "roster
     rosterGroups <- profileActionSpan "roster.direct.fetch_roster_groups" fetchCurrentVenueRosterGroups
     currentRosterGroup <- profileActionSpan "roster.direct.resolve_current_group" (fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId))
     (templateLibraryUserId, templateLibrary) <- fetchRosterPanelTemplateLibrary currentRosterGroup
+    highlightOwnLiveShifts <- fetchCurrentUserHighlightOwnLiveShifts
+    currentViewerStaffKey <- fmap (fmap (\staff -> "staff:" <> tshow staff.id)) fetchCurrentUserStaff
     case visibleRosterWeek of
         Nothing -> do
             (backingRosterWeek, rosterDays, weekStartDate, orderedSlotNames, shiftTypes, maskedSlots) <- fetchHiddenRosterRenderData rosterGroupId weekOffset
@@ -307,7 +312,7 @@ fetchVisibleRosterReadModel rosterGroupId weekOffset = profileActionSpan "roster
             venueConfig <- fetchVenueConfig
             let showWageEstimates = shouldShowRosterWageEstimates userShowWageEstimates
             rosterPublicHolidays <- fetchRosterPublicHolidayMap venueConfig weekStartDate
-            staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig rosterGroupId weekOffset)
+            staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig rosterGroupId weekOffset highlightOwnLiveShifts)
             let renderIndexes = buildRosterRenderIndexes rosterDays (filterVisibleRosterSlots rosterDays maskedSlots) [] []
             pure $
                 Just
@@ -336,6 +341,8 @@ fetchVisibleRosterReadModel rosterGroupId weekOffset = profileActionSpan "roster
                         , rosterWagePrediction = Nothing
                         , showWageEstimates
                         , showRosterWarnings
+                        , highlightOwnLiveShifts
+                        , currentViewerStaffKey
                         , rosterPublicHolidays
                         }
         Just _  -> fetchRosterRenderData rosterGroupId weekOffset
@@ -349,6 +356,8 @@ fetchRosterRenderData rosterGroupId weekOffset = do
     rosterLayoutMode <- profileActionSpan "roster.direct.fetch_layout_preference" fetchCurrentRosterLayoutMode
     userShowWageEstimates <- profileActionSpan "roster.direct.fetch_wage_preference" fetchCurrentUserShowWageEstimates
     showRosterWarnings <- profileActionSpan "roster.direct.fetch_warning_preference" fetchCurrentUserShowRosterWarnings
+    highlightOwnLiveShifts <- profileActionSpan "roster.direct.fetch_own_highlight_preference" fetchCurrentUserHighlightOwnLiveShifts
+    currentViewerStaffKey <- profileActionSpan "roster.direct.fetch_current_staff_key" (fmap (fmap (\staff -> "staff:" <> tshow staff.id)) fetchCurrentUserStaff)
     let showWageEstimates = shouldShowRosterWageEstimates userShowWageEstimates
     let weekStartDate = venueWeekStartDate venueConfig weekOffset
     (templateLibraryUserId, templateLibrary) <- fetchRosterPanelTemplateLibrary currentRosterGroup
@@ -360,7 +369,7 @@ fetchRosterRenderData rosterGroupId weekOffset = do
         Just RosterBaseFacts { baseRosterWeek = rosterWeek, baseRosterDays = rosterDays, baseAllSlots = allSlots, baseVisibleSlots = visibleSlots, baseOrderedSlotDefinitions = orderedSlotNames, baseShiftTypes = shiftTypes, basePanelStaff = panelStaffMembers, baseStaffMembers = staffMembers } -> do
             panelStaff <- profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntries panelStaffMembers visibleSlots)
             notificationPanelData <- fetchRosterPanelNotificationData currentRosterGroup (Just rosterWeek)
-            staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig rosterGroupId weekOffset)
+            staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig rosterGroupId weekOffset highlightOwnLiveShifts)
             slotConflicts <-
                 if rosterWeek.isLive
                     then pure []
@@ -371,7 +380,7 @@ fetchRosterRenderData rosterGroupId weekOffset = do
                 if showWageEstimates
                     then Just <$> profileActionSpan "roster.predict_wages" (fetchRosterWagePrediction venueConfig rosterWeek rosterDays wageSlots)
                     else pure Nothing
-            pure (Just RosterRenderData { rosterWeek, rosterGroups, currentRosterGroup, rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData = notificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled = venueConfig.rosterEndTimesEnabled, rosterTimePickerStartMinute = venueConfig.timePickerStartMinuteOfDay, rosterTimePickerFinalSelectableMinute = venueConfig.timePickerFinalSelectableMinuteOfDay, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays })
+            pure (Just RosterRenderData { rosterWeek, rosterGroups, currentRosterGroup, rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData = notificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled = venueConfig.rosterEndTimesEnabled, rosterTimePickerStartMinute = venueConfig.timePickerStartMinuteOfDay, rosterTimePickerFinalSelectableMinute = venueConfig.timePickerFinalSelectableMinuteOfDay, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays })
 
 fetchRosterPanelNotificationData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterGroup -> Maybe RosterWeek -> IO (Maybe Notification.RosterNotificationPanelData)
 fetchRosterPanelNotificationData rosterGroup (Just rosterWeek)
@@ -389,8 +398,8 @@ fetchRosterPanelTemplateLibrary rosterGroup
         library <- fetchRosterTemplateLibrary actor rosterGroup
         pure (rosterTemplateActorUserId actor <$ library, library)
 
-fetchRosterStaffSelfServicePanel :: (?context :: ControllerContext, ?modelContext :: ModelContext) => VenueConfig -> Id RosterGroup -> Int -> IO (Maybe RosterStaffSelfServicePanel)
-fetchRosterStaffSelfServicePanel venueConfig rosterGroupId weekOffset
+fetchRosterStaffSelfServicePanel :: (?context :: ControllerContext, ?modelContext :: ModelContext) => VenueConfig -> Id RosterGroup -> Int -> Bool -> IO (Maybe RosterStaffSelfServicePanel)
+fetchRosterStaffSelfServicePanel venueConfig rosterGroupId weekOffset highlightOwnLiveShifts
     | hasRole Manager = pure Nothing
     | currentUserIsUnimpersonatedSuperAdmin = pure Nothing
     | otherwise = do
@@ -427,6 +436,7 @@ fetchRosterStaffSelfServicePanel venueConfig rosterGroupId weekOffset
                             , quickToolsTimesheetWeekOffset = timesheetWeekOffset
                             , quickToolsTimesheetWeekStartDate = timesheetWeekStartDate
                             , quickToolsTimesheetEditWindowDays = venueConfig.staffTimesheetEditWindowDays
+                            , quickToolsHighlightOwnLiveShifts = highlightOwnLiveShifts
                             }
 
 fetchVisibleRosterWeek :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterWeek)
@@ -555,6 +565,7 @@ fetchVisibleRosterStaffPanelRenderModel panelScope rosterGroupId weekOffset = do
     rosterLayoutMode <- profileActionSpan "roster.fragment.fetch_layout_preference" fetchCurrentRosterLayoutMode
     userShowWageEstimates <- profileActionSpan "roster.fragment.fetch_wage_preference" fetchCurrentUserShowWageEstimates
     showRosterWarnings <- profileActionSpan "roster.fragment.fetch_warning_preference" fetchCurrentUserShowRosterWarnings
+    highlightOwnLiveShifts <- profileActionSpan "roster.fragment.fetch_own_highlight_preference" fetchCurrentUserHighlightOwnLiveShifts
     venueConfig <- profileActionSpan "roster.fragment.fetch_venue_config" fetchVenueConfig
     let weekStartDate = venueWeekStartDate venueConfig weekOffset
     (templateLibraryUserId, templateLibrary) <- fetchRosterPanelTemplateLibrary currentRosterGroup
@@ -573,6 +584,7 @@ fetchVisibleRosterStaffPanelRenderModel panelScope rosterGroupId weekOffset = do
         , staffPanelRosterLayoutMode = rosterLayoutMode
         , staffPanelShowWageEstimates = shouldShowRosterWageEstimates userShowWageEstimates
         , staffPanelShowRosterWarnings = showRosterWarnings
+        , staffPanelHighlightOwnLiveShifts = highlightOwnLiveShifts
         , staffPanelViewMode = currentRosterGridViewMode
         , staffPanelScope = panelScope
         , staffPanelEntries = panelStaff

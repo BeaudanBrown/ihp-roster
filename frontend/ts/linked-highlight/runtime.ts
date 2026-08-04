@@ -192,7 +192,7 @@ export function createLinkedHighlightController(options: LinkedHighlightControll
 
         for (const definition of definitions) {
             const state = stateFor(mount, definition);
-            const activeKey = state.pinnedKey ?? state.focusKey ?? state.hoverKey;
+            const activeKey = state.pinnedKey ?? state.focusKey ?? state.hoverKey ?? defaultKeyFor(mount, definition);
             if (activeKey) applyEffects(mount, definition, activeKey);
             syncPinControls(mount, definition, state.pinnedKey);
         }
@@ -256,6 +256,15 @@ function closestSurfaceMount(target: ElementLike): ElementLike | null {
 function definitionsForMount(mount: ElementLike): ReadonlyArray<FrontendSurfaceLinkedHighlightDefinition> {
     const surface = mount.getAttribute(surfaceDomAttr);
     return isFrontendSurfaceName(surface) ? FrontendSurfaceLinkedHighlightRegistry[surface] : [];
+}
+
+function defaultKeyFor(mount: ElementLike, definition: FrontendSurfaceLinkedHighlightDefinition): string | null {
+    if (!definition.defaultRoleAttribute || !definition.activations.includes("default")) return null;
+    const defaultOwner = Array.from(mount.querySelectorAll(`[${definition.defaultRoleAttribute}]`))
+        .filter(isElementLike)
+        .find((element) => closestSurfaceMount(element) === mount);
+    const defaultKey = defaultOwner?.getAttribute(definition.defaultRoleAttribute) ?? "";
+    return defaultKey === "" ? null : defaultKey;
 }
 
 function sourceExists(mount: ElementLike, definition: FrontendSurfaceLinkedHighlightDefinition, membershipKey: string): boolean {

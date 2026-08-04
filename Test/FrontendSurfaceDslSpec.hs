@@ -399,9 +399,9 @@ tests = describe "FrontendSurface DSL foundation" do
         browserFixtureTypeScript `shouldContainText` "export const browserFixtureBrowserFixtureModeStates = {\"calm\":\"calm\",\"busy\":\"busy\"} as const;"
         browserFixtureTypeScript `shouldContainText` "export type BrowserFixtureBrowserFixtureModeState = \"calm\" | \"busy\";"
         browserFixtureTypeScript `shouldContainText` "export function isBrowserFixtureBrowserFixtureModeState(value: unknown): value is BrowserFixtureBrowserFixtureModeState"
-        browserFixtureTypeScript `shouldContainText` "export type FrontendSurfaceLinkedHighlightActivation = \"hover\" | \"focus\" | \"keyboard\" | \"pin\";"
+        browserFixtureTypeScript `shouldContainText` "export type FrontendSurfaceLinkedHighlightActivation = \"hover\" | \"focus\" | \"keyboard\" | \"pin\" | \"default\";"
         browserFixtureTypeScript `shouldContainText` "export type FrontendSurfaceLinkedHighlightEffect = \"matching-source\" | \"matching-member\" | \"ordered-member-bounds\";"
-        browserFixtureTypeScript `shouldContainText` "export const FrontendSurfaceLinkedHighlightRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceLinkedHighlightDefinition>> = {\"browser-fixture\":[{\"name\":\"staff-shifts-highlight\",\"sourceRoleAttribute\":browserFixtureStaffHighlightSourceDomAttr,\"memberRoleAttribute\":browserFixtureStaffHighlightMemberDomAttr,\"pinRoleAttribute\":browserFixtureStaffHighlightPinDomAttr,\"orderStateAttribute\":browserFixtureStaffHighlightOrderDomAttr,\"activations\":[\"hover\",\"focus\",\"keyboard\",\"pin\"],\"effects\":[\"matching-source\",\"matching-member\",\"ordered-member-bounds\"]}]};"
+        browserFixtureTypeScript `shouldContainText` "export const FrontendSurfaceLinkedHighlightRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceLinkedHighlightDefinition>> = {\"browser-fixture\":[{\"name\":\"staff-shifts-highlight\",\"sourceRoleAttribute\":browserFixtureStaffHighlightSourceDomAttr,\"memberRoleAttribute\":browserFixtureStaffHighlightMemberDomAttr,\"pinRoleAttribute\":browserFixtureStaffHighlightPinDomAttr,\"defaultRoleAttribute\":null,\"orderStateAttribute\":browserFixtureStaffHighlightOrderDomAttr,\"activations\":[\"hover\",\"focus\",\"keyboard\",\"pin\"],\"effects\":[\"matching-source\",\"matching-member\",\"ordered-member-bounds\"]}]};"
 
     it "renders exact codecs only for browser-reachable Surface DTOs" do
         browserFixtureTypeScript `shouldContainText` "export type BrowserFixturePayload = { browserFixturePayloadLabel: string };"
@@ -1039,6 +1039,7 @@ tests = describe "FrontendSurface DSL foundation" do
             `shouldBe` [ "navigate-roster-week"
                        , "toggle-roster-warnings"
                        , "toggle-roster-wage-estimates"
+                       , "toggle-roster-own-live-shift-highlight"
                        , "sort-roster-week"
                        , "toggle-roster-week-live-status"
                        , "show-roster-notification-confirmation"
@@ -1087,6 +1088,7 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "data-bepis-roster-staff-panel-sort-row"
                        , "data-bepis-roster-staff-panel-sort-control"
                        , "data-bepis-roster-staff-panel-tab"
+                       , "data-bepis-roster-self-service-panel-tab"
                        , "data-bepis-roster-side-panel-root"
                        , "data-bepis-roster-side-panel-main"
                        , "data-bepis-roster-side-panel-panel"
@@ -1115,6 +1117,7 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "data-bepis-roster-staff-highlight-source"
                        , "data-bepis-roster-staff-highlight-member"
                        , "data-bepis-roster-staff-highlight-pin"
+                       , "data-bepis-roster-staff-highlight-default"
                        , "data-bepis-roster-shift-group-highlight-source"
                        , "data-bepis-roster-shift-group-highlight-member"
                        ]
@@ -1150,12 +1153,12 @@ tests = describe "FrontendSurface DSL foundation" do
                 , ["staffRole", "staffName", "staffRowKey"]
                 , ["assignedShifts", "idealShifts", "staffName", "staffRowKey"]
                 ]
-        map (.tabSetName) surface.surfaceTabSets `shouldBe` ["roster-staff-panel-tabs"]
-        map (.tabSetKeys) surface.surfaceTabSets `shouldBe` [["staff", "templates", "settings"]]
-        map (.tabSetDefaultKey) surface.surfaceTabSets `shouldBe` ["staff"]
+        map (.tabSetName) surface.surfaceTabSets `shouldBe` ["roster-staff-panel-tabs", "roster-self-service-panel-tabs"]
+        map (.tabSetKeys) surface.surfaceTabSets `shouldBe` [["staff", "templates", "settings"], ["quick-tools", "settings"]]
+        map (.tabSetDefaultKey) surface.surfaceTabSets `shouldBe` ["staff", "quick-tools"]
         map (.sidePanelName) surface.surfaceSidePanels `shouldBe` ["roster-side-panel"]
         map (map linkedHighlightActivationName . (.linkedHighlightActivations)) surface.surfaceLinkedHighlights
-            `shouldBe` [ ["hover", "focus", "keyboard", "pin"]
+            `shouldBe` [ ["hover", "focus", "keyboard", "pin", "default"]
                        , ["hover", "focus", "keyboard"]
                        ]
         map (map linkedHighlightEffectName . (.linkedHighlightEffects)) surface.surfaceLinkedHighlights
@@ -1196,7 +1199,7 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterStaffPanelTabsKey = \"staff\" | \"templates\" | \"settings\";"
         frontendSurfaceContractsTypeScript `shouldContainText` "\"roster\":[{\"name\":\"roster-staff-panel-sort\",\"rootRoleAttribute\":rosterStaffPanelSortRootDomAttr"
         frontendSurfaceContractsTypeScript `shouldContainText` "\"roster\":[{\"name\":\"roster-staff-panel-tabs\",\"tabRoleAttribute\":rosterStaffPanelTabDomAttr,\"keys\":[\"staff\",\"templates\",\"settings\"],\"defaultKey\":\"staff\""
-        frontendSurfaceContractsTypeScript `shouldContainText` "\"roster\":[{\"name\":\"staff-shifts-highlight\",\"sourceRoleAttribute\":rosterStaffHighlightSourceDomAttr,\"memberRoleAttribute\":rosterStaffHighlightMemberDomAttr,\"pinRoleAttribute\":rosterStaffHighlightPinDomAttr,\"orderStateAttribute\":rosterStaffHighlightOrderDomAttr,\"activations\":[\"hover\",\"focus\",\"keyboard\",\"pin\"],\"effects\":[\"matching-source\",\"matching-member\",\"ordered-member-bounds\"]},{\"name\":\"shift-group-highlight\""
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"roster\":[{\"name\":\"staff-shifts-highlight\",\"sourceRoleAttribute\":rosterStaffHighlightSourceDomAttr,\"memberRoleAttribute\":rosterStaffHighlightMemberDomAttr,\"pinRoleAttribute\":rosterStaffHighlightPinDomAttr,\"defaultRoleAttribute\":rosterStaffHighlightDefaultDomAttr,\"orderStateAttribute\":rosterStaffHighlightOrderDomAttr,\"activations\":[\"hover\",\"focus\",\"keyboard\",\"pin\",\"default\"],\"effects\":[\"matching-source\",\"matching-member\",\"ordered-member-bounds\"]},{\"name\":\"shift-group-highlight\""
         frontendSurfaceContractsTypeScript `shouldContainText` "\"roster\":{\"sourceRefs\":[{\"ref\":\"shift-drag-source\",\"session\":\"drag\",\"intent\":\"move-roster-shift-to-slot\",\"sourceField\":\"sourceItemKey\",\"compatibleDropzones\":[\"shift-slot-dropzone\",\"day-column-dropzone\",\"delete-shift-dropzone\"],\"modifierVariants\":[{\"semantic\":\"copy\",\"intent\":\"duplicate-roster-shift-to-day\""
         frontendSurfaceContractsTypeScript `shouldContainText` "\"dropzoneRefs\":[{\"ref\":\"shift-slot-dropzone\",\"session\":\"drag\",\"targetField\":\"targetDropzoneKey\"},{\"ref\":\"staff-create-dropzone\",\"session\":\"drag\",\"targetField\":\"targetDropzoneKey\"}"
         frontendSurfaceContractsTypeScript `shouldContainText` "\"activationRefs\":[{\"ref\":\"roster-layout-mode-activation\",\"intent\":\"set-roster-layout-mode\",\"valueField\":\"rosterLayoutMode\",\"trigger\":\"click\"}]"
