@@ -34,6 +34,54 @@ authenticatedCurrentUser =
 
 newtype SupportVenueOptions = SupportVenueOptions { supportVenueOptions :: [Venue] }
 
+newtype ActualUser = ActualUser { actualUserRecord :: User }
+    deriving (Eq, Show)
+
+newtype EffectiveUser = EffectiveUser { effectiveUserRecord :: User }
+    deriving (Eq, Show)
+
+newtype EffectiveStaffContext = EffectiveStaffContext { effectiveStaffContextValue :: Maybe Staff }
+
+data ImpersonationRequestContext = ImpersonationRequestContext
+    { impersonationSessionId :: !UUID
+    , impersonationEffectiveUser :: !EffectiveUser
+    , impersonationVenueMembership :: !VenueMembership
+    , impersonationVenueRole :: !VenueRoleEnum
+    , impersonationStaff :: !(Maybe Staff)
+    }
+    deriving (Eq, Show)
+
+actualAuthenticatedUser :: (?context :: ControllerContext) => ActualUser
+actualAuthenticatedUser = ActualUser authenticatedCurrentUser
+
+effectiveRequestUser :: (?context :: ControllerContext) => EffectiveUser
+effectiveRequestUser =
+    maybe
+        (EffectiveUser authenticatedCurrentUser)
+        (.impersonationEffectiveUser)
+        currentImpersonationOrNothing
+
+currentImpersonationOrNothing :: (?context :: ControllerContext) => Maybe ImpersonationRequestContext
+currentImpersonationOrNothing = unsafePerformIO (join <$> maybeFromContext @(Maybe ImpersonationRequestContext))
+{-# NOINLINE currentImpersonationOrNothing #-}
+
+effectiveVenueMembershipOrNothing :: (?context :: ControllerContext) => Maybe VenueMembership
+effectiveVenueMembershipOrNothing =
+    (.impersonationVenueMembership) <$> currentImpersonationOrNothing
+        <|> currentVenueMembershipOrNothing
+
+effectiveVenueRoleOrNothing :: (?context :: ControllerContext) => Maybe VenueRoleEnum
+effectiveVenueRoleOrNothing =
+    (.impersonationVenueRole) <$> currentImpersonationOrNothing
+        <|> currentVenueRoleOrNothing
+
+effectiveStaffOrNothing :: (?context :: ControllerContext) => Maybe Staff
+effectiveStaffOrNothing =
+    case unsafePerformIO (maybeFromContext @EffectiveStaffContext) of
+        Nothing -> Nothing
+        Just effectiveStaffContext -> effectiveStaffContext.effectiveStaffContextValue
+{-# NOINLINE effectiveStaffOrNothing #-}
+
 currentVenueOrNothing :: (?context :: ControllerContext) => Maybe Venue
 currentVenueOrNothing = unsafePerformIO (join <$> maybeFromContext @(Maybe Venue))
 {-# NOINLINE currentVenueOrNothing #-}

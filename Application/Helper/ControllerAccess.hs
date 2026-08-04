@@ -87,6 +87,7 @@ ensureCurrentVenueOrSupportRedirect =
         Just _ -> do
             emitScopeFact BepisCurrentVenueScopeFact "current-venue"
             emitSupportModeScopeFactWhenActive
+            emitImpersonationScopeFactWhenActive
         Nothing | currentUserIsSuperAdmin -> do
             emitScopeFact BepisSupportScopeFact "support-access"
             redirectTo SupportAction
@@ -115,6 +116,7 @@ ensureCurrentVenue = do
     redirectPermissionDeniedUnless (isJust currentVenueOrNothing) "You do not have access to that venue."
     emitScopeFact BepisCurrentVenueScopeFact "current-venue"
     emitSupportModeScopeFactWhenActive
+    emitImpersonationScopeFactWhenActive
 
 isCurrentVenueManuallyReadOnly :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Bool
 isCurrentVenueManuallyReadOnly
@@ -149,6 +151,7 @@ ensureSupportAccess :: (?context :: ControllerContext, ?request :: Request) => I
 ensureSupportAccess = do
     redirectPermissionDeniedUnless currentUserIsSuperAdmin "You need super admin access to view that page."
     emitScopeFact BepisSupportScopeFact "support-access"
+    emitImpersonationScopeFactWhenActive
 
 currentUserRequiresMandatoryPasskey :: (?context :: ControllerContext) => IO Bool
 currentUserRequiresMandatoryPasskey = do
@@ -333,6 +336,11 @@ emitSupportModeScopeFactWhenActive :: (?context :: ControllerContext) => IO ()
 emitSupportModeScopeFactWhenActive =
     when (currentUserIsSuperAdmin && isNothing currentVenueMembershipOrNothing) do
         emitScopeFact BepisSupportScopeFact "support-mode"
+
+emitImpersonationScopeFactWhenActive :: (?context :: ControllerContext) => IO ()
+emitImpersonationScopeFactWhenActive =
+    when (isJust currentImpersonationOrNothing) do
+        emitScopeFact BepisImpersonationScopeFact "support-impersonation"
 
 emitScopeFact :: BepisScopeKind -> Text -> IO ()
 emitScopeFact scopeKind label =

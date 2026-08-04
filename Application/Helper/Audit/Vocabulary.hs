@@ -20,6 +20,9 @@ data AuditEventType
     | ExportGeneratedAudit
     | ExportDownloadedAudit
     | SupportAccessGrantedAudit -- Reserved existing contract; #102 behavior remains separate.
+    | SupportImpersonationEnteredAudit
+    | SupportImpersonationExitedAudit
+    | SupportImpersonationExpiredAudit
     | LoginSucceededAudit
     | LoginFailedAudit
     | LoginBlockedAudit
@@ -62,6 +65,9 @@ auditEventTypeText VenueBootstrappedAudit = "venue_bootstrapped"
 auditEventTypeText ExportGeneratedAudit = "export_generated"
 auditEventTypeText ExportDownloadedAudit = "export_downloaded"
 auditEventTypeText SupportAccessGrantedAudit = "support_access_granted"
+auditEventTypeText SupportImpersonationEnteredAudit = "support_impersonation_entered"
+auditEventTypeText SupportImpersonationExitedAudit = "support_impersonation_exited"
+auditEventTypeText SupportImpersonationExpiredAudit = "support_impersonation_expired"
 auditEventTypeText LoginSucceededAudit = "login_succeeded"
 auditEventTypeText LoginFailedAudit = "login_failed"
 auditEventTypeText LoginBlockedAudit = "login_blocked"

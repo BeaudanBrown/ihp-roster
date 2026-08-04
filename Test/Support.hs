@@ -7,6 +7,7 @@ import Application.Fixture.WageSourceFixtures (ensureFreshWageSourceFacts,
                                                sealApprovedFixtureCalculation)
 import Application.Helper.Controller (currentVenueSessionKey,
                                       formatPasskeyVerifiedAt,
+                                      initImpersonationContext,
                                       passkeyVerifiedAtSessionKey,
                                       passkeyVerifiedUserSessionKey)
 import Application.Helper.ControllerContext (initCurrentVenueContext)
@@ -300,6 +301,7 @@ withCurrentControllerContext action = do
     let ?context = controllerContext
     initAuthentication @User
     initCurrentVenueContext
+    initImpersonationContext
     action
 
 createVenueWithConfig :: (?modelContext :: ModelContext) => Text -> IO Venue

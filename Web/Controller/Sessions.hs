@@ -121,7 +121,9 @@ instance Controller SessionsController where
                         setErrorMessage "Invalid Credentials"
                         redirectTo NewSessionAction
 
-    action currentAction@DeleteSessionAction = runBepis currentAction BepisMutationAction (Sessions.deleteSessionAction @User)
+    action currentAction@DeleteSessionAction = runBepis currentAction BepisMutationAction do
+        void (exitCurrentImpersonation "logout")
+        Sessions.deleteSessionAction @User
 
     action currentAction@VerifyEmailAction = runBepis currentAction BepisMutationAction do
         let verificationTokenValue = param @Text "token"
@@ -166,6 +168,8 @@ instance Sessions.SessionsControllerConfig User where
     afterLoginRedirectPath = "/RosterWeeks"
 
     beforeLogin user = do
+        deleteSession effectiveUserSessionKey
+        deleteSession impersonationSessionIdSessionKey
         when (isNothing user.emailVerifiedAt) do
             setSession pendingVerificationEmailSessionKey user.email
             setErrorMessage "Verify your email before signing in."
@@ -178,6 +182,8 @@ instance Sessions.SessionsControllerConfig User where
 
     beforeLogout _ = do
         deleteSession currentVenueSessionKey
+        deleteSession effectiveUserSessionKey
+        deleteSession impersonationSessionIdSessionKey
         clearCurrentUserPasskeyVerification
 
 defaultLoginRedirectPath :: (?modelContext :: ModelContext) => User -> IO Text

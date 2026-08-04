@@ -3,17 +3,22 @@ module Test.Controller.SupportSpec where
 import Application.Async.Queue (activeAppJobStatuses)
 import Application.FwcMapd.Job (fwcMapdRefreshJobKind)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment (..))
+import Application.Helper.ControllerContext
+import Application.Helper.Impersonation
 import Application.Helper.LiveUpdate
 import Application.Support.LiveUpdates
 import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar)
 import Control.Exception (SomeException, try)
+import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.Prelude
 import IHP.Test.Mocking
+import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Status
+import qualified Network.Wai as Wai
 import Test.Hspec
 import Test.Support
 import Test.Support.SurfaceContract
@@ -55,6 +60,235 @@ tests = aroundAll withDatabaseTestContext do
 
                 liveFragmentResponseShouldRenderTarget awardRatesResponse (supportFragmentRef SupportAwardRatesLiveFragment)
                 liveFragmentResponseShouldRenderTarget publicHolidaysResponse (supportFragmentRef SupportPublicHolidaysLiveFragment)
+
+        it "starts a signed impersonation session with distinct actual and effective context" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Impersonation Context Venue"
+                superAdmin <- createUserRecordWithPlatformRole "impersonation-actual@example.com" "staff" (Just SuperAdmin) True
+                targetUser <- createUserRecord "impersonation-effective@example.com" "staff" True
+                targetMembership <- createVenueMembershipRecord venue targetUser Manager
+                targetStaff <- createStaffRecord venue (Just targetUser) "Effective" "User"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
+                    response <- callActionWithParams
+                        StartSupportImpersonationAction
+                        [("userId", cs (inputValue targetUser.id))]
+
+                    getSession @(Id User) effectiveUserSessionKey `shouldReturn` Just targetUser.id
+                    maybeSessionId <- fmap (>>= UUID.fromText) (getSession @Text impersonationSessionIdSessionKey)
+                    maybeSessionId `shouldSatisfy` isJust
+
+                    withCurrentControllerContext do
+                        initImpersonationContext
+                        (actualUserRecord actualAuthenticatedUser).id `shouldBe` superAdmin.id
+                        (effectiveUserRecord effectiveRequestUser).id `shouldBe` targetUser.id
+                        fmap (.id) effectiveVenueMembershipOrNothing `shouldBe` Just targetMembership.id
+                        effectiveVenueRoleOrNothing `shouldBe` Just Manager
+                        fmap (.id) effectiveStaffOrNothing `shouldBe` Just targetStaff.id
+                        fmap impersonationSessionId currentImpersonationOrNothing `shouldBe` maybeSessionId
+
+                    pure response
+
+                response `responseStatusShouldBe` status302
+                auditEvent <- query @AuditEvent
+                    |> filterWhere (#eventType, "support_impersonation_entered")
+                    |> fetchOne
+                auditEvent.actorUserId `shouldBe` unpackId superAdmin.id
+                auditEvent.targetId `shouldBe` unpackId targetUser.id
+
+        it "requires a fresh passkey verification before entering impersonation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Impersonation Passkey Venue"
+                superAdmin <- createUserRecordWithPlatformRole "impersonation-passkey@example.com" "staff" (Just SuperAdmin) True
+                targetUser <- createUserRecord "impersonation-passkey-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue targetUser Worker
+                ensureTestUserHasPasskey superAdmin
+
+                response <- withUserAndCurrentVenue superAdmin venue.id do
+                    callActionWithParams
+                        StartSupportImpersonationAction
+                        [("userId", cs (inputValue targetUser.id))]
+
+                response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (Wai.responseHeaders response) `shouldBe` Just "http://localhost/PasskeyStepUp"
+
+        it "denies ordinary users and cross-venue targets without creating session state" $ withContext do
+            withCleanDb do
+                selectedVenue <- createVenueWithConfig "Selected Impersonation Venue"
+                otherVenue <- createVenueWithConfig "Other Impersonation Venue"
+                ordinaryUser <- createUserRecord "impersonation-ordinary@example.com" "staff" True
+                _ <- createVenueMembershipRecord selectedVenue ordinaryUser VenueOwner
+                superAdmin <- createUserRecordWithPlatformRole "impersonation-cross-venue@example.com" "staff" (Just SuperAdmin) True
+                crossVenueTarget <- createUserRecord "impersonation-cross-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord otherVenue crossVenueTarget Worker
+
+                ordinaryResponse <- withPasskeyVerifiedUserAndCurrentVenue ordinaryUser selectedVenue.id do
+                    response <- callActionWithParams
+                        StartSupportImpersonationAction
+                        [("userId", cs (inputValue ordinaryUser.id))]
+                    getSession @(Id User) effectiveUserSessionKey `shouldReturn` Nothing
+                    pure response
+                ordinaryResponse `responseStatusShouldBe` status302
+
+                crossVenueResponse <- withPasskeyVerifiedUserAndCurrentVenue superAdmin selectedVenue.id do
+                    response <- callActionWithParams
+                        StartSupportImpersonationAction
+                        [("userId", cs (inputValue crossVenueTarget.id))]
+                    getSession @(Id User) effectiveUserSessionKey `shouldReturn` Nothing
+                    getSession @Text impersonationSessionIdSessionKey `shouldReturn` Nothing
+                    pure response
+                crossVenueResponse `responseStatusShouldBe` status403
+
+                query @AuditEvent
+                    |> filterWhere (#eventType, "support_impersonation_entered")
+                    |> fetchCount
+                    >>= (`shouldBe` 0)
+
+        it "rejects missing and malformed impersonation target ids" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Invalid Impersonation Target Venue"
+                superAdmin <- createUserRecordWithPlatformRole "impersonation-invalid-target@example.com" "staff" (Just SuperAdmin) True
+
+                (missingResponse, malformedResponse) <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
+                    missingResponse <- callAction StartSupportImpersonationAction
+                    malformedResponse <- callActionWithParams
+                        StartSupportImpersonationAction
+                        [("userId", "not-a-uuid")]
+                    getSession @(Id User) effectiveUserSessionKey `shouldReturn` Nothing
+                    getSession @Text impersonationSessionIdSessionKey `shouldReturn` Nothing
+                    pure (missingResponse, malformedResponse)
+
+                missingResponse `responseStatusShouldBe` status403
+                malformedResponse `responseStatusShouldBe` status403
+
+        it "auto-exits when the effective membership is revoked" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Revoked Impersonation Venue"
+                superAdmin <- createUserRecordWithPlatformRole "impersonation-revoked@example.com" "staff" (Just SuperAdmin) True
+                targetUser <- createUserRecord "impersonation-revoked-target@example.com" "staff" True
+                membership <- createVenueMembershipRecord venue targetUser Manager
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
+                    _ <- callActionWithParams
+                        StartSupportImpersonationAction
+                        [("userId", cs (inputValue targetUser.id))]
+                    revokedAt <- getCurrentTime
+                    _ <- membership
+                        |> set #isActive False
+                        |> set #archivedAt (Just revokedAt)
+                        |> updateRecord
+
+                    response <- callAction SupportAction
+                    getSession @(Id User) effectiveUserSessionKey `shouldReturn` Nothing
+                    getSession @Text impersonationSessionIdSessionKey `shouldReturn` Nothing
+                    pure response
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Support impersonation ended because the selected user is no longer available."
+                expiry <- query @AuditEvent
+                    |> filterWhere (#eventType, "support_impersonation_expired")
+                    |> fetchOne
+                expiry.actorUserId `shouldBe` unpackId superAdmin.id
+                expiry.targetId `shouldBe` unpackId targetUser.id
+
+        it "auto-exits when the effective user is deactivated" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Deactivated Impersonation Venue"
+                superAdmin <- createUserRecordWithPlatformRole "impersonation-deactivated@example.com" "staff" (Just SuperAdmin) True
+                targetUser <- createUserRecord "impersonation-deactivated-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue targetUser Worker
+
+                withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
+                    _ <- callActionWithParams
+                        StartSupportImpersonationAction
+                        [("userId", cs (inputValue targetUser.id))]
+                    deactivatedAt <- getCurrentTime
+                    _ <- targetUser
+                        |> set #deactivatedAt (Just deactivatedAt)
+                        |> set #deactivatedByUserId (Just superAdmin.id)
+                        |> set #deactivationReason (Just "support test")
+                        |> updateRecord
+
+                    _ <- callAction SupportAction
+                    getSession @(Id User) effectiveUserSessionKey `shouldReturn` Nothing
+                    getSession @Text impersonationSessionIdSessionKey `shouldReturn` Nothing
+
+                query @AuditEvent
+                    |> filterWhere (#eventType, "support_impersonation_expired")
+                    |> fetchCount
+                    >>= (`shouldBe` 1)
+
+        it "clears effective identity on manual exit and venue switch" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Impersonation Lifecycle Venue"
+                nextVenue <- createVenueWithConfig "Impersonation Lifecycle Next Venue"
+                superAdmin <- createUserRecordWithPlatformRole "impersonation-lifecycle@example.com" "staff" (Just SuperAdmin) True
+                targetUser <- createUserRecord "impersonation-lifecycle-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue targetUser Manager
+
+                withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
+                    _ <- callActionWithParams
+                        StartSupportImpersonationAction
+                        [("userId", cs (inputValue targetUser.id))]
+                    _ <- callAction ExitSupportImpersonationAction
+                    getSession @(Id User) effectiveUserSessionKey `shouldReturn` Nothing
+                    getSession @Text impersonationSessionIdSessionKey `shouldReturn` Nothing
+
+                    _ <- callActionWithParams
+                        StartSupportImpersonationAction
+                        [("userId", cs (inputValue targetUser.id))]
+                    _ <- callActionWithParams
+                        SwitchSupportVenueAction
+                        [ ("venueId", cs (inputValue nextVenue.id))
+                        , ("next", "/Support")
+                        ]
+                    getSession @(Id User) effectiveUserSessionKey `shouldReturn` Nothing
+                    getSession @Text impersonationSessionIdSessionKey `shouldReturn` Nothing
+
+                exits <- query @AuditEvent
+                    |> filterWhere (#eventType, "support_impersonation_exited")
+                    |> fetch
+                length exits `shouldBe` 2
+
+        it "clears effective identity on logout" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Impersonation Logout Venue"
+                superAdmin <- createUserRecordWithPlatformRole "impersonation-logout@example.com" "staff" (Just SuperAdmin) True
+                targetUser <- createUserRecord "impersonation-logout-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue targetUser Worker
+
+                withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
+                    _ <- callActionWithParams
+                        StartSupportImpersonationAction
+                        [("userId", cs (inputValue targetUser.id))]
+                    _ <- callAction DeleteSessionAction
+                    getSession @(Id User) effectiveUserSessionKey `shouldReturn` Nothing
+                    getSession @Text impersonationSessionIdSessionKey `shouldReturn` Nothing
+
+                query @AuditEvent
+                    |> filterWhere (#eventType, "support_impersonation_exited")
+                    |> fetchCount
+                    >>= (`shouldBe` 1)
+
+        it "clears malformed or unauthorized impersonation session state" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Tampered Impersonation Venue"
+                ordinaryUser <- createUserRecord "impersonation-tampered@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue ordinaryUser Worker
+                ordinaryStaff <- createStaffRecord venue (Just ordinaryUser) "Tampered" "User"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue ordinaryUser venue.id do
+                    withCurrentControllerContext do
+                        (effectiveUserRecord effectiveRequestUser).id `shouldBe` ordinaryUser.id
+                        fmap (.id) effectiveStaffOrNothing `shouldBe` Just ordinaryStaff.id
+                    setSession effectiveUserSessionKey ordinaryUser.id
+                    setSession impersonationSessionIdSessionKey ("not-a-uuid" :: Text)
+                    response <- callAction RosterWeeksAction
+                    getSession @(Id User) effectiveUserSessionKey `shouldReturn` Nothing
+                    getSession @Text impersonationSessionIdSessionKey `shouldReturn` Nothing
+                    pure response
+
+                response `responseStatusShouldBe` status302
 
         it "mounts support live surface metadata for super admins" $ withContext do
             withCleanDb do

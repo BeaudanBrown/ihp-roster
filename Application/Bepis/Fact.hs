@@ -74,6 +74,7 @@ data BepisScopeKind
     | BepisVenueWritableScopeFact
     | BepisRoleScopeFact BepisRoleKind
     | BepisSupportScopeFact
+    | BepisImpersonationScopeFact
     | BepisRecordVenueScopeFact Text
     deriving (Eq, Show, Generic)
 
@@ -262,6 +263,7 @@ bepisScopeKindText = \case
     BepisVenueWritableScopeFact -> "venue-writable"
     BepisRoleScopeFact role -> "role:" <> bepisRoleKindText role
     BepisSupportScopeFact -> "support"
+    BepisImpersonationScopeFact -> "impersonation"
     BepisRecordVenueScopeFact label -> "record-venue:" <> label
 
 bepisRoleKindText :: BepisRoleKind -> Text

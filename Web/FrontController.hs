@@ -5,6 +5,9 @@ import Application.Billing.Stripe (StripeDeploymentControls (..),
                                    readStripeDeploymentControls)
 import Application.Helper.Controller (currentUserIsSuperAdmin,
                                       currentVenueSessionKey)
+import Application.Helper.Impersonation (effectiveUserSessionKey,
+                                         impersonationSessionIdSessionKey,
+                                         initImpersonationContext)
 import Application.Helper.Feedback (SupportUnreadFeedbackCount (..),
                                     fetchSupportUnreadFeedbackCount)
 import Application.Helper.Profiling (initRequestProfiling, profileActionSpan)
@@ -80,8 +83,11 @@ instance InitControllerContext WebApplication where
                 TextIO.putStrLn ("auth_init_failure: " <> cs (Exception.displayException exception))
                 deleteSession (sessionKey @User)
                 deleteSession currentVenueSessionKey
+                deleteSession effectiveUserSessionKey
+                deleteSession impersonationSessionIdSessionKey
                 putContext (Nothing :: Maybe User)
         initCurrentVenueContext
+        initImpersonationContext
         initBillingNavigationContext
         initFeedbackContext
 

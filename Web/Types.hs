@@ -195,6 +195,8 @@ data SupportController
     | UpdateFeedbackStatusAction { feedbackItemId :: !(Id UserFeedbackItem) }
     | UpdateFeedbackPriorityAction { feedbackItemId :: !(Id UserFeedbackItem) }
     | UpdateFeedbackSupportNoteAction { feedbackItemId :: !(Id UserFeedbackItem) }
+    | StartSupportImpersonationAction
+    | ExitSupportImpersonationAction
     | SwitchSupportVenueAction
     deriving (Eq, Show, Data)
 

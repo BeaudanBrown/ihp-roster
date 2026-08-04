@@ -229,7 +229,25 @@ instance Controller SupportController where
         setSuccessMessage "Feedback note updated."
         redirectTo SupportAction
 
+    action currentAction@StartSupportImpersonationAction = runBepis currentAction BepisMutationAction do
+        ensureCurrentVenue
+        ensureFreshPasskeyReady
+        case paramOrNothing @Text "userId" >>= parseUUIDText of
+            Nothing -> renderAccessDenied
+            Just userId ->
+                enterCurrentVenueImpersonation (Id userId) >>= \case
+                    Nothing -> renderAccessDenied
+                    Just _ -> do
+                        setSuccessMessage "Support impersonation started."
+                        redirectTo RosterWeeksAction
+
+    action currentAction@ExitSupportImpersonationAction = runBepis currentAction BepisMutationAction do
+        void (exitCurrentImpersonation "manual_exit")
+        setSuccessMessage "Returned to Super admin mode."
+        redirectTo SupportAction
+
     action currentAction@SwitchSupportVenueAction = runBepis currentAction BepisPageAction do
+        void (exitCurrentImpersonation "venue_switch")
         let venueId = (coerce (param @UUID "venueId") :: Id Venue)
         let nextPath = fromMaybe (pathTo SupportAction) (paramOrNothing @Text "next")
         venue <- query @Venue
