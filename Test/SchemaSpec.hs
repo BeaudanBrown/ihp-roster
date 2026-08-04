@@ -374,6 +374,24 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster slot staff_id must stay within roster week venue"
         runbookExists `shouldBe` True
 
+    it "defines roster-template aggregates, private drafts, versions, and shift invariants" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        migrationSqlText <- TextIO.readFile "Application/Migration/1785826000.sql"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE roster_templates ("
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE roster_template_designs ("
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE roster_template_days ("
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE roster_template_columns ("
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE roster_template_shifts ("
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "idx_roster_templates_active_name ON roster_templates (roster_group_id, LOWER(btrim(name))) WHERE deleted_at IS NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "idx_roster_template_designs_one_draft_per_user ON roster_template_designs (draft_owner_user_id) WHERE draft_owner_user_id IS NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_template_shifts_assignment_shape_check"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_template_shifts_structure_check"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "roster template shift content must belong to one design"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE roster_templates ("
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP TABLE"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP COLUMN"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DELETE FROM"
+
     it "adds and safely backfills explicit pay-assignment modes" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         migrationSqlText <- TextIO.readFile "Application/Migration/1785280000.sql"

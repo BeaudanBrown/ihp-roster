@@ -330,6 +330,75 @@ tests = aroundAll withDatabaseTestContext do
                     `shouldBe` replicate 8 True
                 wholeShiftBreak `shouldSatisfy` isRight
 
+    describe "roster template persistence constraints" do
+        it "enforces active names, one private draft, and structurally valid scoped shifts" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Template constraints"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                owner <- createUserRecord "template-owner@example.com" "staff" True
+                otherOwner <- createUserRecord "other-template-owner@example.com" "staff" True
+                staff <- createStaffRecord venue Nothing "Template" "Worker"
+                shiftType <- ensureVenueDefaultShiftType venue
+
+                sqlExecDiscardResult
+                    "INSERT INTO roster_templates (roster_group_id, name, scale) VALUES (?, 'Opening', 'day')"
+                    (Only (unpackId rosterGroup.id))
+                duplicateName <- try
+                    (sqlExecDiscardResult
+                        "INSERT INTO roster_templates (roster_group_id, name, scale) VALUES (?, 'opening', 'week')"
+                        (Only (unpackId rosterGroup.id)))
+                    :: IO (Either SomeException ())
+
+                firstDesignId :: UUID <- sqlQueryScalar
+                    "INSERT INTO roster_template_designs (roster_group_id, scale, draft_owner_user_id, draft_name, created_by_user_id) VALUES (?, 'day', ?, 'Private day', ?) RETURNING id"
+                    (unpackId rosterGroup.id, unpackId owner.id, unpackId owner.id)
+                duplicateDraft <- try
+                    (sqlExecDiscardResult
+                        "INSERT INTO roster_template_designs (roster_group_id, scale, draft_owner_user_id, draft_name, created_by_user_id) VALUES (?, 'week', ?, 'Second draft', ?)"
+                        (unpackId rosterGroup.id, unpackId owner.id, unpackId owner.id))
+                    :: IO (Either SomeException ())
+                invalidDayIndex <- try
+                    (sqlExecDiscardResult
+                        "INSERT INTO roster_template_days (roster_template_design_id, day_index) VALUES (?, 1)"
+                        (Only (firstDesignId :: UUID)))
+                    :: IO (Either SomeException ())
+
+                firstDayId :: UUID <- sqlQueryScalar
+                    "INSERT INTO roster_template_days (roster_template_design_id, day_index) VALUES (?, 0) RETURNING id"
+                    (Only firstDesignId)
+                firstColumnId :: UUID <- sqlQueryScalar
+                    "INSERT INTO roster_template_columns (roster_template_design_id, name, sort_order) VALUES (?, 'Early', 0) RETURNING id"
+                    (Only firstDesignId)
+                secondDesignId :: UUID <- sqlQueryScalar
+                    "INSERT INTO roster_template_designs (roster_group_id, scale, draft_owner_user_id, draft_name, created_by_user_id) VALUES (?, 'day', ?, 'Other day', ?) RETURNING id"
+                    (unpackId rosterGroup.id, unpackId otherOwner.id, unpackId otherOwner.id)
+                secondColumnId :: UUID <- sqlQueryScalar
+                    "INSERT INTO roster_template_columns (roster_template_design_id, name, sort_order) VALUES (?, 'Late', 0) RETURNING id"
+                    (Only secondDesignId)
+
+                validOpen <- try
+                    (sqlExecDiscardResult
+                        "INSERT INTO roster_template_shifts (roster_template_design_id, roster_template_day_id, roster_template_column_id, assignment_state, row_index, start_minute, end_minute, shift_type_id) VALUES (?, ?, ?, 'open', 0, 540, 1020, ?)"
+                        (firstDesignId, firstDayId :: UUID, firstColumnId :: UUID, unpackId shiftType.id))
+                    :: IO (Either SomeException ())
+                malformedAssigned <- try
+                    (sqlExecDiscardResult
+                        "INSERT INTO roster_template_shifts (roster_template_design_id, roster_template_day_id, roster_template_column_id, assignment_state, staff_id, row_index, start_minute, end_minute, shift_type_id) VALUES (?, ?, ?, 'open', ?, 1, 540, 1020, ?)"
+                        (firstDesignId, firstDayId, firstColumnId, unpackId staff.id, unpackId shiftType.id))
+                    :: IO (Either SomeException ())
+                mixedDesign <- try
+                    (sqlExecDiscardResult
+                        "INSERT INTO roster_template_shifts (roster_template_design_id, roster_template_day_id, roster_template_column_id, assignment_state, row_index, start_minute, end_minute, shift_type_id) VALUES (?, ?, ?, 'open', 2, 540, 1020, ?)"
+                        (firstDesignId, firstDayId, secondColumnId, unpackId shiftType.id))
+                    :: IO (Either SomeException ())
+
+                duplicateName `shouldSatisfy` isLeft
+                duplicateDraft `shouldSatisfy` isLeft
+                invalidDayIndex `shouldSatisfy` isLeft
+                validOpen `shouldSatisfy` isRight
+                malformedAssigned `shouldSatisfy` isLeft
+                mixedDesign `shouldSatisfy` isLeft
+
     describe "roster shift assignment constraints" do
         it "accepts only structurally complete explicit Staff or Open active shifts" $ withContext do
             withCleanDb do
