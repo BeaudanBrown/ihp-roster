@@ -358,6 +358,13 @@ tests = aroundAll withDatabaseTestContext do
                         lookup HTTP.hLocation (Wai.responseHeaders unsafeReturnResponse)
                             `shouldBe` Just "http://localhost/RosterWeeks"
 
+                    missingNextResponse <- callActionWithParams
+                        SwitchSupportImpersonationAction
+                        [("userId", cs (inputValue targetUser.id))]
+                    missingNextResponse `responseStatusShouldBe` status302
+                    lookup HTTP.hLocation (Wai.responseHeaders missingNextResponse)
+                        `shouldBe` Just "http://localhost/RosterWeeks"
+
         it "requires a fresh passkey verification before entering impersonation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Impersonation Passkey Venue"
@@ -405,14 +412,18 @@ tests = aroundAll withDatabaseTestContext do
                 unauthenticatedResponse `responseStatusShouldBe` status302
                 ordinaryResponse `responseStatusShouldBe` status302
 
-                crossVenueResponse <- withPasskeyVerifiedUserAndCurrentVenue superAdmin selectedVenue.id do
-                    response <- callActionWithParams
+                (crossVenueResponse, selectorCrossVenueResponse) <- withPasskeyVerifiedUserAndCurrentVenue superAdmin selectedVenue.id do
+                    crossVenueResponse <- callActionWithParams
                         StartSupportImpersonationAction
+                        [("userId", cs (inputValue crossVenueTarget.id))]
+                    selectorCrossVenueResponse <- callActionWithParams
+                        SwitchSupportImpersonationAction
                         [("userId", cs (inputValue crossVenueTarget.id))]
                     getSession @(Id User) effectiveUserSessionKey `shouldReturn` Nothing
                     getSession @Text impersonationSessionIdSessionKey `shouldReturn` Nothing
-                    pure response
+                    pure (crossVenueResponse, selectorCrossVenueResponse)
                 crossVenueResponse `responseStatusShouldBe` status403
+                selectorCrossVenueResponse `responseStatusShouldBe` status403
 
                 query @AuditEvent
                     |> filterWhere (#eventType, "support_impersonation_entered")
@@ -424,17 +435,21 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Invalid Impersonation Target Venue"
                 superAdmin <- createUserRecordWithPlatformRole "impersonation-invalid-target@example.com" "staff" (Just SuperAdmin) True
 
-                (missingResponse, malformedResponse) <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
+                (missingResponse, malformedResponse, selectorMalformedResponse) <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
                     missingResponse <- callAction StartSupportImpersonationAction
                     malformedResponse <- callActionWithParams
                         StartSupportImpersonationAction
                         [("userId", "not-a-uuid")]
+                    selectorMalformedResponse <- callActionWithParams
+                        SwitchSupportImpersonationAction
+                        [("userId", "not-a-uuid")]
                     getSession @(Id User) effectiveUserSessionKey `shouldReturn` Nothing
                     getSession @Text impersonationSessionIdSessionKey `shouldReturn` Nothing
-                    pure (missingResponse, malformedResponse)
+                    pure (missingResponse, malformedResponse, selectorMalformedResponse)
 
                 missingResponse `responseStatusShouldBe` status403
                 malformedResponse `responseStatusShouldBe` status403
+                selectorMalformedResponse `responseStatusShouldBe` status403
 
         it "auto-exits when the effective membership is revoked" $ withContext do
             withCleanDb do
