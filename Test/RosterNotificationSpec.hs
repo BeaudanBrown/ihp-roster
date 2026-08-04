@@ -64,6 +64,7 @@ tests = aroundAll withDatabaseTestContext do
                 Set.fromList (map payloadRecipientEmail jobs)
                     `shouldBe` Set.fromList [Just "manager-notify@example.com", Just "worker-notify@example.com"]
                 map (.dedupeKey) jobs `shouldSatisfy` all isJust
+                Set.size (Set.fromList (map (.dedupeKey) jobs)) `shouldBe` length jobs
 
         it "renders only the recipient's shifts and Open shifts from the snapshot" $ withContext do
             withCleanDb do
@@ -181,6 +182,31 @@ tests = aroundAll withDatabaseTestContext do
                 result `shouldSatisfy` isLeft
                 unchangedJob <- fetch appJob.id
                 unchangedJob.status `shouldNotBe` JobStatusSucceeded
+
+        it "rejects malformed and unsupported delivery payloads before sending" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Payload Validation Venue"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                actor <- createUserRecord "payload-validation@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue actor Manager
+                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 True
+                run <- createRosterNotificationRun actor rosterWeek
+                appJob <- query @AppJob |> filterWhere (#relatedId, Just (unpackId run.id)) |> fetchOne
+                delivered <- newIORef (0 :: Int)
+                let runtime = RosterNotificationDeliveryRuntime
+                        { deliveryBaseUrl = "https://app.example"
+                        , deliveryMailSettings = AppMailSettings "rosters@example.com" "support@example.com" "support@example.com"
+                        , deliverRosterNotificationMail = \_ -> modifyIORef' delivered (+ 1)
+                        }
+                let invalidJobs =
+                        [ appJob |> set #payloadSchemaVersion 999
+                        , appJob |> set #payload (Aeson.object [])
+                        ]
+
+                results <- forM invalidJobs (Exception.try . performRosterNotificationDeliveryJobWith runtime) :: IO [Either Exception.SomeException ()]
+
+                results `shouldSatisfy` all isLeft
+                readIORef delivered >>= (`shouldBe` 0)
 
         it "propagates delivery failures so the durable job can retry the same snapshot" $ withContext do
             withCleanDb do

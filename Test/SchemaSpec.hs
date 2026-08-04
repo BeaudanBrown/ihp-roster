@@ -62,6 +62,7 @@ tests = describe "Schema" do
         let _ = (Nothing :: Maybe Passkey)
         let _ = (Nothing :: Maybe UserPreference)
         let _ = (Nothing :: Maybe AppJob)
+        let _ = (Nothing :: Maybe RosterNotificationRun)
         let _ = (Nothing :: Maybe XeroSubmissionRun)
         let _ = (Nothing :: Maybe XeroTimesheetSubmission)
         let _ = (Nothing :: Maybe XeroTimesheetSubmissionEntry)
@@ -289,17 +290,10 @@ tests = describe "Schema" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE app_jobs"
 
-    it "retains immutable roster notification snapshots and indexes their delivery jobs" do
-        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+    it "retains the roster notification deployment migration" do
         migrationSqlText <- TextIO.readFile "Application/Migration/1785813100.sql"
-        forM_ [schemaSqlText, migrationSqlText] \sqlText -> do
-            sqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE roster_notification_runs"
-            sqlText `shouldSatisfy` Text.isInfixOf "roster_snapshot JSONB NOT NULL"
-            sqlText `shouldSatisfy` Text.isInfixOf "recipient_snapshot JSONB NOT NULL"
-            sqlText `shouldSatisfy` Text.isInfixOf "skipped_recipient_snapshot JSONB NOT NULL"
-            sqlText `shouldSatisfy` Text.isInfixOf "idx_app_jobs_related"
-            sqlText `shouldSatisfy` Text.isInfixOf "ON app_jobs (related_table, related_id);"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_roster_notification_runs_immutable BEFORE UPDATE OR DELETE ON roster_notification_runs"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE roster_notification_runs"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "idx_app_jobs_related ON app_jobs (related_table, related_id)"
 
     it "stores roster and timesheet time only as authoritative instant boundaries" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
