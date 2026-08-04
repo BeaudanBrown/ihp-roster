@@ -100,10 +100,6 @@ module Application.Helper.FrontendContract.Surface.Roster
     , SidePanelToggleRole
     , SidePanelLabelRole
     , SidePanelState
-    , FullscreenRootRole
-    , FullscreenToggleRole
-    , FullscreenLabelRole
-    , FullscreenState
     , Collapsed
     , Expanded
     , ColumnEditorRole
@@ -329,11 +325,6 @@ data SidePanelPanelRole
 data SidePanelToggleRole
 data SidePanelLabelRole
 data SidePanelState
-
-data FullscreenRootRole
-data FullscreenToggleRole
-data FullscreenLabelRole
-data FullscreenState
 data Collapsed
 data Expanded
 
@@ -819,10 +810,6 @@ type RosterChromeBrowserBundle =
      , BrowserRole SidePanelLabelRole
      , BrowserClosedState SidePanelState '[ Collapsed, Expanded ]
      , SidePanel RosterSidePanel SidePanelRootRole SidePanelMainRole SidePanelPanelRole SidePanelToggleRole SidePanelLabelRole SidePanelState Collapsed Expanded
-     , BrowserRole FullscreenRootRole
-     , BrowserRole FullscreenToggleRole
-     , BrowserRole FullscreenLabelRole
-     , BrowserClosedState FullscreenState '[ Collapsed, Expanded ]
      , BrowserRole ColumnEditorRole
      , BrowserRole ColumnEditStartRole
      , BrowserRole ColumnEditDoneRole

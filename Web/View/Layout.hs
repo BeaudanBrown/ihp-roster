@@ -310,6 +310,7 @@ stylesheets = [hsx|
         <link rel="stylesheet" href={assetPath "/css/components/status.css"}/>
         <link rel="stylesheet" href={assetPath "/css/components/public.css"}/>
         <link rel="stylesheet" href={assetPath "/css/components/panels.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/components/side-panel.css"}/>
         <link rel="stylesheet" href={assetPath "/css/components/forms.css"}/>
         <link rel="stylesheet" href={assetPath "/css/components/buttons.css"}/>
         <link rel="stylesheet" href={assetPath "/css/components/bootstrap-overrides.css"}/>

@@ -55,8 +55,9 @@ becoming an isolated zoom system.
 - **Layout chrome:** put `html`, `body`, `.app-shell`, `.app-content`,
   `.app-page*`, page headers, and global authenticated navigation in
   `layout.css`.
-- **Shared components:** put reusable surfaces, menus/navigation, week toolbar,
-  badges/status, horizontal strip primitives, public/auth surfaces, forms,
+- **Shared components:** put reusable surfaces, generated SidePanel layout,
+  menus/navigation, week toolbar, badges/status, horizontal strip primitives,
+  public/auth surfaces, forms,
   dense controls, buttons, tables, accordions, toggles, and admin primitives in
   focused `components/*.css` modules.
 - **Overlays:** put workflow dialog, toast, picker, and overlay host styling in

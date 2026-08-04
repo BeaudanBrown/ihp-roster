@@ -129,6 +129,8 @@ function validateToggle(
 
 function updateToggle(validated: ValidatedToggle, resolved: ResolvedRoot, state: string): void {
     const expanded = state === resolved.definition.expandedValue;
+    const rootClassList = (resolved.root as unknown as { classList?: { toggle: (name: string, force?: boolean) => boolean } }).classList;
+    rootClassList?.toggle("is-side-panel-expanded", expanded);
     const label = expanded ? "Show side panel" : "Expand main content";
     validated.toggle.setAttribute("aria-pressed", expanded ? "true" : "false");
     validated.toggle.setAttribute("aria-label", label);

@@ -43,6 +43,7 @@ import Application.Helper.FrontendContract.Surface.Roster.Chrome (RosterColumnEd
 import Application.Helper.FrontendContract.Surface.Roster.ImageExport (rosterImageExportCellAttrs,
                                                                        rosterImageExportProjectionAttrs,
                                                                        rosterImageExportRowAttrs)
+import Application.Helper.FrontendContract.Surface.Roster.SidePanel (rosterSidePanelRenderAttrs)
 import Application.Helper.FrontendContract.Surface.Roster.TemplateApplication (rosterTemplateDayTargetAttrs,
                                                                                rosterTemplateWeekTargetAttrs)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
@@ -107,13 +108,22 @@ renderrosterContentLiveFragmentOob =
 
 renderrosterContentLiveFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterGridRenderModel -> Html
 renderrosterContentLiveFragmentWithSwap maybeSwapOob gridModel =
-    profileHtmlComponent "render.roster.content_fragment" [hsx|
-        <div id={rosterContentFragmentId}
-             class={rosterContentColumnClasses gridModel}
-             hx-swap-oob={maybeSwapOob}>
-            {renderRosterContent gridModel}
-        </div>
-    |]
+    profileHtmlComponent "render.roster.content_fragment" $
+        if rosterHasSidePanel gridModel
+            then renderSidePanelMainRegion rosterSidePanelRenderAttrs regionConfig (renderRosterContent gridModel)
+            else [hsx|
+                <div id={rosterContentFragmentId}
+                     class={rosterContentColumnClasses gridModel}
+                     hx-swap-oob={maybeSwapOob}>
+                    {renderRosterContent gridModel}
+                </div>
+            |]
+  where
+    regionConfig = SidePanelRegionConfig
+        { sidePanelRegionId = Just rosterContentFragmentId
+        , sidePanelRegionClass = rosterContentColumnClasses gridModel
+        , sidePanelRegionExtraAttrs = maybe [] (\swap -> [("hx-swap-oob", swap)]) maybeSwapOob
+        }
 
 renderRosterLayout :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
 renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridPanelStaff, gridTemplateLibrary, gridTemplateLibraryUserId, gridNotificationPanelData, gridStaffSelfServicePanel, gridRenderIndexes, gridViewMode } =
@@ -147,23 +157,37 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
                     , staffPanelNotificationPanelData = gridNotificationPanelData
                     }
                 else mempty
+        layoutBody = [hsx|
+            {renderrosterContentLiveFragment gridModel}
+            {forEach gridRosterWeek renderStaffPanelMount}
+            {renderRosterStaffSelfServicePanelFragment gridStaffSelfServicePanel}
+        |]
+        layout = if rosterHasSidePanel gridModel
+            then renderSidePanelLayout rosterSidePanelRenderAttrs SidePanelRegionConfig
+                { sidePanelRegionId = Just rosterLayoutFragmentId
+                , sidePanelRegionClass = "row g-4 align-items-start roster-layout"
+                , sidePanelRegionExtraAttrs = []
+                } layoutBody
+            else [hsx|
+                <div id={rosterLayoutFragmentId} class="row g-4 align-items-start roster-layout">
+                    {layoutBody}
+                </div>
+            |]
      in profileHtmlComponent "render.roster.layout" do
         renderFrontendSurfaceInteractionShell rosterSurface rosterFrontendSurfaceIR FrontendSurfaceInteractionShellConfig
             { interactionShellHtmxSync = Just ("#" <> rosterWeekShellId <> ":replace")
             , interactionShellIntentForms = rosterIntentForms rosterSurfaceScope (rosterWeekIsEditable gridRosterWeek)
-            } [hsx|
-            <div id={rosterLayoutFragmentId} class="row g-4 align-items-start roster-layout">
-                {renderrosterContentLiveFragment gridModel}
-                {forEach gridRosterWeek renderStaffPanelMount}
-                {renderRosterStaffSelfServicePanelFragment gridStaffSelfServicePanel}
-            </div>
-        |]
+            } layout
 
 rosterContentColumnClasses :: (?context :: ControllerContext) => RosterGridRenderModel -> Text
-rosterContentColumnClasses RosterGridRenderModel { gridStaffSelfServicePanel } =
+rosterContentColumnClasses gridModel =
     classes [("col-12", True), ("col-xl-8", hasSidePanel), ("col-xxl-9", hasSidePanel), ("mx-auto", not hasSidePanel), ("roster-layout-main", hasSidePanel)]
     where
-        hasSidePanel = currentUserIsManager || isJust gridStaffSelfServicePanel
+        hasSidePanel = rosterHasSidePanel gridModel
+
+rosterHasSidePanel :: (?context :: ControllerContext) => RosterGridRenderModel -> Bool
+rosterHasSidePanel RosterGridRenderModel { gridStaffSelfServicePanel } =
+    currentUserIsManager || isJust gridStaffSelfServicePanel
 
 renderRosterContent :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
 renderRosterContent =

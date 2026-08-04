@@ -109,18 +109,21 @@ tests = describe "Frontend contract generator foundation" do
         frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "export const rosterContentDomToken"
         frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "export const rosterWeekShellDomToken"
 
-    it "generates roster chrome roles and closed state guards" do
+    it "generates roster side-panel and column-edit roles with closed state guards" do
         forM_
-            [ "export const rosterFullscreenRootDomAttr = \"data-bepis-roster-fullscreen-root\" as const;"
-            , "export const rosterFullscreenToggleDomAttr = \"data-bepis-roster-fullscreen-toggle\" as const;"
-            , "export const rosterFullscreenLabelDomAttr = \"data-bepis-roster-fullscreen-label\" as const;"
+            [ "export const rosterSidePanelRootDomAttr = \"data-bepis-roster-side-panel-root\" as const;"
+            , "export const rosterSidePanelMainDomAttr = \"data-bepis-roster-side-panel-main\" as const;"
+            , "export const rosterSidePanelPanelDomAttr = \"data-bepis-roster-side-panel-panel\" as const;"
+            , "export const rosterSidePanelToggleDomAttr = \"data-bepis-roster-side-panel-toggle\" as const;"
+            , "export const rosterSidePanelLabelDomAttr = \"data-bepis-roster-side-panel-label\" as const;"
             , "export const rosterColumnEditorDomAttr = \"data-bepis-roster-column-editor\" as const;"
             , "export const rosterColumnEditStartDomAttr = \"data-bepis-roster-column-edit-start\" as const;"
             , "export const rosterColumnEditDoneDomAttr = \"data-bepis-roster-column-edit-done\" as const;"
-            , "export const rosterFullscreenDomAttr = \"data-bepis-roster-fullscreen\" as const;"
+            , "export const rosterSidePanelDomAttr = \"data-bepis-roster-side-panel\" as const;"
             , "export const rosterColumnEditingDomAttr = \"data-bepis-roster-column-editing\" as const;"
-            , "export type RosterFullscreenState = \"collapsed\" | \"expanded\";"
-            , "export function isRosterFullscreenState(value: unknown): value is RosterFullscreenState"
+            , "export type RosterSidePanelState = \"collapsed\" | \"expanded\";"
+            , "export function isRosterSidePanelState(value: unknown): value is RosterSidePanelState"
+            , "export const FrontendSurfaceSidePanelRegistry"
             , "export type RosterColumnEditingState = \"inactive\" | \"active\";"
             , "export function isRosterColumnEditingState(value: unknown): value is RosterColumnEditingState"
             ]

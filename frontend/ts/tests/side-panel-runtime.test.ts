@@ -99,6 +99,8 @@ test("side panels toggle only the nearest generated root, including nested mount
     assertEqual(controller.toggle(nested.icon as unknown as Element), true);
     assertEqual(nested.root.getAttribute(rosterSidePanelDomAttr), rosterSidePanelStates.expanded);
     assertEqual(outer.root.getAttribute(rosterSidePanelDomAttr), rosterSidePanelStates.collapsed);
+    assertEqual(nested.root.classList.contains("is-side-panel-expanded"), true);
+    assertEqual(outer.root.classList.contains("is-side-panel-expanded"), false);
     assertEqual(nested.toggle.getAttribute("aria-pressed"), "true");
     assertEqual(nested.toggle.getAttribute("aria-label"), "Show side panel");
     assertEqual(nested.label.textContent, "Show side panel");

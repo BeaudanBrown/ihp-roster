@@ -1,8 +1,8 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ConstraintKinds     #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE TypeFamilies        #-}
 
 -- | Marker-indexed rendering helpers for the reusable mechanical side-panel
 -- capability. Feature views retain ownership of panel content and tabs.
@@ -15,8 +15,10 @@ module Application.Helper.FrontendContract.Surface.SidePanel
     ) where
 
 import Application.Helper.FrontendContract.Surface.Attributes (roleAttrs)
-import Application.Helper.FrontendContract.Surface.ContractIR (BrowserClosedStateIR (..), SidePanelIR (..))
-import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive, ReflectSurfaceSpec)
+import Application.Helper.FrontendContract.Surface.ContractIR (BrowserClosedStateIR (..),
+                                                               SidePanelIR (..))
+import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive,
+                                                            ReflectSurfaceSpec)
 import Application.Helper.FrontendContract.Surface.SemanticIR (BrowserAttributeIR (..))
 import Application.Helper.FrontendContract.Surface.Values
 import IHP.Prelude

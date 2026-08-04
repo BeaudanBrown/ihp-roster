@@ -137,7 +137,7 @@ expect_no_match \
     Application Web frontend/ts e2e
 expect_no_match \
     "raw generated roster attributes are forbidden outside their contract" \
-    'data-bepis-roster-(fullscreen|fullscreen-root|fullscreen-toggle|fullscreen-label|column-editor|column-editing|column-edit-start|column-edit-done|image-export-(trigger|config|projection|row|cell|format)|staff-highlight-(source|member|pin|order)|shift-group-highlight-(source|member)|day-timeline-shift-group-highlight-(source|member)|staff-panel-sort-(root|row|control)|staff-panel-tab|week-overview-(panel|day|today|details|selected-label|leave-value|assigned-value|hours-value|summary|week-label|go-link|availability|closure|calendar-day))([^A-Za-z0-9_-]|$)' \
+    'data-bepis-roster-(side-panel|side-panel-root|side-panel-main|side-panel-panel|side-panel-toggle|side-panel-label|fullscreen|fullscreen-root|fullscreen-toggle|fullscreen-label|column-editor|column-editing|column-edit-start|column-edit-done|image-export-(trigger|config|projection|row|cell|format)|staff-highlight-(source|member|pin|order)|shift-group-highlight-(source|member)|day-timeline-shift-group-highlight-(source|member)|staff-panel-sort-(root|row|control)|staff-panel-tab|week-overview-(panel|day|today|details|selected-label|leave-value|assigned-value|hours-value|summary|week-label|go-link|availability|closure|calendar-day))([^A-Za-z0-9_-]|$)' \
     Application Web frontend/ts e2e
 
 # Dependency boundaries: handwritten production code cannot bypass the typed

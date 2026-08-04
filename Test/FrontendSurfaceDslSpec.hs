@@ -500,7 +500,7 @@ tests = describe "FrontendSurface DSL foundation" do
         surfaceSidePanelLabelAttrs @BrowserFixtureSurface @BrowserFixtureSidePanel
             `shouldBe` [("data-bepis-browser-fixture-browser-fixture-side-panel-label", "true")]
 
-    it "rejects malformed complete-set sort and tab semantics before TypeScript rendering" do
+    it "rejects malformed complete-set sort, tab, and side-panel semantics before TypeScript rendering" do
         let surface = reflectSurfaceSpec @BrowserFixtureSurface
         let sortDefinition = fromMaybe (error "missing fixture sort") (listToMaybe surface.surfaceCompleteSetSorts)
         let firstKey = fromMaybe (error "missing fixture sort key") (listToMaybe sortDefinition.completeSetSortKeys)
@@ -517,9 +517,16 @@ tests = describe "FrontendSurface DSL foundation" do
                     : drop 1 sortDefinition.completeSetSortKeys
                 }
         let tabSet = fromMaybe (error "missing fixture tab set") (listToMaybe surface.surfaceTabSets)
+        let sidePanel = fromMaybe (error "missing fixture side panel") (listToMaybe surface.surfaceSidePanels)
         let malformed = surface
                 { surfaceCompleteSetSorts = [malformedSort]
                 , surfaceTabSets = [tabSet { tabSetDefaultKey = "missing" }]
+                , surfaceSidePanels =
+                    [ sidePanel
+                        { sidePanelMainRole = sidePanel.sidePanelMainRole { browserAttributeDomAttribute = "data-bepis-wrong-main" }
+                        , sidePanelExpandedValue = sidePanel.sidePanelCollapsedValue
+                        }
+                    ]
                 }
         let messages = diagnosticMessages (checkedSurfaceContractIR (SurfaceContractIR [malformed]))
         messages `shouldContain`
@@ -527,6 +534,8 @@ tests = describe "FrontendSurface DSL foundation" do
             , "surface browser-fixture complete-set sort browser-fixture-sort references missing default key missing"
             , "surface browser-fixture complete-set sort browser-fixture-sort key label comparator browserFixtureSortLabel has a wire type that disagrees with its declared sort value type"
             , "surface browser-fixture tab set browser-fixture-tabs references missing default key missing"
+            , "surface browser-fixture side panel browser-fixture-side-panel references missing main role browser-fixture-side-panel-main"
+            , "surface browser-fixture side panel browser-fixture-side-panel must use distinct collapsed and expanded values"
             ]
 
     it "renders complete-set sort and tab roles through marker-indexed Haskell helpers" do
@@ -895,19 +904,7 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldContainText` "\"timesheets\":[\"timesheet-toolbar\",\"timesheet-day-columns\",\"timesheet-day-section\"]"
         frontendSurfaceContractsTypeScript `shouldNotContainText` "timesheetsSurfaceManifest"
 
-    it "renders marker-indexed roster chrome roles and closed states" do
-        rosterFullscreenRootAttrs RosterFullscreenCollapsed
-            `shouldBe`
-                [ ("data-bepis-roster-fullscreen-root", "true")
-                , ("data-bepis-roster-fullscreen", "collapsed")
-                ]
-        rosterFullscreenRootAttrs RosterFullscreenExpanded
-            `shouldBe`
-                [ ("data-bepis-roster-fullscreen-root", "true")
-                , ("data-bepis-roster-fullscreen", "expanded")
-                ]
-        rosterFullscreenToggleAttrs `shouldBe` [("data-bepis-roster-fullscreen-toggle", "true")]
-        rosterFullscreenLabelAttrs `shouldBe` [("data-bepis-roster-fullscreen-label", "true")]
+    it "renders marker-indexed roster column-edit roles and closed states" do
         rosterColumnEditorAttrs RosterColumnEditingInactive
             `shouldBe`
                 [ ("data-bepis-roster-column-editor", "true")
@@ -1097,9 +1094,6 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "data-bepis-roster-side-panel-panel"
                        , "data-bepis-roster-side-panel-toggle"
                        , "data-bepis-roster-side-panel-label"
-                       , "data-bepis-roster-fullscreen-root"
-                       , "data-bepis-roster-fullscreen-toggle"
-                       , "data-bepis-roster-fullscreen-label"
                        , "data-bepis-roster-column-editor"
                        , "data-bepis-roster-column-edit-start"
                        , "data-bepis-roster-column-edit-done"
@@ -1129,7 +1123,6 @@ tests = describe "FrontendSurface DSL foundation" do
         map (.browserAttributeDomAttribute) surface.surfaceBrowserStates
             `shouldBe`
                 [ "data-bepis-roster-side-panel"
-                , "data-bepis-roster-fullscreen"
                 , "data-bepis-roster-column-editing"
                 , "data-bepis-roster-image-export-format"
                 , "data-bepis-roster-week-overview-availability"
@@ -1140,7 +1133,6 @@ tests = describe "FrontendSurface DSL foundation" do
         map (\state -> (state.browserClosedStateAttribute.browserAttributeName, state.browserClosedStateValues)) surface.surfaceBrowserClosedStates
             `shouldBe`
                 [ ("side-panel", ["collapsed", "expanded"])
-                , ("fullscreen", ["collapsed", "expanded"])
                 , ("column-editing", ["inactive", "active"])
                 , ("image-export-format", ["jpg"])
                 , ("week-overview-availability", ["loaded", "unloaded"])

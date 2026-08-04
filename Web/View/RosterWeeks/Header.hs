@@ -7,8 +7,7 @@ module Web.View.RosterWeeks.Header
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
-import Application.Helper.FrontendContract.Surface.Roster.Chrome (rosterFullscreenLabelAttrs,
-                                                                  rosterFullscreenToggleAttrs)
+import Application.Helper.FrontendContract.Surface.Roster.SidePanel (rosterSidePanelRenderAttrs)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink)
@@ -37,7 +36,7 @@ rosterActionRoute actionUrl =
         }
 
 renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> RosterGroup -> Day -> RosterViewCapabilities -> Maybe RosterWagePrediction -> Bool -> RosterGridViewMode -> Maybe Text -> Html
-renderRosterGridHeader maybeRosterWeek weekOffset currentRosterGroup weekStartDate viewCapabilities rosterWagePrediction canToggleFullscreen gridViewMode timelineTodayUrl =
+renderRosterGridHeader maybeRosterWeek weekOffset currentRosterGroup weekStartDate viewCapabilities rosterWagePrediction canToggleSidePanel gridViewMode timelineTodayUrl =
     let toolbarHtml = renderWeekToolbar WeekToolbarConfig
             { weekToolbarVariant = WeekToolbarRoster
             , weekToolbarAriaLabel = "Roster week controls"
@@ -45,7 +44,7 @@ renderRosterGridHeader maybeRosterWeek weekOffset currentRosterGroup weekStartDa
             , weekToolbarPrimary = renderLiveToggle maybeRosterWeek viewCapabilities
             , weekToolbarReset = renderThisWeekButton gridViewMode currentRosterGroup timelineTodayUrl
             , weekToolbarNavigation = renderRosterWeekControls weekOffset currentRosterGroup weekStartDate gridViewMode
-            , weekToolbarSettings = when canToggleFullscreen renderRosterFullscreenToggle
+            , weekToolbarSettings = when canToggleSidePanel renderRosterSidePanelToggle
             , weekToolbarAuxiliary = renderRosterWeekWageSummary rosterWagePrediction
             }
         deleteDropzoneKey = "delete" :: Text
@@ -53,18 +52,8 @@ renderRosterGridHeader maybeRosterWeek weekOffset currentRosterGroup weekStartDa
             then SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDeleteShiftDropzoneRef deleteDropzoneKey toolbarHtml
             else toolbarHtml
 
-renderRosterFullscreenToggle :: Html
-renderRosterFullscreenToggle = [hsx|
-    <button type="button"
-            class="btn btn-outline-secondary btn-sm roster-fullscreen-toggle"
-            {...rosterFullscreenToggleAttrs}
-            aria-pressed="false"
-            aria-label="Expand roster"
-            title="Expand roster">
-        <i class="bi bi-fullscreen" aria-hidden="true"></i>
-        <span class="visually-hidden" {...rosterFullscreenLabelAttrs}>Expand roster</span>
-    </button>
-|]
+renderRosterSidePanelToggle :: Html
+renderRosterSidePanelToggle = renderSidePanelToggle rosterSidePanelRenderAttrs
 
 renderRosterWeekWageSummary :: (?context :: ControllerContext) => Maybe RosterWagePrediction -> Html
 renderRosterWeekWageSummary Nothing = mempty

@@ -1,29 +1,5 @@
 /* Roster side layout, staff panel, quick tools, and staff-panel responsive rules. */
 
-.roster-fullscreen-toggle {
-    min-width: 2.35rem;
-    min-height: 2.35rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 999px;
-}
-
-[data-bepis-roster-fullscreen-root][data-bepis-roster-fullscreen="expanded"] .roster-layout-main {
-    flex: 0 0 100%;
-    width: 100%;
-    max-width: 100%;
-}
-
-[data-bepis-roster-fullscreen-root][data-bepis-roster-fullscreen="expanded"] .roster-layout-side {
-    display: none !important;
-}
-
-.roster-layout-side {
-    display: flex;
-    min-width: 0;
-}
-
 .roster-staff-panel {
     min-height: 0;
 }
@@ -354,22 +330,7 @@
 }
 
 @media (min-width: 1200px) {
-    .roster-layout-side {
-        position: sticky;
-        top: 1.5rem;
-        align-self: flex-start;
-    }
-
-    .roster-staff-panel {
-        display: flex;
-        flex-direction: column;
-        max-height: calc(100svh - 3rem);
-        overflow: hidden;
-    }
-
     .roster-staff-self-service-stack {
-        max-height: calc(100svh - 3rem);
-        overflow-y: auto;
         padding-right: 0.25rem;
     }
 
@@ -409,18 +370,6 @@
 }
 
 @media (max-width: 1199.98px) {
-    .roster-layout {
-        --bs-gutter-x: 0;
-    }
-
-    .roster-fullscreen-toggle {
-        display: none !important;
-    }
-
-    .roster-layout-side {
-        display: block;
-    }
-
     .roster-staff-role-head {
         width: 4rem;
     }

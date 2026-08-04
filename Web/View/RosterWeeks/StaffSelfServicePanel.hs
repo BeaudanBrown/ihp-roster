@@ -7,6 +7,7 @@ module Web.View.RosterWeeks.StaffSelfServicePanel
     ) where
 
 import Application.Helper.Controller (currentUserIsUnimpersonatedSuperAdmin)
+import Application.Helper.FrontendContract.Surface.Roster.SidePanel (rosterSidePanelRenderAttrs)
 import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl,
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
@@ -31,33 +32,36 @@ renderRosterStaffSelfServicePanelFragment Nothing = mempty
 renderRosterStaffSelfServicePanelFragment (Just panel)
     | currentUserIsManager = mempty
     | currentUserIsUnimpersonatedSuperAdmin = mempty
-    | otherwise = [hsx|
-        <div id={rosterStaffSelfServicePanelFragmentId}
-             class="col-12 col-xl-4 col-xxl-3 roster-layout-side roster-staff-self-service-panel">
-            <div class="roster-staff-self-service-stack">
-                <div class="app-panel roster-quick-tool-panel">
-                    <div class="app-panel-body p-0 roster-quick-tool-panel-body">
-                        <div id={rosterStaffSelfServiceTimesheetSurfaceId}
-                             class="roster-quick-tool-timesheet">
-                            {renderFrontendSurfaceMount (timesheetSurface panel) (renderDaySection (timesheetDayModel panel))}
-                        </div>
-                    </div>
-                </div>
-
-                <div class="app-panel roster-quick-tool-panel">
-                    <div class="app-panel-body">
-                        <div class="roster-staff-panel-header">
-                            <div>
-                                <h2 class="h5 mb-1">Unavailability</h2>
-                                <div class="roster-staff-panel-summary">Add unavailable time</div>
+    | otherwise =
+        renderSidePanelPanelRegion rosterSidePanelRenderAttrs SidePanelRegionConfig
+            { sidePanelRegionId = Just rosterStaffSelfServicePanelFragmentId
+            , sidePanelRegionClass = "col-12 col-xl-4 col-xxl-3 roster-layout-side roster-staff-self-service-panel"
+            , sidePanelRegionExtraAttrs = []
+            }
+            [hsx|
+                <div class="app-side-panel-scroll-body roster-staff-self-service-stack">
+                    <div class="app-panel roster-quick-tool-panel">
+                        <div class="app-panel-body p-0 roster-quick-tool-panel-body">
+                            <div id={rosterStaffSelfServiceTimesheetSurfaceId}
+                                 class="roster-quick-tool-timesheet">
+                                {renderFrontendSurfaceMount (timesheetSurface panel) (renderDaySection (timesheetDayModel panel))}
                             </div>
                         </div>
-                        {forEach panel.quickToolsStaffMembers (\staff -> renderSelfServiceLeaveFormMount "roster" False staff panel.quickToolsLeaveRequest [])}
+                    </div>
+
+                    <div class="app-panel roster-quick-tool-panel">
+                        <div class="app-panel-body">
+                            <div class="roster-staff-panel-header">
+                                <div>
+                                    <h2 class="h5 mb-1">Unavailability</h2>
+                                    <div class="roster-staff-panel-summary">Add unavailable time</div>
+                                </div>
+                            </div>
+                            {forEach panel.quickToolsStaffMembers (\staff -> renderSelfServiceLeaveFormMount "roster" False staff panel.quickToolsLeaveRequest [])}
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>
-    |]
+            |]
 
 timesheetDayModel :: RosterStaffSelfServicePanel -> TimesheetDayRenderModel
 timesheetDayModel panel =

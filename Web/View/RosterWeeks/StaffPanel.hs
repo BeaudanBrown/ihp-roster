@@ -18,6 +18,7 @@ import qualified Application.Helper.FrontendContract.Surface.Interaction as Surf
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
+import Application.Helper.FrontendContract.Surface.Roster.SidePanel (rosterSidePanelRenderAttrs)
 import Application.Helper.FrontendContract.Surface.Roster.StaffPanel (RosterStaffPanelSortKey (..),
                                                                       RosterStaffPanelTab (..),
                                                                       rosterStaffPanelSortControlAttrs,
@@ -61,13 +62,13 @@ renderrosterStaffPanelLiveFragmentOob =
 renderrosterStaffPanelLiveFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterStaffPanelRenderModel -> Html
 renderrosterStaffPanelLiveFragmentWithSwap maybeSwapOob panelModel =
     if currentUserIsManager
-        then profileHtmlComponent "render.roster.staff_panel_fragment" [hsx|
-            <div id={rosterStaffPanelFragmentId}
-                 class={Text.unwords rosterStaffPanelFragmentClasses}
-                 hx-swap-oob={maybeSwapOob}>
-                {renderRosterStaffPanel panelModel}
-            </div>
-        |]
+        then profileHtmlComponent "render.roster.staff_panel_fragment" $
+            renderSidePanelPanelRegion rosterSidePanelRenderAttrs SidePanelRegionConfig
+                { sidePanelRegionId = Just rosterStaffPanelFragmentId
+                , sidePanelRegionClass = Text.unwords rosterStaffPanelFragmentClasses
+                , sidePanelRegionExtraAttrs = maybe [] (\swap -> [("hx-swap-oob", swap)]) maybeSwapOob
+                }
+                (renderRosterStaffPanel panelModel)
         else mempty
 
 renderRosterStaffPanel :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> Html
@@ -103,7 +104,7 @@ renderRosterStaffPanelPlaceholder hasMultipleRosterGroups =
 
 renderRosterStaffPanelShell :: Html -> Html
 renderRosterStaffPanelShell body = [hsx|
-    <div class="app-panel roster-staff-panel">
+    <div class="app-panel app-side-panel-scroll roster-staff-panel">
         <div class="app-panel-body">
             {body}
         </div>

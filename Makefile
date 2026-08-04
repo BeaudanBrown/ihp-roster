@@ -18,6 +18,7 @@ CSS_FILES += static/css/components/week-nav.css
 CSS_FILES += static/css/components/status.css
 CSS_FILES += static/css/components/public.css
 CSS_FILES += static/css/components/panels.css
+CSS_FILES += static/css/components/side-panel.css
 CSS_FILES += static/css/components/forms.css
 CSS_FILES += static/css/components/buttons.css
 CSS_FILES += static/css/components/bootstrap-overrides.css

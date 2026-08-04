@@ -4,21 +4,12 @@ import {
     rosterColumnEditingStates,
     rosterColumnEditorDomAttr,
     rosterColumnEditStartDomAttr,
-    rosterFullscreenDomAttr,
-    rosterFullscreenLabelDomAttr,
-    rosterFullscreenRootDomAttr,
-    rosterFullscreenStates,
-    rosterFullscreenToggleDomAttr,
 } from "../generated/contracts";
 import {
     createRosterColumnEditController,
     type RosterColumnEditDiagnostic,
     type RosterColumnEditScheduler,
 } from "../roster/column-edit";
-import {
-    createRosterFullscreenController,
-    type RosterFullscreenDiagnostic,
-} from "../roster/fullscreen-runtime";
 import { assertDeepEqual, assertEqual, test } from "./harness";
 
 class MiniClassList {
@@ -124,18 +115,6 @@ class MiniElement {
     }
 }
 
-function fullscreenFixture(id: string) {
-    const root = new MiniElement({
-        [rosterFullscreenRootDomAttr]: "true",
-        [rosterFullscreenDomAttr]: rosterFullscreenStates.collapsed,
-    }, `${id}-root`);
-    const toggle = root.append(new MiniElement({ [rosterFullscreenToggleDomAttr]: "true" }, `${id}-toggle`));
-    const icon = toggle.append(new MiniElement({}, `${id}-icon`, ["bi", "bi-fullscreen"]));
-    const label = toggle.append(new MiniElement({ [rosterFullscreenLabelDomAttr]: "true" }, `${id}-label`));
-    label.textContent = "Expand roster";
-    return { root, toggle, icon, label };
-}
-
 function columnEditorFixture(id: string) {
     const editor = new MiniElement({
         [rosterColumnEditorDomAttr]: "true",
@@ -171,49 +150,6 @@ class FakeScheduler implements RosterColumnEditScheduler {
         return this.handlers.size;
     }
 }
-
-test("roster fullscreen state and labels remain local to the generated root", () => {
-    const first = fullscreenFixture("first");
-    const second = fullscreenFixture("second");
-    const controller = createRosterFullscreenController();
-
-    assertEqual(controller.toggle(first.icon as unknown as Element), true);
-    assertEqual(first.root.getAttribute(rosterFullscreenDomAttr), rosterFullscreenStates.expanded);
-    assertEqual(second.root.getAttribute(rosterFullscreenDomAttr), rosterFullscreenStates.collapsed);
-    assertEqual(first.toggle.getAttribute("aria-pressed"), "true");
-    assertEqual(first.toggle.getAttribute("aria-label"), "Exit expanded roster");
-    assertEqual(first.label.textContent, "Exit expanded roster");
-    assertEqual(first.icon.classList.contains("bi-fullscreen-exit"), true);
-    assertEqual(first.icon.classList.contains("bi-fullscreen"), false);
-    assertEqual(first.toggle.focusCount, 1);
-});
-
-test("roster fullscreen reconciliation restores replacement controls and rejects malformed state", () => {
-    const fixture = fullscreenFixture("replacement");
-    const diagnostics: RosterFullscreenDiagnostic[] = [];
-    const controller = createRosterFullscreenController((diagnostic) => diagnostics.push(diagnostic));
-    fixture.root.setAttribute(rosterFullscreenDomAttr, rosterFullscreenStates.expanded);
-
-    const replacementToggle = new MiniElement({ [rosterFullscreenToggleDomAttr]: "true" }, "replacement-toggle");
-    const replacementIcon = replacementToggle.append(new MiniElement({}, "replacement-icon", ["bi", "bi-fullscreen"]));
-    const replacementLabel = replacementToggle.append(new MiniElement({ [rosterFullscreenLabelDomAttr]: "true" }, "replacement-label"));
-    fixture.root.replaceChildren(replacementToggle);
-
-    assertEqual(controller.reconcile(fixture.root as unknown as Element), true);
-    assertEqual(replacementToggle.getAttribute("aria-pressed"), "true");
-    assertEqual(replacementLabel.textContent, "Exit expanded roster");
-    assertEqual(replacementIcon.classList.contains("bi-fullscreen-exit"), true);
-
-    fixture.root.setAttribute(rosterFullscreenDomAttr, "unknown");
-    assertEqual(controller.reconcile(fixture.root as unknown as Element), false);
-    assertEqual(diagnostics[0]?.code, "invalid-state");
-
-    fixture.root.setAttribute(rosterFullscreenDomAttr, rosterFullscreenStates.collapsed);
-    replacementToggle.setAttribute(rosterFullscreenToggleDomAttr, "invalid");
-    assertEqual(controller.toggle(replacementIcon as unknown as Element), false);
-    assertEqual(fixture.root.getAttribute(rosterFullscreenDomAttr), rosterFullscreenStates.collapsed);
-    assertDeepEqual(diagnostics.map((diagnostic) => diagnostic.code), ["invalid-state", "invalid-toggle-role"]);
-});
 
 test("roster column editing is mount-local and waits for focused autosave blur", () => {
     const first = columnEditorFixture("first");

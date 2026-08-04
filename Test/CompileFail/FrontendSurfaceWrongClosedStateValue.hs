@@ -6,9 +6,9 @@ import qualified Application.Helper.FrontendContract.Surface.Roster as Roster
 import Application.Helper.FrontendContract.Surface.Values
 import IHP.Prelude
 
-badFullscreenStateValue :: Text
-badFullscreenStateValue =
+badSidePanelStateValue :: Text
+badSidePanelStateValue =
     surfaceBrowserClosedStateLiteral
         @Roster.RosterSurface
-        @Roster.FullscreenState
+        @Roster.SidePanelState
         @Roster.Active
