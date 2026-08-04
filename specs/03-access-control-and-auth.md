@@ -58,6 +58,32 @@ The product must not rely on global in-app business roles without venue boundari
   `actor_user_id` and add `requestContext.accessMode = "support"` to the JSON
   payload. Ordinary venue-member payloads remain unchanged.
 
+## Founder support impersonation context
+
+- A platform super-admin may enter a signed-cookie impersonation session for an
+  active user with an active membership in the selected active venue. The
+  session stores only the effective user id and a generated impersonation
+  session id; no impersonation persistence table is used.
+- Entry requires a fresh privileged passkey verification. An unexpired existing
+  verification is reused; no support-reason form is required.
+- Every request re-fetches the selected venue, effective user, active venue
+  membership, role, and optional active linked staff row. Missing, malformed,
+  cross-venue, deactivated, revoked, or archived state clears impersonation and
+  returns the founder to Super admin mode with a message.
+- `ActualUser` always means the authenticated founder. `EffectiveUser` means the
+  selected venue user while impersonating and otherwise the authenticated user.
+  Effective membership, role, and staff helpers follow the same rule. Business
+  actor columns continue to use the actual founder; authorization and
+  self-service migrations use effective helpers.
+- Enter, manual exit, venue-switch exit, logout exit, and invalid-target expiry
+  are durable `audit_events`. Impersonated current-user mutation payloads add
+  `requestContext.accessMode = "impersonation"`, `effectiveUserId`, and
+  `impersonationSessionId`, while `actor_user_id` remains the actual founder.
+- Manual exit, venue switching, logout, authentication replacement, and invalid
+  target state clear effective identity. Ordinary users cannot create an
+  impersonation session, and signed encrypted IHP session cookies prevent
+  client-side state tampering.
+
 ## Bootstrap and signup rules
 
 - Do not use "first registered user becomes admin" in SaaS mode.
