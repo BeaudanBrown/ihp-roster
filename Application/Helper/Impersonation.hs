@@ -17,8 +17,7 @@ import IHP.ControllerPrelude
 
 import Application.Helper.Audit (AuditEventType (..),
                                  attachImpersonationAuditRequestContext,
-                                 recordAuditEvent,
-                                 recordCurrentUserAuditEvent)
+                                 recordAuditEvent, recordCurrentUserAuditEvent)
 import Application.Helper.ControllerContext
 import Application.Helper.Htmx (requestAuditSourceChannel)
 

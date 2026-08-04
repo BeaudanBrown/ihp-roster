@@ -73,8 +73,8 @@ The product must not rely on global in-app business roles without venue boundari
 - `ActualUser` always means the authenticated founder. `EffectiveUser` means the
   selected venue user while impersonating and otherwise the authenticated user.
   Effective membership, role, and staff helpers follow the same rule. Business
-  actor columns continue to use the actual founder; authorization and
-  self-service migrations use effective helpers.
+  actor columns continue to use the actual founder; the follow-up #325
+  authorization and self-service migration must use effective helpers.
 - Enter, manual exit, venue-switch exit, logout exit, and invalid-target expiry
   are durable `audit_events`. Impersonated current-user mutation payloads add
   `requestContext.accessMode = "impersonation"`, `effectiveUserId`, and
