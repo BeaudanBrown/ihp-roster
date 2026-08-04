@@ -1,5 +1,6 @@
 module Test.RosterNotificationSpec where
 
+import Application.Async.Registry (dispatchAppJob)
 import Application.Helper.Mail (AppMailSettings (..))
 import Application.RosterNotification
 import Application.RosterNotification.Delivery
@@ -171,19 +172,15 @@ tests = aroundAll withDatabaseTestContext do
                 rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 True
                 run <- createRosterNotificationRun actor rosterWeek
                 appJob <- query @AppJob |> filterWhere (#relatedId, Just (unpackId run.id)) |> fetchOne
-                delivered <- newIORef []
-                let runtime = RosterNotificationDeliveryRuntime
-                        { deliveryBaseUrl = "https://app.example"
-                        , deliveryMailSettings = AppMailSettings "rosters@example.com" "support@example.com" "support@example.com"
-                        , deliverRosterNotificationMail = \mail -> modifyIORef' delivered (mail :)
-                        }
                 let tamperedJob = appJob |> set #venueId (Just (unpackId otherVenue.id))
 
-                result <- Exception.try (performRosterNotificationDeliveryJobWith runtime tamperedJob) :: IO (Either Exception.SomeException ())
+                result <- withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    Exception.try (dispatchAppJob tamperedJob) :: IO (Either Exception.SomeException ())
 
                 result `shouldSatisfy` isLeft
-                deliveredMails <- readIORef delivered
-                length deliveredMails `shouldBe` 0
+                unchangedJob <- fetch appJob.id
+                unchangedJob.status `shouldNotBe` JobStatusSucceeded
 
         it "propagates delivery failures so the durable job can retry the same snapshot" $ withContext do
             withCleanDb do
