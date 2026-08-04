@@ -977,6 +977,9 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "roster-slots-grid"
                        , "roster-staff-panel"
                        , "roster-week-overview"
+                       , "roster-template-library"
+                       , "roster-template-record"
+                       , "roster-template-draft"
                        , "roster-day-section"
                        , "roster-row"
                        ]
