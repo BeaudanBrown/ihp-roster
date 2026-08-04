@@ -29,7 +29,14 @@ single-wrapper shape, keep unmerged empty visual cells by default, and show a
 centered merged `+` affordance only on hover/focus/highlight.
 
 Read-only row-grid shifts intentionally use separate non-launcher cells and must
-not emit edit/create launcher attributes.
+not emit edit/create launcher attributes. The sole live exception is an explicit
+Open shift for roster editors: it renders one assignment-only dialog launcher
+without drag/drop refs. Staffed live shifts and every ordinary-staff projection
+remain non-launchers.
+
+Open shifts use the exact `OPEN` label and `is-roster-shift-open` treatment in
+row-grid, day-column, and timeline projections. Draft dialogs may transition
+Staff/Open either way; live dialogs permit only atomic Open-to-valid-Staff fill.
 
 ## Linked-Highlight Contract
 

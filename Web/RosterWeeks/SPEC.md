@@ -36,9 +36,22 @@ lands.
   navigation, URLs, persistence, and replacement mounts. The server filters slots
   before the unchanged canonical wage evaluator and roster-only suppression path.
 - Publishing a roster is the visibility gate for staff-facing roster content.
-  The live switch submits an explicit `true` or `false` transport synchronized
-  before HTMX serialization; actor responses and reloads must converge to the
-  persisted roster-week state in both directions.
+  Complete Open shifts are publishable without staff pay configuration. The live
+  switch submits an explicit `true` or `false` transport synchronized before
+  HTMX serialization; actor responses and reloads must converge to the persisted
+  roster-week state in both directions.
+- Draft shift Staff selectors include `Open shift` and preserve Staff-to-Open and
+  Open-to-Staff transitions. Open shifts render a prominent `OPEN` treatment in
+  row-grid, day-column, timeline, image-export, and accessible text projections.
+  Staff and managers can see Open shifts on live rosters, but only roster editors
+  receive a launcher.
+- A live Open-shift dialog is assignment-only: role, times, day, column, and
+  deletion remain locked. The server permits exactly one atomic Open-to-valid-
+  Staff transition after current venue, roster-group, active-staff, and pay
+  eligibility checks. Submitted protected fields, Open-to-Open, Assigned-to-Open,
+  deletion, live drag/drop, and ordinary-staff writes are rejected. Once filled,
+  the shift becomes normal read-only live content. The mutation touches both the
+  roster and corresponding Timesheet week resources for actor/passive refresh.
 - Responsive roster week chrome renders the live switch, reset link, navigation,
   settings, and auxiliary action once each. CSS repositions those canonical
   nodes on narrow viewports; desktop/mobile copies and duplicate interactive ids
@@ -139,8 +152,9 @@ lands.
   grid/cards.
 - Publishing never queues or creates Timesheet entries. Complete linked-staff
   shifts become transient Timesheet suggestions immediately, including future
-  live weeks. Complete trial-staff shifts remain roster-only and do not produce
-  suggestions.
+  live weeks. Open shifts produce no suggestion; filling a live Open shift makes
+  an otherwise eligible suggestion available immediately. Complete trial-staff
+  shifts remain roster-only and do not produce suggestions.
 - Moving a live roster week back to draft immediately hides its unmaterialized
   Timesheet suggestions. Existing roster-derived Timesheet entries remain
   independent snapshots and are not changed or deleted by roster lifecycle
@@ -184,7 +198,9 @@ lands.
   slots are not stored. Every active row has explicit `staff` or `open`
   assignment state. `staff` requires exactly one same-venue staff reference;
   `open` requires none. Application code uses the closed assignment API rather
-  than interpreting a nullable staff reference as Open. Deleted historical rows
+  than interpreting a nullable staff reference as Open. Open shifts are excluded
+  from staff assignment counts, summary duration/count metrics, conflicts, and
+  canonical wage estimates. Deleted historical rows
   remain retained; migration cleanup soft-deleted incomplete active legacy rows
   without removing Timesheet source provenance.
 - Slot rows use `row_index` to align early/mid/late-style visual rows in the
@@ -264,13 +280,13 @@ lands.
   Dropping a shift back on its current lane, day, and local start is a no-op that
   retains its original occurrence-selected boundaries.
 - Editable draft timelines render 15-minute server-owned dropzones per
-  slot-definition lane within the venue picker window. Dragging an existing staffed shift to a timeline target
+  slot-definition lane within the venue picker window. Dragging an existing Staff or Open shift to a timeline target
   preserves its duration, changes start/end times, and changes
   `roster_week_slot_definition_id` when dropped in another lane.
 - Timeline drag persistence preserves the source `row_index` when the target
   slot-definition cell is free, otherwise it uses the first free row. Invalid
-  targets, live weeks, closed days, unstaffed shifts, and shifts without complete
-  start/end times are rejected server-side.
+  targets, live weeks, closed days, invalid assignment shapes, and shifts without
+  complete start/end times are rejected server-side.
 - HTMX roster shift dialogs initially focus Start while keeping cyclic Tab order
   equal to visual form order and excluding header/footer controls. Each time
   picker is one tab stop. Up/Right and Down/Left step and wrap the authoritative
@@ -289,8 +305,9 @@ lands.
   native whole-minute entry for shift dialogs. Timeline drag targets remain
   fixed at 15-minute intervals.
 - Timeline resize handles, creating shifts, deleting shifts, configurable
-  slot-definition titles, staff reassignment, and live-roster editing are not
-  part of the implemented timeline contract.
+  slot-definition titles, and general live-roster editing are not part of the
+  implemented timeline contract. A live Open timeline card uses the same
+  assignment-only Open-to-Staff dialog as other layouts.
 - Shift type badges show the assigned shift type name. Shift types with a
   palette colour key render a small persisted colour marker; blank colour keys
   render without a colour highlight. Unassigned shifts show `Role`; staffed

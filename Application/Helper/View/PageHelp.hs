@@ -166,7 +166,8 @@ pageHelpTopics =
             [ iconItem HelpEveryone "bi-chevron-left" "Week controls" "View the right roster" "Use the arrow controls to change dates. Use the roster group selector to switch teams or areas."
             ]
         , section HelpManagerPlus "Planning"
-            [ iconItem HelpManagerPlus "bi-plus-lg" "Add shift" "Create or edit shifts" "In a draft roster, click an empty cell to add a shift or click a shift to edit it. Staff and shift types need valid pay configuration before a shift can be saved, moved, copied, or published."
+            [ iconItem HelpManagerPlus "bi-plus-lg" "Add shift" "Create or edit shifts" "In a draft roster, click an empty cell to add a shift or click a shift to edit it. Choose Open shift when nobody is assigned yet. Staff and shift types need valid pay configuration before a staffed shift can be saved, moved, copied, or published."
+            , iconItem HelpManagerPlus "bi-person-plus" "Open shift" "Fill an Open live shift" "Open shifts can be published. On a live roster, click an OPEN shift and choose an eligible staff member; its day, time, column, and role stay locked. Filled live shifts become normal read-only shifts."
             , iconItem HelpManagerPlus "bi-keyboard" "Keyboard entry" "Complete shift dialogs quickly" "Start is focused first. Use Tab through fields, either arrow-key pair to change time by 15 minutes, or type a 24-hour whole hour. Enter saves and Escape cancels."
             , iconItem HelpManagerPlus "bi-clock-history" "Clock change" "Choose a repeated time" "When an autumn clock time occurs twice, choose First for daylight time or Second for standard time. Times skipped by the spring clock change cannot be saved."
             , iconItem HelpManagerPlus "bi-shield-check" "Shift limits" "Keep supported shifts within Award limits" "Part-time shifts must project from 3 to 11.5 working hours and casual shifts up to 12. Bepis uses elapsed Melbourne time and deducts the planned unpaid meal break when it applies."
@@ -181,6 +182,7 @@ pageHelpTopics =
             ]
         , section HelpStaffOnly "Staff"
             [ iconItem HelpStaffOnly "bi-chevron-left" "Week controls" "Check your roster" "Use the arrow controls to find the week you need, then review your listed shifts."
+            , iconItem HelpStaffOnly "bi-person-plus" "OPEN shifts" "Recognize unfilled shifts" "OPEN means the live shift has not been assigned yet. It is visible to everyone on the roster but does not belong to you unless a roster editor assigns it to you."
             , iconItem HelpStaffOnly "bi-calendar-x" "Missing shifts" "Find missing shifts" "If a future roster is not ready yet, it may not show all shifts. Check again later or ask a manager."
             , iconItem HelpStaffOnly "bi-chat-left-text" "Ask manager" "Ask for changes" "Contact a manager if something looks wrong or you need a roster change."
             ]

@@ -71,10 +71,14 @@ submission work belongs in `docs/workstreams/` until it lands.
   - its roster group is active and unarchived;
   - its roster week is live, including a future live week;
   - the slot is not soft-deleted;
+  - its explicit assignment is Staff, never Open;
   - staff, start time, valid end time, and shift type are present;
   - the staff member is linked, active, and not roster-only;
   - the shift type is active and not roster-only; and
   - no active Timesheet entry has that `source_roster_slot_id`.
+- Open shifts never produce suggestions. An authorized atomic fill of a live Open
+  shift touches the Timesheet week resource and makes an otherwise eligible
+  suggestion available immediately to actor and passive viewers.
 - Staff see suggestions only for themselves. Managers see suggestions in their
   normal Timesheets staff scope and filters. Filters are presentation state,
   not authorization; a manager retains action authority across their normal
