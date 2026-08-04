@@ -17,6 +17,9 @@ module Application.RosterTemplates
     , fetchSavedRosterTemplate
     , replaceRosterTemplateDraftContent
     , rosterTemplateActor
+    , rosterTemplateActorCanEditRosters
+    , rosterTemplateActorUserId
+    , rosterTemplateActorVenueId
     , saveRosterTemplateDraft
     , reloadLatestRosterTemplateDraft
     , saveRosterTemplateDraftAsNew
@@ -25,7 +28,8 @@ module Application.RosterTemplates
     , startRosterTemplateEditDraft
     ) where
 
-import Application.Helper.ControllerAccess (hasRole, isCurrentVenueManuallyReadOnly)
+import Application.Helper.ControllerAccess (hasRole,
+                                            isCurrentVenueManuallyReadOnly)
 import Application.Helper.ControllerContext (authenticatedCurrentUser,
                                              currentVenue)
 import Application.PayAssignment (EffectivePayAssignment (..),
@@ -136,6 +140,15 @@ currentRosterTemplateActor ::
 currentRosterTemplateActor = do
     venueReadOnly <- isCurrentVenueManuallyReadOnly
     pure (rosterTemplateActor authenticatedCurrentUser currentVenue (hasRole Manager && not venueReadOnly))
+
+rosterTemplateActorCanEditRosters :: RosterTemplateActor -> Bool
+rosterTemplateActorCanEditRosters = (.actorCanEditRosters)
+
+rosterTemplateActorUserId :: RosterTemplateActor -> Id User
+rosterTemplateActorUserId = (.actorUserId)
+
+rosterTemplateActorVenueId :: RosterTemplateActor -> Id Venue
+rosterTemplateActorVenueId = (.actorVenueId)
 
 rosterTemplateActor :: User -> Venue -> Bool -> RosterTemplateActor
 rosterTemplateActor user venue canEditRosters =
