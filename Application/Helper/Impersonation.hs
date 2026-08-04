@@ -151,7 +151,11 @@ expireImpersonationSession ::
     Text ->
     IO ()
 expireImpersonationSession effectiveUserId sessionId reason = do
-    recordImpersonationExpiry effectiveUserId (Aeson.toJSON sessionId) reason
+    recordImpersonationExpiry
+        effectiveUserId
+        (Aeson.toJSON effectiveUserId)
+        (Aeson.toJSON sessionId)
+        reason
     clearImpersonationSession
     withRequestContext (setErrorMessage "Support impersonation ended because the selected user is no longer available.")
 
@@ -161,11 +165,12 @@ expireIncompleteImpersonationSession ::
     Maybe Text ->
     IO ()
 expireIncompleteImpersonationSession maybeEffectiveUserId maybeSessionIdText = do
-    forM_ maybeEffectiveUserId \effectiveUserId ->
-        recordImpersonationExpiry
-            effectiveUserId
-            (maybe Aeson.Null Aeson.toJSON maybeSessionIdText)
-            "invalid_session_state"
+    let targetUserId = fromMaybe authenticatedCurrentUser.id maybeEffectiveUserId
+    recordImpersonationExpiry
+        targetUserId
+        (maybe Aeson.Null Aeson.toJSON maybeEffectiveUserId)
+        (maybe Aeson.Null Aeson.toJSON maybeSessionIdText)
+        "invalid_session_state"
     clearImpersonationSession
     withRequestContext (setErrorMessage "Support impersonation ended because its session state was invalid.")
 
@@ -173,9 +178,10 @@ recordImpersonationExpiry ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     Id User ->
     Aeson.Value ->
+    Aeson.Value ->
     Text ->
     IO ()
-recordImpersonationExpiry effectiveUserId sessionIdValue reason =
+recordImpersonationExpiry targetUserId effectiveUserIdValue sessionIdValue reason =
     when (currentUserIsSuperAdmin && isJust currentVenueOrNothing) do
         void $
             recordAuditEvent
@@ -183,9 +189,9 @@ recordImpersonationExpiry effectiveUserId sessionIdValue reason =
                 (unpackId (get #id authenticatedCurrentUser))
                 SupportImpersonationExpiredAudit
                 "users"
-                (unpackId effectiveUserId)
+                (unpackId targetUserId)
                 ( attachImpersonationAuditRequestContext
-                    effectiveUserId
+                    effectiveUserIdValue
                     sessionIdValue
                     (Aeson.object ["reason" Aeson..= reason])
                 )

@@ -355,6 +355,31 @@ tests = aroundAll withDatabaseTestContext do
                             ]
                         ]
 
+        it "audits malformed impersonation state without an effective user id" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Malformed Session-Only Impersonation Venue"
+                superAdmin <- createUserRecordWithPlatformRole "impersonation-session-only@example.com" "staff" (Just SuperAdmin) True
+
+                withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
+                    setSession impersonationSessionIdSessionKey ("stray-session-value" :: Text)
+                    _ <- callAction SupportAction
+                    getSession @Text impersonationSessionIdSessionKey `shouldReturn` Nothing
+
+                expiry <- query @AuditEvent
+                    |> filterWhere (#eventType, "support_impersonation_expired")
+                    |> fetchOne
+                expiry.actorUserId `shouldBe` unpackId superAdmin.id
+                expiry.targetId `shouldBe` unpackId superAdmin.id
+                expiry.payload `shouldBe`
+                    Aeson.object
+                        [ "reason" Aeson..= ("invalid_session_state" :: Text)
+                        , "requestContext" Aeson..= Aeson.object
+                            [ "accessMode" Aeson..= ("impersonation" :: Text)
+                            , "effectiveUserId" Aeson..= Aeson.Null
+                            , "impersonationSessionId" Aeson..= ("stray-session-value" :: Text)
+                            ]
+                        ]
+
         it "mounts support live surface metadata for super admins" $ withContext do
             withCleanDb do
                 superAdmin <- createUserRecordWithPlatformRole "support-surface-super@example.com" "staff" (Just SuperAdmin) True

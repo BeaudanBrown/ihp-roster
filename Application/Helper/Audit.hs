@@ -112,16 +112,16 @@ attachAuditRequestContext accessMode payload =
                 payload
         ImpersonationAuditAccess impersonationContext ->
             attachImpersonationAuditRequestContext
-                (get #id (effectiveUserRecord impersonationContext.impersonationEffectiveUser))
+                (Aeson.toJSON (get #id (effectiveUserRecord impersonationContext.impersonationEffectiveUser)))
                 (Aeson.toJSON impersonationContext.impersonationSessionId)
                 payload
 
-attachImpersonationAuditRequestContext :: Id User -> Aeson.Value -> Aeson.Value -> Aeson.Value
-attachImpersonationAuditRequestContext effectiveUserId sessionIdValue =
+attachImpersonationAuditRequestContext :: Aeson.Value -> Aeson.Value -> Aeson.Value -> Aeson.Value
+attachImpersonationAuditRequestContext effectiveUserIdValue sessionIdValue =
     attachRequestContext $
         Aeson.object
             [ "accessMode" Aeson..= ("impersonation" :: Text)
-            , "effectiveUserId" Aeson..= effectiveUserId
+            , "effectiveUserId" Aeson..= effectiveUserIdValue
             , "impersonationSessionId" Aeson..= sessionIdValue
             ]
 
