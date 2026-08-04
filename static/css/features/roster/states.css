@@ -1,5 +1,17 @@
 /* Roster day alternation, conflict, palette, required, empty, and closed states. */
 
+/* Open shifts remain visually prominent in every roster layout. */
+.roster-grid .roster-shift-unit.is-roster-shift-open {
+    box-shadow: inset 0 0 0 2px var(--app-warning-border-strong);
+}
+
+.roster-grid .slot-staff-cell.is-roster-shift-open {
+    background: var(--app-warning-tint);
+    color: var(--app-warning-conflict-text);
+    font-weight: 900;
+    letter-spacing: 0.08em;
+}
+
 /* Theme the shared disposable affordance for shift-modifying roster targets. */
 .roster-grid-frame [data-bepis-dropzone-ref].bepis-dropzone-highlight:not([data-bepis-dropzone-ref="delete-shift-dropzone"]) {
     --bepis-dropzone-highlight-color: color-mix(in srgb, var(--app-success-border) 62%, transparent);

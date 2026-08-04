@@ -47,6 +47,8 @@ import Application.PayAssignment (ShiftPayAssignment (..),
                                   StaffPayAssignment (..),
                                   shiftAssignmentAllowsTimesheets,
                                   staffAssignmentAllowsTimesheets)
+import Application.RosterShiftAssignment (RosterShiftAssignment (StaffAssignment),
+                                          rosterShiftAssignment)
 import Application.VenueTime.Model
 import Control.Monad (guard)
 import qualified Data.Set as Set
@@ -222,7 +224,7 @@ fetchTimesheetSuggestionsForWeek venueConfig weekOffset showAllStaff validStaffF
     suggestionForSlot rosterDaysById linkedRosterSlotIds visibleStaffIds linkedActiveStaffIds activeShiftTypeIds rosterSlot = do
         guard (Set.notMember (unpackId rosterSlot.id) linkedRosterSlotIds)
         _ <- lookup rosterSlot.rosterDayId rosterDaysById
-        staffId <- rosterSlot.staffId
+        StaffAssignment (Id staffId) <- eitherToMaybe (rosterShiftAssignment rosterSlot)
         shiftTypeId <- rosterSlot.shiftTypeId
         guard (Set.member staffId linkedActiveStaffIds)
         guard (Set.member staffId visibleStaffIds)

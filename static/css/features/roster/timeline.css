@@ -133,16 +133,32 @@
     overflow: hidden;
 }
 
+.roster-day-timeline-shift.is-roster-shift-open {
+    border-color: var(--app-warning-border-strong);
+    background: var(--app-warning-tint);
+    box-shadow: inset 0 0 0 1px var(--app-warning-border-soft), var(--app-shadow-sm);
+}
+
+.roster-day-timeline-shift.is-roster-shift-open .roster-day-timeline-shift-staff {
+    color: var(--app-warning-conflict-text);
+    font-weight: 900;
+    letter-spacing: 0.08em;
+}
+
 .roster-day-timeline-shift.roster-shift-launcher {
-    cursor: grab;
+    cursor: pointer;
     pointer-events: auto;
+}
+
+.roster-day-timeline-shift.is-roster-shift-draggable {
+    cursor: grab;
 }
 
 html[data-bepis-interaction-active="true"] .roster-day-timeline-shift {
     pointer-events: none;
 }
 
-.roster-day-timeline-shift.roster-shift-launcher:active {
+.roster-day-timeline-shift.is-roster-shift-draggable:active {
     cursor: grabbing;
 }
 

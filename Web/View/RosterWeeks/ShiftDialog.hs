@@ -24,6 +24,8 @@ import Application.Helper.View.TimeOccurrence
 import Application.Helper.View.TimePicker (defaultTimePickerConfig,
                                            optionalTimeOfDayToStorageValue,
                                            renderTimePickerField)
+import Application.RosterShiftAssignment (RosterShiftAssignment (..),
+                                          rosterShiftAssignment)
 import Application.VenueTime (RepeatedTimeOccurrence)
 import Application.VenueTime.Model
 import Data.Coerce (coerce)
@@ -47,19 +49,19 @@ data RosterShiftDialogMode
 
 
 data RosterShiftDialogValues = RosterShiftDialogValues
-    { rosterShiftStaffId         :: !(Maybe UUID)
-    , rosterShiftStartTime       :: !Text
-    , rosterShiftEndTime         :: !Text
-    , rosterShiftTypeId          :: !(Maybe UUID)
-    , rosterShiftStartOccurrence :: !(Maybe RepeatedTimeOccurrence)
-    , rosterShiftEndOccurrence   :: !(Maybe RepeatedTimeOccurrence)
-    , rosterShiftStartIsRepeated :: !Bool
-    , rosterShiftEndIsRepeated   :: !Bool
-    , rosterShiftFormError       :: !(Maybe Text)
-    , rosterShiftStaffError      :: !(Maybe Text)
-    , rosterShiftStartError      :: !(Maybe Text)
-    , rosterShiftEndError        :: !(Maybe Text)
-    , rosterShiftTypeError       :: !(Maybe Text)
+    { rosterShiftSelectedAssignment :: !(Maybe RosterShiftAssignment)
+    , rosterShiftStartTime          :: !Text
+    , rosterShiftEndTime            :: !Text
+    , rosterShiftTypeId             :: !(Maybe UUID)
+    , rosterShiftStartOccurrence    :: !(Maybe RepeatedTimeOccurrence)
+    , rosterShiftEndOccurrence      :: !(Maybe RepeatedTimeOccurrence)
+    , rosterShiftStartIsRepeated    :: !Bool
+    , rosterShiftEndIsRepeated      :: !Bool
+    , rosterShiftFormError          :: !(Maybe Text)
+    , rosterShiftStaffError         :: !(Maybe Text)
+    , rosterShiftStartError         :: !(Maybe Text)
+    , rosterShiftEndError           :: !(Maybe Text)
+    , rosterShiftTypeError          :: !(Maybe Text)
     }
 
 
@@ -73,13 +75,14 @@ data RosterShiftDialogData = RosterShiftDialogData
     , rosterShiftDialogTimePickerStart   :: !Text
     , rosterShiftDialogTimePickerEnd     :: !Text
     , rosterShiftDialogTimePickerStep    :: !Int
-    , rosterShiftDialogValues     :: !RosterShiftDialogValues
+    , rosterShiftDialogValues            :: !RosterShiftDialogValues
+    , rosterShiftDialogAssignmentOnly    :: !Bool
     }
 
 
 emptyRosterShiftDialogValues :: RosterShiftDialogValues
 emptyRosterShiftDialogValues = RosterShiftDialogValues
-    { rosterShiftStaffId = Nothing
+    { rosterShiftSelectedAssignment = Nothing
     , rosterShiftStartTime = ""
     , rosterShiftEndTime = ""
     , rosterShiftTypeId = Nothing
@@ -97,7 +100,7 @@ emptyRosterShiftDialogValues = RosterShiftDialogValues
 
 rosterShiftDialogValuesFromSlot :: RosterSlot -> RosterShiftDialogValues
 rosterShiftDialogValuesFromSlot slot = emptyRosterShiftDialogValues
-    { rosterShiftStaffId = slot.staffId
+    { rosterShiftSelectedAssignment = either (const Nothing) Just (rosterShiftAssignment slot)
     , rosterShiftStartTime = optionalTimeOfDayToStorageValue (rosterSlotStartTime slot)
     , rosterShiftEndTime = optionalTimeOfDayToStorageValue (rosterSlotEndTime slot)
     , rosterShiftTypeId = slot.shiftTypeId
@@ -109,19 +112,20 @@ rosterShiftDialogValuesFromSlot slot = emptyRosterShiftDialogValues
 
 
 renderRosterShiftDialog :: (?context :: ControllerContext) => RosterShiftDialogData -> Html
-renderRosterShiftDialog dialogData@RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogTitle } =
+renderRosterShiftDialog dialogData@RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogTitle, rosterShiftDialogAssignmentOnly } =
     renderKeyboardDialogOverlay DialogOverlayConfig
         { dialogOverlayTitle = rosterShiftDialogTitle
         , dialogOverlayBody = renderRosterShiftForm dialogData
-        , dialogOverlayStartButtons = deleteButton rosterShiftDialogMode
+        , dialogOverlayStartButtons = deleteButton rosterShiftDialogAssignmentOnly rosterShiftDialogMode
         , dialogOverlayButtons = defaultOverlayButtons (rosterShiftFormId rosterShiftDialogMode)
         , dialogOverlayDialogClass = ""
         }
 
 
-deleteButton :: RosterShiftDialogMode -> [OverlayButton]
-deleteButton NewRosterShiftDialog {} = []
-deleteButton (EditRosterShiftDialog rosterSlotId) =
+deleteButton :: Bool -> RosterShiftDialogMode -> [OverlayButton]
+deleteButton _ NewRosterShiftDialog {} = []
+deleteButton True EditRosterShiftDialog {} = []
+deleteButton False (EditRosterShiftDialog rosterSlotId) =
     [ OverlayButton
         { overlayButtonLabel = "Delete shift"
         , overlayButtonClass = "btn btn-outline-danger"
@@ -145,13 +149,13 @@ rosterAppShellActionRoute actionUrl =
 
 
 renderRosterShiftForm :: (?context :: ControllerContext) => RosterShiftDialogData -> Html
-renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogStaff, rosterShiftDialogStaffOptionStates, rosterShiftDialogPayInvalidStaffIds, rosterShiftDialogShiftTypes, rosterShiftDialogTimePickerStart, rosterShiftDialogTimePickerEnd, rosterShiftDialogTimePickerStep, rosterShiftDialogValues } =
+renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogStaff, rosterShiftDialogStaffOptionStates, rosterShiftDialogPayInvalidStaffIds, rosterShiftDialogShiftTypes, rosterShiftDialogTimePickerStart, rosterShiftDialogTimePickerEnd, rosterShiftDialogTimePickerStep, rosterShiftDialogValues, rosterShiftDialogAssignmentOnly } =
     renderAppShellActionForm
         (rosterShiftSubmitAppShellAction rosterShiftDialogMode)
         (rosterAppShellActionRoute (pathTo (rosterShiftFormAction rosterShiftDialogMode)))
             { appShellActionRouteExtraAttrs =
                 [ ("id", rosterShiftFormId rosterShiftDialogMode)
-
+                , ("data-roster-live-open-fill", if rosterShiftDialogAssignmentOnly then "true" else "false")
                 ]
             }
         [hsx|
@@ -162,19 +166,20 @@ renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShift
   where
     renderDialogAssignmentFields = [hsx|
         <div class="row g-3 mb-3">
-            <div class="col-12 col-lg-6">
+            <fieldset class="col-12 col-lg-6" disabled={rosterShiftDialogAssignmentOnly} data-roster-live-open-fields={if rosterShiftDialogAssignmentOnly then ("true" :: Text) else "false"}>
                 <label class="form-label" for="roster-shift-type-id">Role</label>
                 <select id="roster-shift-type-id" name="shiftTypeId" aria-invalid={if isJust rosterShiftDialogValues.rosterShiftTypeError then ("true" :: Text) else "false"} class={classes [("form-select", True), ("is-invalid", isJust rosterShiftDialogValues.rosterShiftTypeError)]}>
                     <option value="">Select role</option>
                     {forEach visibleShiftTypes (renderDialogShiftTypeOption rosterShiftDialogValues.rosterShiftTypeId)}
                 </select>
                 {renderDialogFieldError rosterShiftDialogValues.rosterShiftTypeError}
-            </div>
+            </fieldset>
             <div class="col-12 col-lg-6">
                 <label class="form-label" for="roster-shift-staff-id">Staff member</label>
                 <select id="roster-shift-staff-id" name="staffId" aria-invalid={if isJust rosterShiftDialogValues.rosterShiftStaffError then ("true" :: Text) else "false"} class={classes [("form-select", True), ("is-invalid", isJust rosterShiftDialogValues.rosterShiftStaffError)]}>
                     <option value="">Select staff member</option>
-                    {forEach visibleStaffMembers (renderStaffOption rosterShiftDialogValues.rosterShiftStaffId rosterShiftDialogStaff rosterShiftDialogPayInvalidStaffIds)}
+                    <option value="open" selected={rosterShiftDialogValues.rosterShiftSelectedAssignment == Just OpenAssignment}>Open shift</option>
+                    {forEach visibleStaffMembers (renderStaffOption rosterShiftDialogValues.rosterShiftSelectedAssignment rosterShiftDialogStaff rosterShiftDialogPayInvalidStaffIds)}
                 </select>
                 {renderDialogFieldError rosterShiftDialogValues.rosterShiftStaffError}
             </div>
@@ -182,7 +187,7 @@ renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShift
     |]
 
     renderDialogTimeFields = [hsx|
-        <div class="row g-3 mb-3">
+        <fieldset class="row g-3 mb-3" disabled={rosterShiftDialogAssignmentOnly} data-roster-live-open-fields={if rosterShiftDialogAssignmentOnly then ("true" :: Text) else "false"}>
             <div class="col-12 col-sm-6">
                 <label class="form-label">Start time</label>
                 {renderDialogTimePicker "startTime" "Start" rosterShiftDialogValues.rosterShiftStartTime rosterShiftDialogTimePickerStart rosterShiftDialogTimePickerEnd rosterShiftDialogTimePickerStep True (isJust rosterShiftDialogValues.rosterShiftStartError)}
@@ -195,11 +200,11 @@ renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShift
                 {when rosterShiftDialogValues.rosterShiftEndIsRepeated (renderDialogOccurrenceChooser "endOccurrence" "End occurrence" rosterShiftDialogValues.rosterShiftEndOccurrence (isJust rosterShiftDialogValues.rosterShiftEndError))}
                 {renderDialogFieldError rosterShiftDialogValues.rosterShiftEndError}
             </div>
-        </div>
+        </fieldset>
     |]
     selectedOrVisible staff =
         let staffId = coerce staff.id
-            isSelected = Just staffId == rosterShiftDialogValues.rosterShiftStaffId
+            isSelected = rosterShiftDialogValues.rosterShiftSelectedAssignment == Just (StaffAssignment (Id staffId))
          in isSelected || maybe True (not . (.optionHidden)) (Map.lookup staffId rosterShiftDialogStaffOptionStates)
     visibleStaffMembers = filter selectedOrVisible rosterShiftDialogStaff
     visibleShiftTypes = filter (\shiftType -> shiftType.isActive || Just (coerce shiftType.id) == rosterShiftDialogValues.rosterShiftTypeId) rosterShiftDialogShiftTypes
@@ -240,9 +245,9 @@ renderDialogOccurrenceChooser fieldName label selectedOccurrence invalid =
             , timeOccurrenceInvalid = invalid
             }
 
-renderStaffOption :: Maybe UUID -> [Staff] -> Set.Set UUID -> Staff -> Html
-renderStaffOption selectedStaffId staffMembers payInvalidStaffIds staff = [hsx|
-    <option value={tshow staff.id} selected={Just staffId == selectedStaffId}>{staffLabel}</option>
+renderStaffOption :: Maybe RosterShiftAssignment -> [Staff] -> Set.Set UUID -> Staff -> Html
+renderStaffOption selectedAssignment staffMembers payInvalidStaffIds staff = [hsx|
+    <option value={tshow staff.id} selected={selectedAssignment == Just (StaffAssignment staff.id)}>{staffLabel}</option>
 |]
   where
     staffId = coerce staff.id

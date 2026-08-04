@@ -3,9 +3,34 @@ import {
     rosterShiftGroupHighlightMemberDomAttr,
     rosterStaffHighlightMemberDomAttr,
     toggleInputDomAttr,
+    toggleRootDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import { ensureRosterLayout, fillRosterShiftDialogDefaults, openRoster, openRosterSettings, openRosterShiftDialog, saveRosterShiftDialog } from './test-helpers';
+
+type OpenShiftLiveWindow = Window & { __openShiftRosterSubscriptions?: string[] };
+
+async function installOpenShiftLiveObserver(page: Page) {
+    await page.addInitScript(() => {
+        const state = window as OpenShiftLiveWindow;
+        state.__openShiftRosterSubscriptions = [];
+        document.addEventListener('app:live-update-debug', (event) => {
+            const detail = (event as CustomEvent).detail;
+            if (detail?.name === 'subscription_added' && typeof detail.scopeKey === 'string') {
+                state.__openShiftRosterSubscriptions?.push(detail.scopeKey);
+            }
+        });
+    });
+}
+
+async function waitForOpenShiftRosterSubscription(page: Page) {
+    await expect.poll(
+        () => page.evaluate(() =>
+            (window as OpenShiftLiveWindow).__openShiftRosterSubscriptions?.some((scopeKey) => scopeKey.startsWith('roster:')) ?? false,
+        ),
+        { timeout: E2E_TIMEOUT.liveUpdate },
+    ).toBe(true);
+}
 
 async function loginAndOpenRoster(page: Page) {
     await openRoster(page);
@@ -157,6 +182,79 @@ test.describe('Roster live fragments', () => {
 
         await actorContext.close();
         await viewerContext.close();
+    });
+
+    test('publishes and fills an Open shift with role-safe passive live updates', async ({ browser }) => {
+        const actorContext = await browser.newContext();
+        const managerViewerContext = await browser.newContext();
+        const workerViewerContext = await browser.newContext();
+        const actorPage = await actorContext.newPage();
+        const managerViewerPage = await managerViewerContext.newPage();
+        const workerViewerPage = await workerViewerContext.newPage();
+        const weekOffset = 21;
+
+        await openRosterWeekOffset(actorPage, weekOffset);
+        const createLauncher = actorPage.locator('[data-roster-shift-launcher="true"][hx-get*="NewRosterSlotDialog"]').first();
+        await openRosterShiftDialog(actorPage, createLauncher);
+        await actorPage.locator('#roster-shift-staff-id').selectOption('open');
+        await fillRosterShiftDialogDefaults(actorPage);
+        await saveRosterShiftDialog(actorPage);
+
+        const actorOpenLauncher = actorPage.locator('.is-roster-shift-open[data-roster-shift-launcher="true"][hx-get*="EditRosterSlotDialog"]').first();
+        await expect(actorOpenLauncher).toContainText('OPEN');
+
+        const liveToggle = actorPage
+            .locator('[data-week-toolbar="roster"]')
+            .locator(`[${toggleRootDomAttr}]`)
+            .filter({ hasText: 'Live' });
+        const publishResponse = actorPage.waitForResponse((response) =>
+            response.request().method() === 'POST' && new URL(response.url()).pathname.includes('ToggleRosterWeekLiveStatus'),
+        );
+        await liveToggle.click();
+        expect((await publishResponse).ok()).toBe(true);
+        await expect(liveToggle.locator(`[${toggleInputDomAttr}]`)).toBeChecked({ timeout: E2E_TIMEOUT.liveUpdate });
+        await expect(actorOpenLauncher).not.toHaveAttribute('data-bepis-source-ref', /.+/);
+
+        await Promise.all([
+            installOpenShiftLiveObserver(managerViewerPage),
+            installOpenShiftLiveObserver(workerViewerPage),
+        ]);
+        await Promise.all([
+            openRoster(managerViewerPage, { weekOffset }),
+            openRoster(workerViewerPage, { email: 'e2e-worker@example.com', weekOffset }),
+        ]);
+        await Promise.all([
+            waitForOpenShiftRosterSubscription(managerViewerPage),
+            waitForOpenShiftRosterSubscription(workerViewerPage),
+        ]);
+
+        const managerOpenLauncher = managerViewerPage.locator('.is-roster-shift-open[data-roster-shift-launcher="true"][hx-get*="EditRosterSlotDialog"]').first();
+        await expect(managerOpenLauncher).toContainText('OPEN');
+        await expect(workerViewerPage.getByText('OPEN', { exact: true }).first()).toBeVisible();
+        await expect(workerViewerPage.locator('.is-roster-shift-open[hx-get*="EditRosterSlotDialog"]')).toHaveCount(0);
+
+        await openRosterShiftDialog(actorPage, actorOpenLauncher);
+        await expect(actorPage.locator('[data-roster-live-open-fill="true"]')).toBeVisible();
+        await expect(actorPage.locator('[data-roster-live-open-fields="true"]').first()).toBeDisabled();
+        const staffSelect = actorPage.locator('#roster-shift-staff-id');
+        const fillOption = await staffSelect.locator('option').evaluateAll((options) =>
+            options
+                .map((option) => option instanceof HTMLOptionElement ? { value: option.value, label: option.textContent?.trim() ?? '' } : { value: '', label: '' })
+                .find((option) => option.value !== '' && option.value !== 'open') ?? { value: '', label: '' },
+        );
+        expect(fillOption.value).not.toBe('');
+        await staffSelect.selectOption(fillOption.value);
+        await saveRosterShiftDialog(actorPage);
+
+        await expect(actorPage.locator('.is-roster-shift-open')).toHaveCount(0, { timeout: E2E_TIMEOUT.liveUpdate });
+        await expect(managerViewerPage.locator('.is-roster-shift-open')).toHaveCount(0, { timeout: E2E_TIMEOUT.liveUpdate });
+        await expect(workerViewerPage.locator('.is-roster-shift-open')).toHaveCount(0, { timeout: E2E_TIMEOUT.liveUpdate });
+        await expect(managerViewerPage.getByText(fillOption.label, { exact: true }).first()).toBeVisible();
+        await expect(workerViewerPage.getByText(fillOption.label, { exact: true }).first()).toBeVisible();
+
+        await actorContext.close();
+        await managerViewerContext.close();
+        await workerViewerContext.close();
     });
 
     test('preserves day-column and day-row scroll owners for actor and passive shift live refreshes', async ({ browser }) => {

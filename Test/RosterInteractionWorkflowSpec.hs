@@ -99,7 +99,7 @@ tests = do
                     }
                 boundaries = either (error . show) (\value -> value) (resolveShiftBoundaries "Australia/Melbourne" boundaryInput)
                 valid = ValidatedRosterShift
-                    { validRosterShiftStaffId = staffId
+                    { validRosterShiftAssignment = StaffAssignment (Id staffId)
                     , validRosterShiftBoundaries = boundaries
                     , validRosterShiftTypeId = shiftTypeId
                     }

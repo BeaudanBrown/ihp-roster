@@ -5,6 +5,7 @@ module Web.View.RosterWeeks.Timeline
     , renderRosterDayTimelinePanel
     ) where
 
+import Application.Helper.Controller (hasRole)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceInteractionShellConfig (..),
@@ -12,6 +13,8 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceInter
                                                             renderFrontendSurfaceMount)
 import Application.Helper.Profiling (profileHtmlComponent)
 import Application.Helper.TimeRules (normalizeWindowEndMinute)
+import Application.RosterShiftAssignment (rosterShiftIsOpen,
+                                          rosterShiftIsStaffAssigned)
 import Application.VenueTime.Model (rosterSlotElapsedSeconds, rosterSlotEndTime,
                                     rosterSlotStartTime)
 import Control.Monad (guard)
@@ -35,6 +38,9 @@ import Web.RosterWeeks.FrontendSurface (RosterDayTimelineScopeValue (..),
                                         rosterDayTimelineSurfaceImpl)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
+import Web.View.RosterWeeks.Grid.Cells (RosterSlotCellTarget (ExistingRosterSlotTarget),
+                                        applyRosterShiftDialogLauncherAttrs,
+                                        rosterSlotDialogAction)
 
 renderRosterDayTimelinePanel :: (?context :: ControllerContext) => RosterGridRenderModel -> RosterDay -> Html
 renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Nothing } _ = [hsx|
@@ -149,6 +155,7 @@ renderTimelineLane timelineWindow editable rosterDay staffById shiftTypeById slo
     let laneSlots = Map.findWithDefault [] (unpackId slotDefinition.id) slotsByDefinition
         positionedShifts = assignTimelineTracks (mapMaybe (timelineShiftFromSlot timelineWindow) laneSlots)
         trackCount = max 1 (1 + maximum (0 : map timelineShiftTrack positionedShifts))
+        assignedShiftCount = length (filter (rosterShiftIsStaffAssigned . (.timelineShiftSlot)) positionedShifts)
         dropzones = if editable then timelineDropzones timelineWindow rosterDay slotDefinition else []
      in [hsx|
         <section class="roster-day-timeline-lane"
@@ -156,7 +163,7 @@ renderTimelineLane timelineWindow editable rosterDay staffById shiftTypeById slo
                  style={"--roster-timeline-track-count:" <> tshow trackCount <> ";"}>
             <div class="roster-day-timeline-lane-label">
                 <span class="fw-semibold">{slotDefinition.name}</span>
-                <span class="text-muted small">{length positionedShifts} shifts</span>
+                <span class="text-muted small">{assignedShiftCount} shifts</span>
             </div>
             <div class="roster-day-timeline-lane-body" role="row">
                 <div class="roster-day-timeline-dropzones" aria-hidden={if editable then ("false" :: Text) else "true"}>
@@ -181,18 +188,28 @@ renderTimelineDropzone timelineWindow (minute, targetKey) =
 
 renderTimelineShift :: TimelineWindow -> Bool -> Map.Map UUID.UUID Staff -> Map.Map UUID.UUID ShiftType -> TimelineShift -> Html
 renderTimelineShift timelineWindow editable staffById shiftTypeById TimelineShift { timelineShiftSlot, timelineShiftStartMin, timelineShiftEndMin, timelineShiftTrack } =
-    let staffLabel = maybe "Unassigned" staffTimelineLabel (timelineShiftSlot.staffId >>= (`Map.lookup` staffById))
+    let isOpen = rosterShiftIsOpen timelineShiftSlot
+        canLaunch = editable || (isOpen && hasRole Manager)
+        staffLabel = if isOpen then "OPEN" else maybe "Unassigned" staffTimelineLabel (timelineShiftSlot.staffId >>= (`Map.lookup` staffById))
         shiftTypeLabel = maybe "Shift" (.name) (timelineShiftSlot.shiftTypeId >>= (`Map.lookup` shiftTypeById))
         groupKey = "existing:" <> tshow timelineShiftSlot.id
+        shiftArticle = [hsx|
+            <article class={classes [("roster-day-timeline-shift", True), ("is-roster-shift-open", isOpen), ("roster-shift-launcher", canLaunch), ("is-roster-shift-draggable", editable)]}
+                     tabindex={if canLaunch then ("0" :: Text) else ""}
+                     aria-label={if isOpen then ("Open shift" :: Text) else staffLabel}>
+                <div class="roster-day-timeline-shift-time">{timelineShiftTimeLabel timelineShiftSlot}</div>
+                <div class="roster-day-timeline-shift-staff">{staffLabel}</div>
+                <div class="roster-day-timeline-shift-role" title={shiftTypeLabel}>{shiftTypeLabel}</div>
+            </article>
+        |]
+        launchableArticle =
+            if canLaunch
+                then applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction (ExistingRosterSlotTarget timelineShiftSlot.id))) shiftArticle
+                else shiftArticle
         card = [hsx|
             <div class="roster-day-timeline-shift-position"
                  style={timelineShiftStyle timelineWindow timelineShiftStartMin timelineShiftEndMin timelineShiftTrack}>
-                <article class={classes [("roster-day-timeline-shift", True), ("roster-shift-launcher", editable)]}
-                         tabindex={if editable then ("0" :: Text) else ""}>
-                    <div class="roster-day-timeline-shift-time">{timelineShiftTimeLabel timelineShiftSlot}</div>
-                    <div class="roster-day-timeline-shift-staff">{staffLabel}</div>
-                    <div class="roster-day-timeline-shift-role" title={shiftTypeLabel}>{shiftTypeLabel}</div>
-                </article>
+                {launchableArticle}
             </div>
         |]
      in if editable

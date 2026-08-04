@@ -46,7 +46,8 @@ import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 successToast)
 import Application.RosterShiftAssignment (RosterShiftAssignment (StaffAssignment),
                                           applyRosterShiftAssignment,
-                                          copyRosterShiftAssignment)
+                                          copyRosterShiftAssignment,
+                                          rosterShiftIsOpen)
 import Application.VenueTime (RepeatedTimeOccurrence (..), VenueTimeError (..))
 import Application.VenueTime.Model
 import Control.Monad (guard)
@@ -834,7 +835,7 @@ instance Controller RosterWeeksController where
                         payInvalidStaffIds <- fetchStaffPayConfigurationRequiredIds [staffDropStaff]
                         if coerce staffDropStaff.id `Set.member` payInvalidStaffIds
                             then respondWithMoveRosterShiftFailure rosterGroup.id weekOffset "Resolve pay configuration for the selected staff member before adding a roster shift."
-                            else respondWithRosterShiftCreateDialogOob staffDropRosterDay staffDropRosterWeek staffDropSlotDefinition staffDropRowIndex emptyRosterShiftDialogValues { rosterShiftStaffId = Just (coerce staffDropStaff.id) }
+                            else respondWithRosterShiftCreateDialogOob staffDropRosterDay staffDropRosterWeek staffDropSlotDefinition staffDropRowIndex emptyRosterShiftDialogValues { rosterShiftSelectedAssignment = Just (StaffAssignment staffDropStaff.id) }
 
     action currentAction@UpdateRosterWarningPreferenceAction { weekOffset } =
         runBepis currentAction BepisMutationAction do
@@ -891,7 +892,7 @@ instance Controller RosterWeeksController where
         rosterSlot <- fetchRosterSlotForEdit rosterSlotId
         authorizeRosterSlotForEdit rosterSlot
         (rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlot
-        authorizeRosterSlotEditContext rosterDay rosterWeek
+        authorizeRosterSlotEditContext rosterSlot rosterDay rosterWeek
         renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek (rosterShiftDialogValuesFromSlot rosterSlot)
 
     action currentAction@CreateRosterSlotAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = runBepis currentAction BepisMutationAction do
@@ -936,23 +937,41 @@ instance Controller RosterWeeksController where
         rosterSlot <- fetchRosterSlotForEdit rosterSlotId
         authorizeRosterSlotForEdit rosterSlot
         (rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlot
-        authorizeRosterSlotEditContext rosterDay rosterWeek
+        authorizeRosterSlotEditContext rosterSlot rosterDay rosterWeek
         let rosterGroupId = coerce rosterWeek.rosterGroupId
-        validation <- validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek (Just rosterSlot) rosterShiftDialogSubmissionFromRequest
-        case validation of
-            Left values -> renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek values
-            Right valid -> do
-                let updatedSlot = applyValidatedRosterShift valid rosterSlot
-                mutationResult <- updateRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot updatedSlot
-                case mutationResult of
-                    Left message ->
-                        renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek
-                            (rosterShiftDialogValuesFromSlot updatedSlot) { rosterShiftFormError = Just message }
-                    Right mutationResult -> do
-                        let RosterSlotMutationResult { rosterSlotMutationPreviousStaffId = previousStaffId, rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged } = mutationResult.liveMutationValue
-                        relatedSlots <- fetchRelatedSlotsForStaffIdsInRosterWeek rosterWeek (catMaybes [previousStaffId, Just valid.validRosterShiftStaffId])
-                        let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
-                        respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged
+        if rosterWeek.isLive
+            then do
+                validation <- validateLiveOpenShiftFill rosterGroupId rosterSlot rosterShiftDialogSubmissionFromRequest
+                case validation of
+                    Left values -> renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek values
+                    Right assignment -> do
+                        let updatedSlot = applyRosterShiftAssignment assignment rosterSlot
+                        mutationResult <- updateRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot updatedSlot
+                        case mutationResult of
+                            Left message ->
+                                renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek
+                                    (rosterShiftDialogValuesFromSlot rosterSlot) { rosterShiftFormError = Just message }
+                            Right mutationResult -> do
+                                let previousStaffId = mutationResult.liveMutationValue.rosterSlotMutationPreviousStaffId
+                                relatedSlots <- fetchRelatedSlotsForStaffIdsInRosterWeek rosterWeek (catMaybes [previousStaffId, updatedSlot.staffId])
+                                let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
+                                respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult impactedRowKeys False
+            else do
+                validation <- validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek (Just rosterSlot) rosterShiftDialogSubmissionFromRequest
+                case validation of
+                    Left values -> renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek values
+                    Right valid -> do
+                        let updatedSlot = applyValidatedRosterShift valid rosterSlot
+                        mutationResult <- updateRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot updatedSlot
+                        case mutationResult of
+                            Left message ->
+                                renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek
+                                    (rosterShiftDialogValuesFromSlot updatedSlot) { rosterShiftFormError = Just message }
+                            Right mutationResult -> do
+                                let RosterSlotMutationResult { rosterSlotMutationPreviousStaffId = previousStaffId, rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged } = mutationResult.liveMutationValue
+                                relatedSlots <- fetchRelatedSlotsForStaffIdsInRosterWeek rosterWeek (catMaybes [previousStaffId, updatedSlot.staffId])
+                                let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
+                                respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged
 
     action currentAction@DeleteRosterSlotAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -960,7 +979,7 @@ instance Controller RosterWeeksController where
         rosterSlot <- fetchRosterSlotForEdit rosterSlotId
         authorizeRosterSlotForEdit rosterSlot
         (rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlot
-        authorizeRosterSlotEditContext rosterDay rosterWeek
+        authorizeRosterSlotDeleteContext rosterDay rosterWeek
         let rosterGroupId = coerce rosterWeek.rosterGroupId
         deleteRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot >>= \case
             Left message -> respondWithMoveRosterShiftFailure rosterGroupId rosterWeek.weekOffset message
@@ -993,8 +1012,15 @@ authorizeRosterSlotForEdit :: (?context :: ControllerContext, ?request :: Reques
 authorizeRosterSlotForEdit rosterSlot =
     accessDeniedUnless (isNothing rosterSlot.deletedAt)
 
-authorizeRosterSlotEditContext :: (?context :: ControllerContext, ?request :: Request) => RosterDay -> RosterWeek -> IO ()
-authorizeRosterSlotEditContext rosterDay rosterWeek = do
+authorizeRosterSlotEditContext :: (?context :: ControllerContext, ?request :: Request) => RosterSlot -> RosterDay -> RosterWeek -> IO ()
+authorizeRosterSlotEditContext rosterSlot rosterDay rosterWeek = do
+    ensureRecordInCurrentVenue rosterWeek.venueId
+    accessDeniedUnless (not rosterDay.isClosed)
+    unless (rosterWeek.isLive && rosterShiftIsOpen rosterSlot) do
+        ensureRosterWeekIsDraftForEdit rosterWeek
+
+authorizeRosterSlotDeleteContext :: (?context :: ControllerContext, ?request :: Request) => RosterDay -> RosterWeek -> IO ()
+authorizeRosterSlotDeleteContext rosterDay rosterWeek = do
     ensureRecordInCurrentVenue rosterWeek.venueId
     ensureRosterWeekIsDraftForEdit rosterWeek
     accessDeniedUnless (not rosterDay.isClosed)

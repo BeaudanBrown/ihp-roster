@@ -3,6 +3,8 @@ module Application.RosterShiftAssignment
     , applyRosterShiftAssignment
     , copyRosterShiftAssignment
     , rosterShiftAssignment
+    , rosterShiftIsOpen
+    , rosterShiftIsStaffAssigned
     ) where
 
 import Generated.Types
@@ -31,6 +33,15 @@ applyRosterShiftAssignment assignment slot =
 copyRosterShiftAssignment :: RosterSlot -> RosterSlot -> Either Text RosterSlot
 copyRosterShiftAssignment source target =
     (`applyRosterShiftAssignment` target) <$> rosterShiftAssignment source
+
+rosterShiftIsOpen :: RosterSlot -> Bool
+rosterShiftIsOpen slot = rosterShiftAssignment slot == Right OpenAssignment
+
+rosterShiftIsStaffAssigned :: RosterSlot -> Bool
+rosterShiftIsStaffAssigned slot =
+    case rosterShiftAssignment slot of
+        Right StaffAssignment {} -> True
+        _                        -> False
 
 rosterShiftAssignment :: RosterSlot -> Either Text RosterShiftAssignment
 rosterShiftAssignment slot =

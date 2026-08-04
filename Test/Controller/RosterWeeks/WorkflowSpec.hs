@@ -563,6 +563,169 @@ tests = aroundAll withDatabaseTestContext do
                 contentResponse `responseBodyShouldNotContain` "name=\"staffId\""
                 contentResponse `responseBodyShouldNotContain` "data-bepis-time-picker-trigger"
 
+        it "creates an Open shift from the draft Staff selector" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Open Shift Draft Venue"
+                manager <- createUserRecord "open-shift-draft-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                level <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue level "Floor"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotName <- fetchSlotNameRecord venue "Early"
+                slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
+
+                dialogResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction (NewRosterSlotDialogAction rosterDay.id slotDefinition.id 0)
+                dialogResponse `responseStatusShouldBe` status200
+                dialogResponse `responseBodyShouldContain` "<option value=\"open\">Open shift</option>"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (CreateRosterSlotAction rosterDay.id slotDefinition.id 0)
+                            [ ("staffId", "open")
+                            , ("startTime", "09:00")
+                            , ("endTime", "17:00")
+                            , ("shiftTypeId", idToParam shiftType.id)
+                            ]
+
+                response `responseStatusShouldBe` status200
+                persisted <- query @RosterSlot |> fetchOne
+                persisted.assignmentState `shouldBe` "open"
+                persisted.staffId `shouldBe` Nothing
+
+        it "preserves draft Staff to Open and Open to Staff transitions" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Open Shift Transition Venue"
+                manager <- createUserRecord "open-shift-transition-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                level <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue level "Floor"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotName <- fetchSlotNameRecord venue "Early"
+                slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+                    >>= updateRecord
+                        . set #shiftTypeId (Just (unpackId shiftType.id))
+                        . setTestRosterSlotBoundaries (fromGregorian 2025 1 6) (timeOfDay 9 0) (timeOfDay 17 0)
+                let submit assignment =
+                        withUserAndCurrentVenue manager venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callActionWithParams
+                                    (UpdateRosterSlotAction slot.id)
+                                    [ ("staffId", assignment)
+                                    , ("startTime", "09:00")
+                                    , ("endTime", "17:00")
+                                    , ("shiftTypeId", idToParam shiftType.id)
+                                    ]
+
+                _ <- submit "open"
+                openSlot <- fetch slot.id
+                openSlot.assignmentState `shouldBe` "open"
+                openSlot.staffId `shouldBe` Nothing
+
+                _ <- submit (idToParam staffMember.id)
+                staffedSlot <- fetch slot.id
+                staffedSlot.assignmentState `shouldBe` "staff"
+                staffedSlot.staffId `shouldBe` Just (unpackId staffMember.id)
+
+        it "fills a live Open shift through an assignment-only dialog" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Live Open Fill Venue"
+                manager <- createUserRecord "live-open-fill-manager@example.com" "staff" True
+                worker <- createUserRecord "live-open-fill-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue worker Worker
+                staffMember <- createStaffRecord venue (Just worker) "Alpha" "Crew"
+                level <- createPayLevelRecord venue "Live fill level"
+                staffMember <- updateRecord (staffMember |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just level.id))
+                shiftType <- createShiftTypeRecord venue level "Floor"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotName <- fetchSlotNameRecord venue "Early"
+                openSlot <- createRosterSlotRecord rosterDay slotName Nothing 0
+                    >>= updateRecord . set #shiftTypeId (Just (unpackId shiftType.id))
+
+                beforeFill <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
+                        [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "true"), ("showSuggestions", "true")]
+                beforeFill `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow openSlot.id <> "\"")
+
+                dialogResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction (EditRosterSlotDialogAction openSlot.id)
+                dialogResponse `responseStatusShouldBe` status200
+                dialogResponse `responseBodyShouldContain` "data-roster-live-open-fill=\"true\""
+                dialogResponse `responseBodyShouldContain` "disabled=\"disabled\" data-roster-live-open-fields=\"true\""
+                dialogResponse `responseBodyShouldContain` "<option value=\"open\" selected=\"selected\">Open shift</option>"
+                dialogResponse `responseBodyShouldNotContain` ">Delete shift<"
+
+                fillResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (UpdateRosterSlotAction openSlot.id) [("staffId", idToParam staffMember.id)]
+
+                fillResponse `responseStatusShouldBe` status200
+                filledSlot <- fetch openSlot.id
+                filledSlot.assignmentState `shouldBe` "staff"
+                filledSlot.staffId `shouldBe` Just (unpackId staffMember.id)
+                filledSlot.startsAt `shouldBe` openSlot.startsAt
+                filledSlot.endsAt `shouldBe` openSlot.endsAt
+                filledSlot.shiftTypeId `shouldBe` openSlot.shiftTypeId
+                filledSlot.rosterDayId `shouldBe` openSlot.rosterDayId
+                filledSlot.rosterWeekSlotDefinitionId `shouldBe` openSlot.rosterWeekSlotDefinitionId
+                filledSlot.rowIndex `shouldBe` openSlot.rowIndex
+
+                afterFill <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
+                        [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "true"), ("showSuggestions", "true")]
+                afterFill `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow openSlot.id <> "\"")
+
+        it "rejects live Open-shift tampering, deletion, ordinary staff writes, and Assigned transitions" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Live Open Security Venue"
+                manager <- createUserRecord "live-open-security-manager@example.com" "staff" True
+                worker <- createUserRecord "live-open-security-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue worker Worker
+                staffMember <- createStaffRecord venue (Just worker) "Alpha" "Crew"
+                unresolvedStaff <- createStaffRecord venue Nothing "Unresolved" "Crew"
+                    >>= updateRecord . set #payAssignmentMode LegacyUnresolved
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotName <- fetchSlotNameRecord venue "Early"
+                openSlot <- createRosterSlotRecord rosterDay slotName Nothing 0
+                assignedSlot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 1
+
+                tampered <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (UpdateRosterSlotAction openSlot.id)
+                            [("staffId", idToParam staffMember.id), ("startTime", "10:00")]
+                tampered `responseBodyShouldContain` "Only Staff can be changed while filling a live Open shift."
+
+                invalidPay <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (UpdateRosterSlotAction openSlot.id) [("staffId", idToParam unresolvedStaff.id)]
+                invalidPay `responseBodyShouldContain` "Resolve pay configuration for the selected staff member or shift type before saving this roster shift."
+
+                _ <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (UpdateRosterSlotAction openSlot.id) [("staffId", "open")]
+                _ <- withUserAndCurrentVenue manager venue.id do
+                    callAction (DeleteRosterSlotAction openSlot.id)
+                _ <- withUserAndCurrentVenue worker venue.id do
+                    callActionWithParams (UpdateRosterSlotAction openSlot.id) [("staffId", idToParam staffMember.id)]
+                _ <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (UpdateRosterSlotAction assignedSlot.id) [("staffId", "open")]
+
+                unchangedOpen <- fetch openSlot.id
+                unchangedOpen.assignmentState `shouldBe` "open"
+                unchangedOpen.staffId `shouldBe` Nothing
+                unchangedOpen.deletedAt `shouldBe` Nothing
+                unchangedAssigned <- fetch assignedSlot.id
+                unchangedAssigned.assignmentState `shouldBe` "staff"
+                unchangedAssigned.staffId `shouldBe` Just (unpackId staffMember.id)
+
         it "rejects invalid roster slot timing on create and update" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
@@ -1544,6 +1707,28 @@ tests = aroundAll withDatabaseTestContext do
 
                 publishedWeek <- fetch rosterWeek.id
                 publishedWeek.isLive `shouldBe` True
+
+        it "publishes complete Open shifts without requiring pay assignment" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Open Shift Publish Venue"
+                manager <- createUserRecord "open-shift-publish-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                openSlot <- createRosterSlotRecord rosterDay slotName Nothing 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (ToggleRosterWeekLiveStatusAction rosterWeek.id) [("isLive", "on")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Roster week is now live."
+                published <- fetch rosterWeek.id
+                published.isLive `shouldBe` True
+                retained <- fetch openSlot.id
+                retained.assignmentState `shouldBe` "open"
+                retained.staffId `shouldBe` Nothing
 
         it "publishes roster suggestions immediately without queueing or creating timesheets" $ withContext do
             withCleanDb do

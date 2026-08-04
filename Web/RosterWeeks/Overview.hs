@@ -5,11 +5,12 @@ module Web.RosterWeeks.Overview
     ) where
 
 import Application.Helper.RosterGroups (fetchEligibleRosterGroupStaff)
+import Application.RosterShiftAssignment (rosterShiftIsStaffAssigned)
 import Application.VenueTime.Model (rosterSlotElapsedSeconds)
 import Data.Coerce (coerce)
 import Data.List (nub)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe, isJust)
+import Data.Maybe (fromMaybe)
 import qualified Data.Time.Calendar as Calendar
 import Web.Controller.Prelude
 import Web.RosterWeeks.AvailabilityInputs (fetchLeaveRequestsForRosterWindowByStatus)
@@ -90,13 +91,13 @@ buildRosterMonthOverviewDays venueConfig rosterGroupId focusDate = do
                     length
                         [ ()
                         | slot <- daySlots
-                        , isJust slot.staffId
+                        , rosterShiftIsStaffAssigned slot
                         ]
                 scheduledElapsedSeconds =
                     sum
                         [ fromMaybe 0 (rosterSlotElapsedSeconds slot)
                         | slot <- daySlots
-                        , isJust slot.staffId
+                        , rosterShiftIsStaffAssigned slot
                         ]
                 leaveRequestCount =
                     length

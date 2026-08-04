@@ -6,6 +6,7 @@ module Test.Controller.RosterWeeks.DirectReadModelSpec where
 import Application.Helper.Conflict
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureVenueDefaultRosterGroup)
+import Application.Helper.RosterWagePrediction
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Data.Coerce (coerce)
 import Data.List (find, sortOn)
@@ -155,6 +156,31 @@ tests = aroundAll withDatabaseTestContext do
                         lookup duplicateSlot.id conflicts `shouldSatisfy` hasConflictType DuplicateAssignment
                         lookup lateSlot.id conflicts `shouldSatisfy` hasConflictType LateToEarlyConflict
                         lookup preferenceSlot.id conflicts `shouldSatisfy` hasConflictType ShiftPreferenceSlotMismatch
+
+        it "excludes Open shifts from wage estimates and conflict output" $ withContext do
+            withCleanDb do
+                fixture <- createDirectReadModelFixture
+
+                withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    withCurrentControllerContext do
+                        initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.rosterGroup.id 0
+                        beforePanelEntries <- fetchRosterStaffPanelEntriesDirect RosterStaffPanelCurrentGroup fixture.rosterGroup.id fixture.rosterWeek
+                        rosterDay <- fetch (Id fixture.visibleSparseSlot.rosterDayId) :: IO RosterDay
+                        openSlot <- createRosterSlotRecord rosterDay fixture.earlySlotName Nothing 12
+                        venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetchOne
+
+                        prediction <- fetchRosterWagePrediction venueConfig fixture.rosterWeek initialData.rosterDays [openSlot]
+                        prediction.predictionWeekTotal `shouldBe` 0
+                        prediction.predictionCompleteShiftCount `shouldBe` 0
+                        prediction.predictionIncompleteShiftCount `shouldBe` 0
+                        map (.predictionDayShiftCount) prediction.predictionDays `shouldBe` replicate 7 0
+
+                        conflicts <- buildSlotConflictsForSlotsDirect fixture.rosterGroup.id 60 initialData.weekStartDate [openSlot] [openSlot]
+                        conflicts `shouldBe` []
+
+                        afterPanelEntries <- fetchRosterStaffPanelEntriesDirect RosterStaffPanelCurrentGroup fixture.rosterGroup.id fixture.rosterWeek
+                        map (\entry -> (entry.staff.id, entry.assignedShiftCount)) afterPanelEntries
+                            `shouldBe` map (\entry -> (entry.staff.id, entry.assignedShiftCount)) beforePanelEntries
 
         it "evaluates late-to-early gaps from exact start instants" $ withContext do
             withCleanDb do

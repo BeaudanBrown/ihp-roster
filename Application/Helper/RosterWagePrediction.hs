@@ -19,6 +19,7 @@ import Application.PayAssignment (EffectivePayAssignment (..),
                                   ShiftPayAssignment (..),
                                   StaffPayAssignment (..), resolvePayAssignment,
                                   staffAssignmentSuppressesTimesheets)
+import Application.RosterShiftAssignment (rosterShiftIsStaffAssigned)
 import Application.VenueTime.Model
 import Application.WageEngine (FinalEarningsSummary (..))
 import Application.WageEvaluation
@@ -67,8 +68,9 @@ fetchRosterWagePrediction ::
     [RosterSlot] ->
     IO RosterWagePrediction
 fetchRosterWagePrediction venueConfig rosterWeek rosterDays rosterSlots = do
-    let referencedStaffIds = List.nub (mapMaybe (.staffId) rosterSlots)
-        referencedShiftTypeIds = List.nub (mapMaybe (.shiftTypeId) rosterSlots)
+    let staffAssignedSlots = filter rosterShiftIsStaffAssigned rosterSlots
+        referencedStaffIds = List.nub (mapMaybe (.staffId) staffAssignedSlots)
+        referencedShiftTypeIds = List.nub (mapMaybe (.shiftTypeId) staffAssignedSlots)
     staffMembers <-
         if null referencedStaffIds
             then pure []
@@ -82,8 +84,7 @@ fetchRosterWagePrediction venueConfig rosterWeek rosterDays rosterSlots = do
         shiftTypeById = Map.fromList [(unpackId shiftType.id, shiftType) | shiftType <- shiftTypes]
         subjectCandidates =
             [ (slot, Map.lookup slot.rosterDayId rosterDaysById, rosterSlotWageSubject rosterWeek.venueId slot)
-            | slot <- rosterSlots
-            , isJust slot.staffId
+            | slot <- staffAssignedSlots
             , not (rosterSlotIsRosterOnly staffById shiftTypeById slot)
             ]
         subjects = [subject | (_, Just _, Right subject) <- subjectCandidates]

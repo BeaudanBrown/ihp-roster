@@ -16,6 +16,7 @@ module Web.RosterWeeks.ShiftWorkflow
     , fetchRosterSlotForEdit
     , rosterShiftDialogForCreateHtml
     , rosterShiftDialogForEditHtml
+    , validateLiveOpenShiftFill
     , validateRosterShiftDialogSubmission
     ) where
 
@@ -28,7 +29,7 @@ import Application.Helper.TimeRules (defaultShiftTimesForVenueConfig,
                                      venueShiftTimeValidationMessage,
                                      venueTimePickerFinalSelectableTimeText,
                                      venueTimePickerStartTimeText)
-import Application.RosterShiftAssignment (RosterShiftAssignment (StaffAssignment),
+import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           applyRosterShiftAssignment)
 import Application.VenueTime (RepeatedTimeOccurrence (..), VenueTimeError (..))
 import Application.VenueTime.Model
@@ -59,7 +60,7 @@ data RosterShiftDialogSubmission = RosterShiftDialogSubmission
     }
 
 data ValidatedRosterShift = ValidatedRosterShift
-    { validRosterShiftStaffId    :: !UUID.UUID
+    { validRosterShiftAssignment :: !RosterShiftAssignment
     , validRosterShiftBoundaries :: !AuthoritativeBoundaries
     , validRosterShiftTypeId     :: !UUID.UUID
     }
@@ -108,6 +109,7 @@ rosterShiftDialogForCreateHtml rosterDay rosterWeek slotDefinition rowIndex valu
         , rosterShiftDialogTimePickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
         , rosterShiftDialogTimePickerStep = venueShiftTimeIntervalMinutes venueConfig
         , rosterShiftDialogValues = values
+        , rosterShiftDialogAssignmentOnly = False
         }
 
 rosterShiftDialogForEditHtml :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterSlot -> RosterWeek -> RosterShiftDialogValues -> IO Blaze.Html
@@ -118,7 +120,7 @@ rosterShiftDialogForEditHtml rosterSlot rosterWeek values = do
     staffOptionStates <- buildRosterShiftDialogStaffOptionStates (coerce rosterWeek.rosterGroupId) rosterWeek rosterSlot staffMembers
     pure $ renderRosterShiftDialog RosterShiftDialogData
         { rosterShiftDialogMode = EditRosterShiftDialog rosterSlot.id
-        , rosterShiftDialogTitle = "Edit shift"
+        , rosterShiftDialogTitle = if rosterWeek.isLive then "Fill Open shift" else "Edit shift"
         , rosterShiftDialogStaff = staffMembers
         , rosterShiftDialogStaffOptionStates = staffOptionStates
         , rosterShiftDialogPayInvalidStaffIds = payInvalidStaffIds
@@ -127,6 +129,7 @@ rosterShiftDialogForEditHtml rosterSlot rosterWeek values = do
         , rosterShiftDialogTimePickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
         , rosterShiftDialogTimePickerStep = venueShiftTimeIntervalMinutes venueConfig
         , rosterShiftDialogValues = values
+        , rosterShiftDialogAssignmentOnly = rosterWeek.isLive
         }
 
 defaultRosterShiftDialogValuesForVenue :: VenueConfig -> RosterShiftDialogValues
@@ -170,6 +173,39 @@ fetchCurrentVenueRosterShiftTypesForDialog =
         |> orderByAsc #createdAt
         |> fetch
 
+validateLiveOpenShiftFill :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> RosterSlot -> RosterShiftDialogSubmission -> IO (Either RosterShiftDialogValues RosterShiftAssignment)
+validateLiveOpenShiftFill rosterGroupId rosterSlot submission = do
+    let parsedAssignment = parseSubmittedRosterShiftAssignment submission.submittedRosterShiftStaffId
+    let parsedStaffId = case parsedAssignment of
+            Just (StaffAssignment (Id staffId)) -> Just staffId
+            _                                   -> Nothing
+    maybeStaff <- maybe (pure Nothing) (fetchActiveStaffForCurrentVenue . Id) parsedStaffId
+    staffEligible <- maybe (pure False) (\staffId -> staffIsEligibleForRosterGroup (Id staffId) rosterGroupId) parsedStaffId
+    let assignmentError = case parsedAssignment of
+            Just (StaffAssignment _) | isNothing maybeStaff -> Just "Choose a staff member for this venue."
+            Just (StaffAssignment _) | not staffEligible -> Just "That staff member is not applicable to this roster group."
+            Just (StaffAssignment _) -> Nothing
+            Just OpenAssignment -> Just "Choose a staff member to fill this Open shift."
+            Nothing -> Just "Choose a staff member to fill this Open shift."
+    let protectedFieldsSubmitted =
+            any isJust
+                [ submission.submittedRosterShiftStartTime
+                , submission.submittedRosterShiftEndTime
+                , submission.submittedRosterShiftTypeId
+                ]
+                || submission.submittedRosterShiftStartOccurrence /= ""
+                || submission.submittedRosterShiftEndOccurrence /= ""
+    let formError = if protectedFieldsSubmitted then Just "Only Staff can be changed while filling a live Open shift." else Nothing
+    let values =
+            (rosterShiftDialogValuesFromSlot rosterSlot)
+                { rosterShiftSelectedAssignment = parsedAssignment
+                , rosterShiftFormError = formError
+                , rosterShiftStaffError = assignmentError
+                }
+    case (formError, assignmentError, parsedAssignment) of
+        (Nothing, Nothing, Just assignment@StaffAssignment {}) -> pure (Right assignment)
+        _ -> pure (Left values)
+
 validateRosterShiftDialogSubmission :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> RosterDay -> RosterWeek -> Maybe RosterSlot -> RosterShiftDialogSubmission -> IO (Either RosterShiftDialogValues ValidatedRosterShift)
 validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek maybeExistingSlot submission = do
     venueConfig <- fetchVenueConfig
@@ -178,7 +214,10 @@ validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek maybeExis
     let startParam = submission.submittedRosterShiftStartTime
     let endParam = submission.submittedRosterShiftEndTime
     let shiftTypeParam = submission.submittedRosterShiftTypeId
-    let parsedStaffId = parseOptionalStaffId staffParam
+    let parsedAssignment = parseSubmittedRosterShiftAssignment staffParam
+    let parsedStaffId = case parsedAssignment of
+            Just (StaffAssignment (Id staffId)) -> Just staffId
+            _                                   -> Nothing
     let parsedStartTime = parseOptionalTime startParam
     let parsedEndTime = parseOptionalTime endParam
     let parsedShiftTypeId = parseOptionalShiftTypeId shiftTypeParam
@@ -200,7 +239,7 @@ validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek maybeExis
     let startOccurrence = fromRight Nothing parsedStartOccurrence
     let endOccurrence = fromRight Nothing parsedEndOccurrence
     let baseValues = emptyRosterShiftDialogValues
-            { rosterShiftStaffId = parsedStaffId
+            { rosterShiftSelectedAssignment = parsedAssignment
             , rosterShiftStartTime = fromMaybe "" (normalizeOptionalText startParam)
             , rosterShiftEndTime = fromMaybe "" (normalizeOptionalText endParam)
             , rosterShiftTypeId = parsedShiftTypeId
@@ -210,7 +249,8 @@ validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek maybeExis
             , rosterShiftEndIsRepeated = endIsRepeated
             }
     let staffError
-            | isNothing (normalizeOptionalText staffParam) = Just "Choose a staff member."
+            | isNothing (normalizeOptionalText staffParam) = Just "Choose a staff member or Open shift."
+            | parsedAssignment == Just OpenAssignment = Nothing
             | isNothing parsedStaffId || not staffInVenue = Just "Choose a staff member for this venue."
             | not staffEligible = Just "That staff member is not applicable to this roster group."
             | otherwise = Nothing
@@ -266,10 +306,10 @@ validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek maybeExis
             , rosterShiftEndError = endError <|> timingError <|> boundaryEndError maybeResolvedBoundaries
             , rosterShiftTypeError = shiftTypeError
             }
-    case (staffError, startError, endError, shiftTypeError, timingError, resolutionError, parsedStaffId, parsedShiftTypeId, maybeResolvedBoundaries) of
-        (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Just staffId, Just shiftTypeId, Just (Right boundaries)) ->
+    case (staffError, startError, endError, shiftTypeError, timingError, resolutionError, parsedAssignment, parsedShiftTypeId, maybeResolvedBoundaries) of
+        (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Just assignment, Just shiftTypeId, Just (Right boundaries)) ->
             pure (Right ValidatedRosterShift
-                { validRosterShiftStaffId = staffId
+                { validRosterShiftAssignment = assignment
                 , validRosterShiftBoundaries = boundaries
                 , validRosterShiftTypeId = shiftTypeId
                 })
@@ -291,6 +331,13 @@ validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek maybeExis
     rosterBoundaryErrorMessage BoundaryBreakNotContained = "Break boundaries are not valid for this roster shift."
     rosterBoundaryErrorMessage BoundaryBreakShapeInvalid = "Break boundaries are incomplete."
 
+parseSubmittedRosterShiftAssignment :: Maybe Text -> Maybe RosterShiftAssignment
+parseSubmittedRosterShiftAssignment maybeValue =
+    case normalizeOptionalText maybeValue of
+        Just "open" -> Just OpenAssignment
+        Just value  -> StaffAssignment . Id <$> parseUUIDText value
+        Nothing     -> Nothing
+
 shiftTypeIdIsInCurrentVenue :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO Bool
 shiftTypeIdIsInCurrentVenue shiftTypeId =
     query @ShiftType
@@ -303,6 +350,6 @@ shiftTypeIdIsInCurrentVenue shiftTypeId =
 applyValidatedRosterShift :: ValidatedRosterShift -> RosterSlot -> RosterSlot
 applyValidatedRosterShift valid slot =
     slot
-        |> applyRosterShiftAssignment (StaffAssignment (Id valid.validRosterShiftStaffId))
+        |> applyRosterShiftAssignment valid.validRosterShiftAssignment
         |> set #shiftTypeId (Just valid.validRosterShiftTypeId)
         |> applyRosterSlotBoundaries valid.validRosterShiftBoundaries

@@ -735,6 +735,62 @@ tests = aroundAll withDatabaseTestContext do
                 bodyText `shouldNotContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow slot.id) <> "\"")
                 bodyText `shouldNotContain` "data-roster-shift-launcher=\"true\""
 
+        it "renders live Open shifts prominently and launchable only for roster editors" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Open Shift Live Render Venue"
+                manager <- createUserRecord "open-shift-live-render-manager@example.com" "staff" True
+                worker <- createUserRecord "open-shift-live-render-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue worker Worker
+                early <- fetchSlotNameRecord venue "Early"
+                _ <- createStaffRecord venue (Just worker) "Worker" "Viewer"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                openSlot <- createRosterSlotRecord rosterDay early Nothing 0
+
+                managerResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekRowFragmentAction 0 rosterDay.id 0)
+                managerResponse `responseStatusShouldBe` status200
+                managerBody <- responseBody managerResponse
+                let managerText = cs managerBody :: String
+                managerText `shouldContain` ">OPEN<"
+                managerText `shouldContain` "is-roster-shift-open"
+                managerText `shouldContain` "aria-label=\"Fill Open shift\""
+                managerText `shouldContain` "&quot;imageExportText&quot;:&quot;OPEN&quot;"
+                managerText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow openSlot.id) <> "\"")
+                managerText `shouldNotContain` "data-bepis-source-ref=\"shift-drag-source\""
+                managerText `shouldNotContain` "data-bepis-dropzone-ref=\"existing-shift-dropzone\""
+
+                _ <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (UpdateRosterLayoutPreferenceAction 0) [("rosterLayoutMode", "day_columns")]
+                dayColumnsResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekDayColumnsFragmentAction 0)
+                dayColumnsBody <- responseBody dayColumnsResponse
+                let dayColumnsText = cs dayColumnsBody :: String
+                dayColumnsText `shouldContain` ">OPEN<"
+                dayColumnsText `shouldContain` "roster-shift-card is-roster-shift-open roster-shift-launcher"
+                dayColumnsText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow openSlot.id) <> "\"")
+                dayColumnsText `shouldNotContain` "data-bepis-source-ref=\"shift-drag-source\""
+
+                timelineResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterDayTimelineContentFragmentAction 0 rosterDay.id)
+                timelineBody <- responseBody timelineResponse
+                let timelineText = cs timelineBody :: String
+                timelineText `shouldContain` ">OPEN<"
+                timelineText `shouldContain` ">0 shifts<"
+                timelineText `shouldContain` "roster-day-timeline-shift is-roster-shift-open roster-shift-launcher"
+                timelineText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow openSlot.id) <> "\"")
+                timelineText `shouldNotContain` "data-bepis-source-ref=\"timeline-shift-drag-source\""
+
+                workerResponse <- withUserAndCurrentVenue worker venue.id do
+                    callAction (ShowRosterWeekRowFragmentAction 0 rosterDay.id 0)
+                workerResponse `responseStatusShouldBe` status200
+                workerBody <- responseBody workerResponse
+                let workerText = cs workerBody :: String
+                workerText `shouldContain` ">OPEN<"
+                workerText `shouldContain` "is-roster-shift-open"
+                workerText `shouldNotContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow openSlot.id) <> "\"")
+
         it "allows assigning staff who are applicable to the slot's roster group" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
@@ -1744,6 +1800,34 @@ tests = aroundAll withDatabaseTestContext do
                 map testStartTime copiedSlots `shouldBe` [testStartTime sourceSlot, testStartTime sourceSlot]
                 map testDurationMinutes copiedSlots `shouldBe` [testDurationMinutes sourceSlot, testDurationMinutes sourceSlot]
                 response `responseBodyShouldContain` "Roster shift duplicated."
+
+        it "moves Open assignment through draft duplicate mutations" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Open Shift Duplicate Venue"
+                manager <- createUserRecord "open-shift-duplicate-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0 >>= updateRecord . set #rowCount 1
+                sourceSlot <- createRosterSlotRecord rosterDay slotName Nothing 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams DuplicateRosterShiftToDayAction { weekOffset = 0 }
+                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            , ("sourceItemKey", cs ("existing:" <> tshow sourceSlot.id))
+                            , ("targetDropzoneKey", cs ("day:" <> tshow rosterDay.id))
+                            ]
+
+                response `responseStatusShouldBe` status200
+                copiedSlots <- query @RosterSlot
+                    |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> orderByAsc #rowIndex
+                    |> fetch
+                length copiedSlots `shouldBe` 2
+                map (.assignmentState) copiedSlots `shouldBe` ["open", "open"]
+                map (.staffId) copiedSlots `shouldBe` [Nothing, Nothing]
 
         it "month overview fragment includes other weeks in the same month and counts assigned shifts rather than unique staff" $ withContext do
             withCleanDb do

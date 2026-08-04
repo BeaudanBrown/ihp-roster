@@ -40,7 +40,8 @@ import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyV
 import Application.PayAssignment
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           copyRosterShiftAssignment,
-                                          rosterShiftAssignment)
+                                          rosterShiftAssignment,
+                                          rosterShiftIsStaffAssigned)
 import Application.Staff.Mutations (withStaffOperationalLocksInCurrentTransaction)
 import Application.VenueTime (RepeatedTimeOccurrence)
 import Application.VenueTime.Model
@@ -295,14 +296,14 @@ validateRosterWeekCanGoLive rosterWeek True = do
     let blockingSlots = filter rosterSlotBlocksPublish rosterSlots
     if not (null blockingSlots)
         then pure (Just publishRequiredFieldsMessage)
-        else validateRosterSlotsForPersistence (Id rosterWeek.venueId) (filter (isJust . (.staffId)) rosterSlots)
+        else validateRosterSlotsForPersistence (Id rosterWeek.venueId) (filter rosterShiftIsStaffAssigned rosterSlots)
 
 publishRequiredFieldsMessage :: Text
 publishRequiredFieldsMessage = "Roster week cannot go live until every staffed shift has a start time, valid end time, and shift type."
 
 rosterSlotBlocksPublish :: RosterSlot -> Bool
 rosterSlotBlocksPublish slot =
-    isJust slot.staffId
+    rosterShiftIsStaffAssigned slot
         && ( isNothing slot.startsAt
              || isNothing slot.shiftTypeId
              || not (rosterSlotHasValidStartEnd slot)
@@ -810,7 +811,7 @@ fetchActiveSlotsForDay rosterDay =
 
 fetchStaffLabelsById :: (?modelContext :: ModelContext) => [RosterSlot] -> IO (Map.Map UUID Text)
 fetchStaffLabelsById slots = do
-    let staffIds = nub (mapMaybe (.staffId) slots)
+    let staffIds = nub (mapMaybe (.staffId) (filter rosterShiftIsStaffAssigned slots))
     if null staffIds
         then pure Map.empty
         else do

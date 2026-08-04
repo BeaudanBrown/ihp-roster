@@ -18,6 +18,7 @@ module Web.RosterWeeks.DirectReadModel
 import Application.Helper.Conflict
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups (fetchCurrentVenueActiveStaff)
+import Application.RosterShiftAssignment (rosterShiftIsStaffAssigned)
 import Data.Coerce (coerce)
 import Data.List (nubBy)
 import qualified Data.Map.Strict as Map
@@ -188,6 +189,7 @@ fetchAssignedShiftCountsDirect rosterWeek =
         \WHERE roster_days.roster_week_id = ? \
         \AND roster_days.is_closed = FALSE \
         \AND roster_slots.deleted_at IS NULL \
+        \AND roster_slots.assignment_state = 'staff' \
         \AND roster_slots.staff_id IS NOT NULL \
         \GROUP BY roster_slots.staff_id"
         (PG.Only (unpackId rosterWeek.id))
@@ -249,19 +251,19 @@ buildRosterStaffOptionStatesForSlotsDirect assignmentFilters weekStartDate factS
             "WITH params AS ( \
             \    SELECT ?::date AS week_start, ?::uuid AS venue_id, ?::boolean AS hide_ideal, ?::boolean AS hide_unavailable, ?::boolean AS hide_leave, ?::boolean AS hide_today \
             \), fact_slots AS ( \
-            \    SELECT roster_slots.id, roster_slots.roster_day_id, roster_slots.staff_id, COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, params.week_start + roster_days.day_offset) AS roster_date, EXTRACT(DOW FROM COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, params.week_start + roster_days.day_offset))::int AS weekday_index \
+            \    SELECT roster_slots.id, roster_slots.roster_day_id, roster_slots.assignment_state, roster_slots.staff_id, COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, params.week_start + roster_days.day_offset) AS roster_date, EXTRACT(DOW FROM COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, params.week_start + roster_days.day_offset))::int AS weekday_index \
             \    FROM roster_slots \
             \    JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
             \    CROSS JOIN params \
             \    WHERE roster_slots.id = ANY(?) AND roster_slots.deleted_at IS NULL \
             \), target_slots AS ( \
-            \    SELECT id, roster_day_id, staff_id, roster_date, weekday_index FROM fact_slots WHERE id = ANY(?) \
+            \    SELECT id, roster_day_id, assignment_state, staff_id, roster_date, weekday_index FROM fact_slots WHERE id = ANY(?) \
             \), staff_scope AS ( \
             \    SELECT staff.id, staff.ideal_shifts_per_week FROM staff CROSS JOIN params WHERE staff.id = ANY(?) AND staff.venue_id = params.venue_id \
             \), shift_counts AS ( \
-            \    SELECT staff_id, COUNT(*)::int AS assigned_count FROM fact_slots WHERE staff_id IS NOT NULL GROUP BY staff_id \
+            \    SELECT staff_id, COUNT(*)::int AS assigned_count FROM fact_slots WHERE assignment_state = 'staff' AND staff_id IS NOT NULL GROUP BY staff_id \
             \), day_counts AS ( \
-            \    SELECT roster_day_id, staff_id, COUNT(*)::int AS assigned_day_count FROM fact_slots WHERE staff_id IS NOT NULL GROUP BY roster_day_id, staff_id \
+            \    SELECT roster_day_id, staff_id, COUNT(*)::int AS assigned_day_count FROM fact_slots WHERE assignment_state = 'staff' AND staff_id IS NOT NULL GROUP BY roster_day_id, staff_id \
             \) \
             \SELECT target_slots.id, staff_scope.id, COALESCE(shift_counts.assigned_count, 0)::int, \
             \       ((CASE WHEN params.hide_ideal AND COALESCE(shift_counts.assigned_count, 0) >= staff_scope.ideal_shifts_per_week THEN 1 ELSE 0 END) + \
@@ -328,7 +330,7 @@ buildSlotConflictsForSlotsDirect _rosterGroupId lateToEarlyMinStartGapMinutes we
             \    FROM roster_slots \
             \    JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
             \    CROSS JOIN params \
-            \    WHERE roster_slots.id = ANY(?) AND roster_slots.staff_id IS NOT NULL AND roster_slots.deleted_at IS NULL \
+            \    WHERE roster_slots.id = ANY(?) AND roster_slots.assignment_state = 'staff' AND roster_slots.staff_id IS NOT NULL AND roster_slots.deleted_at IS NULL \
             \), week_counts AS ( \
             \    SELECT staff_id, COUNT(*)::int AS week_count FROM assigned_slots GROUP BY staff_id \
             \), day_counts AS ( \
@@ -394,7 +396,7 @@ buildSlotConflictsForSlotsDirect _rosterGroupId lateToEarlyMinStartGapMinutes we
         let conflictsBySlot = Map.fromListWith (<>) [(Id slotId, [conflictForType conflictTypeText]) | (slotId, conflictTypeText) <- rows]
         pure (Map.toList (Map.map sort conflictsBySlot))
     where
-        assignedSlotIds = map (coerce . (.id)) (filter (isJust . (.staffId)) factSlots) :: [UUID.UUID]
+        assignedSlotIds = map (coerce . (.id)) (filter rosterShiftIsStaffAssigned factSlots) :: [UUID.UUID]
         targetSlotIds = map (coerce . (.id)) targetSlots :: [UUID.UUID]
 
 conflictForType :: Text -> RosterConflict

@@ -17,6 +17,7 @@ import Application.Helper.View (rosterableStaffForRosterPanel)
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Application.PayAssignment (StaffPayAssignment (..),
                                   staffPayAssignmentRequiresRemediation)
+import Application.RosterShiftAssignment (rosterShiftIsStaffAssigned)
 import Data.Coerce (coerce)
 import Data.List (find, nub, sortBy)
 import qualified Data.Map.Strict as Map
@@ -49,7 +50,7 @@ fetchRosterStaffPanelEntriesForScope panelScope staffMembers allSlots = do
 
     payConfigurationRequiredIds <- fetchStaffPayConfigurationRequiredIds panelStaff
     let membershipsByUserId = Map.fromList [ (membership.userId, membership) | membership <- memberships ]
-    let assignedShiftCountByStaffId = Map.fromListWith (+) [ (staffId, 1 :: Int) | slot <- allSlots, staffId <- maybeToList slot.staffId ]
+    let assignedShiftCountByStaffId = Map.fromListWith (+) [ (staffId, 1 :: Int) | slot <- filter rosterShiftIsStaffAssigned allSlots, staffId <- maybeToList slot.staffId ]
     pure (map (buildPanelEntry payConfigurationRequiredIds membershipsByUserId assignedShiftCountByStaffId) panelStaff)
     where
         buildPanelEntry payConfigurationRequiredIds membershipsByUserId assignedShiftCountByStaffId staff =
@@ -112,7 +113,7 @@ staffForPanelScope RosterStaffPanelAllVenue =
 
 fetchAssignedRosterWeekStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext) => [RosterSlot] -> IO [Staff]
 fetchAssignedRosterWeekStaff allSlots = do
-    let assignedStaffIds = nub (mapMaybe (.staffId) allSlots)
+    let assignedStaffIds = nub (mapMaybe (.staffId) (filter rosterShiftIsStaffAssigned allSlots))
     if null assignedStaffIds
         then pure []
         else
@@ -139,8 +140,9 @@ buildRosterStaffOptionStates _rosterGroupId assignmentFilters weekStartDate rost
             shiftPreferences <- fetchRosterShiftPreferencesForWindow staffIds visibleWeekdayIndexes
 
             let dayById = Map.fromList [ (coerce (get #id day), day) | day <- rosterDays ]
-            let assignedShiftCountByStaffId = Map.fromListWith (+) [ (staffId, 1 :: Int) | slot <- visibleSlots, staffId <- maybeToList slot.staffId ]
-            let assignedDayCountByStaffId = Map.fromListWith (+) [ ((slot.rosterDayId, staffId), 1 :: Int) | slot <- visibleSlots, staffId <- maybeToList slot.staffId ]
+            let staffAssignedSlots = filter rosterShiftIsStaffAssigned visibleSlots
+            let assignedShiftCountByStaffId = Map.fromListWith (+) [ (staffId, 1 :: Int) | slot <- staffAssignedSlots, staffId <- maybeToList slot.staffId ]
+            let assignedDayCountByStaffId = Map.fromListWith (+) [ ((slot.rosterDayId, staffId), 1 :: Int) | slot <- staffAssignedSlots, staffId <- maybeToList slot.staffId ]
             let approvedLeaveByStaffAndDay =
                     Set.fromList
                         [ (leaveRequest.staffId, dayDate)

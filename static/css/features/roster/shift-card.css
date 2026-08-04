@@ -22,6 +22,18 @@ article.roster-shift-card:not(.roster-shift-card-create) {
         0 0 0 1px var(--app-white-alpha-03);
 }
 
+article.roster-shift-card.is-roster-shift-open {
+    border-color: var(--app-warning-border-strong);
+    box-shadow: inset 0 0 0 1px var(--app-warning-border-soft), var(--app-shadow-sm);
+}
+
+.roster-shift-card.is-roster-shift-open .roster-shift-card-staff {
+    background: var(--app-warning-tint);
+    color: var(--app-warning-conflict-text);
+    font-weight: 900;
+    letter-spacing: 0.08em;
+}
+
 .roster-shift-card-fields {
     display: grid;
     grid-template-columns: minmax(5.75rem, 0.9fr) minmax(6.5rem, 1.35fr) minmax(5.75rem, auto);

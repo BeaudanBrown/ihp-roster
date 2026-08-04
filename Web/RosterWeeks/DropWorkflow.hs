@@ -23,8 +23,10 @@ module Web.RosterWeeks.DropWorkflow
 
 import Application.Helper.RosterGroups (staffIsEligibleForRosterGroup)
 import Application.Helper.TimeRules
+import Application.RosterShiftAssignment (rosterShiftAssignment)
 import Application.VenueTime.Model
 import Control.Monad (guard)
+import Data.Either (isRight)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Time.Calendar as Calendar
@@ -268,13 +270,13 @@ validateRosterShiftDropTarget rosterGroupId weekOffset allowSemanticDayNoOp sour
                     maybeResolvedTarget <- resolveRosterShiftDropPlacement targetRosterWeek targetRosterDay dropTarget
                     let sourceMatchesScope = sourceRosterWeek.rosterGroupId == unpackId rosterGroupId && sourceRosterWeek.weekOffset == weekOffset
                     let targetMatchesScope = targetRosterWeek.rosterGroupId == unpackId rosterGroupId && targetRosterWeek.weekOffset == weekOffset
-                    let sourceIsStaffed = isJust sourceSlot.staffId
+                    let sourceHasValidAssignment = isRight (rosterShiftAssignment sourceSlot)
                     let targetIsOpen = not targetRosterDay.isClosed
                     let semanticSameDayNoOp = allowSemanticDayNoOp && isDayDropTarget dropTarget && sourceSlot.rosterDayId == unpackId targetRosterDay.id
                     pure do
                         guard sourceMatchesScope
                         guard targetMatchesScope
-                        guard sourceIsStaffed
+                        guard sourceHasValidAssignment
                         guard targetIsOpen
                         case (semanticSameDayNoOp, maybeResolvedTarget) of
                             (True, Just (targetSlotDefinition, _)) ->
@@ -316,7 +318,7 @@ validateRosterTimelineShiftDropTarget rosterGroupId weekOffset sourceSlotId targ
                         guard (not sourceRosterWeek.isLive)
                         guard (not targetRosterWeek.isLive)
                         guard (not targetRosterDay.isClosed)
-                        guard (isJust sourceSlot.staffId)
+                        guard (isRight (rosterShiftAssignment sourceSlot))
                         guard targetDefinitionMatchesWeek
                         guard (isNothing targetSlotDefinition.deletedAt)
                         guard validTargetStart
