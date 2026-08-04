@@ -15,9 +15,18 @@
 - `Web/RosterWeeks/Paths.hs` - canonical route/query helpers.
 - `Web/RosterWeeks/Dom.hs` - stable DOM ids/selectors.
 - `Web/RosterWeeks/Service.hs` - roster workflow/domain service helpers.
+- `Web/RosterWeeks/TemplateApplication.hs` - authoritative Day/Week template preview, Melbourne boundary resolution, stale-assignment cleanup, locking, and atomic draft-week replacement.
 - `Web/RosterWeeks/DropWorkflow.hs` - typed opaque drop-token parsing, venue/group/week resolution, sparse placement, no-op/delete decisions, and Melbourne repeated-time boundary preparation for move, duplicate, timeline, and staff drops.
 - `Web/RosterWeeks/ShiftWorkflow.hs` - shift-dialog create/edit context, render-data preparation, submitted field/DST validation, and authoritative slot application.
 - `Web/View/RosterWeeks/` - HSX rendering.
+
+## Template Application Contract
+
+Template application targets one explicitly scoped, non-live roster-group week. Day templates replace one day while matching columns case-insensitively by name, adding missing columns, and preserving unrelated columns and days. Week templates replace all seven day states/rows, columns/order, and shifts.
+
+Preview returns authoritative target/version data, resolved shift instants, destructive and Timesheet warnings, assignment-cleanup reasons, and typed touched resources. Confirmation locks the template, target week, Shift types, and Staff rows; revalidates the preview version and current references; and performs all source-template cleanup and target replacement in one transaction. Replaced roster shifts are soft-deleted, so materialized Timesheet snapshots retain their source and values.
+
+Template local minutes resolve on the target operational date under current `Australia/Melbourne` rules. Nonexistent spring clocks fail; repeated autumn endpoints require explicit first/second choices and are never guessed.
 
 ## Row-Grid Rendering Contract
 
