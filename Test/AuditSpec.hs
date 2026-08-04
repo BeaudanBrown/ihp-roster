@@ -7,6 +7,8 @@ import IHP.Test.Mocking (withContext)
 import Test.Hspec
 
 import Application.Helper.Audit
+import Application.Helper.ControllerContext (ImpersonationRequestContext (..))
+import Application.Helper.Impersonation
 import Test.Support
 
 tests :: Spec
@@ -110,6 +112,34 @@ tests = aroundAll withDatabaseTestContext do
                         , "requestContext" Aeson..= Aeson.object
                             ["accessMode" Aeson..= ("support" :: Text)]
                         ]
+
+        it "persists actual actor and effective impersonation provenance on mutations" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Impersonation Mutation Audit Venue"
+                superAdmin <- createUserRecordWithPlatformRole "impersonation-mutation-audit@example.com" "staff" (Just SuperAdmin) True
+                targetUser <- createUserRecord "impersonation-mutation-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue targetUser Manager
+
+                mutationEvent <- withUserAndCurrentVenue superAdmin venue.id do
+                    withCurrentControllerContext do
+                        Just impersonationContext <- enterCurrentVenueImpersonation targetUser.id
+                        event <- recordCurrentUserAuditEvent
+                            ExportGeneratedAudit
+                            "export_jobs"
+                            (unpackId targetUser.id)
+                            (Aeson.object ["format" Aeson..= ("csv" :: Text)])
+                        event.payload `shouldBe`
+                            Aeson.object
+                                [ "format" Aeson..= ("csv" :: Text)
+                                , "requestContext" Aeson..= Aeson.object
+                                    [ "accessMode" Aeson..= ("impersonation" :: Text)
+                                    , "effectiveUserId" Aeson..= targetUser.id
+                                    , "impersonationSessionId" Aeson..= impersonationContext.impersonationSessionId
+                                    ]
+                                ]
+                        pure event
+
+                mutationEvent.actorUserId `shouldBe` unpackId superAdmin.id
 
         it "leaves ordinary venue-member audit payloads unchanged" $ withContext do
             withCleanDb do
