@@ -154,7 +154,7 @@ currentSupportVenueOptions = fromMaybe [] currentSupportVenueOptionsOrNothing
 currentSupportImpersonationOptions :: (?context :: ControllerContext) => [SupportImpersonationOption]
 currentSupportImpersonationOptions =
     case unsafePerformIO (maybeFromContext @SupportImpersonationOptions) of
-        Nothing                                      -> []
+        Nothing                                        -> []
         Just (SupportImpersonationOptions userOptions) -> userOptions
 {-# NOINLINE currentSupportImpersonationOptions #-}
 

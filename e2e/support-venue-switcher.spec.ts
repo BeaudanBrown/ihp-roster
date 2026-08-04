@@ -23,7 +23,36 @@ async function loginAsManager(page: import('@playwright/test').Page) {
     await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
 }
 
-test.describe('Super-admin venue switcher', () => {
+test.describe('Super-admin venue and user switchers', () => {
+    test('impersonates and immediately exits from the desktop header without exposing emails', async ({ page }) => {
+        await loginAsSuperAdmin(page);
+        await openRoster(page, {
+            email: 'e2e-super-admin@example.com',
+            password: 'test-password-123',
+            ensureEditable: false,
+            useCurrentSession: true,
+        });
+
+        const userSwitcher = page.locator('#support-impersonation-user');
+        await expect(userSwitcher).toBeVisible();
+        await expect(userSwitcher).toContainText('Super admin');
+        await expect(userSwitcher).toContainText('Alpha — Worker');
+        await expect(userSwitcher).not.toContainText('@');
+
+        await userSwitcher.selectOption({ label: 'Alpha — Worker' });
+        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('#roster-week-shell')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('#support-impersonation-user option:checked')).toHaveText('Alpha — Worker');
+        await expect(page.getByRole('link', { name: 'support', exact: true })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'admin', exact: true })).toHaveCount(0);
+
+        await page.locator('#support-impersonation-user').selectOption({ label: 'Super admin' });
+        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('#roster-week-shell')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('#support-impersonation-user option:checked')).toHaveText('Super admin');
+        await expect(page.getByRole('link', { name: 'support', exact: true })).toBeVisible();
+    });
+
     test('shows a venue switcher in the header and switches active venue', async ({ page }) => {
         await loginAsSuperAdmin(page);
 
@@ -52,6 +81,9 @@ test.describe('Super-admin venue switcher', () => {
             useCurrentSession: true,
         });
 
+        await page.selectOption('#support-impersonation-user', { label: 'Alpha — Worker' });
+        await expect(page.locator('#support-impersonation-user option:checked')).toHaveText('Alpha — Worker');
+
         await page.selectOption('#support-venue-switch', { label: 'e2e-beta-venue' });
 
         await expect(page).toHaveURL(
@@ -63,6 +95,7 @@ test.describe('Super-admin venue switcher', () => {
         );
         await expect(page.locator('#roster-week-shell')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#support-venue-switch option:checked')).toHaveText('e2e-beta-venue');
+        await expect(page.locator('#support-impersonation-user option:checked')).toHaveText('Super admin');
         await expect(page.locator('body')).not.toContainText(/FORBIDDEN/i);
     });
 
@@ -70,5 +103,6 @@ test.describe('Super-admin venue switcher', () => {
         await loginAsManager(page);
 
         await expect(page.locator('#support-venue-switch')).toHaveCount(0);
+        await expect(page.locator('#support-impersonation-user')).toHaveCount(0);
     });
 });

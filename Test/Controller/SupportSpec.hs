@@ -332,6 +332,15 @@ tests = aroundAll withDatabaseTestContext do
                     getSession @(Id User) effectiveUserSessionKey `shouldReturn` Nothing
                     getSession @Text impersonationSessionIdSessionKey `shouldReturn` Nothing
 
+                    unsafeReturnResponse <- callActionWithParams
+                        SwitchSupportImpersonationAction
+                        [ ("userId", cs (inputValue targetUser.id))
+                        , ("next", "https://evil.example/steal")
+                        ]
+                    unsafeReturnResponse `responseStatusShouldBe` status302
+                    lookup HTTP.hLocation (Wai.responseHeaders unsafeReturnResponse)
+                        `shouldBe` Just "http://localhost/RosterWeeks"
+
         it "requires a fresh passkey verification before entering impersonation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Impersonation Passkey Venue"
@@ -340,13 +349,21 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue targetUser Worker
                 ensureTestUserHasPasskey superAdmin
 
-                response <- withUserAndCurrentVenue superAdmin venue.id do
-                    callActionWithParams
+                (entryResponse, selectorResponse) <- withUserAndCurrentVenue superAdmin venue.id do
+                    entryResponse <- callActionWithParams
                         StartSupportImpersonationAction
                         [("userId", cs (inputValue targetUser.id))]
+                    selectorResponse <- callActionWithParams
+                        SwitchSupportImpersonationAction
+                        [ ("userId", cs (inputValue targetUser.id))
+                        , ("next", "/RosterWeeks")
+                        ]
+                    pure (entryResponse, selectorResponse)
 
-                response `responseStatusShouldBe` status302
-                lookup HTTP.hLocation (Wai.responseHeaders response) `shouldBe` Just "http://localhost/PasskeyStepUp"
+                entryResponse `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (Wai.responseHeaders entryResponse) `shouldBe` Just "http://localhost/PasskeyStepUp"
+                selectorResponse `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (Wai.responseHeaders selectorResponse) `shouldBe` Just "http://localhost/PasskeyStepUp"
 
         it "denies ordinary users and cross-venue targets without creating session state" $ withContext do
             withCleanDb do

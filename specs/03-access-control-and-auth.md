@@ -77,9 +77,16 @@ The product must not rely on global in-app business roles without venue boundari
   self-service ownership, profile/forms, live-surface scope checks, and private
   user preferences use effective identity. Worker, supervisor, manager, admin,
   and owner boundaries therefore behave as the selected user, including direct
-  HTTP requests. The Support route, tab, venue switcher, and manual-exit action
-  remain available from the actual founder authority; #326 owns the selector and
-  visible impersonation controls.
+  HTTP requests. The Support route, tab, venue switcher, and impersonation
+  selector remain available from the actual founder authority.
+- Desktop and mobile headers render a second support-only selector beside the
+  venue selector. `Super admin` exits immediately; current-venue options include
+  active users with active memberships and show preferred/first name plus role,
+  never email. Duplicate displayed first names append the last-name initial.
+  Selection is a full-page POST that requires fresh passkey verification for
+  entry, accepts only same-origin return paths, and leaves normal route guards to
+  authorize the returned page. The selected option is the only impersonation
+  indicator; no badge or banner is rendered.
 - Business actor/requester/approver/deleter/uploader columns continue to use the
   actual founder. Current-request audit and domain-event payloads add
   `accessMode = "impersonation"`, the effective user id, and impersonation

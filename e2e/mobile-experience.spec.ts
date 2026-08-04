@@ -18,6 +18,43 @@ import {
 test.use({ baseURL: webauthnBaseURL });
 
 test.describe('Mobile experience smoke', () => {
+    test('support impersonation selector works in collapsed navigation without horizontal overflow', async ({ page }) => {
+        await loginAsPrivilegedUserWithSeededPasskeySession(
+            page,
+            'e2e-super-admin@example.com',
+            'test-password-123',
+        );
+        await openRoster(page, {
+            email: 'e2e-super-admin@example.com',
+            password: 'test-password-123',
+            ensureEditable: false,
+            useCurrentSession: true,
+        });
+
+        await openAuthenticatedNavIfCollapsed(page);
+        const userSwitcher = page.locator('#support-impersonation-user-mobile');
+        await expect(userSwitcher).toBeVisible();
+        await expect(userSwitcher).toContainText('Super admin');
+        await expect(userSwitcher).toContainText('Alpha — Worker');
+        await expect(userSwitcher).not.toContainText('@');
+        await expectNoHorizontalViewportOverflow(page);
+
+        await userSwitcher.selectOption({ label: 'Alpha — Worker' });
+        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('#roster-week-shell')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
+        await openAuthenticatedNavIfCollapsed(page);
+        await expect(page.locator('#support-impersonation-user-mobile option:checked')).toHaveText('Alpha — Worker');
+        await expect(page.getByRole('link', { name: 'Support', exact: true })).toBeVisible();
+        await expectNoHorizontalViewportOverflow(page);
+
+        await page.locator('#support-impersonation-user-mobile').selectOption({ label: 'Super admin' });
+        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('#roster-week-shell')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
+        await openAuthenticatedNavIfCollapsed(page);
+        await expect(page.locator('#support-impersonation-user-mobile option:checked')).toHaveText('Super admin');
+        await expectNoHorizontalViewportOverflow(page);
+    });
+
     test('venue admin navigation remains usable when the header collapses', async ({ page }) => {
         await loginAsPrivilegedUserWithSeededPasskeySession(page);
 
