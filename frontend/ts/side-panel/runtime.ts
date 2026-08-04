@@ -226,6 +226,41 @@ function rootsWithin(root: Document | DocumentFragment | Element): ElementLike[]
     return roots;
 }
 
+type SidePanelEventSource = {
+    activeElement: unknown;
+    addEventListener: (name: string, listener: (event: Event) => void) => void;
+};
+
+type SidePanelLifecycleEvent = Event & {
+    key?: string;
+    detail?: { target?: unknown };
+};
+
+export function installSidePanelEventListeners(
+    source: SidePanelEventSource,
+    controller: SidePanelController,
+    reconcileWithin: (root: Document | DocumentFragment | Element) => void,
+): void {
+    source.addEventListener("click", (event) => {
+        if (isSurfaceElementLike(event.target)) controller.toggle(event.target as unknown as Element);
+    });
+    source.addEventListener("keydown", (event) => {
+        if ((event as SidePanelLifecycleEvent).key !== "Escape" || !isSurfaceElementLike(source.activeElement)) return;
+        const focused = expandedSidePanelRootForEscape(source.activeElement as unknown as Element);
+        if (focused) controller.collapse(focused);
+    });
+    source.addEventListener("htmx:afterSwap", (event) => {
+        const target = (event as SidePanelLifecycleEvent).detail?.target;
+        if (target && typeof (target as { querySelectorAll?: unknown }).querySelectorAll === "function") {
+            reconcileWithin(target as Document | DocumentFragment | Element);
+        }
+    });
+    source.addEventListener("htmx:beforeCleanupElement", (event) => {
+        const target = (event as SidePanelLifecycleEvent).detail?.target;
+        if (isSurfaceElementLike(target)) controller.dispose(target as unknown as Element);
+    });
+}
+
 let browserRuntimeEnabled = false;
 
 export function enableSidePanels(): void {
@@ -234,21 +269,7 @@ export function enableSidePanels(): void {
     const controller = createSidePanelController();
     const reconcileWithin = (root: Document | DocumentFragment | Element) => rootsWithin(root).forEach((panelRoot) => controller.reconcile(panelRoot as unknown as Element));
 
-    document.addEventListener("click", (event) => {
-        if (event.target instanceof Element) controller.toggle(event.target);
-    });
-    document.addEventListener("keydown", (event) => {
-        if (event.key !== "Escape") return;
-        const focused = document.activeElement instanceof Element
-            ? expandedSidePanelRootForEscape(document.activeElement)
-            : null;
-        if (focused) controller.collapse(focused);
-    });
+    installSidePanelEventListeners(document, controller, reconcileWithin);
     onAppPageReady((event) => reconcileWithin(detailRoot(event, "target")));
-    document.addEventListener("htmx:afterSwap", (event) => reconcileWithin(detailRoot(event, "target")));
-    document.addEventListener("htmx:beforeCleanupElement", (event) => {
-        const root = detailRoot(event, "target");
-        if (root instanceof Element) controller.dispose(root);
-    });
     if (document.readyState !== "loading") reconcileWithin(document);
 }

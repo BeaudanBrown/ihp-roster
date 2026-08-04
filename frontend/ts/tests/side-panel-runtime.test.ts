@@ -11,6 +11,7 @@ import {
 import {
     createSidePanelController,
     expandedSidePanelRootForEscape,
+    installSidePanelEventListeners,
     type SidePanelDiagnostic,
 } from "../side-panel/runtime";
 import { assertDeepEqual, assertEqual, test } from "./harness";
@@ -76,6 +77,19 @@ class MiniElement {
     focus(): void { this.focusCount += 1; }
 }
 
+class MiniEventSource {
+    activeElement: unknown = null;
+    private readonly listeners = new Map<string, Array<(event: Event) => void>>();
+
+    addEventListener(name: string, listener: (event: Event) => void): void {
+        this.listeners.set(name, [...(this.listeners.get(name) ?? []), listener]);
+    }
+
+    emit(name: string, event: object): void {
+        this.listeners.get(name)?.forEach((listener) => listener(event as Event));
+    }
+}
+
 function sidePanelMount(id: string) {
     const mount = new MiniElement({ [surfaceDomAttr]: "roster" }, `${id}-mount`);
     const root = mount.append(new MiniElement({
@@ -116,6 +130,25 @@ test("side panels toggle only the nearest generated root, including nested mount
     assertEqual(expandedSidePanelRootForEscape(new MiniElement() as unknown as Element), null);
 });
 
+test("multiple sibling side-panel mounts keep state, controls, icons, and focus independent", () => {
+    const first = sidePanelMount("first");
+    const second = sidePanelMount("second");
+    const controller = createSidePanelController();
+
+    controller.reconcile(first.root as unknown as Element);
+    controller.reconcile(second.root as unknown as Element);
+    assertEqual(controller.toggle(first.icon as unknown as Element), true);
+
+    assertEqual(first.root.getAttribute(rosterSidePanelDomAttr), rosterSidePanelStates.expanded);
+    assertEqual(second.root.getAttribute(rosterSidePanelDomAttr), rosterSidePanelStates.collapsed);
+    assertEqual(first.toggle.getAttribute("aria-pressed"), "true");
+    assertEqual(second.toggle.getAttribute("aria-pressed"), "false");
+    assertEqual(first.icon.classList.contains("bi-fullscreen-exit"), true);
+    assertEqual(second.icon.classList.contains("bi-fullscreen"), true);
+    assertEqual(first.toggle.focusCount, 1);
+    assertEqual(second.toggle.focusCount, 0);
+});
+
 test("side-panel reconciliation restores replacement controls and rejects malformed boundaries", () => {
     const fixture = sidePanelMount("replacement");
     const diagnostics: SidePanelDiagnostic[] = [];
@@ -135,6 +168,27 @@ test("side-panel reconciliation restores replacement controls and rejects malfor
     fixture.root.setAttribute(rosterSidePanelDomAttr, "unknown");
     assertEqual(controller.reconcile(fixture.root as unknown as Element), false);
     assertDeepEqual(diagnostics.map((diagnostic) => diagnostic.code), ["invalid-state"]);
+});
+
+test("HTMX lifecycle listeners reconcile replacements and dispose removed roots", () => {
+    const fixture = sidePanelMount("lifecycle");
+    const controller = createSidePanelController();
+    const source = new MiniEventSource();
+    installSidePanelEventListeners(source, controller, (root) => controller.reconcile(root as unknown as Element));
+    controller.toggle(fixture.toggle as unknown as Element);
+
+    const replacementToggle = new MiniElement({ [rosterSidePanelToggleDomAttr]: "true" }, "lifecycle-toggle");
+    const replacementIcon = replacementToggle.append(new MiniElement({}, "lifecycle-icon", ["bi", "bi-fullscreen"]));
+    const replacementLabel = replacementToggle.append(new MiniElement({ [rosterSidePanelLabelDomAttr]: "true" }, "lifecycle-label"));
+    fixture.main.replaceChildren(replacementToggle);
+    source.emit("htmx:afterSwap", { detail: { target: fixture.root } });
+
+    assertEqual(replacementToggle.getAttribute("aria-pressed"), "true");
+    assertEqual(replacementLabel.textContent, "Show side panel");
+    assertEqual(replacementIcon.classList.contains("bi-fullscreen-exit"), true);
+
+    source.emit("htmx:beforeCleanupElement", { detail: { target: fixture.root } });
+    assertEqual(fixture.root.getAttribute(rosterSidePanelDomAttr), rosterSidePanelStates.collapsed);
 });
 
 test("disposing a side-panel cleanup subtree restores transient visibility", () => {
