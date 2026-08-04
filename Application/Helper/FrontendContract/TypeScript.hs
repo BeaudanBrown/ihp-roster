@@ -452,6 +452,7 @@ renderFrontendSurfaceRegistries surfaces =
         <> renderFrontendSurfaceLinkedHighlightContracts surfaces
         <> renderFrontendSurfaceCompleteSetSortContracts surfaces
         <> renderFrontendSurfaceTabSetContracts surfaces
+        <> renderFrontendSurfaceSidePanelContracts surfaces
         <> [ "export const FrontendSurfaceFragmentRegistry = " <> objectLiteral fragmentEntries <> " as const;"
            , "export function isFrontendSurfaceName(value: unknown): value is FrontendSurfaceName {"
            , "    return typeof value === \"string\" && Object.prototype.hasOwnProperty.call(FrontendSurfaceFragmentRegistry, value);"
@@ -501,6 +502,32 @@ renderTabSet surface tabSet = objectLiteral
     , ("keys", arrayLiteral (map quote tabSet.tabSetKeys))
     , ("defaultKey", quote tabSet.tabSetDefaultKey)
     , ("isKey", "is" <> tabSetKeyTypeName tabSet)
+    ]
+
+renderFrontendSurfaceSidePanelContracts :: [SurfaceIR] -> [Text]
+renderFrontendSurfaceSidePanelContracts surfaces =
+    [ "export type FrontendSurfaceSidePanelDefinition = { name: string; rootRoleAttribute: string; mainRoleAttribute: string; panelRoleAttribute: string; toggleRoleAttribute: string; labelRoleAttribute: string; stateAttribute: string; collapsedValue: string; expandedValue: string; isState: (value: unknown) => boolean };"
+    , "export const FrontendSurfaceSidePanelRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceSidePanelDefinition>> = " <> objectLiteral entries <> ";"
+    , ""
+    ]
+  where
+    entries =
+        [ (surface.surfaceName, arrayLiteral (map (renderSidePanel surface) surface.surfaceSidePanels))
+        | surface <- surfaces
+        ]
+
+renderSidePanel :: SurfaceIR -> SidePanelIR -> Text
+renderSidePanel surface sidePanel = objectLiteral
+    [ ("name", quote sidePanel.sidePanelName)
+    , ("rootRoleAttribute", surfaceBrowserAttributeConstName surface sidePanel.sidePanelRootRole)
+    , ("mainRoleAttribute", surfaceBrowserAttributeConstName surface sidePanel.sidePanelMainRole)
+    , ("panelRoleAttribute", surfaceBrowserAttributeConstName surface sidePanel.sidePanelPanelRole)
+    , ("toggleRoleAttribute", surfaceBrowserAttributeConstName surface sidePanel.sidePanelToggleRole)
+    , ("labelRoleAttribute", surfaceBrowserAttributeConstName surface sidePanel.sidePanelLabelRole)
+    , ("stateAttribute", surfaceBrowserAttributeConstName surface sidePanel.sidePanelState.browserClosedStateAttribute)
+    , ("collapsedValue", quote sidePanel.sidePanelCollapsedValue)
+    , ("expandedValue", quote sidePanel.sidePanelExpandedValue)
+    , ("isState", "is" <> surfaceBrowserClosedStateTypeName surface sidePanel.sidePanelState)
     ]
 
 renderFrontendSurfaceCompleteSetSortKeyTypes :: SurfaceIR -> [Text]

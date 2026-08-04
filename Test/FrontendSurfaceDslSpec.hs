@@ -29,6 +29,7 @@ import Application.Helper.FrontendContract.Surface.Roster.Chrome
 import Application.Helper.FrontendContract.Surface.Roster.ImageExport
 import Application.Helper.FrontendContract.Surface.Roster.WeekOverview
 import Application.Helper.FrontendContract.Surface.Runtime
+import Application.Helper.FrontendContract.Surface.SidePanel
 import Application.Helper.FrontendContract.Surface.TabSet (surfaceTabSetAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as TimesheetsSurface
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Resource as TimesheetsResource
@@ -99,6 +100,15 @@ data BrowserFixtureTabs
 data BrowserFixtureTabRole
 data StaffTabKey
 data SettingsTabKey
+data BrowserFixtureSidePanel
+data BrowserFixtureSidePanelRootRole
+data BrowserFixtureSidePanelMainRole
+data BrowserFixtureSidePanelPanelRole
+data BrowserFixtureSidePanelToggleRole
+data BrowserFixtureSidePanelLabelRole
+data BrowserFixtureSidePanelState
+data Collapsed
+data Expanded
 data StaffShiftsHighlight
 data StaffHighlightSourceRole
 data StaffHighlightMemberRole
@@ -155,6 +165,13 @@ type BrowserFixtureSurface =
             'SortAscending
          , BrowserRole BrowserFixtureTabRole
          , TabSet BrowserFixtureTabs BrowserFixtureTabRole '[ StaffTabKey, SettingsTabKey ] StaffTabKey
+         , BrowserRole BrowserFixtureSidePanelRootRole
+         , BrowserRole BrowserFixtureSidePanelMainRole
+         , BrowserRole BrowserFixtureSidePanelPanelRole
+         , BrowserRole BrowserFixtureSidePanelToggleRole
+         , BrowserRole BrowserFixtureSidePanelLabelRole
+         , BrowserClosedState BrowserFixtureSidePanelState '[ Collapsed, Expanded ]
+         , SidePanel BrowserFixtureSidePanel BrowserFixtureSidePanelRootRole BrowserFixtureSidePanelMainRole BrowserFixtureSidePanelPanelRole BrowserFixtureSidePanelToggleRole BrowserFixtureSidePanelLabelRole BrowserFixtureSidePanelState Collapsed Expanded
          , BrowserRole StaffHighlightSourceRole
          , BrowserRole StaffHighlightMemberRole
          , BrowserRole StaffHighlightPinRole
@@ -320,17 +337,26 @@ tests = describe "FrontendSurface DSL foundation" do
                        , ("browser-fixture-sort-row", "data-bepis-browser-fixture-browser-fixture-sort-row")
                        , ("browser-fixture-sort-control", "data-bepis-browser-fixture-browser-fixture-sort-control")
                        , ("browser-fixture-tab", "data-bepis-browser-fixture-browser-fixture-tab")
+                       , ("browser-fixture-side-panel-root", "data-bepis-browser-fixture-browser-fixture-side-panel-root")
+                       , ("browser-fixture-side-panel-main", "data-bepis-browser-fixture-browser-fixture-side-panel-main")
+                       , ("browser-fixture-side-panel-panel", "data-bepis-browser-fixture-browser-fixture-side-panel-panel")
+                       , ("browser-fixture-side-panel-toggle", "data-bepis-browser-fixture-browser-fixture-side-panel-toggle")
+                       , ("browser-fixture-side-panel-label", "data-bepis-browser-fixture-browser-fixture-side-panel-label")
                        , ("staff-highlight-source", "data-bepis-browser-fixture-staff-highlight-source")
                        , ("staff-highlight-member", "data-bepis-browser-fixture-staff-highlight-member")
                        , ("staff-highlight-pin", "data-bepis-browser-fixture-staff-highlight-pin")
                        ]
         map (\state -> (state.browserAttributeName, state.browserAttributeDomAttribute)) surface.surfaceBrowserStates
             `shouldBe`
-                [ ("staff-highlight-order", "data-bepis-browser-fixture-staff-highlight-order")
+                [ ("browser-fixture-side-panel", "data-bepis-browser-fixture-browser-fixture-side-panel")
+                , ("staff-highlight-order", "data-bepis-browser-fixture-staff-highlight-order")
                 , ("browser-fixture-mode", "data-bepis-browser-fixture-browser-fixture-mode")
                 ]
         map (\state -> (state.browserClosedStateAttribute.browserAttributeName, state.browserClosedStateValues)) surface.surfaceBrowserClosedStates
-            `shouldBe` [("browser-fixture-mode", ["calm", "busy"])]
+            `shouldBe`
+                [ ("browser-fixture-side-panel", ["collapsed", "expanded"])
+                , ("browser-fixture-mode", ["calm", "busy"])
+                ]
         let highlight = surfaceLinkedHighlightValue @BrowserFixtureSurface @StaffShiftsHighlight
         highlight.linkedHighlightName `shouldBe` "staff-shifts-highlight"
         highlight.linkedHighlightSourceRole.browserAttributeDomAttribute
@@ -448,6 +474,31 @@ tests = describe "FrontendSurface DSL foundation" do
         browserFixtureTypeScript `shouldContainText` "export const FrontendSurfaceTabSetRegistry"
         browserFixtureTypeScript `shouldContainText` "\"tabRoleAttribute\":browserFixtureBrowserFixtureTabDomAttr"
         browserFixtureTypeScript `shouldContainText` "\"keys\":[\"staff\",\"settings\"],\"defaultKey\":\"staff\""
+
+    it "reflects and renders reusable side-panel mechanics" do
+        let surface = reflectSurfaceSpec @BrowserFixtureSurface
+        let sidePanel = fromMaybe (error "missing fixture side panel") (listToMaybe surface.surfaceSidePanels)
+        sidePanel.sidePanelName `shouldBe` "browser-fixture-side-panel"
+        sidePanel.sidePanelCollapsedValue `shouldBe` "collapsed"
+        sidePanel.sidePanelExpandedValue `shouldBe` "expanded"
+        browserFixtureTypeScript `shouldContainText` "export const FrontendSurfaceSidePanelRegistry"
+        browserFixtureTypeScript `shouldContainText` "\"rootRoleAttribute\":browserFixtureBrowserFixtureSidePanelRootDomAttr"
+        browserFixtureTypeScript `shouldContainText` "\"mainRoleAttribute\":browserFixtureBrowserFixtureSidePanelMainDomAttr"
+        browserFixtureTypeScript `shouldContainText` "\"panelRoleAttribute\":browserFixtureBrowserFixtureSidePanelPanelDomAttr"
+        browserFixtureTypeScript `shouldContainText` "\"collapsedValue\":\"collapsed\",\"expandedValue\":\"expanded\""
+        surfaceSidePanelRootAttrs @BrowserFixtureSurface @BrowserFixtureSidePanel
+            `shouldBe`
+                [ ("data-bepis-browser-fixture-browser-fixture-side-panel-root", "true")
+                , ("data-bepis-browser-fixture-browser-fixture-side-panel", "collapsed")
+                ]
+        surfaceSidePanelMainAttrs @BrowserFixtureSurface @BrowserFixtureSidePanel
+            `shouldBe` [("data-bepis-browser-fixture-browser-fixture-side-panel-main", "true")]
+        surfaceSidePanelPanelAttrs @BrowserFixtureSurface @BrowserFixtureSidePanel
+            `shouldBe` [("data-bepis-browser-fixture-browser-fixture-side-panel-panel", "true")]
+        surfaceSidePanelToggleAttrs @BrowserFixtureSurface @BrowserFixtureSidePanel
+            `shouldBe` [("data-bepis-browser-fixture-browser-fixture-side-panel-toggle", "true")]
+        surfaceSidePanelLabelAttrs @BrowserFixtureSurface @BrowserFixtureSidePanel
+            `shouldBe` [("data-bepis-browser-fixture-browser-fixture-side-panel-label", "true")]
 
     it "rejects malformed complete-set sort and tab semantics before TypeScript rendering" do
         let surface = reflectSurfaceSpec @BrowserFixtureSurface
@@ -1041,6 +1092,11 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "data-bepis-roster-staff-panel-sort-row"
                        , "data-bepis-roster-staff-panel-sort-control"
                        , "data-bepis-roster-staff-panel-tab"
+                       , "data-bepis-roster-side-panel-root"
+                       , "data-bepis-roster-side-panel-main"
+                       , "data-bepis-roster-side-panel-panel"
+                       , "data-bepis-roster-side-panel-toggle"
+                       , "data-bepis-roster-side-panel-label"
                        , "data-bepis-roster-fullscreen-root"
                        , "data-bepis-roster-fullscreen-toggle"
                        , "data-bepis-roster-fullscreen-label"
@@ -1072,7 +1128,8 @@ tests = describe "FrontendSurface DSL foundation" do
                        ]
         map (.browserAttributeDomAttribute) surface.surfaceBrowserStates
             `shouldBe`
-                [ "data-bepis-roster-fullscreen"
+                [ "data-bepis-roster-side-panel"
+                , "data-bepis-roster-fullscreen"
                 , "data-bepis-roster-column-editing"
                 , "data-bepis-roster-image-export-format"
                 , "data-bepis-roster-week-overview-availability"
@@ -1082,7 +1139,8 @@ tests = describe "FrontendSurface DSL foundation" do
                 ]
         map (\state -> (state.browserClosedStateAttribute.browserAttributeName, state.browserClosedStateValues)) surface.surfaceBrowserClosedStates
             `shouldBe`
-                [ ("fullscreen", ["collapsed", "expanded"])
+                [ ("side-panel", ["collapsed", "expanded"])
+                , ("fullscreen", ["collapsed", "expanded"])
                 , ("column-editing", ["inactive", "active"])
                 , ("image-export-format", ["jpg"])
                 , ("week-overview-availability", ["loaded", "unloaded"])
@@ -1105,6 +1163,7 @@ tests = describe "FrontendSurface DSL foundation" do
         map (.tabSetName) surface.surfaceTabSets `shouldBe` ["roster-staff-panel-tabs"]
         map (.tabSetKeys) surface.surfaceTabSets `shouldBe` [["staff", "templates", "settings"]]
         map (.tabSetDefaultKey) surface.surfaceTabSets `shouldBe` ["staff"]
+        map (.sidePanelName) surface.surfaceSidePanels `shouldBe` ["roster-side-panel"]
         map (map linkedHighlightActivationName . (.linkedHighlightActivations)) surface.surfaceLinkedHighlights
             `shouldBe` [ ["hover", "focus", "keyboard", "pin"]
                        , ["hover", "focus", "keyboard"]

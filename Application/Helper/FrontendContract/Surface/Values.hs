@@ -36,6 +36,7 @@ module Application.Helper.FrontendContract.Surface.Values
     , SurfaceCompleteSetSortRowDto
     , SurfaceCompleteSetSortRowFieldSpecs
     , SurfaceLinkedHighlightPrimitive
+    , SurfaceSidePanelPrimitive
     , SurfaceTabSetPrimitive
     , SurfaceFieldBundle
     , SurfaceFieldBundleOf
@@ -85,6 +86,7 @@ module Application.Helper.FrontendContract.Surface.Values
     , surfaceBrowserClosedStateLiteral
     , surfaceCompleteSetSortValue
     , surfaceLinkedHighlightValue
+    , surfaceSidePanelValue
     , surfaceTabSetValue
     , surfaceDomTokenValue
     , surfaceDropzoneRefValue
@@ -630,6 +632,7 @@ type SurfaceLinkedHighlightPrimitive spec marker = FindSurfaceLinkedHighlight sp
 type SurfaceDomTokenPrimitive spec marker = FindSurfaceDomToken spec marker (SurfacePrimitives spec)
 type SurfaceDtoPrimitive spec marker = FindSurfaceDto spec marker (SurfacePrimitives spec)
 type SurfaceTabSetPrimitive spec marker = FindSurfaceTabSet spec marker (SurfacePrimitives spec)
+type SurfaceSidePanelPrimitive spec marker = FindSurfaceSidePanel spec marker (SurfacePrimitives spec)
 type SurfaceSourceRefPrimitive spec marker = FindSurfaceSourceRef spec marker (SurfacePrimitives spec)
 type SurfaceDropzoneRefPrimitive spec marker = FindSurfaceDropzoneRef spec marker (SurfacePrimitives spec)
 type SurfaceResourceSpec spec marker = RequireSurfaceResource spec marker (FindSurfaceResource marker (SurfacePrimitives spec))
@@ -789,6 +792,11 @@ type family FindSurfaceTabSet (spec :: SurfaceSpec) (marker :: Type) (primitives
 
 type family RequireSurfaceTabKey (primitive :: SurfacePrimitive) (key :: Type) :: Constraint where
     RequireSurfaceTabKey ('TabSet marker roleMarker keys defaultKey) key = RequireTabKey marker key keys
+
+type family FindSurfaceSidePanel (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
+    FindSurfaceSidePanel spec marker (('SidePanel marker rootRole mainRole panelRole toggleRole labelRole state collapsed expanded) ': rest) = 'SidePanel marker rootRole mainRole panelRole toggleRole labelRole state collapsed expanded
+    FindSurfaceSidePanel spec marker (primitive ': rest) = FindSurfaceSidePanel spec marker rest
+    FindSurfaceSidePanel spec marker '[] = SurfaceOwnershipError spec "side panel" marker
 
 type family RequireTabKey (tabSetMarker :: Type) (key :: Type) (keys :: [Type]) :: Constraint where
     RequireTabKey tabSetMarker key (key ': rest) = ()
@@ -960,6 +968,21 @@ surfaceCompleteSetSortValue =
                 , completeSetSortControlRole = qualifySurfaceBrowserAttribute @spec sortDefinition.completeSetSortControlRole
                 }
         _ -> error "impossible: complete-set-sort lookup reflected a different primitive"
+
+surfaceSidePanelValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectPrimitive (SurfaceSidePanelPrimitive spec marker)) => SidePanelIR
+surfaceSidePanelValue =
+    case reflectPrimitive @(SurfaceSidePanelPrimitive spec marker) of
+        ReflectedSidePanel sidePanel -> sidePanel
+            { sidePanelRootRole = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelRootRole
+            , sidePanelMainRole = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelMainRole
+            , sidePanelPanelRole = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelPanelRole
+            , sidePanelToggleRole = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelToggleRole
+            , sidePanelLabelRole = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelLabelRole
+            , sidePanelState = sidePanel.sidePanelState
+                { browserClosedStateAttribute = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelState.browserClosedStateAttribute
+                }
+            }
+        _ -> error "impossible: side-panel lookup reflected a different primitive"
 
 surfaceTabSetValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectPrimitive (SurfaceTabSetPrimitive spec marker)) => TabSetIR
 surfaceTabSetValue =

@@ -69,6 +69,7 @@ data ReflectedPrimitive
     | ReflectedLinkedHighlight !LinkedHighlightIR
     | ReflectedCompleteSetSort !CompleteSetSortIR
     | ReflectedTabSet !TabSetIR
+    | ReflectedSidePanel !SidePanelIR
     | ReflectedLayer !Text
     | ReflectedPolicy !ConflictPolicyIR
     | ReflectedLoadPolicy !Text
@@ -217,6 +218,34 @@ instance
         , tabSetRole = reflectedBrowserAttribute @tabRole BrowserRoleName
         , tabSetKeys = reflectMarkerList @keys TabKeyName
         , tabSetDefaultKey = protocolName @defaultKey TabKeyName
+        }
+
+instance
+    ( Typeable marker
+    , Typeable rootRole
+    , Typeable mainRole
+    , Typeable panelRole
+    , Typeable toggleRole
+    , Typeable labelRole
+    , Typeable state
+    , Typeable collapsed
+    , Typeable expanded
+    ) => ReflectPrimitive ('SidePanel marker rootRole mainRole panelRole toggleRole labelRole state collapsed expanded) where
+    reflectPrimitive = ReflectedSidePanel SidePanelIR
+        { sidePanelMarker = typeMarker @marker
+        , sidePanelName = protocolName @marker DomTokenName
+        , sidePanelRootRole = reflectedBrowserAttribute @rootRole BrowserRoleName
+        , sidePanelMainRole = reflectedBrowserAttribute @mainRole BrowserRoleName
+        , sidePanelPanelRole = reflectedBrowserAttribute @panelRole BrowserRoleName
+        , sidePanelToggleRole = reflectedBrowserAttribute @toggleRole BrowserRoleName
+        , sidePanelLabelRole = reflectedBrowserAttribute @labelRole BrowserRoleName
+        , sidePanelState = BrowserClosedStateIR
+            { browserClosedStateMarker = typeMarker @state
+            , browserClosedStateAttribute = reflectedBrowserAttribute @state BrowserStateName
+            , browserClosedStateValues = [protocolName @collapsed BrowserStateValueName, protocolName @expanded BrowserStateValueName]
+            }
+        , sidePanelCollapsedValue = protocolName @collapsed BrowserStateValueName
+        , sidePanelExpandedValue = protocolName @expanded BrowserStateValueName
         }
 
 instance (Typeable marker, ReflectInteractionSessionOptionList options) => ReflectPrimitive ('Session marker options) where
@@ -758,6 +787,9 @@ addPrimitives primitives surface =
             ReflectedTabSet tabSet -> current
                 { surfaceTabSets = current.surfaceTabSets <> [qualifyTabSet current.surfaceName tabSet]
                 }
+            ReflectedSidePanel sidePanel -> current
+                { surfaceSidePanels = current.surfaceSidePanels <> [qualifySidePanel current.surfaceName sidePanel]
+                }
             ReflectedLayer name -> current { surfaceLayers = current.surfaceLayers <> [name] }
             ReflectedPolicy policy -> current { surfacePolicies = current.surfacePolicies <> [policy] }
             ReflectedLoadPolicy name -> current { surfaceLoadPolicies = current.surfaceLoadPolicies <> [name] }
@@ -791,6 +823,7 @@ emptySurface = SurfaceIR
     , surfaceLinkedHighlights = []
     , surfaceCompleteSetSorts = []
     , surfaceTabSets = []
+    , surfaceSidePanels = []
     , surfaceLayers = []
     , surfacePolicies = []
     , surfaceLoadPolicies = []
@@ -808,6 +841,17 @@ qualifyBrowserClosedState surfaceName state =
 qualifyTabSet :: Text -> TabSetIR -> TabSetIR
 qualifyTabSet surfaceName tabSet =
     tabSet { tabSetRole = qualifyBrowserAttribute surfaceName tabSet.tabSetRole }
+
+qualifySidePanel :: Text -> SidePanelIR -> SidePanelIR
+qualifySidePanel surfaceName sidePanel =
+    sidePanel
+        { sidePanelRootRole = qualifyBrowserAttribute surfaceName sidePanel.sidePanelRootRole
+        , sidePanelMainRole = qualifyBrowserAttribute surfaceName sidePanel.sidePanelMainRole
+        , sidePanelPanelRole = qualifyBrowserAttribute surfaceName sidePanel.sidePanelPanelRole
+        , sidePanelToggleRole = qualifyBrowserAttribute surfaceName sidePanel.sidePanelToggleRole
+        , sidePanelLabelRole = qualifyBrowserAttribute surfaceName sidePanel.sidePanelLabelRole
+        , sidePanelState = qualifyBrowserClosedState surfaceName sidePanel.sidePanelState
+        }
 
 qualifyCompleteSetSort :: Text -> CompleteSetSortIR -> CompleteSetSortIR
 qualifyCompleteSetSort surfaceName sortDefinition =

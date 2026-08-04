@@ -42,6 +42,7 @@ module Application.Helper.FrontendContract.Surface.ContractIR
     , SurfaceContractIR (..)
     , SurfaceDtoIR (..)
     , SurfaceIR (..)
+    , SidePanelIR (..)
     , TabSetIR (..)
     , WireIR (..)
     , checkedSurfaceContractIR
@@ -82,6 +83,7 @@ data SurfaceIR = SurfaceIR
     , surfaceLinkedHighlights    :: ![LinkedHighlightIR]
     , surfaceCompleteSetSorts    :: ![CompleteSetSortIR]
     , surfaceTabSets             :: ![TabSetIR]
+    , surfaceSidePanels          :: ![SidePanelIR]
     , surfaceLayers              :: ![Text]
     , surfacePolicies            :: ![ConflictPolicyIR]
     , surfaceLoadPolicies        :: ![Text]
@@ -237,6 +239,20 @@ data TabSetIR = TabSetIR
     }
     deriving (Eq, Show)
 
+data SidePanelIR = SidePanelIR
+    { sidePanelMarker         :: !Text
+    , sidePanelName           :: !Text
+    , sidePanelRootRole       :: !BrowserAttributeIR
+    , sidePanelMainRole       :: !BrowserAttributeIR
+    , sidePanelPanelRole      :: !BrowserAttributeIR
+    , sidePanelToggleRole     :: !BrowserAttributeIR
+    , sidePanelLabelRole      :: !BrowserAttributeIR
+    , sidePanelState          :: !BrowserClosedStateIR
+    , sidePanelCollapsedValue :: !Text
+    , sidePanelExpandedValue  :: !Text
+    }
+    deriving (Eq, Show)
+
 -- | A Surface-owned record schema plus its explicit browser projection.
 -- Unreachable DTOs remain available to Haskell validation and references but
 -- are never emitted by the TypeScript renderer.
@@ -375,6 +391,7 @@ validateSurface surface =
         <> validateUnique surface.surfaceName "linked highlight" (map (.linkedHighlightName) surface.surfaceLinkedHighlights)
         <> validateUnique surface.surfaceName "complete-set sort" (map (.completeSetSortName) surface.surfaceCompleteSetSorts)
         <> validateUnique surface.surfaceName "tab set" (map (.tabSetName) surface.surfaceTabSets)
+        <> validateUnique surface.surfaceName "side panel" (map (.sidePanelName) surface.surfaceSidePanels)
         <> validateUnique surface.surfaceName "layer" surface.surfaceLayers
         <> validateUnique surface.surfaceName "dom token" surface.surfaceDomTokens
         <> validateUnique surface.surfaceName "dto" (map (fst . schemaNameAndMarker . (.surfaceDtoSchema)) surface.surfaceDtos)
@@ -382,6 +399,7 @@ validateSurface surface =
         <> validateLinkedHighlights surface
         <> validateCompleteSetSorts surface
         <> validateTabSets surface
+        <> validateSidePanels surface
         <> validateInteractionEffects surface
         <> validateLiveFragmentInvalidation surface
         <> validateResourceDependencies surface
@@ -666,6 +684,52 @@ validateTabSets surface =
         | tabSet.tabSetDefaultKey `elem` tabSet.tabSetKeys = []
         | otherwise = [diagnostic "invalid-tab-set-default" (tabSetLabel tabSet <> " references missing default key " <> tabSet.tabSetDefaultKey)]
     tabSetLabel tabSet = "surface " <> surface.surfaceName <> " tab set " <> tabSet.tabSetName
+
+validateSidePanels :: SurfaceIR -> [ContractDiagnostic]
+validateSidePanels surface = concatMap validateSidePanel surface.surfaceSidePanels
+  where
+    declaredRoles = surface.surfaceBrowserRoles
+    declaredStates = surface.surfaceBrowserClosedStates
+
+    validateSidePanel sidePanel =
+        concatMap (requireRole sidePanel)
+            [ ("root", sidePanel.sidePanelRootRole)
+            , ("main", sidePanel.sidePanelMainRole)
+            , ("panel", sidePanel.sidePanelPanelRole)
+            , ("toggle", sidePanel.sidePanelToggleRole)
+            , ("label", sidePanel.sidePanelLabelRole)
+            ]
+            <> requireDistinctRoles sidePanel
+            <> requireState sidePanel
+            <> requireDistinctValues sidePanel
+
+    requireRole sidePanel (label, role)
+        | role `elem` declaredRoles = []
+        | otherwise = [diagnostic "invalid-side-panel-role" (sidePanelLabel sidePanel <> " references missing " <> label <> " role " <> role.browserAttributeName)]
+
+    requireDistinctRoles sidePanel
+        | length (List.nub roleNames) == length roleNames = []
+        | otherwise = [diagnostic "invalid-side-panel-roles" (sidePanelLabel sidePanel <> " must use distinct root, main, panel, toggle, and label roles")]
+      where
+        roleNames = map (.browserAttributeDomAttribute)
+            [ sidePanel.sidePanelRootRole
+            , sidePanel.sidePanelMainRole
+            , sidePanel.sidePanelPanelRole
+            , sidePanel.sidePanelToggleRole
+            , sidePanel.sidePanelLabelRole
+            ]
+
+    requireState sidePanel
+        | sidePanel.sidePanelState `elem` declaredStates
+            && all (`elem` sidePanel.sidePanelState.browserClosedStateValues)
+                [sidePanel.sidePanelCollapsedValue, sidePanel.sidePanelExpandedValue] = []
+        | otherwise = [diagnostic "invalid-side-panel-state" (sidePanelLabel sidePanel <> " references a missing state or undeclared collapsed/expanded value")]
+
+    requireDistinctValues sidePanel
+        | sidePanel.sidePanelCollapsedValue /= sidePanel.sidePanelExpandedValue = []
+        | otherwise = [diagnostic "invalid-side-panel-values" (sidePanelLabel sidePanel <> " must use distinct collapsed and expanded values")]
+
+    sidePanelLabel sidePanel = "surface " <> surface.surfaceName <> " side panel " <> sidePanel.sidePanelName
 
 validateInteractionEffects :: SurfaceIR -> [ContractDiagnostic]
 validateInteractionEffects surface =

@@ -55,6 +55,7 @@ module Application.Helper.FrontendContract.Surface.DSL
     , LinkedHighlight
     , CompleteSetSort
     , TabSet
+    , SidePanel
     , ConflictPolicy
     , ConflictPolicyFor
     , Event
@@ -281,6 +282,7 @@ data SurfacePrimitive
     | LinkedHighlight Type Type Type [LinkedHighlightActivation] [LinkedHighlightEffect]
     | CompleteSetSort Type Type Type Type Type [CompleteSetSortKeySpec] Type CompleteSetSortDirection
     | TabSet Type Type [Type] Type
+    | SidePanel Type Type Type Type Type Type Type Type Type
     | ConflictPolicy SessionSelector FragmentSelector ConflictResolution
     | Event Type [FieldSpec]
     | DomToken Type
@@ -311,6 +313,8 @@ type LinkedHighlight name sourceRole memberRole activations effects = 'LinkedHig
 type CompleteSetSort name rootRole rowRole controlRole rowDto keys defaultKey defaultDirection =
     'CompleteSetSort name rootRole rowRole controlRole rowDto keys defaultKey defaultDirection
 type TabSet name tabRole keys defaultKey = 'TabSet name tabRole keys defaultKey
+type SidePanel name rootRole mainRole panelRole toggleRole labelRole state collapsed expanded =
+    'SidePanel name rootRole mainRole panelRole toggleRole labelRole state collapsed expanded
 type ConflictPolicy session fragment resolution = 'ConflictPolicy ('SessionKind session) ('FragmentKind fragment) resolution
 type ConflictPolicyFor sessionSelector fragmentSelector resolution = 'ConflictPolicy sessionSelector fragmentSelector resolution
 type Event name detail = 'Event name detail

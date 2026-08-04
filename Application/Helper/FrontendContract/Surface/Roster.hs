@@ -93,6 +93,13 @@ module Application.Helper.FrontendContract.Surface.Roster
     , StaffTabKey
     , TemplatesTabKey
     , SettingsTabKey
+    , RosterSidePanel
+    , SidePanelRootRole
+    , SidePanelMainRole
+    , SidePanelPanelRole
+    , SidePanelToggleRole
+    , SidePanelLabelRole
+    , SidePanelState
     , FullscreenRootRole
     , FullscreenToggleRole
     , FullscreenLabelRole
@@ -314,6 +321,14 @@ data StaffPanelTabRole
 data StaffTabKey
 data TemplatesTabKey
 data SettingsTabKey
+
+data RosterSidePanel
+data SidePanelRootRole
+data SidePanelMainRole
+data SidePanelPanelRole
+data SidePanelToggleRole
+data SidePanelLabelRole
+data SidePanelState
 
 data FullscreenRootRole
 data FullscreenToggleRole
@@ -797,7 +812,14 @@ type RosterStaffPanelBrowserBundle =
      ]
 
 type RosterChromeBrowserBundle =
-    '[ BrowserRole FullscreenRootRole
+    '[ BrowserRole SidePanelRootRole
+     , BrowserRole SidePanelMainRole
+     , BrowserRole SidePanelPanelRole
+     , BrowserRole SidePanelToggleRole
+     , BrowserRole SidePanelLabelRole
+     , BrowserClosedState SidePanelState '[ Collapsed, Expanded ]
+     , SidePanel RosterSidePanel SidePanelRootRole SidePanelMainRole SidePanelPanelRole SidePanelToggleRole SidePanelLabelRole SidePanelState Collapsed Expanded
+     , BrowserRole FullscreenRootRole
      , BrowserRole FullscreenToggleRole
      , BrowserRole FullscreenLabelRole
      , BrowserClosedState FullscreenState '[ Collapsed, Expanded ]
