@@ -3,6 +3,7 @@ module Application.Billing.Checkout
     , CheckoutStartResult (..)
     , checkoutAllowedForSubscription
     , startOrResumeCheckout
+    , startOrResumeCheckoutForActor
     )
 where
 
@@ -32,7 +33,8 @@ data CheckoutOperationContext = CheckoutOperationContext
     { operationStripeClient :: !StripeClient
     , operationStripeConfig :: !StripeConfig
     , operationVenue        :: !Venue
-    , operationOwner        :: !User
+    , operationActor        :: !User
+    , operationPayer        :: !User
     }
 
 data PreparedCheckout = PreparedCheckout
@@ -63,12 +65,26 @@ startOrResumeCheckout
     -> (Id BillingCheckoutAttempt -> Text)
     -> (Id BillingCheckoutAttempt -> Text)
     -> IO CheckoutStartResult
-startOrResumeCheckout stripeClient stripeConfig venue owner successUrlFor cancelUrlFor =
+startOrResumeCheckout stripeClient stripeConfig venue owner =
+    startOrResumeCheckoutForActor stripeClient stripeConfig venue owner owner
+
+startOrResumeCheckoutForActor
+    :: (?modelContext :: ModelContext)
+    => StripeClient
+    -> StripeConfig
+    -> Venue
+    -> User
+    -> User
+    -> (Id BillingCheckoutAttempt -> Text)
+    -> (Id BillingCheckoutAttempt -> Text)
+    -> IO CheckoutStartResult
+startOrResumeCheckoutForActor stripeClient stripeConfig venue actor payer successUrlFor cancelUrlFor =
     startCheckout CheckoutOperationContext
         { operationStripeClient = stripeClient
         , operationStripeConfig = stripeConfig
         , operationVenue = venue
-        , operationOwner = owner
+        , operationActor = actor
+        , operationPayer = payer
         }
         successUrlFor
         cancelUrlFor
@@ -217,7 +233,7 @@ prepareNewCheckoutAttempt operation =
                     attempt <-
                         newRecord @BillingCheckoutAttempt
                             |> set #venueId (unpackId operation.operationVenue.id)
-                            |> set #initiatedByUserId (unpackId operation.operationOwner.id)
+                            |> set #initiatedByUserId (unpackId operation.operationActor.id)
                             |> set #livemode (stripeModeIsLive operation.operationStripeConfig.stripeMode)
                             |> set #stripeCustomerId billingCustomer.stripeCustomerId
                             |> set #stripePriceId price.stripePriceId
@@ -286,9 +302,9 @@ ensureVenueStripeCustomer operation =
                 | customer.livemode == stripeModeIsLive operation.operationStripeConfig.stripeMode -> pure (Right (customer, False))
                 | otherwise -> pure (Left "The venue Customer belongs to a different Stripe mode.")
             Nothing
-                | isNothing operation.operationOwner.emailVerifiedAt -> pure (Left "Verify your account email before starting Checkout.")
+                | isNothing operation.operationPayer.emailVerifiedAt -> pure (Left "Verify your account email before starting Checkout.")
                 | otherwise ->
-                    operation.operationStripeClient.createCustomer operation.operationStripeConfig (inputValue operation.operationVenue.id) operation.operationVenue.name operation.operationOwner.email >>= \case
+                    operation.operationStripeClient.createCustomer operation.operationStripeConfig (inputValue operation.operationVenue.id) operation.operationVenue.name operation.operationPayer.email >>= \case
                         Left err -> pure (Left ("Stripe Customer create failed: " <> stripeClientErrorText err))
                         Right stripeCustomer
                             | stripeCustomer.stripeCustomerLivemode /= stripeModeIsLive operation.operationStripeConfig.stripeMode ->
@@ -299,7 +315,7 @@ ensureVenueStripeCustomer operation =
                                         |> set #venueId (unpackId operation.operationVenue.id)
                                         |> set #stripeCustomerId stripeCustomer.stripeCustomerId
                                         |> set #livemode stripeCustomer.stripeCustomerLivemode
-                                        |> set #createdByUserId (Just (unpackId operation.operationOwner.id))
+                                        |> set #createdByUserId (Just (unpackId operation.operationActor.id))
                                         |> createRecord
                                 pure (Right (customer, True))
 

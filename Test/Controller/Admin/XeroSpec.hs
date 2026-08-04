@@ -600,6 +600,40 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 let remoteDisconnect = AesonTypes.parseMaybe (Aeson.withObject "payload" (Aeson..: "remoteDisconnect")) auditEvent.payload
                 remoteDisconnect `shouldBe` Just ("succeeded" :: Text)
 
+        it "uses effective owner authority with actual founder attribution for Xero mutations" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Impersonated Owner Venue"
+                founder <- createUserRecordWithPlatformRole "xero-impersonated-founder@example.com" "staff" (Just SuperAdmin) True
+                owner <- createUserRecord "xero-impersonated-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner VenueOwner
+                _ <- createStaffRecord venue (Just owner) "Xero" "Owner"
+                connection <- createSyncableXeroConnection venue owner
+                let tokenResponse = XeroTokenResponse "impersonated-disconnect-access" "impersonated-disconnect-refresh" 1800 (Just requiredXeroScopesText)
+
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest (referenceSyncXeroClient tokenResponse [] [] []) do
+                        withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                            _ <- callActionWithParams
+                                StartSupportImpersonationAction
+                                [("userId", cs (inputValue owner.id))]
+                            callAction DisconnectXeroConnectionAction
+
+                response `responseStatusShouldBe` status302
+                updatedConnection <- fetch connection.id
+                updatedConnection.connectionStatus `shouldBe` "disconnected"
+                updatedConnection.disconnectedByUserId `shouldBe` Just (unpackId founder.id)
+                [auditEvent] <- query @AuditEvent |> filterWhere (#eventType, "xero_connection_disconnected" :: Text) |> fetch
+                auditEvent.actorUserId `shouldBe` unpackId founder.id
+                let requestContext = AesonTypes.parseMaybe (Aeson.withObject "payload" (Aeson..: "requestContext")) auditEvent.payload
+                requestContext `shouldSatisfy` \case
+                    Just (Aeson.Object fields) ->
+                        AesonKeyMap.lookup "accessMode" fields == Just (Aeson.String "impersonation")
+                            && AesonKeyMap.lookup "effectiveUserId" fields == Just (Aeson.toJSON owner.id)
+                            && case AesonKeyMap.lookup "impersonationSessionId" fields of
+                                Just (Aeson.String value) -> not (Text.null value)
+                                _ -> False
+                    _ -> False
+
         it "disconnects locally when the Xero refresh token has expired" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Expired Disconnect Venue"

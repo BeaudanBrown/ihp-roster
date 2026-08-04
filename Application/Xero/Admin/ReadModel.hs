@@ -229,7 +229,7 @@ fetchCurrentVenueXeroAdminSectionData ::
     IO XeroAdminSectionData
 fetchCurrentVenueXeroAdminSectionData xeroConnectionActionsAllowed = do
     xeroConnection <- profileActionSpan "admin.xero.fragment.load_connection" fetchCurrentVenueXeroConnection
-    let xeroReferenceRefreshAllowed = currentUserIsSuperAdmin
+    let xeroReferenceRefreshAllowed = currentUserIsUnimpersonatedSuperAdmin
     xeroReferenceSyncDiagnostics <-
         if not xeroReferenceRefreshAllowed
             then pure Nothing

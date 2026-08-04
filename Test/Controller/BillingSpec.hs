@@ -9,6 +9,7 @@ import Config
 import qualified Control.Concurrent as Concurrent
 import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.IORef as IORef
@@ -419,6 +420,44 @@ tests = aroundAll withDatabaseTestContext do
                 let (_, afterBilling) = Text.breakOn "href=\"/Billing\"" afterXero
                 afterXero `shouldSatisfy` Text.isInfixOf "href=\"/Billing\""
                 afterBilling `shouldSatisfy` Text.isInfixOf "href=\"/Admin\""
+
+        it "uses effective owner authority with actual founder attribution for Checkout" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Impersonated Owner Venue"
+                founder <- createUserRecordWithPlatformRole "billing-impersonated-founder@example.com" "staff" (Just SuperAdmin) True
+                owner <- createUserRecord "billing-impersonated-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner VenueOwner
+                _ <- createStaffRecord venue (Just owner) "Billing" "Owner"
+
+                (billingResponse, checkoutResponse) <- withStripeConfigForTest (Right testStripeConfig) do
+                    withStripeClientForTest (checkoutStripeClientExpectingCustomer "Billing Impersonated Owner Venue" "billing-impersonated-owner@example.com") do
+                        withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                            _ <- callActionWithParams
+                                StartSupportImpersonationAction
+                                [("userId", cs (inputValue owner.id))]
+                            billingResponse <- callAction BillingAction
+                            checkoutResponse <- callAction CreateBillingCheckoutSessionAction
+                            pure (billingResponse, checkoutResponse)
+
+                billingResponse `responseStatusShouldBe` status200
+                billingResponse `responseBodyShouldContain` "Start Subscription"
+                billingResponse `responseBodyShouldNotContain` "data-billing-founder-diagnostics"
+                lookup "Location" (responseHeaders checkoutResponse) `shouldBe` Just "https://checkout.stripe.com/c/pay/cs_test_123"
+                customer <- query @VenueBillingCustomer |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                customer.createdByUserId `shouldBe` Just (unpackId founder.id)
+                attempt <- query @BillingCheckoutAttempt |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                attempt.initiatedByUserId `shouldBe` unpackId founder.id
+                checkoutAudit <- query @AuditEvent
+                    |> filterWhere (#eventType, "billing_checkout_started")
+                    |> fetchOne
+                checkoutAudit.actorUserId `shouldBe` unpackId founder.id
+                checkoutAudit.payload `shouldSatisfy` \case
+                    Aeson.Object payload -> case AesonKeyMap.lookup "requestContext" payload of
+                        Just (Aeson.Object requestContext) ->
+                            AesonKeyMap.lookup "accessMode" requestContext == Just (Aeson.String "impersonation")
+                                && AesonKeyMap.lookup "effectiveUserId" requestContext == Just (Aeson.toJSON owner.id)
+                        _ -> False
+                    _ -> False
 
         it "prevents founder support mode from starting Checkout or opening Customer Portal" $ withContext do
             withCleanDb do

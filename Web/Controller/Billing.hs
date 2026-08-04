@@ -33,7 +33,7 @@ instance Controller BillingController where
 
     action currentAction@CreateBillingCheckoutSessionAction = runBepis currentAction BepisMutationAction do
         ensureOwnerBillingPaymentAction
-        when (isNothing currentUser.emailVerifiedAt) do
+        when (isNothing effectiveCurrentUser.emailVerifiedAt) do
             billingRedirectWithError "Verify your account email before starting Checkout."
         createBillingCheckoutSessionAction
 
@@ -88,23 +88,23 @@ instance Controller BillingController where
 ensureBillingAccess :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()
 ensureBillingAccess = do
     redirectPermissionDeniedUnless
-        (currentUserIsSuperAdmin || hasRole VenueOwner)
+        (currentUserIsUnimpersonatedSuperAdmin || hasRole VenueOwner)
         "Only the venue owner or a super admin can manage billing for this venue."
-    if currentUserIsSuperAdmin
+    if currentUserIsUnimpersonatedSuperAdmin
         then ensurePrivilegedPasskeyReady
         else ensurePrivilegedPasskeySetupComplete
 
 ensureOwnerBillingPaymentAction :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()
 ensureOwnerBillingPaymentAction = do
     redirectPermissionDeniedUnless
-        (not currentUserIsSuperAdmin && hasRole VenueOwner)
+        (not currentUserIsUnimpersonatedSuperAdmin && hasRole VenueOwner)
         "Only the venue owner can start Checkout or open Customer Portal."
     ensurePrivilegedPasskeyReady
 
 ensureFounderBillingReconciliationAction :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()
 ensureFounderBillingReconciliationAction = do
     redirectPermissionDeniedUnless
-        currentUserIsSuperAdmin
+        currentUserIsUnimpersonatedSuperAdmin
         "Only super admins can synchronize venue billing."
     ensurePrivilegedPasskeyReady
 
@@ -113,11 +113,11 @@ fetchBillingViewModel = do
     maybeCustomer <- fetchCurrentVenueBillingCustomer
     maybeSubscription <- fetchCurrentVenueSubscription
     let billingViewer =
-            if currentUserIsSuperAdmin
+            if currentUserIsUnimpersonatedSuperAdmin
                 then BillingFounderViewer
                 else BillingOwnerViewer
     recentCheckoutAttempts <-
-        if currentUserIsSuperAdmin
+        if currentUserIsUnimpersonatedSuperAdmin
             then
                 query @BillingCheckoutAttempt
                     |> filterWhere (#venueId, unpackId currentVenueId)
@@ -126,7 +126,7 @@ fetchBillingViewModel = do
                     |> fetch
             else pure []
     recentEvents <-
-        if currentUserIsSuperAdmin
+        if currentUserIsUnimpersonatedSuperAdmin
             then
                 query @BillingEvent
                     |> filterWhere (#venueId, Just (unpackId currentVenueId))
@@ -135,7 +135,7 @@ fetchBillingViewModel = do
                     |> fetch
             else pure []
     recentReconciliationJobs <-
-        if currentUserIsSuperAdmin
+        if currentUserIsUnimpersonatedSuperAdmin
             then
                 query @AppJob
                     |> filterWhere (#venueId, Just (unpackId currentVenueId))
@@ -153,7 +153,7 @@ fetchBillingViewModel = do
                 Right _ -> isJust maybeCustomer
                 Left _  -> False
     checkoutReturn <-
-        if currentUserIsSuperAdmin
+        if currentUserIsUnimpersonatedSuperAdmin
             then pure Nothing
             else fetchBillingCheckoutReturn maybeSubscription
     pure BillingViewModel { .. }
@@ -295,6 +295,7 @@ createEnabledBillingCheckoutSession stripeConfig = do
             stripeConfig
             currentVenue
             currentUser
+            effectiveCurrentUser
             successUrlFor
             cancelUrlFor
     case checkoutResult.liveMutationValue.checkoutStartOutcome of
@@ -371,7 +372,7 @@ createBillingPortalSessionAction =
 
 updateVenueBillingControlAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 updateVenueBillingControlAction = do
-    redirectPermissionDeniedUnless currentUserIsSuperAdmin "Only super admins can update billing controls."
+    redirectPermissionDeniedUnless currentUserIsUnimpersonatedSuperAdmin "Only super admins can update billing controls."
     let manualReadOnly = paramOrDefault @Text "false" "manualReadOnly" == "true"
     let reason = Text.strip (paramOrDefault @Text "" "manualReadOnlyReason")
     if manualReadOnly && Text.null reason

@@ -17,7 +17,7 @@ syncXeroPayrollReferenceDataAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     IO ()
 syncXeroPayrollReferenceDataAction = do
-    redirectPermissionDeniedUnless currentUserIsSuperAdmin "Only founder support can manually refresh Xero reference data."
+    redirectPermissionDeniedUnless currentUserIsUnimpersonatedSuperAdmin "Only founder support can manually refresh Xero reference data."
     maybeConnection <- fetchCurrentVenueXeroConnection
     case maybeConnection of
         Nothing -> respondReferenceSyncFailure "Connect Xero before syncing payroll reference data."

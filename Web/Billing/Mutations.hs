@@ -5,7 +5,7 @@ module Web.Billing.Mutations
     ) where
 
 import Application.Billing.Checkout (CheckoutStartResult (..),
-                                     startOrResumeCheckout)
+                                     startOrResumeCheckoutForActor)
 import Application.Billing.Stripe (StripeClient, StripeConfig)
 import Application.Helper.FrontendContract.Surface.Billing.Resource (billingResource)
 import Application.Helper.SurfaceResource
@@ -25,11 +25,12 @@ startOrResumeBillingCheckoutMutation
     -> StripeConfig
     -> Venue
     -> User
+    -> User
     -> (Id BillingCheckoutAttempt -> Text)
     -> (Id BillingCheckoutAttempt -> Text)
     -> IO (LiveMutationResult CheckoutStartResult)
-startOrResumeBillingCheckoutMutation stripeClient stripeConfig venue owner successUrlFor cancelUrlFor = do
-    result <- startOrResumeCheckout stripeClient stripeConfig venue owner successUrlFor cancelUrlFor
+startOrResumeBillingCheckoutMutation stripeClient stripeConfig venue actor payer successUrlFor cancelUrlFor = do
+    result <- startOrResumeCheckoutForActor stripeClient stripeConfig venue actor payer successUrlFor cancelUrlFor
     forM_ result.checkoutCreatedCustomer \customer ->
         void $ recordCurrentUserAuditEvent
             BillingCustomerCreatedAudit
