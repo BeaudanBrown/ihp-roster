@@ -9,7 +9,6 @@ module Application.RosterTemplates
     , RosterTemplateSave (..)
     , RosterTemplateSaveWarning (..)
     , RosterTemplateSaved (..)
-    , RosterTemplateScale (..)
     , RosterTemplateShiftInput (..)
     , currentRosterTemplateActor
     , discardRosterTemplateDraft
@@ -44,11 +43,6 @@ import Data.Time.Clock (getCurrentTime)
 import Data.UUID (UUID)
 import Generated.Types
 import IHP.ControllerPrelude
-
-data RosterTemplateScale
-    = DayTemplate
-    | WeekTemplate
-    deriving (Eq, Show)
 
 data RosterTemplateActor = RosterTemplateActor
     { actorUserId         :: !(Id User)
@@ -150,7 +144,7 @@ startBlankRosterTemplateDraft ::
     (?modelContext :: ModelContext) =>
     RosterTemplateActor ->
     RosterGroup ->
-    RosterTemplateScale ->
+    RosterTemplateScaleEnum ->
     Text ->
     IO (Either RosterTemplateError RosterTemplateDraft)
 startBlankRosterTemplateDraft actor rosterGroup scale requestedName
@@ -165,7 +159,7 @@ startBlankRosterTemplateDraft actor rosterGroup scale requestedName
                 design <-
                     newRecord @RosterTemplateDesign
                         |> set #rosterGroupId (unpackId rosterGroup.id)
-                        |> set #scale (rosterTemplateScaleText scale)
+                        |> set #scale scale
                         |> set #draftOwnerUserId (Just (unpackId actor.actorUserId))
                         |> set #draftName (Just normalizedName)
                         |> set #createdByUserId (unpackId actor.actorUserId)
@@ -561,11 +555,7 @@ replaceRosterTemplateDraftContent ::
 replaceRosterTemplateDraftContent actor designId content
     | not actor.actorCanEditRosters = pure (Left RosterTemplateForbidden)
     | otherwise = do
-        maybeDesign <-
-            query @RosterTemplateDesign
-                |> filterWhere (#id, designId)
-                |> filterWhere (#draftOwnerUserId, Just (unpackId actor.actorUserId))
-                |> fetchOneOrNothing
+        maybeDesign <- fetchOwnedDraft actor designId
         case maybeDesign of
             Nothing -> pure (Left RosterTemplateForbidden)
             Just design
@@ -598,7 +588,7 @@ validTemplateContent design content =
   where
     dayIndexes = map (.inputDayIndex) content.contentDays
     columnSortOrders = map (.inputColumnSortOrder) content.contentColumns
-    validDay day = day.inputDayIndex >= 0 && day.inputDayIndex <= 6 && day.inputDayRowCount >= 0 && (design.scale == "week" || day.inputDayIndex == 0)
+    validDay day = day.inputDayIndex >= 0 && day.inputDayIndex <= 6 && day.inputDayRowCount >= 0 && (design.scale == Week || day.inputDayIndex == 0)
     validColumn column =
         let name = Text.strip column.inputColumnName
          in not (Text.null name) && Text.length name <= 120 && column.inputColumnSortOrder >= 0
@@ -713,7 +703,3 @@ emptyDraft design name =
         , draftColumns = []
         , draftShifts = []
         }
-
-rosterTemplateScaleText :: RosterTemplateScale -> Text
-rosterTemplateScaleText DayTemplate  = "day"
-rosterTemplateScaleText WeekTemplate = "week"

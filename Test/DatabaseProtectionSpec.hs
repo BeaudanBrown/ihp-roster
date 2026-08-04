@@ -392,12 +392,37 @@ tests = aroundAll withDatabaseTestContext do
                         (firstDesignId, firstDayId, secondColumnId, unpackId shiftType.id))
                     :: IO (Either SomeException ())
 
+                templateId :: UUID <- sqlQueryScalar
+                    "SELECT id FROM roster_templates WHERE roster_group_id = ? AND name = 'Opening'"
+                    (Only (unpackId rosterGroup.id))
+                sqlExecDiscardResult
+                    "UPDATE roster_template_designs SET draft_owner_user_id = NULL, draft_name = NULL, template_id = ?, version_number = 1 WHERE id = ?"
+                    (templateId, firstDesignId)
+                mutateSavedShift <- try
+                    (sqlExecDiscardResult
+                        "UPDATE roster_template_shifts SET start_minute = 600 WHERE roster_template_design_id = ?"
+                        (Only firstDesignId))
+                    :: IO (Either SomeException ())
+                deleteSavedDay <- try
+                    (sqlExecDiscardResult
+                        "DELETE FROM roster_template_days WHERE id = ?"
+                        (Only firstDayId))
+                    :: IO (Either SomeException ())
+                mutateSavedDesign <- try
+                    (sqlExecDiscardResult
+                        "UPDATE roster_template_designs SET updated_at = NOW() WHERE id = ?"
+                        (Only firstDesignId))
+                    :: IO (Either SomeException ())
+
                 duplicateName `shouldSatisfy` isLeft
                 duplicateDraft `shouldSatisfy` isLeft
                 invalidDayIndex `shouldSatisfy` isLeft
                 validOpen `shouldSatisfy` isRight
                 malformedAssigned `shouldSatisfy` isLeft
                 mixedDesign `shouldSatisfy` isLeft
+                mutateSavedShift `shouldSatisfy` isLeft
+                deleteSavedDay `shouldSatisfy` isLeft
+                mutateSavedDesign `shouldSatisfy` isLeft
 
     describe "roster shift assignment constraints" do
         it "accepts only structurally complete explicit Staff or Open active shifts" $ withContext do

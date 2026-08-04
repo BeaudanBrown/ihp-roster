@@ -377,6 +377,7 @@ tests = describe "Schema" do
     it "defines roster-template aggregates, private drafts, versions, and shift invariants" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         migrationSqlText <- TextIO.readFile "Application/Migration/1785826000.sql"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TYPE roster_template_scale_enum AS ENUM ('day', 'week')"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE roster_templates ("
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE roster_template_designs ("
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE roster_template_days ("
@@ -387,6 +388,8 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_template_shifts_assignment_shape_check"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_template_shifts_structure_check"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster template shift content must belong to one design"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "saved roster template versions are immutable"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "saved roster template version content is immutable"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE roster_templates ("
         migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP TABLE"
         migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP COLUMN"

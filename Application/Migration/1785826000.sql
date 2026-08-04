@@ -1,11 +1,13 @@
 -- Roster template persistence for GitHub #307.
 -- Additive only: existing customer roster data is not changed.
 
+CREATE TYPE roster_template_scale_enum AS ENUM ('day', 'week');
+
 CREATE TABLE roster_templates (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     roster_group_id UUID NOT NULL,
     name TEXT NOT NULL,
-    scale TEXT NOT NULL,
+    scale roster_template_scale_enum NOT NULL,
     current_version INT DEFAULT 0 NOT NULL,
     deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     deleted_by_user_id UUID DEFAULT NULL,
@@ -16,14 +18,13 @@ CREATE TABLE roster_templates (
     FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK ((char_length(btrim(name)) > 0) AND (char_length(name) <= 120)),
     CHECK (name = btrim(name)),
-    CHECK (scale = 'day' OR scale = 'week'),
     CHECK (current_version >= 0)
 );
 
 CREATE TABLE roster_template_designs (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     roster_group_id UUID NOT NULL,
-    scale TEXT NOT NULL,
+    scale roster_template_scale_enum NOT NULL,
     draft_owner_user_id UUID DEFAULT NULL,
     draft_name TEXT DEFAULT NULL,
     template_id UUID DEFAULT NULL,
@@ -47,7 +48,6 @@ CREATE TABLE roster_template_designs (
         OR (source_template_id IS NOT NULL AND base_version_number IS NOT NULL)
     ),
     CHECK (draft_name IS NULL OR ((char_length(btrim(draft_name)) > 0) AND (char_length(draft_name) <= 120) AND draft_name = btrim(draft_name))),
-    CHECK (scale = 'day' OR scale = 'week'),
     CHECK (version_number IS NULL OR version_number > 0),
     CHECK (base_version_number IS NULL OR base_version_number > 0)
 );
@@ -118,6 +118,47 @@ CREATE UNIQUE INDEX idx_roster_template_columns_design_sort ON roster_template_c
 CREATE UNIQUE INDEX idx_roster_template_shifts_cell ON roster_template_shifts (roster_template_day_id, row_index, roster_template_column_id);
 CREATE INDEX idx_roster_template_shifts_staff ON roster_template_shifts (staff_id) WHERE staff_id IS NOT NULL;
 CREATE INDEX idx_roster_template_shifts_shift_type ON roster_template_shifts (shift_type_id);
+
+CREATE OR REPLACE FUNCTION prevent_saved_roster_template_design_mutation()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    IF OLD.draft_owner_user_id IS NULL THEN
+        RAISE EXCEPTION 'saved roster template versions are immutable';
+    END IF;
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION prevent_saved_roster_template_content_mutation()
+RETURNS TRIGGER
+AS $$
+DECLARE
+    old_design_id UUID;
+    new_design_id UUID;
+BEGIN
+    IF TG_OP <> 'INSERT' THEN
+        old_design_id := OLD.roster_template_design_id;
+    END IF;
+    IF TG_OP <> 'DELETE' THEN
+        new_design_id := NEW.roster_template_design_id;
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM roster_template_designs d
+        WHERE (d.id = old_design_id OR d.id = new_design_id)
+          AND d.draft_owner_user_id IS NULL
+    ) THEN
+        RAISE EXCEPTION 'saved roster template version content is immutable';
+    END IF;
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION enforce_roster_template_integrity()
 RETURNS TRIGGER
@@ -199,6 +240,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE TRIGGER prevent_saved_roster_template_design_mutation BEFORE UPDATE OR DELETE ON roster_template_designs FOR EACH ROW EXECUTE FUNCTION prevent_saved_roster_template_design_mutation();
+CREATE TRIGGER prevent_saved_roster_template_days_mutation BEFORE INSERT OR UPDATE OR DELETE ON roster_template_days FOR EACH ROW EXECUTE FUNCTION prevent_saved_roster_template_content_mutation();
+CREATE TRIGGER prevent_saved_roster_template_columns_mutation BEFORE INSERT OR UPDATE OR DELETE ON roster_template_columns FOR EACH ROW EXECUTE FUNCTION prevent_saved_roster_template_content_mutation();
+CREATE TRIGGER prevent_saved_roster_template_shifts_mutation BEFORE INSERT OR UPDATE OR DELETE ON roster_template_shifts FOR EACH ROW EXECUTE FUNCTION prevent_saved_roster_template_content_mutation();
 CREATE TRIGGER enforce_roster_template_design_integrity BEFORE INSERT OR UPDATE ON roster_template_designs FOR EACH ROW EXECUTE FUNCTION enforce_roster_template_design_integrity();
 CREATE TRIGGER enforce_roster_template_day_integrity BEFORE INSERT OR UPDATE ON roster_template_days FOR EACH ROW EXECUTE FUNCTION enforce_roster_template_integrity();
 CREATE TRIGGER enforce_roster_template_shift_integrity BEFORE INSERT OR UPDATE ON roster_template_shifts FOR EACH ROW EXECUTE FUNCTION enforce_roster_template_integrity();

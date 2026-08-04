@@ -22,11 +22,11 @@ tests = aroundAll withDatabaseTestContext do
                 let otherActor = rosterTemplateActor otherUser venue True
                 let forbiddenActor = rosterTemplateActor otherUser venue False
 
-                started <- startBlankRosterTemplateDraft ownerActor rosterGroup DayTemplate "Opening day"
-                secondStart <- startBlankRosterTemplateDraft ownerActor rosterGroup WeekTemplate "Other plan"
+                started <- startBlankRosterTemplateDraft ownerActor rosterGroup Day "Opening day"
+                secondStart <- startBlankRosterTemplateDraft ownerActor rosterGroup Week "Other plan"
                 ownerDraft <- fetchPrivateRosterTemplateDraft ownerActor
                 otherDraft <- fetchPrivateRosterTemplateDraft otherActor
-                forbidden <- startBlankRosterTemplateDraft forbiddenActor rosterGroup DayTemplate "Forbidden"
+                forbidden <- startBlankRosterTemplateDraft forbiddenActor rosterGroup Day "Forbidden"
 
                 started `shouldSatisfy` isRight
                 secondStart `shouldBe` Left RosterTemplateDraftSlotOccupied
@@ -42,9 +42,12 @@ tests = aroundAll withDatabaseTestContext do
                 otherUser <- createUserRecord "content-other@example.com" "staff" True
                 staff <- createStaffRecord venue Nothing "Template" "Worker"
                 shiftType <- ensureVenueDefaultShiftType venue
+                foreignVenue <- createVenueWithConfig "Foreign template content"
+                foreignGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId foreignVenue.id) |> fetchOne
                 let ownerActor = rosterTemplateActor owner venue True
                 let otherActor = rosterTemplateActor otherUser venue True
-                Right draft <- startBlankRosterTemplateDraft ownerActor rosterGroup DayTemplate "Opening day"
+                let crossVenueActor = rosterTemplateActor owner foreignVenue True
+                Right draft <- startBlankRosterTemplateDraft ownerActor rosterGroup Day "Opening day"
                 let content = RosterTemplateContent
                         { contentDays = [RosterTemplateDayInput 0 False 2]
                         , contentColumns = [RosterTemplateColumnInput "Early" 0]
@@ -56,10 +59,16 @@ tests = aroundAll withDatabaseTestContext do
 
                 replaced <- replaceRosterTemplateDraftContent ownerActor draft.draftDesign.id content
                 privateWrite <- replaceRosterTemplateDraftContent otherActor draft.draftDesign.id content
+                crossVenueWrite <- replaceRosterTemplateDraftContent crossVenueActor draft.draftDesign.id content
+                crossVenueRead <- fetchPrivateRosterTemplateDraft crossVenueActor
+                crossVenueStart <- startBlankRosterTemplateDraft crossVenueActor foreignGroup Day "Foreign plan"
                 reloaded <- fetchPrivateRosterTemplateDraft ownerActor
 
                 replaced `shouldBe` Right ()
                 privateWrite `shouldBe` Left RosterTemplateForbidden
+                crossVenueWrite `shouldBe` Left RosterTemplateForbidden
+                crossVenueRead `shouldBe` Nothing
+                crossVenueStart `shouldBe` Left RosterTemplateDraftSlotOccupied
                 fmap (length . (.draftShifts)) reloaded `shouldBe` Just 2
 
         it "keeps saved versions usable and reports optimistic edit conflicts" $ withContext do
@@ -70,7 +79,7 @@ tests = aroundAll withDatabaseTestContext do
                 otherUser <- createUserRecord "conflict-other@example.com" "staff" True
                 let ownerActor = rosterTemplateActor owner venue True
                 let otherActor = rosterTemplateActor otherUser venue True
-                Right initialDraft <- startBlankRosterTemplateDraft ownerActor rosterGroup DayTemplate "Opening day"
+                Right initialDraft <- startBlankRosterTemplateDraft ownerActor rosterGroup Day "Opening day"
                 Right firstSave <- saveRosterTemplateDraft ownerActor initialDraft.draftDesign.id
                 Right ownerEdit <- startRosterTemplateEditDraft ownerActor firstSave.savedTemplate.id
                 Right otherEdit <- startRosterTemplateEditDraft otherActor firstSave.savedTemplate.id
@@ -98,7 +107,7 @@ tests = aroundAll withDatabaseTestContext do
                 shiftType <- ensureVenueDefaultShiftType venue
                 let ownerActor = rosterTemplateActor owner venue True
                 let otherActor = rosterTemplateActor otherUser venue True
-                Right draft <- startBlankRosterTemplateDraft ownerActor rosterGroup DayTemplate "Stale staff"
+                Right draft <- startBlankRosterTemplateDraft ownerActor rosterGroup Day "Stale staff"
                 Right () <- replaceRosterTemplateDraftContent ownerActor draft.draftDesign.id (oneShiftContent shiftType.id (StaffAssignment staff.id))
                 _ <- staff |> set #isActive False |> updateRecord
 
@@ -106,7 +115,7 @@ tests = aroundAll withDatabaseTestContext do
                 let Right savedResult = saved
                 Just persisted <- fetchSavedRosterTemplate ownerActor savedResult.savedTemplate.id
 
-                Right staleTypeDraft <- startBlankRosterTemplateDraft otherActor rosterGroup DayTemplate "Stale type"
+                Right staleTypeDraft <- startBlankRosterTemplateDraft otherActor rosterGroup Day "Stale type"
                 Right () <- replaceRosterTemplateDraftContent otherActor staleTypeDraft.draftDesign.id (oneShiftContent shiftType.id OpenAssignment)
                 _ <- shiftType |> set #isActive False |> updateRecord
                 blocked <- saveRosterTemplateDraft otherActor staleTypeDraft.draftDesign.id
@@ -126,7 +135,7 @@ tests = aroundAll withDatabaseTestContext do
                 otherUser <- createUserRecord "lifecycle-other@example.com" "staff" True
                 let ownerActor = rosterTemplateActor owner venue True
                 let otherActor = rosterTemplateActor otherUser venue True
-                Right initial <- startBlankRosterTemplateDraft ownerActor rosterGroup WeekTemplate "Standard week"
+                Right initial <- startBlankRosterTemplateDraft ownerActor rosterGroup Week "Standard week"
                 Right saved <- saveRosterTemplateDraft ownerActor initial.draftDesign.id
                 Right ownerEdit <- startRosterTemplateEditDraft ownerActor saved.savedTemplate.id
                 Right otherEdit <- startRosterTemplateEditDraft otherActor saved.savedTemplate.id
@@ -136,7 +145,7 @@ tests = aroundAll withDatabaseTestContext do
                 reloaded <- reloadLatestRosterTemplateDraft ownerActor ownerEdit.draftDesign.id
                 let Right latestDraft = reloaded
                 reloadedSave <- saveRosterTemplateDraft ownerActor latestDraft.draftDesign.id
-                Right disposable <- startBlankRosterTemplateDraft otherActor rosterGroup DayTemplate "Disposable"
+                Right disposable <- startBlankRosterTemplateDraft otherActor rosterGroup Day "Disposable"
                 discarded <- discardRosterTemplateDraft otherActor disposable.draftDesign.id
                 deleted <- softDeleteRosterTemplate ownerActor saved.savedTemplate.id "No longer needed"
                 library <- fetchRosterTemplateLibrary ownerActor rosterGroup
