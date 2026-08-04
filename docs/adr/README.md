@@ -22,3 +22,5 @@ Use `docs/templates/adr.md` for new ADRs.
   runtime, wire, target-ID, and browser-authority ownership.
 - `0004-complete-hspec-is-the-protected-test-gate.md` - complete Hspec remains
   the protected gate; partial metadata selections are additive diagnostics.
+- `0005-explicit-roster-shift-assignment-state.md` - roster shifts use an explicit
+  staff/Open assignment state rather than interpreting missing staff as Open.
