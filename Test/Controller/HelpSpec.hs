@@ -56,17 +56,25 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue worker Worker
                 _ <- createStaffRecord venue (Just worker) "Help" "Worker"
 
-                response <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                (founderResponse, response) <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    founderResponse <- withRequestHeaders [("HX-Request", "true")] do
+                        callAction ShowPageHelpAction { topic = "profile" }
                     _ <- callActionWithParams
                         StartSupportImpersonationAction
                         [("userId", cs (inputValue worker.id))]
-                    withRequestHeaders [("HX-Request", "true")] do
+                    response <- withRequestHeaders [("HX-Request", "true")] do
                         callAction ShowPageHelpAction { topic = "profile" }
+                    pure (founderResponse, response)
 
+                founderResponse `responseStatusShouldBe` status200
+                founderResponse `responseBodyShouldContain` "Founder support"
+                founderResponse `responseBodyShouldContain` "Viewing as a venue user"
+                founderResponse `responseBodyShouldContain` "Manage account security"
                 response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Founder support"
                 response `responseBodyShouldContain` "Viewing as a venue user"
-                response `responseBodyShouldContain` "Actions use access from the selected venue user"
+                response `responseBodyShouldContain` "Selecting a venue user in View as applies access from that user"
                 response `responseBodyShouldContain` "Choose Super admin from View as to exit immediately"
-                response `responseBodyShouldContain` "Account security changes are blocked until you exit"
+                response `responseBodyShouldContain` "Account security changes are blocked while viewing as a venue user"
                 response `responseBodyShouldNotContain` "Manage account security"
                 response `responseBodyShouldNotContain` "Use passkey and recovery options"

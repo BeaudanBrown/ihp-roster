@@ -29,7 +29,7 @@ data PageHelpAudience
     | HelpOwnerOnly
     | HelpSupportOnly
     | HelpUnimpersonatedOnly
-    | HelpImpersonatingOnly
+    | HelpFounderOnly
     deriving (Eq, Show)
 
 data PageHelpContext = PageHelpContext
@@ -38,11 +38,12 @@ data PageHelpContext = PageHelpContext
     , pageHelpCanOwn    :: !Bool
     , pageHelpIsSupport       :: !Bool
     , pageHelpIsImpersonating :: !Bool
+    , pageHelpIsFounder       :: !Bool
     }
     deriving (Eq, Show)
 
 defaultPageHelpContext :: PageHelpContext
-defaultPageHelpContext = PageHelpContext False False False False False
+defaultPageHelpContext = PageHelpContext False False False False False False
 
 data PageHelpExampleButton = PageHelpExampleButton
     { pageHelpExampleButtonClass     :: !Text
@@ -85,7 +86,7 @@ filterPageHelpTopic :: PageHelpContext -> PageHelpTopic -> PageHelpTopic
 filterPageHelpTopic context topic =
     topic
         { pageHelpTopicSections =
-            (impersonationHelpSection : topic.pageHelpTopicSections)
+            (founderSupportHelpSection : topic.pageHelpTopicSections)
                 |> mapMaybe (filterSection context)
         }
 
@@ -107,7 +108,7 @@ audienceVisible context = \case
     HelpOwnerOnly          -> context.pageHelpCanOwn && not context.pageHelpIsSupport
     HelpSupportOnly        -> context.pageHelpIsSupport
     HelpUnimpersonatedOnly -> not context.pageHelpIsImpersonating
-    HelpImpersonatingOnly  -> context.pageHelpIsImpersonating
+    HelpFounderOnly        -> context.pageHelpIsFounder
 
 renderPageHelpBody :: PageHelpTopic -> Html
 renderPageHelpBody topic = [hsx|
@@ -164,12 +165,12 @@ renderPageHelpExampleButton PageHelpExampleButton { pageHelpExampleButtonClass, 
 renderPageHelpExampleButtonIcon :: Text -> Html
 renderPageHelpExampleButtonIcon iconClass = [hsx|<i class={"bi " <> iconClass} aria-hidden="true"></i>|]
 
-impersonationHelpSection :: PageHelpSection
-impersonationHelpSection =
-    section HelpImpersonatingOnly "Viewing as a venue user"
-        [ iconItem HelpImpersonatingOnly "bi-person-badge" "Effective access" "Use the selected user's access" "Actions use access from the selected venue user, including profile, Staff identity, and private preferences. Audit history still records the authenticated founder."
-        , iconItem HelpImpersonatingOnly "bi-box-arrow-left" "Exit" "Return to Super admin" "Choose Super admin from View as to exit immediately. Changing support venue also exits before opening the new venue."
-        , iconItem HelpImpersonatingOnly "bi-shield-lock" "Account security" "Exit before security changes" "Account security changes are blocked until you exit, including passkeys, recovery, verification, and session replacement."
+founderSupportHelpSection :: PageHelpSection
+founderSupportHelpSection =
+    section HelpFounderOnly "Founder support"
+        [ iconItem HelpFounderOnly "bi-person-badge" "Effective access" "Viewing as a venue user" "Selecting a venue user in View as applies access from that user, including profile, Staff identity, and private preferences. Audit history still records the authenticated founder."
+        , iconItem HelpFounderOnly "bi-box-arrow-left" "Exit" "Return to Super admin" "Choose Super admin from View as to exit immediately. Changing support venue also exits before opening the new venue."
+        , iconItem HelpFounderOnly "bi-shield-lock" "Account security" "Exit before security changes" "Account security changes are blocked while viewing as a venue user, including passkeys, recovery, verification, and session replacement."
         ]
 
 pageHelpTopics :: [PageHelpTopic]

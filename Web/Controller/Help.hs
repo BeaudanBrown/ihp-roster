@@ -1,6 +1,7 @@
 module Web.Controller.Help where
 
 import Application.Helper.Controller (currentUserIsImpersonating,
+                                      currentUserIsSuperAdmin,
                                       currentUserIsUnimpersonatedSuperAdmin,
                                       ensureCurrentVenueOrSupportRedirect,
                                       hasRole)
@@ -35,4 +36,5 @@ currentPageHelpContext =
         , pageHelpCanOwn = hasRole VenueOwner
         , pageHelpIsSupport = currentUserIsUnimpersonatedSuperAdmin
         , pageHelpIsImpersonating = currentUserIsImpersonating
+        , pageHelpIsFounder = currentUserIsSuperAdmin
         }
