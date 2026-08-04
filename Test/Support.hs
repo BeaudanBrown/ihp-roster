@@ -14,6 +14,7 @@ import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
 import Application.Helper.TimeRules (rosterShiftStartDate)
+import Application.RosterShiftAssignment (RosterShiftAssignment (..))
 import Application.VenueTime (RepeatedTimeOccurrence (FirstOccurrence),
                               melbourneTimeZoneName)
 import Application.VenueTime.Model
@@ -96,11 +97,7 @@ instance TestLocalTimeRecord RosterSlot (Maybe TimeOfDay) where
     testEndTime = rosterSlotEndTime
     setTestStartTime Nothing slot = slot |> set #startsAt Nothing
     setTestStartTime (Just startTime) slot =
-        let startDay = case slot.endsAt of
-                Just endInstant ->
-                    let endLocal = storedInstantLocalTime (testFixtureTimezone slot.timezone) endInstant
-                     in addDays (if endLocal.localTimeOfDay <= startTime then (-1) else 0) endLocal.localDay
-                Nothing -> rosterSlotFixtureDay slot
+        let startDay = rosterSlotFixtureDay slot
          in slot
                 |> set #startsAt (Just (resolveTestFixtureInstant (testFixtureTimezone slot.timezone) startDay startTime))
                 |> set #timezone (testFixtureTimezone slot.timezone)
@@ -427,7 +424,10 @@ createRosterDayRecord :: (?modelContext :: ModelContext) => RosterWeek -> Int ->
 createRosterDayRecord = ApplicationFixture.createRosterDayRecord
 
 createRosterSlotRecord :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> Maybe Staff -> Int -> IO RosterSlot
-createRosterSlotRecord = ApplicationFixture.createRosterSlotRecord
+createRosterSlotRecord rosterDay slotName maybeStaff rowIndex =
+    ApplicationFixture.createRosterSlotRecord rosterDay slotName assignment rowIndex
+  where
+    assignment = maybe OpenAssignment (StaffAssignment . (.id)) maybeStaff
 
 createCompleteRosterSlotRecord :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> Staff -> Int -> IO RosterSlot
 createCompleteRosterSlotRecord rosterDay slotName staff rowIndex = do

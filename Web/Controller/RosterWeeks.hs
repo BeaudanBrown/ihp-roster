@@ -38,6 +38,8 @@ import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyV
                                      venueTimePickerFinalSelectableTimeText,
                                      venueTimePickerStartTimeText)
 import Application.Helper.UserPreferences
+import Application.RosterShiftAssignment (RosterShiftAssignment (StaffAssignment),
+                                          applyRosterShiftAssignment)
 import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 OverlayButtonAction (..),
                                 ToastOverlayPosition (ToastBottomCenter),
@@ -790,6 +792,7 @@ instance Controller RosterWeeksController where
                                             RosterDayDropBoundaryReady targetRosterWeek copiedBoundariesSlot -> do
                                                 let copiedSlot = newRecord @RosterSlot
                                                         |> set #rosterDayId (unpackId targetRosterDay.id)
+                                                        |> set #assignmentState sourceSlot.assignmentState
                                                         |> set #staffId sourceSlot.staffId
                                                         |> set #rosterWeekSlotDefinitionId (unpackId targetSlotDefinition.id)
                                                         |> set #slotSortOrder targetSlotDefinition.sortOrder
@@ -817,7 +820,7 @@ instance Controller RosterWeeksController where
                 case result of
                     Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
                     Right RosterStaffExistingShiftDropIntent { staffDropStaff, staffDropSlot, staffDropRosterDay, staffDropRosterWeek } -> do
-                        let updatedSlot = staffDropSlot |> set #staffId (Just (coerce staffDropStaff.id))
+                        let updatedSlot = staffDropSlot |> applyRosterShiftAssignment (StaffAssignment staffDropStaff.id)
                         mutationResult <- updateRosterSlotMutation rosterGroup.id staffDropRosterWeek staffDropRosterDay staffDropSlot updatedSlot
                         case mutationResult of
                             Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message

@@ -192,7 +192,9 @@ addDirectReadModelConflictFacts fixture = do
         slot
             |> setTestRosterSlotBoundaries (Calendar.addDays 1 initialData.weekStartDate) (TimeOfDay 6 0 0) (TimeOfDay 7 0 0)
             |> updateRecord
-    _ <- fixture.visibleSparseSlot |> setTestStartTime (Just (TimeOfDay 23 0 0)) |> updateRecord
+    _ <- fixture.visibleSparseSlot
+        |> setTestRosterSlotBoundaries initialData.weekStartDate (TimeOfDay 23 0 0) (TimeOfDay 23 30 0)
+        |> updateRecord
     _ <- createLeaveRequestRecord fixture.venue fixture.assignedInactiveStaff initialData.weekStartDate (Calendar.addDays 1 initialData.weekStartDate) LeaveRequestStatusEnumApproved
     preferenceStaff <- createStaffRecord fixture.venue Nothing "Pref" "Mismatch"
     preferenceSlot <- createRosterSlotRecord openDay fixture.earlySlotName (Just preferenceStaff) 6 >>= \slot ->

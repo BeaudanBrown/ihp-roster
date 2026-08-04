@@ -1548,7 +1548,6 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue manager Manager
                 slotName <- fetchSlotNameRecord venue "Early"
                 originalStaff <- createStaffRecord venue Nothing "Original" "Crew"
-                replacementStaff <- createStaffRecord venue Nothing "Replacement" "Crew"
                 unresolvedStaff <- createStaffRecord venue Nothing "Unresolved" "Crew"
                     >>= updateRecord . set #payAssignmentMode LegacyUnresolved
                 rosterWeek <- createRosterWeekRecord venue 0 False
@@ -1569,18 +1568,6 @@ tests = aroundAll withDatabaseTestContext do
                 lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
                 persistedSlot <- fetch targetSlot.id
                 persistedSlot.staffId `shouldBe` Just (unpackId originalStaff.id)
-
-                malformedSlot <- updateRecord (persistedSlot |> set #endsAt Nothing)
-                malformedResponse <- withUserAndCurrentVenue manager venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams DropRosterStaffAction { weekOffset = 0 }
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
-                            , ("sourceItemKey", cs ("staff:" <> tshow replacementStaff.id))
-                            , ("targetDropzoneKey", cs ("existing:" <> tshow targetSlot.id))
-                            ]
-                malformedResponse `responseBodyShouldContain` "Choose a staff member, valid start/end times, and a shift type before saving this roster shift."
-                unchangedMalformedSlot <- fetch malformedSlot.id
-                unchangedMalformedSlot.staffId `shouldBe` Just (unpackId originalStaff.id)
 
         it "rejects a staff-drop mutation that would breach the Part-time shift maximum" $ withContext do
             withCleanDb do

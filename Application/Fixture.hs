@@ -6,6 +6,8 @@ import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
                                         ensureVenueRosterDefaults)
 import Application.Helper.VenueBootstrap
+import Application.RosterShiftAssignment (RosterShiftAssignment,
+                                          applyRosterShiftAssignment)
 import Application.VenueTime (melbourneTimeZoneName)
 import Application.VenueTime.Model
 import Control.Monad (void)
@@ -13,7 +15,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Char as Char
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, fromGregorian)
+import Data.Time.Calendar (Day, addDays, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
@@ -220,16 +222,31 @@ createRosterDayRecord rosterWeek dayOffset =
         |> set #isClosed False
         |> createRecord
 
-createRosterSlotRecord :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> Maybe Staff -> Int -> IO RosterSlot
-createRosterSlotRecord rosterDay slotName maybeStaff rowIndex = do
+createRosterSlotRecord :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> RosterShiftAssignment -> Int -> IO RosterSlot
+createRosterSlotRecord rosterDay slotName assignment rowIndex = do
     slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
+    rosterWeek <- fetch (Id rosterDay.rosterWeekId :: Id RosterWeek)
+    venue <- fetch (Id rosterWeek.venueId :: Id Venue)
+    shiftType <- ensureVenueDefaultShiftType venue
+    let rosterDate = addDays (toInteger rosterDay.dayOffset) (fromGregorian 2025 1 6)
+        boundaries =
+            either (error . ("Invalid roster shift fixture: " <>) . show) Prelude.id $
+                resolveShiftBoundaries melbourneTimeZoneName ShiftBoundaryInput
+                    { shiftBoundaryDate = rosterDate
+                    , shiftBoundaryStartTime = TimeOfDay 9 0 0
+                    , shiftBoundaryStartOccurrence = Nothing
+                    , shiftBoundaryEndTime = TimeOfDay 17 0 0
+                    , shiftBoundaryEndOccurrence = Nothing
+                    , shiftBoundaryBreak = Nothing
+                    }
     newRecord @RosterSlot
         |> set #rosterDayId (unpackId (get #id rosterDay))
         |> set #rosterWeekSlotDefinitionId (unpackId (get #id slotDefinition))
         |> set #slotSortOrder slotDefinition.sortOrder
-        |> set #staffId (fmap (unpackId . get #id) maybeStaff)
         |> set #rowIndex rowIndex
-        |> set #timezone melbourneTimeZoneName
+        |> set #shiftTypeId (Just (unpackId shiftType.id))
+        |> applyRosterShiftAssignment assignment
+        |> applyRosterSlotBoundaries boundaries
         |> createRecord
 
 ensureRosterWeekSlotDefinitionForSlotName :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> IO RosterWeekSlotDefinition

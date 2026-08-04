@@ -16,6 +16,8 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..))
 import Application.Helper.TimeRules (rosterShiftStartDate)
 import Application.Helper.WeekBoundaries (venueWeekStartDate)
+import Application.RosterShiftAssignment (RosterShiftAssignment (..),
+                                          applyRosterShiftAssignment)
 import Application.VenueTime.Model
 import Control.Monad (void)
 import qualified Data.Map.Strict as Map
@@ -574,7 +576,7 @@ createRosterRow rosterDay slotNames rowIndex assignments = do
                         |> set #rosterDayId (unpackId (get #id rosterDay))
                         |> set #rosterWeekSlotDefinitionId (unpackId (get #id slotDefinition))
                         |> set #slotSortOrder slotDefinition.sortOrder
-                        |> set #staffId (fmap (unpackId . get #id) slotSeed.slotStaff)
+                        |> applyRosterShiftAssignment (maybe OpenAssignment (StaffAssignment . (.id)) slotSeed.slotStaff)
                         |> set #shiftTypeId slotSeed.slotShiftTypeId
                         |> set #rowIndex rowIndex
                         |> set #timezone timezone

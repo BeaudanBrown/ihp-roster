@@ -312,7 +312,6 @@ tests = aroundAll withDatabaseTestContext do
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 row0 <- createRosterSlotRecord rosterDay early Nothing 0
-                row1 <- createRosterSlotRecord rosterDay early Nothing 1
                 row2 <- createRosterSlotRecord rosterDay early Nothing 2
                 row3 <- createRosterSlotRecord rosterDay early Nothing 3
                 _ <- updateRecord (row0 |> setTestStartTime (Just (timeOfDay 8 0)))
@@ -332,8 +331,6 @@ tests = aroundAll withDatabaseTestContext do
                 map (.id) packedDataSlots `shouldBe` [row0.id, row2.id, row3.id]
                 map (.rowIndex) packedDataSlots `shouldBe` [0, 1, 2]
                 map testStartTime packedDataSlots `shouldBe` map (Just . uncurry timeOfDay) [(8, 0), (10, 0), (12, 0)]
-                deletedHole <- fetch row1.id
-                deletedHole.deletedAt `shouldSatisfy` isJust
 
         it "asks for confirmation before deleting overflow shifts and preserves deleted-row shifts left to right" $ withContext do
             withCleanDb do
@@ -349,7 +346,6 @@ tests = aroundAll withDatabaseTestContext do
                 early1 <- createRosterSlotRecord rosterDayWithRows early Nothing 1
                 early2 <- createRosterSlotRecord rosterDayWithRows early Nothing 2
                 late0 <- createRosterSlotRecord rosterDayWithRows late Nothing 0
-                late1 <- createRosterSlotRecord rosterDayWithRows late Nothing 1
                 late2 <- createRosterSlotRecord rosterDayWithRows late Nothing 2
                 _ <- updateRecord (early0 |> setTestStartTime (Just (timeOfDay 8 0)))
                 _ <- updateRecord (early1 |> setTestStartTime (Just (timeOfDay 9 0)))
@@ -379,7 +375,7 @@ tests = aroundAll withDatabaseTestContext do
                 preservedFirst <- fetch early2.id
                 deletedRightmost <- fetch late2.id
                 preservedFirst.deletedAt `shouldBe` Nothing
-                preservedFirst.rosterWeekSlotDefinitionId `shouldBe` late1.rosterWeekSlotDefinitionId
+                preservedFirst.rosterWeekSlotDefinitionId `shouldBe` late0.rosterWeekSlotDefinitionId
                 preservedFirst.rowIndex `shouldBe` 1
                 deletedRightmost.deletedAt `shouldSatisfy` isJust
 
@@ -1247,8 +1243,6 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #shiftTypeId (Just (unpackId rosterOnlyShiftType.id))
                         |> setTestDurationMinutes (Just 480)
                     )
-                incompleteSlot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 1
-                _ <- updateRecord (incompleteSlot |> setTestStartTime (Just (timeOfDay 9 0)))
                 invalidTimingSlot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 2
                 _ <- updateRecord
                     ( invalidTimingSlot
@@ -1695,110 +1689,6 @@ tests = aroundAll withDatabaseTestContext do
                 testStartTime unchangedEntry `shouldBe` timeOfDay 22 0
                 testEndTime unchangedEntry `shouldBe` timeOfDay 2 0
                 unchangedEntry.sourceRosterSlotId `shouldBe` Just (unpackId completeSlot.id)
-
-        it "blocks publishing staffed shifts missing end times or shift types when enabled" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Venue A"
-                manager <- createUserRecord "roster-manager-publish-required-fields@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                _ <- updateRecord (venueConfig |> set #rosterEndTimesEnabled True)
-                slotName <- fetchSlotNameRecord venue "Early"
-                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
-                level <- createPayLevelRecord venue "Level 1"
-                shiftType <- createShiftTypeRecord venue level "Floor"
-                rosterWeek <- createRosterWeekRecord venue 0 False
-                rosterDay <- createRosterDayRecord rosterWeek 0
-                slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
-                _ <- updateRecord (slot |> setTestStartTime (Just (timeOfDay 9 0)) |> set #shiftTypeId Nothing)
-
-                draftResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekAction 0)
-                draftResponse `responseStatusShouldBe` status200
-                draftResponse `responseBodyShouldNotContain` "is-roster-shift-publish-required"
-                draftResponse `responseBodyShouldNotContain` "required after failed publish"
-
-                blockedResponse <- withUserAndCurrentVenue manager venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
-                            (ToggleRosterWeekLiveStatusAction rosterWeek.id)
-                            [("isLive", "on")]
-
-                blockedResponse `responseStatusShouldBe` status200
-                blockedResponse `responseBodyShouldContain` "Roster week cannot go live until every staffed shift has a start time, valid end time, and shift type."
-                blockedResponse `responseBodyShouldContain` "is-roster-shift-publish-required"
-                blockedWeek <- fetch rosterWeek.id
-                blockedWeek.isLive `shouldBe` False
-
-                _ <- updateRecord
-                    ( slot
-                        |> setTestRosterSlotBoundaries (fromGregorian 2025 1 6) (timeOfDay 9 0) (timeOfDay 17 0)
-                        |> set #shiftTypeId (Just (unpackId shiftType.id))
-                    )
-
-                publishedResponse <- withUserAndCurrentVenue manager venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
-                            (ToggleRosterWeekLiveStatusAction rosterWeek.id)
-                            [("isLive", "on")]
-
-                publishedResponse `responseStatusShouldBe` status200
-                publishedResponse `responseBodyShouldNotContain` "is-roster-shift-publish-required"
-                publishedResponse `responseBodyShouldNotContain` "required after failed publish"
-                publishedWeek <- fetch rosterWeek.id
-                publishedWeek.isLive `shouldBe` True
-
-        it "blocks publishing staffed shifts missing end times or shift types when end times are hidden" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Venue A"
-                manager <- createUserRecord "roster-manager-publish-type-required@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager Manager
-                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                _ <- updateRecord (venueConfig |> set #rosterEndTimesEnabled False)
-                slotName <- fetchSlotNameRecord venue "Early"
-                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
-                level <- createPayLevelRecord venue "Level 1"
-                shiftType <- createShiftTypeRecord venue level "Floor"
-                rosterWeek <- createRosterWeekRecord venue 0 False
-                rosterDay <- createRosterDayRecord rosterWeek 0
-                slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
-                _ <- updateRecord (slot |> setTestStartTime (Just (timeOfDay 9 0)) |> set #shiftTypeId Nothing)
-
-                blockedResponse <- withUserAndCurrentVenue manager venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
-                            (ToggleRosterWeekLiveStatusAction rosterWeek.id)
-                            [("isLive", "on")]
-
-                blockedResponse `responseStatusShouldBe` status200
-                blockedResponse `responseBodyShouldContain` "Roster week cannot go live until every staffed shift has a start time, valid end time, and shift type."
-                blockedWeek <- fetch rosterWeek.id
-                blockedWeek.isLive `shouldBe` False
-
-                _ <- updateRecord (slot |> set #shiftTypeId (Just (unpackId shiftType.id)))
-
-                stillBlockedResponse <- withUserAndCurrentVenue manager venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
-                            (ToggleRosterWeekLiveStatusAction rosterWeek.id)
-                            [("isLive", "on")]
-
-                stillBlockedResponse `responseStatusShouldBe` status200
-                stillBlockedResponse `responseBodyShouldContain` "Roster week cannot go live until every staffed shift has a start time, valid end time, and shift type."
-                stillBlockedWeek <- fetch rosterWeek.id
-                stillBlockedWeek.isLive `shouldBe` False
-
-                _ <- updateRecord (slot |> setTestRosterSlotBoundaries (fromGregorian 2025 1 6) (timeOfDay 9 0) (timeOfDay 17 0))
-
-                publishedResponse <- withUserAndCurrentVenue manager venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
-                            (ToggleRosterWeekLiveStatusAction rosterWeek.id)
-                            [("isLive", "on")]
-
-                publishedResponse `responseStatusShouldBe` status200
-                publishedWeek <- fetch rosterWeek.id
-                publishedWeek.isLive `shouldBe` True
 
         it "manager slot edits can save end time and shift type with overnight duration" $ withContext do
             withCleanDb do

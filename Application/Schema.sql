@@ -770,6 +770,7 @@ CREATE TABLE roster_week_slot_definitions (
 CREATE TABLE roster_slots (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     roster_day_id UUID NOT NULL,
+    assignment_state TEXT NOT NULL,
     staff_id UUID,
     roster_week_slot_definition_id UUID NOT NULL,
     slot_sort_order INT DEFAULT 0 NOT NULL,
@@ -783,14 +784,23 @@ CREATE TABLE roster_slots (
     delete_reason TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    CONSTRAINT roster_slots_assignment_shape_check CHECK (
+        (assignment_state = 'staff' AND staff_id IS NOT NULL)
+        OR (assignment_state = 'open' AND staff_id IS NULL)
+    ),
+    CONSTRAINT roster_slots_assignment_state_check CHECK (assignment_state = 'staff' OR assignment_state = 'open'),
+    CONSTRAINT roster_slots_active_structure_check CHECK (
+        deleted_at IS NOT NULL
+        OR (starts_at IS NOT NULL AND ends_at IS NOT NULL AND ends_at > starts_at AND shift_type_id IS NOT NULL)
+    ),
     CHECK (row_index >= 0),
     CHECK (slot_sort_order >= 0),
     CHECK (starts_at IS NULL OR ends_at IS NULL OR ends_at > starts_at),
     CHECK (char_length(btrim(timezone)) > 0),
     CHECK (timezone = 'Australia/Melbourne'),
     FOREIGN KEY (roster_day_id) REFERENCES roster_days (id) ON DELETE RESTRICT,
-    FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE SET NULL,
-    FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE SET NULL,
+    FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
+    FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE RESTRICT,
     FOREIGN KEY (roster_week_slot_definition_id) REFERENCES roster_week_slot_definitions (id) ON DELETE RESTRICT,
     FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
@@ -2034,6 +2044,10 @@ CREATE OR REPLACE FUNCTION enforce_roster_slot_week_definition_integrity()
 RETURNS TRIGGER
 AS $$
 BEGIN
+    IF NEW.deleted_at IS NOT NULL THEN
+        RETURN NEW;
+    END IF;
+
     IF NOT EXISTS (
         SELECT 1
         FROM roster_days rd
@@ -2055,6 +2069,19 @@ BEGIN
         )
     THEN
         RAISE EXCEPTION 'roster slot shift_type_id must stay within roster week venue';
+    END IF;
+
+    IF NEW.staff_id IS NOT NULL
+        AND NOT EXISTS (
+            SELECT 1
+            FROM roster_days rd
+            JOIN roster_weeks rw ON rw.id = rd.roster_week_id
+            JOIN staff s ON s.id = NEW.staff_id
+            WHERE rd.id = NEW.roster_day_id
+                AND s.venue_id = rw.venue_id
+        )
+    THEN
+        RAISE EXCEPTION 'roster slot staff_id must stay within roster week venue';
     END IF;
 
     RETURN NEW;

@@ -7,6 +7,7 @@ import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
+import Data.UUID (UUID)
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Types as PGTypes
 import Generated.Types
@@ -268,6 +269,57 @@ tests = aroundAll withDatabaseTestContext do
                 map isLeft [nonPositiveTimesheet, halfBreak, outsideBreak, emptyTimesheetTimezone, unsupportedTimesheetTimezone, nonPositiveRoster, emptyRosterTimezone, unsupportedRosterTimezone]
                     `shouldBe` replicate 8 True
                 wholeShiftBreak `shouldSatisfy` isRight
+
+    describe "roster shift assignment constraints" do
+        it "accepts only structurally complete explicit Staff or Open active shifts" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Explicit shift assignment"
+                staff <- createStaffRecord venue Nothing "Assigned" "Worker"
+                foreignVenue <- createVenueWithConfig "Foreign shift assignment"
+                foreignStaff <- createStaffRecord foreignVenue Nothing "Foreign" "Worker"
+                shiftType <- ensureVenueDefaultShiftType venue
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotName <- fetchSlotNameRecord venue "Early"
+                slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
+                let startsAt = resolveTestFixtureInstant "Australia/Melbourne" defaultWeekEpoch (TimeOfDay 9 0 0)
+                let endsAt = resolveTestFixtureInstant "Australia/Melbourne" defaultWeekEpoch (TimeOfDay 17 0 0)
+                let insertShift :: Int -> Text -> Maybe UUID -> Maybe UTCTime -> Maybe UTCTime -> Maybe UUID -> IO (Either SomeException ())
+                    insertShift rowIndex assignmentState maybeStaffId maybeStartsAt maybeEndsAt maybeShiftTypeId =
+                        try
+                            ( sqlExecDiscardResult
+                                "INSERT INTO roster_slots (roster_day_id, roster_week_slot_definition_id, row_index, assignment_state, staff_id, starts_at, ends_at, timezone, shift_type_id) VALUES (?, ?, ?, ?, ?, ?, ?, 'Australia/Melbourne', ?)"
+                                (unpackId rosterDay.id, unpackId slotDefinition.id, rowIndex, assignmentState :: Text, maybeStaffId, maybeStartsAt, maybeEndsAt, maybeShiftTypeId)
+                            ) :: IO (Either SomeException ())
+
+                assigned <- insertShift 0 "staff" (Just (unpackId staff.id)) (Just startsAt) (Just endsAt) (Just (unpackId shiftType.id))
+                open <- insertShift 1 "open" Nothing (Just startsAt) (Just endsAt) (Just (unpackId shiftType.id))
+                staffWithoutWorker <- insertShift 2 "staff" Nothing (Just startsAt) (Just endsAt) (Just (unpackId shiftType.id))
+                openWithWorker <- insertShift 3 "open" (Just (unpackId staff.id)) (Just startsAt) (Just endsAt) (Just (unpackId shiftType.id))
+                missingStart <- insertShift 4 "staff" (Just (unpackId staff.id)) Nothing (Just endsAt) (Just (unpackId shiftType.id))
+                missingEnd <- insertShift 5 "staff" (Just (unpackId staff.id)) (Just startsAt) Nothing (Just (unpackId shiftType.id))
+                missingShiftType <- insertShift 6 "staff" (Just (unpackId staff.id)) (Just startsAt) (Just endsAt) Nothing
+                wrongVenueStaff <- insertShift 7 "staff" (Just (unpackId foreignStaff.id)) (Just startsAt) (Just endsAt) (Just (unpackId shiftType.id))
+
+                map isRight [assigned, open] `shouldBe` replicate 2 True
+                map isLeft [staffWithoutWorker, openWithWorker, missingStart, missingEnd, missingShiftType, wrongVenueStaff]
+                    `shouldBe` replicate 6 True
+
+        it "retains structurally incomplete deleted history" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Deleted shift history"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotName <- fetchSlotNameRecord venue "Early"
+                slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
+
+                result <- try
+                    ( sqlExecDiscardResult
+                        "INSERT INTO roster_slots (roster_day_id, roster_week_slot_definition_id, row_index, assignment_state, staff_id, timezone, deleted_at, delete_reason) VALUES (?, ?, 0, 'open', NULL, 'Australia/Melbourne', NOW(), 'historical_fixture')"
+                        (unpackId rosterDay.id, unpackId slotDefinition.id)
+                    ) :: IO (Either SomeException ())
+
+                result `shouldSatisfy` isRight
 
     describe "database tenant integrity protection" do
         it "rejects direct SQL roster weeks whose venue does not match the roster group" $ withContext do

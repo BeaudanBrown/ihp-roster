@@ -28,6 +28,8 @@ import Application.Helper.TimeRules (defaultShiftTimesForVenueConfig,
                                      venueShiftTimeValidationMessage,
                                      venueTimePickerFinalSelectableTimeText,
                                      venueTimePickerStartTimeText)
+import Application.RosterShiftAssignment (RosterShiftAssignment (StaffAssignment),
+                                          applyRosterShiftAssignment)
 import Application.VenueTime (RepeatedTimeOccurrence (..), VenueTimeError (..))
 import Application.VenueTime.Model
 import Data.Coerce (coerce)
@@ -301,6 +303,6 @@ shiftTypeIdIsInCurrentVenue shiftTypeId =
 applyValidatedRosterShift :: ValidatedRosterShift -> RosterSlot -> RosterSlot
 applyValidatedRosterShift valid slot =
     slot
-        |> set #staffId (Just valid.validRosterShiftStaffId)
+        |> applyRosterShiftAssignment (StaffAssignment (Id valid.validRosterShiftStaffId))
         |> set #shiftTypeId (Just valid.validRosterShiftTypeId)
         |> applyRosterSlotBoundaries valid.validRosterShiftBoundaries

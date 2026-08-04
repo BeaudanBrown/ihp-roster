@@ -38,10 +38,13 @@ import qualified Application.Helper.RosterAwardDuration as RosterAwardDuration
 import Application.Helper.RosterGroups
 import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyValid)
 import Application.PayAssignment
+import Application.RosterShiftAssignment (RosterShiftAssignment (..),
+                                          rosterShiftAssignment)
 import Application.Staff.Mutations (withStaffOperationalLocksInCurrentTransaction)
 import Application.VenueTime (RepeatedTimeOccurrence)
 import Application.VenueTime.Model
 import Data.Coerce (coerce)
+import Data.Either (isRight)
 import Data.List (nub, sort, sortOn)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (catMaybes, fromMaybe, isJust, isNothing, listToMaybe,
@@ -207,7 +210,8 @@ createInitialRosterWeekSlotDefinitions rosterWeek = do
 
 rosterSlotTimesheetSourceChanged :: RosterSlot -> RosterSlot -> Bool
 rosterSlotTimesheetSourceChanged previous next =
-    previous.staffId /= next.staffId
+    previous.assignmentState /= next.assignmentState
+        || previous.staffId /= next.staffId
         || previous.startsAt /= next.startsAt
         || previous.endsAt /= next.endsAt
         || previous.timezone /= next.timezone
@@ -321,21 +325,25 @@ rosterSlotRequiredFieldsMessage = "Choose a staff member, valid start/end times,
 
 validateRosterSlotForPersistence :: (?modelContext :: ModelContext) => Id Venue -> RosterSlot -> IO (Maybe Text)
 validateRosterSlotForPersistence venueId slot
-    | isNothing slot.staffId || isNothing slot.shiftTypeId || not (rosterSlotHasValidStartEnd slot) =
+    | isNothing slot.shiftTypeId || not (rosterSlotHasValidStartEnd slot) =
         pure (Just rosterSlotRequiredFieldsMessage)
-    | otherwise = do
-        disposition <- resolveRosterSlotPayDisposition venueId slot
-        case disposition of
-            Left message -> pure (Just message)
-            Right EffectiveRosterOnly -> pure Nothing
-            Right _ -> do
-                maybeStaff <- case slot.staffId of
-                    Just staffId -> query @Staff |> filterWhere (#id, Id staffId) |> fetchOneOrNothing
-                    Nothing      -> pure Nothing
-                pure do
-                    staff <- maybeStaff
-                    violation <- rosterSlotAwardDurationViolation staff slot
-                    pure (RosterAwardDuration.rosterAwardDurationViolationMessage violation)
+    | otherwise =
+        case rosterShiftAssignment slot of
+            Left _ -> pure (Just rosterSlotRequiredFieldsMessage)
+            Right OpenAssignment -> pure Nothing
+            Right StaffAssignment {} -> do
+                disposition <- resolveRosterSlotPayDisposition venueId slot
+                case disposition of
+                    Left message -> pure (Just message)
+                    Right EffectiveRosterOnly -> pure Nothing
+                    Right _ -> do
+                        maybeStaff <- case slot.staffId of
+                            Just staffId -> query @Staff |> filterWhere (#id, Id staffId) |> fetchOneOrNothing
+                            Nothing      -> pure Nothing
+                        pure do
+                            staff <- maybeStaff
+                            violation <- rosterSlotAwardDurationViolation staff slot
+                            pure (RosterAwardDuration.rosterAwardDurationViolationMessage violation)
 
 validateRosterSlotsForPersistence :: (?modelContext :: ModelContext) => Id Venue -> [RosterSlot] -> IO (Maybe Text)
 validateRosterSlotsForPersistence venueId slots =
@@ -595,6 +603,7 @@ copyRosterWeekSlotDefinitionsAndSlots sourceWeek targetWeek plans = do
             Just (targetDay, targetDefinition) -> do
                 _ <- newRecord @RosterSlot
                     |> set #rosterDayId (unpackId targetDay.id)
+                    |> set #assignmentState sourceSlot.assignmentState
                     |> set #staffId sourceSlot.staffId
                     |> set #rosterWeekSlotDefinitionId (unpackId targetDefinition.id)
                     |> set #slotSortOrder targetDefinition.sortOrder
@@ -626,7 +635,7 @@ rosterWeekSlotDefinitionHasData slotDefinition = do
 
 rosterSlotHasData :: RosterSlot -> Bool
 rosterSlotHasData slot =
-    isJust slot.staffId
+    isRight (rosterShiftAssignment slot)
         || isJust slot.startsAt
         || isJust slot.endsAt
         || isJust slot.shiftTypeId

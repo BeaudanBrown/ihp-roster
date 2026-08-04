@@ -33,6 +33,7 @@ tests = describe "Conflict Engine" do
     let mockSlot = RosterSlot
             { id = def
             , rosterDayId = def
+            , assignmentState = "open"
             , staffId = Nothing
             , rosterWeekSlotDefinitionId = def
             , slotSortOrder = 0

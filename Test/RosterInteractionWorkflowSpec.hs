@@ -1,6 +1,8 @@
 module Test.RosterInteractionWorkflowSpec where
 
+import Application.RosterShiftAssignment
 import Application.VenueTime.Model
+import Data.Either (isLeft)
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -8,6 +10,7 @@ import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ModelSupport (newRecord, unpackId)
+import IHP.ModelSupport.Types (Id' (Id))
 import IHP.Prelude
 import Test.Hspec
 import Web.RosterWeeks.DropWorkflow
@@ -58,6 +61,27 @@ tests = do
             parseTimelineShiftDropTargetToken "time:11111111-1111-1111-1111-111111111111:22222222-2222-2222-2222-222222222222:not-a-minute"
                 `shouldBe` Nothing
 
+    describe "explicit roster shift assignment" do
+        it "applies Staff and Open as closed assignment variants" do
+            let staffId = Id (workflowUuid "33333333-3333-3333-3333-333333333333") :: Id Staff
+                assigned = applyRosterShiftAssignment (StaffAssignment staffId) (newRecord @RosterSlot)
+                open = applyRosterShiftAssignment OpenAssignment assigned
+
+            assigned.assignmentState `shouldBe` "staff"
+            assigned.staffId `shouldBe` Just (unpackId staffId)
+            rosterShiftAssignment assigned `shouldBe` Right (StaffAssignment staffId)
+            open.assignmentState `shouldBe` "open"
+            open.staffId `shouldBe` Nothing
+            rosterShiftAssignment open `shouldBe` Right OpenAssignment
+
+        it "rejects inconsistent or unknown persisted assignment shapes" do
+            let invalidStaff = newRecord @RosterSlot |> set #assignmentState "staff" |> set #staffId Nothing
+                invalidOpen = newRecord @RosterSlot |> set #assignmentState "open" |> set #staffId (Just (workflowUuid "33333333-3333-3333-3333-333333333333"))
+                unknown = newRecord @RosterSlot |> set #assignmentState "unknown" |> set #staffId Nothing
+
+            map (isLeft . rosterShiftAssignment) [invalidStaff, invalidOpen, unknown]
+                `shouldBe` replicate 3 True
+
     describe "roster shift workflow application" do
         it "applies one validated typed submission as exact authoritative slot fields" do
             let staffId = workflowUuid "33333333-3333-3333-3333-333333333333"
@@ -78,6 +102,7 @@ tests = do
                     }
                 slot = applyValidatedRosterShift valid (newRecord @RosterSlot)
 
+            slot.assignmentState `shouldBe` "staff"
             slot.staffId `shouldBe` Just staffId
             slot.shiftTypeId `shouldBe` Just shiftTypeId
             slot.startsAt `shouldBe` Just (UTCTime (fromGregorian 2025 1 5) (secondsToDiffTime (22 * 60 * 60)))
