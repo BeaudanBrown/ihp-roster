@@ -27,8 +27,13 @@ module Application.RosterTemplates
     ) where
 
 import Application.Helper.ControllerAccess (hasRole)
-import Application.Helper.ControllerContext (authenticatedCurrentUser, currentVenue)
-import Application.PayAssignment (EffectivePayAssignment (..), StaffPayAssignment (..), ShiftPayAssignment (..), resolvePayAssignment, staffPayAssignmentRequiresRemediation, shiftPayAssignmentRequiresRemediation)
+import Application.Helper.ControllerContext (authenticatedCurrentUser,
+                                             currentVenue)
+import Application.PayAssignment (EffectivePayAssignment (..),
+                                  ShiftPayAssignment (..),
+                                  StaffPayAssignment (..), resolvePayAssignment,
+                                  shiftPayAssignmentRequiresRemediation,
+                                  staffPayAssignmentRequiresRemediation)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..))
 import Application.RosterTemplates.Mutations (lockRosterTemplateVersion)
 import Control.Monad (void)
@@ -46,49 +51,49 @@ data RosterTemplateScale
     deriving (Eq, Show)
 
 data RosterTemplateActor = RosterTemplateActor
-    { actorUserId :: !(Id User)
-    , actorVenueId :: !(Id Venue)
+    { actorUserId         :: !(Id User)
+    , actorVenueId        :: !(Id Venue)
     , actorCanEditRosters :: !Bool
     }
     deriving (Eq, Show)
 
 data RosterTemplateDayInput = RosterTemplateDayInput
-    { inputDayIndex :: !Int
+    { inputDayIndex    :: !Int
     , inputDayIsClosed :: !Bool
     , inputDayRowCount :: !Int
     }
     deriving (Eq, Show)
 
 data RosterTemplateColumnInput = RosterTemplateColumnInput
-    { inputColumnName :: !Text
+    { inputColumnName      :: !Text
     , inputColumnSortOrder :: !Int
     }
     deriving (Eq, Show)
 
 data RosterTemplateShiftInput = RosterTemplateShiftInput
-    { inputShiftDayIndex :: !Int
+    { inputShiftDayIndex        :: !Int
     , inputShiftColumnSortOrder :: !Int
-    , inputShiftRowIndex :: !Int
-    , inputShiftStartMinute :: !Int
-    , inputShiftEndMinute :: !Int
-    , inputShiftTypeId :: !(Id ShiftType)
-    , inputShiftAssignment :: !RosterShiftAssignment
+    , inputShiftRowIndex        :: !Int
+    , inputShiftStartMinute     :: !Int
+    , inputShiftEndMinute       :: !Int
+    , inputShiftTypeId          :: !(Id ShiftType)
+    , inputShiftAssignment      :: !RosterShiftAssignment
     }
     deriving (Eq, Show)
 
 data RosterTemplateContent = RosterTemplateContent
-    { contentDays :: ![RosterTemplateDayInput]
+    { contentDays    :: ![RosterTemplateDayInput]
     , contentColumns :: ![RosterTemplateColumnInput]
-    , contentShifts :: ![RosterTemplateShiftInput]
+    , contentShifts  :: ![RosterTemplateShiftInput]
     }
     deriving (Eq, Show)
 
 data RosterTemplateSaved = RosterTemplateSaved
     { savedTemplate :: !RosterTemplate
-    , savedDesign :: !RosterTemplateDesign
-    , savedDays :: ![RosterTemplateDay]
-    , savedColumns :: ![RosterTemplateColumn]
-    , savedShifts :: ![RosterTemplateShift]
+    , savedDesign   :: !RosterTemplateDesign
+    , savedDays     :: ![RosterTemplateDay]
+    , savedColumns  :: ![RosterTemplateColumn]
+    , savedShifts   :: ![RosterTemplateShift]
     }
     deriving (Eq, Show)
 
@@ -98,23 +103,23 @@ data RosterTemplateSaveWarning
 
 data RosterTemplateSave = RosterTemplateSave
     { savedTemplate :: !RosterTemplate
-    , savedVersion :: !Int
-    , saveWarnings :: ![RosterTemplateSaveWarning]
+    , savedVersion  :: !Int
+    , saveWarnings  :: ![RosterTemplateSaveWarning]
     }
     deriving (Eq, Show)
 
 data RosterTemplateLibrary = RosterTemplateLibrary
-    { libraryTemplates :: ![RosterTemplate]
+    { libraryTemplates    :: ![RosterTemplate]
     , libraryPrivateDraft :: !(Maybe RosterTemplateDraft)
     }
     deriving (Eq, Show)
 
 data RosterTemplateDraft = RosterTemplateDraft
-    { draftDesign :: !RosterTemplateDesign
-    , draftName :: !Text
-    , draftDays :: ![RosterTemplateDay]
+    { draftDesign  :: !RosterTemplateDesign
+    , draftName    :: !Text
+    , draftDays    :: ![RosterTemplateDay]
     , draftColumns :: ![RosterTemplateColumn]
-    , draftShifts :: ![RosterTemplateShift]
+    , draftShifts  :: ![RosterTemplateShift]
     }
     deriving (Eq, Show)
 
@@ -197,7 +202,7 @@ discardRosterTemplateDraft actor designId
     | otherwise = do
         maybeDraft <- fetchOwnedDraft actor designId
         case maybeDraft of
-            Nothing -> pure (Left RosterTemplateForbidden)
+            Nothing    -> pure (Left RosterTemplateForbidden)
             Just draft -> deleteRecord draft >> pure (Right ())
 
 reloadLatestRosterTemplateDraft ::
@@ -443,7 +448,7 @@ validStaffAssignment activeAwardIds activeImportedPayItemIds eligibleStaffIds ve
                         && not (shiftPayAssignmentRequiresRemediation activeAwardIds activeImportedPayItemIds shiftAssignment)
                 payValid = case resolvePayAssignment staffAssignment shiftAssignment of
                     InvalidPayAssignment {} -> False
-                    _ -> True
+                    _                       -> True
              in staff.venueId == unpackId venueId
                     && staff.isActive
                     && isNothing staff.archivedAt
@@ -543,8 +548,8 @@ savedShiftInput dayIndexById columnSortById shift = do
     columnSort <- Map.lookup shift.rosterTemplateColumnId columnSortById
     assignment <- case (shift.assignmentState, shift.staffId) of
         ("staff", Just staffId) -> Just (StaffAssignment (Id staffId))
-        ("open", Nothing) -> Just OpenAssignment
-        _ -> Nothing
+        ("open", Nothing)       -> Just OpenAssignment
+        _                       -> Nothing
     pure (RosterTemplateShiftInput dayIndex columnSort shift.rowIndex shift.startMinute shift.endMinute (Id shift.shiftTypeId) assignment)
 
 replaceRosterTemplateDraftContent ::
@@ -710,5 +715,5 @@ emptyDraft design name =
         }
 
 rosterTemplateScaleText :: RosterTemplateScale -> Text
-rosterTemplateScaleText DayTemplate = "day"
+rosterTemplateScaleText DayTemplate  = "day"
 rosterTemplateScaleText WeekTemplate = "week"
