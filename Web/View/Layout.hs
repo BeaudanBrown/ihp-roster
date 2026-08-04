@@ -61,7 +61,7 @@ renderAppHeader =
             <header class="app-header border-bottom">
                 <nav class="navbar container py-2 app-header-navbar">
                     <a class="navbar-brand fw-semibold" href={RosterWeeksAction}>Bepis</a>
-                    <div class="app-header-desktop-actions d-none d-md-flex align-items-center gap-2 ms-auto">
+                    <div class="app-header-desktop-actions d-none d-xl-flex align-items-center gap-2 ms-auto">
                         {renderWhenAudience SupportAudience (renderSupportVenueSwitcher "support-venue-switch" "support-venue-switch-form")}
                         {renderWhenAudience SupportAudience (renderSupportImpersonationSwitcher "support-impersonation-user" "support-impersonation-switch-form")}
                         {renderWhenAudience StaffProfileAudience renderDesktopFeedbackButton}
@@ -69,7 +69,7 @@ renderAppHeader =
                             {renderDesktopNavLinks}
                         </div>
                     </div>
-                    <button class="navbar-toggler app-mobile-menu-toggle d-md-none ms-auto"
+                    <button class="navbar-toggler app-mobile-menu-toggle d-xl-none ms-auto"
                             type="button"
                             data-bs-toggle="offcanvas"
                             data-bs-target="#app-mobile-nav"
@@ -79,7 +79,7 @@ renderAppHeader =
                     </button>
                 </nav>
             </header>
-            <div class="offcanvas offcanvas-start app-mobile-nav d-md-none" tabindex="-1" id="app-mobile-nav" aria-labelledby="app-mobile-nav-title">
+            <div class="offcanvas offcanvas-start app-mobile-nav d-xl-none" tabindex="-1" id="app-mobile-nav" aria-labelledby="app-mobile-nav-title">
                 <div class="offcanvas-header app-mobile-nav-header">
                     <a id="app-mobile-nav-title" class="navbar-brand fw-semibold mb-0" href={RosterWeeksAction}>Bepis</a>
                     <button type="button" class="btn-close btn-close-white app-mobile-nav-close" data-bs-dismiss="offcanvas" aria-label="Close navigation menu"></button>

@@ -213,7 +213,7 @@ a:not(.btn):hover {
     box-shadow: 0 0 0 0.18rem var(--app-accent-soft);
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 1199.98px) {
     html,
     body,
     .app-shell {

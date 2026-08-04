@@ -292,6 +292,9 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "id=\"support-impersonation-user\""
                 response `responseBodyShouldContain` "id=\"support-impersonation-user-mobile\""
+                response `responseBodyShouldContain` "app-header-desktop-actions d-none d-xl-flex"
+                response `responseBodyShouldContain` "app-mobile-menu-toggle d-xl-none"
+                response `responseBodyShouldContain` "app-mobile-nav d-xl-none"
                 response `responseBodyShouldContain` "Super admin"
                 response `responseBodyShouldContain` "Ally L. — Worker"
                 response `responseBodyShouldContain` "Ally B. — Manager"
