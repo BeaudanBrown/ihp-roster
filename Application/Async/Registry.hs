@@ -7,6 +7,7 @@ import Application.Billing.Reconciliation
 import Application.FwcMapd.Job
 import Application.InvitationDelivery.Job
 import Application.PublicHolidays.Job
+import Application.RosterNotification.Delivery
 import Application.StaffDocuments.Rsa
 import Application.WageSourceNotifications
 import Application.Xero.Keepalive
@@ -36,6 +37,7 @@ dispatchAppJobByKind appJob =
     case appJob.jobKind of
         kind | kind == fwcMapdRefreshJobKind -> performFwcMapdRefreshJob appJob
         kind | kind == publicHolidayRefreshJobKind -> performPublicHolidayRefreshJob appJob
+        kind | kind == rosterNotificationDeliveryJobKind -> performRosterNotificationDeliveryJob appJob
         kind | kind == retiredRosterTimesheetCreationJobKind -> retireRosterTimesheetCreationJob appJob
         kind | kind == rsaReminderJobKind -> performRsaReminderJob appJob
         kind | kind == xeroConnectionKeepaliveJobKind -> performXeroConnectionKeepaliveJob appJob
