@@ -15,7 +15,9 @@ import Application.Helper.UserPreferences (upsertCurrentUserTimesheetHideApprove
 import Application.VenueTime.Model
 import Web.Controller.Prelude
 import Web.Timesheets.Mutations
-import Web.Timesheets.Paths (timesheetWeekUrl)
+import Web.Timesheets.Paths (timesheetDayColumnsFragmentUrl,
+                             timesheetDaySectionFragmentUrl,
+                             timesheetToolbarFragmentUrl, timesheetWeekUrl)
 import Web.Timesheets.Projection
 import Web.Timesheets.Responses
 import Web.Timesheets.Suggestion (newTimesheetEntryFromSuggestion,
@@ -31,6 +33,10 @@ reportTimesheetSurfaceRequestErrors ::
     IO ()
 reportTimesheetSurfaceRequestErrors errors =
     setErrorMessage ("Check the timesheet controls: " <> surfaceRequestFieldErrorsMessage errors)
+
+retiredTimesheetDisplayParamsPresent :: (?request :: Request) => Bool
+retiredTimesheetDisplayParamsPresent =
+    any hasParam ["showApproved", "showAllStaff", "showSuggestions", "hideApproved", "showTimesheetSuggestions"]
 
 requireTimesheetSurfaceState ::
     (?context :: ControllerContext, ?request :: Request) =>
@@ -75,20 +81,29 @@ instance Controller TimesheetsController where
 
     action currentAction@ShowTimesheetWeekAction { weekOffset } = runBepis currentAction BepisPageAction do
         let selectedStaffFilterId = timesheetStaffFilterFromRequest
-        if any hasParam ["showApproved", "showAllStaff", "showSuggestions", "hideApproved", "showTimesheetSuggestions"]
+        if retiredTimesheetDisplayParamsPresent
             then redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
             else renderTimesheetWeekPage weekOffset selectedStaffFilterId
 
     action currentAction@ShowtimesheetToolbarLiveFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
-        let requestKey = TimesheetProjectionRequest weekOffset timesheetStaffFilterFromRequest
+        let selectedStaffFilterId = timesheetStaffFilterFromRequest
+        when retiredTimesheetDisplayParamsPresent do
+            redirectToPath (timesheetToolbarFragmentUrl weekOffset selectedStaffFilterId)
+        let requestKey = TimesheetProjectionRequest weekOffset selectedStaffFilterId
         respondWithTimesheetFragment requestKey TimesheetProjectionToolbar
 
     action currentAction@ShowtimesheetDayColumnsLiveFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
-        let requestKey = TimesheetProjectionRequest weekOffset timesheetStaffFilterFromRequest
+        let selectedStaffFilterId = timesheetStaffFilterFromRequest
+        when retiredTimesheetDisplayParamsPresent do
+            redirectToPath (timesheetDayColumnsFragmentUrl weekOffset selectedStaffFilterId)
+        let requestKey = TimesheetProjectionRequest weekOffset selectedStaffFilterId
         respondWithTimesheetFragment requestKey TimesheetProjectionDayColumns
 
     action currentAction@ShowTimesheetDaySectionFragmentAction { weekOffset, dayOffset } = runBepis currentAction BepisFragmentAction do
-        let requestKey = TimesheetProjectionRequest weekOffset timesheetStaffFilterFromRequest
+        let selectedStaffFilterId = timesheetStaffFilterFromRequest
+        when retiredTimesheetDisplayParamsPresent do
+            redirectToPath (timesheetDaySectionFragmentUrl weekOffset dayOffset selectedStaffFilterId)
+        let requestKey = TimesheetProjectionRequest weekOffset selectedStaffFilterId
         let fragment = TimesheetProjectionDaySection dayOffset
         respondWithTimesheetFragment requestKey fragment
 

@@ -92,8 +92,9 @@ normalizeTimesheetFragments fragments =
 respondWithTimesheetWeekFragmentsUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Maybe UUID.UUID -> IO ()
 respondWithTimesheetWeekFragmentsUpdate weekOffset staffFilterId =
     profileActionSpan "timesheets.page.fragments_update" do
+        let requestKey = TimesheetProjectionRequest weekOffset staffFilterId
         setHtmxPushUrl (timesheetWeekUrl weekOffset staffFilterId)
-        respondWithTimesheetPreferenceUpdate weekOffset staffFilterId
+        respondWithTimesheetFragments requestKey [TimesheetProjectionToolbar, TimesheetProjectionDayColumns] mempty
 
 respondWithTimesheetPreferenceUpdate :: (?context :: ControllerContext, ?request :: Request) => Int -> Maybe UUID.UUID -> IO ()
 respondWithTimesheetPreferenceUpdate weekOffset staffFilterId =

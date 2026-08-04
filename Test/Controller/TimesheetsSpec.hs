@@ -280,6 +280,13 @@ tests = aroundAll withDatabaseTestContext do
 
                 liveFragmentResponseShouldRenderTarget response fragmentRef
 
+                legacyFragmentResponse <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams ShowTimesheetDaySectionFragmentAction { weekOffset = 0, dayOffset = 0 }
+                        [("hideApproved", "false"), ("showTimesheetSuggestions", "false")]
+                legacyFragmentResponse `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders legacyFragmentResponse)
+                    `shouldBe` Just "http://localhost/ShowTimesheetDaySectionFragment?dayOffset=0&weekOffset=0"
+
         it "renders unified toolbar and day-columns fragments for HTMX week navigation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet HTMX Fragment Venue"
