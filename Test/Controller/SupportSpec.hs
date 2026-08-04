@@ -238,6 +238,30 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetchCount
                     >>= (`shouldBe` 1)
 
+        it "audits expiry when the authenticated founder loses super-admin access" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Demoted Founder Impersonation Venue"
+                superAdmin <- createUserRecordWithPlatformRole "impersonation-demoted-founder@example.com" "staff" (Just SuperAdmin) True
+                targetUser <- createUserRecord "impersonation-demoted-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue targetUser Manager
+
+                withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
+                    _ <- callActionWithParams
+                        StartSupportImpersonationAction
+                        [("userId", cs (inputValue targetUser.id))]
+                    _ <- superAdmin |> set #platformRole Nothing |> updateRecord
+
+                    _ <- callAction SupportAction
+                    getSession @(Id User) effectiveUserSessionKey `shouldReturn` Nothing
+                    getSession @Text impersonationSessionIdSessionKey `shouldReturn` Nothing
+
+                expiry <- query @AuditEvent
+                    |> filterWhere (#eventType, "support_impersonation_expired")
+                    |> fetchOne
+                expiry.venueId `shouldBe` unpackId venue.id
+                expiry.actorUserId `shouldBe` unpackId superAdmin.id
+                expiry.targetId `shouldBe` unpackId targetUser.id
+
         it "expires instead of migrating impersonation when the selected venue becomes inactive" $ withContext do
             withCleanDb do
                 selectedVenue <- createVenueWithConfig "Inactive Selected Impersonation Venue"

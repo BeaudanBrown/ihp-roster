@@ -198,10 +198,9 @@ recordImpersonationExpiry ::
     Text ->
     IO ()
 recordImpersonationExpiry targetUserId effectiveUserIdValue sessionIdValue reason =
-    when currentUserIsSuperAdmin do
-        forM_ (currentVenueSelection.requestedVenueId <|> fmap (.id) currentVenueOrNothing) \auditVenueId ->
-            void $
-                recordAuditEvent
+    forM_ (currentVenueSelection.requestedVenueId <|> fmap (.id) currentVenueOrNothing) \auditVenueId ->
+        void $
+            recordAuditEvent
                 (unpackId auditVenueId)
                 (unpackId (get #id authenticatedCurrentUser))
                 SupportImpersonationExpiredAudit
