@@ -121,6 +121,29 @@ tests = aroundAll withDatabaseTestContext do
                 profileResponse `responseStatusShouldBe` status200
                 profileResponse `responseBodyShouldContain` "impersonation-effective-worker@example.com"
 
+        it "blocks credential management while preserving the effective profile" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Credential Boundary Impersonation Venue"
+                founder <- createUserRecordWithPlatformRole "impersonation-credential-founder@example.com" "staff" (Just SuperAdmin) True
+                worker <- createUserRecord "impersonation-credential-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue worker Worker
+                _ <- createStaffRecord venue (Just worker) "Credential" "Worker"
+
+                (passkeyResponse, registrationResponse, profileResponse) <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    _ <- callActionWithParams
+                        StartSupportImpersonationAction
+                        [("userId", cs (inputValue worker.id))]
+                    passkeyResponse <- callAction PasskeySetupAction
+                    registrationResponse <- callAction BeginPasskeyRegistrationAction
+                    profileResponse <- callAction EditProfileAction
+                    pure (passkeyResponse, registrationResponse, profileResponse)
+
+                passkeyResponse `responseStatusShouldBe` status302
+                registrationResponse `responseStatusShouldBe` status403
+                profileResponse `responseStatusShouldBe` status200
+                profileResponse `responseBodyShouldNotContain` "Sign-In Methods"
+                profileResponse `responseBodyShouldContain` "impersonation-credential-worker@example.com"
+
         it "rejects client tampering with signed impersonation session material" $ withContext do
             key <- ClientSession.getKey "Config/client_session_key.aes"
             encrypted <- ClientSession.encryptIO key "supportImpersonationEffectiveUserId=target&supportImpersonationSessionId=session"

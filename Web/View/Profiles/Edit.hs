@@ -2,6 +2,8 @@
 
 module Web.View.Profiles.Edit where
 
+import Application.Helper.Controller (currentUserIsImpersonating,
+                                      effectiveCurrentUser)
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
 import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
@@ -153,13 +155,13 @@ renderprofileContentLiveFragmentWithManagement staff currentUserEmail preference
         </div>
     |]
 
-profileAccordionSections :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> [Passkey] -> [LeaveRequest] -> LeaveRequest -> Maybe StaffDocument -> Maybe StaffManagementFieldData -> Day -> UTCTime -> [StaffProfileAccordionSection]
+profileAccordionSections :: (?context :: ControllerContext) => Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> [Passkey] -> [LeaveRequest] -> LeaveRequest -> Maybe StaffDocument -> Maybe StaffManagementFieldData -> Day -> UTCTime -> [StaffProfileAccordionSection]
 profileAccordionSections staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm _staffRsaDocument staffManagementFields _today now =
     [ profileDetailsAccordionSection staff currentUserEmail staffManagementFields
     , profilePreferencesAccordionSection preferenceWeekdays selectedShiftPreferences
-    , profileSecurityAccordionSection now passkeys
-    , profileLeaveAccordionSection staff leaveRequestForm leaveRequests
     ]
+        <> [profileSecurityAccordionSection now passkeys | not currentUserIsImpersonating]
+        <> [profileLeaveAccordionSection staff leaveRequestForm leaveRequests]
 
 profileDetailsAccordionSection :: Staff -> Text -> Maybe StaffManagementFieldData -> StaffProfileAccordionSection
 profileDetailsAccordionSection staff currentUserEmail staffManagementFields =
@@ -211,11 +213,11 @@ profileRsaAccordionSection staff staffRsaDocument today =
         , staffProfileSectionBody = renderProfileRsaSection staff staffRsaDocument today
         }
 
-renderProfileSectionFragmentWithManagement :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> [Passkey] -> [LeaveRequest] -> LeaveRequest -> Maybe StaffDocument -> Maybe StaffManagementFieldData -> Day -> UTCTime -> Text -> Html
+renderProfileSectionFragmentWithManagement :: (?context :: ControllerContext) => Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> [Passkey] -> [LeaveRequest] -> LeaveRequest -> Maybe StaffDocument -> Maybe StaffManagementFieldData -> Day -> UTCTime -> Text -> Html
 renderProfileSectionFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection =
     let section = case normalizeProfileSectionForRender openSection of
             "preferences" -> profilePreferencesAccordionSection preferenceWeekdays selectedShiftPreferences
-            "security"    -> profileSecurityAccordionSection now passkeys
+            "security" | not currentUserIsImpersonating -> profileSecurityAccordionSection now passkeys
             "leave"       -> profileLeaveAccordionSection staff leaveRequestForm leaveRequests
             _             -> profileDetailsAccordionSection staff currentUserEmail staffManagementFields
      in renderStaffProfileAccordionSection profileSectionsAccordionId openSection section
@@ -227,7 +229,7 @@ normalizeProfileSectionForRender section
 
 profileSurfaceMount :: (?context :: ControllerContext) => Staff -> Maybe (SurfaceImpl Surface.ProfileSurface)
 profileSurfaceMount staff =
-    if currentUser.isProfileCompleted && not (isNew staff)
+    if effectiveCurrentUser.isProfileCompleted && not (isNew staff)
         then Just (profileSurfaceImpl ProfileScopeValue { profileVenueId = staff.venueId, profileStaffId = unpackId staff.id })
         else Nothing
 

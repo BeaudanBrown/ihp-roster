@@ -226,7 +226,8 @@ profilePreferenceViewDataWithSubmitted _maybeStaff submittedShiftPreferenceKeys 
                 Left _           -> []
     pure (preferenceWeekdays, selectedShiftPreferences)
 
-normalizeProfileOpenSection :: Text -> Text
+normalizeProfileOpenSection :: (?context :: ControllerContext) => Text -> Text
 normalizeProfileOpenSection section
+    | section == "security" && currentUserIsImpersonating = "profile"
     | section `elem` ["profile", "preferences", "security", "leave"] = section
     | otherwise = ""

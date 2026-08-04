@@ -29,7 +29,9 @@ import Web.Controller.Sessions ()
 import Web.View.Passkeys.NewSetup
 
 instance Controller AuthController where
-    beforeAction = bepisBeforeAction BepisPublicController annotateTelemetryAction
+    beforeAction = bepisBeforeAction BepisPublicController do
+        annotateTelemetryAction
+        accessDeniedUnless (not currentUserIsImpersonating)
 
     action currentAction@BeginPasskeyRegistrationAction = runBepis currentAction BepisMutationAction do
         ensureIsUser

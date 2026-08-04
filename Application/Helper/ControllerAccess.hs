@@ -300,6 +300,12 @@ ensureStaffSelfServiceAccess = do
     redirectPermissionDeniedUnless currentUserCanUseStaffSelfService "Use the support page for super admin access."
     emitScopeFact (BepisRoleScopeFact BepisStaffRole) "staff-self-service"
 
+ensureNotImpersonatingAccountSecurity :: (?context :: ControllerContext, ?request :: Request) => IO ()
+ensureNotImpersonatingAccountSecurity =
+    redirectPermissionDeniedUnless
+        (not currentUserIsImpersonating)
+        "Exit support impersonation before managing sign-in or account security."
+
 fetchCurrentUserPasskeys :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [Passkey]
 fetchCurrentUserPasskeys
     | currentUserIsImpersonating = pure []

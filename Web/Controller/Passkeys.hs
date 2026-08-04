@@ -11,6 +11,7 @@ instance Controller PasskeysController where
     beforeAction = bepisBeforeAction BepisAuthenticatedController do
         annotateTelemetryAction
         ensureIsUser
+        ensureNotImpersonatingAccountSecurity
 
     action currentAction@PasskeyStepUpAction = runBepis currentAction BepisPageAction do
         rawStepUpRedirectTo <- getSession @Text passkeyStepUpRedirectSessionKey
