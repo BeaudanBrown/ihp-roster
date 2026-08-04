@@ -24,10 +24,16 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterWageRail
     , RosterWeek
     , RosterWeekStructure
+    , RosterTemplateLibrary
+    , RosterTemplate
+    , RosterTemplateDraft
+    , RosterTemplateDesigner
     , RosterSlotsStructure
     , RosterSlotsContent
     , RosterWeekBoundaryConfig
     , TimePickerConfig
+    , TemplateId
+    , UserId
     , RosterWeekOverview
     , MoveRosterShiftToSlot
     , CopyStartOccurrence
@@ -184,6 +190,12 @@ data RosterDayTimeline
 
 data RosterWeek
 data RosterWeekStructure
+data RosterTemplateLibrary
+data RosterTemplate
+data RosterTemplateDraft
+data RosterTemplateDesigner
+data TemplateId
+data UserId
 data RosterSlotsStructure
 data RosterSlotsContent
 data VenueId
@@ -370,11 +382,20 @@ data RosterWeekBoundaryConfig
 data TimePickerConfig
 data RosterStaffPanelFragment
 data RosterWeekOverviewMount
+data RosterTemplateLibraryFragment
+data RosterTemplateRecordFragment
+data RosterTemplateDraftFragment
+data RosterTemplateLibraryMount
+data RosterTemplateRecordMount
+data RosterTemplateDraftMount
 
 type RosterWeekResource = Resource RosterWeek '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
 type RosterWeekStructureResource = Resource RosterWeekStructure '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
 type RosterSlotsStructureResource = Resource RosterSlotsStructure '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
 type RosterSlotsContentResource = Resource RosterSlotsContent '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
+type RosterTemplateLibraryResource = Resource RosterTemplateLibrary '[ Field RosterGroupId 'WireUUID ]
+type RosterTemplateResource = Resource RosterTemplate '[ Field TemplateId 'WireUUID ]
+type RosterTemplateDraftResource = Resource RosterTemplateDraft '[ Field UserId 'WireUUID ]
 type RosterDayResource = Resource RosterDay '[ Field RosterDayId 'WireUUID ]
 type RosterEndTimesConfigResource = Resource RosterEndTimesConfig '[ Field VenueId 'WireUUID ]
 type RosterWeekBoundaryConfigResource = Resource RosterWeekBoundaryConfig '[ Field VenueId 'WireUUID ]
@@ -436,6 +457,22 @@ type RosterFragmentBundle =
      , Fragment RosterSlotsGrid '[] '[ 'MountTarget RosterSlotsGrid '[], 'Eager, 'Live, 'DependsOn RosterSlotsStructureResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterSlotsContentResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterStaffPanel '[] '[ 'MountTarget RosterStaffPanelFragment '[], 'Lazy '[ 'DependsOnFragment RosterContent ], 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ] ]
      , Fragment RosterWeekOverview '[] '[ 'MountTarget RosterWeekOverviewMount '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ], 'Lazy '[ 'DependsOnFragment RosterContent ], 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ] ]
+     , Fragment RosterTemplateLibraryFragment
+        '[ Field UserId 'WireUUID ]
+        '[ 'MountTarget RosterTemplateLibraryMount '[ Field UserId 'WireUUID ]
+         , 'DependsOn RosterTemplateLibraryResource '[ 'FromScope RosterGroupId ]
+         , 'DependsOn RosterTemplateDraftResource '[ 'FromFragment UserId ]
+         ]
+     , Fragment RosterTemplateRecordFragment
+        '[ Field TemplateId 'WireUUID ]
+        '[ 'MountTarget RosterTemplateRecordMount '[ Field TemplateId 'WireUUID ]
+         , 'DependsOn RosterTemplateResource '[ 'FromFragment TemplateId ]
+         ]
+     , Fragment RosterTemplateDraftFragment
+        '[ Field UserId 'WireUUID ]
+        '[ 'MountTarget RosterTemplateDraftMount '[ Field UserId 'WireUUID ]
+         , 'DependsOn RosterTemplateDraftResource '[ 'FromFragment UserId ]
+         ]
      , Fragment RosterDaySection
         '[ Field RosterDayId 'WireUUID ]
         '[ 'MountTarget RosterDaySection '[ Field RosterDayId 'WireUUID ]

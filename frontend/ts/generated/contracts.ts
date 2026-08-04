@@ -134,10 +134,13 @@ export type RosterSurfaceFragmentKey =
   | { kind: "roster-slots-grid"; params: RosterRosterSlotsGridFragmentParams | null }
   | { kind: "roster-staff-panel"; params: RosterRosterStaffPanelFragmentParams | null }
   | { kind: "roster-week-overview"; params: RosterRosterWeekOverviewFragmentParams | null }
+  | { kind: "roster-template-library"; params: RosterRosterTemplateLibraryFragmentFragmentParams }
+  | { kind: "roster-template-record"; params: RosterRosterTemplateRecordFragmentFragmentParams }
+  | { kind: "roster-template-draft"; params: RosterRosterTemplateDraftFragmentFragmentParams }
   | { kind: "roster-day-section"; params: RosterRosterDaySectionFragmentParams }
   | { kind: "roster-row"; params: RosterRosterRowFragmentParams };
 export function isRosterSurfaceFragmentKey(value: unknown): value is RosterSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-layout" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-frame" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-wage-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-slots-grid" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-staff-panel" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-week-overview" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"], ["rosterDayId"]) && (typeof value["params"]["rosterDayId"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-row" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId", "rowIndex"], ["rosterDayId", "rowIndex"]) && (typeof value["params"]["rosterDayId"] === "string") && (typeof value["params"]["rowIndex"] === "number" && Number.isInteger(value["params"]["rowIndex"])))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-layout" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-frame" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-wage-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-slots-grid" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-staff-panel" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-week-overview" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-template-library" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["userId"], ["userId"]) && (typeof value["params"]["userId"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-template-record" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["templateId"], ["templateId"]) && (typeof value["params"]["templateId"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-template-draft" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["userId"], ["userId"]) && (typeof value["params"]["userId"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"], ["rosterDayId"]) && (typeof value["params"]["rosterDayId"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-row" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId", "rowIndex"], ["rosterDayId", "rowIndex"]) && (typeof value["params"]["rosterDayId"] === "string") && (typeof value["params"]["rowIndex"] === "number" && Number.isInteger(value["params"]["rowIndex"])))));
 }
 
 export type RosterDayTimelineSurfaceFragmentKey =
@@ -1094,6 +1097,21 @@ export function isRosterRosterWeekOverviewFragmentParams(value: unknown): value 
     return isRecord(value) && hasExactKeys(value, [], []);
 }
 
+export type RosterRosterTemplateLibraryFragmentFragmentParams = { userId: FrontendContractUuid };
+export function isRosterRosterTemplateLibraryFragmentFragmentParams(value: unknown): value is RosterRosterTemplateLibraryFragmentFragmentParams {
+    return isRecord(value) && hasExactKeys(value, ["userId"], ["userId"]) && (typeof value["userId"] === "string");
+}
+
+export type RosterRosterTemplateRecordFragmentFragmentParams = { templateId: FrontendContractUuid };
+export function isRosterRosterTemplateRecordFragmentFragmentParams(value: unknown): value is RosterRosterTemplateRecordFragmentFragmentParams {
+    return isRecord(value) && hasExactKeys(value, ["templateId"], ["templateId"]) && (typeof value["templateId"] === "string");
+}
+
+export type RosterRosterTemplateDraftFragmentFragmentParams = { userId: FrontendContractUuid };
+export function isRosterRosterTemplateDraftFragmentFragmentParams(value: unknown): value is RosterRosterTemplateDraftFragmentFragmentParams {
+    return isRecord(value) && hasExactKeys(value, ["userId"], ["userId"]) && (typeof value["userId"] === "string");
+}
+
 export type RosterRosterDaySectionFragmentParams = { rosterDayId: FrontendContractUuid };
 export function isRosterRosterDaySectionFragmentParams(value: unknown): value is RosterRosterDaySectionFragmentParams {
     return isRecord(value) && hasExactKeys(value, ["rosterDayId"], ["rosterDayId"]) && (typeof value["rosterDayId"] === "string");
@@ -1322,6 +1340,8 @@ export function isAdminXeroAdminXeroShellFragmentFragmentParams(value: unknown):
 export type VenueId = FrontendContractUuid;
 export type StaffFilterId = FrontendContractUuid;
 export type RosterGroupId = FrontendContractUuid;
+export type UserId = FrontendContractUuid;
+export type TemplateId = FrontendContractUuid;
 export type RosterDayId = FrontendContractUuid;
 export type StaffId = FrontendContractUuid;
 export type RosterGroupIdsField = FrontendContractUuid;

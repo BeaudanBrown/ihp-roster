@@ -153,8 +153,8 @@ startBlankRosterTemplateDraft actor rosterGroup scale requestedName
     | rosterGroup.venueId /= unpackId actor.actorVenueId = pure (Left RosterTemplateScopeMismatch)
     | Text.null normalizedName || Text.length normalizedName > 120 = pure (Left RosterTemplateInvalidName)
     | otherwise = do
-        existingDraft <- fetchPrivateRosterTemplateDraft actor
-        case existingDraft of
+        existingDesign <- fetchDraftDesignForOwner actor.actorUserId
+        case existingDesign of
             Just _ -> pure (Left RosterTemplateDraftSlotOccupied)
             Nothing -> do
                 design <-
@@ -246,8 +246,8 @@ startRosterTemplateEditDraft ::
 startRosterTemplateEditDraft actor templateId
     | not actor.actorCanEditRosters = pure (Left RosterTemplateForbidden)
     | otherwise = do
-        existingDraft <- fetchPrivateRosterTemplateDraft actor
-        case existingDraft of
+        existingDesign <- fetchDraftDesignForOwner actor.actorUserId
+        case existingDesign of
             Just _ -> pure (Left RosterTemplateDraftSlotOccupied)
             Nothing -> do
                 maybeSaved <- fetchSavedRosterTemplate actor templateId
@@ -331,6 +331,7 @@ commitDraft actor draft saveAsName warnings =
                         then pure (Left (RosterTemplateConflict currentVersion))
                         else do
                             let nextVersion = currentVersion + 1
+                            applySaveWarnings warnings
                             persistSavedDesign draft template nextVersion
                             updatedTemplate <-
                                 template
@@ -354,6 +355,7 @@ saveDraftAsNewTemplate _actor draft name warnings = do
             |> set #name name
             |> set #scale draft.scale
             |> createRecord
+    applySaveWarnings warnings
     persistSavedDesign draft template 1
     updatedTemplate <- template |> set #currentVersion 1 |> updateRecord
     pure (Right (RosterTemplateSave updatedTemplate 1 warnings))
@@ -382,15 +384,7 @@ validateDraftReferences actor draft = do
         then pure (Left (RosterTemplateInvalidShiftTypes invalidShiftTypeIds))
         else do
             invalidStaffShiftIds <- invalidStaffAssignments actor draft shifts shiftTypeById
-            warnings <- forM invalidStaffShiftIds \shiftId -> do
-                shift <- fetch shiftId
-                shift
-                    |> set #assignmentState "open"
-                    |> set #staffId Nothing
-                    |> updateRecord
-                    |> void
-                pure (RosterTemplateAssignmentConvertedToOpen shiftId)
-            pure (Right warnings)
+            pure (Right (map RosterTemplateAssignmentConvertedToOpen invalidStaffShiftIds))
 
 invalidStaffAssignments ::
     (?modelContext :: ModelContext) =>
@@ -458,6 +452,17 @@ validStaffAssignment activeAwardIds activeImportedPayItemIds eligibleStaffIds ve
                     && payValid
         _ -> False
 
+applySaveWarnings :: (?modelContext :: ModelContext) => [RosterTemplateSaveWarning] -> IO ()
+applySaveWarnings warnings =
+    forM_ warnings \case
+        RosterTemplateAssignmentConvertedToOpen shiftId -> do
+            shift <- fetch shiftId
+            shift
+                |> set #assignmentState "open"
+                |> set #staffId Nothing
+                |> updateRecord
+                |> void
+
 persistSavedDesign ::
     (?modelContext :: ModelContext) =>
     RosterTemplateDesign ->
@@ -480,11 +485,17 @@ fetchOwnedDraft ::
     RosterTemplateActor ->
     Id RosterTemplateDesign ->
     IO (Maybe RosterTemplateDesign)
-fetchOwnedDraft actor designId =
-    query @RosterTemplateDesign
-        |> filterWhere (#id, designId)
-        |> filterWhere (#draftOwnerUserId, Just (unpackId actor.actorUserId))
-        |> fetchOneOrNothing
+fetchOwnedDraft actor designId = do
+    maybeDesign <-
+        query @RosterTemplateDesign
+            |> filterWhere (#id, designId)
+            |> filterWhere (#draftOwnerUserId, Just (unpackId actor.actorUserId))
+            |> fetchOneOrNothing
+    case maybeDesign of
+        Nothing -> pure Nothing
+        Just design -> do
+            allowed <- designMatchesActorVenue actor design
+            pure (if allowed then Just design else Nothing)
 
 fetchSavedRosterTemplate ::
     (?modelContext :: ModelContext) =>
@@ -646,11 +657,33 @@ fetchPrivateRosterTemplateDraft ::
 fetchPrivateRosterTemplateDraft actor
     | not actor.actorCanEditRosters = pure Nothing
     | otherwise = do
-        maybeDesign <-
-            query @RosterTemplateDesign
-                |> filterWhere (#draftOwnerUserId, Just (unpackId actor.actorUserId))
-                |> fetchOneOrNothing
-        forM maybeDesign loadDraft
+        maybeDesign <- fetchDraftDesignForOwner actor.actorUserId
+        scopedDesign <- case maybeDesign of
+            Nothing -> pure Nothing
+            Just design -> do
+                allowed <- designMatchesActorVenue actor design
+                pure (if allowed then Just design else Nothing)
+        forM scopedDesign loadDraft
+
+fetchDraftDesignForOwner ::
+    (?modelContext :: ModelContext) =>
+    Id User ->
+    IO (Maybe RosterTemplateDesign)
+fetchDraftDesignForOwner userId =
+    query @RosterTemplateDesign
+        |> filterWhere (#draftOwnerUserId, Just (unpackId userId))
+        |> fetchOneOrNothing
+
+designMatchesActorVenue ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    RosterTemplateDesign ->
+    IO Bool
+designMatchesActorVenue actor design =
+    query @RosterGroup
+        |> filterWhere (#id, Id design.rosterGroupId)
+        |> filterWhere (#venueId, unpackId actor.actorVenueId)
+        |> fetchExists
 
 loadDraft :: (?modelContext :: ModelContext) => RosterTemplateDesign -> IO RosterTemplateDraft
 loadDraft design = do

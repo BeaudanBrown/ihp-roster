@@ -7,6 +7,9 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Resource
     , matchRosterEndTimesConfigResource
     , matchRosterSlotsContentResource
     , matchRosterSlotsStructureResource
+    , matchRosterTemplateDraftResource
+    , matchRosterTemplateLibraryResource
+    , matchRosterTemplateResource
     , matchRosterWeekBoundaryConfigResource
     , matchRosterWeekResource
     , matchRosterWeekStructureResource
@@ -15,6 +18,9 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Resource
     , rosterEndTimesConfigResource
     , rosterSlotsContentResource
     , rosterSlotsStructureResource
+    , rosterTemplateDraftResource
+    , rosterTemplateLibraryResource
+    , rosterTemplateResource
     , rosterWeekBoundaryConfigResource
     , rosterWeekResource
     , rosterWeekStructureResource
@@ -103,6 +109,57 @@ matchRosterSlotsStructureResource =
     matchFrontendSurfaceResource
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterSlotsStructure
+
+rosterTemplateDraftResource ::
+    UUID.UUID ->
+    SurfaceResourceValue
+rosterTemplateDraftResource userId =
+    frontendSurfaceResource
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
+        @Types1.RosterTemplateDraft
+        ( surfaceField @Types1.UserId userId
+            &: noSurfaceFields
+        )
+
+matchRosterTemplateDraftResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
+matchRosterTemplateDraftResource =
+    matchFrontendSurfaceResource
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
+        @Types1.RosterTemplateDraft
+
+rosterTemplateLibraryResource ::
+    UUID.UUID ->
+    SurfaceResourceValue
+rosterTemplateLibraryResource rosterGroupId =
+    frontendSurfaceResource
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
+        @Types1.RosterTemplateLibrary
+        ( surfaceField @Types1.RosterGroupId rosterGroupId
+            &: noSurfaceFields
+        )
+
+matchRosterTemplateLibraryResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
+matchRosterTemplateLibraryResource =
+    matchFrontendSurfaceResource
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
+        @Types1.RosterTemplateLibrary
+
+rosterTemplateResource ::
+    UUID.UUID ->
+    SurfaceResourceValue
+rosterTemplateResource templateId =
+    frontendSurfaceResource
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
+        @Types1.RosterTemplate
+        ( surfaceField @Types1.TemplateId templateId
+            &: noSurfaceFields
+        )
+
+matchRosterTemplateResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
+matchRosterTemplateResource =
+    matchFrontendSurfaceResource
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
+        @Types1.RosterTemplate
 
 rosterWeekBoundaryConfigResource ::
     UUID.UUID ->

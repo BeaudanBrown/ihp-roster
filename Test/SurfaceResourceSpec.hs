@@ -44,8 +44,14 @@ tests = do
         it "matches and destructures resources through feature-owned typed matchers" do
             let rosterConfig = RosterResource.rosterEndTimesConfigResource nil
             let staffProfile = ProfileResource.staffProfileResource nil
+            let templateLibrary = RosterResource.rosterTemplateLibraryResource nil
+            let template = RosterResource.rosterTemplateResource nil
+            let templateDraft = RosterResource.rosterTemplateDraftResource nil
 
             RosterResource.matchRosterEndTimesConfigResource rosterConfig `shouldBe` Just nil
             RosterResource.matchRosterWeekBoundaryConfigResource rosterConfig `shouldBe` Nothing
             ProfileResource.matchStaffProfileResource staffProfile `shouldBe` Just nil
             ProfileResource.matchStaffPreferencesResource staffProfile `shouldBe` Nothing
+            RosterResource.matchRosterTemplateLibraryResource templateLibrary `shouldBe` Just nil
+            RosterResource.matchRosterTemplateResource template `shouldBe` Just nil
+            RosterResource.matchRosterTemplateDraftResource templateDraft `shouldBe` Just nil

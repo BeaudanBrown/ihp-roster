@@ -13,6 +13,7 @@ lands.
 - Missing weeks may be materialized when an authenticated venue member visits
   them; staff see hidden/unpublished draft shells when appropriate.
 - Staff users cannot edit unpublished roster weeks.
+- Roster-group-scoped Day and Week templates are shared with roster editors. Saved names are trimmed and case-insensitively unique per group across both scales; saved edits use immutable versions and optimistic conflict detection while one private recoverable draft slot exists per effective user globally. Template shifts are structurally complete and explicitly Staff/Open. Save converts stale staff/pay assignments to Open with warnings, blocks stale Shift types atomically, soft-deletes saved templates, and may permanently discard unsaved drafts.
 - Managers, venue admins, venue owners, and support-mode super admins can use
   manager/admin roster controls according to the controller capability checks.
 - Admin-and-up users may enable compact roster wage totals in roster chrome:

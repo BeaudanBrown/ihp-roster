@@ -144,6 +144,9 @@ type RegisteredSurfaceResourceAdapterHomes =
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterWeekStructure
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterSlotsStructure
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterSlotsContent
+     , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterTemplateLibrary
+     , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterTemplate
+     , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterTemplateDraft
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterDay
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterEndTimesConfig
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterWeekBoundaryConfig

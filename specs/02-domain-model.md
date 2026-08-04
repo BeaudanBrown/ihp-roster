@@ -93,6 +93,12 @@
 - `roster_days`
   - `roster_week_id`
   - `day_offset` (0..6)
+- `roster_templates` and `roster_template_designs`
+  - Roster-group-scoped Day/Week template identity plus immutable saved versions.
+  - Active names are trimmed and case-insensitively unique per roster group across both scales.
+  - A design is either one saved template version or the single private recoverable draft owned by an effective user globally.
+  - Template days, columns, and shifts are child content; shifts require valid local minute boundaries, a Shift type, and explicit Staff/Open assignment.
+  - Saved templates soft-delete; discarded unsaved designs may be permanently removed.
 - `roster_slots`
   - One structurally complete roster shift positioned by `roster_day_id`,
     `roster_week_slot_definition_id`, and non-negative `row_index`.

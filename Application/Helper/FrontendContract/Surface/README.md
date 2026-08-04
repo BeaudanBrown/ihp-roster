@@ -1284,6 +1284,13 @@ Mutation/domain code emits only those declared values. The carrier constructor
 is internal, and no free resource-name/field constructor, undeclared sentinel,
 custom dependency hook, or bridge conversion is supported.
 
+Roster template consumers share three generated Roster Surface resources:
+`roster-template-library` is roster-group-scoped, `roster-template` identifies one
+saved template, and `roster-template-draft` identifies the effective user's
+private global draft. `Surface.Roster.Resource` owns their constructors and typed
+matchers; designer/library code must not create parallel resource names or expose
+a private draft through a group-only identity.
+
 The singular actor/passive planner is generated-data driven:
 
 1. accept exact semantic keys from an actor mount or active subscription;
