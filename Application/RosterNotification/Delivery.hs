@@ -80,7 +80,7 @@ decodeAndValidatePayload :: AppJob -> IO RosterNotificationDeliveryPayload
 decodeAndValidatePayload appJob = do
     unless (appJob.jobKind == rosterNotificationDeliveryJobKind) $
         failDelivery appJob "unexpected job kind"
-    unless (appJob.payloadSchemaVersion == 1) $
+    unless (appJob.payloadSchemaVersion == rosterNotificationPayloadSchemaVersion) $
         failDelivery appJob "unsupported payload schema version"
     case Aeson.fromJSON appJob.payload of
         Aeson.Error message -> failDelivery appJob ("invalid payload: " <> Text.pack message)
@@ -103,7 +103,7 @@ validateRunIdentity ::
     RosterNotificationSnapshot ->
     IO ()
 validateRunIdentity appJob run snapshot = do
-    unless (run.snapshotSchemaVersion == 1) $
+    unless (run.snapshotSchemaVersion == rosterNotificationSnapshotSchemaVersion) $
         failDelivery appJob "unsupported roster snapshot schema version"
     unless (appJob.venueId == Just run.venueId) $
         failDelivery appJob "job venue does not match notification run"

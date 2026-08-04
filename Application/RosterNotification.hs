@@ -6,6 +6,8 @@ module Application.RosterNotification
     , RosterNotificationSkippedReason (..)
     , RosterNotificationDeliveryPayload (..)
     , rosterNotificationDeliveryJobKind
+    , rosterNotificationPayloadSchemaVersion
+    , rosterNotificationSnapshotSchemaVersion
     , createRosterNotificationRun
     , decodeRosterNotificationSnapshot
     , decodeRosterNotificationRecipients
@@ -27,6 +29,9 @@ import IHP.ModelSupport (withTransaction)
 
 rosterNotificationDeliveryJobKind :: Text
 rosterNotificationDeliveryJobKind = "roster_notification_delivery"
+
+rosterNotificationPayloadSchemaVersion :: Int
+rosterNotificationPayloadSchemaVersion = 1
 
 rosterNotificationSnapshotSchemaVersion :: Int
 rosterNotificationSnapshotSchemaVersion = 1
@@ -384,7 +389,7 @@ enqueueRosterNotificationDelivery run actor venue recipient = do
     void $ enqueueAppJob AppJobRequest
         { jobKind = rosterNotificationDeliveryJobKind
         , payload = Aeson.toJSON payload
-        , payloadSchemaVersion = rosterNotificationSnapshotSchemaVersion
+        , payloadSchemaVersion = rosterNotificationPayloadSchemaVersion
         , requestedByUserId = Just (unpackId actor.id)
         , venueId = Just (unpackId venue.id)
         , relatedTable = Just "roster_notification_runs"
