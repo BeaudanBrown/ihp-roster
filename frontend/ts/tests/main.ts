@@ -2,6 +2,7 @@ import "./frontend-surface-contracts.test";
 import "./linked-highlight.test";
 import "./complete-set-sort.test";
 import "./surface-tab-set.test";
+import "./side-panel-runtime.test";
 import "./roster-chrome.test";
 import "./roster-image-export.test";
 import "./roster-week-overview.test";
