@@ -21,9 +21,9 @@ import Web.Mail.RosterNotification
 import Web.RosterWeeks.Paths (rosterWeekUrl)
 
 data RosterNotificationDeliveryRuntime = RosterNotificationDeliveryRuntime
-    { deliveryBaseUrl                  :: !Text
-    , deliveryMailSettings             :: !AppMailSettings
-    , deliverRosterNotificationMail    :: RosterNotificationMail -> IO ()
+    { deliveryBaseUrl               :: !Text
+    , deliveryMailSettings          :: !AppMailSettings
+    , deliverRosterNotificationMail :: RosterNotificationMail -> IO ()
     }
 
 performRosterNotificationDeliveryJob ::

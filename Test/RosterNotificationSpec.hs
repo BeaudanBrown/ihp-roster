@@ -9,8 +9,8 @@ import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
 import Data.Either (isLeft)
-import qualified Data.Set as Set
 import Data.IORef (modifyIORef', newIORef, readIORef)
+import qualified Data.Set as Set
 import Data.Text (isInfixOf)
 import qualified Data.Text.Lazy as LazyText
 import Data.Time.LocalTime (TimeOfDay (..))

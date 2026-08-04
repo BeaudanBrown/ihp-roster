@@ -79,9 +79,9 @@ import qualified Test.ProfilingSpec
 import qualified Test.PublicHolidaySyncSpec
 import qualified Test.PwaInstallSpec
 import qualified Test.RosterAwardDurationSpec
-import qualified Test.RosterNotificationSpec
 import qualified Test.RosterGridSpec
 import qualified Test.RosterInteractionWorkflowSpec
+import qualified Test.RosterNotificationSpec
 import qualified Test.RosterTemplateApplicationSpec
 import qualified Test.RosterTemplateDesignerSpec
 import qualified Test.RosterTemplatesSpec

@@ -37,15 +37,15 @@ rosterNotificationSnapshotSchemaVersion :: Int
 rosterNotificationSnapshotSchemaVersion = 1
 
 data RosterNotificationSnapshot = RosterNotificationSnapshot
-    { snapshotVenueId        :: !UUID
-    , snapshotVenueName      :: !Text
-    , snapshotRosterGroupId  :: !UUID
+    { snapshotVenueId         :: !UUID
+    , snapshotVenueName       :: !Text
+    , snapshotRosterGroupId   :: !UUID
     , snapshotRosterGroupName :: !Text
-    , snapshotRosterWeekId   :: !UUID
-    , snapshotWeekOffset     :: !Int
-    , snapshotWeekStart      :: !Day
-    , snapshotWeekEnd        :: !Day
-    , snapshotShifts         :: ![RosterNotificationShiftSnapshot]
+    , snapshotRosterWeekId    :: !UUID
+    , snapshotWeekOffset      :: !Int
+    , snapshotWeekStart       :: !Day
+    , snapshotWeekEnd         :: !Day
+    , snapshotShifts          :: ![RosterNotificationShiftSnapshot]
     }
     deriving (Eq, Show)
 
@@ -84,10 +84,10 @@ data RosterNotificationSkippedRecipient = RosterNotificationSkippedRecipient
     deriving (Eq, Show)
 
 data RosterNotificationDeliveryPayload = RosterNotificationDeliveryPayload
-    { payloadRunId          :: !UUID
+    { payloadRunId            :: !UUID
     , payloadRecipientStaffId :: !UUID
-    , payloadRecipientUserId :: !UUID
-    , payloadRecipientEmail :: !Text
+    , payloadRecipientUserId  :: !UUID
+    , payloadRecipientEmail   :: !Text
     }
     deriving (Eq, Show)
 

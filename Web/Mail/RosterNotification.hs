@@ -14,10 +14,10 @@ import Web.Mail.Shared
 data RosterNotificationMail = RosterNotificationMail
     { notificationSnapshot  :: !RosterNotificationSnapshot
     , notificationRecipient :: !RosterNotificationRecipient
-    , rosterUrl              :: !Text
-    , fromAddress            :: !Text
-    , replyToAddress         :: !Text
-    , supportEmail           :: !Text
+    , rosterUrl             :: !Text
+    , fromAddress           :: !Text
+    , replyToAddress        :: !Text
+    , supportEmail          :: !Text
     }
 
 instance BuildMail RosterNotificationMail where
