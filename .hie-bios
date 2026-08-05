@@ -12,9 +12,23 @@ case "$HIE_BIOS_ARG" in
     echo "ghc" >> "$HIE_BIOS_OUTPUT"
     ;;
 esac
-echo "$HIE_BIOS_ARG" >> "$HIE_BIOS_OUTPUT"
+requested_relative="$HIE_BIOS_ARG"
+case "$requested_relative" in
+  "$PWD"/*) requested_relative=${requested_relative#"$PWD"/} ;;
+  ./*) requested_relative=${requested_relative#./} ;;
+esac
+targets_file=$(mktemp)
+trap 'rm -f "$targets_file"' EXIT HUP INT TERM
 for path in Main.hs Config Application Web Test build/Generated; do
   [ -e "$path" ] || continue
   find "$path" -name '*.hs' \
     -not -name '*.sync-conflict*'
-done >> "$HIE_BIOS_OUTPUT"
+done \
+  | LC_ALL=C sort -u \
+  > "$targets_file"
+cat "$targets_file" >> "$HIE_BIOS_OUTPUT"
+if ! grep -Fxq "$requested_relative" "$targets_file"; then
+  echo "$HIE_BIOS_ARG" >> "$HIE_BIOS_OUTPUT"
+fi
+rm -f "$targets_file"
+trap - EXIT HUP INT TERM

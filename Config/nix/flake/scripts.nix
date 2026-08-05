@@ -141,6 +141,7 @@ in
         weeder-check = script ../scripts/haskell/weeder-check;
         regen-types = script ../scripts/haskell/regen-types;
         generated-code-sync = script ../scripts/haskell/generated-code-sync;
+        hie-bios-test = script ../scripts/haskell/hie-bios-test;
         test-db-reset = script ../scripts/db/test-db-reset;
         test-postgres = script ../scripts/db/test-postgres;
         billing-migration-check = script ../scripts/db/billing-migration-check;

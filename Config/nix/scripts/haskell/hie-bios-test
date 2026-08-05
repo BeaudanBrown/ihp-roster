@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cradle="$repo_root/.hie-bios"
+fixture_root="$(mktemp -d)"
+cleanup() { rm -rf "$fixture_root"; }
+trap cleanup EXIT
+
+fail() {
+    echo "hie-bios-test: $*" >&2
+    exit 1
+}
+
+mkdir -p \
+    "$fixture_root/bin" \
+    "$fixture_root/Application/Helper/FrontendSurface/Ghc" \
+    "$fixture_root/Web" \
+    "$fixture_root/Test" \
+    "$fixture_root/build/Generated"
+
+cat >"$fixture_root/bin/make" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' '-Wall -iIHP/ihp -fbyte-code'
+EOF
+chmod +x "$fixture_root/bin/make"
+
+for target in \
+    Application/Ordinary.hs \
+    Application/Helper/FrontendSurface/Ghc/Contract.hs \
+    Web/Controller.hs \
+    Test/Spec.hs \
+    build/Generated/Types.hs; do
+    mkdir -p "$fixture_root/$(dirname "$target")"
+    printf 'module Fixture where\n' >"$fixture_root/$target"
+done
+
+run_cradle() {
+    local requested="$1"
+    local output="$2"
+    (
+        cd "$fixture_root"
+        PATH="$fixture_root/bin:$PATH" \
+            HIE_BIOS_ARG="$requested" \
+            HIE_BIOS_OUTPUT="$output" \
+            "$cradle"
+    )
+}
+
+ordinary_output="$fixture_root/ordinary.args"
+run_cradle Application/Ordinary.hs "$ordinary_output"
+
+grep -Fxq -- -Wall "$ordinary_output" || fail "ordinary GHC option was lost"
+! grep -q '^-iIHP' "$ordinary_output" || fail "in-repo IHP include path was retained"
+! grep -Fxq -- -fbyte-code "$ordinary_output" || fail "byte-code option was retained"
+[ "$(grep -Fxc Application/Ordinary.hs "$ordinary_output")" -eq 1 ] \
+    || fail "requested target was not emitted exactly once"
+for target in Web/Controller.hs Test/Spec.hs build/Generated/Types.hs; do
+    grep -Fxq "$target" "$ordinary_output" || fail "target coverage lost: $target"
+done
+! grep -Fxq -- -package "$ordinary_output" || fail "ordinary module unexpectedly enabled the ghc package"
+
+web_output="$fixture_root/web.args"
+run_cradle Web/Controller.hs "$web_output"
+cmp -s "$ordinary_output" "$web_output" \
+    || fail "ordinary requested files produced different cradle output"
+
+test_output="$fixture_root/test.args"
+run_cradle Test/Spec.hs "$test_output"
+cmp -s "$ordinary_output" "$test_output" \
+    || fail "Application and Test requests produced different cradle output"
+
+generated_output="$fixture_root/generated.args"
+run_cradle build/Generated/Types.hs "$generated_output"
+cmp -s "$ordinary_output" "$generated_output" \
+    || fail "source and generated requests produced different cradle output"
+
+absolute_output="$fixture_root/absolute.args"
+run_cradle "$fixture_root/Web/Controller.hs" "$absolute_output"
+cmp -s "$ordinary_output" "$absolute_output" \
+    || fail "absolute and relative requests produced different cradle output"
+[ "$(grep -Fxc Web/Controller.hs "$absolute_output")" -eq 1 ] \
+    || fail "absolute requested target was not represented exactly once"
+
+printf 'module Standalone where\n' >"$fixture_root/Standalone.hs"
+outside_output="$fixture_root/outside.args"
+run_cradle Standalone.hs "$outside_output"
+[ "$(grep -Fxc Standalone.hs "$outside_output")" -eq 1 ] \
+    || fail "target outside the standard component was not appended exactly once"
+[ "$(tail -n 1 "$outside_output")" = Standalone.hs ] \
+    || fail "target outside the standard component was not appended last"
+
+ghc_output="$fixture_root/ghc.args"
+run_cradle Application/Helper/FrontendSurface/Ghc/Contract.hs "$ghc_output"
+grep -Fxq -- -package "$ghc_output" || fail "GHC-API module did not enable a package"
+grep -Fxq ghc "$ghc_output" || fail "GHC-API module did not enable the ghc package"
+[ "$(grep -Fxc Application/Helper/FrontendSurface/Ghc/Contract.hs "$ghc_output")" -eq 1 ] \
+    || fail "GHC-API requested target was not emitted exactly once"
+
+echo "hie-bios-test: ok"
