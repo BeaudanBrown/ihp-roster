@@ -34,6 +34,8 @@ test.describe('Roster week overview', () => {
         const rawConfig = await exportButton.getAttribute(rosterImageExportConfigDomAttr);
         expect(rawConfig).not.toBeNull();
         const config = parseRosterImageExportConfig(JSON.parse(rawConfig ?? '{}'));
+        const renderedDayCellCount = await page.locator('.roster-day-rail-section').count();
+        expect(renderedDayCellCount).toBeGreaterThan(0);
 
         const sourceDayCellCount = await page.locator(`.roster-day-rail-section[${rosterImageExportCellDomAttr}]`).count();
         expect(sourceDayCellCount).toBeGreaterThanOrEqual(1);

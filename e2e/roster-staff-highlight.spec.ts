@@ -167,6 +167,31 @@ test.describe('Roster staff shift highlight', () => {
         const fixtureSlotId = 'b3000000-0000-0000-0000-000000000001';
         try {
             runSql(`
+                DROP TABLE IF EXISTS e2e_pinned_wage_week_backup;
+                DROP TABLE IF EXISTS e2e_pinned_wage_day_backup;
+                DROP TABLE IF EXISTS e2e_pinned_wage_staff_backup;
+                DROP TABLE IF EXISTS e2e_pinned_wage_shift_type_backup;
+                DROP TABLE IF EXISTS e2e_pinned_wage_pay_version_backup;
+                DROP TABLE IF EXISTS e2e_pinned_wage_preference_backup;
+                CREATE TABLE e2e_pinned_wage_week_backup AS
+                    SELECT id, is_live, updated_at FROM roster_weeks
+                    WHERE id = 'a1000000-0000-0000-0000-000000000051';
+                CREATE TABLE e2e_pinned_wage_day_backup AS
+                    SELECT id, row_count, is_closed, updated_at FROM roster_days
+                    WHERE id = 'a1000000-0000-0000-0000-000000000061';
+                CREATE TABLE e2e_pinned_wage_staff_backup AS
+                    SELECT id, pay_assignment_mode, default_award_level_id, imported_xero_pay_item_id, is_active, archived_at, updated_at FROM staff
+                    WHERE id = 'a1000000-0000-0000-0000-000000000033';
+                CREATE TABLE e2e_pinned_wage_shift_type_backup AS
+                    SELECT id, pay_assignment_mode, override_award_level_id, imported_xero_pay_item_id, is_active, archived_at, updated_at FROM shift_types
+                    WHERE id = 'a1000000-0000-0000-0000-000000000133';
+                CREATE TABLE e2e_pinned_wage_pay_version_backup AS
+                    SELECT id, locked_at, locked_by_user_id, updated_at FROM staff_pay_versions
+                    WHERE id = 'a1000000-0000-0000-0000-000000000303';
+                CREATE TABLE e2e_pinned_wage_preference_backup AS
+                    SELECT * FROM user_preferences
+                    WHERE user_id = 'a0000000-0000-0000-0000-000000000003';
+
                 UPDATE roster_weeks
                 SET is_live = FALSE, updated_at = NOW()
                 WHERE id = 'a1000000-0000-0000-0000-000000000051';
@@ -351,37 +376,57 @@ test.describe('Roster staff shift highlight', () => {
             await expect(disabledPin).toHaveAttribute('aria-pressed', 'true');
         } finally {
             runSql(`
-                UPDATE roster_days
-                SET row_count = 4, updated_at = NOW()
-                WHERE id = 'a1000000-0000-0000-0000-000000000061';
+                UPDATE roster_weeks AS target
+                SET is_live = backup.is_live,
+                    updated_at = backup.updated_at
+                FROM e2e_pinned_wage_week_backup AS backup
+                WHERE target.id = backup.id;
+                UPDATE roster_days AS target
+                SET row_count = backup.row_count,
+                    is_closed = backup.is_closed,
+                    updated_at = backup.updated_at
+                FROM e2e_pinned_wage_day_backup AS backup
+                WHERE target.id = backup.id;
+                UPDATE staff AS target
+                SET pay_assignment_mode = backup.pay_assignment_mode,
+                    default_award_level_id = backup.default_award_level_id,
+                    imported_xero_pay_item_id = backup.imported_xero_pay_item_id,
+                    is_active = backup.is_active,
+                    archived_at = backup.archived_at,
+                    updated_at = backup.updated_at
+                FROM e2e_pinned_wage_staff_backup AS backup
+                WHERE target.id = backup.id;
+                UPDATE shift_types AS target
+                SET pay_assignment_mode = backup.pay_assignment_mode,
+                    override_award_level_id = backup.override_award_level_id,
+                    imported_xero_pay_item_id = backup.imported_xero_pay_item_id,
+                    is_active = backup.is_active,
+                    archived_at = backup.archived_at,
+                    updated_at = backup.updated_at
+                FROM e2e_pinned_wage_shift_type_backup AS backup
+                WHERE target.id = backup.id;
+                DELETE FROM user_preferences
+                WHERE user_id = 'a0000000-0000-0000-0000-000000000003';
+                INSERT INTO user_preferences
+                SELECT * FROM e2e_pinned_wage_preference_backup;
                 UPDATE roster_slots
                 SET deleted_at = NOW(),
                     deleted_by_user_id = 'a0000000-0000-0000-0000-000000000003',
                     delete_reason = 'E2E pinned wage filter cleanup',
                     updated_at = NOW()
                 WHERE id = '${fixtureSlotId}';
-                UPDATE staff_pay_versions
-                SET locked_at = NULL,
-                    locked_by_user_id = NULL,
-                    updated_at = NOW()
-                WHERE id = 'a1000000-0000-0000-0000-000000000303';
-                UPDATE staff
-                SET pay_assignment_mode = 'award_rate',
-                    default_award_level_id = 'a1000000-0000-0000-0000-000000000111',
-                    imported_xero_pay_item_id = NULL,
-                    is_active = TRUE,
-                    archived_at = NULL,
-                    updated_at = NOW()
-                WHERE id = 'a1000000-0000-0000-0000-000000000033';
-                UPDATE shift_types
-                SET pay_assignment_mode = 'award_rate',
-                    override_award_level_id = 'a1000000-0000-0000-0000-000000000113',
-                    imported_xero_pay_item_id = NULL,
-                    is_active = TRUE,
-                    archived_at = NULL,
-                    updated_at = NOW()
-                WHERE id = 'a1000000-0000-0000-0000-000000000133';
-                DELETE FROM user_preferences WHERE user_id = 'a0000000-0000-0000-0000-000000000003';
+                UPDATE staff_pay_versions AS target
+                SET locked_at = backup.locked_at,
+                    locked_by_user_id = backup.locked_by_user_id,
+                    updated_at = backup.updated_at
+                FROM e2e_pinned_wage_pay_version_backup AS backup
+                WHERE target.id = backup.id;
+                DROP TABLE e2e_pinned_wage_week_backup;
+                DROP TABLE e2e_pinned_wage_day_backup;
+                DROP TABLE e2e_pinned_wage_staff_backup;
+                DROP TABLE e2e_pinned_wage_shift_type_backup;
+                DROP TABLE e2e_pinned_wage_pay_version_backup;
+                DROP TABLE e2e_pinned_wage_preference_backup;
             `);
         }
     });
