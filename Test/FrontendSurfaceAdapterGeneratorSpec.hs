@@ -362,6 +362,7 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
                         [ "timesheets"
                         , "roster"
                         , "roster-day-timeline"
+                        , "roster-template-designer"
                         , "leave-requests"
                         , "self-service-leave"
                         , "billing"
