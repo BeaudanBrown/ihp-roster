@@ -10,6 +10,7 @@ import Application.RosterTemplates
 import Control.Monad (guard)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
+import qualified Data.UUID.V4 as UUIDv4
 import Text.Read (readMaybe)
 import Web.Controller.Prelude
 import Web.RosterWeeks.Service (fetchCurrentRosterWeekOffset)
@@ -48,7 +49,7 @@ instance Controller RosterTemplatesController where
                     Right draft -> redirectToSeeOther ShowRosterTemplateDesignerAction
                         { rosterTemplateDesignId = draft.draftDesign.id }
                     Left RosterTemplateDraftSlotOccupied ->
-                        renderDraftOccupied actor rosterGroup name scale "blank" Nothing Nothing
+                        renderDraftOccupied actor rosterGroup name scale "blank" Nothing Nothing Nothing
                     Left templateError -> renderCreationFailure rosterGroup templateError
             (Just name, Just scale, Just "reference") -> do
                 currentWeekOffset <- fetchCurrentRosterWeekOffset
@@ -85,7 +86,11 @@ instance Controller RosterTemplatesController where
                 accessDeniedUnless (isJust maybeReferenceWeek)
                 let referenceWeek = fromMaybe (error "authorized reference week missing") maybeReferenceWeek
                 if validReferenceSelection templateScale selectedDayOffset referenceWeek
-                    then render ConfirmReferenceView { .. }
+                    then do
+                        confirmationToken <- UUID.toText <$> UUIDv4.nextRandom
+                        setSession rosterTemplateReferenceConfirmationSessionKey
+                            (referenceConfirmationSessionValue confirmationToken rosterGroup.id weekOffset templateName templateScale selectedDayOffset)
+                        render ConfirmReferenceView { .. }
                     else do
                         setErrorMessage "Select an existing roster day or complete week."
                         redirectToPath (referenceSelectionPath rosterGroup weekOffset templateName templateScale)
@@ -98,16 +103,21 @@ instance Controller RosterTemplatesController where
         case referenceRequestFromParams of
             Nothing -> redirectTo NewRosterTemplateAction { .. }
             Just (templateName, templateScale, selectedDayOffset) -> do
+                let maybeConfirmationToken = paramOrNothing @Text "confirmationToken"
+                confirmationMatches <- maybe (pure False) (referenceConfirmationMatches rosterGroup.id weekOffset templateName templateScale selectedDayOffset) maybeConfirmationToken
+                unless confirmationMatches do
+                    setErrorMessage "Confirm the selected roster reference before creating its template draft."
+                    redirectToPath (referenceSelectionPath rosterGroup weekOffset templateName templateScale)
                 maybeReferenceWeek <- fetchRosterTemplateReferenceWeek actor rosterGroup weekOffset
                 accessDeniedUnless (isJust maybeReferenceWeek)
                 let referenceWeek = fromMaybe (error "authorized reference week missing") maybeReferenceWeek
                 case (referenceWeek.referenceRosterWeek, templateScale, selectedDayOffset) of
                     (Just sourceWeek, Day, Just dayOffset)
                         | any ((== dayOffset) . (.dayOffset)) referenceWeek.referenceRosterDays ->
-                            startFromReference actor rosterGroup templateName templateScale weekOffset selectedDayOffset (RosterTemplateDayReference sourceWeek.id dayOffset)
+                            startFromReference actor rosterGroup templateName templateScale weekOffset selectedDayOffset maybeConfirmationToken (RosterTemplateDayReference sourceWeek.id dayOffset)
                     (Just sourceWeek, Week, Nothing)
                         | map (.dayOffset) referenceWeek.referenceRosterDays == [0 .. 6] ->
-                            startFromReference actor rosterGroup templateName templateScale weekOffset selectedDayOffset (RosterTemplateWeekReference sourceWeek.id)
+                            startFromReference actor rosterGroup templateName templateScale weekOffset selectedDayOffset maybeConfirmationToken (RosterTemplateWeekReference sourceWeek.id)
                     _ -> do
                         setErrorMessage "Select an existing roster day or complete week."
                         redirectToPath (referenceSelectionPath rosterGroup weekOffset templateName templateScale)
@@ -117,19 +127,15 @@ instance Controller RosterTemplatesController where
         ensureVenueWritable
         rosterGroup <- fetchScopedRosterGroup rosterGroupId
         actor <- currentRosterTemplateActor
-        discarded <- discardRosterTemplateDraft actor rosterTemplateDesignId
-        case discarded of
-            Left templateError -> renderCreationFailure rosterGroup templateError
-            Right () ->
-                case (paramOrNothing @Text "name", paramOrNothing @Text "scale" >>= parseTemplateScale, paramOrNothing @Text "startingPoint") of
-                    (Just templateName, Just templateScale, Just "blank") -> do
-                        started <- startBlankRosterTemplateDesignerDraft actor rosterGroup templateScale templateName
-                        case started of
-                            Right draft -> redirectToSeeOther ShowRosterTemplateDesignerAction { rosterTemplateDesignId = draft.draftDesign.id }
-                            Left templateError -> renderCreationFailure rosterGroup templateError
-                    (Just templateName, Just templateScale, Just "reference") ->
-                        restartFromReference actor rosterGroup templateName templateScale
-                    _ -> redirectTo NewRosterTemplateAction { .. }
+        case (paramOrNothing @Text "name", paramOrNothing @Text "scale" >>= parseTemplateScale, paramOrNothing @Text "startingPoint") of
+            (Just templateName, Just templateScale, Just "blank") -> do
+                replaced <- replaceBlankRosterTemplateDesignerDraft actor rosterTemplateDesignId rosterGroup templateScale templateName
+                case replaced of
+                    Right draft -> redirectToSeeOther ShowRosterTemplateDesignerAction { rosterTemplateDesignId = draft.draftDesign.id }
+                    Left templateError -> renderCreationFailure rosterGroup templateError
+            (Just templateName, Just templateScale, Just "reference") ->
+                restartFromReference actor rosterTemplateDesignId rosterGroup templateName templateScale
+            _ -> redirectTo NewRosterTemplateAction { .. }
 
     action currentAction@ShowRosterTemplateDesignerAction { rosterTemplateDesignId } = runBepis currentAction BepisPageAction do
         ensureManagerRole
@@ -367,8 +373,9 @@ renderDraftOccupied ::
     Text ->
     Maybe Int ->
     Maybe Int ->
+    Maybe Text ->
     IO ()
-renderDraftOccupied actor rosterGroup pendingName pendingScale pendingStartingPoint pendingWeekOffset pendingDayOffset = do
+renderDraftOccupied actor rosterGroup pendingName pendingScale pendingStartingPoint pendingWeekOffset pendingDayOffset pendingConfirmationToken = do
     maybeDraft <- fetchPrivateRosterTemplateDraft actor
     accessDeniedUnless (isJust maybeDraft)
     let existingDraft = fromMaybe (error "occupied template draft missing") maybeDraft
@@ -377,24 +384,38 @@ renderDraftOccupied actor rosterGroup pendingName pendingScale pendingStartingPo
 restartFromReference ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) =>
     RosterTemplateActor ->
+    Id RosterTemplateDesign ->
     RosterGroup ->
     Text ->
     RosterTemplateScaleEnum ->
     IO ()
-restartFromReference actor rosterGroup templateName templateScale = do
+restartFromReference actor existingDesignId rosterGroup templateName templateScale = do
     let maybeWeekOffset = paramOrNothing @Text "weekOffset" >>= readMaybe . cs
     let selectedDayOffset = paramOrNothing @Text "dayOffset" >>= readMaybe . cs
-    case maybeWeekOffset of
-        Nothing -> redirectTo NewRosterTemplateAction { rosterGroupId = rosterGroup.id }
-        Just weekOffset -> do
+    let maybeConfirmationToken = paramOrNothing @Text "confirmationToken"
+    case (maybeWeekOffset, maybeConfirmationToken) of
+        (Just weekOffset, Just confirmationToken) -> do
+            confirmationMatches <- referenceConfirmationMatches rosterGroup.id weekOffset templateName templateScale selectedDayOffset confirmationToken
+            unless confirmationMatches do
+                setErrorMessage "Confirm the selected roster reference before discarding the current draft."
+                redirectToPath (referenceSelectionPath rosterGroup weekOffset templateName templateScale)
             maybeReferenceWeek <- fetchRosterTemplateReferenceWeek actor rosterGroup weekOffset
             let maybeSourceWeek = maybeReferenceWeek >>= (.referenceRosterWeek)
-            case (maybeSourceWeek, templateScale, selectedDayOffset) of
-                (Just sourceWeek, Day, Just dayOffset) ->
-                    startFromReference actor rosterGroup templateName templateScale weekOffset selectedDayOffset (RosterTemplateDayReference sourceWeek.id dayOffset)
-                (Just sourceWeek, Week, Nothing) ->
-                    startFromReference actor rosterGroup templateName templateScale weekOffset selectedDayOffset (RosterTemplateWeekReference sourceWeek.id)
-                _ -> redirectToPath (referenceSelectionPath rosterGroup weekOffset templateName templateScale)
+            let maybeReference = case (maybeSourceWeek, templateScale, selectedDayOffset) of
+                    (Just sourceWeek, Day, Just dayOffset) -> Just (RosterTemplateDayReference sourceWeek.id dayOffset)
+                    (Just sourceWeek, Week, Nothing)
+                        | maybe False ((== [0 .. 6]) . map (.dayOffset) . (.referenceRosterDays)) maybeReferenceWeek -> Just (RosterTemplateWeekReference sourceWeek.id)
+                    _ -> Nothing
+            case maybeReference of
+                Nothing -> redirectToPath (referenceSelectionPath rosterGroup weekOffset templateName templateScale)
+                Just reference -> do
+                    replaced <- replaceRosterTemplateDraftFromReference actor existingDesignId rosterGroup templateName reference
+                    case replaced of
+                        Right draft -> do
+                            deleteSession rosterTemplateReferenceConfirmationSessionKey
+                            redirectToSeeOther ShowRosterTemplateDesignerAction { rosterTemplateDesignId = draft.draftDesign.id }
+                        Left templateError -> renderCreationFailure rosterGroup templateError
+        _ -> redirectTo NewRosterTemplateAction { rosterGroupId = rosterGroup.id }
 
 startFromReference ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) =>
@@ -404,16 +425,48 @@ startFromReference ::
     RosterTemplateScaleEnum ->
     Int ->
     Maybe Int ->
+    Maybe Text ->
     RosterTemplateReference ->
     IO ()
-startFromReference actor rosterGroup templateName templateScale weekOffset selectedDayOffset reference = do
+startFromReference actor rosterGroup templateName templateScale weekOffset selectedDayOffset maybeConfirmationToken reference = do
     started <- startRosterTemplateDraftFromReference actor rosterGroup templateName reference
     case started of
-        Right draft -> redirectToSeeOther ShowRosterTemplateDesignerAction
-            { rosterTemplateDesignId = draft.draftDesign.id }
+        Right draft -> do
+            deleteSession rosterTemplateReferenceConfirmationSessionKey
+            redirectToSeeOther ShowRosterTemplateDesignerAction
+                { rosterTemplateDesignId = draft.draftDesign.id }
         Left RosterTemplateDraftSlotOccupied ->
-            renderDraftOccupied actor rosterGroup templateName templateScale "reference" (Just weekOffset) selectedDayOffset
-        Left templateError -> renderCreationFailure rosterGroup templateError
+            renderDraftOccupied actor rosterGroup templateName templateScale "reference" (Just weekOffset) selectedDayOffset maybeConfirmationToken
+        Left templateError -> do
+            deleteSession rosterTemplateReferenceConfirmationSessionKey
+            renderCreationFailure rosterGroup templateError
+
+rosterTemplateReferenceConfirmationSessionKey :: ByteString
+rosterTemplateReferenceConfirmationSessionKey = "rosterTemplateReferenceConfirmation"
+
+referenceConfirmationSessionValue :: Text -> Id RosterGroup -> Int -> Text -> RosterTemplateScaleEnum -> Maybe Int -> Text
+referenceConfirmationSessionValue token rosterGroupId weekOffset templateName templateScale selectedDayOffset =
+    Text.intercalate "|"
+        [ token
+        , tshow rosterGroupId
+        , tshow weekOffset
+        , templateName
+        , templateScaleValue templateScale
+        , maybe "" tshow selectedDayOffset
+        ]
+
+referenceConfirmationMatches ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    Id RosterGroup ->
+    Int ->
+    Text ->
+    RosterTemplateScaleEnum ->
+    Maybe Int ->
+    Text ->
+    IO Bool
+referenceConfirmationMatches rosterGroupId weekOffset templateName templateScale selectedDayOffset token = do
+    stored <- getSession @Text rosterTemplateReferenceConfirmationSessionKey
+    pure (stored == Just (referenceConfirmationSessionValue token rosterGroupId weekOffset templateName templateScale selectedDayOffset))
 
 referenceSelectionPath :: RosterGroup -> Int -> Text -> RosterTemplateScaleEnum -> Text
 referenceSelectionPath rosterGroup weekOffset templateName templateScale =

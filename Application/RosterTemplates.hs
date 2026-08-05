@@ -16,6 +16,7 @@ module Application.RosterTemplates
     , fetchRosterTemplateLibrary
     , fetchSavedRosterTemplate
     , replaceRosterTemplateDraftContent
+    , replaceRosterTemplateDraftWithContent
     , rosterTemplateActor
     , rosterTemplateActorCanEditRosters
     , rosterTemplateActorUserId
@@ -225,6 +226,44 @@ startRosterTemplateDraftWithContent actor rosterGroup scale requestedName conten
                         persistRosterTemplateDraftContent draft.draftDesign content
                         reloaded <- loadDraft draft.draftDesign
                         pure (Right reloaded)
+
+replaceRosterTemplateDraftWithContent ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    Id RosterTemplateDesign ->
+    RosterGroup ->
+    RosterTemplateScaleEnum ->
+    Text ->
+    RosterTemplateContent ->
+    IO (Either RosterTemplateError RosterTemplateDraft)
+replaceRosterTemplateDraftWithContent actor existingDesignId rosterGroup scale requestedName content
+    | not actor.actorCanEditRosters = pure (Left RosterTemplateForbidden)
+    | rosterGroup.venueId /= unpackId actor.actorVenueId = pure (Left RosterTemplateScopeMismatch)
+    | Text.null normalizedName || Text.length normalizedName > 120 = pure (Left RosterTemplateInvalidName)
+    | not (validTemplateContentForScale scale content) = pure (Left (RosterTemplateInvalidContent "Template days, columns, shifts, or times are invalid."))
+    | otherwise = withTransaction do
+        lockRosterTemplateDraftSlot actor.actorUserId
+        designExists <- lockRosterTemplateDraftDesign existingDesignId
+        maybeExisting <- if designExists then fetchOwnedDraft actor existingDesignId else pure Nothing
+        case maybeExisting of
+            Nothing -> pure (Left RosterTemplateForbidden)
+            Just existing -> do
+                references <- validateContentInputReferences actor (unpackId rosterGroup.id) content
+                case references of
+                    Left templateError -> pure (Left templateError)
+                    Right () -> do
+                        replacement <-
+                            existing
+                                |> set #rosterGroupId (unpackId rosterGroup.id)
+                                |> set #scale scale
+                                |> set #draftName (Just normalizedName)
+                                |> set #sourceTemplateId Nothing
+                                |> set #baseVersionNumber Nothing
+                                |> updateRecord
+                        persistRosterTemplateDraftContent replacement content
+                        Right <$> loadDraft replacement
+  where
+    normalizedName = Text.strip requestedName
 
 fetchRosterTemplateLibrary ::
     (?modelContext :: ModelContext) =>

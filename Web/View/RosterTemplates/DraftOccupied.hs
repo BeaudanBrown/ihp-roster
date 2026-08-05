@@ -4,13 +4,14 @@ import Application.RosterTemplates
 import Web.View.Prelude
 
 data DraftOccupiedView = DraftOccupiedView
-    { rosterGroup          :: !RosterGroup
-    , existingDraft        :: !RosterTemplateDraft
-    , pendingName          :: !Text
-    , pendingScale         :: !RosterTemplateScaleEnum
-    , pendingStartingPoint :: !Text
-    , pendingWeekOffset    :: !(Maybe Int)
-    , pendingDayOffset     :: !(Maybe Int)
+    { rosterGroup              :: !RosterGroup
+    , existingDraft            :: !RosterTemplateDraft
+    , pendingName              :: !Text
+    , pendingScale             :: !RosterTemplateScaleEnum
+    , pendingStartingPoint     :: !Text
+    , pendingWeekOffset        :: !(Maybe Int)
+    , pendingDayOffset         :: !(Maybe Int)
+    , pendingConfirmationToken :: !(Maybe Text)
     }
 
 instance View DraftOccupiedView where
@@ -35,6 +36,7 @@ instance View DraftOccupiedView where
                                     <input type="hidden" name="startingPoint" value={pendingStartingPoint} />
                                     {forEach pendingWeekOffset renderWeekOffset}
                                     {forEach pendingDayOffset renderDayOffset}
+                                    {forEach pendingConfirmationToken renderConfirmationToken}
                                     <button class="btn btn-danger" type="submit">Discard and start new</button>
                                 </form>
                                 <a class="btn btn-outline-secondary" href={NewRosterTemplateAction rosterGroup.id}>Cancel</a>
@@ -51,6 +53,9 @@ scaleValue Week = "week"
 
 renderWeekOffset :: Int -> Html
 renderWeekOffset value = [hsx|<input type="hidden" name="weekOffset" value={tshow value} />|]
+
+renderConfirmationToken :: Text -> Html
+renderConfirmationToken value = [hsx|<input type="hidden" name="confirmationToken" value={value} />|]
 
 renderDayOffset :: Int -> Html
 renderDayOffset value = [hsx|<input type="hidden" name="dayOffset" value={tshow value} />|]

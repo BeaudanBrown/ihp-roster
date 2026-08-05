@@ -8,12 +8,13 @@ import Application.RosterTemplates (RosterTemplateDraft (..),
                                     saveRosterTemplateDraft,
                                     startRosterTemplateEditDraft)
 import qualified Data.ByteString.Char8 as ByteString
+import qualified Data.Text as Text
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
-import Network.Wai (responseHeaders, responseStatus)
+import Network.Wai (Response, responseHeaders, responseStatus)
 import Test.Hspec
 import Test.Support
 import Web.Controller.RosterTemplates ()
@@ -138,22 +139,32 @@ tests = aroundAll withDatabaseTestContext do
                             (TimeOfDay 9 0 0)
                             (TimeOfDay 17 0 0)
 
-                confirmation <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams ConfirmRosterTemplateReferenceAction
-                        { rosterGroupId = rosterGroup.id, weekOffset = 0 }
-                        [("name", "Tuesday plan"), ("scale", "day"), ("dayOffset", "1")]
-                beforeConfirmDraft <- fetchPrivateRosterTemplateDraft (rosterTemplateActor manager venue True)
-                created <- withUserAndCurrentVenue manager venue.id do
+                bypassed <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams CreateRosterTemplateFromReferenceAction
                         { rosterGroupId = rosterGroup.id, weekOffset = 0 }
                         [("name", "Tuesday plan"), ("scale", "day"), ("dayOffset", "1")]
+                bypassDraft <- fetchPrivateRosterTemplateDraft (rosterTemplateActor manager venue True)
+                (confirmation, tampered, created) <- withUserAndCurrentVenue manager venue.id do
+                    confirmation <- callActionWithParams ConfirmRosterTemplateReferenceAction
+                        { rosterGroupId = rosterGroup.id, weekOffset = 0 }
+                        [("name", "Tuesday plan"), ("scale", "day"), ("dayOffset", "1")]
+                    confirmationToken <- hiddenInputValue "confirmationToken" confirmation
+                    tampered <- callActionWithParams CreateRosterTemplateFromReferenceAction
+                        { rosterGroupId = rosterGroup.id, weekOffset = 0 }
+                        [("name", "Changed after confirmation"), ("scale", "day"), ("dayOffset", "1"), ("confirmationToken", cs confirmationToken)]
+                    created <- callActionWithParams CreateRosterTemplateFromReferenceAction
+                        { rosterGroupId = rosterGroup.id, weekOffset = 0 }
+                        [("name", "Tuesday plan"), ("scale", "day"), ("dayOffset", "1"), ("confirmationToken", cs confirmationToken)]
+                    pure (confirmation, tampered, created)
                 persistedSource <- fetch sourceSlot.id
 
+                bypassed `responseStatusShouldBe` status302
+                bypassDraft `shouldBe` Nothing
                 confirmation `responseStatusShouldBe` status200
                 confirmation `responseBodyShouldContain` "Confirm reference"
                 confirmation `responseBodyShouldContain` "Tuesday"
                 confirmation `responseBodyShouldContain` "No roster data will be changed"
-                beforeConfirmDraft `shouldBe` Nothing
+                tampered `responseStatusShouldBe` status302
                 created `responseStatusShouldBe` status303
                 lookup "Location" (responseHeaders created)
                     `shouldSatisfy` maybe False (ByteString.isInfixOf "/ShowRosterTemplateDesigner")
@@ -290,6 +301,37 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Discard and start new"
                 response `responseBodyShouldContain` "Cancel"
 
+        it "preserves occupied work when a confirmed reference disappears before discard" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Template disappearing reference"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                manager <- createUserRecord "template-disappearing-reference@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 False
+                sourceDay <- createRosterDayRecord sourceWeek 0
+                let actor = rosterTemplateActor manager venue True
+                Right existing <- startBlankRosterTemplateDesignerDraft actor rosterGroup Day "Keep me"
+                response <- withUserAndCurrentVenue manager venue.id do
+                    confirmation <- callActionWithParams ConfirmRosterTemplateReferenceAction
+                        { rosterGroupId = rosterGroup.id, weekOffset = 0 }
+                        [("name", "Replacement reference"), ("scale", "day"), ("dayOffset", "0")]
+                    confirmationToken <- hiddenInputValue "confirmationToken" confirmation
+                    now <- getCurrentTime
+                    _ <- sourceWeek |> set #archivedAt (Just now) |> updateRecord
+                    callActionWithParams DiscardAndRestartRosterTemplateDraftAction
+                        { rosterGroupId = rosterGroup.id, rosterTemplateDesignId = existing.draftDesign.id }
+                        [ ("name", "Replacement reference")
+                        , ("scale", "day")
+                        , ("startingPoint", "reference")
+                        , ("weekOffset", "0")
+                        , ("dayOffset", "0")
+                        , ("confirmationToken", cs confirmationToken)
+                        ]
+                retained <- fetchPrivateRosterTemplateDraft actor
+
+                response `responseStatusShouldBe` status302
+                fmap (.draftName) retained `shouldBe` Just "Keep me"
+
         it "discards occupied work and starts the explicitly requested replacement" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Template discard controller"
@@ -326,3 +368,11 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status303
                 lookup "Location" (responseHeaders response)
                     `shouldSatisfy` maybe False (ByteString.isInfixOf "/ShowRosterTemplateDesigner")
+
+hiddenInputValue :: Text -> Response -> IO Text
+hiddenInputValue name response = do
+    bodyBytes <- responseBody response
+    let body = cs bodyBytes :: Text
+    let marker = "name=\"" <> name <> "\" value=\""
+    let suffix = Text.drop (Text.length marker) (snd (Text.breakOn marker body))
+    pure (Text.takeWhile (/= '"') suffix)

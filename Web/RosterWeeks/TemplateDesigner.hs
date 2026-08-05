@@ -4,6 +4,8 @@ module Web.RosterWeeks.TemplateDesigner
     , RosterTemplateReferenceWeek (..)
     , fetchRosterTemplateReferenceWeek
     , mutateRosterTemplateDesignerDraft
+    , replaceBlankRosterTemplateDesignerDraft
+    , replaceRosterTemplateDraftFromReference
     , startBlankRosterTemplateDesignerDraft
     , startRosterTemplateDraftFromReference
     ) where
@@ -28,7 +30,21 @@ startBlankRosterTemplateDesignerDraft ::
     Text ->
     IO (Either RosterTemplateError RosterTemplateDraft)
 startBlankRosterTemplateDesignerDraft actor rosterGroup scale requestedName =
-    startRosterTemplateDraftWithContent actor rosterGroup scale requestedName RosterTemplateContent
+    startRosterTemplateDraftWithContent actor rosterGroup scale requestedName (blankTemplateContent scale)
+
+replaceBlankRosterTemplateDesignerDraft ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    Id RosterTemplateDesign ->
+    RosterGroup ->
+    RosterTemplateScaleEnum ->
+    Text ->
+    IO (Either RosterTemplateError RosterTemplateDraft)
+replaceBlankRosterTemplateDesignerDraft actor designId rosterGroup scale requestedName =
+    replaceRosterTemplateDraftWithContent actor designId rosterGroup scale requestedName (blankTemplateContent scale)
+
+blankTemplateContent :: RosterTemplateScaleEnum -> RosterTemplateContent
+blankTemplateContent scale = RosterTemplateContent
         { contentDays =
             [ RosterTemplateDayInput dayIndex False 1
             | dayIndex <- case scale of
@@ -195,6 +211,21 @@ data RosterTemplateReference
     = RosterTemplateDayReference !(Id RosterWeek) !Int
     | RosterTemplateWeekReference !(Id RosterWeek)
     deriving (Eq, Show)
+
+replaceRosterTemplateDraftFromReference ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    Id RosterTemplateDesign ->
+    RosterGroup ->
+    Text ->
+    RosterTemplateReference ->
+    IO (Either RosterTemplateError RosterTemplateDraft)
+replaceRosterTemplateDraftFromReference actor designId rosterGroup requestedName reference = do
+    maybeSource <- fetchReferenceSource rosterGroup reference
+    case maybeSource of
+        Nothing -> pure (Left RosterTemplateNotFound)
+        Just source ->
+            replaceRosterTemplateDraftWithContent actor designId rosterGroup source.sourceScale requestedName source.sourceContent
 
 startRosterTemplateDraftFromReference ::
     (?modelContext :: ModelContext) =>

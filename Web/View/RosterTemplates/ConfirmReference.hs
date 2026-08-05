@@ -13,6 +13,7 @@ data ConfirmReferenceView = ConfirmReferenceView
     , templateName      :: !Text
     , templateScale     :: !RosterTemplateScaleEnum
     , selectedDayOffset :: !(Maybe Int)
+    , confirmationToken :: !Text
     }
 
 instance View ConfirmReferenceView where
@@ -36,6 +37,7 @@ instance View ConfirmReferenceView where
                                 <form method="POST" action={CreateRosterTemplateFromReferenceAction rosterGroup.id weekOffset}>
                                     <input type="hidden" name="name" value={templateName} />
                                     <input type="hidden" name="scale" value={scaleValue templateScale} />
+                                    <input type="hidden" name="confirmationToken" value={confirmationToken} />
                                     {forEach selectedDayOffset renderDayOffsetInput}
                                     <button class="btn btn-primary" type="submit">Open prefilled designer</button>
                                 </form>
