@@ -6,7 +6,11 @@ import {
     FrontendSurfaceTabSetRegistry,
     isFrontendSurfaceLiveFragmentName,
     isFrontendSurfaceName,
+    isRosterTemplateDesignerMountConfig,
+    isRosterTemplateDesignerTemplateReferenceCompatibilityState,
     rosterDayTimelineShiftGroupHighlightMemberDomAttr,
+    rosterTemplateDesignerTemplateReferenceCompatibilityDomAttr,
+    rosterTemplateDesignerTemplateReferenceTargetDomAttr,
     rosterShiftGroupHighlightMemberDomAttr,
     rosterStaffHighlightMemberDomAttr,
     rosterStaffHighlightOrderDomAttr,
@@ -35,6 +39,28 @@ test("generated live fragment registry contains only production semantic live fr
     ]);
     assertEqual(isFrontendSurfaceLiveFragmentName("timesheets", "timesheet-day-section"), true);
     assertEqual(isFrontendSurfaceLiveFragmentName("timesheets", "missing"), false);
+});
+
+test("generated template designer contract is isolated and exact", () => {
+    assertEqual(rosterTemplateDesignerTemplateReferenceTargetDomAttr, "data-bepis-roster-template-designer-template-reference-target");
+    assertEqual(rosterTemplateDesignerTemplateReferenceCompatibilityDomAttr, "data-bepis-roster-template-designer-template-reference-compatibility");
+    assertEqual(isRosterTemplateDesignerTemplateReferenceCompatibilityState("compatible"), true);
+    assertEqual(isRosterTemplateDesignerTemplateReferenceCompatibilityState("selected"), false);
+    assertEqual(isRosterTemplateDesignerMountConfig({
+        surface: "roster-template-designer",
+        scopeKey: "scope",
+        mountKey: "primary",
+        fragments: [],
+        subscription: null,
+    }), true);
+    assertEqual(isRosterTemplateDesignerMountConfig({
+        surface: "roster-template-designer",
+        scopeKey: "scope",
+        mountKey: "primary",
+        fragments: [],
+        subscription: null,
+        rosterMutation: true,
+    }), false);
 });
 
 test("generated interaction registry contains only runtime-consumed interaction fields", () => {

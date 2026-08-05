@@ -1,0 +1,29 @@
+/* Isolated roster-template creation, reference selection, and designer chrome. */
+
+.roster-template-reference-target {
+    border: 2px solid transparent;
+    border-radius: var(--bs-border-radius-lg);
+    background: var(--bs-body-bg);
+    transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.roster-template-reference-target:hover,
+.roster-template-reference-target:focus-within {
+    border-color: var(--app-success-border);
+    background: var(--app-success-soft);
+    box-shadow: 0 0 0 0.2rem var(--app-success-soft);
+}
+
+.roster-template-reference-target > .roster-template-reference-button:focus-visible {
+    box-shadow: none;
+}
+
+.roster-template-design-grid {
+    min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .roster-template-reference-target {
+        transition: none;
+    }
+}

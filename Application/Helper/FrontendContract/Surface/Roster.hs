@@ -27,6 +27,12 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterTemplateLibrary
     , RosterTemplate
     , RosterTemplateDraft
+    , RosterTemplateDesignerSurface
+    , RosterTemplateDesignerScope
+    , RosterTemplateDesignerContent
+    , TemplateReferenceTargetRole
+    , TemplateReferenceCompatibility
+    , Compatible
     , RosterSlotsStructure
     , RosterSlotsContent
     , RosterWeekBoundaryConfig
@@ -192,6 +198,12 @@ data RosterWeekStructure
 data RosterTemplateLibrary
 data RosterTemplate
 data RosterTemplateDraft
+data RosterTemplateDesigner
+data RosterTemplateDesignerScope
+data RosterTemplateDesignerContent
+data TemplateReferenceTargetRole
+data TemplateReferenceCompatibility
+data Compatible
 data TemplateId
 data UserId
 data RosterSlotsStructure
@@ -786,6 +798,23 @@ type RosterLinkedHighlightBundle =
 
 type RosterSurface =
     Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle, RosterStaffPanelBrowserBundle, RosterChromeBrowserBundle, RosterImageExportBrowserBundle, RosterWageFilterBrowserBundle, RosterWeekOverviewBrowserBundle, RosterLinkedHighlightBundle ])
+
+type RosterTemplateDesignerSurface =
+    Surface RosterTemplateDesigner
+        '[ Scope RosterTemplateDesignerScope
+            '[ Field VenueId 'WireUUID
+             , Field RosterGroupId 'WireUUID
+             , Field UserId 'WireUUID
+             ]
+            '[ 'Authorize 'CurrentVenueRosterGroup '[ VenueId, RosterGroupId ] ]
+         , Fragment RosterTemplateDesignerContent
+            '[]
+            '[ 'MountTarget RosterTemplateDesignerContent '[]
+             , 'Eager
+             ]
+         , BrowserRole TemplateReferenceTargetRole
+         , BrowserClosedState TemplateReferenceCompatibility '[ Compatible ]
+         ]
 
 type RosterDayTimelineScopeBundle =
     '[ Scope RosterDayTimeline

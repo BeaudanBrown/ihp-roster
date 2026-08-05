@@ -163,6 +163,8 @@ SurfaceFamily
   diagnosed and skipped locally. The capability remains absent from the active
   roster header and therefore performs no normal-page fetch or navigation.
 
+The isolated roster Template Designer uses generated Surface browser role/state attributes for compatible reference targets. Selection remains native GET form activation, so keyboard and touch need no feature-specific TypeScript session or mutation transport; confirmation and source isolation remain server-owned.
+
 Views should not handwrite raw interaction `data-bepis-*` attributes, ref names,
 disposable layer mounts, intent forms, HTMX intent attributes, or target ids once
 helpers exist. Feature views should call typed Haskell helpers derived from

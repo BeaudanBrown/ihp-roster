@@ -14,6 +14,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Live
     , matchRosterRowLiveFragment
     , matchRosterSlotsGridLiveFragment
     , matchRosterStaffPanelLiveFragment
+    , matchRosterTemplateDesignerLiveScope
     , matchRosterWageRailLiveFragment
     , matchRosterWeekLiveScope
     , rosterContentLiveFragment
@@ -27,6 +28,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Live
     , rosterRowLiveFragment
     , rosterSlotsGridLiveFragment
     , rosterStaffPanelLiveFragment
+    , rosterTemplateDesignerLiveScope
     , rosterWageRailLiveFragment
     , rosterWeekLiveScope
     ) where
@@ -211,6 +213,27 @@ matchRosterStaffPanelLiveFragment =
     matchFrontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterStaffPanel
+
+rosterTemplateDesignerLiveScope ::
+    UUID.UUID ->
+    UUID.UUID ->
+    UUID.UUID ->
+    SurfaceScope
+rosterTemplateDesignerLiveScope venueId rosterGroupId userId =
+    frontendSurfaceScope
+        @(AdapterFamilySurface Types2.RosterTemplateDesignerAdapterFamily)
+        @Types1.RosterTemplateDesignerScope
+        ( surfaceField @Types1.VenueId venueId
+            &: surfaceField @Types1.RosterGroupId rosterGroupId
+            &: surfaceField @Types1.UserId userId
+            &: noSurfaceFields
+        )
+
+matchRosterTemplateDesignerLiveScope :: SurfaceScope -> Maybe (UUID.UUID, (UUID.UUID, (UUID.UUID, ())))
+matchRosterTemplateDesignerLiveScope =
+    matchFrontendSurfaceScope
+        @(AdapterFamilySurface Types2.RosterTemplateDesignerAdapterFamily)
+        @Types1.RosterTemplateDesignerScope
 
 rosterWageRailLiveFragment :: SurfaceFragmentKey
 rosterWageRailLiveFragment =
