@@ -9,21 +9,17 @@ module Web.RosterWeeks.TemplateDesigner
     ) where
 
 import Application.Helper.WeekBoundaries (venueWeekStartDate)
-import Application.RosterShiftAssignment (RosterShiftAssignment (..),
-                                          applyRosterShiftAssignment)
+import Application.RosterShiftAssignment (RosterShiftAssignment (..))
 import Application.RosterTemplates
 import Application.VenueTime (resolvedInstantFromUTC, resolvedInstantLocalTime)
-import Application.VenueTime.Model (resolveBoundaryInstant)
 import Control.Monad (guard)
-import Data.List (find, nub)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (mapMaybe)
-import Data.Time.Calendar (addDays, diffDays, fromGregorian)
+import Data.Time.Calendar (diffDays)
 import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..))
 import Data.Traversable (traverse)
 import Generated.Types
 import IHP.ControllerPrelude
-import Web.RosterWeeks.Service (validateRosterSlotForPersistence)
 
 startBlankRosterTemplateDesignerDraft ::
     (?modelContext :: ModelContext) =>
@@ -63,90 +59,31 @@ mutateRosterTemplateDesignerDraft actor designId mutation = do
     maybeDraft <- fetchPrivateRosterTemplateDraft actor
     case maybeDraft of
         Just draft | draft.draftDesign.id == designId -> do
-            let content = applyDesignerMutation mutation (draftContent draft)
-            if not (rosterTemplateContentIsValid draft.draftDesign.scale content)
-                then pure (Left (RosterTemplateInvalidContent "Template days, columns, shifts, or times are invalid."))
-                else do
-                    references <- validateDesignerContentReferences actor draft.draftDesign.rosterGroupId content
-                    case references of
-                        Left templateError -> pure (Left templateError)
-                        Right () -> replaceRosterTemplateDraftContent actor designId content
+            let currentContent = draftContent draft
+            let content = applyDesignerMutation mutation currentContent
+            if not (designerMutationTargetExists mutation currentContent)
+                then pure (Left (RosterTemplateInvalidContent "The selected template day, column, or shift no longer exists."))
+                else if not (rosterTemplateContentIsValid draft.draftDesign.scale content)
+                    then pure (Left (RosterTemplateInvalidContent "Template days, columns, shifts, or times are invalid."))
+                    else replaceRosterTemplateDraftContent actor designId content
         _ -> pure (Left RosterTemplateForbidden)
 
-validateDesignerContentReferences ::
-    (?modelContext :: ModelContext) =>
-    RosterTemplateActor ->
-    UUID ->
-    RosterTemplateContent ->
-    IO (Either RosterTemplateError ())
-validateDesignerContentReferences actor rosterGroupId content = do
-    let shiftTypeIds = nub (map (.inputShiftTypeId) content.contentShifts)
-    validShiftTypes <- if null shiftTypeIds
-        then pure []
-        else query @ShiftType
-            |> filterWhereIn (#id, shiftTypeIds)
-            |> filterWhere (#venueId, unpackId (rosterTemplateActorVenueId actor))
-            |> filterWhere (#isActive, True)
-            |> filterWhere (#archivedAt, Nothing)
-            |> fetch
-    let validShiftTypeIds = map (.id) validShiftTypes
-    let invalidShiftTypeIds = filter (`notElem` validShiftTypeIds) shiftTypeIds
-    if not (null invalidShiftTypeIds)
-        then pure (Left (RosterTemplateInvalidShiftTypes invalidShiftTypeIds))
-        else do
-            assignmentErrors <- traverse (validateDesignerShiftAssignment actor rosterGroupId) content.contentShifts
-            pure case find isJust assignmentErrors of
-                Just (Just message) -> Left (RosterTemplateInvalidContent message)
-                _                   -> Right ()
-
-validateDesignerShiftAssignment ::
-    (?modelContext :: ModelContext) =>
-    RosterTemplateActor ->
-    UUID ->
-    RosterTemplateShiftInput ->
-    IO (Maybe Text)
-validateDesignerShiftAssignment _ _ RosterTemplateShiftInput { inputShiftAssignment = OpenAssignment } = pure Nothing
-validateDesignerShiftAssignment actor rosterGroupId shift@RosterTemplateShiftInput { inputShiftAssignment = StaffAssignment staffId } = do
-    maybeStaff <- query @Staff
-        |> filterWhere (#id, staffId)
-        |> filterWhere (#venueId, unpackId (rosterTemplateActorVenueId actor))
-        |> filterWhere (#isActive, True)
-        |> filterWhere (#archivedAt, Nothing)
-        |> fetchOneOrNothing
-    inGroup <- query @StaffRosterGroup
-        |> filterWhere (#staffId, unpackId staffId)
-        |> filterWhere (#rosterGroupId, rosterGroupId)
-        |> filterWhere (#deletedAt, Nothing)
-        |> fetchExists
-    case maybeStaff of
-        Nothing -> pure (Just invalidAssignmentMessage)
-        Just _ | not inGroup -> pure (Just invalidAssignmentMessage)
-        Just _ -> do
-            venueConfig <- query @VenueConfig
-                |> filterWhere (#venueId, unpackId (rosterTemplateActorVenueId actor))
-                |> fetchOne
-            case designerShiftCandidate venueConfig shift of
-                Nothing -> pure (Just "Choose valid start and end times.")
-                Just candidate -> validateRosterSlotForPersistence (rosterTemplateActorVenueId actor) candidate
+designerMutationTargetExists :: RosterTemplateDesignerMutation -> RosterTemplateContent -> Bool
+designerMutationTargetExists mutation content = case mutation of
+    SetRosterTemplateDay dayIndex _ _ -> any ((== dayIndex) . (.inputDayIndex)) content.contentDays
+    AddRosterTemplateColumn _ -> True
+    RenameRosterTemplateColumn sortOrder _ -> columnExists sortOrder
+    DeleteRosterTemplateColumn sortOrder -> columnExists sortOrder
+    UpsertRosterTemplateShift shift ->
+        any ((== shift.inputShiftDayIndex) . (.inputDayIndex)) content.contentDays
+            && columnExists shift.inputShiftColumnSortOrder
+    DeleteRosterTemplateShift dayIndex sortOrder rowIndex ->
+        any (matchesCell dayIndex sortOrder rowIndex) content.contentShifts
   where
-    invalidAssignmentMessage = "Choose an available roster-group staff member with valid pay configuration."
-
-designerShiftCandidate :: VenueConfig -> RosterTemplateShiftInput -> Maybe RosterSlot
-designerShiftCandidate venueConfig shift = do
-    startsAt <- resolveMinute shift.inputShiftStartMinute
-    endsAt <- resolveMinute shift.inputShiftEndMinute
-    pure $ newRecord @RosterSlot
-        |> set #startsAt (Just startsAt)
-        |> set #endsAt (Just endsAt)
-        |> set #timezone venueConfig.timezone
-        |> set #shiftTypeId (Just (unpackId shift.inputShiftTypeId))
-        |> applyRosterShiftAssignment shift.inputShiftAssignment
-  where
-    resolveMinute minute =
-        let (dayDelta, minuteOfDay) = minute `divMod` 1440
-            (hour, minuteWithinHour) = minuteOfDay `divMod` 60
-            date = addDays (toInteger dayDelta) (fromGregorian 2025 1 6)
-         in either (const Nothing) Just (resolveBoundaryInstant venueConfig.timezone date (TimeOfDay hour minuteWithinHour 0) Nothing)
+    columnExists sortOrder = any ((== sortOrder) . (.inputColumnSortOrder)) content.contentColumns
+    matchesCell dayIndex sortOrder rowIndex shift =
+        (shift.inputShiftDayIndex, shift.inputShiftColumnSortOrder, shift.inputShiftRowIndex)
+            == (dayIndex, sortOrder, rowIndex)
 
 applyDesignerMutation :: RosterTemplateDesignerMutation -> RosterTemplateContent -> RosterTemplateContent
 applyDesignerMutation (SetRosterTemplateDay dayIndex isClosed rowCount) content =
@@ -302,11 +239,8 @@ startRosterTemplateDraftFromReference actor rosterGroup requestedName reference 
     maybeSource <- fetchReferenceSource rosterGroup reference
     case maybeSource of
         Nothing -> pure (Left RosterTemplateNotFound)
-        Just source -> do
-            references <- validateDesignerContentReferences actor (unpackId rosterGroup.id) source.sourceContent
-            case references of
-                Left templateError -> pure (Left templateError)
-                Right () -> startRosterTemplateDraftWithContent actor rosterGroup source.sourceScale requestedName source.sourceContent
+        Just source ->
+            startRosterTemplateDraftWithContent actor rosterGroup source.sourceScale requestedName source.sourceContent
 
 data ReferenceSource = ReferenceSource
     { sourceScale   :: !RosterTemplateScaleEnum

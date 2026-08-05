@@ -40,7 +40,9 @@ import Application.PayAssignment (EffectivePayAssignment (..),
                                   shiftPayAssignmentRequiresRemediation,
                                   staffPayAssignmentRequiresRemediation)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..))
-import Application.RosterTemplates.Mutations (lockRosterTemplateName,
+import Application.RosterTemplates.Mutations (lockRosterTemplateContentReferenceRows,
+                                              lockRosterTemplateDraftDesign,
+                                              lockRosterTemplateName,
                                               lockRosterTemplateVersion)
 import Control.Monad (void)
 import qualified Data.Map.Strict as Map
@@ -199,13 +201,17 @@ startRosterTemplateDraftWithContent ::
 startRosterTemplateDraftWithContent actor rosterGroup scale requestedName content
     | not (validTemplateContentForScale scale content) = pure (Left (RosterTemplateInvalidContent "Template days, columns, shifts, or times are invalid."))
     | otherwise = withTransaction do
-        started <- startBlankRosterTemplateDraft actor rosterGroup scale requestedName
-        case started of
+        references <- validateContentInputReferences actor (unpackId rosterGroup.id) content
+        case references of
             Left templateError -> pure (Left templateError)
-            Right draft -> do
-                persistRosterTemplateDraftContent draft.draftDesign content
-                reloaded <- loadDraft draft.draftDesign
-                pure (Right reloaded)
+            Right () -> do
+                started <- startBlankRosterTemplateDraft actor rosterGroup scale requestedName
+                case started of
+                    Left templateError -> pure (Left templateError)
+                    Right draft -> do
+                        persistRosterTemplateDraftContent draft.draftDesign content
+                        reloaded <- loadDraft draft.draftDesign
+                        pure (Right reloaded)
 
 fetchRosterTemplateLibrary ::
     (?modelContext :: ModelContext) =>
@@ -619,15 +625,79 @@ replaceRosterTemplateDraftContent ::
     IO (Either RosterTemplateError ())
 replaceRosterTemplateDraftContent actor designId content
     | not actor.actorCanEditRosters = pure (Left RosterTemplateForbidden)
-    | otherwise = do
-        maybeDesign <- fetchOwnedDraft actor designId
+    | otherwise = withTransaction do
+        designExists <- lockRosterTemplateDraftDesign designId
+        maybeDesign <- if designExists then fetchOwnedDraft actor designId else pure Nothing
         case maybeDesign of
             Nothing -> pure (Left RosterTemplateForbidden)
             Just design
                 | not (validTemplateContent design content) -> pure (Left (RosterTemplateInvalidContent "Template days, columns, shifts, or times are invalid."))
                 | otherwise -> do
-                    withTransaction (persistRosterTemplateDraftContent design content)
-                    pure (Right ())
+                    references <- validateContentInputReferences actor design.rosterGroupId content
+                    case references of
+                        Left templateError -> pure (Left templateError)
+                        Right () -> persistRosterTemplateDraftContent design content >> pure (Right ())
+
+validateContentInputReferences ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    UUID ->
+    RosterTemplateContent ->
+    IO (Either RosterTemplateError ())
+validateContentInputReferences actor rosterGroupId content = do
+    let shiftTypeIds = nub (map (.inputShiftTypeId) content.contentShifts)
+    let staffIds = nub [staffId | shift <- content.contentShifts, StaffAssignment staffId <- [shift.inputShiftAssignment]]
+    lockRosterTemplateContentReferenceRows (Id rosterGroupId) shiftTypeIds staffIds
+    shiftTypes <- if null shiftTypeIds
+        then pure []
+        else query @ShiftType |> filterWhereIn (#id, shiftTypeIds) |> fetch
+    let shiftTypeById = Map.fromList [(unpackId shiftType.id, shiftType) | shiftType <- shiftTypes]
+    let invalidShiftTypeIds =
+            [ shiftTypeId
+            | shiftTypeId <- shiftTypeIds
+            , case Map.lookup (unpackId shiftTypeId) shiftTypeById of
+                Nothing -> True
+                Just shiftType -> shiftType.venueId /= unpackId actor.actorVenueId || not shiftType.isActive || isJust shiftType.archivedAt
+            ]
+    if not (null invalidShiftTypeIds)
+        then pure (Left (RosterTemplateInvalidShiftTypes invalidShiftTypeIds))
+        else do
+            staffMembers <- if null staffIds then pure [] else query @Staff |> filterWhereIn (#id, staffIds) |> fetch
+            assignments <- if null staffIds
+                then pure []
+                else query @StaffRosterGroup
+                    |> filterWhereIn (#staffId, map unpackId staffIds)
+                    |> filterWhere (#rosterGroupId, rosterGroupId)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
+            activeAwardLevels <- query @AwardLevel |> filterWhere (#isActive, True) |> fetch
+            activeImportedPayItems <- query @XeroImportedPayItem
+                |> filterWhere (#venueId, unpackId actor.actorVenueId)
+                |> filterWhere (#archivedAt, Nothing)
+                |> filterWhere (#providerAvailable, True)
+                |> fetch
+            let staffById = Map.fromList [(unpackId staff.id, staff) | staff <- staffMembers]
+            let eligibleStaffIds = Set.fromList (map (.staffId) assignments)
+            let activeAwardIds = map (.id) activeAwardLevels
+            let activeImportedPayItemIds = map (.id) activeImportedPayItems
+            let invalidStaffExists = any (not . validInputAssignment activeAwardIds activeImportedPayItemIds eligibleStaffIds staffById shiftTypeById) content.contentShifts
+            pure if invalidStaffExists
+                then Left (RosterTemplateInvalidContent "Choose an available roster-group staff member with valid pay configuration.")
+                else Right ()
+  where
+    validInputAssignment _ _ _ _ _ RosterTemplateShiftInput { inputShiftAssignment = OpenAssignment } = True
+    validInputAssignment activeAwardIds activeImportedPayItemIds eligibleStaffIds staffById shiftTypeById shift =
+        case shift.inputShiftAssignment of
+            OpenAssignment -> True
+            StaffAssignment staffId ->
+                validStaffAssignment
+                    activeAwardIds
+                    activeImportedPayItemIds
+                    eligibleStaffIds
+                    actor.actorVenueId
+                    (unpackId staffId)
+                    (Map.lookup (unpackId staffId) staffById)
+                    (Map.lookup (unpackId shift.inputShiftTypeId) shiftTypeById)
 
 persistRosterTemplateDraftContent ::
     (?modelContext :: ModelContext) =>

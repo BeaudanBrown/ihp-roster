@@ -3,6 +3,8 @@ module Test.RosterTemplateDesignerSpec where
 import Application.Helper.WeekBoundaries (venueWeekStartDate)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..))
 import Application.RosterTemplates
+import Control.Concurrent (newEmptyMVar, putMVar, takeMVar, threadDelay)
+import Control.Concurrent.Async (concurrently)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
@@ -51,6 +53,23 @@ tests = aroundAll withDatabaseTestContext do
                 invalid `shouldBe` Left (RosterTemplateInvalidContent "Template days, columns, shifts, or times are invalid.")
                 fmap (map (.startMinute) . (.draftShifts)) persisted `shouldBe` Just [540]
                 fmap (map (.endMinute) . (.draftShifts)) persisted `shouldBe` Just [1020]
+
+        it "rejects stale day, column, and shift mutation targets instead of reporting autosave success" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Designer stale mutation target"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                owner <- createUserRecord "designer-stale-target@example.com" "staff" True
+                let actor = rosterTemplateActor owner venue True
+                Right draft <- startBlankRosterTemplateDesignerDraft actor rosterGroup Day "Target day"
+
+                staleDay <- mutateRosterTemplateDesignerDraft actor draft.draftDesign.id (SetRosterTemplateDay 6 False 1)
+                staleColumn <- mutateRosterTemplateDesignerDraft actor draft.draftDesign.id (RenameRosterTemplateColumn 9 "Missing")
+                staleShift <- mutateRosterTemplateDesignerDraft actor draft.draftDesign.id (DeleteRosterTemplateShift 0 0 0)
+
+                let expected = Left (RosterTemplateInvalidContent "The selected template day, column, or shift no longer exists.")
+                staleDay `shouldBe` expected
+                staleColumn `shouldBe` expected
+                staleShift `shouldBe` expected
 
         it "rejects shifts outside the visible row grid" $ withContext do
             withCleanDb do
@@ -114,6 +133,39 @@ tests = aroundAll withDatabaseTestContext do
                 noTypeDraft `shouldBe` Nothing
                 staleStaff `shouldBe` Left (RosterTemplateInvalidContent "Choose an available roster-group staff member with valid pay configuration.")
                 noStaffDraft `shouldBe` Nothing
+
+        it "revalidates reference Shift types while locked against concurrent archival" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Template concurrent stale reference"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                owner <- createUserRecord "designer-concurrent-reference@example.com" "staff" True
+                shiftType <- ensureVenueDefaultShiftType venue
+                slotName <- fetchSlotNameRecordForRosterGroup rosterGroup "Early"
+                sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 True
+                sourceDay <- createRosterDayRecord sourceWeek 0
+                _ <- createRosterSlotRecord sourceDay slotName Nothing 0
+                    >>= updateRecord
+                        . set #shiftTypeId (Just (unpackId shiftType.id))
+                        . setTestRosterSlotBoundaries
+                            (venueWeekStartDate venueConfig 0)
+                            (TimeOfDay 9 0 0)
+                            (TimeOfDay 17 0 0)
+                let actor = rosterTemplateActor owner venue True
+                archiveStarted <- newEmptyMVar
+                let archiveReference = withTransaction do
+                        _ <- shiftType |> set #isActive False |> updateRecord
+                        putMVar archiveStarted ()
+                        threadDelay 200000
+                let createAfterArchiveStarts = do
+                        takeMVar archiveStarted
+                        startRosterTemplateDraftFromReference actor rosterGroup "Concurrent reference" (RosterTemplateDayReference sourceWeek.id 0)
+
+                (_, result) <- concurrently archiveReference createAfterArchiveStarts
+                persisted <- fetchPrivateRosterTemplateDraft actor
+
+                result `shouldBe` Left (RosterTemplateInvalidShiftTypes [shiftType.id])
+                persisted `shouldBe` Nothing
 
         it "copies all seven day states and columns for a Week reference" $ withContext do
             withCleanDb do

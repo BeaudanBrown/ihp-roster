@@ -1,5 +1,7 @@
 module Application.RosterTemplates.Mutations
     ( lockRosterTemplateApplicationRows
+    , lockRosterTemplateContentReferenceRows
+    , lockRosterTemplateDraftDesign
     , lockRosterTemplateName
     , lockRosterTemplateVersion
     ) where
@@ -9,6 +11,54 @@ import Database.PostgreSQL.Simple (Only (..))
 import Generated.Types
 import IHP.ModelSupport (sqlQuery, sqlQueryScalar, unpackId)
 import IHP.Prelude
+
+lockRosterTemplateDraftDesign ::
+    (?modelContext :: ModelContext) =>
+    Id RosterTemplateDesign ->
+    IO Bool
+lockRosterTemplateDraftDesign designId = do
+    locked :: [Only UUID] <- sqlQuery
+        "SELECT id FROM roster_template_designs WHERE id = ? FOR UPDATE"
+        (Only (unpackId designId))
+    pure (locked == [Only (unpackId designId)])
+
+lockRosterTemplateContentReferenceRows ::
+    (?modelContext :: ModelContext) =>
+    Id RosterGroup ->
+    [Id ShiftType] ->
+    [Id Staff] ->
+    IO ()
+lockRosterTemplateContentReferenceRows rosterGroupId shiftTypeIds staffIds = do
+    let shiftTypeUuids = map unpackId shiftTypeIds
+    let staffUuids = map unpackId staffIds
+    _shiftTypeLocks :: [Only UUID] <- sqlQuery
+        "SELECT id FROM shift_types WHERE id = ANY(?) ORDER BY id FOR UPDATE"
+        (Only shiftTypeUuids)
+    _staffLocks :: [Only UUID] <- sqlQuery
+        "SELECT id FROM staff WHERE id = ANY(?) ORDER BY id FOR UPDATE"
+        (Only staffUuids)
+    _membershipLocks :: [Only UUID] <- sqlQuery
+        "SELECT id FROM staff_roster_groups \
+        \WHERE roster_group_id = ? AND staff_id = ANY(?) \
+        \ORDER BY id FOR UPDATE"
+        (unpackId rosterGroupId, staffUuids)
+    _awardLevelLocks :: [Only UUID] <- sqlQuery
+        "SELECT id FROM award_levels \
+        \WHERE id IN ( \
+        \    SELECT default_award_level_id FROM staff WHERE id = ANY(?) \
+        \    UNION \
+        \    SELECT override_award_level_id FROM shift_types WHERE id = ANY(?) \
+        \) ORDER BY id FOR UPDATE"
+        (staffUuids, shiftTypeUuids)
+    _importedPayItemLocks :: [Only UUID] <- sqlQuery
+        "SELECT id FROM xero_imported_pay_items \
+        \WHERE id IN ( \
+        \    SELECT imported_xero_pay_item_id FROM staff WHERE id = ANY(?) \
+        \    UNION \
+        \    SELECT imported_xero_pay_item_id FROM shift_types WHERE id = ANY(?) \
+        \) ORDER BY id FOR UPDATE"
+        (staffUuids, shiftTypeUuids)
+    pure ()
 
 lockRosterTemplateApplicationRows ::
     (?modelContext :: ModelContext) =>
