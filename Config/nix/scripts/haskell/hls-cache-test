@@ -155,6 +155,20 @@ permissive_status=$?
 set -e
 [ "$permissive_status" -eq 65 ] || fail "overly permissive cache root was accepted: $permissive_output"
 chmod 0700 "$foreign_root"
+chmod 0755 "$cache_parent"
+set +e
+parent_mode_output="$(cd "$fixture_repo" && BEPIS_HLS_CACHE_PARENT="$cache_parent" bash "$cache_command" status --json 2>&1)"
+parent_mode_status=$?
+set -e
+[ "$parent_mode_status" -eq 65 ] || fail "overly permissive managed cache parent was accepted: $parent_mode_output"
+chmod 0700 "$cache_parent"
+chmod 0755 "$cache_parent/locks"
+set +e
+lock_mode_output="$(cd "$fixture_repo" && BEPIS_HLS_CACHE_PARENT="$cache_parent" bash "$cache_command" status --json 2>&1)"
+lock_mode_status=$?
+set -e
+[ "$lock_mode_status" -eq 65 ] || fail "overly permissive cache lock directory was accepted: $lock_mode_output"
+chmod 0700 "$cache_parent/locks"
 
 mkdir "$fixture_root/real-parent"
 ln -s "$fixture_root/real-parent" "$fixture_root/linked-parent"
@@ -167,15 +181,14 @@ set -e
 legacy_root="$fixture_root/legacy-cache/ghcide"
 mkdir -p "$legacy_root"
 printf 'legacy\n' >"$legacy_root/session"
-cat >"$fixture_root/bin/haskell-language-server-wrapper" <<'EOF'
-#!/usr/bin/env bash
-while :; do sleep 1; done
-EOF
-chmod +x "$fixture_root/bin/haskell-language-server-wrapper"
+cp "$(command -v bash)" "$fixture_root/bin/haskell-language-server-daemon"
+chmod +x "$fixture_root/bin/haskell-language-server-daemon"
 (
     cd "$fixture_repo"
-    XDG_CACHE_HOME="${legacy_root%/ghcide}" \
-        exec setsid "$fixture_root/bin/haskell-language-server-wrapper" --lsp
+    # The inner bash expands $1 after exec changes argv[0].
+    # shellcheck disable=SC2016
+    XDG_CACHE_HOME="${legacy_root%/ghcide}/" \
+        exec setsid bash -c 'exec -a roster-lsp "$1" -c "while :; do sleep 1; done"' bash "$fixture_root/bin/haskell-language-server-daemon"
 ) &
 hls_pid="$!"
 sleep 0.1

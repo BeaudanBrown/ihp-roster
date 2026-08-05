@@ -91,23 +91,35 @@ if [ "$command_name" = legacy ]; then
         [ -r "$proc/status" ] || continue
         [ "$(awk '/^Uid:/ {print $2; exit}' "$proc/status" 2>/dev/null)" = "$(id -u)" ] || continue
         process_command="$(head -c 8192 "$proc/cmdline" 2>/dev/null | tr '\0' ' ' || true)"
-        [[ "$process_command" == *haskell-language-server* ]] || continue
-        process_cache="$(tr '\0' '\n' <"$proc/environ" 2>/dev/null | awk -F= '$1 == "XDG_CACHE_HOME" {sub(/^[^=]*=/, ""); print; exit}' || true)"
+        process_executable="$(readlink "$proc/exe" 2>/dev/null || true)"
+        process_cache=""
+        is_hls=false
         references_legacy=false
-        if [ -n "$process_cache" ] && [ "$process_cache/ghcide" = "$legacy_root" ]; then
-            references_legacy=true
-        else
-            for fd in "$proc"/fd/*; do
-                target="$(readlink "$fd" 2>/dev/null || true)"
-                if [ "$target" = "$legacy_root" ] || [[ "$target" == "$legacy_root/"* ]]; then
-                    references_legacy=true
-                    break
-                fi
-            done
+        if [[ "$process_command" == *haskell-language-server* ]] \
+            || [[ "$process_executable" == *haskell-language-server* ]]; then
+            is_hls=true
+        fi
+        for fd in "$proc"/fd/*; do
+            target="$(readlink "$fd" 2>/dev/null || true)"
+            if [[ "$target" == *.hiedb || "$target" == *.hiedb-wal || "$target" == *.hiedb-shm ]]; then
+                is_hls=true
+            fi
+            if [ "$target" = "$legacy_root" ] || [[ "$target" == "$legacy_root/"* ]]; then
+                references_legacy=true
+            fi
+        done
+        if [ "$is_hls" = true ]; then
+            process_cache="$({ tr '\0' '\n' <"$proc/environ"; } 2>/dev/null \
+                | awk -F= '$1 == "XDG_CACHE_HOME" {sub(/^[^=]*=/, ""); print; exit}' || true)"
+            if [ -n "$process_cache" ] \
+                && [ "$(realpath -m "$process_cache/ghcide")" = "$legacy_root" ]; then
+                references_legacy=true
+            fi
         fi
         [ "$references_legacy" = true ] || continue
         legacy_processes="$(jq -c --argjson pid "$pid" --arg command "$process_command" \
-            '. + [{pid: $pid, command: $command}]' <<<"$legacy_processes")"
+            --arg executable "$process_executable" \
+            '. + [{pid: $pid, command: $command, executable: $executable}]' <<<"$legacy_processes")"
     done
 
     if [ "$apply" = true ] && [ "$(jq 'length' <<<"$legacy_processes")" -gt 0 ]; then
@@ -162,7 +174,7 @@ fi
 cache_parent="$BEPIS_HLS_CACHE_PARENT"
 caches='[]'
 if [ -e "$cache_parent" ] || [ -L "$cache_parent" ]; then
-    bepis_hls_cache_validate_owned_directory "$cache_parent" "cache parent"
+    bepis_hls_cache_validate_managed_parent
     while IFS= read -r candidate; do
         [ -d "$candidate" ] && [ ! -L "$candidate" ] || continue
         marker="$candidate/.bepis-hls-cache"

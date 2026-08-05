@@ -51,6 +51,15 @@ bepis_hls_cache_validate_owned_directory() {
         || bepis_hls_cache_die 65 "$label is owned by another user: $path" || return
 }
 
+bepis_hls_cache_validate_managed_parent() {
+    bepis_hls_cache_validate_owned_directory "$BEPIS_HLS_CACHE_PARENT" "cache parent" || return
+    [ "$(stat -c %a "$BEPIS_HLS_CACHE_PARENT" 2>/dev/null)" = 700 ] \
+        || bepis_hls_cache_die 65 "cache parent must be mode 0700: $BEPIS_HLS_CACHE_PARENT" || return
+    bepis_hls_cache_validate_owned_directory "$BEPIS_HLS_CACHE_LOCKS" "cache lock directory" || return
+    [ "$(stat -c %a "$BEPIS_HLS_CACHE_LOCKS" 2>/dev/null)" = 700 ] \
+        || bepis_hls_cache_die 65 "cache lock directory must be mode 0700: $BEPIS_HLS_CACHE_LOCKS" || return
+}
+
 bepis_hls_cache_ensure_parent() {
     if [ -e "$BEPIS_HLS_CACHE_PARENT" ] || [ -L "$BEPIS_HLS_CACHE_PARENT" ]; then
         bepis_hls_cache_validate_owned_directory "$BEPIS_HLS_CACHE_PARENT" "cache parent" || return
@@ -154,6 +163,7 @@ bepis_hls_cache_lock_active() {
 bepis_hls_cache_status_json_for_identity() {
     local state="absent" active=false bytes=0 filesystem="absent"
     if [ -e "$BEPIS_HLS_CACHE_ROOT" ] || [ -L "$BEPIS_HLS_CACHE_ROOT" ]; then
+        bepis_hls_cache_validate_managed_parent || return
         bepis_hls_cache_validate_root || return
         state="present"
         bytes="$(bepis_hls_cache_bytes "$BEPIS_HLS_CACHE_ROOT")"
