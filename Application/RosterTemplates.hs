@@ -20,6 +20,7 @@ module Application.RosterTemplates
     , rosterTemplateActor
     , rosterTemplateActorCanEditRosters
     , rosterTemplateActorUserId
+    , rosterTemplateDraftRevision
     , rosterTemplateActorVenueId
     , rosterTemplateContentIsValid
     , saveRosterTemplateDraft
@@ -48,9 +49,11 @@ import Application.RosterTemplates.Mutations (lockRosterTemplateContentReference
                                               lockRosterTemplateName,
                                               lockRosterTemplateVersion)
 import Control.Monad (void)
+import qualified "crypton" Crypto.Hash as Hash
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as TextEncoding
 import Data.Time.Clock (getCurrentTime)
 import Data.UUID (UUID)
 import Generated.Types
@@ -235,8 +238,9 @@ replaceRosterTemplateDraftWithContent ::
     RosterTemplateScaleEnum ->
     Text ->
     RosterTemplateContent ->
+    Maybe Text ->
     IO (Either RosterTemplateError RosterTemplateDraft)
-replaceRosterTemplateDraftWithContent actor existingDesignId rosterGroup scale requestedName content
+replaceRosterTemplateDraftWithContent actor existingDesignId rosterGroup scale requestedName content expectedDraftRevision
     | not actor.actorCanEditRosters = pure (Left RosterTemplateForbidden)
     | rosterGroup.venueId /= unpackId actor.actorVenueId = pure (Left RosterTemplateScopeMismatch)
     | Text.null normalizedName || Text.length normalizedName > 120 = pure (Left RosterTemplateInvalidName)
@@ -248,20 +252,26 @@ replaceRosterTemplateDraftWithContent actor existingDesignId rosterGroup scale r
         case maybeExisting of
             Nothing -> pure (Left RosterTemplateForbidden)
             Just existing -> do
-                references <- validateContentInputReferences actor (unpackId rosterGroup.id) content
-                case references of
-                    Left templateError -> pure (Left templateError)
-                    Right () -> do
-                        replacement <-
-                            existing
-                                |> set #rosterGroupId (unpackId rosterGroup.id)
-                                |> set #scale scale
-                                |> set #draftName (Just normalizedName)
-                                |> set #sourceTemplateId Nothing
-                                |> set #baseVersionNumber Nothing
-                                |> updateRecord
-                        persistRosterTemplateDraftContent replacement content
-                        Right <$> loadDraft replacement
+                currentDraft <- loadDraft existing
+                if maybe False (/= rosterTemplateDraftRevision currentDraft) expectedDraftRevision
+                    then pure (Left RosterTemplateDraftSlotOccupied)
+                    else do
+                        references <- validateContentInputReferences actor (unpackId rosterGroup.id) content
+                        case references of
+                            Left templateError -> pure (Left templateError)
+                            Right () -> do
+                                now <- getCurrentTime
+                                replacement <-
+                                    existing
+                                        |> set #rosterGroupId (unpackId rosterGroup.id)
+                                        |> set #scale scale
+                                        |> set #draftName (Just normalizedName)
+                                        |> set #sourceTemplateId Nothing
+                                        |> set #baseVersionNumber Nothing
+                                        |> set #updatedAt now
+                                        |> updateRecord
+                                persistRosterTemplateDraftContent replacement content
+                                Right <$> loadDraft replacement
   where
     normalizedName = Text.strip requestedName
 
@@ -677,6 +687,21 @@ draftContentInput draft =
             , contentColumns = [RosterTemplateColumnInput column.name column.sortOrder | column <- draft.draftColumns]
             , contentShifts = mapMaybe (savedShiftInput dayIndexById columnSortById) draft.draftShifts
             }
+
+rosterTemplateDraftRevision :: RosterTemplateDraft -> Text
+rosterTemplateDraftRevision draft =
+    tshow (Hash.hash (TextEncoding.encodeUtf8 payload) :: Hash.Digest Hash.SHA256)
+  where
+    design = draft.draftDesign
+    payload = tshow
+        ( design.id
+        , design.rosterGroupId
+        , design.scale
+        , design.draftName
+        , design.sourceTemplateId
+        , design.baseVersionNumber
+        , draftContentInput draft
+        )
 
 savedShiftInput :: Map.Map UUID Int -> Map.Map UUID Int -> RosterTemplateShift -> Maybe RosterTemplateShiftInput
 savedShiftInput dayIndexById columnSortById shift = do

@@ -9,6 +9,7 @@ import Application.RosterTemplates (RosterTemplateDraft (..),
                                     startRosterTemplateEditDraft)
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.Text as Text
+import Data.Time.Clock (addUTCTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
@@ -169,6 +170,32 @@ tests = aroundAll withDatabaseTestContext do
                 lookup "Location" (responseHeaders created)
                     `shouldSatisfy` maybe False (ByteString.isInfixOf "/ShowRosterTemplateDesigner")
                 persistedSource `shouldBe` sourceSlot
+
+        it "rejects a confirmation when the referenced roster content changes" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Template stale confirmation"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                manager <- createUserRecord "template-stale-confirmation@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                staff <- createStaffRecord venue Nothing "Stale" "Worker"
+                slotName <- fetchSlotNameRecordForRosterGroup rosterGroup "Early"
+                sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 False
+                sourceDay <- createRosterDayRecord sourceWeek 0
+                sourceSlot <- createCompleteRosterSlotRecord sourceDay slotName staff 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    confirmation <- callActionWithParams ConfirmRosterTemplateReferenceAction
+                        { rosterGroupId = rosterGroup.id, weekOffset = 0 }
+                        [("name", "Stale day"), ("scale", "day"), ("dayOffset", "0")]
+                    confirmationToken <- hiddenInputValue "confirmationToken" confirmation
+                    _ <- sourceSlot |> set #startsAt (addUTCTime 3600 <$> sourceSlot.startsAt) |> updateRecord
+                    callActionWithParams CreateRosterTemplateFromReferenceAction
+                        { rosterGroupId = rosterGroup.id, weekOffset = 0 }
+                        [("name", "Stale day"), ("scale", "day"), ("dayOffset", "0"), ("confirmationToken", cs confirmationToken)]
+                draft <- fetchPrivateRosterTemplateDraft (rosterTemplateActor manager venue True)
+
+                response `responseStatusShouldBe` status302
+                draft `shouldBe` Nothing
 
         it "renders isolated Day/Week editing controls that autosave complete mutations" $ withContext do
             withCleanDb do

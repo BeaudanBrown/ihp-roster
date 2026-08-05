@@ -2,10 +2,12 @@ module Web.RosterWeeks.TemplateDesigner
     ( RosterTemplateDesignerMutation (..)
     , RosterTemplateReference (..)
     , RosterTemplateReferenceWeek (..)
+    , fetchRosterTemplateReferenceRevision
     , fetchRosterTemplateReferenceWeek
     , mutateRosterTemplateDesignerDraft
     , replaceBlankRosterTemplateDesignerDraft
     , replaceRosterTemplateDraftFromReference
+    , startConfirmedRosterTemplateDraftFromReference
     , startBlankRosterTemplateDesignerDraft
     , startRosterTemplateDraftFromReference
     ) where
@@ -15,7 +17,9 @@ import Application.RosterShiftAssignment (RosterShiftAssignment (..))
 import Application.RosterTemplates
 import Application.VenueTime (resolvedInstantFromUTC, resolvedInstantLocalTime)
 import Control.Monad (guard)
+import qualified "crypton" Crypto.Hash as Hash
 import qualified Data.Map.Strict as Map
+import qualified Data.Text.Encoding as TextEncoding
 import Data.Time.Calendar (diffDays)
 import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..))
 import Data.Traversable (traverse)
@@ -41,7 +45,7 @@ replaceBlankRosterTemplateDesignerDraft ::
     Text ->
     IO (Either RosterTemplateError RosterTemplateDraft)
 replaceBlankRosterTemplateDesignerDraft actor designId rosterGroup scale requestedName =
-    replaceRosterTemplateDraftWithContent actor designId rosterGroup scale requestedName (blankTemplateContent scale)
+    replaceRosterTemplateDraftWithContent actor designId rosterGroup scale requestedName (blankTemplateContent scale) Nothing
 
 blankTemplateContent :: RosterTemplateScaleEnum -> RosterTemplateContent
 blankTemplateContent scale = RosterTemplateContent
@@ -219,13 +223,45 @@ replaceRosterTemplateDraftFromReference ::
     RosterGroup ->
     Text ->
     RosterTemplateReference ->
+    Text ->
+    Text ->
     IO (Either RosterTemplateError RosterTemplateDraft)
-replaceRosterTemplateDraftFromReference actor designId rosterGroup requestedName reference = do
+replaceRosterTemplateDraftFromReference actor designId rosterGroup requestedName reference expectedSourceRevision expectedDraftRevision = do
     maybeSource <- fetchReferenceSource rosterGroup reference
     case maybeSource of
         Nothing -> pure (Left RosterTemplateNotFound)
-        Just source ->
-            replaceRosterTemplateDraftWithContent actor designId rosterGroup source.sourceScale requestedName source.sourceContent
+        Just source
+            | referenceSourceRevision source /= expectedSourceRevision -> pure (Left RosterTemplateNotFound)
+            | otherwise ->
+                replaceRosterTemplateDraftWithContent actor designId rosterGroup source.sourceScale requestedName source.sourceContent (Just expectedDraftRevision)
+
+startConfirmedRosterTemplateDraftFromReference ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    RosterGroup ->
+    Text ->
+    RosterTemplateReference ->
+    Text ->
+    IO (Either RosterTemplateError RosterTemplateDraft)
+startConfirmedRosterTemplateDraftFromReference actor rosterGroup requestedName reference expectedSourceRevision = do
+    maybeSource <- fetchReferenceSource rosterGroup reference
+    case maybeSource of
+        Nothing -> pure (Left RosterTemplateNotFound)
+        Just source
+            | referenceSourceRevision source /= expectedSourceRevision -> pure (Left RosterTemplateNotFound)
+            | otherwise -> startRosterTemplateDraftWithContent actor rosterGroup source.sourceScale requestedName source.sourceContent
+
+fetchRosterTemplateReferenceRevision ::
+    (?modelContext :: ModelContext) =>
+    RosterGroup ->
+    RosterTemplateReference ->
+    IO (Maybe Text)
+fetchRosterTemplateReferenceRevision rosterGroup reference =
+    fmap referenceSourceRevision <$> fetchReferenceSource rosterGroup reference
+
+referenceSourceRevision :: ReferenceSource -> Text
+referenceSourceRevision source =
+    tshow (Hash.hash (TextEncoding.encodeUtf8 (tshow (source.sourceScale, source.sourceContent))) :: Hash.Digest Hash.SHA256)
 
 startRosterTemplateDraftFromReference ::
     (?modelContext :: ModelContext) =>

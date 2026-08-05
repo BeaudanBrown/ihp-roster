@@ -228,6 +228,27 @@ tests = aroundAll withDatabaseTestContext do
                 length (filter (== Left RosterTemplateDraftSlotOccupied) [first, second]) `shouldBe` 1
                 draftCount `shouldBe` 1
 
+        it "allows a confirmed occupied draft revision to be replaced only once" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Single-use designer replacement"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                owner <- createUserRecord "designer-single-replacement@example.com" "staff" True
+                sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 False
+                _ <- createRosterDayRecord sourceWeek 0
+                let actor = rosterTemplateActor owner venue True
+                Right existing <- startBlankRosterTemplateDesignerDraft actor rosterGroup Day "Existing"
+                let reference = RosterTemplateDayReference sourceWeek.id 0
+                Just sourceRevision <- fetchRosterTemplateReferenceRevision rosterGroup reference
+
+                let confirmedDraftRevision = rosterTemplateDraftRevision existing
+                first <- replaceRosterTemplateDraftFromReference actor existing.draftDesign.id rosterGroup "First replacement" reference sourceRevision confirmedDraftRevision
+                second <- replaceRosterTemplateDraftFromReference actor existing.draftDesign.id rosterGroup "Replayed replacement" reference sourceRevision confirmedDraftRevision
+                retained <- fetchPrivateRosterTemplateDraft actor
+
+                first `shouldSatisfy` isRight
+                second `shouldBe` Left RosterTemplateDraftSlotOccupied
+                fmap (.draftName) retained `shouldBe` Just "First replacement"
+
         it "creates an isolated Day draft from one reference roster day" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Template reference"
