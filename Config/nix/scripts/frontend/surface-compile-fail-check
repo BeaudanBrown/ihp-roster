@@ -11,6 +11,27 @@ else
     . "Config/nix/scripts/lib/ghc.sh"
 fi
 
+if [[ "${1:-}" == "--help" ]]; then
+    cat <<'EOF'
+Usage: frontend-surface-compile-fail-check [FIXTURE ...]
+
+Without arguments, checks every registered compile-failure fixture. A fixture
+filter may be its repository path, basename, or basename without .hs.
+EOF
+    exit 0
+fi
+
+filters=("$@")
+# Keep this explicit: project commands execute the working-tree script through
+# /dev/fd, so reading $0 would consume the script stream itself.
+declared_total=48
+selected_total="$declared_total"
+if ((${#filters[@]} > 0)); then
+    selected_total="${#filters[@]}"
+fi
+checked_count=0
+declare -A matched_filters=()
+
 tmp_dir="$(mktemp -d)"
 cleanup() {
     rm -rf "$tmp_dir"
@@ -26,6 +47,32 @@ rejected_diagnostics=()
 expect_compile_failure() {
     local fixture="$1"
     shift
+    local fixture_basename
+    local fixture_stem
+    local filter
+    local filter_matches=0
+    fixture_basename="$(basename "$fixture")"
+    fixture_stem="${fixture_basename%.hs}"
+
+    if ((${#filters[@]} > 0)); then
+        for filter in "${filters[@]}"; do
+            if [[ "$filter" == "$fixture" || "$filter" == "$fixture_basename" || "$filter" == "$fixture_stem" ]]; then
+                matched_filters["$filter"]=1
+                ((filter_matches += 1))
+            fi
+        done
+        if ((filter_matches == 0)); then
+            return
+        fi
+        if ((filter_matches > 1)); then
+            echo "surface-compile-fail-check: multiple filters select $fixture; pass each fixture once" >&2
+            exit 2
+        fi
+    fi
+
+    ((checked_count += 1))
+    echo "surface-compile-fail-check: checking $checked_count/$selected_total: $fixture"
+
     local mode="expected"
     local expected=""
     local rejected=""
@@ -263,6 +310,11 @@ expect_compile_failure \
     "Missing next field: Fixture.TargetDropzoneKey :: required WireText"
 
 expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceWrongClosedScalarDomain.hs" \
+    "Couldn't match expected type ‘Generated.Enums.RosterLayoutModeEnum’" \
+    "with actual type ‘StaffEmploymentBasisEnum’"
+
+expect_compile_failure \
     "Test/CompileFail/FrontendContractCarrierMissingField.hs" \
     "Couldn't match type: '[]" \
     "Fixture.NestedValues"
@@ -344,4 +396,18 @@ expect_compile_failure \
     "Illegal term-level use of the type constructor" \
     "XeroCandidateSearchProjection"
 
+for filter in "${filters[@]}"; do
+    if [[ -z "${matched_filters[$filter]:-}" ]]; then
+        echo "surface-compile-fail-check: unknown fixture filter: $filter" >&2
+        exit 2
+    fi
+done
+
+if ((${#filters[@]} == 0 && checked_count != declared_total)); then
+    echo "surface-compile-fail-check: fixture total drifted; update declared_total=$declared_total" >&2
+    exit 2
+fi
+
 run_compile_failure_checks
+
+echo "surface-compile-fail-check: checked $checked_count/$declared_total registered fixtures"

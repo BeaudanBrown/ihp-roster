@@ -174,6 +174,42 @@ An exception does not permit application business logic to branch on external
 text outside its named adapter. Any raw contract escape hatch must record its
 specific reason in checked IR; directory-wide exemptions are not permitted.
 
+## Closed Scalar Checkpoint
+
+[#330](https://github.com/BeaudanBrown/ihp-roster/issues/330) adds
+`ClosedScalar value` plus `WireClosed value`. The finite Haskell type is the
+carrier and exhaustive decision authority; `InputValue` is only its canonical
+HTML/JSON/request projection. Reflection derives the exact literal inventory
+from `Bounded`/`Enum`, so parsing and rendering do not scan a runtime registry.
+Schema-owned domains reuse generated PostgreSQL enum constructors through
+`Generated.Types` without a shadow ADT;
+a non-persisted domain may declare its own finite ADT.
+
+`ClosedScalar` retains normal browser reachability. Server-only declarations
+remain available to exact Haskell request parsing without generating TypeScript;
+inbound/outbound declarations emit only their requested union, guard, parser,
+or encoder. `WireClosed` remains typed through optional, nullable, list, and
+nested containers.
+
+The representative migration is Roster `SetRosterLayoutMode`: its generated
+Intent builder accepts `RosterLayoutModeEnum`, its exact parser rejects unknown
+literals as a structured `MalformedSurfaceRequestField`, and the controller no
+longer reparses `Text`. Adding a generated enum constructor changes the Haskell
+type seen by exhaustive consumers. Existing missing/extra/operation-ownership
+fixtures plus `FrontendSurfaceWrongClosedScalarDomain` cover incomplete, extra,
+cross-operation, ownership, and wrong-domain compile failures.
+
+Compared with the #329 baseline, this checkpoint changes generator-foundation
+code from 3,083 to 3,100 LOC across the same ten files, generated Haskell
+adapters from 3,483 to 3,484 LOC across the same 24 files, and adds a 43-line
+closed-scalar authority seam plus a 17-line production registry. Associations
+(8/156), facades (24/614), and generated TypeScript (1/1,671) are unchanged.
+Exact Profile Action/Roster Intent application closures increase from 19/20 to
+20/21 by the shared authority seam alone. The production registry stays outside
+both focused application closures; only the Roster adapter imports the generated
+enum source type. These are physical-line and one-closure snapshots, not a
+performance benchmark.
+
 ## Baseline Metrics
 
 Captured on the #329 baseline:

@@ -344,6 +344,7 @@ data HaskellNamedType
     | HaskellBoolType
     | HaskellUuidType
     | HaskellDayType
+    | HaskellClosedType !HaskellTypeMetadata
     deriving (Eq, Show)
 
 data ResolvedAdapterField = ResolvedAdapterField
@@ -653,6 +654,11 @@ sourceTypeForWire = \case
     HaskellBoolSource -> Right (HaskellNamedType HaskellBoolType)
     HaskellUuidSource -> Right (HaskellNamedType HaskellUuidType)
     HaskellDaySource -> Right (HaskellNamedType HaskellDayType)
+    HaskellClosedSource sourceModule sourceType ->
+        Right (HaskellNamedType (HaskellClosedType HaskellTypeMetadata
+            { haskellTypeModule = sourceModule
+            , haskellTypeName = sourceType
+            }))
     HaskellListSource inner -> HaskellListType <$> sourceTypeForWire inner
     HaskellOptionalSource inner -> HaskellMaybeType <$> sourceTypeForWire inner
     HaskellNullableSource inner -> HaskellMaybeType <$> sourceTypeForWire inner
@@ -665,6 +671,7 @@ haskellWireSourceLabel = \case
     HaskellBoolSource -> "Bool"
     HaskellUuidSource -> "UUID"
     HaskellDaySource -> "Day"
+    HaskellClosedSource sourceModule sourceType -> sourceModule <> "." <> sourceType
     HaskellListSource inner -> "[" <> haskellWireSourceLabel inner <> "]"
     HaskellMapSource key value -> "Map " <> parenthesizeLabel key <> " " <> parenthesizeLabel value
     HaskellOptionalSource inner -> "Maybe " <> parenthesizeLabel inner
@@ -681,6 +688,7 @@ haskellWireSourceLabel = \case
             HaskellBoolSource -> haskellWireSourceLabel source
             HaskellUuidSource -> haskellWireSourceLabel source
             HaskellDaySource -> haskellWireSourceLabel source
+            HaskellClosedSource {} -> haskellWireSourceLabel source
             HaskellJsonSource -> haskellWireSourceLabel source
             HaskellSurfaceScopeSource -> haskellWireSourceLabel source
             HaskellSurfaceFragmentKeySource -> haskellWireSourceLabel source
@@ -851,6 +859,14 @@ adapterSourceModules adapter =
     adapter.renderableAdapterHomeFamily.haskellTypeModule
         : adapter.renderableAdapterHomeDeclaration.haskellTypeModule
         : map (.resolvedAdapterFieldMarker.haskellTypeModule) adapter.renderableAdapterFields
+        <> concatMap (sourceTypeModules . (.resolvedAdapterFieldType)) adapter.renderableAdapterFields
+
+sourceTypeModules :: HaskellSourceType -> [Text]
+sourceTypeModules = \case
+    HaskellNamedType (HaskellClosedType metadata) -> [metadata.haskellTypeModule]
+    HaskellNamedType _ -> []
+    HaskellListType inner -> sourceTypeModules inner
+    HaskellMaybeType inner -> sourceTypeModules inner
 
 renderImportList :: Text -> [Text] -> [Text]
 renderImportList _ [] = []
@@ -897,10 +913,10 @@ renderAdapterFieldBuilder aliases field =
         NullableFieldPresence -> "surfaceNullableField"
     argument = haskellValueIdentifier field.resolvedAdapterFieldIR.fieldName
 
-renderAdapterFieldValueTuple :: [HaskellSourceType] -> Text
-renderAdapterFieldValueTuple = \case
+renderAdapterFieldValueTuple :: Map.Map Text Text -> [HaskellSourceType] -> Text
+renderAdapterFieldValueTuple aliases = \case
     [] -> "()"
-    field : rest -> "(" <> renderHaskellSourceType field <> ", " <> renderAdapterFieldValueTuple rest <> ")"
+    field : rest -> "(" <> renderHaskellSourceType aliases field <> ", " <> renderAdapterFieldValueTuple aliases rest <> ")"
 
 resolvedAdapterConstructorName ::
     (RenderableAdapter payload -> Text) ->
@@ -920,19 +936,20 @@ resolvedAdapterMatcherName constructorName adapter =
         _ : matcherName : _ -> matcherName
         _                   -> "match" <> upperFirst (constructorName adapter)
 
-renderHaskellSourceType :: HaskellSourceType -> Text
-renderHaskellSourceType = \case
+renderHaskellSourceType :: Map.Map Text Text -> HaskellSourceType -> Text
+renderHaskellSourceType aliases = \case
     HaskellNamedType named -> case named of
-        HaskellTextType -> "Text"
-        HaskellIntType  -> "Int"
-        HaskellBoolType -> "Bool"
-        HaskellUuidType -> "UUID.UUID"
-        HaskellDayType  -> "Day"
-    HaskellListType inner -> "[" <> renderHaskellSourceType inner <> "]"
+        HaskellTextType            -> "Text"
+        HaskellIntType             -> "Int"
+        HaskellBoolType            -> "Bool"
+        HaskellUuidType            -> "UUID.UUID"
+        HaskellDayType             -> "Day"
+        HaskellClosedType metadata -> qualifyHaskellType aliases metadata
+    HaskellListType inner -> "[" <> renderHaskellSourceType aliases inner <> "]"
     HaskellMaybeType inner ->
         "Maybe " <> case inner of
-            HaskellMaybeType _ -> "(" <> renderHaskellSourceType inner <> ")"
-            _                  -> renderHaskellSourceType inner
+            HaskellMaybeType _ -> "(" <> renderHaskellSourceType aliases inner <> ")"
+            _                  -> renderHaskellSourceType aliases inner
 
 sourceTypeContainsDay :: HaskellSourceType -> Bool
 sourceTypeContainsDay = \case

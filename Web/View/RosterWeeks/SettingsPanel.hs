@@ -106,7 +106,7 @@ renderRosterLayoutModeOption selectedLayoutMode layoutMode =
     let inputId = "roster-layout-mode-" <> rosterLayoutModeValue layoutMode
         layoutValue = rosterLayoutModeValue layoutMode
         fields :: SurfaceIntentFields Surface.RosterSurface Surface.SetRosterLayoutMode
-        fields = RosterIntent.setRosterLayoutModeIntentFields layoutValue
+        fields = RosterIntent.setRosterLayoutModeIntentFields layoutMode
         inputHtml = [hsx|
             <input type="radio"
                    class="btn-check"

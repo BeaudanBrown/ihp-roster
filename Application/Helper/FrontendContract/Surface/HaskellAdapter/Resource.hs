@@ -105,20 +105,20 @@ renderResourceAdapter ::
     RenderableAdapter ResourceIR ->
     [Text]
 renderResourceAdapter aliases adapter =
-    renderConstructorSignature adapter
+    renderConstructorSignature aliases adapter
         <> renderConstructorBody aliases adapter
         <> [""]
-        <> renderMatcherSignature adapter
+        <> renderMatcherSignature aliases adapter
         <> renderMatcherBody aliases adapter
 
-renderConstructorSignature :: RenderableAdapter ResourceIR -> [Text]
-renderConstructorSignature adapter =
+renderConstructorSignature :: Map.Map Text Text -> RenderableAdapter ResourceIR -> [Text]
+renderConstructorSignature aliases adapter =
     case adapter.renderableAdapterFields of
         [] -> [resolvedConstructor adapter <> " :: SurfaceResourceValue"]
         fields ->
             [resolvedConstructor adapter <> " ::"]
                 <> map ("    " <>)
-                    ( map ((<> " ->") . renderHaskellSourceType . (.resolvedAdapterFieldType)) fields
+                    ( map ((<> " ->") . renderHaskellSourceType aliases . (.resolvedAdapterFieldType)) fields
                         <> ["SurfaceResourceValue"]
                     )
 
@@ -134,10 +134,10 @@ renderConstructorBody aliases adapter =
     ]
         <> renderAdapterFieldsExpression aliases adapter.renderableAdapterFields
 
-renderMatcherSignature :: RenderableAdapter ResourceIR -> [Text]
-renderMatcherSignature adapter =
+renderMatcherSignature :: Map.Map Text Text -> RenderableAdapter ResourceIR -> [Text]
+renderMatcherSignature aliases adapter =
     [ resolvedMatcher adapter <> " :: SurfaceResourceValue -> Maybe "
-        <> renderAdapterFieldValueTuple (map (.resolvedAdapterFieldType) adapter.renderableAdapterFields)
+        <> renderAdapterFieldValueTuple aliases (map (.resolvedAdapterFieldType) adapter.renderableAdapterFields)
     ]
 
 renderMatcherBody ::

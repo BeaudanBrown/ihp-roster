@@ -168,10 +168,20 @@ directly to the carrier constructor. No validated value is encoded and decoded
 again, and ordinary feature code does not import parser classes or field
 constructors.
 
+`ClosedScalar value` registers an existing finite Haskell type as the canonical
+request/browser schema, and `WireClosed value` carries that type without
+collapsing it to `Text`. Persisted domains use their generated PostgreSQL enum
+constructors directly; DSL-owned domains use their own `Bounded`/`Enum` ADT and
+canonical `InputValue` projection. Reflection enumerates that exact type—there
+is no registry scan or shadow ADT—and browser unions/guards/parsers are emitted
+only for the declaration's explicit reachability.
+
 Outer field presence remains separate from recursive wire nullability. An absent
 `OptionalField` is omitted, a present optional nullable value can be explicit
 `null`, every `NullableField` must be present, and list/optional/nullable source
 containers remain recursive (`WireList WireUUID` maps to `[UUID]`, not `UUID`).
+The same rule applies to `WireClosed`: optional, nullable, and nested-list
+containers preserve the finite Haskell value type at every level.
 Global `WireUnknown` is reserved for a nested platform-owned value whose
 semantics are deliberately parsed by that platform adapter, currently WebAuthn
 client extension results. It is not an escape hatch for app-owned record fields;
@@ -258,8 +268,8 @@ remains in `Surface.Runtime`. The broad runtime consumes read-only metadata
 selectors without re-exporting the focused interface.
 
 The exact source-derived closure contract is checked by
-`architecture-surface-request-closure`: Profile Action retains 19
-`Application.*` modules and Roster Intent retains 20, with no unrelated Surface
+`architecture-surface-request-closure`: Profile Action retains 20
+`Application.*` modules and Roster Intent retains 21, with no unrelated Surface
 catalog, mount/live/wire runtime, or Haskell adapter generator implementation.
 The compiler-observed baseline, candidate sets, deltas, and retained-dependency
 classification are recorded in `Surface/README.md`.
@@ -326,7 +336,11 @@ one typed `MountTarget`; descriptor and view IDs are rendered through
 The zero-legacy authority audit uses structural source checks for
 contract-bound vocabulary rather than broad word-based regexes; generated
 adapter drift, publication, compile-failure, and CSS ownership checks protect
-the same authority boundary. Verify it with `verify-full`, `lint`, and `format`.
+the same authority boundary. `frontend-contract-warnings` discovers the exact
+reflected registry closure, precompiles generated/framework dependencies, then
+applies curated warning errors only to the reachable app-owned FrontendContract
+sources. Generated IHP source warnings are not an application authority failure.
+Verify it with `verify-full`, `lint`, and `format`.
 #151 is separately approved live-data schema-retirement work, not a
 FrontendContract compatibility exception. The historical audit and closeout
 evidence are archived at `docs/archive/frontend-contract-authority-hardening.md`.

@@ -6,7 +6,8 @@ module Test.FrontendContractSpec
     ( tests
     ) where
 
-import Application.Helper.FrontendContract.DSL
+import Application.Helper.FrontendContract.DSL hiding (Enum)
+import qualified Application.Helper.FrontendContract.DSL as DSL
 import Application.Helper.FrontendContract.IR
 import Application.Helper.FrontendContract.Reflect
 import Application.Helper.FrontendContract.TypeScript
@@ -18,7 +19,8 @@ import qualified Data.Aeson.Types as AesonTypes
 import Data.Either (isLeft)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
-import IHP.Prelude hiding (Enum)
+import IHP.ModelSupport (InputValue (..))
+import IHP.Prelude
 import Test.Hspec
 import Test.QuickCheck (property)
 import qualified Test.Support.FrontendContractCarrierFixture as CarrierFixture
@@ -40,6 +42,17 @@ data DeletedCase
 data StaffEvent
 data OpenDialog
 data OverlayRoot
+data DensityRecord
+data DensityField
+
+data FixtureDensity
+    = CompactDensity
+    | ComfortableDensity
+    deriving (Bounded, Enum, Eq, Show)
+
+instance InputValue FixtureDensity where
+    inputValue CompactDensity     = "compact"
+    inputValue ComfortableDensity = "comfortable"
 
 data ParsedCarrierUnion
     = ParsedCarrierCreated !UUID.UUID
@@ -57,7 +70,9 @@ type FixtureContracts =
          , GlobalSchema (Record DraftStaffRecord
             '[ Field StaffName 'WireText
              ])
-         , GlobalSchema (Enum StaffStatus '[ActiveStatus, InactiveStatus])
+         , BrowserInboundSchema (ClosedScalar FixtureDensity)
+         , BrowserInboundSchema (Record DensityRecord '[Field DensityField ('WireClosed FixtureDensity)])
+         , GlobalSchema (DSL.Enum StaffStatus '[ActiveStatus, InactiveStatus])
          , GlobalSchema (TaggedUnion StaffEvent
             '[ Case CreatedCase '[Field UserId 'WireUUID]
              , Case DeletedCase '[Field UserId 'WireUUID]
@@ -75,13 +90,20 @@ data MissingRefField
 type DuplicateContracts =
     '[ Global App
         '[ GlobalSchema (Record DuplicateName '[Field StaffName 'WireText])
-         , GlobalSchema (Enum DuplicateName '[ActiveStatus])
+         , GlobalSchema (DSL.Enum DuplicateName '[ActiveStatus])
          ]
      ]
 
 type MissingRefContracts =
     '[ Global App
         '[ GlobalSchema (Record MissingRecord '[Field MissingRefField ('WireRef StaffRecord)])
+         ]
+     ]
+
+type WrongClosedScalarAuthorityContracts =
+    '[ Global App
+        '[ BrowserInboundSchema (DSL.Enum FixtureDensity '[ActiveStatus, InactiveStatus])
+         , BrowserInboundSchema (Record DensityRecord '[Field DensityField ('WireClosed FixtureDensity)])
          ]
      ]
 
@@ -110,6 +132,30 @@ tests = describe "FrontendContract foundation" do
         validateFrontendContractIR (reflectFrontendContracts @MissingRefContracts)
             |> fmap (.diagnosticCode)
             `shouldContain` ["unresolved-ref"]
+        validateFrontendContractIR (reflectFrontendContracts @WrongClosedScalarAuthorityContracts)
+            |> fmap (.diagnosticCode)
+            `shouldContain` ["unregistered-closed-scalar"]
+
+    it "reflects DSL-owned closed scalars into exact typed Haskell and browser contracts" do
+        let contract = reflectFrontendContracts @FixtureContracts
+        let Right source = renderFrontendContractTypeScript contract
+        source `shouldContainText` "export type FixtureDensity =\n    \"compact\"\n  | \"comfortable\";"
+        source `shouldContainText` "export function parseFixtureDensity(value: unknown): FixtureDensity"
+        source `shouldContainText` "export type DensityRecord = { density: FixtureDensity };"
+        let density :: WireSourceType ('WireClosed FixtureDensity)
+            density = ComfortableDensity
+        density `shouldBe` ComfortableDensity
+        let encoded = recordValueIn @FixtureContracts @DensityRecord
+                (requiredField @DensityField density &: noFields)
+        encoded `shouldBe` Aeson.object ["density" Aeson..= ("comfortable" :: Text)]
+        AesonTypes.parseEither
+            (parseRecordIn @FixtureContracts @DensityRecord (\(parsedDensity, ()) -> pure parsedDensity))
+            encoded
+            `shouldBe` Right ComfortableDensity
+        AesonTypes.parseEither
+            (parseRecordIn @FixtureContracts @DensityRecord (\(parsedDensity, ()) -> pure parsedDensity))
+            (Aeson.object ["density" Aeson..= ("wide" :: Text)])
+            `shouldSatisfy` isLeft
 
     it "maps recursive wire sources without collapsing list, optional, or nullable structure" do
         haskellWireSource (WireListIR WireUuidIR)

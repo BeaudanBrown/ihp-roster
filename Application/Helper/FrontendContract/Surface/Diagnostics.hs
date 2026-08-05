@@ -140,6 +140,7 @@ type family CheckSurfaceWireValue
     CheckSurfaceWireValue presence marker declaredWire 'WireBool Bool providedValue = ()
     CheckSurfaceWireValue presence marker declaredWire 'WireUUID UUID.UUID providedValue = ()
     CheckSurfaceWireValue presence marker declaredWire 'WireDay Day providedValue = ()
+    CheckSurfaceWireValue presence marker declaredWire ('WireClosed value) value providedValue = ()
     CheckSurfaceWireValue presence marker declaredWire ('WireList inner) [value] providedValue =
         CheckSurfaceWireValue presence marker declaredWire inner value providedValue
     CheckSurfaceWireValue presence marker declaredWire ('WireOptional inner) (Maybe value) providedValue =
@@ -235,6 +236,8 @@ type family RenderSurfaceWire (wire :: WireType) :: ErrorMessage where
     RenderSurfaceWire 'WireBool = 'Text "WireBool"
     RenderSurfaceWire 'WireUUID = 'Text "WireUUID"
     RenderSurfaceWire 'WireDay = 'Text "WireDay"
+    RenderSurfaceWire ('WireClosed value) =
+        'Text "WireClosed " ':<>: 'ShowType value
     RenderSurfaceWire ('WireList inner) =
         'Text "WireList (" ':<>: RenderSurfaceWire inner ':<>: 'Text ")"
     RenderSurfaceWire ('WireOptional inner) =

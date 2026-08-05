@@ -28,6 +28,9 @@ module Application.Helper.FrontendContract.Surface.Request
     , parseSurfaceIntentParams
     ) where
 
+import Application.Helper.FrontendContract.ClosedScalar (KnownClosedScalar,
+                                                         closedScalarLiterals,
+                                                         parseClosedScalarLiteral)
 import qualified Application.Helper.FrontendContract.Naming as Naming
 import Application.Helper.FrontendContract.Surface.Diagnostics (AssertSurfaceFieldValue,
                                                                 SurfaceFieldPresence (..))
@@ -396,6 +399,14 @@ instance KnownSurfaceRequestWire 'WireDay where
             (Left "must be a date in YYYY-MM-DD format")
             Right
             (parseTimeM True defaultTimeLocale "%F" (cs rawValue))
+
+instance KnownClosedScalar value => KnownSurfaceRequestWire ('WireClosed value) where
+    parseSurfaceRequestWire rawValue = do
+        literal <- Bifunctor.first (const "must be valid UTF-8 text") (Text.Encoding.decodeUtf8' rawValue)
+        maybe
+            (Left ("must be one of: " <> Text.intercalate ", " (closedScalarLiterals @value)))
+            Right
+            (parseClosedScalarLiteral @value literal)
 
 instance (KnownSurfaceWireValue inner, KnownSurfaceRequestWire inner) => KnownSurfaceRequestWire ('WireList inner) where
     parseSurfaceRequestWire = parseJsonWire @('WireList inner)

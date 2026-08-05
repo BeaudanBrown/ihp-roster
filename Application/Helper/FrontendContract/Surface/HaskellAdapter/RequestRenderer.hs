@@ -120,7 +120,7 @@ renderSurfaceRequestAdapterFieldsBuilder requestFieldsType bindFieldsName emptyF
             fields ->
                 [fieldsName adapter <> " ::"]
                     <> map ("    " <>)
-                        ( map ((<> " ->") . renderHaskellSourceType . (.resolvedAdapterFieldType)) fields
+                        ( map ((<> " ->") . renderHaskellSourceType aliases . (.resolvedAdapterFieldType)) fields
                             <> [resultType]
                         )
 

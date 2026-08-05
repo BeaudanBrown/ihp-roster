@@ -133,9 +133,13 @@ Available primitives include:
   browser token to have a production consumer.
 
 Wire fields use the closed browser wire universe: `WireText`, `WireInt`,
-`WireBool`, `WireUUID`, `WireDay`, `WireList`, `WireOptional`, `WireNullable`,
-and `WireRef`. Do not serialize arbitrary domain models through surface fields;
-convert to a narrow browser DTO or feature-specific render model first.
+`WireBool`, `WireUUID`, `WireDay`, `WireClosed`, `WireList`, `WireOptional`,
+`WireNullable`, and `WireRef`. `WireClosed value` must reference a registered
+`ClosedScalar value`; it produces that exact Haskell type in generated builders
+and parsers. Use the generated PostgreSQL enum type when persistence owns the
+domain, never a shadow ADT. A non-persisted app domain may use its own finite ADT.
+Do not serialize arbitrary domain models through surface fields; convert to a
+narrow browser DTO or feature-specific render model first.
 
 Shared declarations are type aliases, not a second registry. Compose helpers
 with `Append`/`Concat`, for example the reusable drag/drop bundles in
@@ -466,7 +470,8 @@ declaration-directed builder checks report:
   wire mismatch.
 
 Diagnostic shapes use DSL spellings such as `required WireUUID`,
-`optional WireText`, and `nullable WireRef SomeDto`. GHC may qualify marker names
+`optional WireText`, `required WireClosed RosterLayoutModeEnum`, and
+`nullable WireRef SomeDto`. GHC may qualify marker names
 or wrap lines, but the diagnostic category, affected marker, and expected
 contract shape are a tested authoring interface. Keep the focused expectations
 in `Config/nix/scripts/frontend/surface-compile-fail-check` in sync when this
@@ -1094,10 +1099,10 @@ Profile added only `Surface.Profile.{Action,Generated.Action,HaskellAdapter}`;
 Roster Intent added only
 `Surface.Roster.{Generated.Intent,HaskellAdapter,Intent}`.
 
-The current compiler-observed closures are 19 modules for Profile Action and
-20 for Roster Intent. Their exact 15-module common set is:
+The current compiler-observed closures are 20 modules for Profile Action and
+21 for Roster Intent. Their exact 16-module common set is:
 
-- `Application.Helper.FrontendContract.{Core,DSL,Interaction,Naming}`;
+- `Application.Helper.FrontendContract.{ClosedScalar,Core,DSL,Interaction,Naming}`;
 - `Application.Helper.FrontendContract.Surface.{ContractIR,DSL,Diagnostics,LeaveRequests,Reflect,Request,Request.Runtime,SelfServiceLeave,SemanticIR,Values}`; and
 - `Application.Helper.FrontendContract.Surface.HaskellAdapter.Association`.
 
@@ -1105,8 +1110,8 @@ Profile retains only `Surface.Profile` plus
 `Surface.Profile.{Action,Generated.Action,HaskellAdapter}`. Roster Intent
 retains `Surface.Interaction`, `Surface.Roster`, and
 `Surface.Roster.{Generated.Intent,HaskellAdapter,Intent}`. Relative to the
-recorded baseline, both targets add `Surface.Request.Runtime` and the shared
-`Surface.SelfServiceLeave` declaration module. Both remove the shared 31-module
+recorded baseline, both targets add `ClosedScalar`, `Surface.Request.Runtime`,
+and the shared `Surface.SelfServiceLeave` declaration module. Both remove the shared 31-module
 set:
 
 - `Application.Bepis.{Action,Fact,Response}`;
@@ -1116,11 +1121,13 @@ set:
 - `Application.Helper.{LiveUpdate.Internal,Profiling,Telemetry,UiRegion,Url}`.
 
 Profile additionally removes `Surface.Interaction` and `Surface.Roster` (33
-removed, two added, 50 to 19); Roster Intent additionally removes
-`Surface.Profile` (32 removed, two added, 50 to 20).
+removed, three added, 50 to 20); Roster Intent additionally removes
+`Surface.Profile` (32 removed, three added, 50 to 21).
 
 Every retained dependency has one request-facade role:
 
+- `ClosedScalar` owns the canonical finite-value projection/parser without
+  importing the production scalar registry or generated enum catalog;
 - `Surface.DSL`, `Surface.Diagnostics`, and `Surface.Values` own declaration
   lookup, nominal field construction, diagnostics, and read-only serialization;
 - `Surface.Request` owns exact parsers and structured field errors;
@@ -1409,6 +1416,8 @@ Use focused checks while developing and the broader frontend gate before commit:
 bash ./bin/in-env frontend-contracts
 bash ./bin/in-env frontend-contracts-check
 bash ./bin/in-env frontend-surface-compile-fail-check
+# Focused authoring loop; no argument remains the complete gate:
+bash ./bin/in-env frontend-surface-compile-fail-check FrontendSurfaceWrongClosedScalarDomain
 bash ./bin/in-env frontend-surface-guardrails
 bash ./bin/in-env typecheck
 bash ./bin/in-env frontend-check

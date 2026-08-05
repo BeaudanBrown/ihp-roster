@@ -326,7 +326,7 @@ rosterTimelineMoveShiftIntentForm weekOffset rosterGroupId dayOffset sourceItemK
 rosterIntentForms :: RosterWeekScopeValue -> Bool -> [FrontendSurfaceIntentForm]
 rosterIntentForms scope templateApplicationAvailable =
     [ SurfaceIntent.setRosterLayoutModeIntentForm
-        (SurfaceIntent.setRosterLayoutModeIntentFields "day_rows")
+        (SurfaceIntent.setRosterLayoutModeIntentFields DayRows)
         (rosterLayoutModeRequest scope)
     , SurfaceIntent.moveRosterShiftToSlotIntentForm
         (SurfaceIntent.moveRosterShiftToSlotIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just ""))

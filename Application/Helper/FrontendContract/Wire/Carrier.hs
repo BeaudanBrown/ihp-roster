@@ -52,6 +52,9 @@ module Application.Helper.FrontendContract.Wire.Carrier
     , (|:)
     ) where
 
+import Application.Helper.FrontendContract.ClosedScalar (KnownClosedScalar,
+                                                         closedScalarLiteral,
+                                                         parseClosedScalarLiteral)
 import Application.Helper.FrontendContract.DSL
 import qualified Application.Helper.FrontendContract.IR as Contract
 import qualified Application.Helper.FrontendContract.Naming as Naming
@@ -85,6 +88,7 @@ type family WireSourceType (wire :: WireType) :: Type where
     WireSourceType 'WireBool = Bool
     WireSourceType 'WireUUID = UUID.UUID
     WireSourceType 'WireDay = Day
+    WireSourceType ('WireClosed value) = value
     WireSourceType 'WireUnknown = Aeson.Value
     WireSourceType ('WireList inner) = [WireSourceType inner]
     WireSourceType ('WireOptional inner) = Maybe (WireSourceType inner)
@@ -117,6 +121,7 @@ data HaskellWireSource
     | HaskellBoolSource
     | HaskellUuidSource
     | HaskellDaySource
+    | HaskellClosedSource !Text !Text
     | HaskellListSource !HaskellWireSource
     | HaskellMapSource !HaskellWireSource !HaskellWireSource
     | HaskellOptionalSource !HaskellWireSource
@@ -179,6 +184,7 @@ haskellWireSource = \case
     Contract.WireBoolIR -> HaskellBoolSource
     Contract.WireUuidIR -> HaskellUuidSource
     Contract.WireDayIR -> HaskellDaySource
+    Contract.WireClosedIR _ sourceModule sourceType -> HaskellClosedSource sourceModule sourceType
     Contract.WireListIR inner -> HaskellListSource (haskellWireSource inner)
     Contract.WireMapIR key value -> HaskellMapSource (haskellWireSource key) (haskellWireSource value)
     Contract.WireOptionalIR inner -> HaskellOptionalSource (haskellWireSource inner)
@@ -430,6 +436,14 @@ instance KnownWireCodec 'WireDay where
             (fail "FrontendContract day field is malformed")
             pure
             (parseTimeM True defaultTimeLocale "%F" (cs value))
+
+instance KnownClosedScalar value => KnownWireCodec ('WireClosed value) where
+    carrierWireJson = Aeson.String . closedScalarLiteral
+    parseCarrierWire = Aeson.withText "FrontendContract WireClosed" \literal ->
+        maybe
+            (fail ("FrontendContract closed scalar has invalid literal: " <> cs literal))
+            pure
+            (parseClosedScalarLiteral @value literal)
 
 instance KnownWireCodec 'WireUnknown where
     carrierWireJson = id

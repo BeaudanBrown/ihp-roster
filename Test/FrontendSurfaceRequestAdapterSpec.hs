@@ -47,7 +47,7 @@ import qualified Data.Text.IO as Text
 import Data.Time (fromGregorian)
 import qualified Data.UUID as UUID
 import qualified Data.Vault.Lazy as Vault
-import Generated.Types (RosterDay, RosterGroup)
+import Generated.Types (RosterDay, RosterGroup, RosterLayoutModeEnum (..))
 import IHP.ModelSupport.Types (Id' (Id))
 import IHP.Prelude
 import qualified Network.Wai as Wai
@@ -518,7 +518,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
         case parsedLayout of
             Left errors -> expectationFailure (cs (show errors))
             Right fields ->
-                surfaceFieldValue @Roster.RosterLayoutMode fields `shouldBe` "day_columns"
+                surfaceFieldValue @Roster.RosterLayoutMode fields `shouldBe` DayColumns
 
         let ?request = requestWithParams validRosterDragIntentParams
         assertRosterDragIntentFields RosterIntent.parseMoveRosterShiftToSlotIntentParams
@@ -536,6 +536,11 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 let ?request = requestWithParams [("rosterLayoutMode", Just invalidUtf8)]
                  in RosterIntent.parseSetRosterLayoutModeIntentParams
         assertRequestErrors ["rosterLayoutMode"] MalformedSurfaceRequestField malformedLayout
+
+        let unknownLayout =
+                let ?request = requestWithParams [("rosterLayoutMode", Just "diagonal")]
+                 in RosterIntent.parseSetRosterLayoutModeIntentParams
+        assertRequestErrors ["rosterLayoutMode"] MalformedSurfaceRequestField unknownLayout
 
         let missingDragIntentChecks =
                 let ?request = requestWithParams []

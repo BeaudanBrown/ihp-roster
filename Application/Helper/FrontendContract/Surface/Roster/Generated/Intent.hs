@@ -39,6 +39,7 @@ import Application.Helper.FrontendContract.Surface.Values (SurfaceIntentFields,
                                                            surfaceIntentFields,
                                                            surfaceOptionalField,
                                                            (&:))
+import qualified Generated.Types as Types4
 import IHP.Prelude
 import Network.Wai (Request)
 
@@ -268,7 +269,7 @@ parsePreviewRosterTemplateApplicationIntentParams =
         @Types2.PreviewRosterTemplateApplication
 
 setRosterLayoutModeIntentFields ::
-    Text ->
+    Types4.RosterLayoutModeEnum ->
     SurfaceIntentFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.SetRosterLayoutMode
 setRosterLayoutModeIntentFields rosterLayoutMode =
     surfaceIntentFields

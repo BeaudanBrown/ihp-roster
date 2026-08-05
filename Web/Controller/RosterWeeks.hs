@@ -657,10 +657,7 @@ instance Controller RosterWeeksController where
                 case RosterIntent.parseSetRosterLayoutModeIntentParams of
                     Left errors -> Left (rosterSurfaceRequestErrorMessage errors)
                     Right fields ->
-                        maybe
-                            (Left "Choose a valid roster layout.")
-                            Right
-                            (parseRosterLayoutMode (surfaceFieldValue @Surface.RosterLayoutMode fields))
+                        Right (surfaceFieldValue @Surface.RosterLayoutMode fields)
         case requestedLayoutMode of
             Left requestError -> do
                 let errorMessage = requestError

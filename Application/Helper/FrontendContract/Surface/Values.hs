@@ -102,6 +102,9 @@ module Application.Helper.FrontendContract.Surface.Values
     , (&:)
     ) where
 
+import Application.Helper.FrontendContract.ClosedScalar (KnownClosedScalar,
+                                                         closedScalarLiteral,
+                                                         parseClosedScalarLiteral)
 import qualified Application.Helper.FrontendContract.Naming as Naming
 import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.Diagnostics
@@ -281,6 +284,7 @@ type family SurfaceWireValue (wire :: WireType) :: Type where
     SurfaceWireValue 'WireBool = Bool
     SurfaceWireValue 'WireUUID = UUID.UUID
     SurfaceWireValue 'WireDay = Day
+    SurfaceWireValue ('WireClosed value) = value
     SurfaceWireValue ('WireList inner) = [SurfaceWireValue inner]
     SurfaceWireValue ('WireOptional inner) = Maybe (SurfaceWireValue inner)
     SurfaceWireValue ('WireNullable inner) = Maybe (SurfaceWireValue inner)
@@ -356,6 +360,15 @@ instance KnownSurfaceWireValue 'WireDay where
     surfaceWireText = cs . formatTime defaultTimeLocale "%F"
     parseSurfaceWireValue = Aeson.withText "Surface WireDay" \value ->
         maybe (fail "Surface day field is malformed") pure (parseTimeM True defaultTimeLocale "%F" (cs value))
+
+instance KnownClosedScalar value => KnownSurfaceWireValue ('WireClosed value) where
+    surfaceWireJson = Aeson.String . closedScalarLiteral
+    surfaceWireText = closedScalarLiteral
+    parseSurfaceWireValue = Aeson.withText "Surface WireClosed" \literal ->
+        maybe
+            (fail ("Surface closed scalar has invalid literal: " <> cs literal))
+            pure
+            (parseClosedScalarLiteral @value literal)
 
 instance KnownSurfaceWireValue inner => KnownSurfaceWireValue ('WireList inner) where
     surfaceWireJson = Aeson.toJSON . fmap (surfaceWireJson @inner)

@@ -209,6 +209,7 @@ module Application.Helper.FrontendContract.Surface.Roster
 import Application.Helper.FrontendContract.Surface.DSL
 import Application.Helper.FrontendContract.Surface.Interaction
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as SelfServiceLeave
+import Generated.Types (RosterLayoutModeEnum)
 
 data Roster
 data RosterDayTimeline
@@ -674,7 +675,7 @@ type RosterActionBundle =
 
 type RosterInteractionBundle =
     Concat
-        '[ LayoutModeInteraction SetRosterLayoutMode RosterContent RosterLayoutMode
+        '[ LayoutModeInteraction SetRosterLayoutMode RosterContent RosterLayoutMode ('WireClosed RosterLayoutModeEnum)
          , '[ DragSessionDefinition
             , SourceRef ShiftDragSource
                 '[ 'SessionOption DragSession
