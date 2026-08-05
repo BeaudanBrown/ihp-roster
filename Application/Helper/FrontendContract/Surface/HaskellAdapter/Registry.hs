@@ -207,7 +207,11 @@ type RegisteredSurfaceActionAdapterHomes =
      , SurfaceActionAdapterHome StaffAdapterFamily Profile.UpdateStaffProfile
      , SurfaceActionAdapterHome StaffAdapterFamily Profile.UpdateStaffShiftPreferences
      , SurfaceActionAdapterHome StaffAdapterFamily Profile.CreateStaffLeaveRequest
-     , SurfaceActionAdapterHome AdminVenueSettingsAdapterFamily Admin.UpdateVenueConfig
+     , SurfaceActionAdapterHome AdminVenueSettingsAdapterFamily Admin.UpdateRosterEndTimesEnabled
+     , SurfaceActionAdapterHome AdminVenueSettingsAdapterFamily Admin.UpdateMinutePrecisionShiftTimesEnabled
+     , SurfaceActionAdapterHome AdminVenueSettingsAdapterFamily Admin.UpdateUnavailableStaffWarningThreshold
+     , SurfaceActionAdapterHome AdminVenueSettingsAdapterFamily Admin.UpdateRosterTimePickerWindow
+     , SurfaceActionAdapterHome AdminVenueSettingsAdapterFamily Admin.UpdateRosterWeekStartsOn
      , SurfaceActionAdapterHome AdminInvitesAdapterFamily Admin.CreateVenueInvitation
      , SurfaceActionAdapterHome AdminInvitesAdapterFamily Admin.RevokeVenueInvitation
      , SurfaceActionAdapterHome AdminInvitesAdapterFamily Admin.RenewVenueInvitation
@@ -229,8 +233,9 @@ type RegisteredSurfaceActionAdapterHomes =
      ]
 
 -- Every eligible Action emits builders and render metadata. The exact parser
--- inventory contains 36 generated operations and 15 typed exclusions for
--- declarations whose current endpoint consumes no complete Surface envelope.
+-- The inventory contains 55 generated adapter registrations. Forty emit exact
+-- parsers and 15 retain typed parser exclusions for endpoints that consume no
+-- complete Surface envelope. The hidden roster-week setting is parser-only.
 registeredSurfaceActionAdapterRegistrations :: [SurfaceRequestAdapterRegistration 'ActionAdapterKind]
 registeredSurfaceActionAdapterRegistrations =
     [ surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.NavigateTimesheetWeek allRequestAdapterOperations
@@ -283,7 +288,12 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceActionAdapter @StaffAdapterFamily @Profile.UpdateStaffProfile allRequestAdapterOperations
     , surfaceActionAdapter @StaffAdapterFamily @Profile.UpdateStaffShiftPreferences allRequestAdapterOperations
     , surfaceActionAdapter @StaffAdapterFamily @Profile.CreateStaffLeaveRequest allRequestAdapterOperations
-    , surfaceActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateVenueConfig allRequestAdapterOperations
+    , surfaceActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateRosterEndTimesEnabled allRequestAdapterOperations
+    , surfaceActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateMinutePrecisionShiftTimesEnabled allRequestAdapterOperations
+    , surfaceActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateUnavailableStaffWarningThreshold allRequestAdapterOperations
+    , surfaceActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateRosterTimePickerWindow allRequestAdapterOperations
+    , surfaceActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateRosterWeekStartsOn
+        (requestAdapterParserOnly "The roster-week-start mutation is retained for compatibility but has no active rendered setting form")
     , surfaceActionAdapter @AdminInvitesAdapterFamily @Admin.CreateVenueInvitation allRequestAdapterOperations
     , surfaceActionAdapter @AdminInvitesAdapterFamily @Admin.RevokeVenueInvitation
         (requestAdapterOperationsWithoutParser "The zero-field revoke endpoint consumes its route id and has no Surface request parser")
@@ -341,6 +351,14 @@ requestAdapterOperationsWithoutParser :: Text -> SurfaceRequestAdapterOperations
 requestAdapterOperationsWithoutParser reason =
     allRequestAdapterOperations
         { surfaceAdapterRequestParserOperation = ExcludeSurfaceAdapterOperation reason
+        }
+
+requestAdapterParserOnly :: Text -> SurfaceRequestAdapterOperations
+requestAdapterParserOnly reason =
+    SurfaceRequestAdapterOperations
+        { surfaceAdapterFieldsBuilderOperation = ExcludeSurfaceAdapterOperation reason
+        , surfaceAdapterRenderMetadataOperation = ExcludeSurfaceAdapterOperation reason
+        , surfaceAdapterRequestParserOperation = GenerateSurfaceAdapterOperation
         }
 
 intentOnlyActionReason :: Text

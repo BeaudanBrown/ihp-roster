@@ -102,6 +102,13 @@ expect_no_match \
     "legacy LiveResource alias is forbidden" \
     '\b(type|data|newtype)[[:space:]]+LiveResource\b' \
     Application Web Test
+expect_no_match \
+    "catch-all venue configuration discriminator is forbidden" \
+    '\b(UpdateVenueConfig(Action)?|ConfigFieldField)\b|name="configField"' \
+    Application/Helper/FrontendContract/Surface/Admin.hs \
+    Web/Controller/Admin.hs \
+    Web/Types.hs \
+    Web/View/Admin/VenueSettings.hs
 
 # Generated app-owned attributes must be consumed through reflected helpers or
 # generated TypeScript constants; these exact names prevent hand-authored

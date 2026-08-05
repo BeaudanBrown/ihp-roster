@@ -210,6 +210,27 @@ both focused application closures; only the Roster adapter imports the generated
 enum source type. These are physical-line and one-closure snapshots, not a
 performance benchmark.
 
+## Nominal Venue Configuration Checkpoint
+
+[#331](https://github.com/BeaudanBrown/ihp-roster/issues/331) removes the
+`UpdateVenueConfig` discriminator envelope and its seven-field optional
+superset. Admin venue settings now expose five nominal operations: roster end
+times, minute-precision times, unavailable-staff threshold, roster time-picker
+window, and roster week start. Each exact parser carries only that operation's
+fields. The four rendered settings also generate builders/metadata and use only
+their matching bundle for field names; the currently hidden roster-week
+operation is parser-only with typed rendering exclusions, so its guarded
+mutation behavior remains nominal without dead view API. The
+retired automatic-timesheet branch is deleted.
+
+A narrow Surface guardrail tombstones `UpdateVenueConfig`,
+`UpdateVenueConfigAction`, `ConfigFieldField`, and the old `configField` input in
+the production contract/controller/view boundary. Compared with the #330
+checkpoint, generator-foundation code changes from 3,100 to 3,108 LOC,
+generated Haskell adapters from 3,484 to 3,572 LOC, and curated facades from 614
+to 638 LOC. Associations remain 8/156 and generated TypeScript remains
+1/1,671. These are physical-line snapshots, not a benchmark.
+
 ## Baseline Metrics
 
 Captured on the #329 baseline:

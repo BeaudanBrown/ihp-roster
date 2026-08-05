@@ -474,18 +474,13 @@ parseSubmittedOverrideAwardLevelId =
 
 validateRosterWeekStartsOn ::
     (?context :: ControllerContext, ?request :: Request) =>
-    Maybe Text ->
+    Int ->
     IO (Maybe Int)
-validateRosterWeekStartsOn maybeValue =
-    case maybeValue >>= readMaybe . cs of
-        Nothing -> do
-            setErrorMessage "Choose the first day of the roster week."
-            pure Nothing
-        Just weekdayIndex
-            | weekdayIndex `elem` validRosterWeekStartDays -> pure (Just weekdayIndex)
-            | otherwise -> do
-                setErrorMessage "Choose a valid first day of the roster week."
-                pure Nothing
+validateRosterWeekStartsOn weekdayIndex
+    | weekdayIndex `elem` validRosterWeekStartDays = pure (Just weekdayIndex)
+    | otherwise = do
+        setErrorMessage "Choose a valid first day of the roster week."
+        pure Nothing
 
 parseShiftTypeId ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

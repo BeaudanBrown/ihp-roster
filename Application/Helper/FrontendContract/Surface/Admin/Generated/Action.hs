@@ -36,9 +36,13 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Action
     , parseShowXeroTimesheetPreparationStaffMappingsActionParams
     , parseToggleInactiveRosterGroupsActionParams
     , parseToggleInactiveShiftTypesActionParams
+    , parseUpdateMinutePrecisionShiftTimesEnabledActionParams
+    , parseUpdateRosterEndTimesEnabledActionParams
     , parseUpdateRosterGroupActionParams
+    , parseUpdateRosterTimePickerWindowActionParams
+    , parseUpdateRosterWeekStartsOnActionParams
     , parseUpdateShiftTypeActionParams
-    , parseUpdateVenueConfigActionParams
+    , parseUpdateUnavailableStaffWarningThresholdActionParams
     , renewVenueInvitationAction
     , renewVenueInvitationActionFields
     , revokeVenueInvitationAction
@@ -51,12 +55,18 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Action
     , toggleInactiveRosterGroupsActionFields
     , toggleInactiveShiftTypesAction
     , toggleInactiveShiftTypesActionFields
+    , updateMinutePrecisionShiftTimesEnabledAction
+    , updateMinutePrecisionShiftTimesEnabledActionFields
+    , updateRosterEndTimesEnabledAction
+    , updateRosterEndTimesEnabledActionFields
     , updateRosterGroupAction
     , updateRosterGroupActionFields
+    , updateRosterTimePickerWindowAction
+    , updateRosterTimePickerWindowActionFields
     , updateShiftTypeAction
     , updateShiftTypeActionFields
-    , updateVenueConfigAction
-    , updateVenueConfigActionFields
+    , updateUnavailableStaffWarningThresholdAction
+    , updateUnavailableStaffWarningThresholdActionFields
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.Admin as Types1
@@ -319,6 +329,14 @@ parseMoveShiftTypeUpActionParams =
         @(AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily)
         @Types1.MoveShiftTypeUp
 
+parseUpdateRosterWeekStartsOnActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily) Types1.UpdateRosterWeekStartsOn)
+parseUpdateRosterWeekStartsOnActionParams =
+    parseSurfaceActionParams
+        @(AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily)
+        @Types1.UpdateRosterWeekStartsOn
+
 renewVenueInvitationActionFields ::
     Maybe Text ->
     SurfaceActionFields (AdapterFamilySurface Types2.AdminInvitesAdapterFamily) Types1.RenewVenueInvitation
@@ -430,6 +448,50 @@ parseToggleInactiveShiftTypesActionParams =
         @(AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily)
         @Types1.ToggleInactiveShiftTypes
 
+updateMinutePrecisionShiftTimesEnabledActionFields ::
+    Bool ->
+    SurfaceActionFields (AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily) Types1.UpdateMinutePrecisionShiftTimesEnabled
+updateMinutePrecisionShiftTimesEnabledActionFields minutePrecisionShiftTimesEnabled =
+    surfaceActionFields
+        (surfaceField @Types1.MinutePrecisionShiftTimesEnabled minutePrecisionShiftTimesEnabled)
+        noSurfaceFields
+
+updateMinutePrecisionShiftTimesEnabledAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily) Types1.UpdateMinutePrecisionShiftTimesEnabled -> FrontendSurfaceAction
+updateMinutePrecisionShiftTimesEnabledAction =
+    frontendSurfaceAction
+        @(AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily)
+        @Types1.UpdateMinutePrecisionShiftTimesEnabled
+
+parseUpdateMinutePrecisionShiftTimesEnabledActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily) Types1.UpdateMinutePrecisionShiftTimesEnabled)
+parseUpdateMinutePrecisionShiftTimesEnabledActionParams =
+    parseSurfaceActionParams
+        @(AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily)
+        @Types1.UpdateMinutePrecisionShiftTimesEnabled
+
+updateRosterEndTimesEnabledActionFields ::
+    Bool ->
+    SurfaceActionFields (AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily) Types1.UpdateRosterEndTimesEnabled
+updateRosterEndTimesEnabledActionFields rosterEndTimesEnabled =
+    surfaceActionFields
+        (surfaceField @Types1.RosterEndTimesEnabled rosterEndTimesEnabled)
+        noSurfaceFields
+
+updateRosterEndTimesEnabledAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily) Types1.UpdateRosterEndTimesEnabled -> FrontendSurfaceAction
+updateRosterEndTimesEnabledAction =
+    frontendSurfaceAction
+        @(AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily)
+        @Types1.UpdateRosterEndTimesEnabled
+
+parseUpdateRosterEndTimesEnabledActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily) Types1.UpdateRosterEndTimesEnabled)
+parseUpdateRosterEndTimesEnabledActionParams =
+    parseSurfaceActionParams
+        @(AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily)
+        @Types1.UpdateRosterEndTimesEnabled
+
 updateRosterGroupActionFields ::
     Bool ->
     Text ->
@@ -456,6 +518,31 @@ parseUpdateRosterGroupActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.AdminRosterGroupsAdapterFamily)
         @Types1.UpdateRosterGroup
+
+updateRosterTimePickerWindowActionFields ::
+    Text ->
+    Text ->
+    SurfaceActionFields (AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily) Types1.UpdateRosterTimePickerWindow
+updateRosterTimePickerWindowActionFields timePickerStart timePickerEnd =
+    surfaceActionFields
+        (surfaceField @Types1.TimePickerStart timePickerStart)
+        ( surfaceField @Types1.TimePickerEnd timePickerEnd
+            &: noSurfaceFields
+        )
+
+updateRosterTimePickerWindowAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily) Types1.UpdateRosterTimePickerWindow -> FrontendSurfaceAction
+updateRosterTimePickerWindowAction =
+    frontendSurfaceAction
+        @(AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily)
+        @Types1.UpdateRosterTimePickerWindow
+
+parseUpdateRosterTimePickerWindowActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily) Types1.UpdateRosterTimePickerWindow)
+parseUpdateRosterTimePickerWindowActionParams =
+    parseSurfaceActionParams
+        @(AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily)
+        @Types1.UpdateRosterTimePickerWindow
 
 updateShiftTypeActionFields ::
     Bool ->
@@ -488,39 +575,24 @@ parseUpdateShiftTypeActionParams =
         @(AdapterFamilySurface Types2.AdminShiftTypesAdapterFamily)
         @Types1.UpdateShiftType
 
-updateVenueConfigActionFields ::
-    Text ->
-    Maybe Bool ->
-    Maybe Bool ->
-    Maybe Bool ->
-    Maybe Text ->
-    Maybe Text ->
-    Maybe Text ->
+updateUnavailableStaffWarningThresholdActionFields ::
     Maybe Int ->
-    SurfaceActionFields (AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily) Types1.UpdateVenueConfig
-updateVenueConfigActionFields configField rosterEndTimesEnabled autoTimesheetCreationEnabled minutePrecisionShiftTimesEnabled timePickerStart timePickerEnd rosterWeekStartsOn unavailableStaffWarningThreshold =
+    SurfaceActionFields (AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily) Types1.UpdateUnavailableStaffWarningThreshold
+updateUnavailableStaffWarningThresholdActionFields unavailableStaffWarningThreshold =
     surfaceActionFields
-        (surfaceField @Types1.ConfigFieldField configField)
-        ( surfaceOptionalField @Types1.RosterEndTimesEnabled rosterEndTimesEnabled
-            &: surfaceOptionalField @Types1.AutoTimesheetCreationEnabled autoTimesheetCreationEnabled
-            &: surfaceOptionalField @Types1.MinutePrecisionShiftTimesEnabled minutePrecisionShiftTimesEnabled
-            &: surfaceOptionalField @Types1.TimePickerStart timePickerStart
-            &: surfaceOptionalField @Types1.TimePickerEnd timePickerEnd
-            &: surfaceOptionalField @Types1.RosterWeekStartsOn rosterWeekStartsOn
-            &: surfaceOptionalField @Types1.UnavailableStaffWarningThreshold unavailableStaffWarningThreshold
-            &: noSurfaceFields
-        )
+        (surfaceOptionalField @Types1.UnavailableStaffWarningThreshold unavailableStaffWarningThreshold)
+        noSurfaceFields
 
-updateVenueConfigAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily) Types1.UpdateVenueConfig -> FrontendSurfaceAction
-updateVenueConfigAction =
+updateUnavailableStaffWarningThresholdAction :: SurfaceActionFields (AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily) Types1.UpdateUnavailableStaffWarningThreshold -> FrontendSurfaceAction
+updateUnavailableStaffWarningThresholdAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily)
-        @Types1.UpdateVenueConfig
+        @Types1.UpdateUnavailableStaffWarningThreshold
 
-parseUpdateVenueConfigActionParams ::
+parseUpdateUnavailableStaffWarningThresholdActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily) Types1.UpdateVenueConfig)
-parseUpdateVenueConfigActionParams =
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily) Types1.UpdateUnavailableStaffWarningThreshold)
+parseUpdateUnavailableStaffWarningThresholdActionParams =
     parseSurfaceActionParams
         @(AdapterFamilySurface Types2.AdminVenueSettingsAdapterFamily)
-        @Types1.UpdateVenueConfig
+        @Types1.UpdateUnavailableStaffWarningThreshold

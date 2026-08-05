@@ -274,10 +274,12 @@ catalog, mount/live/wire runtime, or Haskell adapter generator implementation.
 The compiler-observed baseline, candidate sets, deltas, and retained-dependency
 classification are recorded in `Surface/README.md`.
 
-The production operation inventory covers all 53 actions and five intents. It
-marks 48 actions as adapter-eligible, with builders/render metadata for all 48
-and exact parsers for 34; five same-named intent-backed actions are excluded
-from adapter eligibility, while 14 parser operations retain typed reasons. Exactly one checked
+The production operation inventory covers all 60 actions and five intents. It
+marks 55 actions as adapter-eligible, with builders/render metadata for 54 and
+exact parsers for 40. The hidden roster-week-start compatibility mutation is
+parser-only with typed builder/metadata exclusions; five same-named
+intent-backed actions are excluded from adapter eligibility, while 15 parser
+operations retain typed reasons. Exactly one checked
 home is registered for every eligible Action and Intent. Seven private
 feature-adjacent `.Generated.Action` modules sit behind seven curated
 `Surface.<Feature>.Action` facades, while the five Roster intents share one

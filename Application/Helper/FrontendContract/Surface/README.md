@@ -753,14 +753,16 @@ request parser delegating to `parseSurfaceActionParams` or
 `parseSurfaceIntentParams`. Each operation has an explicit generated/excluded
 decision, and every exclusion requires a non-empty reason.
 
-The production inventory contains all 53 checked actions and all five checked
-intents. Forty-eight actions have Haskell adapter consumers; the five action
+The production inventory contains all 60 checked actions and all five checked
+intents. Fifty-five actions have Haskell adapter consumers; the five action
 declarations backing the same-named interaction intents remain typed,
 reason-bearing declaration exclusions. Exactly one checked home is registered
 for each eligible action across the Admin, LeaveRequests, Profile, Roster,
-SelfServiceLeave, Support, and Timesheets families. All 48 provide generated
-field-builder and render-metadata operations; 34 provide exact parsers and the
-other 14 retain typed, operation-specific no-parser reasons. Production callers
+SelfServiceLeave, Support, and Timesheets families. Fifty-four provide
+generated field-builder and render-metadata operations; the hidden
+roster-week-start compatibility mutation is parser-only with typed exclusions
+for its inactive rendering operations. Forty provide exact parsers and the other
+15 retain typed, operation-specific no-parser reasons. Production callers
 use the seven curated `Action` facades: generic parser and metadata calls under
 `Web/` are both zero, enforced by source guardrails.
 

@@ -352,16 +352,24 @@ tests = aroundAll withDatabaseTestContext do
                 venueSettingsResponse `responseBodyShouldContain` "id=\"admin-venue-settings-fragment\""
                 venueSettingsResponse `responseBodyShouldContain` "data-bepis-surface=\""
                 venueSettingsResponse `responseBodyShouldContain` "admin-venue-config"
-                venueSettingsResponse `responseBodyShouldContain` "hx-post=\"/UpdateVenueConfig\""
+                venueSettingsResponse `responseBodyShouldContain` "hx-post=\"/UpdateRosterTimePickerWindow\""
+                venueSettingsResponse `responseBodyShouldContain` "hx-post=\"/UpdateMinutePrecisionShiftTimesEnabled\""
+                venueSettingsResponse `responseBodyShouldContain` "hx-post=\"/UpdateUnavailableStaffWarningThreshold\""
+                venueSettingsResponse `responseBodyShouldContain` "hx-post=\"/UpdateRosterEndTimesEnabled\""
                 venueSettingsResponse `responseBodyShouldContain` "hx-target=\"#admin-venue-settings-fragment\""
                 venueSettingsResponse `responseBodyShouldContain` "hx-swap=\"none\""
                 venueSettingsResponse `responseBodyShouldContain` "hx-push-url=\"false\""
-                venueSettingsResponse `responseBodyShouldContain` "data-bepis-surface-action=\"update-venue-config\""
+                venueSettingsResponse `responseBodyShouldContain` "data-bepis-surface-action=\"update-roster-time-picker-window\""
+                venueSettingsResponse `responseBodyShouldContain` "data-bepis-surface-action=\"update-minute-precision-shift-times-enabled\""
+                venueSettingsResponse `responseBodyShouldContain` "data-bepis-surface-action=\"update-unavailable-staff-warning-threshold\""
+                venueSettingsResponse `responseBodyShouldContain` "data-bepis-surface-action=\"update-roster-end-times-enabled\""
                 venueSettingsResponse `responseBodyShouldNotContain` "Roster week starts on"
                 venueSettingsResponse `responseBodyShouldNotContain` "admin-roster-week-starts-on"
                 venueSettingsResponse `responseBodyShouldNotContain` "name=\"rosterWeekStartsOn\""
                 venueSettingsResponse `responseBodyShouldNotContain` "Automatically create pending timesheets"
                 venueSettingsResponse `responseBodyShouldNotContain` "autoTimesheetCreationEnabled"
+                venueSettingsResponse `responseBodyShouldNotContain` "name=\"configField\""
+                venueSettingsResponse `responseBodyShouldNotContain` "update-venue-config"
                 venueSettingsResponse `responseBodyShouldNotContain` "id=\"app\""
 
                 exportsResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -981,7 +989,10 @@ tests = aroundAll withDatabaseTestContext do
                     callAction AdminAction
                 pageResponse `responseBodyShouldContain` "id=\"admin-venue-settings-fragment\""
                 pageResponse `responseBodyShouldContain` "admin-venue-config"
-                pageResponse `responseBodyShouldContain` "hx-post=\"/UpdateVenueConfig\""
+                pageResponse `responseBodyShouldContain` "hx-post=\"/UpdateRosterTimePickerWindow\""
+                pageResponse `responseBodyShouldContain` "hx-post=\"/UpdateMinutePrecisionShiftTimesEnabled\""
+                pageResponse `responseBodyShouldContain` "hx-post=\"/UpdateUnavailableStaffWarningThreshold\""
+                pageResponse `responseBodyShouldContain` "hx-post=\"/UpdateRosterEndTimesEnabled\""
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-venue-settings-fragment\""
                 pageResponse `responseBodyShouldContain` "hx-swap=\"none\""
                 pageResponse `responseBodyShouldContain` "Valid shift window"
@@ -999,10 +1010,8 @@ tests = aroundAll withDatabaseTestContext do
                 versionBefore <- currentLiveUpdateVersion (AdminLive.adminVenueConfigLiveScope (unpackId venue.id))
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams UpdateVenueConfigAction
-                            [ ("configField", "rosterEndTimesEnabled")
-                            , ("rosterEndTimesEnabled", "true")
-                            ]
+                        callActionWithParams UpdateRosterEndTimesEnabledAction
+                            [("rosterEndTimesEnabled", "true")]
 
                 response `responseStatusShouldBe` status200
                 lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
@@ -1024,10 +1033,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 enabledResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams UpdateVenueConfigAction
-                            [ ("configField", "unavailableStaffWarningThreshold")
-                            , ("unavailableStaffWarningThreshold", "3")
-                            ]
+                        callActionWithParams UpdateUnavailableStaffWarningThresholdAction
+                            [("unavailableStaffWarningThreshold", "3")]
 
                 enabledResponse `responseStatusShouldBe` status200
                 enabledResponse `responseBodyShouldContain` "value=\"3\""
@@ -1036,35 +1043,28 @@ tests = aroundAll withDatabaseTestContext do
                 enabledConfig.updatedAt `shouldSatisfy` (> originalConfig.updatedAt)
 
                 invalidResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams UpdateVenueConfigAction
-                        [ ("configField", "unavailableStaffWarningThreshold")
-                        , ("unavailableStaffWarningThreshold", "101")
-                        ]
+                    callActionWithParams UpdateUnavailableStaffWarningThresholdAction
+                        [("unavailableStaffWarningThreshold", "101")]
                 invalidResponse `responseStatusShouldBe` status302
                 unchangedConfig <- fetch enabledConfig.id
                 unchangedConfig.unavailableStaffWarningThreshold `shouldBe` Just 3
 
                 zeroResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams UpdateVenueConfigAction
-                        [ ("configField", "unavailableStaffWarningThreshold")
-                        , ("unavailableStaffWarningThreshold", "0")
-                        ]
+                    callActionWithParams UpdateUnavailableStaffWarningThresholdAction
+                        [("unavailableStaffWarningThreshold", "0")]
                 zeroResponse `responseStatusShouldBe` status302
                 zeroRejectedConfig <- fetch enabledConfig.id
                 zeroRejectedConfig.unavailableStaffWarningThreshold `shouldBe` Just 3
 
                 boundaryResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams UpdateVenueConfigAction
-                        [ ("configField", "unavailableStaffWarningThreshold")
-                        , ("unavailableStaffWarningThreshold", "100")
-                        ]
+                    callActionWithParams UpdateUnavailableStaffWarningThresholdAction
+                        [("unavailableStaffWarningThreshold", "100")]
                 boundaryResponse `responseStatusShouldBe` status302
                 boundaryConfig <- fetch enabledConfig.id
                 boundaryConfig.unavailableStaffWarningThreshold `shouldBe` Just 100
 
                 disabledResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams UpdateVenueConfigAction
-                        [("configField", "unavailableStaffWarningThreshold")]
+                    callActionWithParams UpdateUnavailableStaffWarningThresholdAction []
                 disabledResponse `responseStatusShouldBe` status302
                 disabledConfig <- fetch enabledConfig.id
                 disabledConfig.unavailableStaffWarningThreshold `shouldBe` Nothing
@@ -1122,10 +1122,8 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams UpdateVenueConfigAction
-                        [ ("configField", "rosterWeekStartsOn")
-                        , ("rosterWeekStartsOn", "2")
-                        ]
+                    callActionWithParams UpdateRosterWeekStartsOnAction
+                        [("rosterWeekStartsOn", "2")]
 
                 response `responseStatusShouldBe` status302
 
@@ -1142,10 +1140,8 @@ tests = aroundAll withDatabaseTestContext do
                 originalConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams UpdateVenueConfigAction
-                        [ ("configField", "rosterEndTimesEnabled")
-                        , ("rosterEndTimesEnabled", "true")
-                        ]
+                    callActionWithParams UpdateRosterEndTimesEnabledAction
+                        [("rosterEndTimesEnabled", "true")]
 
                 response `responseStatusShouldBe` status302
 
@@ -1160,10 +1156,8 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams UpdateVenueConfigAction
-                        [ ("configField", "minutePrecisionShiftTimesEnabled")
-                        , ("minutePrecisionShiftTimesEnabled", "true")
-                        ]
+                    callActionWithParams UpdateMinutePrecisionShiftTimesEnabledAction
+                        [("minutePrecisionShiftTimesEnabled", "true")]
 
                 response `responseStatusShouldBe` status302
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
@@ -1177,9 +1171,8 @@ tests = aroundAll withDatabaseTestContext do
                 originalConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams UpdateVenueConfigAction
-                        [ ("configField", "timePickerWindow")
-                        , ("timePickerStart", "09:00")
+                    callActionWithParams UpdateRosterTimePickerWindowAction
+                        [ ("timePickerStart", "09:00")
                         , ("timePickerEnd", "02:00")
                         ]
 
@@ -1198,9 +1191,8 @@ tests = aroundAll withDatabaseTestContext do
                 originalConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams UpdateVenueConfigAction
-                        [ ("configField", "timePickerWindow")
-                        , ("timePickerStart", "09:10")
+                    callActionWithParams UpdateRosterTimePickerWindowAction
+                        [ ("timePickerStart", "09:10")
                         , ("timePickerEnd", "09:10")
                         ]
 
@@ -1209,25 +1201,6 @@ tests = aroundAll withDatabaseTestContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 venueConfig.timePickerStartMinuteOfDay `shouldBe` originalConfig.timePickerStartMinuteOfDay
                 venueConfig.timePickerFinalSelectableMinuteOfDay `shouldBe` originalConfig.timePickerFinalSelectableMinuteOfDay
-
-        it "ignores the retired automatic-timesheet venue setting" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Admin Venue"
-                admin <- createUserRecord "admin-auto-timesheets@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin VenueAdmin
-                originalConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-
-                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams UpdateVenueConfigAction
-                        [ ("configField", "autoTimesheetCreationEnabled")
-                        , ("autoTimesheetCreationEnabled", "true")
-                        ]
-
-                response `responseStatusShouldBe` status302
-
-                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                venueConfig.autoTimesheetCreationEnabled `shouldBe` False
-                venueConfig.rosterWeekStartsOn `shouldBe` originalConfig.rosterWeekStartsOn
 
         it "rejects updates to config rows outside the current venue" $ withContext do
             withCleanDb do

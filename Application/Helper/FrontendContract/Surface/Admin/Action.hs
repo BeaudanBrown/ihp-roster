@@ -31,9 +31,13 @@ module Application.Helper.FrontendContract.Surface.Admin.Action
     , parseShowXeroTimesheetPreparationStaffMappingsActionParams
     , parseToggleInactiveRosterGroupsActionParams
     , parseToggleInactiveShiftTypesActionParams
+    , parseUpdateMinutePrecisionShiftTimesEnabledActionParams
+    , parseUpdateRosterEndTimesEnabledActionParams
     , parseUpdateRosterGroupActionParams
+    , parseUpdateRosterTimePickerWindowActionParams
+    , parseUpdateRosterWeekStartsOnActionParams
     , parseUpdateShiftTypeActionParams
-    , parseUpdateVenueConfigActionParams
+    , parseUpdateUnavailableStaffWarningThresholdActionParams
     , renewVenueInvitationAction
     , renewVenueInvitationActionFields
     , revokeVenueInvitationAction
@@ -46,12 +50,18 @@ module Application.Helper.FrontendContract.Surface.Admin.Action
     , toggleInactiveRosterGroupsActionFields
     , toggleInactiveShiftTypesAction
     , toggleInactiveShiftTypesActionFields
+    , updateMinutePrecisionShiftTimesEnabledAction
+    , updateMinutePrecisionShiftTimesEnabledActionFields
+    , updateRosterEndTimesEnabledAction
+    , updateRosterEndTimesEnabledActionFields
     , updateRosterGroupAction
     , updateRosterGroupActionFields
+    , updateRosterTimePickerWindowAction
+    , updateRosterTimePickerWindowActionFields
     , updateShiftTypeAction
     , updateShiftTypeActionFields
-    , updateVenueConfigAction
-    , updateVenueConfigActionFields
+    , updateUnavailableStaffWarningThresholdAction
+    , updateUnavailableStaffWarningThresholdActionFields
     ) where
 
 import Application.Helper.FrontendContract.Surface.Admin.Generated.Action (autosaveShiftTypeNameAction,
@@ -86,9 +96,13 @@ import Application.Helper.FrontendContract.Surface.Admin.Generated.Action (autos
                                                                            parseShowXeroTimesheetPreparationStaffMappingsActionParams,
                                                                            parseToggleInactiveRosterGroupsActionParams,
                                                                            parseToggleInactiveShiftTypesActionParams,
+                                                                           parseUpdateMinutePrecisionShiftTimesEnabledActionParams,
+                                                                           parseUpdateRosterEndTimesEnabledActionParams,
                                                                            parseUpdateRosterGroupActionParams,
+                                                                           parseUpdateRosterTimePickerWindowActionParams,
+                                                                           parseUpdateRosterWeekStartsOnActionParams,
                                                                            parseUpdateShiftTypeActionParams,
-                                                                           parseUpdateVenueConfigActionParams,
+                                                                           parseUpdateUnavailableStaffWarningThresholdActionParams,
                                                                            renewVenueInvitationAction,
                                                                            renewVenueInvitationActionFields,
                                                                            revokeVenueInvitationAction,
@@ -101,9 +115,15 @@ import Application.Helper.FrontendContract.Surface.Admin.Generated.Action (autos
                                                                            toggleInactiveRosterGroupsActionFields,
                                                                            toggleInactiveShiftTypesAction,
                                                                            toggleInactiveShiftTypesActionFields,
+                                                                           updateMinutePrecisionShiftTimesEnabledAction,
+                                                                           updateMinutePrecisionShiftTimesEnabledActionFields,
+                                                                           updateRosterEndTimesEnabledAction,
+                                                                           updateRosterEndTimesEnabledActionFields,
                                                                            updateRosterGroupAction,
                                                                            updateRosterGroupActionFields,
+                                                                           updateRosterTimePickerWindowAction,
+                                                                           updateRosterTimePickerWindowActionFields,
                                                                            updateShiftTypeAction,
                                                                            updateShiftTypeActionFields,
-                                                                           updateVenueConfigAction,
-                                                                           updateVenueConfigActionFields)
+                                                                           updateUnavailableStaffWarningThresholdAction,
+                                                                           updateUnavailableStaffWarningThresholdActionFields)
