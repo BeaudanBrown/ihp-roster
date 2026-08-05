@@ -1,0 +1,133 @@
+import { expect, test, type Page } from '@playwright/test';
+import {
+    defaultE2ERosterGroupId,
+    E2E_TIMEOUT,
+    gotoWhenReady,
+    loginAs,
+    openRoster,
+    runSql,
+} from './test-helpers';
+
+const managerEmail = 'e2e-admin@example.com';
+const password = 'test-password-123';
+
+function resetTemplates() {
+    runSql(`
+        TRUNCATE roster_template_shifts, roster_template_columns, roster_template_days,
+            roster_template_designs, roster_templates;
+    `);
+}
+
+async function createBlankTemplate(page: Page, name: string, scale: 'Day' | 'Week') {
+    await gotoWhenReady(page, `/NewRosterTemplate?rosterGroupId=${defaultE2ERosterGroupId}`, '#roster-template-create');
+    await page.getByRole('radio', { name: scale, exact: true }).check();
+    await page.getByLabel('Template name').fill(name);
+    await page.getByLabel(/Start from a blank design/).check();
+    await page.getByRole('button', { name: 'Continue' }).click();
+    await expect(page).toHaveURL(/ShowRosterTemplateDesigner/, { timeout: E2E_TIMEOUT.navigation });
+    await page.getByRole('button', { name: 'Save template' }).click();
+    await expect(page).toHaveURL(/NewRosterTemplate/, { timeout: E2E_TIMEOUT.navigation });
+}
+
+async function openTemplatesTab(page: Page) {
+    await page.getByRole('tab', { name: 'Templates' }).click();
+    await expect(page.getByRole('heading', { name: 'Templates', exact: true })).toBeVisible();
+}
+
+test.beforeEach(async ({ page }) => {
+    resetTemplates();
+    await loginAs(page, managerEmail, password);
+    await createBlankTemplate(page, 'Lunch service', 'Day');
+    await createBlankTemplate(page, 'Standard week', 'Week');
+    runSql(`
+        INSERT INTO roster_days (roster_week_id, day_offset)
+        SELECT roster_weeks.id, offsets.day_offset
+        FROM roster_weeks
+        CROSS JOIN generate_series(0, 6) AS offsets(day_offset)
+        WHERE roster_weeks.roster_group_id = '${defaultE2ERosterGroupId}'
+          AND roster_weeks.week_offset = 0
+          AND roster_weeks.archived_at IS NULL
+          AND NOT EXISTS (
+              SELECT 1 FROM roster_days
+              WHERE roster_days.roster_week_id = roster_weeks.id
+                AND roster_days.day_offset = offsets.day_offset
+          );
+    `);
+    await gotoWhenReady(page, '/RosterWeeks', '#roster-content');
+    await openRoster(page, { email: managerEmail, useCurrentSession: true });
+    await openTemplatesTab(page);
+});
+
+test('Day and Week cards converge on confirmation while controls and cancellation stay isolated @canonical-mobile', async ({ page }) => {
+    const dayApply = page.getByRole('button', { name: 'Apply Lunch service' });
+    await dayApply.click();
+    await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toBeHidden();
+
+    await dayApply.click();
+    await page.getByRole('tab', { name: 'Staff' }).click();
+    await openTemplatesTab(page);
+    await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toBeHidden();
+
+    await page.getByRole('button', { name: 'Delete Lunch service' }).click();
+    await expect(page.getByRole('heading', { name: 'Delete Lunch service' })).toBeVisible();
+    await expect(page.getByText('Existing rosters are unaffected')).toBeVisible();
+    await gotoWhenReady(page, '/RosterWeeks', '#roster-content');
+    await openTemplatesTab(page);
+
+    await page.getByRole('button', { name: 'Apply Lunch service' }).click();
+    const firstDayTarget = page.locator('[data-bepis-roster-template-day-target]').first();
+    const previewResponse = page.waitForResponse((response) => response.url().includes('PreviewRosterTemplateDrop'));
+    await firstDayTarget.focus();
+    await page.keyboard.press('Enter');
+    const previewHttpResponse = await previewResponse;
+    expect(previewHttpResponse.status()).toBe(200);
+    expect(await previewHttpResponse.text()).toContain('Apply Lunch service');
+    await expect(page.locator('[data-bepis-roster-template-target-input]').first()).toHaveValue(/^day:/);
+    await expect(page.getByRole('heading', { name: 'Apply Lunch service' })).toBeVisible();
+    await gotoWhenReady(page, '/RosterWeeks', '#roster-content');
+    await openTemplatesTab(page);
+
+    const weekCard = page.getByRole('button', { name: 'Apply Standard week' }).locator('..').locator('..');
+    await expect(weekCard.locator('[data-bepis-roster-template-target-input]')).toHaveValue(/^week:/);
+    const weekPreviewResponse = page.waitForResponse((response) => response.url().includes('PreviewRosterTemplateDrop'));
+    await page.getByRole('button', { name: 'Apply Standard week' }).click();
+    expect((await weekPreviewResponse).status()).toBe(200);
+    await expect(page.getByRole('heading', { name: 'Apply Standard week' })).toBeVisible();
+    await expect(page.getByText(/replace the complete viewed week/i)).toBeVisible();
+    await page.getByRole('button', { name: 'Apply template' }).click();
+    await expect(page.getByText('Template applied.')).toBeVisible();
+});
+
+test('Day template cards drag to compatible day targets', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop-chromium', 'Mouse drag is covered on desktop; touch converges through card activation.');
+    const dayCard = page.locator('[data-bepis-source-ref="day-template-drag-source"]').first();
+    const dayTarget = page.locator('[data-bepis-dropzone-ref="day-template-dropzone"]').first();
+
+    const sourceBox = await dayCard.boundingBox();
+    const targetBox = await dayTarget.boundingBox();
+    expect(sourceBox).not.toBeNull();
+    expect(targetBox).not.toBeNull();
+    await page.mouse.move(sourceBox!.x + sourceBox!.width / 2, sourceBox!.y + sourceBox!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(targetBox!.x + targetBox!.width / 2, targetBox!.y + targetBox!.height / 2, { steps: 8 });
+    await page.mouse.up();
+
+    await expect(page.getByRole('heading', { name: 'Apply Lunch service' })).toBeVisible();
+});
+
+test('template deletion passively converges in another roster viewer', async ({ page, context }) => {
+    const viewer = await context.newPage();
+    await gotoWhenReady(viewer, '/RosterWeeks', '#roster-content');
+    await openRoster(viewer, { email: managerEmail, useCurrentSession: true });
+    await openTemplatesTab(viewer);
+    await expect(viewer.getByRole('button', { name: 'Apply Lunch service' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Delete Lunch service' }).click();
+    await page.getByRole('button', { name: 'Delete template' }).click();
+
+    await expect(viewer.getByRole('button', { name: 'Apply Lunch service' })).toHaveCount(0, { timeout: E2E_TIMEOUT.navigation });
+    await viewer.close();
+});

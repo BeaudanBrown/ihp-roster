@@ -2,6 +2,9 @@ module Test.Controller.RosterWeeks.NavigationSpec where
 
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
+import Application.RosterTemplates (RosterTemplateDraft (..),
+                                    rosterTemplateActor,
+                                    saveRosterTemplateDraft)
 import Config
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy.Char8 as LByteString
@@ -23,6 +26,7 @@ import Web.Controller.RosterWeeks ()
 import Web.FrontController ()
 import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterDaySectionDomId,
                             rosterRowDomIdText, rosterStaffPanelFragmentId)
+import Web.RosterWeeks.TemplateDesigner (startBlankRosterTemplateDesignerDraft)
 import Web.Routes
 import Web.Types
 
@@ -227,6 +231,12 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-empty-create@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager Manager
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                let templateActor = rosterTemplateActor manager venue True
+                Right dayDraft <- startBlankRosterTemplateDesignerDraft templateActor rosterGroup Day "Lunch service"
+                Right _ <- saveRosterTemplateDraft templateActor dayDraft.draftDesign.id
+                Right weekDraft <- startBlankRosterTemplateDesignerDraft templateActor rosterGroup Week "Standard week"
+                Right _ <- saveRosterTemplateDraft templateActor weekDraft.draftDesign.id
                 panelStaff <- createStaffRecord venue Nothing "Alpha" "Crew"
                 _ <- fetchSlotNameRecord venue "Early"
                 _ <- createVenueRosterGroupWithDefaults venue "Back of House" 1 False
@@ -244,7 +254,24 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "btn btn-outline-secondary app-week-nav-button"
                 response `responseBodyShouldNotContain` "data-roster-week-controls=\"manager-actions\""
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"staff\""
+                response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"templates\""
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"settings\""
+                response `responseBodyShouldContain` "Day templates"
+                response `responseBodyShouldContain` "Lunch service"
+                response `responseBodyShouldContain` "Week templates"
+                response `responseBodyShouldContain` "Standard week"
+                response `responseBodyShouldContain` "data-bepis-roster-template-card=\"true\""
+                response `responseBodyShouldContain` "data-bepis-source-ref=\"day-template-drag-source\""
+                response `responseBodyShouldContain` "data-bepis-source-ref=\"week-template-drag-source\""
+                response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"day-template-dropzone\""
+                response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"week-template-dropzone\""
+                response `responseBodyShouldContain` "data-bepis-roster-template-day-target=\"true\""
+                response `responseBodyShouldContain` "data-bepis-roster-template-week-target=\"true\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"preview-roster-template-application\""
+                response `responseBodyShouldContain` "hx-post=\"/PreviewRosterTemplateDrop"
+                response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
+                response `responseBodyShouldContain` "aria-label=\"Edit Lunch service\""
+                response `responseBodyShouldContain` "aria-label=\"Delete Lunch service\""
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-root=\"true\""
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-control=\"name\""
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-control=\"role\""
@@ -286,6 +313,29 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-roster-assignment-filters\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"sort-roster-week\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"copy-roster-week\""
+
+        it "explains that templates are unavailable on live rosters and renders no application targets" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Live template target"
+                manager <- createUserRecord "live-template-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                let templateActor = rosterTemplateActor manager venue True
+                Right dayDraft <- startBlankRosterTemplateDesignerDraft templateActor rosterGroup Day "Lunch service"
+                Right _ <- saveRosterTemplateDraft templateActor dayDraft.draftDesign.id
+                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 True
+                _ <- forM [0 .. 6] (createRosterDayRecord rosterWeek)
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Templates cannot be applied to a live roster"
+                response `responseBodyShouldContain` "aria-label=\"Apply Lunch service\""
+                response `responseBodyShouldContain` "disabled=\"disabled\""
+                response `responseBodyShouldNotContain` "data-bepis-source-ref=\"day-template-drag-source\""
+                response `responseBodyShouldNotContain` "data-bepis-dropzone-ref=\"day-template-dropzone\""
+                response `responseBodyShouldNotContain` "data-bepis-dropzone-ref=\"week-template-dropzone\""
 
         it "keeps staff requiring pay remediation visible and editable in the roster staff panel" $ withContext do
             withCleanDb do

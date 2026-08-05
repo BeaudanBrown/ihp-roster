@@ -8,12 +8,15 @@ module Web.RosterWeeks.TemplateApplication
     , RosterTemplateApplicationResult (..)
     , RosterTemplateApplicationWarning (..)
     , applyRosterTemplateApplication
+    , applyRosterTemplateApplicationMutation
     , previewRosterTemplateApplication
     ) where
 
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)
 import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
+import Application.Helper.SurfaceResource (LiveMutationResult,
+                                           liveMutationResult)
 import Application.Helper.WeekBoundaries (venueWeekStartDate)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           applyRosterShiftAssignment)
@@ -34,6 +37,7 @@ import IHP.ControllerPrelude
 import Web.RosterWeeks.Service (validateRosterSlotForPersistence)
 import Web.RosterWeeks.TemplateApplication.Persistence (applyPreparedApplication)
 import Web.RosterWeeks.TemplateApplication.Types
+import Web.SurfaceInvalidation (invalidateTouchedResources)
 
 previewRosterTemplateApplication ::
     (?modelContext :: ModelContext) =>
@@ -43,6 +47,17 @@ previewRosterTemplateApplication ::
 previewRosterTemplateApplication actor request = do
     prepared <- prepareRosterTemplateApplication actor request
     pure (toPreview <$> prepared)
+
+applyRosterTemplateApplicationMutation ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    RosterTemplateActor ->
+    RosterTemplateApplicationRequest ->
+    Int ->
+    Text ->
+    IO (Either RosterTemplateApplicationError (LiveMutationResult RosterTemplateApplicationResult))
+applyRosterTemplateApplicationMutation actor request expectedVersion expectedTargetRevision = do
+    applied <- applyRosterTemplateApplication actor request expectedVersion expectedTargetRevision
+    traverse (invalidateTouchedResources "roster.template.apply" . \result -> liveMutationResult result result.appliedTouchedResources) applied
 
 applyRosterTemplateApplication ::
     (?modelContext :: ModelContext) =>

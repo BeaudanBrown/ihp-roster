@@ -125,9 +125,49 @@
   var pageReadyEvent = "bepis:page-ready";
   var liveFragmentsRefreshEvent = "bepis:live-fragments-refresh";
   var surfaceDomAttr = "data-bepis-surface";
+  var surfaceFamilyDomAttr = "data-bepis-surface-family";
+  var sessionDisabledDomAttr = "data-bepis-session-disabled";
+  var sessionReadOnlyDomAttr = "data-bepis-session-read-only";
+  var sessionThresholdDomAttr = "data-bepis-session-threshold";
+  var sessionTimeoutMsDomAttr = "data-bepis-session-timeout-ms";
+  var interactionActiveDomAttr = "data-bepis-interaction-active";
+  var disposableLayerDomAttr = "data-bepis-disposable-layer";
+  var conflictPoliciesDomAttr = "data-bepis-conflict-policies";
+  var intentFormDomAttr = "data-bepis-intent-form";
+  var intentDomAttr = "data-bepis-intent";
+  var intentFieldDomAttr = "data-bepis-intent-field";
+  var fieldPresenceDomAttr = "data-bepis-field-presence";
+  var sourceRefDomAttr = "data-bepis-source-ref";
+  var sourceKeyDomAttr = "data-bepis-source-key";
+  var dropzoneRefDomAttr = "data-bepis-dropzone-ref";
+  var dropzoneKeyDomAttr = "data-bepis-dropzone-key";
+  var activationRefDomAttr = "data-bepis-activation-ref";
+  var activeSourceRefDomAttr = "data-bepis-active-source-ref";
+  var enabledDomValue = "true";
+  var sessionKindFieldName = "sessionKind";
+  var pointerIdFieldName = "pointerId";
+  var pointerTypeFieldName = "pointerType";
+  var startClientXFieldName = "startClientX";
+  var startClientYFieldName = "startClientY";
+  var currentClientXFieldName = "currentClientX";
+  var currentClientYFieldName = "currentClientY";
+  var deltaXFieldName = "deltaX";
+  var deltaYFieldName = "deltaY";
+  var InteractionDom = {
+    attributes: { surface: surfaceDomAttr, surfaceFamily: surfaceFamilyDomAttr, sessionDisabled: sessionDisabledDomAttr, sessionReadOnly: sessionReadOnlyDomAttr, sessionThreshold: sessionThresholdDomAttr, sessionTimeoutMs: sessionTimeoutMsDomAttr, interactionActive: interactionActiveDomAttr, disposableLayer: disposableLayerDomAttr, conflictPolicies: conflictPoliciesDomAttr, intentForm: intentFormDomAttr, intent: intentDomAttr, intentField: intentFieldDomAttr, fieldPresence: fieldPresenceDomAttr, sourceRef: sourceRefDomAttr, sourceKey: sourceKeyDomAttr, dropzoneRef: dropzoneRefDomAttr, dropzoneKey: dropzoneKeyDomAttr, activationRef: activationRefDomAttr, activeSourceRef: activeSourceRefDomAttr },
+    values: { enabled: enabledDomValue },
+    pointerFields: { sessionKind: sessionKindFieldName, pointerId: pointerIdFieldName, pointerType: pointerTypeFieldName, startClientX: startClientXFieldName, startClientY: startClientYFieldName, currentClientX: currentClientXFieldName, currentClientY: currentClientYFieldName, deltaX: deltaXFieldName, deltaY: deltaYFieldName }
+  };
   var surfaceConfigDomAttr = "data-bepis-surface-config";
   function isTimesheetsTimesheetWeekScope(value) {
     return isRecord(value) && hasExactKeys(value, ["venueId", "weekOffset"], ["venueId", "weekOffset"]) && typeof value["venueId"] === "string" && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
+  }
+  function isTemplateApplicationCardConfig(value) {
+    return isRecord(value) && hasExactKeys(value, ["templateId", "templateName", "templateScale"], ["templateId", "templateName", "templateScale"]) && typeof value["templateId"] === "string" && typeof value["templateName"] === "string" && typeof value["templateScale"] === "string";
+  }
+  function parseTemplateApplicationCardConfig(value) {
+    if (isTemplateApplicationCardConfig(value)) return value;
+    throw new Error("Invalid TemplateApplicationCardConfig");
   }
   function isRosterStaffPanelSortRow(value) {
     return isRecord(value) && hasExactKeys(value, ["staffRowKey", "staffName", "staffRole", "assignedShifts", "idealShifts"], ["staffRowKey", "staffName", "staffRole", "assignedShifts", "idealShifts"]) && typeof value["staffRowKey"] === "string" && typeof value["staffName"] === "string" && typeof value["staffRole"] === "string" && (typeof value["assignedShifts"] === "number" && Number.isInteger(value["assignedShifts"])) && (typeof value["idealShifts"] === "number" && Number.isInteger(value["idealShifts"]));
@@ -225,6 +265,13 @@
   function isAdminXeroAdminXeroScopeScope(value) {
     return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
   }
+  var rosterTemplateCardDomAttr = "data-bepis-roster-template-card";
+  var rosterTemplateCardConfigDomAttr = "data-bepis-roster-template-card-config";
+  var rosterTemplateApplicationFormDomAttr = "data-bepis-roster-template-application-form";
+  var rosterTemplateTargetInputDomAttr = "data-bepis-roster-template-target-input";
+  var rosterTemplateCancelDomAttr = "data-bepis-roster-template-cancel";
+  var rosterTemplateDayTargetDomAttr = "data-bepis-roster-template-day-target";
+  var rosterTemplateWeekTargetDomAttr = "data-bepis-roster-template-week-target";
   var rosterStaffPanelSortRootDomAttr = "data-bepis-roster-staff-panel-sort-root";
   var rosterStaffPanelSortRowDomAttr = "data-bepis-roster-staff-panel-sort-row";
   var rosterStaffPanelSortControlDomAttr = "data-bepis-roster-staff-panel-sort-control";
@@ -294,12 +341,12 @@
     return typeof value === "string" && ["name", "role", "shifts"].includes(value);
   }
   function isRosterStaffPanelTabsKey(value) {
-    return typeof value === "string" && ["staff", "settings"].includes(value);
+    return typeof value === "string" && ["staff", "templates", "settings"].includes(value);
   }
   var FrontendSurfaceLinkedHighlightRegistry = { "timesheets": [], "roster": [{ "name": "staff-shifts-highlight", "sourceRoleAttribute": rosterStaffHighlightSourceDomAttr, "memberRoleAttribute": rosterStaffHighlightMemberDomAttr, "pinRoleAttribute": rosterStaffHighlightPinDomAttr, "orderStateAttribute": rosterStaffHighlightOrderDomAttr, "activations": ["hover", "focus", "keyboard", "pin"], "effects": ["matching-source", "matching-member", "ordered-member-bounds"] }, { "name": "shift-group-highlight", "sourceRoleAttribute": rosterShiftGroupHighlightSourceDomAttr, "memberRoleAttribute": rosterShiftGroupHighlightMemberDomAttr, "pinRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard"], "effects": ["matching-member"] }], "roster-day-timeline": [{ "name": "shift-group-highlight", "sourceRoleAttribute": rosterDayTimelineShiftGroupHighlightSourceDomAttr, "memberRoleAttribute": rosterDayTimelineShiftGroupHighlightMemberDomAttr, "pinRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard"], "effects": ["matching-member"] }], "roster-template-designer": [], "leave-requests": [], "self-service-leave": [], "billing": [], "support": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
   var FrontendSurfaceCompleteSetSortRegistry = { "timesheets": [], "roster": [{ "name": "roster-staff-panel-sort", "rootRoleAttribute": rosterStaffPanelSortRootDomAttr, "rowRoleAttribute": rosterStaffPanelSortRowDomAttr, "controlRoleAttribute": rosterStaffPanelSortControlDomAttr, "parseRow": parseRosterStaffPanelSortRow, "isKey": isRosterStaffPanelSortKey, "keys": [{ "key": "name", "comparators": [{ "field": "staffName", "valueType": "text", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }, { "key": "role", "comparators": [{ "field": "staffRole", "valueType": "text", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).staffRole }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }, { "key": "shifts", "comparators": [{ "field": "assignedShifts", "valueType": "integer", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).assignedShifts }, { "field": "idealShifts", "valueType": "integer", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).idealShifts }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }], "defaultKey": "name", "defaultDirection": "ascending" }], "roster-day-timeline": [], "roster-template-designer": [], "leave-requests": [], "self-service-leave": [], "billing": [], "support": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
-  var FrontendSurfaceTabSetRegistry = { "timesheets": [], "roster": [{ "name": "roster-staff-panel-tabs", "tabRoleAttribute": rosterStaffPanelTabDomAttr, "keys": ["staff", "settings"], "defaultKey": "staff", "isKey": isRosterStaffPanelTabsKey }], "roster-day-timeline": [], "roster-template-designer": [], "leave-requests": [], "self-service-leave": [], "billing": [], "support": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
-  var FrontendSurfaceFragmentRegistry = { "timesheets": ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"], "roster": ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-day-section", "roster-row"], "roster-day-timeline": ["roster-day-timeline-content"], "roster-template-designer": [], "leave-requests": ["unavailability-blackouts", "leave-availability-warnings", "leave-section-count", "leave-section-list"], "self-service-leave": ["self-service-leave-form", "visible-unavailability-blackouts", "self-service-leave-history"], "billing": ["billing-status"], "support": ["support-award-rates", "support-public-holidays"], "profile": ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"], "staff": ["staff-details-section", "staff-preferences-section", "staff-visible-unavailability-blackouts", "staff-leave-section"], "admin-page": [], "admin-xero-page": [], "admin-venue-config": ["admin-venue-settings"], "admin-invites": ["admin-invites"], "admin-exports": ["admin-exports"], "admin-shift-types": ["admin-shift-types"], "admin-roster-groups": ["admin-roster-groups"], "admin-xero": ["admin-xero-shell"] };
+  var FrontendSurfaceTabSetRegistry = { "timesheets": [], "roster": [{ "name": "roster-staff-panel-tabs", "tabRoleAttribute": rosterStaffPanelTabDomAttr, "keys": ["staff", "templates", "settings"], "defaultKey": "staff", "isKey": isRosterStaffPanelTabsKey }], "roster-day-timeline": [], "roster-template-designer": [], "leave-requests": [], "self-service-leave": [], "billing": [], "support": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
+  var FrontendSurfaceFragmentRegistry = { "timesheets": ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"], "roster": ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-template-library", "roster-day-section", "roster-row"], "roster-day-timeline": ["roster-day-timeline-content"], "roster-template-designer": [], "leave-requests": ["unavailability-blackouts", "leave-availability-warnings", "leave-section-count", "leave-section-list"], "self-service-leave": ["self-service-leave-form", "visible-unavailability-blackouts", "self-service-leave-history"], "billing": ["billing-status"], "support": ["support-award-rates", "support-public-holidays"], "profile": ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"], "staff": ["staff-details-section", "staff-preferences-section", "staff-visible-unavailability-blackouts", "staff-leave-section"], "admin-page": [], "admin-xero-page": [], "admin-venue-config": ["admin-venue-settings"], "admin-invites": ["admin-invites"], "admin-exports": ["admin-exports"], "admin-shift-types": ["admin-shift-types"], "admin-roster-groups": ["admin-roster-groups"], "admin-xero": ["admin-xero-shell"] };
   function isFrontendSurfaceName(value) {
     return typeof value === "string" && Object.prototype.hasOwnProperty.call(FrontendSurfaceFragmentRegistry, value);
   }
@@ -490,12 +537,12 @@
       report(diagnostic(editor, "invalid-editor-role", "Roster column editor role must equal true"));
       return null;
     }
-    const state = editor.getAttribute(rosterColumnEditingDomAttr);
-    if (!isRosterColumnEditingState(state)) {
+    const state2 = editor.getAttribute(rosterColumnEditingDomAttr);
+    if (!isRosterColumnEditingState(state2)) {
       report(diagnostic(editor, "invalid-state", "Roster column-editing state is not declared by the Surface contract"));
       return null;
     }
-    return state;
+    return state2;
   }
   function createRosterColumnEditController(report = defaultDiagnosticReporter, scheduler = defaultScheduler()) {
     const pendingFinishTimers = /* @__PURE__ */ new Map();
@@ -506,9 +553,9 @@
       pendingFinishTimers.delete(editor);
     }
     function reconcile(editor) {
-      const state = stateFor(editor, report);
-      if (!state) return false;
-      const active = state === rosterColumnEditingStates.active;
+      const state2 = stateFor(editor, report);
+      if (!state2) return false;
+      const active = state2 === rosterColumnEditingStates.active;
       const starts = ownedControls(editor, startSelector);
       const doneControls = ownedControls(editor, doneSelector);
       const invalidStarts = starts.filter((start2) => start2.getAttribute(rosterColumnEditStartDomAttr) !== "true");
@@ -523,10 +570,10 @@
       starts.forEach((start2) => start2.setAttribute("aria-pressed", active ? "true" : "false"));
       return true;
     }
-    function setState(editor, state) {
+    function setState(editor, state2) {
       if (!stateFor(editor, report)) return false;
       clearPendingFinish(editor);
-      editor.setAttribute(rosterColumnEditingDomAttr, state);
+      editor.setAttribute(rosterColumnEditingDomAttr, state2);
       return reconcile(editor);
     }
     function start(target) {
@@ -623,12 +670,12 @@
       report(diagnostic2(root, "invalid-root-role", "Roster fullscreen root role must equal true"));
       return null;
     }
-    const state = root.getAttribute(rosterFullscreenDomAttr);
-    if (!isRosterFullscreenState(state)) {
+    const state2 = root.getAttribute(rosterFullscreenDomAttr);
+    if (!isRosterFullscreenState(state2)) {
       report(diagnostic2(root, "invalid-state", "Roster fullscreen state is not declared by the Surface contract"));
       return null;
     }
-    return state;
+    return state2;
   }
   function validateToggle(toggle, report) {
     if (toggle.getAttribute(rosterFullscreenToggleDomAttr) !== "true") {
@@ -642,8 +689,8 @@
     }
     return { toggle, label: labels[0] };
   }
-  function updateToggle(validated, state) {
-    const expanded = state === rosterFullscreenStates.expanded;
+  function updateToggle(validated, state2) {
+    const expanded = state2 === rosterFullscreenStates.expanded;
     const labels = rosterFullscreenLabels(expanded);
     validated.toggle.setAttribute("aria-pressed", labels.pressed);
     validated.toggle.setAttribute("aria-label", labels.label);
@@ -662,19 +709,19 @@
       return validated.some((toggle2) => toggle2 === null) ? null : validated;
     }
     function reconcile(root) {
-      const state = stateFor2(root, report);
+      const state2 = stateFor2(root, report);
       const toggles = validatedToggles(root);
-      if (!state || !toggles) return false;
-      toggles.forEach((toggle2) => updateToggle(toggle2, state));
+      if (!state2 || !toggles) return false;
+      toggles.forEach((toggle2) => updateToggle(toggle2, state2));
       return true;
     }
-    function setState(root, state, focusToggle) {
+    function setState(root, state2, focusToggle) {
       if (!stateFor2(root, report)) return false;
       const toggles = validatedToggles(root);
       if (!toggles) return false;
-      root.setAttribute(rosterFullscreenDomAttr, state);
-      toggles.forEach((toggle2) => updateToggle(toggle2, state));
-      if (state === rosterFullscreenStates.expanded && focusToggle) {
+      root.setAttribute(rosterFullscreenDomAttr, state2);
+      toggles.forEach((toggle2) => updateToggle(toggle2, state2));
+      if (state2 === rosterFullscreenStates.expanded && focusToggle) {
         const focus = focusToggle.focus;
         if (typeof focus === "function") focus.call(focusToggle, { preventScroll: true });
       }
@@ -685,9 +732,9 @@
       if (!toggleElement || !validateToggle(toggleElement, report)) return false;
       const root = closestRoot(toggleElement);
       if (!root) return false;
-      const state = stateFor2(root, report);
-      if (!state) return false;
-      const nextState = state === rosterFullscreenStates.expanded ? rosterFullscreenStates.collapsed : rosterFullscreenStates.expanded;
+      const state2 = stateFor2(root, report);
+      if (!state2) return false;
+      const nextState = state2 === rosterFullscreenStates.expanded ? rosterFullscreenStates.collapsed : rosterFullscreenStates.expanded;
       return setState(root, nextState, toggleElement);
     }
     function collapse(root) {
@@ -747,12 +794,12 @@
         mountStates = /* @__PURE__ */ new Map();
         statesByMount.set(mount, mountStates);
       }
-      let state = mountStates.get(definition.name);
-      if (!state) {
-        state = { hoverKey: null, focusKey: null, pinnedKey: null };
-        mountStates.set(definition.name, state);
+      let state2 = mountStates.get(definition.name);
+      if (!state2) {
+        state2 = { hoverKey: null, focusKey: null, pinnedKey: null };
+        mountStates.set(definition.name, state2);
       }
-      return state;
+      return state2;
     }
     function pointerEntered(target, relatedTarget) {
       const context = sourceContext(target);
@@ -765,8 +812,8 @@
       const context = sourceContext(target);
       if (!context || !context.definition.activations.includes("hover")) return;
       if (relatedSourceMatches(context, relatedTarget)) return;
-      const state = stateFor3(context.mount, context.definition);
-      if (state.hoverKey === context.membershipKey) state.hoverKey = null;
+      const state2 = stateFor3(context.mount, context.definition);
+      if (state2.hoverKey === context.membershipKey) state2.hoverKey = null;
       refreshMount(context.mount);
     }
     function focusEntered(target) {
@@ -779,26 +826,26 @@
       const context = sourceContext(target);
       if (!context || !context.definition.activations.includes("focus")) return;
       if (relatedSourceMatches(context, relatedTarget)) return;
-      const state = stateFor3(context.mount, context.definition);
-      if (state.focusKey === context.membershipKey) state.focusKey = null;
+      const state2 = stateFor3(context.mount, context.definition);
+      if (state2.focusKey === context.membershipKey) state2.focusKey = null;
       refreshMount(context.mount);
     }
     function togglePin(target) {
       const context = pinContext(target);
       if (!context || !context.definition.activations.includes("pin")) return false;
-      const state = stateFor3(context.mount, context.definition);
-      if (state.pinnedKey === context.membershipKey) {
-        state.pinnedKey = null;
-        state.hoverKey = null;
-        state.focusKey = null;
+      const state2 = stateFor3(context.mount, context.definition);
+      if (state2.pinnedKey === context.membershipKey) {
+        state2.pinnedKey = null;
+        state2.hoverKey = null;
+        state2.focusKey = null;
       } else {
-        state.pinnedKey = context.membershipKey;
+        state2.pinnedKey = context.membershipKey;
       }
       refreshMount(context.mount);
       options.onPinChange?.({
         mount: context.mount,
         pinRoleAttribute: context.definition.pinRoleAttribute ?? "",
-        pinnedKey: state.pinnedKey
+        pinnedKey: state2.pinnedKey
       });
       return true;
     }
@@ -816,9 +863,9 @@
       if (isElementLike(root) && root.getAttribute(surfaceDomAttr) !== null) mounts.unshift(root);
       for (const mount of mounts) {
         for (const definition of definitionsForMount(mount)) {
-          const state = stateFor3(mount, definition);
-          if (state.pinnedKey && !sourceExists(mount, definition, state.pinnedKey)) {
-            state.pinnedKey = null;
+          const state2 = stateFor3(mount, definition);
+          if (state2.pinnedKey && !sourceExists(mount, definition, state2.pinnedKey)) {
+            state2.pinnedKey = null;
             if (definition.pinRoleAttribute) {
               options.onPinChange?.({
                 mount,
@@ -827,8 +874,8 @@
               });
             }
           }
-          if (state.hoverKey && !sourceExists(mount, definition, state.hoverKey)) state.hoverKey = null;
-          if (state.focusKey && !sourceExists(mount, definition, state.focusKey)) state.focusKey = null;
+          if (state2.hoverKey && !sourceExists(mount, definition, state2.hoverKey)) state2.hoverKey = null;
+          if (state2.focusKey && !sourceExists(mount, definition, state2.focusKey)) state2.focusKey = null;
         }
         refreshMount(mount);
       }
@@ -837,10 +884,10 @@
       const definitions = definitionsForMount(mount);
       clearEffectClasses(mount);
       for (const definition of definitions) {
-        const state = stateFor3(mount, definition);
-        const activeKey = state.pinnedKey ?? state.focusKey ?? state.hoverKey;
+        const state2 = stateFor3(mount, definition);
+        const activeKey = state2.pinnedKey ?? state2.focusKey ?? state2.hoverKey;
         if (activeKey) applyEffects(mount, definition, activeKey);
-        syncPinControls(mount, definition, state.pinnedKey);
+        syncPinControls(mount, definition, state2.pinnedKey);
       }
     }
     return {
@@ -1407,12 +1454,12 @@
         rootStates = /* @__PURE__ */ new Map();
         statesByRoot.set(root, rootStates);
       }
-      let state = rootStates.get(definition.name);
-      if (!state) {
-        state = { key: definition.defaultKey, direction: definition.defaultDirection };
-        rootStates.set(definition.name, state);
+      let state2 = rootStates.get(definition.name);
+      if (!state2) {
+        state2 = { key: definition.defaultKey, direction: definition.defaultDirection };
+        rootStates.set(definition.name, state2);
       }
-      return state;
+      return state2;
     }
     function reconcile(root) {
       for (const mount of surfaceMountsWithin(root)) {
@@ -1422,8 +1469,8 @@
               report(diagnostic4(sortRoot, "invalid-root-role", "Complete-set sort root role must equal true"));
               continue;
             }
-            const state = stateFor3(sortRoot, definition);
-            applySort({ mount, root: sortRoot, definition }, state);
+            const state2 = stateFor3(sortRoot, definition);
+            applySort({ mount, root: sortRoot, definition }, state2);
           }
         }
       }
@@ -1455,8 +1502,8 @@
       }
       return false;
     }
-    function applySort(context, state) {
-      const key = context.definition.keys.find((candidate) => candidate.key === state.key);
+    function applySort(context, state2) {
+      const key = context.definition.keys.find((candidate) => candidate.key === state2.key);
       if (!key) {
         report(diagnostic4(context.root, "missing-default-key", "Complete-set sort definition has no matching active key"));
         return false;
@@ -1482,7 +1529,7 @@
         return false;
       }
       try {
-        rows.sort((left, right) => compareRows(left.value, right.value, key.comparators, state.direction));
+        rows.sort((left, right) => compareRows(left.value, right.value, key.comparators, state2.direction));
       } catch (error) {
         report(diagnostic4(
           context.root,
@@ -1492,7 +1539,7 @@
         return false;
       }
       if (rowParent) rows.forEach((row) => rowParent.appendChild(row.element));
-      syncControlStates(context, state);
+      syncControlStates(context, state2);
       return true;
     }
     return { activate, reconcile };
@@ -1551,11 +1598,11 @@
         return assertNever(direction);
     }
   }
-  function syncControlStates(context, state) {
+  function syncControlStates(context, state2) {
     for (const control of ownedSurfaceRoleElements(context.root, context.mount, context.definition.controlRoleAttribute)) {
       const rawKey = control.getAttribute(context.definition.controlRoleAttribute);
-      const isActive = context.definition.isKey(rawKey) && rawKey === state.key;
-      const ariaSort = isActive ? state.direction : "none";
+      const isActive = context.definition.isKey(rawKey) && rawKey === state2.key;
+      const ariaSort = isActive ? state2.direction : "none";
       control.setAttribute("aria-sort", ariaSort);
       const header = control.closest("th");
       if (isSurfaceElementLike(header) && closestSurfaceRole(header, context.definition.rootRoleAttribute) === context.root) {
@@ -2015,6 +2062,168 @@
     return false;
   }
 
+  // frontend/ts/roster/template-application-selection.ts
+  var idle = { kind: "idle" };
+  function reduceTemplateApplicationSelection(state2, event) {
+    switch (event.kind) {
+      case "isolated-control":
+        return state2;
+      case "escape":
+      case "cancel":
+      case "invalid-area":
+        return idle;
+      case "activate-day":
+        return state2.kind === "selecting-day" ? { kind: "commit", templateId: state2.templateId, targetKey: event.targetKey } : state2;
+      case "activate-card":
+        if (state2.kind === "selecting-day" && state2.templateId === event.templateId) return idle;
+        if (event.scale === "week") {
+          return { kind: "commit", templateId: event.templateId, targetKey: event.weekTargetKey };
+        }
+        return { kind: "selecting-day", templateId: event.templateId };
+      default:
+        return assertNever2(event);
+    }
+  }
+  function assertNever2(value) {
+    throw new Error(`Unhandled template application event: ${String(value)}`);
+  }
+
+  // frontend/ts/roster/template-application.ts
+  var selectingClass = "is-template-day-targeting";
+  var selectedCardClass = "is-template-card-selected";
+  var cardSelector = `[${rosterTemplateCardDomAttr}]`;
+  var cardConfigSelector = `[${rosterTemplateCardConfigDomAttr}]`;
+  var dayTargetSelector = `[${rosterTemplateDayTargetDomAttr}]`;
+  var weekTargetSelector = `[${rosterTemplateWeekTargetDomAttr}]`;
+  var cancelSelector = `[${rosterTemplateCancelDomAttr}]`;
+  var formSelector = `[${rosterTemplateApplicationFormDomAttr}]`;
+  var targetInputSelector = `[${rosterTemplateTargetInputDomAttr}]`;
+  var rosterMountSelector = `[${InteractionDom.attributes.surface}="roster"]`;
+  var state = { kind: "idle" };
+  var activeMount = null;
+  var activeCard = null;
+  function enableRosterTemplateApplication() {
+    if (typeof document === "undefined") return () => void 0;
+    const click = (event) => handleClick(event);
+    const keydown = (event) => {
+      if (state.kind !== "selecting-day") return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        transition({ kind: "escape" });
+        return;
+      }
+      if (event.key !== "Enter" && event.key !== " " && event.key !== "Spacebar") return;
+      const target = event.target instanceof Element ? event.target.closest(dayTargetSelector) : null;
+      const targetKey = target?.getAttribute(InteractionDom.attributes.dropzoneKey);
+      if (!target || !targetKey || !activeMount?.contains(target)) return;
+      event.preventDefault();
+      transition({ kind: "activate-day", targetKey });
+    };
+    const cleanup = (event) => {
+      if (activeMount && event.target instanceof Node && (event.target === activeMount || event.target.contains(activeMount))) {
+        resetPresentation();
+      }
+    };
+    document.addEventListener("click", click, true);
+    document.addEventListener("keydown", keydown);
+    document.addEventListener("htmx:beforeCleanupElement", cleanup);
+    return () => {
+      document.removeEventListener("click", click, true);
+      document.removeEventListener("keydown", keydown);
+      document.removeEventListener("htmx:beforeCleanupElement", cleanup);
+      resetPresentation();
+    };
+  }
+  function handleClick(event) {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest(cancelSelector)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      transition({ kind: "cancel" });
+      return;
+    }
+    if (target.closest(".roster-template-card-actions")) return;
+    const card = target.closest(cardSelector);
+    if (card && target.closest(".roster-template-card-apply")) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      activateCard(card);
+      return;
+    }
+    if (state.kind !== "selecting-day") return;
+    const dayTarget = target.closest(dayTargetSelector);
+    if (dayTarget && activeMount?.contains(dayTarget)) {
+      const targetKey = dayTarget.getAttribute(InteractionDom.attributes.dropzoneKey);
+      if (targetKey) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        transition({ kind: "activate-day", targetKey });
+        return;
+      }
+    }
+    if (activeMount?.contains(target)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      transition({ kind: "invalid-area" });
+    }
+  }
+  function activateCard(card) {
+    const configOwner = card.matches(cardConfigSelector) ? card : card.querySelector(cardConfigSelector);
+    if (!configOwner) return;
+    let config;
+    try {
+      config = parseTemplateApplicationCardConfig(JSON.parse(configOwner.getAttribute(rosterTemplateCardConfigDomAttr) ?? ""));
+    } catch {
+      return;
+    }
+    const mount = card.closest(rosterMountSelector);
+    if (!mount) return;
+    activeMount = mount;
+    activeCard = card;
+    if (config.templateScale === "week") {
+      const weekTarget = mount.querySelector(weekTargetSelector);
+      const weekTargetKey = weekTarget?.getAttribute(InteractionDom.attributes.dropzoneKey);
+      if (!weekTargetKey) return resetPresentation();
+      transition({ kind: "activate-card", templateId: config.templateId, scale: "week", weekTargetKey });
+      return;
+    }
+    if (config.templateScale !== "day") return resetPresentation();
+    transition({ kind: "activate-card", templateId: config.templateId, scale: "day" });
+  }
+  function transition(event) {
+    const next = reduceTemplateApplicationSelection(state, event);
+    state = next;
+    if (next.kind === "commit") {
+      const card = activeCard;
+      const form = card?.querySelector(formSelector);
+      const targetInput = form?.querySelector(targetInputSelector);
+      if (form instanceof HTMLFormElement && targetInput instanceof HTMLInputElement) {
+        targetInput.value = next.targetKey;
+        form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      }
+      resetPresentation();
+      return;
+    }
+    renderPresentation();
+  }
+  function renderPresentation() {
+    const selecting = state.kind === "selecting-day";
+    activeMount?.classList.toggle(selectingClass, selecting);
+    activeCard?.classList.toggle(selectedCardClass, selecting);
+    activeMount?.querySelectorAll(cancelSelector).forEach((button) => {
+      if (button instanceof HTMLElement) button.hidden = !selecting;
+    });
+    if (!selecting) {
+      activeMount = null;
+      activeCard = null;
+    }
+  }
+  function resetPresentation() {
+    state = { kind: "idle" };
+    renderPresentation();
+  }
+
   // frontend/ts/app-roster.ts
   enableRosterWeekOverview();
   enableRosterFullscreenToggle();
@@ -2022,6 +2231,7 @@
   enableRosterImageExport();
   enableFrontendSurfaceCompleteSetSort();
   enableFrontendSurfaceTabSets();
+  enableRosterTemplateApplication();
   var rosterWageFilter = enableRosterWageFilter();
   enableFrontendSurfaceLinkedHighlight({ onPinChange: rosterWageFilter.pinChanged });
 })();

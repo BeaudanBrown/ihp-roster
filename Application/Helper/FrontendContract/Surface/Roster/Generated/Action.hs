@@ -6,6 +6,8 @@
 module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     ( addRosterRowAction
     , addRosterRowActionFields
+    , applyRosterTemplateApplicationAction
+    , applyRosterTemplateApplicationActionFields
     , copyRosterWeekAction
     , copyRosterWeekActionFields
     , createRosterWeekSlotDefinitionAction
@@ -14,13 +16,17 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , deleteRosterWeekSlotDefinitionActionFields
     , navigateRosterWeekAction
     , navigateRosterWeekActionFields
+    , parseApplyRosterTemplateApplicationActionParams
     , parseCopyRosterWeekActionParams
     , parseNavigateRosterWeekActionParams
+    , parsePreviewRosterTemplateApplicationActionParams
     , parseToggleRosterAssignmentFiltersActionParams
     , parseToggleRosterStaffScopeActionParams
     , parseToggleRosterWageEstimatesActionParams
     , parseToggleRosterWarningsActionParams
     , parseToggleRosterWeekLiveStatusActionParams
+    , previewRosterTemplateApplicationAction
+    , previewRosterTemplateApplicationActionFields
     , removeRosterRowAction
     , removeRosterRowActionFields
     , sortRosterWeekAction
@@ -40,12 +46,13 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     ) where
 
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association (AdapterFamilySurface)
+import qualified Application.Helper.FrontendContract.Surface.Interaction as Types1
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
                                                             parseSurfaceActionParams)
 import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction,
                                                                     frontendSurfaceAction)
-import qualified Application.Helper.FrontendContract.Surface.Roster as Types1
-import qualified Application.Helper.FrontendContract.Surface.Roster.HaskellAdapter as Types2
+import qualified Application.Helper.FrontendContract.Surface.Roster as Types2
+import qualified Application.Helper.FrontendContract.Surface.Roster.HaskellAdapter as Types3
 import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFields,
                                                            noSurfaceActionFields,
                                                            noSurfaceFields,
@@ -57,229 +64,301 @@ import qualified Data.UUID as UUID
 import IHP.Prelude
 import Network.Wai (Request)
 
-addRosterRowActionFields :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.AddRosterRow
+addRosterRowActionFields :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.AddRosterRow
 addRosterRowActionFields =
     noSurfaceActionFields
 
-addRosterRowAction :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.AddRosterRow -> FrontendSurfaceAction
+addRosterRowAction :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.AddRosterRow -> FrontendSurfaceAction
 addRosterRowAction =
     frontendSurfaceAction
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.AddRosterRow
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.AddRosterRow
+
+applyRosterTemplateApplicationActionFields ::
+    UUID.UUID ->
+    Text ->
+    Int ->
+    Text ->
+    SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ApplyRosterTemplateApplication
+applyRosterTemplateApplicationActionFields templateId targetDropzoneKey expectedTemplateVersion expectedTargetRevision =
+    surfaceActionFields
+        (surfaceField @Types2.TemplateId templateId)
+        ( surfaceField @Types1.TargetDropzoneKey targetDropzoneKey
+            &: surfaceField @Types2.ExpectedTemplateVersion expectedTemplateVersion
+            &: surfaceField @Types2.ExpectedTargetRevision expectedTargetRevision
+            &: noSurfaceFields
+        )
+
+applyRosterTemplateApplicationAction :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ApplyRosterTemplateApplication -> FrontendSurfaceAction
+applyRosterTemplateApplicationAction =
+    frontendSurfaceAction
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.ApplyRosterTemplateApplication
+
+parseApplyRosterTemplateApplicationActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ApplyRosterTemplateApplication)
+parseApplyRosterTemplateApplicationActionParams =
+    parseSurfaceActionParams
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.ApplyRosterTemplateApplication
 
 copyRosterWeekActionFields ::
     Maybe Text ->
     Maybe Text ->
-    SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.CopyRosterWeek
+    SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.CopyRosterWeek
 copyRosterWeekActionFields copyStartOccurrence copyEndOccurrence =
     surfaceActionFields
-        (surfaceOptionalField @Types1.CopyStartOccurrence copyStartOccurrence)
-        ( surfaceOptionalField @Types1.CopyEndOccurrence copyEndOccurrence
+        (surfaceOptionalField @Types2.CopyStartOccurrence copyStartOccurrence)
+        ( surfaceOptionalField @Types2.CopyEndOccurrence copyEndOccurrence
             &: noSurfaceFields
         )
 
-copyRosterWeekAction :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.CopyRosterWeek -> FrontendSurfaceAction
+copyRosterWeekAction :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.CopyRosterWeek -> FrontendSurfaceAction
 copyRosterWeekAction =
     frontendSurfaceAction
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.CopyRosterWeek
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.CopyRosterWeek
 
 parseCopyRosterWeekActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.CopyRosterWeek)
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.CopyRosterWeek)
 parseCopyRosterWeekActionParams =
     parseSurfaceActionParams
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.CopyRosterWeek
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.CopyRosterWeek
 
-createRosterWeekSlotDefinitionActionFields :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.CreateRosterWeekSlotDefinition
+createRosterWeekSlotDefinitionActionFields :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.CreateRosterWeekSlotDefinition
 createRosterWeekSlotDefinitionActionFields =
     noSurfaceActionFields
 
-createRosterWeekSlotDefinitionAction :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.CreateRosterWeekSlotDefinition -> FrontendSurfaceAction
+createRosterWeekSlotDefinitionAction :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.CreateRosterWeekSlotDefinition -> FrontendSurfaceAction
 createRosterWeekSlotDefinitionAction =
     frontendSurfaceAction
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.CreateRosterWeekSlotDefinition
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.CreateRosterWeekSlotDefinition
 
-deleteRosterWeekSlotDefinitionActionFields :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.DeleteRosterWeekSlotDefinition
+deleteRosterWeekSlotDefinitionActionFields :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.DeleteRosterWeekSlotDefinition
 deleteRosterWeekSlotDefinitionActionFields =
     noSurfaceActionFields
 
-deleteRosterWeekSlotDefinitionAction :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.DeleteRosterWeekSlotDefinition -> FrontendSurfaceAction
+deleteRosterWeekSlotDefinitionAction :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.DeleteRosterWeekSlotDefinition -> FrontendSurfaceAction
 deleteRosterWeekSlotDefinitionAction =
     frontendSurfaceAction
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.DeleteRosterWeekSlotDefinition
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.DeleteRosterWeekSlotDefinition
 
 navigateRosterWeekActionFields ::
     Int ->
     UUID.UUID ->
-    SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.NavigateRosterWeek
+    SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.NavigateRosterWeek
 navigateRosterWeekActionFields weekOffset rosterGroupId =
     surfaceActionFields
-        (surfaceField @Types1.WeekOffset weekOffset)
-        ( surfaceField @Types1.RosterGroupId rosterGroupId
+        (surfaceField @Types2.WeekOffset weekOffset)
+        ( surfaceField @Types2.RosterGroupId rosterGroupId
             &: noSurfaceFields
         )
 
-navigateRosterWeekAction :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.NavigateRosterWeek -> FrontendSurfaceAction
+navigateRosterWeekAction :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.NavigateRosterWeek -> FrontendSurfaceAction
 navigateRosterWeekAction =
     frontendSurfaceAction
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.NavigateRosterWeek
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.NavigateRosterWeek
 
 parseNavigateRosterWeekActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.NavigateRosterWeek)
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.NavigateRosterWeek)
 parseNavigateRosterWeekActionParams =
     parseSurfaceActionParams
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.NavigateRosterWeek
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.NavigateRosterWeek
 
-removeRosterRowActionFields :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.RemoveRosterRow
+previewRosterTemplateApplicationActionFields ::
+    Text ->
+    Text ->
+    Maybe Text ->
+    Maybe Text ->
+    Maybe Text ->
+    Maybe Text ->
+    Maybe Text ->
+    Maybe Text ->
+    Maybe Text ->
+    Maybe Text ->
+    Maybe Text ->
+    SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.PreviewRosterTemplateApplication
+previewRosterTemplateApplicationActionFields sourceItemKey targetDropzoneKey sessionKind pointerId pointerType startClientX startClientY currentClientX currentClientY deltaX deltaY =
+    surfaceActionFields
+        (surfaceField @Types1.SourceItemKey sourceItemKey)
+        ( surfaceField @Types1.TargetDropzoneKey targetDropzoneKey
+            &: surfaceOptionalField @Types1.SessionKind sessionKind
+            &: surfaceOptionalField @Types1.PointerId pointerId
+            &: surfaceOptionalField @Types1.PointerType pointerType
+            &: surfaceOptionalField @Types1.StartClientX startClientX
+            &: surfaceOptionalField @Types1.StartClientY startClientY
+            &: surfaceOptionalField @Types1.CurrentClientX currentClientX
+            &: surfaceOptionalField @Types1.CurrentClientY currentClientY
+            &: surfaceOptionalField @Types1.DeltaX deltaX
+            &: surfaceOptionalField @Types1.DeltaY deltaY
+            &: noSurfaceFields
+        )
+
+previewRosterTemplateApplicationAction :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.PreviewRosterTemplateApplication -> FrontendSurfaceAction
+previewRosterTemplateApplicationAction =
+    frontendSurfaceAction
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.PreviewRosterTemplateApplication
+
+parsePreviewRosterTemplateApplicationActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.PreviewRosterTemplateApplication)
+parsePreviewRosterTemplateApplicationActionParams =
+    parseSurfaceActionParams
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.PreviewRosterTemplateApplication
+
+removeRosterRowActionFields :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.RemoveRosterRow
 removeRosterRowActionFields =
     noSurfaceActionFields
 
-removeRosterRowAction :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.RemoveRosterRow -> FrontendSurfaceAction
+removeRosterRowAction :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.RemoveRosterRow -> FrontendSurfaceAction
 removeRosterRowAction =
     frontendSurfaceAction
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.RemoveRosterRow
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.RemoveRosterRow
 
-sortRosterWeekActionFields :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.SortRosterWeek
+sortRosterWeekActionFields :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.SortRosterWeek
 sortRosterWeekActionFields =
     noSurfaceActionFields
 
-sortRosterWeekAction :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.SortRosterWeek -> FrontendSurfaceAction
+sortRosterWeekAction :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.SortRosterWeek -> FrontendSurfaceAction
 sortRosterWeekAction =
     frontendSurfaceAction
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.SortRosterWeek
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.SortRosterWeek
 
 toggleRosterAssignmentFiltersActionFields ::
     Bool ->
     Bool ->
     Bool ->
     Bool ->
-    SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.ToggleRosterAssignmentFilters
+    SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ToggleRosterAssignmentFilters
 toggleRosterAssignmentFiltersActionFields hideStaffAtIdealShifts hideStaffUnavailable hideStaffOnApprovedLeave hideStaffAlreadyAssignedToday =
     surfaceActionFields
-        (surfaceField @Types1.HideStaffAtIdealShifts hideStaffAtIdealShifts)
-        ( surfaceField @Types1.HideStaffUnavailable hideStaffUnavailable
-            &: surfaceField @Types1.HideStaffOnApprovedLeave hideStaffOnApprovedLeave
-            &: surfaceField @Types1.HideStaffAlreadyAssignedToday hideStaffAlreadyAssignedToday
+        (surfaceField @Types2.HideStaffAtIdealShifts hideStaffAtIdealShifts)
+        ( surfaceField @Types2.HideStaffUnavailable hideStaffUnavailable
+            &: surfaceField @Types2.HideStaffOnApprovedLeave hideStaffOnApprovedLeave
+            &: surfaceField @Types2.HideStaffAlreadyAssignedToday hideStaffAlreadyAssignedToday
             &: noSurfaceFields
         )
 
-toggleRosterAssignmentFiltersAction :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.ToggleRosterAssignmentFilters -> FrontendSurfaceAction
+toggleRosterAssignmentFiltersAction :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ToggleRosterAssignmentFilters -> FrontendSurfaceAction
 toggleRosterAssignmentFiltersAction =
     frontendSurfaceAction
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.ToggleRosterAssignmentFilters
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.ToggleRosterAssignmentFilters
 
 parseToggleRosterAssignmentFiltersActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.ToggleRosterAssignmentFilters)
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ToggleRosterAssignmentFilters)
 parseToggleRosterAssignmentFiltersActionParams =
     parseSurfaceActionParams
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.ToggleRosterAssignmentFilters
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.ToggleRosterAssignmentFilters
 
-toggleRosterDayClosedActionFields :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.ToggleRosterDayClosed
+toggleRosterDayClosedActionFields :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ToggleRosterDayClosed
 toggleRosterDayClosedActionFields =
     noSurfaceActionFields
 
-toggleRosterDayClosedAction :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.ToggleRosterDayClosed -> FrontendSurfaceAction
+toggleRosterDayClosedAction :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ToggleRosterDayClosed -> FrontendSurfaceAction
 toggleRosterDayClosedAction =
     frontendSurfaceAction
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.ToggleRosterDayClosed
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.ToggleRosterDayClosed
 
 toggleRosterStaffScopeActionFields ::
     Text ->
-    SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.ToggleRosterStaffScope
+    SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ToggleRosterStaffScope
 toggleRosterStaffScopeActionFields staffScope =
     surfaceActionFields
-        (surfaceField @Types1.StaffScope staffScope)
+        (surfaceField @Types2.StaffScope staffScope)
         noSurfaceFields
 
-toggleRosterStaffScopeAction :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.ToggleRosterStaffScope -> FrontendSurfaceAction
+toggleRosterStaffScopeAction :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ToggleRosterStaffScope -> FrontendSurfaceAction
 toggleRosterStaffScopeAction =
     frontendSurfaceAction
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.ToggleRosterStaffScope
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.ToggleRosterStaffScope
 
 parseToggleRosterStaffScopeActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.ToggleRosterStaffScope)
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ToggleRosterStaffScope)
 parseToggleRosterStaffScopeActionParams =
     parseSurfaceActionParams
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.ToggleRosterStaffScope
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.ToggleRosterStaffScope
 
 toggleRosterWageEstimatesActionFields ::
     Bool ->
-    SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.ToggleRosterWageEstimates
+    SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ToggleRosterWageEstimates
 toggleRosterWageEstimatesActionFields showWageEstimates =
     surfaceActionFields
-        (surfaceField @Types1.ShowWageEstimates showWageEstimates)
+        (surfaceField @Types2.ShowWageEstimates showWageEstimates)
         noSurfaceFields
 
-toggleRosterWageEstimatesAction :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.ToggleRosterWageEstimates -> FrontendSurfaceAction
+toggleRosterWageEstimatesAction :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ToggleRosterWageEstimates -> FrontendSurfaceAction
 toggleRosterWageEstimatesAction =
     frontendSurfaceAction
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.ToggleRosterWageEstimates
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.ToggleRosterWageEstimates
 
 parseToggleRosterWageEstimatesActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.ToggleRosterWageEstimates)
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ToggleRosterWageEstimates)
 parseToggleRosterWageEstimatesActionParams =
     parseSurfaceActionParams
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.ToggleRosterWageEstimates
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.ToggleRosterWageEstimates
 
 toggleRosterWarningsActionFields ::
     Bool ->
-    SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.ToggleRosterWarnings
+    SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ToggleRosterWarnings
 toggleRosterWarningsActionFields showRosterWarnings =
     surfaceActionFields
-        (surfaceField @Types1.ShowRosterWarnings showRosterWarnings)
+        (surfaceField @Types2.ShowRosterWarnings showRosterWarnings)
         noSurfaceFields
 
-toggleRosterWarningsAction :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.ToggleRosterWarnings -> FrontendSurfaceAction
+toggleRosterWarningsAction :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ToggleRosterWarnings -> FrontendSurfaceAction
 toggleRosterWarningsAction =
     frontendSurfaceAction
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.ToggleRosterWarnings
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.ToggleRosterWarnings
 
 parseToggleRosterWarningsActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.ToggleRosterWarnings)
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ToggleRosterWarnings)
 parseToggleRosterWarningsActionParams =
     parseSurfaceActionParams
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.ToggleRosterWarnings
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.ToggleRosterWarnings
 
 toggleRosterWeekLiveStatusActionFields ::
     Bool ->
-    SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.ToggleRosterWeekLiveStatus
+    SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ToggleRosterWeekLiveStatus
 toggleRosterWeekLiveStatusActionFields isLive =
     surfaceActionFields
-        (surfaceField @Types1.IsLive isLive)
+        (surfaceField @Types2.IsLive isLive)
         noSurfaceFields
 
-toggleRosterWeekLiveStatusAction :: SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.ToggleRosterWeekLiveStatus -> FrontendSurfaceAction
+toggleRosterWeekLiveStatusAction :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ToggleRosterWeekLiveStatus -> FrontendSurfaceAction
 toggleRosterWeekLiveStatusAction =
     frontendSurfaceAction
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.ToggleRosterWeekLiveStatus
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.ToggleRosterWeekLiveStatus
 
 parseToggleRosterWeekLiveStatusActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.RosterAdapterFamily) Types1.ToggleRosterWeekLiveStatus)
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ToggleRosterWeekLiveStatus)
 parseToggleRosterWeekLiveStatusActionParams =
     parseSurfaceActionParams
-        @(AdapterFamilySurface Types2.RosterAdapterFamily)
-        @Types1.ToggleRosterWeekLiveStatus
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.ToggleRosterWeekLiveStatus

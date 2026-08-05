@@ -346,16 +346,16 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 registeredSurfaceAdapterRegistry.surfaceActionAdapterRegistrations of
                 Left diagnostics -> expectationFailure (cs (show diagnostics)) >> pure []
                 Right inventory -> pure inventory
-        length actionDeclarations `shouldBe` 56
+        length actionDeclarations `shouldBe` 58
         length actionInventory `shouldBe` length actionDeclarations
         let generatedActionOperations = mapMaybe (.checkedSurfaceRequestAdapterOperations) actionInventory
-        length generatedActionOperations `shouldBe` 51
+        length generatedActionOperations `shouldBe` 53
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterFieldsBuilderOperation)) generatedActionOperations)
-            `shouldBe` 51
+            `shouldBe` 53
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRenderMetadataOperation)) generatedActionOperations)
-            `shouldBe` 51
+            `shouldBe` 53
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRequestParserOperation)) generatedActionOperations)
-            `shouldBe` 36
+            `shouldBe` 38
         let actionIdentity registration =
                 let declaration = registration.checkedSurfaceRequestAdapterDeclaration
                  in (declaration.checkedAdapterSurfaceName, declaration.checkedAdapterDeclarationName)
@@ -408,10 +408,10 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 registeredSurfaceAdapterRegistry.surfaceIntentAdapterRegistrations of
                 Left diagnostics -> expectationFailure (cs (show diagnostics)) >> pure []
                 Right inventory -> pure inventory
-        length intentDeclarations `shouldBe` 5
+        length intentDeclarations `shouldBe` 6
         length intentInventory `shouldBe` length intentDeclarations
         let generatedIntentOperations = mapMaybe (.checkedSurfaceRequestAdapterOperations) intentInventory
-        length generatedIntentOperations `shouldBe` 5
+        length generatedIntentOperations `shouldBe` 6
         generatedIntentOperations
             `shouldSatisfy` all
                 (\operations ->
@@ -436,7 +436,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                         , "Application.Helper.FrontendContract.Surface.Support.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action"
                         ]
-        length registeredSurfaceAdapterRegistry.surfaceIntentAdapterHomes `shouldBe` 5
+        length registeredSurfaceAdapterRegistry.surfaceIntentAdapterHomes `shouldBe` 6
         case generateSurfaceIntentAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
             Left diagnostics -> expectationFailure (cs (show diagnostics))
             Right generatedModules ->
@@ -462,7 +462,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                     , rosterDayTimelineDayOffset = 2
                     , rosterDayTimelineDayId = rosterDayId
                     }
-        let rosterForms = rosterIntentForms rosterScope
+        let rosterForms = rosterIntentForms rosterScope True
         let timelineForms = rosterDayTimelineIntentForms timelineScope
         map intentFormName rosterForms
             `shouldBe`
@@ -470,6 +470,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , "move-roster-shift-to-slot"
                 , "duplicate-roster-shift-to-day"
                 , "drop-roster-staff"
+                , "preview-roster-template-application"
                 ]
         map intentFormName timelineForms `shouldBe` ["move-roster-timeline-shift"]
 
@@ -479,6 +480,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("move-roster-shift-to-slot", "/MoveRosterShiftToSlot?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 13)
                 , ("duplicate-roster-shift-to-day", "/DuplicateRosterShiftToDay?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 13)
                 , ("drop-roster-staff", "/DropRosterStaff?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 11)
+                , ("preview-roster-template-application", "/PreviewRosterTemplateDrop?rosterGroupId=00000000-0000-0000-0000-000000000222&amp;weekOffset=3", 11)
                 , ("move-roster-timeline-shift", "/MoveRosterTimelineShift?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222&amp;rosterView=timeline&amp;dayOffset=2", 12)
                 ]
         forM_ (zip expectedFormMetadata renderedForms) \(metadata, html) ->
@@ -495,7 +497,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
         forM_ (take 2 (drop 1 renderedForms)) \copyDragHtml ->
             forM_ ["copyStartOccurrence", "copyEndOccurrence"] \fieldName ->
                 copyDragHtml `shouldSatisfy` Text.isInfixOf (renderedIntentField fieldName "optional")
-        forM_ (drop 4 renderedForms) \timelineDragHtml -> do
+        forM_ (drop 5 renderedForms) \timelineDragHtml -> do
             timelineDragHtml `shouldSatisfy` Text.isInfixOf (renderedIntentField "timelineStartOccurrence" "optional")
             timelineDragHtml `shouldSatisfy` (not . Text.isInfixOf "timelineEndOccurrence")
 
@@ -695,8 +697,13 @@ renderIntentFormText intentForm =
 assertRosterIntentFormMetadata :: (Text, Text, Int) -> Text -> Expectation
 assertRosterIntentFormMetadata (intentName, actionUrl, expectedFieldCount) html = do
     html `shouldSatisfy` Text.isInfixOf ("hx-post=\"" <> actionUrl <> "\"")
-    html `shouldSatisfy` Text.isInfixOf "hx-target=\"#roster-content\""
-    html `shouldSatisfy` Text.isInfixOf "hx-swap=\"none\""
+    if intentName == "preview-roster-template-application"
+        then do
+            html `shouldSatisfy` Text.isInfixOf "hx-target=\"#dialog-overlay-mount\""
+            html `shouldSatisfy` Text.isInfixOf "hx-swap=\"innerHTML\""
+        else do
+            html `shouldSatisfy` Text.isInfixOf "hx-target=\"#roster-content\""
+            html `shouldSatisfy` Text.isInfixOf "hx-swap=\"none\""
     html `shouldSatisfy` Text.isInfixOf ("data-bepis-intent-form=\"" <> intentName <> "\"")
     Text.count "data-bepis-intent-field=" html `shouldBe` expectedFieldCount
 

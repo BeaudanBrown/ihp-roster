@@ -43,6 +43,8 @@ import Application.Helper.FrontendContract.Surface.Roster.Chrome (RosterColumnEd
 import Application.Helper.FrontendContract.Surface.Roster.ImageExport (rosterImageExportCellAttrs,
                                                                        rosterImageExportProjectionAttrs,
                                                                        rosterImageExportRowAttrs)
+import Application.Helper.FrontendContract.Surface.Roster.TemplateApplication (rosterTemplateDayTargetAttrs,
+                                                                               rosterTemplateWeekTargetAttrs)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceInteractionShellConfig (..),
                                                             FrontendSurfaceMountConfig (..),
@@ -69,11 +71,13 @@ import Data.UUID (UUID)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         rosterDayColumnDropzoneRef,
+                                        rosterDayTemplateDropzoneRef,
                                         rosterDragSourceRef,
                                         rosterFrontendSurfaceIR,
                                         rosterIntentForms,
                                         rosterMountedFragmentPlanFromRenderData,
-                                        rosterSurfaceImpl)
+                                        rosterSurfaceImpl,
+                                        rosterWeekTemplateDropzoneRef)
 import Web.RosterWeeks.Types
 import Web.RosterWeeks.WageFilter (rosterWageFilterConfigAttrs)
 import Web.View.Prelude
@@ -111,7 +115,7 @@ renderrosterContentLiveFragmentWithSwap maybeSwapOob gridModel =
     |]
 
 renderRosterLayout :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
-renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridPanelStaff, gridStaffSelfServicePanel, gridRenderIndexes, gridViewMode } =
+renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridPanelStaff, gridTemplateLibrary, gridTemplateLibraryUserId, gridStaffSelfServicePanel, gridRenderIndexes, gridViewMode } =
     let rosterSurfaceScope = RosterWeekScopeValue
             { rosterWeekVenueId = gridCurrentRosterGroup.venueId
             , rosterWeekGroupId = gridCurrentRosterGroup.id
@@ -120,7 +124,7 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
                 RosterDayTimelineGridView dayOffset -> Just dayOffset
                 RosterWeekGridView                  -> Nothing
             }
-        rosterSurface = rosterSurfaceImpl rosterSurfaceScope (rosterMountedFragmentPlanFromRenderData gridRosterDays gridRenderIndexes)
+        rosterSurface = rosterSurfaceImpl rosterSurfaceScope (rosterMountedFragmentPlanFromRenderData gridTemplateLibraryUserId gridRosterDays gridRenderIndexes)
         renderStaffPanelMount _rosterWeek =
             if currentUserIsManager
                 then renderrosterStaffPanelLiveFragment RosterStaffPanelRenderModel
@@ -137,12 +141,14 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
                     , staffPanelViewMode = gridViewMode
                     , staffPanelScope = RosterStaffPanelCurrentGroup
                     , staffPanelEntries = gridPanelStaff
+                    , staffPanelTemplateLibrary = gridModel.gridTemplateLibrary
+                    , staffPanelTemplateUserId = gridModel.gridTemplateLibraryUserId
                     }
                 else mempty
      in profileHtmlComponent "render.roster.layout" do
         renderFrontendSurfaceInteractionShell rosterSurface rosterFrontendSurfaceIR FrontendSurfaceInteractionShellConfig
             { interactionShellHtmxSync = Just ("#" <> rosterWeekShellId <> ":replace")
-            , interactionShellIntentForms = rosterIntentForms rosterSurfaceScope
+            , interactionShellIntentForms = rosterIntentForms rosterSurfaceScope (rosterWeekIsEditable gridRosterWeek)
             } [hsx|
             <div id={rosterLayoutFragmentId} class="row g-4 align-items-start roster-layout">
                 {renderrosterContentLiveFragment gridModel}
@@ -198,6 +204,7 @@ renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRende
             RosterDayTimelineGridView _ -> True
             RosterWeekGridView          -> False
         isDayColumnsLayout = not rosterIsHiddenDraft && not isTimelineLayout && rosterLayoutModeValue gridRosterLayoutMode == "day_columns"
+        weekTemplateTargetAvailable = rosterWeekIsEditable gridRosterWeek && length gridRosterDays == 7 && not isTimelineLayout
         frameLayoutValue = case gridViewMode of
             RosterDayTimelineGridView _ -> "timeline"
             RosterWeekGridView -> if rosterIsHiddenDraft then ("hidden_draft" :: Text) else rosterLayoutModeValue gridRosterLayoutMode
@@ -207,7 +214,7 @@ renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRende
                     Nothing -> [hsx|<div class="alert alert-warning mb-0">Selected timeline day is not available.</div>|]
                     Just rosterDay -> renderRosterDayTimelinePanel gridModel rosterDay
             RosterWeekGridView -> renderRosterGridInnerFragments gridModel
-     in profileHtmlComponent "render.roster.grid_frame" [hsx|
+        frameHtml = profileHtmlComponent "render.roster.grid_frame" [hsx|
         <div id={rosterGridFrameFragmentId}
              class={classes [("roster-grid-frame", True), ("roster-grid-frame-timeline", isTimelineLayout), ("app-horizontal-frame", isDayColumnsLayout)]}
              hx-swap-oob={maybeSwapOob}
@@ -219,12 +226,17 @@ renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRende
                     else []}
              data-roster-end-times={if gridRosterEndTimesEnabled then ("true" :: Text) else "false"}
              {...rosterColumnEditorAttrs RosterColumnEditingInactive}
+             {...if weekTemplateTargetAvailable then rosterTemplateWeekTargetAttrs else []}
              data-roster-wages={if gridShowWageEstimates && not rosterIsHiddenDraft then ("visible" :: Text) else "hidden"}
              data-roster-warnings={if gridShowRosterWarnings && not rosterIsHiddenDraft then ("visible" :: Text) else "hidden"}
              {...if not rosterIsHiddenDraft && not isTimelineLayout && not isDayColumnsLayout then rosterImageExportProjectionAttrs else []}>
             {gridBody}
         </div>
 |]
+     in case gridRosterWeek of
+            Just rosterWeek | weekTemplateTargetAvailable ->
+                SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterWeekTemplateDropzoneRef ("week:" <> tshow rosterWeek.id) frameHtml
+            _ -> frameHtml
 
 rosterDayRenderModelFromGrid :: (?context :: ControllerContext) => RosterGridRenderModel -> RosterDayRenderModel
 rosterDayRenderModelFromGrid RosterGridRenderModel { gridRosterWeek, gridWeekOffset, gridCurrentRosterGroup, gridAssignmentFilters, gridStaffMembers, gridSlotNames, gridShiftTypes, gridWeekStartDate, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridPublicHolidays, gridPublishAttempted } =
@@ -515,15 +527,20 @@ renderRosterDaySectionFragmentWithSwap :: (?context :: ControllerContext) => May
 renderRosterDaySectionFragmentWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayRosterLayoutMode } rosterDay
     | rosterLayoutModeValue dayRosterLayoutMode == "day_columns" =
         renderRosterDayColumnWithSwap maybeSwapOob dayModel rosterDay
-renderRosterDaySectionFragmentWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayWeekStartDate, dayAllSlots, dayRenderIndexes } rosterDay =
-    profileHtmlComponent "render.roster.day_section_component" [hsx|
+renderRosterDaySectionFragmentWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIsEditable, dayWeekStartDate, dayAllSlots, dayRenderIndexes } rosterDay =
+    (if dayIsEditable && not rosterDay.isClosed
+        then SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDayTemplateDropzoneRef ("day:" <> tshow rosterDay.id)
+        else \html -> html) $ profileHtmlComponent "render.roster.day_section_component" [hsx|
     {profileRenderCounter "render.roster.day_section" 1}
     {profileRenderCounter "render.roster.row" (length dayRows)}
     <div id={rosterDaySectionDomId rosterDay.id}
          class="roster-grid-day-section"
-         role="rowgroup"
+         role={if dayIsEditable && not rosterDay.isClosed then ("button" :: Text) else "rowgroup"}
+         tabindex={if dayIsEditable && not rosterDay.isClosed then Just ("0" :: Text) else Nothing}
+         aria-label={if dayIsEditable && not rosterDay.isClosed then Just ("Apply Day template to day " <> tshow (rosterDay.dayOffset + 1)) else Nothing}
          data-roster-day-section="true"
          hx-swap-oob={maybeSwapOob}
+         {...if dayIsEditable && not rosterDay.isClosed then rosterTemplateDayTargetAttrs else []}
          style={"--roster-day-row-count:" <> tshow (length dayRows) <> ";"}>
         {renderDayRows dayModel (Calendar.addDays (toInteger (get #dayOffset rosterDay)) dayWeekStartDate) rosterDay dayRows}
     </div>
@@ -631,7 +648,11 @@ renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIs
         columnHtml = [hsx|
             <section id={rosterDaySectionDomId rosterDay.id}
                      data-roster-day-section="true"
+                     role={if dayIsEditable && not rosterDay.isClosed then ("button" :: Text) else "group"}
+                     tabindex={if dayIsEditable && not rosterDay.isClosed then Just ("0" :: Text) else Nothing}
+                     aria-label={if dayIsEditable && not rosterDay.isClosed then Just ("Apply Day template to day " <> tshow (rosterDay.dayOffset + 1)) else Nothing}
                      hx-swap-oob={maybeSwapOob}
+                     {...if dayIsEditable && not rosterDay.isClosed then rosterTemplateDayTargetAttrs else []}
                      class={classes [("roster-day-column", True), ("app-horizontal-panel", True), ("day-alt-dark", odd (get #dayOffset rosterDay)), ("day-alt-light", even (get #dayOffset rosterDay))]}>
                 <header class="roster-day-column-header">
                     <div class="roster-day-heading">
@@ -652,7 +673,8 @@ renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIs
             </section>
         |]
      in if dayIsEditable && not rosterDay.isClosed
-            then SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDayColumnDropzoneRef dayDropzoneKey columnHtml
+            then SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDayTemplateDropzoneRef dayDropzoneKey $
+                SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDayColumnDropzoneRef dayDropzoneKey columnHtml
             else columnHtml
 
 compactDayColumnSlots :: [RosterWeekSlotDefinition] -> [RosterSlot] -> [RosterSlot]

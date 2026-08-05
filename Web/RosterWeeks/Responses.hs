@@ -8,6 +8,7 @@ module Web.RosterWeeks.Responses
     , respondWithRosterFragmentsUpdate
     , respondWithRosterResourceInvalidation
     , respondWithRosterToast
+    , respondWithRosterTemplateApplicationUpdate
     ) where
 
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
@@ -28,7 +29,9 @@ import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
+                                        rosterCandidateMountedFragments,
                                         rosterMountedFragmentForProjection,
+                                        rosterMountedFragmentPlanFromRenderData,
                                         rosterSurfaceFragmentKeys,
                                         rosterSurfaceScope)
 import Web.RosterWeeks.RenderData (fetchVisibleRosterReadModel,
@@ -87,6 +90,28 @@ respondWithRosterDialogOverlay rosterGroupId weekOffset dialog =
         <div id={dialogOverlayMountId} hx-swap-oob="innerHTML">{dialog}</div>
     |]
 
+respondWithRosterTemplateApplicationUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Set.Set SurfaceResourceValue -> IO ()
+respondWithRosterTemplateApplicationUpdate rosterGroupId weekOffset touchedResources = do
+    maybeRosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
+    case maybeRosterData of
+        Nothing -> respondWithRosterResourceInvalidation rosterGroupId weekOffset touchedResources [RosterProjectionContent] extraHtml
+        Just rosterData -> do
+            let scope = RosterWeekScopeValue
+                    { rosterWeekVenueId = unpackId currentVenueId
+                    , rosterWeekGroupId = rosterGroupId
+                    , rosterWeekWeekOffset = weekOffset
+                    , rosterWeekTimelineDayOffset = currentRosterTimelineDayOffset
+                    }
+            let plan = rosterMountedFragmentPlanFromRenderData rosterData.templateLibraryUserId rosterData.rosterDays rosterData.renderIndexes
+            setHeader ("HX-Reswap", "none")
+            setActorLiveResourcesRefresh (rosterSurfaceScope scope) touchedResources (rosterCandidateMountedFragments scope plan)
+            respondHtmlProfiled extraHtml
+  where
+    extraHtml = [hsx|
+        <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+        {renderToastOob ToastBottomCenter (successToast "Template applied.")}
+    |]
+
 respondWithRosterContentOob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()
 respondWithRosterContentOob rosterGroupId weekOffset = do
     rosterGroups <- fetchCurrentVenueRosterGroups
@@ -96,7 +121,7 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
         Nothing -> do
             TextIO.putStrLn ("roster_read_model_miss_oob: rosterGroupId=" <> tshow rosterGroupId <> " weekOffset=" <> tshow weekOffset)
             respondHtmlProfiled [hsx|<div id="roster-content" hx-swap-oob="outerHTML"></div>|]
-        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } -> do
+        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } -> do
             let viewCapabilities = buildRosterViewCapabilities (Just rosterWeek)
             respondHtmlProfiled $
                     renderrosterContentLiveFragmentOob
@@ -109,6 +134,8 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
                             , gridAssignmentFilters = assignmentFilters
                             , gridStaffMembers = staffMembers
                             , gridPanelStaff = panelStaff
+                            , gridTemplateLibrary = templateLibrary
+                            , gridTemplateLibraryUserId = templateLibraryUserId
                             , gridStaffSelfServicePanel = staffSelfServicePanel
                             , gridSlotNames = orderedSlotNames
                             , gridShiftTypes = shiftTypes
@@ -152,7 +179,7 @@ respondWithRosterContentToast rosterGroupId weekOffset publishAttempted toast = 
         mconcat
             [ case rosterData of
                 Nothing -> [hsx|<div id="roster-content"></div>|]
-                Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } ->
+                Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } ->
                     let viewCapabilities = buildRosterViewCapabilities (Just rosterWeek)
                      in renderrosterContentLiveFragment
                             RosterGridRenderModel
@@ -164,6 +191,8 @@ respondWithRosterContentToast rosterGroupId weekOffset publishAttempted toast = 
                                 , gridAssignmentFilters = assignmentFilters
                                 , gridStaffMembers = staffMembers
                                 , gridPanelStaff = panelStaff
+                                , gridTemplateLibrary = templateLibrary
+                                , gridTemplateLibraryUserId = templateLibraryUserId
                                 , gridStaffSelfServicePanel = staffSelfServicePanel
                                 , gridSlotNames = orderedSlotNames
                                 , gridShiftTypes = shiftTypes

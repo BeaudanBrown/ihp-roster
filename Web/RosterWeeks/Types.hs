@@ -20,6 +20,7 @@ module Web.RosterWeeks.Types
 import Application.Helper.Conflict (RosterConflict)
 import Application.Helper.FrontendContract.Passkey.Runtime (PasskeySetupPromptMode)
 import Application.Helper.RosterWagePrediction (RosterWagePrediction)
+import Application.RosterTemplates (RosterTemplateLibrary)
 import Data.Map.Strict (Map)
 import Data.Time.Calendar (Day)
 import Data.Time.Clock (NominalDiffTime)
@@ -38,6 +39,8 @@ data ShowView = ShowView
     , assignmentFilters      :: RosterAssignmentFilters
     , staffMembers           :: [Staff]
     , panelStaff             :: [RosterStaffPanelEntry]
+    , templateLibrary        :: Maybe RosterTemplateLibrary
+    , templateLibraryUserId  :: Maybe (Id User)
     , staffSelfServicePanel  :: Maybe RosterStaffSelfServicePanel
     , slotNames              :: [RosterWeekSlotDefinition]
     , allSlots               :: [RosterSlot]
@@ -117,6 +120,8 @@ data RosterStaffPanelRenderModel = RosterStaffPanelRenderModel
     , staffPanelViewMode           :: RosterGridViewMode
     , staffPanelScope              :: RosterStaffPanelScope
     , staffPanelEntries            :: [RosterStaffPanelEntry]
+    , staffPanelTemplateLibrary    :: Maybe RosterTemplateLibrary
+    , staffPanelTemplateUserId     :: Maybe (Id User)
     }
 
 data RosterStaffSelfServicePanel = RosterStaffSelfServicePanel
@@ -158,6 +163,8 @@ data RosterRenderData = RosterRenderData
     , assignmentFilters     :: RosterAssignmentFilters
     , staffMembers          :: [Staff]
     , panelStaff            :: [RosterStaffPanelEntry]
+    , templateLibrary       :: Maybe RosterTemplateLibrary
+    , templateLibraryUserId :: Maybe (Id User)
     , staffSelfServicePanel :: Maybe RosterStaffSelfServicePanel
     , orderedSlotNames      :: [RosterWeekSlotDefinition]
     , shiftTypes            :: [ShiftType]
@@ -183,6 +190,8 @@ data RosterGridRenderModel = RosterGridRenderModel
     , gridAssignmentFilters     :: RosterAssignmentFilters
     , gridStaffMembers          :: [Staff]
     , gridPanelStaff            :: [RosterStaffPanelEntry]
+    , gridTemplateLibrary       :: Maybe RosterTemplateLibrary
+    , gridTemplateLibraryUserId :: Maybe (Id User)
     , gridStaffSelfServicePanel :: Maybe RosterStaffSelfServicePanel
     , gridSlotNames             :: [RosterWeekSlotDefinition]
     , gridShiftTypes            :: [ShiftType]

@@ -16,7 +16,10 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Intent
     , parseDuplicateRosterShiftToDayIntentParams
     , parseMoveRosterShiftToSlotIntentParams
     , parseMoveRosterTimelineShiftIntentParams
+    , parsePreviewRosterTemplateApplicationIntentParams
     , parseSetRosterLayoutModeIntentParams
+    , previewRosterTemplateApplicationIntentFields
+    , previewRosterTemplateApplicationIntentForm
     , setRosterLayoutModeIntentFields
     , setRosterLayoutModeIntentForm
     ) where
@@ -220,6 +223,49 @@ parseMoveRosterTimelineShiftIntentParams =
     parseSurfaceIntentParams
         @(AdapterFamilySurface Types3.RosterDayTimelineAdapterFamily)
         @Types2.MoveRosterTimelineShift
+
+previewRosterTemplateApplicationIntentFields ::
+    Text ->
+    Text ->
+    Maybe Text ->
+    Maybe Text ->
+    Maybe Text ->
+    Maybe Text ->
+    Maybe Text ->
+    Maybe Text ->
+    Maybe Text ->
+    Maybe Text ->
+    Maybe Text ->
+    SurfaceIntentFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.PreviewRosterTemplateApplication
+previewRosterTemplateApplicationIntentFields sourceItemKey targetDropzoneKey sessionKind pointerId pointerType startClientX startClientY currentClientX currentClientY deltaX deltaY =
+    surfaceIntentFields
+        (surfaceField @Types1.SourceItemKey sourceItemKey)
+        ( surfaceField @Types1.TargetDropzoneKey targetDropzoneKey
+            &: surfaceOptionalField @Types1.SessionKind sessionKind
+            &: surfaceOptionalField @Types1.PointerId pointerId
+            &: surfaceOptionalField @Types1.PointerType pointerType
+            &: surfaceOptionalField @Types1.StartClientX startClientX
+            &: surfaceOptionalField @Types1.StartClientY startClientY
+            &: surfaceOptionalField @Types1.CurrentClientX currentClientX
+            &: surfaceOptionalField @Types1.CurrentClientY currentClientY
+            &: surfaceOptionalField @Types1.DeltaX deltaX
+            &: surfaceOptionalField @Types1.DeltaY deltaY
+            &: noSurfaceFields
+        )
+
+previewRosterTemplateApplicationIntentForm :: SurfaceIntentFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.PreviewRosterTemplateApplication -> FrontendSurfaceHtmxRequest -> FrontendSurfaceIntentForm
+previewRosterTemplateApplicationIntentForm =
+    frontendSurfaceIntentForm
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.PreviewRosterTemplateApplication
+
+parsePreviewRosterTemplateApplicationIntentParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (SurfaceIntentFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.PreviewRosterTemplateApplication)
+parsePreviewRosterTemplateApplicationIntentParams =
+    parseSurfaceIntentParams
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.PreviewRosterTemplateApplication
 
 setRosterLayoutModeIntentFields ::
     Text ->

@@ -161,7 +161,7 @@ tests = aroundAll withDatabaseTestContext do
                     withCurrentControllerContext do
                         let scope = RosterLive.rosterWeekLiveScope (unpackId venue.id) rosterWeek.rosterGroupId rosterWeek.weekOffset
                         let scopeValue = RosterWeekScopeValue { rosterWeekVenueId = unpackId venue.id, rosterWeekGroupId = Id rosterWeek.rosterGroupId, rosterWeekWeekOffset = rosterWeek.weekOffset, rosterWeekTimelineDayOffset = Nothing }
-                        let mountedPlan = RosterMountedFragmentPlan { rosterMountedDayIds = [], rosterMountedRows = [] }
+                        let mountedPlan = RosterMountedFragmentPlan { rosterMountedDayIds = [], rosterMountedRows = [], rosterMountedTemplateUserId = Nothing }
                         let subscription =
                                 SurfaceSubscription
                                     { subscriptionScope = scope
@@ -187,7 +187,7 @@ tests = aroundAll withDatabaseTestContext do
                 let rosterGroupId = Id "00000000-0000-0000-0000-000000000222" :: Id RosterGroup
                 let rosterDayId = Id "00000000-0000-0000-0000-000000000333" :: Id RosterDay
                 let scope = RosterWeekScopeValue { rosterWeekVenueId = venueId, rosterWeekGroupId = rosterGroupId, rosterWeekWeekOffset = 3, rosterWeekTimelineDayOffset = Nothing }
-                let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0), (rosterDayId, 1)] }
+                let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0), (rosterDayId, 1)], rosterMountedTemplateUserId = Nothing }
                 let impl = rosterSurfaceImpl scope plan
                 let mountConfig = impl.surfaceImplMountConfig
                 let fragmentTargets = map (.mountedFragmentTargetId) mountConfig.mountFragments
@@ -195,8 +195,8 @@ tests = aroundAll withDatabaseTestContext do
                 let fragmentKeys = rosterSurfaceFragmentKeys mountConfig.mountFragments
 
                 impl.surfaceImplName `shouldBe` "roster"
-                map (.intentFormName) (rosterIntentForms scope)
-                    `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day", "drop-roster-staff"]
+                map (.intentFormName) (rosterIntentForms scope True)
+                    `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day", "drop-roster-staff", "preview-roster-template-application"]
                 mountConfig.mountSurfaceName `shouldBe` "roster"
                 mountConfig.mountScopeKey `shouldBe` "roster:00000000-0000-0000-0000-000000000111:00000000-0000-0000-0000-000000000222:3"
                 fragmentKeys

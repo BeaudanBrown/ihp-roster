@@ -23,7 +23,7 @@ renderRosterWeekShell ShowView { .. } =
     let page = renderAppPage (AppPageConfig
             { appPageTitle = "Roster"
             , appPageDescription = Nothing
-            , appPageActions = renderTemplateLibraryAction viewCapabilities currentRosterGroup
+            , appPageActions = mempty
             , appPageHelpTopic = Just (PageHelpTopicId "roster")
             , appPageWidthClass = ""
             , appPageBody =
@@ -38,6 +38,8 @@ renderRosterWeekShell ShowView { .. } =
                         , gridAssignmentFilters = assignmentFilters
                         , gridStaffMembers = staffMembers
                         , gridPanelStaff = panelStaff
+                        , gridTemplateLibrary = templateLibrary
+                        , gridTemplateLibraryUserId = templateLibraryUserId
                         , gridStaffSelfServicePanel = staffSelfServicePanel
                         , gridSlotNames = slotNames
                         , gridShiftTypes = shiftTypes
@@ -68,7 +70,7 @@ renderRosterWeekShell ShowView { .. } =
                 RosterDayTimelineGridView dayOffset -> Just dayOffset
                 RosterWeekGridView                  -> Nothing
             }
-        rosterSurfacePlan = rosterMountedFragmentPlanFromRenderData rosterDays renderIndexes
+        rosterSurfacePlan = rosterMountedFragmentPlanFromRenderData templateLibraryUserId rosterDays renderIndexes
         rosterSurface = rosterSurfaceImpl rosterSurfaceScope rosterSurfacePlan
         shell = [hsx|
             <section id={rosterWeekShellId}
@@ -78,13 +80,6 @@ renderRosterWeekShell ShowView { .. } =
             </section>
         |]
      in profileHtmlComponent "render.roster.full_shell" shell
-
-renderTemplateLibraryAction :: (?context :: ControllerContext) => RosterViewCapabilities -> RosterGroup -> Html
-renderTemplateLibraryAction capabilities rosterGroup
-    | capabilities.canCopyRosterWeek = [hsx|
-        <a id="roster-template-library-link" class="btn btn-outline-primary" href={NewRosterTemplateAction rosterGroup.id}>Templates</a>
-    |]
-    | otherwise = mempty
 
 renderPasskeySetupPrompt :: (?context :: ControllerContext) => Bool -> Maybe Passkey.PasskeySetupPromptMode -> Html
 renderPasskeySetupPrompt _ Nothing = mempty

@@ -4,22 +4,35 @@ import Application.Bepis.Controller
 import Application.Helper.Controller (ensureCurrentVenueOrSupportRedirect,
                                       ensureManagerRole, ensureProfileCompleted,
                                       ensureVenueWritable)
+import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
+import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
+import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
+import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as RosterIntent
+import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
+import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.Url (appendQueryParams)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..))
 import Application.RosterTemplates
+import Application.VenueTime.Model (ShiftCopyOccurrenceSelections (..))
 import Control.Monad (guard)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
 import Text.Read (readMaybe)
 import Web.Controller.Prelude
+import qualified Web.RosterTemplates.Mutations as TemplateMutations
+import Web.RosterWeeks.Responses (respondWithRosterTemplateApplicationUpdate)
 import Web.RosterWeeks.Service (fetchCurrentRosterWeekOffset)
+import Web.RosterWeeks.TemplateApplication
 import Web.RosterWeeks.TemplateDesigner
+import Web.View.RosterTemplates.ApplicationConfirmation
 import Web.View.RosterTemplates.ConfirmReference
+import Web.View.RosterTemplates.DeleteConfirmation
 import Web.View.RosterTemplates.Designer
 import Web.View.RosterTemplates.DraftOccupied
 import Web.View.RosterTemplates.New
 import Web.View.RosterTemplates.Reference
+import Web.View.RosterWeeks.TemplatePanel (renderRosterTemplateLibraryFragment)
 
 instance Controller RosterTemplatesController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
@@ -213,7 +226,7 @@ instance Controller RosterTemplatesController where
         accessDeniedUnless (maybe False ((== rosterTemplateDesignId) . (.id) . (.draftDesign)) maybeDraft)
         let draft = fromMaybe (error "authorized template draft missing") maybeDraft
         let rosterGroupId = Id draft.draftDesign.rosterGroupId
-        saved <- saveRosterTemplateDraft actor rosterTemplateDesignId
+        saved <- TemplateMutations.saveRosterTemplateDraftMutation actor rosterTemplateDesignId
         case saved of
             Right result -> do
                 setSuccessMessage (if null result.saveWarnings then "Template saved." else "Template saved; stale assignments were converted to Open.")
@@ -237,7 +250,7 @@ instance Controller RosterTemplatesController where
         case paramOrNothing @Text "name" of
             Nothing -> invalidDesignerMutation rosterTemplateDesignId "Enter a new template name."
             Just requestedName -> do
-                saved <- saveRosterTemplateDraftAsNew actor rosterTemplateDesignId requestedName
+                saved <- TemplateMutations.saveRosterTemplateDraftAsNewMutation actor rosterTemplateDesignId requestedName
                 case saved of
                     Right _ -> do
                         setSuccessMessage "Template saved as new."
@@ -253,11 +266,157 @@ instance Controller RosterTemplatesController where
                 setErrorMessage (templateErrorMessage templateError)
                 redirectTo RosterWeeksAction
 
+    action currentAction@PreviewRosterTemplateDropAction { rosterGroupId, weekOffset } = runBepis currentAction BepisMutationAction do
+        case RosterIntent.parsePreviewRosterTemplateApplicationIntentParams of
+            Left _ -> do
+                rosterGroup <- fetchScopedRosterGroup rosterGroupId
+                invalidTemplateApplication rosterGroup weekOffset "Choose a compatible template target."
+            Right fields -> do
+                let sourceKey = surfaceFieldValue @SurfaceInteraction.SourceItemKey fields
+                let targetDropzoneKey = surfaceFieldValue @SurfaceInteraction.TargetDropzoneKey fields
+                case Id <$> UUID.fromText sourceKey of
+                    Nothing -> do
+                        rosterGroup <- fetchScopedRosterGroup rosterGroupId
+                        invalidTemplateApplication rosterGroup weekOffset "Choose a compatible roster template."
+                    Just rosterTemplateId -> do
+                        actor <- authorizedDesignerActor
+                        rosterGroup <- fetchScopedRosterGroup rosterGroupId
+                        maybeRequest <- resolveTemplateApplicationRequest rosterTemplateId rosterGroup weekOffset targetDropzoneKey
+                        case maybeRequest of
+                            Nothing -> invalidTemplateApplication rosterGroup weekOffset "Choose a compatible day or week target."
+                            Just applicationRequest -> do
+                                preview <- previewRosterTemplateApplication actor applicationRequest
+                                case preview of
+                                    Left applicationError -> invalidTemplateApplication rosterGroup weekOffset (templateApplicationErrorMessage applicationError)
+                                    Right applicationPreview -> respondHtml (renderRosterTemplateApplicationConfirmation rosterTemplateId rosterGroupId targetDropzoneKey applicationPreview)
+
+    action currentAction@ShowRosterTemplateApplicationConfirmationAction { rosterTemplateId, rosterGroupId, weekOffset } = runBepis currentAction BepisPageAction do
+        actor <- authorizedDesignerActor
+        rosterGroup <- fetchScopedRosterGroup rosterGroupId
+        let targetDropzoneKey = param @Text "targetDropzoneKey"
+        maybeRequest <- resolveTemplateApplicationRequest rosterTemplateId rosterGroup weekOffset targetDropzoneKey
+        case maybeRequest of
+            Nothing -> invalidTemplateApplication rosterGroup weekOffset "Choose a compatible day or week target."
+            Just applicationRequest -> do
+                preview <- previewRosterTemplateApplication actor applicationRequest
+                case preview of
+                    Left applicationError -> invalidTemplateApplication rosterGroup weekOffset (templateApplicationErrorMessage applicationError)
+                    Right applicationPreview -> respondHtml (renderRosterTemplateApplicationConfirmation rosterTemplateId rosterGroupId targetDropzoneKey applicationPreview)
+
+    action currentAction@ApplyRosterTemplateAction { rosterTemplateId, rosterGroupId, weekOffset } = runBepis currentAction BepisMutationAction do
+        actor <- authorizedDesignerActor
+        rosterGroup <- fetchScopedRosterGroup rosterGroupId
+        case RosterAction.parseApplyRosterTemplateApplicationActionParams of
+            Left _ -> invalidTemplateApplication rosterGroup weekOffset "Review the template confirmation and try again."
+            Right fields -> do
+                accessDeniedUnless (surfaceFieldValue @RosterSurface.TemplateId fields == unpackId rosterTemplateId)
+                let targetDropzoneKey = surfaceFieldValue @SurfaceInteraction.TargetDropzoneKey fields
+                let expectedTemplateVersion = surfaceFieldValue @RosterSurface.ExpectedTemplateVersion fields
+                let expectedTargetRevision = surfaceFieldValue @RosterSurface.ExpectedTargetRevision fields
+                maybeRequest <- resolveTemplateApplicationRequest rosterTemplateId rosterGroup weekOffset targetDropzoneKey
+                case maybeRequest of
+                    Nothing -> invalidTemplateApplication rosterGroup weekOffset "Choose a compatible day or week target."
+                    Just applicationRequest -> do
+                        applied <- applyRosterTemplateApplicationMutation actor applicationRequest expectedTemplateVersion expectedTargetRevision
+                        case applied of
+                            Left applicationError -> invalidTemplateApplication rosterGroup weekOffset (templateApplicationErrorMessage applicationError)
+                            Right mutationResult -> if isHtmxRequest
+                                then respondWithRosterTemplateApplicationUpdate rosterGroup.id weekOffset mutationResult.liveMutationTouchedResources
+                                else do
+                                    setSuccessMessage "Template applied."
+                                    redirectToPath (appendQueryParams (pathTo ShowRosterWeekAction { weekOffset }) [("rosterGroupId", tshow rosterGroup.id)])
+
+    action currentAction@ShowRosterTemplateLibraryFragmentAction { rosterGroupId, weekOffset } = runBepis currentAction BepisFragmentAction do
+        actor <- authorizedDesignerActor
+        rosterGroup <- fetchScopedRosterGroup rosterGroupId
+        maybeLibrary <- fetchRosterTemplateLibrary actor rosterGroup
+        accessDeniedUnless (isJust maybeLibrary)
+        maybeRosterWeek <- query @RosterWeek
+            |> filterWhere (#venueId, rosterGroup.venueId)
+            |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+            |> filterWhere (#weekOffset, weekOffset)
+            |> filterWhere (#archivedAt, Nothing)
+            |> fetchOneOrNothing
+        respondHtml (renderRosterTemplateLibraryFragment (rosterTemplateActorUserId actor) weekOffset rosterGroup maybeRosterWeek (fromMaybe (error "authorized template library missing") maybeLibrary))
+
+    action currentAction@ConfirmDeleteRosterTemplateAction { rosterTemplateId, rosterGroupId, weekOffset } = runBepis currentAction BepisPageAction do
+        actor <- authorizedDesignerActor
+        rosterGroup <- fetchScopedRosterGroup rosterGroupId
+        maybeSaved <- fetchSavedRosterTemplate actor rosterTemplateId
+        case maybeSaved of
+            Just saved | saved.savedTemplate.rosterGroupId == unpackId rosterGroup.id ->
+                respondHtml (renderRosterTemplateDeleteConfirmation saved.savedTemplate rosterGroupId weekOffset)
+            _ -> invalidTemplateApplication rosterGroup weekOffset "The template no longer exists."
+
     action currentAction@DeleteRosterTemplateAction { rosterTemplateId } = runBepis currentAction BepisMutationAction do
         actor <- authorizedDesignerActor
-        deleted <- softDeleteRosterTemplate actor rosterTemplateId "Deleted from template designer"
+        deleted <- TemplateMutations.softDeleteRosterTemplateMutation actor rosterTemplateId "Deleted from template designer"
         either (setErrorMessage . templateErrorMessage) (const (setSuccessMessage "Template deleted.")) deleted
         redirectTo RosterWeeksAction
+
+resolveTemplateApplicationRequest ::
+    (?modelContext :: ModelContext) =>
+    Id RosterTemplate ->
+    RosterGroup ->
+    Int ->
+    Text ->
+    IO (Maybe RosterTemplateApplicationRequest)
+resolveTemplateApplicationRequest rosterTemplateId rosterGroup weekOffset targetDropzoneKey = do
+    maybeTargetWeek <- query @RosterWeek
+        |> filterWhere (#venueId, rosterGroup.venueId)
+        |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+        |> filterWhere (#weekOffset, weekOffset)
+        |> filterWhere (#archivedAt, Nothing)
+        |> fetchOneOrNothing
+    case maybeTargetWeek of
+        Nothing -> pure Nothing
+        Just targetWeek -> case parseTemplateTargetKey targetDropzoneKey of
+            Just (TemplateWeekTarget targetWeekId)
+                | targetWeekId == targetWeek.id -> pure (Just (applicationRequest targetWeek Nothing))
+            Just (TemplateDayTarget rosterDayId) -> do
+                maybeDay <- query @RosterDay
+                    |> filterWhere (#id, rosterDayId)
+                    |> filterWhere (#rosterWeekId, unpackId targetWeek.id)
+                    |> fetchOneOrNothing
+                pure (applicationRequest targetWeek . Just . (.dayOffset) <$> maybeDay)
+            _ -> pure Nothing
+  where
+    applicationRequest targetWeek targetDayOffset = RosterTemplateApplicationRequest
+        { applicationTemplateId = rosterTemplateId
+        , applicationTargetWeekId = targetWeek.id
+        , applicationTargetDayOffset = targetDayOffset
+        , applicationOccurrenceSelections = ShiftCopyOccurrenceSelections Nothing Nothing Nothing Nothing
+        }
+
+data TemplateApplicationTarget
+    = TemplateWeekTarget !(Id RosterWeek)
+    | TemplateDayTarget !(Id RosterDay)
+
+parseTemplateTargetKey :: Text -> Maybe TemplateApplicationTarget
+parseTemplateTargetKey value
+    | Just rawId <- Text.stripPrefix "week:" value
+    , Just targetId <- Id <$> UUID.fromText rawId = Just (TemplateWeekTarget targetId)
+    | Just rawId <- Text.stripPrefix "day:" value
+    , Just targetId <- Id <$> UUID.fromText rawId = Just (TemplateDayTarget targetId)
+    | otherwise = Nothing
+
+invalidTemplateApplication :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => RosterGroup -> Int -> Text -> IO ()
+invalidTemplateApplication rosterGroup weekOffset message = do
+    setErrorMessage message
+    redirectToPath (appendQueryParams (pathTo ShowRosterWeekAction { weekOffset }) [("rosterGroupId", tshow rosterGroup.id)])
+
+templateApplicationErrorMessage :: RosterTemplateApplicationError -> Text
+templateApplicationErrorMessage RosterTemplateApplicationForbidden = "You cannot apply roster templates."
+templateApplicationErrorMessage RosterTemplateApplicationNotFound = "The template or target roster no longer exists."
+templateApplicationErrorMessage RosterTemplateApplicationScopeMismatch = "The template does not belong to this roster group."
+templateApplicationErrorMessage RosterTemplateApplicationTargetLive = "Templates cannot be applied to a live roster. Move it back to draft first."
+templateApplicationErrorMessage RosterTemplateApplicationInvalidTargetDay = "Choose a valid day in the viewed week."
+templateApplicationErrorMessage RosterTemplateApplicationScaleMismatch = "Choose a target compatible with this template."
+templateApplicationErrorMessage (RosterTemplateApplicationVersionConflict _) = "The template changed before it could be applied. Review it and try again."
+templateApplicationErrorMessage RosterTemplateApplicationTargetConflict = "The roster changed before the template could be applied. Review it and try again."
+templateApplicationErrorMessage (RosterTemplateApplicationInvalidShiftTypes _) = "The template uses Shift types that are no longer available."
+templateApplicationErrorMessage (RosterTemplateApplicationBoundaryError _ _ _) = "A template time cannot be applied on the target date."
+templateApplicationErrorMessage (RosterTemplateApplicationInvalidStructure message) = message
 
 authorizedDesignerActor ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

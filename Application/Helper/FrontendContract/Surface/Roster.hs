@@ -25,6 +25,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterWeek
     , RosterWeekStructure
     , RosterTemplateLibrary
+    , RosterTemplateLibraryFragment
     , RosterTemplate
     , RosterTemplateDraft
     , RosterTemplateDesignerSurface
@@ -50,6 +51,24 @@ module Application.Helper.FrontendContract.Surface.Roster
     , DayColumnDropzone
     , ExistingShiftDropzone
     , DeleteShiftDropzone
+    , DayTemplateDragSource
+    , WeekTemplateDragSource
+    , DayTemplateDropzone
+    , WeekTemplateDropzone
+    , PreviewRosterTemplateApplication
+    , ApplyRosterTemplateApplication
+    , ExpectedTemplateVersion
+    , ExpectedTargetRevision
+    , TemplateCardRole
+    , TemplateCardConfigRole
+    , TemplateApplicationFormRole
+    , TemplateTargetInputRole
+    , TemplateCancelRole
+    , TemplateDayTargetRole
+    , TemplateWeekTargetRole
+    , TemplateApplicationCardConfig
+    , TemplateName
+    , TemplateScale
     , StaffShiftsHighlight
     , StaffHighlightSourceRole
     , StaffHighlightMemberRole
@@ -71,6 +90,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterStaffPanelTabs
     , StaffPanelTabRole
     , StaffTabKey
+    , TemplatesTabKey
     , SettingsTabKey
     , FullscreenRootRole
     , FullscreenToggleRole
@@ -243,6 +263,26 @@ data DayColumnDropzone
 data ExistingShiftDropzone
 data DeleteShiftDropzone
 
+data DayTemplateDragSource
+data WeekTemplateDragSource
+data DayTemplateDropzone
+data WeekTemplateDropzone
+data PreviewRosterTemplateApplication
+data ApplyRosterTemplateApplication
+data ExpectedTemplateVersion
+data ExpectedTargetRevision
+
+data TemplateCardRole
+data TemplateCardConfigRole
+data TemplateApplicationFormRole
+data TemplateTargetInputRole
+data TemplateCancelRole
+data TemplateDayTargetRole
+data TemplateWeekTargetRole
+data TemplateApplicationCardConfig
+data TemplateName
+data TemplateScale
+
 data StaffShiftsHighlight
 data StaffHighlightSourceRole
 data StaffHighlightMemberRole
@@ -266,6 +306,7 @@ data ShiftsSortKey
 data RosterStaffPanelTabs
 data StaffPanelTabRole
 data StaffTabKey
+data TemplatesTabKey
 data SettingsTabKey
 
 data FullscreenRootRole
@@ -465,11 +506,12 @@ type RosterFragmentBundle =
      , Fragment RosterDayRail '[] '[ 'MountTarget RosterDayRail '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterWageRail '[] '[ 'MountTarget RosterWageRail '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterSlotsGrid '[] '[ 'MountTarget RosterSlotsGrid '[], 'Eager, 'Live, 'DependsOn RosterSlotsStructureResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterSlotsContentResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
-     , Fragment RosterStaffPanel '[] '[ 'MountTarget RosterStaffPanelFragment '[], 'Lazy '[ 'DependsOnFragment RosterContent ], 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ] ]
+     , Fragment RosterStaffPanel '[] '[ 'MountTarget RosterStaffPanelFragment '[], 'Lazy '[ 'DependsOnFragment RosterContent, 'Contains RosterTemplateLibraryFragment ], 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ] ]
      , Fragment RosterWeekOverview '[] '[ 'MountTarget RosterWeekOverviewMount '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ], 'Lazy '[ 'DependsOnFragment RosterContent ], 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ] ]
      , Fragment RosterTemplateLibraryFragment
         '[ Field UserId 'WireUUID ]
         '[ 'MountTarget RosterTemplateLibraryMount '[ Field UserId 'WireUUID ]
+         , 'Live
          , 'DependsOn RosterTemplateLibraryResource '[ 'FromScope RosterGroupId ]
          , 'DependsOn RosterTemplateDraftResource '[ 'FromFragment UserId ]
          ]
@@ -608,6 +650,16 @@ type RosterActionBundle =
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
          ]
+     , Action ApplyRosterTemplateApplication
+        '[ Field TemplateId 'WireUUID
+         , Field TargetDropzoneKey 'WireText
+         , Field ExpectedTemplateVersion 'WireInt
+         , Field ExpectedTargetRevision 'WireText
+         ]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")
+         , 'HtmxSwap 'HtmxInnerHTML
+         ]
      , Action ToggleRosterStaffScope
         '[ Field StaffScope 'WireText ]
         '[ 'HtmxMethod 'HtmxGet
@@ -651,7 +703,43 @@ type RosterInteractionBundle =
          , '[ Action DuplicateRosterShiftToDay (Concat '[ DragDropFields, RosterCopyOccurrenceFields ]) '[ 'Target RosterContent ] ]
          , '[ Intent DuplicateRosterShiftToDay (Concat '[ DragDropFields, RosterCopyOccurrenceFields ]) '[ 'SessionOption DragSession, 'BackedBy DuplicateRosterShiftToDay ] ]
          , DragDropIntent DropRosterStaff RosterContent
+         , '[ SourceRef DayTemplateDragSource
+                '[ 'SessionOption DragSession
+                 , 'Submits PreviewRosterTemplateApplication
+                 , 'SourceField SourceItemKey
+                 , 'CompatibleDropzone DayTemplateDropzone
+                 ]
+            , SourceRef WeekTemplateDragSource
+                '[ 'SessionOption DragSession
+                 , 'Submits PreviewRosterTemplateApplication
+                 , 'SourceField SourceItemKey
+                 , 'CompatibleDropzone WeekTemplateDropzone
+                 ]
+            , DropzoneRef DayTemplateDropzone '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
+            , DropzoneRef WeekTemplateDropzone '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
+            , Action PreviewRosterTemplateApplication DragDropFields
+                '[ 'HtmxMethod 'HtmxPost
+                 , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")
+                 , 'HtmxSwap 'HtmxInnerHTML
+                 ]
+            , Intent PreviewRosterTemplateApplication DragDropFields '[ 'SessionOption DragSession, 'BackedBy PreviewRosterTemplateApplication ]
+            ]
          ]
+
+type RosterTemplateApplicationBrowserBundle =
+    '[ BrowserRole TemplateCardRole
+     , BrowserRole TemplateCardConfigRole
+     , BrowserRole TemplateApplicationFormRole
+     , BrowserRole TemplateTargetInputRole
+     , BrowserRole TemplateCancelRole
+     , BrowserRole TemplateDayTargetRole
+     , BrowserRole TemplateWeekTargetRole
+     , BrowserInboundDto TemplateApplicationCardConfig
+        '[ Field TemplateId 'WireUUID
+         , Field TemplateName 'WireText
+         , Field TemplateScale 'WireText
+         ]
+     ]
 
 type RosterStaffPanelBrowserBundle =
     '[ BrowserInboundDto RosterStaffPanelSortRow
@@ -684,7 +772,7 @@ type RosterStaffPanelBrowserBundle =
         NameSortKey
         'SortAscending
      , BrowserRole StaffPanelTabRole
-     , TabSet RosterStaffPanelTabs StaffPanelTabRole '[ StaffTabKey, SettingsTabKey ] StaffTabKey
+     , TabSet RosterStaffPanelTabs StaffPanelTabRole '[ StaffTabKey, TemplatesTabKey, SettingsTabKey ] StaffTabKey
      ]
 
 type RosterChromeBrowserBundle =
@@ -797,7 +885,7 @@ type RosterLinkedHighlightBundle =
      ]
 
 type RosterSurface =
-    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle, RosterStaffPanelBrowserBundle, RosterChromeBrowserBundle, RosterImageExportBrowserBundle, RosterWageFilterBrowserBundle, RosterWeekOverviewBrowserBundle, RosterLinkedHighlightBundle ])
+    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle, RosterTemplateApplicationBrowserBundle, RosterStaffPanelBrowserBundle, RosterChromeBrowserBundle, RosterImageExportBrowserBundle, RosterWageFilterBrowserBundle, RosterWeekOverviewBrowserBundle, RosterLinkedHighlightBundle ])
 
 type RosterTemplateDesignerSurface =
     Surface RosterTemplateDesigner

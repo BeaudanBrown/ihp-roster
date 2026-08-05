@@ -24,7 +24,7 @@ import Application.Support.LiveUpdates (supportCandidateMountedFragments,
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.UUID (fromWords)
-import Generated.Types (RosterDay, RosterGroup)
+import Generated.Types (RosterDay, RosterGroup, User)
 import IHP.ControllerPrelude (pathTo)
 import IHP.ModelSupport.Types (Id' (..))
 import IHP.Prelude
@@ -198,7 +198,7 @@ tests = do
             let rosterGroupId = Id (fromWords 8 0 0 0) :: Id RosterGroup
             let rosterDayId = Id (fromWords 9 0 0 0) :: Id RosterDay
             let scope = RosterWeekScopeValue venueId rosterGroupId 3 Nothing
-            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 2)] }
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 2)], rosterMountedTemplateUserId = Nothing }
             let candidates = rosterCandidateMountedFragments scope plan
             map (.mountedFragmentTargetId) candidates
                 `shouldBe`
@@ -221,6 +221,21 @@ tests = do
                     , "roster-row-" <> tshow rosterDayId <> "-2"
                     ]
 
+        it "selects the private template library fragment for library and owner-draft changes" do
+            let venueId = fromWords 21 0 0 0
+            let rosterGroupUuid = fromWords 22 0 0 0
+            let userUuid = fromWords 23 0 0 0
+            let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
+            let userId = Id userUuid :: Id User
+            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 3 Nothing
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [], rosterMountedRows = [], rosterMountedTemplateUserId = Just userId }
+            let candidates = rosterCandidateMountedFragments scopeValue plan
+
+            passiveFragmentKeys (Set.singleton (rosterTemplateLibraryResource rosterGroupUuid)) (rosterSurfaceScope scopeValue) candidates
+                `shouldBe` [RosterLive.rosterTemplateLibraryLiveFragment userUuid]
+            passiveFragmentKeys (Set.singleton (rosterTemplateDraftResource userUuid)) (rosterSurfaceScope scopeValue) candidates
+                `shouldBe` [RosterLive.rosterTemplateLibraryLiveFragment userUuid]
+
         it "normalizes roster wrapper containment without replacing the grid scroll owner" do
             let venueId = fromWords 7 0 0 0
             let rosterGroupUuid = fromWords 8 0 0 0
@@ -229,7 +244,7 @@ tests = do
             let rosterDayId = Id rosterDayUuid :: Id RosterDay
             let scopeValue = RosterWeekScopeValue venueId rosterGroupId 3 Nothing
             let scope = rosterSurfaceScope scopeValue
-            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 2)] }
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 2)], rosterMountedTemplateUserId = Nothing }
             let resources = Set.fromList
                     [ rosterWeekResource rosterGroupUuid 3
                     , rosterDayResource rosterDayUuid
@@ -252,7 +267,7 @@ tests = do
             let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
             let rosterDayId = Id rosterDayUuid :: Id RosterDay
             let scopeValue = RosterWeekScopeValue venueId rosterGroupId 4 Nothing
-            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)] }
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)], rosterMountedTemplateUserId = Nothing }
             let resources = Set.fromList
                     [ rosterWeekResource rosterGroupUuid 4
                     , rosterSlotsStructureResource rosterGroupUuid 4
@@ -275,7 +290,7 @@ tests = do
             let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
             let rosterDayId = Id rosterDayUuid :: Id RosterDay
             let scopeValue = RosterWeekScopeValue venueId rosterGroupId 4 Nothing
-            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)] }
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)], rosterMountedTemplateUserId = Nothing }
             let resources = Set.fromList
                     [ rosterWeekResource rosterGroupUuid 4
                     , rosterSlotsContentResource rosterGroupUuid 4
@@ -298,7 +313,7 @@ tests = do
             let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
             let rosterDayId = Id rosterDayUuid :: Id RosterDay
             let scopeValue = RosterWeekScopeValue venueId rosterGroupId 4 Nothing
-            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)] }
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)], rosterMountedTemplateUserId = Nothing }
             let resources = Set.fromList
                     [ rosterWeekResource rosterGroupUuid 4
                     , rosterWeekStructureResource rosterGroupUuid 4
@@ -318,7 +333,7 @@ tests = do
             let ancestorDayId = Id ancestorDayUuid :: Id RosterDay
             let childDayId = Id childDayUuid :: Id RosterDay
             let scopeValue = RosterWeekScopeValue venueId rosterGroupId 3 Nothing
-            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [ancestorDayId], rosterMountedRows = [(childDayId, 2)] }
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [ancestorDayId], rosterMountedRows = [(childDayId, 2)], rosterMountedTemplateUserId = Nothing }
 
             passiveFragmentKeys
                 (Set.fromList [rosterDayResource ancestorDayUuid, rosterDayResource childDayUuid])

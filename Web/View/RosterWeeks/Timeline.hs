@@ -46,7 +46,7 @@ renderRosterDayTimelinePanel :: (?context :: ControllerContext) => RosterGridRen
 renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Nothing } _ = [hsx|
     <div class="alert alert-info mb-0">This draft roster is not visible.</div>
 |]
-renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Just rosterWeek, gridRosterDays, gridCurrentRosterGroup, gridWeekStartDate, gridAssignmentFilters, gridStaffMembers, gridPanelStaff, gridStaffSelfServicePanel, gridSlotNames, gridShiftTypes, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterTimePickerStartMinute, gridRosterTimePickerFinalSelectableMinute, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridPublicHolidays } rosterDay =
+renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Just rosterWeek, gridRosterDays, gridCurrentRosterGroup, gridWeekStartDate, gridAssignmentFilters, gridStaffMembers, gridPanelStaff, gridTemplateLibrary, gridTemplateLibraryUserId, gridStaffSelfServicePanel, gridSlotNames, gridShiftTypes, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterTimePickerStartMinute, gridRosterTimePickerFinalSelectableMinute, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridPublicHolidays } rosterDay =
     let rosterData = RosterRenderData
             { rosterWeek = rosterWeek
             , rosterDays = gridRosterDays
@@ -56,6 +56,8 @@ renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Just roste
             , assignmentFilters = gridAssignmentFilters
             , staffMembers = gridStaffMembers
             , panelStaff = gridPanelStaff
+            , templateLibrary = gridTemplateLibrary
+            , templateLibraryUserId = gridTemplateLibraryUserId
             , staffSelfServicePanel = gridStaffSelfServicePanel
             , orderedSlotNames = gridSlotNames
             , shiftTypes = gridShiftTypes

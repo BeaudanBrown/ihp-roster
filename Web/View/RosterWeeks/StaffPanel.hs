@@ -38,7 +38,9 @@ import Web.RosterWeeks.Dom (rosterStaffPanelFragmentClasses,
                             rosterStaffPanelSettingsPaneId,
                             rosterStaffPanelSettingsTabId,
                             rosterStaffPanelStaffPaneId,
-                            rosterStaffPanelStaffTabId)
+                            rosterStaffPanelStaffTabId,
+                            rosterStaffPanelTemplatesPaneId,
+                            rosterStaffPanelTemplatesTabId)
 import Web.RosterWeeks.FrontendSurface (rosterStaffDragSourceRef,
                                         rosterStaffLinkedHighlight)
 import Web.RosterWeeks.Types (RosterStaffPanelEntry (..),
@@ -46,6 +48,7 @@ import Web.RosterWeeks.Types (RosterStaffPanelEntry (..),
                               RosterStaffPanelScope (..))
 import Web.View.Prelude
 import Web.View.RosterWeeks.SettingsPanel (renderRosterSettingsPanel)
+import Web.View.RosterWeeks.TemplatePanel (renderRosterTemplateLibraryFragment)
 
 renderrosterStaffPanelLiveFragment :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> Html
 renderrosterStaffPanelLiveFragment =
@@ -72,7 +75,7 @@ renderRosterStaffPanel panelModel@RosterStaffPanelRenderModel { staffPanelWeekOf
     {profileRenderCounter "render.roster.staff_panel" 1}
     {profileRenderCounter "render.roster.staff_panel_entry" (length staffPanelEntries)}
     {renderRosterStaffPanelShell
-        (renderRosterStaffPanelTabs staffPanelContent settingsPanelContent)}
+        (renderRosterStaffPanelTabs (isJust templatePanelContent) staffPanelContent (fromMaybe mempty templatePanelContent) settingsPanelContent)}
 |]
     where
         hasMultipleRosterGroups = length staffPanelRosterGroups > 1
@@ -82,15 +85,20 @@ renderRosterStaffPanel panelModel@RosterStaffPanelRenderModel { staffPanelWeekOf
             {renderRosterStaffPanelHeader staffPanelWeekOffset staffPanelCurrentRosterGroup.id hasMultipleRosterGroups staffPanelScope}
             {renderRosterStaffPanelTable panelStaffMembers staffPanelWeekOffset staffPanelCurrentRosterGroup.id renderedPanelStaff}
         |]
+        templatePanelContent = do
+            templateUserId <- panelModel.staffPanelTemplateUserId
+            templateLibrary <- panelModel.staffPanelTemplateLibrary
+            pure (renderRosterTemplateLibraryFragment templateUserId staffPanelWeekOffset staffPanelCurrentRosterGroup panelModel.staffPanelRosterWeek templateLibrary)
         settingsPanelContent = renderRosterSettingsPanel panelModel
 
 renderRosterStaffPanelPlaceholder :: Bool -> Html
 renderRosterStaffPanelPlaceholder hasMultipleRosterGroups =
-    renderRosterStaffPanelShell $ renderRosterStaffPanelTabs
+    renderRosterStaffPanelShell $ renderRosterStaffPanelTabs True
         [hsx|
             {renderRosterStaffPanelPlaceholderHeader hasMultipleRosterGroups}
             {renderRosterStaffPanelPlaceholderTable}
         |]
+        mempty
         mempty
 
 renderRosterStaffPanelShell :: Html -> Html
@@ -102,8 +110,8 @@ renderRosterStaffPanelShell body = [hsx|
     </div>
 |]
 
-renderRosterStaffPanelTabs :: Html -> Html -> Html
-renderRosterStaffPanelTabs staffContent settingsContent = [hsx|
+renderRosterStaffPanelTabs :: Bool -> Html -> Html -> Html -> Html
+renderRosterStaffPanelTabs showTemplates staffContent templateContent settingsContent = [hsx|
     <div class="nav nav-pills roster-staff-panel-tabs" role="tablist" aria-label="Roster side panel">
         <button class="nav-link active roster-staff-panel-tab"
                 id={rosterStaffPanelStaffTabId}
@@ -117,6 +125,7 @@ renderRosterStaffPanelTabs staffContent settingsContent = [hsx|
             <i class="bi bi-people" aria-hidden="true"></i>
             <span>Staff</span>
         </button>
+        {renderRosterTemplatesTab showTemplates}
         <button class="nav-link roster-staff-panel-tab"
                 id={rosterStaffPanelSettingsTabId}
                 type="button"
@@ -138,6 +147,7 @@ renderRosterStaffPanelTabs staffContent settingsContent = [hsx|
              tabindex="0">
             {staffContent}
         </div>
+        {when showTemplates (renderRosterTemplatesPane templateContent)}
         <div class="tab-pane roster-staff-panel-pane roster-staff-panel-settings-pane"
              id={rosterStaffPanelSettingsPaneId}
              role="tabpanel"
@@ -145,6 +155,34 @@ renderRosterStaffPanelTabs staffContent settingsContent = [hsx|
              tabindex="0">
             {settingsContent}
         </div>
+    </div>
+|]
+
+renderRosterTemplatesTab :: Bool -> Html
+renderRosterTemplatesTab False = mempty
+renderRosterTemplatesTab True = [hsx|
+    <button class="nav-link roster-staff-panel-tab"
+            id={rosterStaffPanelTemplatesTabId}
+            type="button"
+            role="tab"
+            data-bs-toggle="tab"
+            data-bs-target={"#" <> rosterStaffPanelTemplatesPaneId}
+            aria-controls={rosterStaffPanelTemplatesPaneId}
+            aria-selected="false"
+            {...rosterStaffPanelTabAttrs RosterTemplatesTab}>
+        <i class="bi bi-collection" aria-hidden="true"></i>
+        <span>Templates</span>
+    </button>
+|]
+
+renderRosterTemplatesPane :: Html -> Html
+renderRosterTemplatesPane templateContent = [hsx|
+    <div class="tab-pane roster-staff-panel-pane roster-template-panel-pane"
+         id={rosterStaffPanelTemplatesPaneId}
+         role="tabpanel"
+         aria-labelledby={rosterStaffPanelTemplatesTabId}
+         tabindex="0">
+        {templateContent}
     </div>
 |]
 

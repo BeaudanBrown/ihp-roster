@@ -65,13 +65,15 @@ test("generated template designer contract is isolated and exact", () => {
 
 test("generated interaction registry contains only runtime-consumed interaction fields", () => {
     const roster = FrontendSurfaceInteractionRegistry.roster;
-    assertDeepEqual(roster.sourceRefs.map((source) => source.ref), ["shift-drag-source", "staff-drag-source"]);
+    assertDeepEqual(roster.sourceRefs.map((source) => source.ref), ["shift-drag-source", "staff-drag-source", "day-template-drag-source", "week-template-drag-source"]);
     assertDeepEqual(roster.dropzoneRefs.map((dropzone) => dropzone.ref), [
         "shift-slot-dropzone",
         "staff-create-dropzone",
         "day-column-dropzone",
         "existing-shift-dropzone",
         "delete-shift-dropzone",
+        "day-template-dropzone",
+        "week-template-dropzone",
     ]);
     assertDeepEqual(roster.sourceRefs[1]?.compatibleDropzones, ["existing-shift-dropzone", "shift-slot-dropzone", "staff-create-dropzone"]);
     assertDeepEqual(roster.activationRefs.map((activation) => activation.ref), ["roster-layout-mode-activation"]);
@@ -157,7 +159,7 @@ test("generated complete-set sort registry owns roster row parsing and comparato
 test("generated tab-set registry owns roster tab keys and default", () => {
     const [definition] = FrontendSurfaceTabSetRegistry.roster;
     assertEqual(definition?.tabRoleAttribute, rosterStaffPanelTabDomAttr);
-    assertDeepEqual(definition?.keys, ["staff", "settings"]);
+    assertDeepEqual(definition?.keys, ["staff", "templates", "settings"]);
     assertEqual(definition?.defaultKey, "staff");
 });
 

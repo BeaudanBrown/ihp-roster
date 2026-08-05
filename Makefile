@@ -34,6 +34,7 @@ CSS_FILES += static/css/features/roster/toolbar.css
 CSS_FILES += static/css/features/roster/week-overview.css
 CSS_FILES += static/css/features/roster/timeline.css
 CSS_FILES += static/css/features/roster/template-designer.css
+CSS_FILES += static/css/features/roster/templates.css
 CSS_FILES += static/css/features/roster/staff-panel.css
 CSS_FILES += static/css/features/roster/grid-frame.css
 CSS_FILES += static/css/features/roster/day-actions.css

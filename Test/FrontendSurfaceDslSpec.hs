@@ -1002,29 +1002,40 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "toggle-roster-day-closed"
                        , "add-roster-row"
                        , "remove-roster-row"
+                       , "apply-roster-template-application"
                        , "toggle-roster-staff-scope"
                        , "set-roster-layout-mode"
                        , "move-roster-shift-to-slot"
                        , "duplicate-roster-shift-to-day"
                        , "drop-roster-staff"
+                       , "preview-roster-template-application"
                        ]
         ( surface.surfaceHtmxActions
             |> find (\action -> action.htmxActionName == "navigate-roster-week")
             |> maybe [] (.htmxActionOptions)
             )
             `shouldContain` [HtmxOption (HtmxActionSwapIR (HtmxTypedSyntaxIR "outerHTML" []))]
-        map (.intentName) surface.surfaceIntents `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day", "drop-roster-staff"]
+        map (.intentName) surface.surfaceIntents `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day", "drop-roster-staff", "preview-roster-template-application"]
         map (.sessionName) surface.surfaceSessions `shouldBe` ["drag"]
         map (.sessionLayers) surface.surfaceSessions `shouldBe` [["drag-preview"]]
-        map (.sourceRefName) surface.surfaceSourceRefs `shouldBe` ["shift-drag-source", "staff-drag-source"]
+        map (.sourceRefName) surface.surfaceSourceRefs `shouldBe` ["shift-drag-source", "staff-drag-source", "day-template-drag-source", "week-template-drag-source"]
         map (.sourceRefCompatibleDropzones) surface.surfaceSourceRefs
             `shouldBe` [ ["shift-slot-dropzone", "day-column-dropzone", "delete-shift-dropzone"]
                        , ["existing-shift-dropzone", "shift-slot-dropzone", "staff-create-dropzone"]
+                       , ["day-template-dropzone"]
+                       , ["week-template-dropzone"]
                        ]
-        map (.dropzoneRefName) surface.surfaceDropzoneRefs `shouldBe` ["shift-slot-dropzone", "staff-create-dropzone", "day-column-dropzone", "existing-shift-dropzone", "delete-shift-dropzone"]
+        map (.dropzoneRefName) surface.surfaceDropzoneRefs `shouldBe` ["shift-slot-dropzone", "staff-create-dropzone", "day-column-dropzone", "existing-shift-dropzone", "delete-shift-dropzone", "day-template-dropzone", "week-template-dropzone"]
         map (.activationRefName) surface.surfaceActivationRefs `shouldBe` ["roster-layout-mode-activation"]
         map (.browserAttributeDomAttribute) surface.surfaceBrowserRoles
-            `shouldBe` [ "data-bepis-roster-staff-panel-sort-root"
+            `shouldBe` [ "data-bepis-roster-template-card"
+                       , "data-bepis-roster-template-card-config"
+                       , "data-bepis-roster-template-application-form"
+                       , "data-bepis-roster-template-target-input"
+                       , "data-bepis-roster-template-cancel"
+                       , "data-bepis-roster-template-day-target"
+                       , "data-bepis-roster-template-week-target"
+                       , "data-bepis-roster-staff-panel-sort-root"
                        , "data-bepis-roster-staff-panel-sort-row"
                        , "data-bepis-roster-staff-panel-sort-control"
                        , "data-bepis-roster-staff-panel-tab"
@@ -1090,7 +1101,7 @@ tests = describe "FrontendSurface DSL foundation" do
                 , ["assignedShifts", "idealShifts", "staffName", "staffRowKey"]
                 ]
         map (.tabSetName) surface.surfaceTabSets `shouldBe` ["roster-staff-panel-tabs"]
-        map (.tabSetKeys) surface.surfaceTabSets `shouldBe` [["staff", "settings"]]
+        map (.tabSetKeys) surface.surfaceTabSets `shouldBe` [["staff", "templates", "settings"]]
         map (.tabSetDefaultKey) surface.surfaceTabSets `shouldBe` ["staff"]
         map (map linkedHighlightActivationName . (.linkedHighlightActivations)) surface.surfaceLinkedHighlights
             `shouldBe` [ ["hover", "focus", "keyboard", "pin"]
@@ -1107,8 +1118,8 @@ tests = describe "FrontendSurface DSL foundation" do
             `shouldBe` [["clone-shadow", "dropzone-highlight"]]
         map (map interactionEffectClassNames . (.sessionEffects)) surface.surfaceSessions
             `shouldBe` [[["bepis-pointer-clone-shadow"], ["bepis-dropzone-highlight"]]]
-        map (map (.modifierVariantSemantic) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["copy"], []]
-        map (concatMap (map interactionEffectSemanticName . (.modifierVariantEffects)) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["clone-shadow-copy", "dropzone-highlight"], []]
+        map (map (.modifierVariantSemantic) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["copy"], [], [], []]
+        map (concatMap (map interactionEffectSemanticName . (.modifierVariantEffects)) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["clone-shadow-copy", "dropzone-highlight"], [], [], []]
         surface.surfacePolicies `shouldBe` []
 
     it "renders minimal live, interaction, and DOM-token contracts for the roster surface" do
@@ -1131,9 +1142,9 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export function parseRosterWeekOverviewDayConfig(value: unknown): RosterWeekOverviewDayConfig"
         frontendSurfaceContractsTypeScript `shouldContainText` "export function parseRosterStaffPanelSortRow(value: unknown): RosterStaffPanelSortRow"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterStaffPanelSortKey = \"name\" | \"role\" | \"shifts\";"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterStaffPanelTabsKey = \"staff\" | \"settings\";"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterStaffPanelTabsKey = \"staff\" | \"templates\" | \"settings\";"
         frontendSurfaceContractsTypeScript `shouldContainText` "\"roster\":[{\"name\":\"roster-staff-panel-sort\",\"rootRoleAttribute\":rosterStaffPanelSortRootDomAttr"
-        frontendSurfaceContractsTypeScript `shouldContainText` "\"roster\":[{\"name\":\"roster-staff-panel-tabs\",\"tabRoleAttribute\":rosterStaffPanelTabDomAttr,\"keys\":[\"staff\",\"settings\"],\"defaultKey\":\"staff\""
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"roster\":[{\"name\":\"roster-staff-panel-tabs\",\"tabRoleAttribute\":rosterStaffPanelTabDomAttr,\"keys\":[\"staff\",\"templates\",\"settings\"],\"defaultKey\":\"staff\""
         frontendSurfaceContractsTypeScript `shouldContainText` "\"roster\":[{\"name\":\"staff-shifts-highlight\",\"sourceRoleAttribute\":rosterStaffHighlightSourceDomAttr,\"memberRoleAttribute\":rosterStaffHighlightMemberDomAttr,\"pinRoleAttribute\":rosterStaffHighlightPinDomAttr,\"orderStateAttribute\":rosterStaffHighlightOrderDomAttr,\"activations\":[\"hover\",\"focus\",\"keyboard\",\"pin\"],\"effects\":[\"matching-source\",\"matching-member\",\"ordered-member-bounds\"]},{\"name\":\"shift-group-highlight\""
         frontendSurfaceContractsTypeScript `shouldContainText` "\"roster\":{\"sourceRefs\":[{\"ref\":\"shift-drag-source\",\"session\":\"drag\",\"intent\":\"move-roster-shift-to-slot\",\"sourceField\":\"sourceItemKey\",\"compatibleDropzones\":[\"shift-slot-dropzone\",\"day-column-dropzone\",\"delete-shift-dropzone\"],\"modifierVariants\":[{\"semantic\":\"copy\",\"intent\":\"duplicate-roster-shift-to-day\""
         frontendSurfaceContractsTypeScript `shouldContainText` "\"dropzoneRefs\":[{\"ref\":\"shift-slot-dropzone\",\"session\":\"drag\",\"targetField\":\"targetDropzoneKey\"},{\"ref\":\"staff-create-dropzone\",\"session\":\"drag\",\"targetField\":\"targetDropzoneKey\"}"

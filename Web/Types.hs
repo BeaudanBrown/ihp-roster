@@ -236,6 +236,11 @@ data RosterTemplatesController
     | SaveRosterTemplateDraftAsNewAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
     | EditRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate) }
     | DeleteRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate) }
+    | PreviewRosterTemplateDropAction { rosterGroupId :: !(Id RosterGroup), weekOffset :: !Int }
+    | ShowRosterTemplateApplicationConfirmationAction { rosterTemplateId :: !(Id RosterTemplate), rosterGroupId :: !(Id RosterGroup), weekOffset :: !Int }
+    | ApplyRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate), rosterGroupId :: !(Id RosterGroup), weekOffset :: !Int }
+    | ConfirmDeleteRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate), rosterGroupId :: !(Id RosterGroup), weekOffset :: !Int }
+    | ShowRosterTemplateLibraryFragmentAction { rosterGroupId :: !(Id RosterGroup), weekOffset :: !Int }
     deriving (Eq, Show, Data)
 
 data RosterWeeksController

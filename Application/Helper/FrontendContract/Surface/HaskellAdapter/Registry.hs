@@ -106,6 +106,7 @@ type RegisteredSurfaceFragmentAdapterHomes =
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterWageRail
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterSlotsGrid
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterStaffPanel
+     , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterTemplateLibraryFragment
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterDaySection
      , SurfaceFragmentAdapterHome RosterAdapterFamily Roster.RosterRow
      , SurfaceFragmentAdapterHome RosterDayTimelineAdapterFamily Roster.RosterDayTimelineContent
@@ -190,6 +191,8 @@ type RegisteredSurfaceActionAdapterHomes =
      , SurfaceActionAdapterHome RosterAdapterFamily Roster.AddRosterRow
      , SurfaceActionAdapterHome RosterAdapterFamily Roster.RemoveRosterRow
      , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterStaffScope
+     , SurfaceActionAdapterHome RosterAdapterFamily Roster.PreviewRosterTemplateApplication
+     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ApplyRosterTemplateApplication
      , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.ArchiveLeaveRequestsPage
      , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.ApproveLeaveRequest
      , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.DenyLeaveRequest
@@ -258,6 +261,8 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceActionAdapterExcluded @RosterAdapterFamily @Roster.MoveRosterShiftToSlot intentOnlyActionReason
     , surfaceActionAdapterExcluded @RosterAdapterFamily @Roster.DuplicateRosterShiftToDay intentOnlyActionReason
     , surfaceActionAdapterExcluded @RosterAdapterFamily @Roster.DropRosterStaff intentOnlyActionReason
+    , surfaceActionAdapter @RosterAdapterFamily @Roster.PreviewRosterTemplateApplication allRequestAdapterOperations
+    , surfaceActionAdapter @RosterAdapterFamily @Roster.ApplyRosterTemplateApplication allRequestAdapterOperations
     , surfaceActionAdapterExcluded @RosterDayTimelineAdapterFamily @Roster.MoveRosterTimelineShift intentOnlyActionReason
     , surfaceActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ArchiveLeaveRequestsPage allRequestAdapterOperations
     , surfaceActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ApproveLeaveRequest
@@ -308,6 +313,7 @@ type RegisteredSurfaceIntentAdapterHomes =
      , SurfaceIntentAdapterHome RosterAdapterFamily Roster.MoveRosterShiftToSlot
      , SurfaceIntentAdapterHome RosterAdapterFamily Roster.DuplicateRosterShiftToDay
      , SurfaceIntentAdapterHome RosterAdapterFamily Roster.DropRosterStaff
+     , SurfaceIntentAdapterHome RosterAdapterFamily Roster.PreviewRosterTemplateApplication
      , SurfaceIntentAdapterHome RosterDayTimelineAdapterFamily Roster.MoveRosterTimelineShift
      ]
 
@@ -319,6 +325,7 @@ registeredSurfaceIntentAdapterRegistrations =
     , surfaceIntentAdapter @RosterAdapterFamily @Roster.MoveRosterShiftToSlot allRequestAdapterOperations
     , surfaceIntentAdapter @RosterAdapterFamily @Roster.DuplicateRosterShiftToDay allRequestAdapterOperations
     , surfaceIntentAdapter @RosterAdapterFamily @Roster.DropRosterStaff allRequestAdapterOperations
+    , surfaceIntentAdapter @RosterAdapterFamily @Roster.PreviewRosterTemplateApplication allRequestAdapterOperations
     , surfaceIntentAdapter @RosterDayTimelineAdapterFamily @Roster.MoveRosterTimelineShift allRequestAdapterOperations
     ]
 

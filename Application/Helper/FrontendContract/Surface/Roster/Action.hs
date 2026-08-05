@@ -1,5 +1,7 @@
 module Application.Helper.FrontendContract.Surface.Roster.Action
     ( addRosterRowAction
+    , applyRosterTemplateApplicationAction
+    , applyRosterTemplateApplicationActionFields
     , addRosterRowActionFields
     , copyRosterWeekAction
     , copyRosterWeekActionFields
@@ -9,8 +11,12 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
     , deleteRosterWeekSlotDefinitionActionFields
     , navigateRosterWeekAction
     , navigateRosterWeekActionFields
+    , parseApplyRosterTemplateApplicationActionParams
     , parseCopyRosterWeekActionParams
     , parseNavigateRosterWeekActionParams
+    , parsePreviewRosterTemplateApplicationActionParams
+    , previewRosterTemplateApplicationAction
+    , previewRosterTemplateApplicationActionFields
     , parseToggleRosterAssignmentFiltersActionParams
     , parseToggleRosterStaffScopeActionParams
     , parseToggleRosterWageEstimatesActionParams
@@ -36,6 +42,8 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
 
 import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (addRosterRowAction,
                                                                             addRosterRowActionFields,
+                                                                            applyRosterTemplateApplicationAction,
+                                                                            applyRosterTemplateApplicationActionFields,
                                                                             copyRosterWeekAction,
                                                                             copyRosterWeekActionFields,
                                                                             createRosterWeekSlotDefinitionAction,
@@ -44,13 +52,17 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (addR
                                                                             deleteRosterWeekSlotDefinitionActionFields,
                                                                             navigateRosterWeekAction,
                                                                             navigateRosterWeekActionFields,
+                                                                            parseApplyRosterTemplateApplicationActionParams,
                                                                             parseCopyRosterWeekActionParams,
                                                                             parseNavigateRosterWeekActionParams,
+                                                                            parsePreviewRosterTemplateApplicationActionParams,
                                                                             parseToggleRosterAssignmentFiltersActionParams,
                                                                             parseToggleRosterStaffScopeActionParams,
                                                                             parseToggleRosterWageEstimatesActionParams,
                                                                             parseToggleRosterWarningsActionParams,
                                                                             parseToggleRosterWeekLiveStatusActionParams,
+                                                                            previewRosterTemplateApplicationAction,
+                                                                            previewRosterTemplateApplicationActionFields,
                                                                             removeRosterRowAction,
                                                                             removeRosterRowActionFields,
                                                                             sortRosterWeekAction,

@@ -404,6 +404,103 @@ tests = aroundAll withDatabaseTestContext do
                 lookup "Location" (responseHeaders response)
                     `shouldSatisfy` maybe False (ByteString.isInfixOf "/ShowRosterTemplateDesigner")
 
+        it "previews a saved Week template against the viewed draft week without mutating it" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Template application controller"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                manager <- createUserRecord "template-application-controller@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                let actor = rosterTemplateActor manager venue True
+                Right draft <- startBlankRosterTemplateDesignerDraft actor rosterGroup Week "Standard week"
+                Right saved <- saveRosterTemplateDraft actor draft.draftDesign.id
+                targetWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 False
+                _ <- forM [0 .. 6] (createRosterDayRecord targetWeek)
+                beforeSlots <- query @RosterSlot |> fetchCount
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ShowRosterTemplateApplicationConfirmationAction
+                        { rosterTemplateId = saved.savedTemplate.id, rosterGroupId = rosterGroup.id, weekOffset = 0 }
+                        [("targetDropzoneKey", cs ("week:" <> tshow targetWeek.id))]
+                afterSlots <- query @RosterSlot |> fetchCount
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Apply Standard week"
+                response `responseBodyShouldContain` "replace the complete viewed week"
+                response `responseBodyShouldContain` "Apply template"
+                afterSlots `shouldBe` beforeSlots
+
+                dropResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams PreviewRosterTemplateDropAction
+                        { rosterGroupId = rosterGroup.id, weekOffset = 0 }
+                        [ ("sourceItemKey", idToParam saved.savedTemplate.id)
+                        , ("targetDropzoneKey", cs ("week:" <> tshow targetWeek.id))
+                        ]
+                dropResponse `responseStatusShouldBe` status200
+                dropResponse `responseBodyShouldContain` "Apply Standard week"
+
+        it "applies a confirmed Week template through the roster HTTP boundary" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Template application mutation"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                manager <- createUserRecord "template-application-mutation@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                let actor = rosterTemplateActor manager venue True
+                Right draft <- startBlankRosterTemplateDesignerDraft actor rosterGroup Week "Standard week"
+                Right saved <- saveRosterTemplateDraft actor draft.draftDesign.id
+                targetWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 False
+                _ <- forM [0 .. 6] (createRosterDayRecord targetWeek)
+                _ <- newRecord @RosterWeekSlotDefinition
+                    |> set #rosterWeekId (unpackId targetWeek.id)
+                    |> set #name "Old lane"
+                    |> set #sortOrder 0
+                    |> createRecord
+                let targetKey = "week:" <> tshow targetWeek.id
+                previewResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ShowRosterTemplateApplicationConfirmationAction
+                        { rosterTemplateId = saved.savedTemplate.id, rosterGroupId = rosterGroup.id, weekOffset = 0 }
+                        [("targetDropzoneKey", cs targetKey)]
+                expectedVersion <- hiddenInputValue "expectedTemplateVersion" previewResponse
+                expectedRevision <- hiddenInputValue "expectedTargetRevision" previewResponse
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ApplyRosterTemplateAction
+                        { rosterTemplateId = saved.savedTemplate.id, rosterGroupId = rosterGroup.id, weekOffset = 0 }
+                        [ ("templateId", idToParam saved.savedTemplate.id)
+                        , ("targetDropzoneKey", cs targetKey)
+                        , ("expectedTemplateVersion", cs expectedVersion)
+                        , ("expectedTargetRevision", cs expectedRevision)
+                        ]
+                activeDefinitions <- query @RosterWeekSlotDefinition
+                    |> filterWhere (#rosterWeekId, unpackId targetWeek.id)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
+
+                response `responseStatusShouldBe` status302
+                map (.name) activeDefinitions `shouldBe` ["Shift"]
+
+        it "names the template and preserves existing rosters in delete confirmation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Template delete confirmation"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                manager <- createUserRecord "template-delete-confirmation@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                let actor = rosterTemplateActor manager venue True
+                Right draft <- startBlankRosterTemplateDesignerDraft actor rosterGroup Day "Lunch service"
+                Right saved <- saveRosterTemplateDraft actor draft.draftDesign.id
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction ConfirmDeleteRosterTemplateAction
+                        { rosterTemplateId = saved.savedTemplate.id
+                        , rosterGroupId = rosterGroup.id
+                        , weekOffset = 0
+                        }
+                retained <- query @RosterTemplate |> filterWhere (#id, saved.savedTemplate.id) |> fetchOneOrNothing
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Delete Lunch service"
+                response `responseBodyShouldContain` "Existing rosters are unaffected"
+                retained `shouldSatisfy` isJust
+
 hiddenInputValue :: Text -> Response -> IO Text
 hiddenInputValue name response = do
     bodyBytes <- responseBody response

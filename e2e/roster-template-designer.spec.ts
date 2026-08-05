@@ -35,8 +35,8 @@ test.beforeEach(async ({ page }) => {
 
 test('blank design opens in the roster card and occupied work remains recoverable', async ({ page }) => {
     await openRoster(page, { email: managerEmail, useCurrentSession: true });
-    await expect(page.locator('#roster-template-library-link')).toBeVisible();
-    await page.locator('#roster-template-library-link').click();
+    await page.getByRole('tab', { name: 'Templates' }).click();
+    await page.getByRole('link', { name: 'New' }).click();
     await expect(page.locator('#roster-template-create')).toBeVisible();
     await page.getByRole('radio', { name: 'Week', exact: true }).check();
     await page.getByLabel('Template name').fill('e2e blank week');

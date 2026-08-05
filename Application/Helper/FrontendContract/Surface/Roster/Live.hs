@@ -12,6 +12,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Live
     , rosterRowLiveFragment
     , rosterSlotsGridLiveFragment
     , rosterStaffPanelLiveFragment
+    , rosterTemplateLibraryLiveFragment
     , rosterWageRailLiveFragment
     , rosterWeekLiveScope
     ) where
@@ -27,6 +28,7 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Live (roster
                                                                           rosterRowLiveFragment,
                                                                           rosterSlotsGridLiveFragment,
                                                                           rosterStaffPanelLiveFragment,
+                                                                          rosterTemplateLibraryLiveFragment,
                                                                           rosterWageRailLiveFragment,
                                                                           rosterWeekLiveScope)
 import qualified Application.Helper.FrontendContract.Surface.Roster.Generated.Live as Generated

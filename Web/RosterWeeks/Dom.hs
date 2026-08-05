@@ -16,8 +16,11 @@ module Web.RosterWeeks.Dom
     , rosterRowDomIdText
     , rosterStaffPanelFragmentClasses
     , rosterStaffPanelFragmentId
+    , rosterTemplateLibraryFragmentId
     , rosterStaffPanelStaffPaneId
     , rosterStaffPanelStaffTabId
+    , rosterStaffPanelTemplatesPaneId
+    , rosterStaffPanelTemplatesTabId
     , rosterStaffPanelSettingsPaneId
     , rosterStaffPanelSettingsTabId
     , rosterWeekShellId
@@ -70,13 +73,20 @@ rosterSlotsGridFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surf
 rosterStaffPanelFragmentId :: Text
 rosterStaffPanelFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterStaffPanel noSurfaceFields
 
+rosterTemplateLibraryFragmentId :: Id User -> Text
+rosterTemplateLibraryFragmentId userId =
+    surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterTemplateLibraryFragment
+        (surfaceField @Surface.UserId (unpackId userId) &: noSurfaceFields)
+
 rosterStaffPanelFragmentClasses :: [Text]
 rosterStaffPanelFragmentClasses = ["col-12", "col-xl-4", "col-xxl-3", "roster-layout-side"]
 
-rosterStaffPanelStaffTabId, rosterStaffPanelSettingsTabId, rosterStaffPanelStaffPaneId, rosterStaffPanelSettingsPaneId :: Text
+rosterStaffPanelStaffTabId, rosterStaffPanelTemplatesTabId, rosterStaffPanelSettingsTabId, rosterStaffPanelStaffPaneId, rosterStaffPanelTemplatesPaneId, rosterStaffPanelSettingsPaneId :: Text
 rosterStaffPanelStaffTabId = "roster-staff-panel-staff-tab"
+rosterStaffPanelTemplatesTabId = "roster-staff-panel-templates-tab"
 rosterStaffPanelSettingsTabId = "roster-staff-panel-settings-tab"
 rosterStaffPanelStaffPaneId = "roster-staff-panel-staff-pane"
+rosterStaffPanelTemplatesPaneId = "roster-staff-panel-templates-pane"
 rosterStaffPanelSettingsPaneId = "roster-staff-panel-settings-pane"
 
 rosterDaySectionDomId :: Id RosterDay -> Text

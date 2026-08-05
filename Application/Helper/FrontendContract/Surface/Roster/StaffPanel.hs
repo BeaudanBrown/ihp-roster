@@ -27,6 +27,7 @@ data RosterStaffPanelSortKey
 
 data RosterStaffPanelTab
     = RosterStaffTab
+    | RosterTemplatesTab
     | RosterSettingsTab
     deriving (Eq, Show)
 
@@ -60,5 +61,7 @@ rosterStaffPanelTabAttrs :: RosterStaffPanelTab -> [(Text, Text)]
 rosterStaffPanelTabAttrs = \case
     RosterStaffTab ->
         surfaceTabSetAttrs @Roster.RosterSurface @Roster.RosterStaffPanelTabs @Roster.StaffTabKey
+    RosterTemplatesTab ->
+        surfaceTabSetAttrs @Roster.RosterSurface @Roster.RosterStaffPanelTabs @Roster.TemplatesTabKey
     RosterSettingsTab ->
         surfaceTabSetAttrs @Roster.RosterSurface @Roster.RosterStaffPanelTabs @Roster.SettingsTabKey
