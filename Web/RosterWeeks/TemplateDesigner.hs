@@ -18,9 +18,7 @@ import Application.RosterTemplates
 import Application.RosterTemplates.Mutations (lockRosterTemplateReferenceRows)
 import Application.VenueTime (resolvedInstantFromUTC, resolvedInstantLocalTime)
 import Control.Monad (guard)
-import qualified "crypton" Crypto.Hash as Hash
 import qualified Data.Map.Strict as Map
-import qualified Data.Text.Encoding as TextEncoding
 import Data.Time.Calendar (diffDays)
 import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..))
 import Data.Traversable (traverse)
@@ -272,7 +270,7 @@ fetchRosterTemplateReferenceRevision rosterGroup reference =
 
 referenceSourceRevision :: ReferenceSource -> Text
 referenceSourceRevision source =
-    tshow (Hash.hash (TextEncoding.encodeUtf8 (tshow (source.sourceScale, source.sourceContent))) :: Hash.Digest Hash.SHA256)
+    tshow (source.sourceScale, rosterTemplateContentRevision source.sourceContent)
 
 startRosterTemplateDraftFromReference ::
     (?modelContext :: ModelContext) =>

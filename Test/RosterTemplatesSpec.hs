@@ -3,6 +3,7 @@ module Test.RosterTemplatesSpec where
 import Application.RosterShiftAssignment (RosterShiftAssignment (..))
 import Application.RosterTemplates
 import Data.Either (isRight)
+import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Test.Mocking
@@ -12,6 +13,22 @@ import Test.Support
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Roster template drafts" do
+        it "hashes equivalent multi-day and multi-column content canonically" $ withContext do
+            let shiftTypeId = Id UUID.nil
+            let firstShift = RosterTemplateShiftInput 0 0 0 540 1020 shiftTypeId OpenAssignment
+            let secondShift = RosterTemplateShiftInput 1 1 0 600 1080 shiftTypeId OpenAssignment
+            let content = RosterTemplateContent
+                    [RosterTemplateDayInput 0 False 1, RosterTemplateDayInput 1 False 1]
+                    [RosterTemplateColumnInput "Early" 0, RosterTemplateColumnInput "Late" 1]
+                    [firstShift, secondShift]
+            let reordered = content
+                    { contentDays = reverse content.contentDays
+                    , contentColumns = reverse content.contentColumns
+                    , contentShifts = reverse content.contentShifts
+                    }
+
+            rosterTemplateContentRevision reordered `shouldBe` rosterTemplateContentRevision content
+
         it "keeps one private recoverable draft per authorized effective user" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Template drafts"

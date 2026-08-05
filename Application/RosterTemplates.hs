@@ -21,6 +21,7 @@ module Application.RosterTemplates
     , rosterTemplateActor
     , rosterTemplateActorCanEditRosters
     , rosterTemplateActorUserId
+    , rosterTemplateContentRevision
     , rosterTemplateDraftRevision
     , rosterTemplateActorVenueId
     , rosterTemplateContentIsValid
@@ -52,6 +53,7 @@ import Application.RosterTemplates.Mutations (lockRosterTemplateContentReference
                                               lockRosterTemplateVersion)
 import Control.Monad (void)
 import qualified "crypton" Crypto.Hash as Hash
+import Data.List (sortOn)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -714,6 +716,25 @@ draftContentInput draft =
             , contentShifts = mapMaybe (savedShiftInput dayIndexById columnSortById) draft.draftShifts
             }
 
+rosterTemplateContentRevision :: RosterTemplateContent -> Text
+rosterTemplateContentRevision content =
+    tshow (Hash.hash (TextEncoding.encodeUtf8 payload) :: Hash.Digest Hash.SHA256)
+  where
+    payload = tshow
+        ( sortOn (.inputDayIndex) content.contentDays
+        , sortOn (\column -> (column.inputColumnSortOrder, column.inputColumnName)) content.contentColumns
+        , sortOn shiftKey content.contentShifts
+        )
+    shiftKey shift =
+        ( shift.inputShiftDayIndex
+        , shift.inputShiftColumnSortOrder
+        , shift.inputShiftRowIndex
+        , shift.inputShiftStartMinute
+        , shift.inputShiftEndMinute
+        , tshow shift.inputShiftTypeId
+        , tshow shift.inputShiftAssignment
+        )
+
 rosterTemplateDraftRevision :: RosterTemplateDraft -> Text
 rosterTemplateDraftRevision draft =
     tshow (Hash.hash (TextEncoding.encodeUtf8 payload) :: Hash.Digest Hash.SHA256)
@@ -726,7 +747,7 @@ rosterTemplateDraftRevision draft =
         , design.draftName
         , design.sourceTemplateId
         , design.baseVersionNumber
-        , draftContentInput draft
+        , rosterTemplateContentRevision (draftContentInput draft)
         )
 
 savedShiftInput :: Map.Map UUID Int -> Map.Map UUID Int -> RosterTemplateShift -> Maybe RosterTemplateShiftInput
