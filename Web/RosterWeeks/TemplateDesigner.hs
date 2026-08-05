@@ -67,7 +67,7 @@ mutateRosterTemplateDesignerDraft actor designId mutation = do
             if not (rosterTemplateContentIsValid draft.draftDesign.scale content)
                 then pure (Left (RosterTemplateInvalidContent "Template days, columns, shifts, or times are invalid."))
                 else do
-                    references <- validateDesignerContentReferences actor draft.draftDesign content
+                    references <- validateDesignerContentReferences actor draft.draftDesign.rosterGroupId content
                     case references of
                         Left templateError -> pure (Left templateError)
                         Right () -> replaceRosterTemplateDraftContent actor designId content
@@ -76,10 +76,10 @@ mutateRosterTemplateDesignerDraft actor designId mutation = do
 validateDesignerContentReferences ::
     (?modelContext :: ModelContext) =>
     RosterTemplateActor ->
-    RosterTemplateDesign ->
+    UUID ->
     RosterTemplateContent ->
     IO (Either RosterTemplateError ())
-validateDesignerContentReferences actor design content = do
+validateDesignerContentReferences actor rosterGroupId content = do
     let shiftTypeIds = nub (map (.inputShiftTypeId) content.contentShifts)
     validShiftTypes <- if null shiftTypeIds
         then pure []
@@ -94,7 +94,7 @@ validateDesignerContentReferences actor design content = do
     if not (null invalidShiftTypeIds)
         then pure (Left (RosterTemplateInvalidShiftTypes invalidShiftTypeIds))
         else do
-            assignmentErrors <- traverse (validateDesignerShiftAssignment actor design) content.contentShifts
+            assignmentErrors <- traverse (validateDesignerShiftAssignment actor rosterGroupId) content.contentShifts
             pure case find isJust assignmentErrors of
                 Just (Just message) -> Left (RosterTemplateInvalidContent message)
                 _                   -> Right ()
@@ -102,11 +102,11 @@ validateDesignerContentReferences actor design content = do
 validateDesignerShiftAssignment ::
     (?modelContext :: ModelContext) =>
     RosterTemplateActor ->
-    RosterTemplateDesign ->
+    UUID ->
     RosterTemplateShiftInput ->
     IO (Maybe Text)
 validateDesignerShiftAssignment _ _ RosterTemplateShiftInput { inputShiftAssignment = OpenAssignment } = pure Nothing
-validateDesignerShiftAssignment actor design shift@RosterTemplateShiftInput { inputShiftAssignment = StaffAssignment staffId } = do
+validateDesignerShiftAssignment actor rosterGroupId shift@RosterTemplateShiftInput { inputShiftAssignment = StaffAssignment staffId } = do
     maybeStaff <- query @Staff
         |> filterWhere (#id, staffId)
         |> filterWhere (#venueId, unpackId (rosterTemplateActorVenueId actor))
@@ -115,7 +115,7 @@ validateDesignerShiftAssignment actor design shift@RosterTemplateShiftInput { in
         |> fetchOneOrNothing
     inGroup <- query @StaffRosterGroup
         |> filterWhere (#staffId, unpackId staffId)
-        |> filterWhere (#rosterGroupId, design.rosterGroupId)
+        |> filterWhere (#rosterGroupId, rosterGroupId)
         |> filterWhere (#deletedAt, Nothing)
         |> fetchExists
     case maybeStaff of
@@ -302,8 +302,11 @@ startRosterTemplateDraftFromReference actor rosterGroup requestedName reference 
     maybeSource <- fetchReferenceSource rosterGroup reference
     case maybeSource of
         Nothing -> pure (Left RosterTemplateNotFound)
-        Just source ->
-            startRosterTemplateDraftWithContent actor rosterGroup source.sourceScale requestedName source.sourceContent
+        Just source -> do
+            references <- validateDesignerContentReferences actor (unpackId rosterGroup.id) source.sourceContent
+            case references of
+                Left templateError -> pure (Left templateError)
+                Right () -> startRosterTemplateDraftWithContent actor rosterGroup source.sourceScale requestedName source.sourceContent
 
 data ReferenceSource = ReferenceSource
     { sourceScale   :: !RosterTemplateScaleEnum

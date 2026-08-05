@@ -64,19 +64,23 @@ renderReferenceContent :: ReferenceView -> Html
 renderReferenceContent view@ReferenceView { referenceWeek = RosterTemplateReferenceWeek { referenceRosterWeek = Nothing } } = [hsx|
     <div class="alert alert-secondary mb-0">No live or draft roster exists for this week.</div>
 |]
-renderReferenceContent view@ReferenceView { referenceWeek = RosterTemplateReferenceWeek { .. }, templateScale = Week } = [hsx|
-    <form method="GET" action={ConfirmRosterTemplateReferenceAction view.rosterGroup.id view.weekOffset}
-          class="roster-template-reference-target roster-template-reference-week"
-          {...rosterTemplateReferenceTargetAttrs}>
-        {referenceHiddenFields view Nothing}
-        <button type="submit" class="btn p-0 text-start w-100 roster-template-reference-button" aria-label="Use this week as template reference">
-            <span class="d-block p-4">
-                <strong>Week of {formatDate referenceWeekStart}</strong>
-                <span class="d-block text-muted mt-1">{length referenceRosterSlots} shifts · {visibilityLabel referenceRosterWeek}</span>
-            </span>
-        </button>
-    </form>
-|]
+renderReferenceContent view@ReferenceView { referenceWeek = RosterTemplateReferenceWeek { .. }, templateScale = Week }
+    | map (.dayOffset) referenceRosterDays /= [0 .. 6] = [hsx|
+        <div class="alert alert-secondary mb-0">This roster week is incomplete and cannot be used as a Week template reference.</div>
+    |]
+    | otherwise = [hsx|
+        <form method="GET" action={ConfirmRosterTemplateReferenceAction view.rosterGroup.id view.weekOffset}
+              class="roster-template-reference-target roster-template-reference-week"
+              {...rosterTemplateReferenceTargetAttrs}>
+            {referenceHiddenFields view Nothing}
+            <button type="submit" class="btn p-0 text-start w-100 roster-template-reference-button" aria-label="Use this week as template reference">
+                <span class="d-block p-4">
+                    <strong>Week of {formatDate referenceWeekStart}</strong>
+                    <span class="d-block text-muted mt-1">{length referenceRosterSlots} shifts · {visibilityLabel referenceRosterWeek}</span>
+                </span>
+            </button>
+        </form>
+    |]
 renderReferenceContent view@ReferenceView { referenceWeek = RosterTemplateReferenceWeek { .. }, templateScale = Day } = [hsx|
     <div class="row g-3">
         {forEach referenceRosterDays renderDay}

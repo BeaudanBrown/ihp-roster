@@ -83,6 +83,38 @@ tests = aroundAll withDatabaseTestContext do
                 result `shouldBe` Left (RosterTemplateInvalidShiftTypes [shiftType.id])
                 fmap (.draftShifts) persisted `shouldBe` Just []
 
+        it "rejects stale Shift type and Staff references before creating a reference draft" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Template stale reference"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                owner <- createUserRecord "designer-stale-reference@example.com" "staff" True
+                staff <- createStaffRecord venue Nothing "Stale" "Reference"
+                shiftType <- ensureVenueDefaultShiftType venue
+                slotName <- fetchSlotNameRecordForRosterGroup rosterGroup "Early"
+                sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 True
+                sourceDay <- createRosterDayRecord sourceWeek 0
+                _ <- createCompleteRosterSlotRecord sourceDay slotName staff 0
+                    >>= updateRecord
+                        . setTestRosterSlotBoundaries
+                            (venueWeekStartDate venueConfig 0)
+                            (TimeOfDay 9 0 0)
+                            (TimeOfDay 17 0 0)
+                let actor = rosterTemplateActor owner venue True
+                _ <- shiftType |> set #isActive False |> updateRecord
+
+                staleType <- startRosterTemplateDraftFromReference actor rosterGroup "Stale type" (RosterTemplateDayReference sourceWeek.id 0)
+                noTypeDraft <- fetchPrivateRosterTemplateDraft actor
+                _ <- shiftType |> set #isActive True |> updateRecord
+                _ <- staff |> set #isActive False |> updateRecord
+                staleStaff <- startRosterTemplateDraftFromReference actor rosterGroup "Stale staff" (RosterTemplateDayReference sourceWeek.id 0)
+                noStaffDraft <- fetchPrivateRosterTemplateDraft actor
+
+                staleType `shouldBe` Left (RosterTemplateInvalidShiftTypes [shiftType.id])
+                noTypeDraft `shouldBe` Nothing
+                staleStaff `shouldBe` Left (RosterTemplateInvalidContent "Choose an available roster-group staff member with valid pay configuration.")
+                noStaffDraft `shouldBe` Nothing
+
         it "copies all seven day states and columns for a Week reference" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Template week reference"

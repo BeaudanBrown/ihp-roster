@@ -13,7 +13,7 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
-import Network.Wai (responseHeaders)
+import Network.Wai (responseHeaders, responseStatus)
 import Test.Hspec
 import Test.Support
 import Web.Controller.RosterTemplates ()
@@ -37,6 +37,28 @@ tests = aroundAll withDatabaseTestContext do
                 draftCount <- query @RosterTemplateDesign |> fetchCount
 
                 response `responseStatusShouldBe` status403
+                draftCount `shouldBe` 0
+
+        it "rerenders controlled creation validation for malformed scale and invalid names" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Template input validation"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                manager <- createUserRecord "template-input-validation@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                let submit params = withUserAndCurrentVenue manager venue.id do
+                        callActionWithParams CreateRosterTemplateDraftAction { rosterGroupId = rosterGroup.id } params
+
+                malformedScale <- submit [("name", "Valid name"), ("scale", "century"), ("startingPoint", "blank")]
+                whitespaceName <- submit [("name", "   "), ("scale", "day"), ("startingPoint", "blank")]
+                oversizedName <- submit [("name", ByteString.replicate 121 'x'), ("scale", "day"), ("startingPoint", "blank")]
+                draftCount <- query @RosterTemplateDesign |> fetchCount
+
+                malformedScale `responseStatusShouldBe` status200
+                malformedScale `responseBodyShouldContain` "Choose Day or Week"
+                whitespaceName `responseStatusShouldBe` status200
+                whitespaceName `responseBodyShouldContain` "Template names must contain"
+                oversizedName `responseStatusShouldBe` status200
+                oversizedName `responseBodyShouldContain` "Template names must contain"
                 draftCount `shouldBe` 0
 
         it "renders template creation in the roster-content card for an authorized manager" $ withContext do
@@ -78,6 +100,25 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Use Tuesday"
                 response `responseBodyShouldNotContain` "ToggleRosterDayClosed"
                 afterCount `shouldBe` beforeCount
+
+        it "does not mark an incomplete Week reference as compatible or selectable" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Incomplete reference controller"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                manager <- createUserRecord "template-incomplete-reference@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 False
+                _ <- createRosterDayRecord sourceWeek 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ShowRosterTemplateReferenceAction
+                        { rosterGroupId = rosterGroup.id, weekOffset = 0 }
+                        [("name", "Incomplete week"), ("scale", "week")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "This roster week is incomplete"
+                response `responseBodyShouldNotContain` "data-bepis-roster-template-designer-template-reference-compatibility"
+                response `responseBodyShouldNotContain` "Use this week as template reference"
 
         it "confirms a Day reference before creating an isolated prefilled draft" $ withContext do
             withCleanDb do
@@ -172,6 +213,41 @@ tests = aroundAll withDatabaseTestContext do
                 fmap (.draftShifts) afterIncomplete `shouldBe` Just []
                 complete `responseStatusShouldBe` status302
                 fmap (map (.assignmentState) . (.draftShifts)) afterComplete `shouldBe` Just ["open"]
+
+        it "rejects malformed shift integers, UUIDs, assignments, and day states without mutation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Template mutation validation"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                manager <- createUserRecord "template-mutation-validation@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                shiftType <- ensureVenueDefaultShiftType venue
+                let actor = rosterTemplateActor manager venue True
+                Right draft <- startBlankRosterTemplateDesignerDraft actor rosterGroup Day "Validation day"
+                let designId = draft.draftDesign.id
+                let validParams =
+                        [ ("dayIndex", "0")
+                        , ("columnSortOrder", "0")
+                        , ("rowIndex", "0")
+                        , ("startTime", "09:00")
+                        , ("endTime", "17:00")
+                        , ("assignment", "open")
+                        , ("shiftTypeId", cs (tshow shiftType.id))
+                        ]
+                let submitShift params = withUserAndCurrentVenue manager venue.id do
+                        callActionWithParams UpsertRosterTemplateShiftAction { rosterTemplateDesignId = designId } params
+
+                malformedRow <- submitShift (("rowIndex", "NaN") : filter ((/= "rowIndex") . fst) validParams)
+                malformedShiftType <- submitShift (("shiftTypeId", "not-a-uuid") : filter ((/= "shiftTypeId") . fst) validParams)
+                malformedAssignment <- submitShift (("assignment", "not-a-uuid") : filter ((/= "assignment") . fst) validParams)
+                malformedDay <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams UpdateRosterTemplateDayAction { rosterTemplateDesignId = designId, dayIndex = 0 }
+                        [("state", "<script>"), ("rowCount", "1")]
+                persisted <- fetchPrivateRosterTemplateDraft actor
+
+                map (\response -> responseStatus response) [malformedRow, malformedShiftType, malformedAssignment, malformedDay]
+                    `shouldBe` replicate 4 status302
+                fmap (.draftShifts) persisted `shouldBe` Just []
+                fmap (map (.isClosed) . (.draftDays)) persisted `shouldBe` Just [False]
 
         it "renders immutable edit conflict recovery actions for saved templates" $ withContext do
             withCleanDb do
