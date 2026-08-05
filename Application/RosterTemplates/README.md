@@ -9,6 +9,8 @@
 - Save converts stale or pay-invalid Staff assignments to Open with typed warnings; stale Shift types block the whole save.
 - Saved templates soft-delete. Unsaved drafts and their content may be permanently discarded.
 - Access uses the same manager-or-higher and venue-writable capability as roster editing, including support-mode super admins.
+- `Web.RosterWeeks.TemplateDesigner` projects blank, Day-reference, and Week-reference content into private drafts without mutating source rosters. Typed autosave mutations persist only structurally complete shifts with active same-venue Shift types and eligible roster-group Staff/pay references.
+- Dedicated `RosterTemplatesController` routes own creation, read-only reference navigation/confirmation, occupied-draft decisions, isolated editing, save/conflict recovery, and soft deletion.
 
 `Application.RosterTemplates.Mutations` contains the minimal PostgreSQL row lock used to serialize optimistic commits. All ordinary reads use IHP QueryBuilder.
 

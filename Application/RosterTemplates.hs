@@ -20,11 +20,13 @@ module Application.RosterTemplates
     , rosterTemplateActorCanEditRosters
     , rosterTemplateActorUserId
     , rosterTemplateActorVenueId
+    , rosterTemplateContentIsValid
     , saveRosterTemplateDraft
     , reloadLatestRosterTemplateDraft
     , saveRosterTemplateDraftAsNew
     , softDeleteRosterTemplate
     , startBlankRosterTemplateDraft
+    , startRosterTemplateDraftWithContent
     , startRosterTemplateEditDraft
     ) where
 
@@ -185,6 +187,25 @@ startBlankRosterTemplateDraft actor rosterGroup scale requestedName
                 pure (Right (emptyDraft design normalizedName))
   where
     normalizedName = Text.strip requestedName
+
+startRosterTemplateDraftWithContent ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    RosterGroup ->
+    RosterTemplateScaleEnum ->
+    Text ->
+    RosterTemplateContent ->
+    IO (Either RosterTemplateError RosterTemplateDraft)
+startRosterTemplateDraftWithContent actor rosterGroup scale requestedName content
+    | not (validTemplateContentForScale scale content) = pure (Left (RosterTemplateInvalidContent "Template days, columns, shifts, or times are invalid."))
+    | otherwise = withTransaction do
+        started <- startBlankRosterTemplateDraft actor rosterGroup scale requestedName
+        case started of
+            Left templateError -> pure (Left templateError)
+            Right draft -> do
+                persistRosterTemplateDraftContent draft.draftDesign content
+                reloaded <- loadDraft draft.draftDesign
+                pure (Right reloaded)
 
 fetchRosterTemplateLibrary ::
     (?modelContext :: ModelContext) =>
@@ -605,22 +626,35 @@ replaceRosterTemplateDraftContent actor designId content
             Just design
                 | not (validTemplateContent design content) -> pure (Left (RosterTemplateInvalidContent "Template days, columns, shifts, or times are invalid."))
                 | otherwise -> do
-                    withTransaction do
-                        oldShifts <- query @RosterTemplateShift |> filterWhere (#rosterTemplateDesignId, unpackId design.id) |> fetch
-                        oldDays <- query @RosterTemplateDay |> filterWhere (#rosterTemplateDesignId, unpackId design.id) |> fetch
-                        oldColumns <- query @RosterTemplateColumn |> filterWhere (#rosterTemplateDesignId, unpackId design.id) |> fetch
-                        deleteRecords oldShifts
-                        deleteRecords oldDays
-                        deleteRecords oldColumns
-                        days <- forM content.contentDays (createTemplateDay design)
-                        columns <- forM content.contentColumns (createTemplateColumn design)
-                        let daysByIndex = Map.fromList [(day.dayIndex, day) | day <- days]
-                        let columnsBySortOrder = Map.fromList [(column.sortOrder, column) | column <- columns]
-                        forM_ content.contentShifts (createTemplateShift design daysByIndex columnsBySortOrder)
+                    withTransaction (persistRosterTemplateDraftContent design content)
                     pure (Right ())
 
+persistRosterTemplateDraftContent ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateDesign ->
+    RosterTemplateContent ->
+    IO ()
+persistRosterTemplateDraftContent design content = do
+    oldShifts <- query @RosterTemplateShift |> filterWhere (#rosterTemplateDesignId, unpackId design.id) |> fetch
+    oldDays <- query @RosterTemplateDay |> filterWhere (#rosterTemplateDesignId, unpackId design.id) |> fetch
+    oldColumns <- query @RosterTemplateColumn |> filterWhere (#rosterTemplateDesignId, unpackId design.id) |> fetch
+    deleteRecords oldShifts
+    deleteRecords oldDays
+    deleteRecords oldColumns
+    days <- forM content.contentDays (createTemplateDay design)
+    columns <- forM content.contentColumns (createTemplateColumn design)
+    let daysByIndex = Map.fromList [(day.dayIndex, day) | day <- days]
+    let columnsBySortOrder = Map.fromList [(column.sortOrder, column) | column <- columns]
+    forM_ content.contentShifts (createTemplateShift design daysByIndex columnsBySortOrder)
+
+rosterTemplateContentIsValid :: RosterTemplateScaleEnum -> RosterTemplateContent -> Bool
+rosterTemplateContentIsValid = validTemplateContentForScale
+
 validTemplateContent :: RosterTemplateDesign -> RosterTemplateContent -> Bool
-validTemplateContent design content =
+validTemplateContent design = validTemplateContentForScale design.scale
+
+validTemplateContentForScale :: RosterTemplateScaleEnum -> RosterTemplateContent -> Bool
+validTemplateContentForScale scale content =
     not (null content.contentDays)
         && not (null content.contentColumns)
         && all validDay content.contentDays
@@ -631,18 +665,22 @@ validTemplateContent design content =
         && all validShift content.contentShifts
   where
     dayIndexes = map (.inputDayIndex) content.contentDays
+    daysByIndex = Map.fromList [(day.inputDayIndex, day) | day <- content.contentDays]
     columnSortOrders = map (.inputColumnSortOrder) content.contentColumns
-    validDay day = day.inputDayIndex >= 0 && day.inputDayIndex <= 6 && day.inputDayRowCount >= 0 && (design.scale == Week || day.inputDayIndex == 0)
+    validDay day = day.inputDayIndex >= 0 && day.inputDayIndex <= 6 && day.inputDayRowCount >= 0 && (scale == Week || day.inputDayIndex == 0)
     validColumn column =
         let name = Text.strip column.inputColumnName
          in not (Text.null name) && Text.length name <= 120 && column.inputColumnSortOrder >= 0
     validShift shift =
-        shift.inputShiftDayIndex `elem` dayIndexes
-            && shift.inputShiftColumnSortOrder `elem` columnSortOrders
-            && shift.inputShiftRowIndex >= 0
-            && shift.inputShiftStartMinute >= 0
-            && shift.inputShiftEndMinute > shift.inputShiftStartMinute
-            && shift.inputShiftEndMinute <= 2880
+        case Map.lookup shift.inputShiftDayIndex daysByIndex of
+            Nothing -> False
+            Just day ->
+                shift.inputShiftColumnSortOrder `elem` columnSortOrders
+                    && shift.inputShiftRowIndex >= 0
+                    && shift.inputShiftRowIndex < day.inputDayRowCount
+                    && shift.inputShiftStartMinute >= 0
+                    && shift.inputShiftEndMinute > shift.inputShiftStartMinute
+                    && shift.inputShiftEndMinute <= 2880
 
 unique :: Ord value => [value] -> Bool
 unique values = Map.size (Map.fromList [(value, ()) | value <- values]) == length values
