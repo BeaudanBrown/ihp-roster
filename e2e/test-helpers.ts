@@ -601,7 +601,11 @@ export async function openRoster(page: Page, options: OpenRosterOptions = {}) {
             }
         }
 
-        await page.getByRole('link', { name: 'Next week' }).click();
+        const previousRosterUrl = page.url();
+        await Promise.all([
+            page.waitForURL((url) => url.toString() !== previousRosterUrl, { timeout: E2E_TIMEOUT.navigation }),
+            page.getByRole('link', { name: 'Next week' }).click(),
+        ]);
         await waitForRosterWeekShell(page);
     }
 }

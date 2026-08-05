@@ -282,7 +282,9 @@ test.describe('HTMX submit regressions', () => {
             response.request().method() === 'DELETE' && response.url().includes('/DeleteTimesheetEntry')
         );
         await page.getByRole('button', { name: 'Delete' }).click();
-        await deleteResponsePromise;
+        const deleteResponse = await deleteResponsePromise;
+        expect(deleteResponse.status(), await deleteResponse.text()).toBe(200);
+        await deleteResponse.finished();
 
         await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
         await expect(updatedDaySection.locator(`.timesheet-entry-card a[href*="${deletedEntryId}"]`)).toHaveCount(0);

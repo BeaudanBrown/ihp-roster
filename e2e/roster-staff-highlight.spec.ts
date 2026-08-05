@@ -190,7 +190,7 @@ test.describe('Roster staff shift highlight', () => {
                     'a1000000-0000-0000-0000-000000000081',
                     1,
                     ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '12:00') AT TIME ZONE 'Australia/Melbourne',
-                    ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '16:00') AT TIME ZONE 'Australia/Melbourne',
+                    ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '15:00') AT TIME ZONE 'Australia/Melbourne',
                     'Australia/Melbourne',
                     'a1000000-0000-0000-0000-000000000133'
                 )
