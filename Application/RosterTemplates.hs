@@ -28,6 +28,7 @@ module Application.RosterTemplates
     , startBlankRosterTemplateDraft
     , startRosterTemplateDraftWithContent
     , startRosterTemplateEditDraft
+    , updateRosterTemplateDraftContent
     ) where
 
 import Application.Helper.ControllerAccess (hasRole,
@@ -607,6 +608,16 @@ savedContentInput saved =
             , contentShifts = mapMaybe (savedShiftInput dayIndexById columnSortById) saved.savedShifts
             }
 
+draftContentInput :: RosterTemplateDraft -> RosterTemplateContent
+draftContentInput draft =
+    let dayIndexById = Map.fromList [(unpackId day.id, day.dayIndex) | day <- draft.draftDays]
+        columnSortById = Map.fromList [(unpackId column.id, column.sortOrder) | column <- draft.draftColumns]
+     in RosterTemplateContent
+            { contentDays = [RosterTemplateDayInput day.dayIndex day.isClosed day.rowCount | day <- draft.draftDays]
+            , contentColumns = [RosterTemplateColumnInput column.name column.sortOrder | column <- draft.draftColumns]
+            , contentShifts = mapMaybe (savedShiftInput dayIndexById columnSortById) draft.draftShifts
+            }
+
 savedShiftInput :: Map.Map UUID Int -> Map.Map UUID Int -> RosterTemplateShift -> Maybe RosterTemplateShiftInput
 savedShiftInput dayIndexById columnSortById shift = do
     dayIndex <- Map.lookup shift.rosterTemplateDayId dayIndexById
@@ -623,20 +634,33 @@ replaceRosterTemplateDraftContent ::
     Id RosterTemplateDesign ->
     RosterTemplateContent ->
     IO (Either RosterTemplateError ())
-replaceRosterTemplateDraftContent actor designId content
+replaceRosterTemplateDraftContent actor designId content =
+    updateRosterTemplateDraftContent actor designId (const (Right content))
+
+updateRosterTemplateDraftContent ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    Id RosterTemplateDesign ->
+    (RosterTemplateContent -> Either RosterTemplateError RosterTemplateContent) ->
+    IO (Either RosterTemplateError ())
+updateRosterTemplateDraftContent actor designId transform
     | not actor.actorCanEditRosters = pure (Left RosterTemplateForbidden)
     | otherwise = withTransaction do
         designExists <- lockRosterTemplateDraftDesign designId
         maybeDesign <- if designExists then fetchOwnedDraft actor designId else pure Nothing
         case maybeDesign of
             Nothing -> pure (Left RosterTemplateForbidden)
-            Just design
-                | not (validTemplateContent design content) -> pure (Left (RosterTemplateInvalidContent "Template days, columns, shifts, or times are invalid."))
-                | otherwise -> do
-                    references <- validateContentInputReferences actor design.rosterGroupId content
-                    case references of
-                        Left templateError -> pure (Left templateError)
-                        Right () -> persistRosterTemplateDraftContent design content >> pure (Right ())
+            Just design -> do
+                currentDraft <- loadDraft design
+                case transform (draftContentInput currentDraft) of
+                    Left templateError -> pure (Left templateError)
+                    Right content
+                        | not (validTemplateContent design content) -> pure (Left (RosterTemplateInvalidContent "Template days, columns, shifts, or times are invalid."))
+                        | otherwise -> do
+                            references <- validateContentInputReferences actor design.rosterGroupId content
+                            case references of
+                                Left templateError -> pure (Left templateError)
+                                Right () -> persistRosterTemplateDraftContent design content >> pure (Right ())
 
 validateContentInputReferences ::
     (?modelContext :: ModelContext) =>

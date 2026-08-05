@@ -3,7 +3,8 @@ module Test.RosterTemplateDesignerSpec where
 import Application.Helper.WeekBoundaries (venueWeekStartDate)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..))
 import Application.RosterTemplates
-import Control.Concurrent (newEmptyMVar, putMVar, takeMVar, threadDelay)
+import Control.Concurrent (newEmptyMVar, putMVar, readMVar, takeMVar,
+                           threadDelay)
 import Control.Concurrent.Async (concurrently)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
@@ -53,6 +54,29 @@ tests = aroundAll withDatabaseTestContext do
                 invalid `shouldBe` Left (RosterTemplateInvalidContent "Template days, columns, shifts, or times are invalid.")
                 fmap (map (.startMinute) . (.draftShifts)) persisted `shouldBe` Just [540]
                 fmap (map (.endMinute) . (.draftShifts)) persisted `shouldBe` Just [1020]
+
+        it "serializes concurrent autosaves so acknowledged changes are both retained" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Designer concurrent autosave"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                owner <- createUserRecord "designer-concurrent-autosave@example.com" "staff" True
+                let actor = rosterTemplateActor owner venue True
+                Right draft <- startBlankRosterTemplateDesignerDraft actor rosterGroup Day "Concurrent day"
+                startGate <- newEmptyMVar
+                let run mutation = do
+                        readMVar startGate
+                        mutateRosterTemplateDesignerDraft actor draft.draftDesign.id mutation
+
+                putMVar startGate ()
+                (columnResult, dayResult) <- concurrently
+                    (run (AddRosterTemplateColumn "Second"))
+                    (run (SetRosterTemplateDay 0 False 2))
+                persisted <- fetchPrivateRosterTemplateDraft actor
+
+                columnResult `shouldBe` Right ()
+                dayResult `shouldBe` Right ()
+                fmap (map (.name) . (.draftColumns)) persisted `shouldBe` Just ["Shift", "Second"]
+                fmap (map (.rowCount) . (.draftDays)) persisted `shouldBe` Just [2]
 
         it "rejects stale day, column, and shift mutation targets instead of reporting autosave success" $ withContext do
             withCleanDb do

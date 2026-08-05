@@ -14,7 +14,6 @@ import Application.RosterTemplates
 import Application.VenueTime (resolvedInstantFromUTC, resolvedInstantLocalTime)
 import Control.Monad (guard)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (mapMaybe)
 import Data.Time.Calendar (diffDays)
 import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..))
 import Data.Traversable (traverse)
@@ -55,18 +54,11 @@ mutateRosterTemplateDesignerDraft ::
     Id RosterTemplateDesign ->
     RosterTemplateDesignerMutation ->
     IO (Either RosterTemplateError ())
-mutateRosterTemplateDesignerDraft actor designId mutation = do
-    maybeDraft <- fetchPrivateRosterTemplateDraft actor
-    case maybeDraft of
-        Just draft | draft.draftDesign.id == designId -> do
-            let currentContent = draftContent draft
-            let content = applyDesignerMutation mutation currentContent
-            if not (designerMutationTargetExists mutation currentContent)
-                then pure (Left (RosterTemplateInvalidContent "The selected template day, column, or shift no longer exists."))
-                else if not (rosterTemplateContentIsValid draft.draftDesign.scale content)
-                    then pure (Left (RosterTemplateInvalidContent "Template days, columns, shifts, or times are invalid."))
-                    else replaceRosterTemplateDraftContent actor designId content
-        _ -> pure (Left RosterTemplateForbidden)
+mutateRosterTemplateDesignerDraft actor designId mutation =
+    updateRosterTemplateDraftContent actor designId \currentContent ->
+        if not (designerMutationTargetExists mutation currentContent)
+            then Left (RosterTemplateInvalidContent "The selected template day, column, or shift no longer exists.")
+            else Right (applyDesignerMutation mutation currentContent)
 
 designerMutationTargetExists :: RosterTemplateDesignerMutation -> RosterTemplateContent -> Bool
 designerMutationTargetExists mutation content = case mutation of
@@ -138,30 +130,6 @@ applyDesignerMutation (DeleteRosterTemplateShift dayIndex columnSort rowIndex) c
     matchesCell shift =
         (shift.inputShiftDayIndex, shift.inputShiftColumnSortOrder, shift.inputShiftRowIndex)
             == (dayIndex, columnSort, rowIndex)
-
-draftContent :: RosterTemplateDraft -> RosterTemplateContent
-draftContent draft = RosterTemplateContent
-    { contentDays =
-        [ RosterTemplateDayInput day.dayIndex day.isClosed day.rowCount
-        | day <- draft.draftDays
-        ]
-    , contentColumns =
-        [ RosterTemplateColumnInput column.name column.sortOrder
-        | column <- draft.draftColumns
-        ]
-    , contentShifts = mapMaybe shiftInput draft.draftShifts
-    }
-  where
-    dayIndexById = Map.fromList [(unpackId day.id, day.dayIndex) | day <- draft.draftDays]
-    columnSortById = Map.fromList [(unpackId column.id, column.sortOrder) | column <- draft.draftColumns]
-    shiftInput shift = do
-        dayIndex <- Map.lookup shift.rosterTemplateDayId dayIndexById
-        columnSort <- Map.lookup shift.rosterTemplateColumnId columnSortById
-        assignment <- case (shift.assignmentState, shift.staffId) of
-            ("staff", Just staffId) -> Just (StaffAssignment (Id staffId))
-            ("open", Nothing)       -> Just OpenAssignment
-            _                       -> Nothing
-        pure (RosterTemplateShiftInput dayIndex columnSort shift.rowIndex shift.startMinute shift.endMinute (Id shift.shiftTypeId) assignment)
 
 data RosterTemplateReferenceWeek = RosterTemplateReferenceWeek
     { referenceRosterWeek  :: !(Maybe RosterWeek)
