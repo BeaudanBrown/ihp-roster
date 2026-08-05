@@ -20,6 +20,7 @@ module Application.Helper.FrontendContract.Surface.Values
     , KnownSurfaceFieldLookup
     , KnownSurfaceFieldValues
     , KnownSurfaceWireValue (..)
+    , DeclaredRequestFields
     , LookupSurfaceField
     , RequireBrowserClosedStateValue
     , RequireCompleteSetSortKey
@@ -38,6 +39,7 @@ module Application.Helper.FrontendContract.Surface.Values
     , SurfaceLinkedHighlightPrimitive
     , SurfaceTabSetPrimitive
     , SurfaceFieldBundle
+    , SurfaceFieldInput
     , SurfaceFieldBundleOf
     , SurfaceFieldBundleSpecs
     , SurfaceFieldLookup (..)
@@ -62,6 +64,8 @@ module Application.Helper.FrontendContract.Surface.Values
     , SurfaceScopePrimitive
     , SurfaceSourceRefPrimitive
     , SurfaceWireValue
+    , declaredRequestFields
+    , noDeclaredRequestFields
     , noSurfaceActionFields
     , noSurfaceFields
     , noSurfaceIntentFields
@@ -193,6 +197,14 @@ data BoundSurfaceFields (fields :: [FieldSpec]) where
 -- The declaration-shaped values remain private, while the owning Surface and
 -- operation marker stay generative at the generated builder/metadata/parser
 -- seam even when two declarations normalize to the same field list.
+-- | Nominal request fields for declaration families outside the mounted
+-- Surface registry. The owner marker is generative while field evaluation,
+-- serialization, lookup, and diagnostics remain the shared Surface machinery.
+newtype DeclaredRequestFields (owner :: Type) (fields :: [FieldSpec]) =
+    DeclaredRequestFields (BoundSurfaceFields fields)
+
+type role DeclaredRequestFields nominal nominal
+
 newtype SurfaceActionFields (spec :: SurfaceSpec) (marker :: Type) =
     SurfaceActionFields (BoundSurfaceFields (SurfaceActionFieldSpecs spec marker))
 
@@ -205,6 +217,7 @@ type role SurfaceIntentFields nominal nominal
 
 type family SurfaceFieldBundleSpecs (bundle :: Type) :: [FieldSpec] where
     SurfaceFieldBundleSpecs (SurfaceFields fields) = fields
+    SurfaceFieldBundleSpecs (DeclaredRequestFields owner fields) = fields
     SurfaceFieldBundleSpecs (SurfaceActionFields spec marker) = SurfaceActionFieldSpecs spec marker
     SurfaceFieldBundleSpecs (SurfaceIntentFields spec marker) = SurfaceIntentFieldSpecs spec marker
 
@@ -221,6 +234,10 @@ instance SurfaceFieldBundle (SurfaceFields fields) where
     surfaceFieldBundleJsonPairs = surfaceFieldJsonPairs
     surfaceFieldBundleTextValue = surfaceFieldsTextValue
 
+instance SurfaceFieldBundle (DeclaredRequestFields owner fields) where
+    surfaceFieldBundleJsonPairs (DeclaredRequestFields fields) = boundSurfaceFieldJsonPairs fields
+    surfaceFieldBundleTextValue (DeclaredRequestFields fields) = boundSurfaceFieldsTextValue fields
+
 instance SurfaceFieldBundle (SurfaceActionFields spec marker) where
     surfaceFieldBundleJsonPairs (SurfaceActionFields fields) = boundSurfaceFieldJsonPairs fields
     surfaceFieldBundleTextValue (SurfaceActionFields fields) = boundSurfaceFieldsTextValue fields
@@ -233,6 +250,28 @@ type SurfaceFieldBundleOf fields bundle =
     ( SurfaceFieldBundle bundle
     , SurfaceFieldBundleSpecs bundle ~ fields
     )
+
+noDeclaredRequestFields ::
+    forall owner fields.
+    AssertSurfaceFieldsEnd fields =>
+    DeclaredRequestFields owner fields
+noDeclaredRequestFields = DeclaredRequestFields NoBoundSurfaceFields
+
+declaredRequestFields ::
+    forall owner fields presence fieldMarker fallback.
+    AssertSurfaceFieldHead
+        presence
+        fieldMarker
+        (SurfaceFieldInputWire fields fallback)
+        fields =>
+    SurfaceFieldInput
+        presence
+        fieldMarker
+        (SurfaceFieldInputWire fields fallback) ->
+    SurfaceFields (SurfaceFieldsTail fields) ->
+    DeclaredRequestFields owner fields
+declaredRequestFields field rest =
+    DeclaredRequestFields (BoundSurfaceField field rest)
 
 noSurfaceActionFields ::
     forall spec operation.

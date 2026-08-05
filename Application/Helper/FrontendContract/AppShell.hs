@@ -89,6 +89,7 @@ module Application.Helper.FrontendContract.AppShell
     , DecisionField
     , XeroEmployeeSelectionField
     , XeroEarningsRateIdField
+    , AccountCodeField
     , InvitationEmailField
     ) where
 
@@ -184,6 +185,7 @@ data PeriodKeyField
 data DecisionField
 data XeroEmployeeSelectionField
 data XeroEarningsRateIdField
+data AccountCodeField
 data InvitationEmailField
 
 type AppShellContract =
@@ -252,11 +254,9 @@ type AppShellContract =
              , Field ReasonField 'WireText
              ]
             DialogSubmitOptions
-         , AppShellAction OpenXeroTimesheetPreparationOverlay DialogLauncherFields DialogSubmitOptions
+         , AppShellAction OpenXeroTimesheetPreparationOverlay XeroReferenceWaitFields DialogSubmitOptions
          , AppShellAction RunXeroTimesheetPreparationOverlay
-            '[ Field ReferenceWaitStartedAtField 'WireText
-             , Field ReferenceDemandField 'WireText
-             ]
+            XeroReferenceWaitFields
             '[ AppShellHtmxMethod 'AppShellPost
              , AppShellHtmxTarget DialogOverlayMount
              , AppShellHtmxSwap "innerHTML"
@@ -269,7 +269,10 @@ type AppShellContract =
             '[ Field PeriodKeyField 'WireText
              ]
             DialogSubmitOptions
-         , AppShellAction ApproveXeroTimesheetPreparationPayItemsOverlay '[] DialogSubmitOptions
+         , AppShellAction ApproveXeroTimesheetPreparationPayItemsOverlay
+            '[ OptionalField AccountCodeField 'WireText
+             ]
+            DialogSubmitOptions
          , AppShellAction ConfirmXeroTimesheetPreparationSubmissionOverlay '[] DialogSubmitOptions
          , AppShellAction RunXeroTimesheetPreparationSubmissionOverlay
             '[]
@@ -281,7 +284,7 @@ type AppShellContract =
              , AppShellHtmxIndicator "#xero-timesheet-preparation-submitting-indicator"
              ]
          , AppShellAction ApplyXeroTimesheetPreparationStaffDecisionOverlay
-            '[ Field StaffIdField 'WireText
+            '[ Field StaffIdField 'WireUUID
              , Field DecisionField 'WireText
              , Field XeroEmployeeSelectionField 'WireText
              ]
@@ -293,7 +296,8 @@ type AppShellContract =
              ]
          , AppShellAction RefreshXeroTimesheetPreparationOverlay '[] DialogSubmitOptions
          , AppShellAction SubmitXeroTimesheetPreparationOverlay
-            '[]
+            '[ OptionalField AccountCodeField 'WireText
+             ]
             '[ AppShellHtmxMethod 'AppShellPost
              , AppShellHtmxTarget DialogOverlayMount
              , AppShellHtmxSwap "innerHTML"
@@ -357,6 +361,11 @@ type AppShellContract =
          ]
 
 type DialogLauncherFields = '[]
+
+type XeroReferenceWaitFields =
+    '[ OptionalField ReferenceWaitStartedAtField 'WireText
+     , OptionalField ReferenceDemandField 'WireText
+     ]
 
 type DialogLauncherOptions =
     '[ AppShellHtmxMethod 'AppShellGet

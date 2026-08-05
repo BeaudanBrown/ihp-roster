@@ -24,7 +24,7 @@ fi
 filters=("$@")
 # Keep this explicit: project commands execute the working-tree script through
 # /dev/fd, so reading $0 would consume the script stream itself.
-declared_total=48
+declared_total=50
 selected_total="$declared_total"
 if ((${#filters[@]} > 0)); then
     selected_total="${#filters[@]}"
@@ -395,6 +395,15 @@ expect_compile_failure \
     "Test/CompileFail/FrontendXeroCandidateRawProjection.hs" \
     "Illegal term-level use of the type constructor" \
     "XeroCandidateSearchProjection"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendAppShellWrongActionField.hs" \
+    "FrontendSurface field bundle does not declare marker AppShell.DecisionField"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendAppShellWrongActionOperation.hs" \
+    "Couldn't match type ‘AppShell.ApplyXeroTimesheetPreparationStaffDecisionOverlay’" \
+    "with ‘AppShell.SelectXeroTimesheetPreparationPeriodOverlay’"
 
 for filter in "${filters[@]}"; do
     if [[ -z "${matched_filters[$filter]:-}" ]]; then

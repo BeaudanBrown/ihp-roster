@@ -1829,6 +1829,65 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 preparationRun.remoteTimesheetsJson `shouldSatisfy` Preview.jsonContainsKey "remoteTimesheets"
                 preparationRun.readinessSnapshotJson `shouldSatisfy` Preview.jsonContainsKey "blockers"
 
+        it "rejects missing, malformed, and repeated nominal preparation payloads without mutation" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                run <- createPreparationRunForFixture fixture "needs_approval"
+                accountSelectionBefore <-
+                    query @XeroPayItemAccountCodeSelection
+                        |> filterWhere (#venueId, unpackId fixture.venue.id)
+                        |> fetchOneOrNothing
+                let callWith params action =
+                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callActionWithParams action params
+
+                missingPeriod <- callWith [] (SelectXeroTimesheetPreparationPeriodAction run.id)
+                malformedStaff <-
+                    callWith
+                        [ ("staffId", "not-a-uuid")
+                        , ("decision", "select_employee")
+                        , ("xeroEmployeeSelection", "employee-1")
+                        ]
+                        (ApplyXeroTimesheetPreparationStaffDecisionAction run.id)
+                missingStaff <-
+                    callWith
+                        [ ("decision", "select_employee")
+                        , ("xeroEmployeeSelection", "employee-1")
+                        ]
+                        (ApplyXeroTimesheetPreparationStaffDecisionAction run.id)
+                malformedReferenceWait <-
+                    callWith
+                        [ ("referenceWaitStartedAt", "not-a-timestamp")
+                        , ("referenceDemand", "detect")
+                        ]
+                        RunXeroTimesheetPreparationAction
+                repeatedAccountCode <-
+                    callWith
+                        [("accountCode", "200"), ("accountCode", "477")]
+                        (ApproveXeroTimesheetPreparationPayItemsAction run.id)
+
+                missingPeriod `responseStatusShouldBe` status200
+                missingPeriod `responseBodyShouldContain` "periodKey is required by the Surface request contract"
+                malformedStaff `responseStatusShouldBe` status200
+                malformedStaff `responseBodyShouldContain` "staffId must be a UUID"
+                missingStaff `responseStatusShouldBe` status200
+                missingStaff `responseBodyShouldContain` "staffId is required by the Surface request contract"
+                malformedReferenceWait `responseStatusShouldBe` status200
+                malformedReferenceWait `responseBodyShouldContain` "referenceWaitStartedAt must be a UTC timestamp"
+                repeatedAccountCode `responseStatusShouldBe` status200
+                repeatedAccountCode `responseBodyShouldContain` "accountCode must be submitted once"
+                refreshedRun <- fetch run.id
+                refreshedRun.selectedPeriodKey `shouldBe` run.selectedPeriodKey
+                refreshedRun.status `shouldBe` run.status
+                refreshedRun.updatedAt `shouldBe` run.updatedAt
+                accountSelectionAfter <-
+                    query @XeroPayItemAccountCodeSelection
+                        |> filterWhere (#venueId, unpackId fixture.venue.id)
+                        |> fetchOneOrNothing
+                accountSelectionAfter `shouldBe` accountSelectionBefore
+                query @XeroTimesheetPreparationDecision |> fetchCount `shouldReturn` 0
+
         it "persists not-paid decisions from the guided preparation modal" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]

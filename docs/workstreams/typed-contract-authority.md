@@ -100,12 +100,14 @@ currently text.
 
 ### Handwritten names and values inside typed forms
 
-The high-priority AppShell bypass is
-`Web/View/Admin/Xero/TimesheetPreparation.hs`: it handwrites `periodKey`,
-`staffId`, `decision`, `xeroEmployeeSelection`, and `accountCode` while wrapping
-the forms in AppShell action metadata. `decision="select_employee"` and
-`xeroEmployeeSelection="not_applicable"` also mix app choice with an external
-provider id in raw text.
+The high-priority AppShell field-name bypass in
+`Web/View/Admin/Xero/TimesheetPreparation.hs` was removed by #332. Period,
+staff-decision, managed-pay-item, reference-wait, and submission workflows now
+select nominal `AppShellContract` bundles for field names, metadata, hidden
+route values, and exact controller parsing. The remaining
+`decision="select_employee"` and `xeroEmployeeSelection="not_applicable"`
+literals are finite-value candidates for the enum workstream; the employee id
+itself remains provider-owned text.
 
 Surface forms generally obtain names from generated bundles, but still contain
 closed value literals that need a typed projection:
@@ -230,6 +232,31 @@ checkpoint, generator-foundation code changes from 3,100 to 3,108 LOC,
 generated Haskell adapters from 3,484 to 3,572 LOC, and curated facades from 614
 to 638 LOC. Associations remain 8/156 and generated TypeScript remains
 1/1,671. These are physical-line snapshots, not a benchmark.
+
+## Nominal AppShell Request Checkpoint
+
+[#332](https://github.com/BeaudanBrown/ihp-roster/issues/332) adds a small
+`AppShell.Request` interface derived from the existing `AppShellContract`.
+Nominal `DeclaredRequestFields` reuse the Surface field evaluator for typed
+construction, lookup, serialization, diagnostics, and exact request parsing;
+AppShell adds neither a second reflected registry nor generated browser output.
+Wrong field ownership and cross-operation reuse are compile failures.
+
+The guided Xero preparation reference wait, period selection, staff mapping,
+managed pay-item approval, and submission operations now use matching nominal
+bundles in views and controllers. The production Xero preparation view moves
+from seven handwritten app-owned request-name occurrences to zero; IHP route
+construction remains Haskell-owned and overlay behavior stays in the existing
+adapter. Two AppShell fixtures increase the complete compile-failure gate from
+48 to 50 cases.
+
+The checkpoint snapshot is 10 generator-foundation files / 3,118 LOC,
+8 association files / 156 LOC, 24 generated adapter files / 3,556 LOC,
+24 facades / 634 LOC, and one generated TypeScript file / 1,671 LOC. The new
+AppShell request seam is 157 LOC. A same-host fresh isolated compile loaded 561
+modules for adjacent `AppShell.Runtime` and 565 for `AppShell.Request`; measured
+wall times were 32.0s and 28.3s respectively, so only the four-module closure
+delta is treated as signal, not the noisy timing difference.
 
 ## Baseline Metrics
 

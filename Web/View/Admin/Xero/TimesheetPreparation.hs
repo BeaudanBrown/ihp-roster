@@ -9,20 +9,29 @@ module Web.View.Admin.Xero.TimesheetPreparation
     , renderXeroTimesheetPreparationSubmittingDialog
     ) where
 
-import Application.Helper.FrontendContract.AppShell (ApplyXeroTimesheetPreparationStaffDecisionOverlay,
+import Application.Helper.FrontendContract.AppShell (AccountCodeField,
+                                                     ApplyXeroTimesheetPreparationStaffDecisionOverlay,
                                                      ApproveXeroTimesheetPreparationPayItemsOverlay,
                                                      ConfirmXeroTimesheetPreparationSubmissionOverlay,
                                                      ContinueXeroTimesheetPreparationStaffOverlay,
+                                                     DecisionField,
+                                                     PeriodKeyField,
+                                                     ReferenceDemandField,
+                                                     ReferenceWaitStartedAtField,
                                                      RefreshXeroTimesheetPreparationOverlay,
                                                      RunXeroTimesheetPreparationOverlay,
                                                      RunXeroTimesheetPreparationSubmissionOverlay,
                                                      SelectXeroTimesheetPreparationPeriodOverlay,
-                                                     SubmitXeroTimesheetPreparationOverlay)
+                                                     StaffIdField,
+                                                     SubmitXeroTimesheetPreparationOverlay,
+                                                     XeroEmployeeSelectionField)
+import Application.Helper.FrontendContract.AppShell.Request (AppShellActionFields,
+                                                             appShellActionFields,
+                                                             appShellActionFor,
+                                                             appShellActionRouteFieldValues,
+                                                             noAppShellActionFields)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
-                                                             AppShellFieldValue (..),
-                                                             appShellActionByMarker,
                                                              renderAppShellActionForm)
-import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
@@ -53,10 +62,10 @@ xeroPreparationAppShellActionRoute actionUrl =
         , appShellActionRouteExtraAttrs = []
         }
 
-renderXeroPreparationOverlayForm :: AppShellActionIR -> Text -> [(Text, Text)] -> Html -> Html
-renderXeroPreparationOverlayForm action actionUrl attrs =
+renderXeroPreparationOverlayForm :: Typeable action => AppShellActionFields action -> Text -> [(Text, Text)] -> Html -> Html
+renderXeroPreparationOverlayForm fields actionUrl attrs =
     renderAppShellActionForm
-        action
+        (appShellActionFor fields)
         (xeroPreparationAppShellActionRoute actionUrl)
             { appShellActionRouteExtraAttrs = attrs
             }
@@ -117,13 +126,18 @@ renderXeroTimesheetPreparationReferenceSyncWaitingDialog now waitStartedAt missi
 renderXeroPreparationReferenceWaitForm :: Maybe UTCTime -> Maybe XeroMissingReferenceDemand -> Html
 renderXeroPreparationReferenceWaitForm maybeWaitStartedAt maybeMissingReferenceDemand =
     renderAppShellActionForm
-        (appShellActionByMarker @RunXeroTimesheetPreparationOverlay)
+        (appShellActionFor fields)
         (xeroPreparationAppShellActionRoute (pathTo RunXeroTimesheetPreparationAction))
-            { appShellActionRouteFields =
-                maybe [] (\waitStartedAt -> [AppShellFieldValue ("referenceWaitStartedAt", cs (formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" waitStartedAt))]) maybeWaitStartedAt
-                    <> [AppShellFieldValue ("referenceDemand", maybe "detect" referenceDemandFieldValue maybeMissingReferenceDemand)]
+            { appShellActionRouteFields = appShellActionRouteFieldValues fields
             }
         mempty
+  where
+    fields =
+        appShellActionFields @RunXeroTimesheetPreparationOverlay
+            (surfaceOptionalField @ReferenceWaitStartedAtField (cs . formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" <$> maybeWaitStartedAt))
+            ( surfaceOptionalField @ReferenceDemandField (Just (maybe "detect" referenceDemandFieldValue maybeMissingReferenceDemand))
+                &: noSurfaceFields
+            )
 
 referenceDemandFieldValue :: XeroMissingReferenceDemand -> Text
 referenceDemandFieldValue MissingPayrollEligibleStaffReference = "missing_payroll_staff"
@@ -151,7 +165,7 @@ renderXeroTimesheetPreparationStaffStep view =
                 {renderStepNotice "Step 1 of 3" "Confirm proposed staff matches or choose the right Xero employee before continuing."}
                 {renderConnectionNotice view}
                 {renderStaffMappings view}
-                {renderXeroPreparationOverlayForm (appShellActionByMarker @ContinueXeroTimesheetPreparationStaffOverlay) (pathTo (ContinueXeroTimesheetPreparationStaffStepAction view.preparationRun.id)) [("id", "xero-preparation-staff-continue-form")] mempty}
+                {renderXeroPreparationOverlayForm (noAppShellActionFields @ContinueXeroTimesheetPreparationStaffOverlay) (pathTo (ContinueXeroTimesheetPreparationStaffStepAction view.preparationRun.id)) [("id", "xero-preparation-staff-continue-form")] mempty}
             </div>
         |]
         , dialogOverlayStartButtons = []
@@ -178,11 +192,11 @@ renderXeroTimesheetPreparationPeriodStep view =
 renderXeroPreparationPeriodForm :: XeroTimesheetPreparationView -> Html
 renderXeroPreparationPeriodForm view =
     renderXeroPreparationOverlayForm
-        (appShellActionByMarker @SelectXeroTimesheetPreparationPeriodOverlay)
+        fields
         (pathTo (SelectXeroTimesheetPreparationPeriodAction view.preparationRun.id))
         [("id", "xero-preparation-period-form")]
         [hsx|
-            <select name="periodKey"
+            <select name={surfaceFieldNameFrom @PeriodKeyField fields}
                     id="xero-preparation-period-select"
                     class="form-select"
                     aria-label="Xero pay period"
@@ -191,6 +205,11 @@ renderXeroPreparationPeriodForm view =
                 {forEach view.preparationPeriodOptions renderPreparationPeriodOption}
             </select>
         |]
+  where
+    fields =
+        appShellActionFields @SelectXeroTimesheetPreparationPeriodOverlay
+            (surfaceField @PeriodKeyField "")
+            noSurfaceFields
 
 renderXeroTimesheetPreparationPayItemsStep :: XeroTimesheetPreparationView -> Html
 renderXeroTimesheetPreparationPayItemsStep view =
@@ -200,13 +219,18 @@ renderXeroTimesheetPreparationPayItemsStep view =
             <div class="d-flex flex-column gap-3" data-xero-timesheet-preparation-dialog="true">
                 {renderStepNotice "Step 2 of 3" "Review the managed pay items Bepis will create during final submission, and choose the Xero account code to use."}
                 {renderPayItemDecisions view}
-                {renderXeroPreparationOverlayForm (appShellActionByMarker @ApproveXeroTimesheetPreparationPayItemsOverlay) (pathTo (ApproveXeroTimesheetPreparationPayItemsAction view.preparationRun.id)) [("id", "xero-preparation-pay-items-form")] mempty}
+                {renderXeroPreparationOverlayForm fields (pathTo (ApproveXeroTimesheetPreparationPayItemsAction view.preparationRun.id)) [("id", "xero-preparation-pay-items-form")] mempty}
             </div>
         |]
         , dialogOverlayStartButtons = []
         , dialogOverlayButtons = closeButton : [approvePayItemsButton]
         , dialogOverlayDialogClass = "modal-xl"
         }
+  where
+    fields =
+        appShellActionFields @ApproveXeroTimesheetPreparationPayItemsOverlay
+            (surfaceOptionalField @AccountCodeField (selectedAccountCode view))
+            noSurfaceFields
 
 renderXeroTimesheetPreparationSummaryStep :: XeroTimesheetPreparationView -> Html
 renderXeroTimesheetPreparationSummaryStep view =
@@ -219,7 +243,7 @@ renderXeroTimesheetPreparationSummaryStep view =
                 {renderReviewReadiness view}
                 {renderReviewSummary view}
                 {renderFinalSubmissionCopy}
-                {renderXeroPreparationOverlayForm (appShellActionByMarker @ConfirmXeroTimesheetPreparationSubmissionOverlay) (pathTo (ConfirmXeroTimesheetPreparationSubmissionAction view.preparationRun.id)) [("id", "xero-preparation-confirm-submit-form")] mempty}
+                {renderXeroPreparationOverlayForm (noAppShellActionFields @ConfirmXeroTimesheetPreparationSubmissionOverlay) (pathTo (ConfirmXeroTimesheetPreparationSubmissionAction view.preparationRun.id)) [("id", "xero-preparation-confirm-submit-form")] mempty}
             </div>
         |]
         , dialogOverlayStartButtons = []
@@ -238,7 +262,7 @@ renderXeroTimesheetPreparationSubmittingDialog view =
                     <div class="fw-semibold">Submitting Xero draft timesheets...</div>
                     <div class="small app-muted">Bepis is creating new drafts or updating existing Xero drafts for each employee. This can take a moment.</div>
                 </div>
-                {renderXeroPreparationOverlayForm (appShellActionByMarker @RunXeroTimesheetPreparationSubmissionOverlay) (pathTo (RunXeroTimesheetPreparationSubmissionAction view.preparationRun.id)) [] mempty}
+                {renderXeroPreparationOverlayForm (noAppShellActionFields @RunXeroTimesheetPreparationSubmissionOverlay) (pathTo (RunXeroTimesheetPreparationSubmissionAction view.preparationRun.id)) [] mempty}
             </div>
         |]
         , dialogOverlayStartButtons = []
@@ -644,15 +668,15 @@ staffEmployeeStatusLabel row
 renderStaffEmployeeSelectionForm :: XeroTimesheetPreparationView -> XeroPreparationStaffRow -> Html
 renderStaffEmployeeSelectionForm view row =
     renderXeroPreparationOverlayForm
-        (appShellActionByMarker @ApplyXeroTimesheetPreparationStaffDecisionOverlay)
+        fields
         (pathTo (ApplyXeroTimesheetPreparationStaffDecisionAction view.preparationRun.id))
         [ ("class", "d-inline-flex gap-2")
 
         ]
         [hsx|
-            <input type="hidden" name="staffId" value={tshow staff.id} />
-            <input type="hidden" name="decision" value="select_employee" />
-            <select name="xeroEmployeeSelection" class="form-select form-select-sm w-auto xero-employee-selection" aria-label={"Xero employee for " <> staffName staff}>
+            <input type="hidden" name={surfaceFieldNameFrom @StaffIdField fields} value={tshow staff.id} />
+            <input type="hidden" name={surfaceFieldNameFrom @DecisionField fields} value="select_employee" />
+            <select name={surfaceFieldNameFrom @XeroEmployeeSelectionField fields} class="form-select form-select-sm w-auto xero-employee-selection" aria-label={"Xero employee for " <> staffName staff}>
                 {forEach selectableEmployees (renderEmployeeOption currentSelection)}
                 <option value="not_applicable" selected={currentSelection == "not_applicable" || (Text.null currentSelection && null selectableEmployees)}>Not paid through Xero</option>
             </select>
@@ -662,6 +686,13 @@ renderStaffEmployeeSelectionForm view row =
         staff = row.preparationStaffMappingRow.mappingRowStaff
         currentSelection = currentStaffEmployeeSelection row
         selectableEmployees = selectableEmployeesForStaffDecision view row
+        fields =
+            appShellActionFields @ApplyXeroTimesheetPreparationStaffDecisionOverlay
+                (surfaceField @StaffIdField (unpackId staff.id))
+                ( surfaceField @DecisionField "select_employee"
+                    &: surfaceField @XeroEmployeeSelectionField currentSelection
+                    &: noSurfaceFields
+                )
 
 renderEmployeeOption :: Text -> XeroEmployee -> Html
 renderEmployeeOption currentSelection employee = [hsx|
@@ -832,7 +863,7 @@ renderPayItemDecisions view
                 <label class="form-label small fw-semibold" for="xero-preparation-submit-account-code">Account code for created pay items</label>
                 <select id="xero-preparation-submit-account-code"
                         form="xero-preparation-pay-items-form"
-                        name="accountCode"
+                        name={surfaceFieldNameFrom @AccountCodeField fields}
                         class="form-select form-select-sm"
                         aria-label="Xero account code"
                         required={isNothing (selectedAccountCode view)}>
@@ -843,6 +874,10 @@ renderPayItemDecisions view
         </section>
     |]
     where
+        fields =
+            appShellActionFields @ApproveXeroTimesheetPreparationPayItemsOverlay
+                (surfaceOptionalField @AccountCodeField (selectedAccountCode view))
+                noSurfaceFields
         proposedRows =
             view.preparationPayItemRows
                 |> filter \row ->
@@ -978,7 +1013,7 @@ renderFooterActions view = [hsx|
 renderRefreshForm :: XeroTimesheetPreparationView -> Html
 renderRefreshForm view =
     renderXeroPreparationOverlayForm
-        (appShellActionByMarker @RefreshXeroTimesheetPreparationOverlay)
+        (noAppShellActionFields @RefreshXeroTimesheetPreparationOverlay)
         (pathTo (RefreshXeroTimesheetPreparationAction view.preparationRun.id))
         []
         [hsx|<button type="submit" class="btn btn-outline-secondary">Refresh checks</button>|]
@@ -986,7 +1021,7 @@ renderRefreshForm view =
 renderSubmitForm :: XeroTimesheetPreparationView -> Html
 renderSubmitForm view =
     renderXeroPreparationOverlayForm
-        (appShellActionByMarker @SubmitXeroTimesheetPreparationOverlay)
+        fields
         (pathTo (SubmitXeroTimesheetPreparationAction view.preparationRun.id))
         [("id", "xero-preparation-submit-form")]
         [hsx|
@@ -996,6 +1031,11 @@ renderSubmitForm view =
                 Submit to Xero
             </button>
         |]
+  where
+    fields =
+        appShellActionFields @SubmitXeroTimesheetPreparationOverlay
+            (surfaceOptionalField @AccountCodeField (selectedAccountCode view))
+            noSurfaceFields
 
 renderStatusBadge :: Text -> Html
 renderStatusBadge status = renderAppStatusBadge (statusTone status) (statusLabel status)

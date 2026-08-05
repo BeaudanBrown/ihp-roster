@@ -109,6 +109,11 @@ expect_no_match \
     Web/Controller/Admin.hs \
     Web/Types.hs \
     Web/View/Admin/VenueSettings.hs
+expect_no_match \
+    "raw Xero preparation AppShell request field names are forbidden" \
+    'name="(periodKey|staffId|decision|xeroEmployeeSelection|accountCode|referenceWaitStartedAt|referenceDemand)"|"(periodKey|staffId|decision|xeroEmployeeSelection|accountCode|referenceWaitStartedAt|referenceDemand)"[[:space:]]*[,)]' \
+    Web/Controller/Admin/Xero/Timesheets.hs \
+    Web/View/Admin/Xero/TimesheetPreparation.hs
 
 # Generated app-owned attributes must be consumed through reflected helpers or
 # generated TypeScript constants; these exact names prevent hand-authored

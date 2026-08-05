@@ -10,7 +10,11 @@ module Web.View.Admin.Xero
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendContract.AppShell (OpenXeroPayItemImportOverlay,
-                                                     OpenXeroTimesheetPreparationOverlay)
+                                                     OpenXeroTimesheetPreparationOverlay,
+                                                     ReferenceDemandField,
+                                                     ReferenceWaitStartedAtField)
+import Application.Helper.FrontendContract.AppShell.Request (appShellActionFields,
+                                                             appShellActionFor)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              renderAppShellActionForm)
@@ -22,7 +26,9 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values (SurfaceFields,
                                                            noSurfaceFields,
-                                                           surfaceFragmentTargetId)
+                                                           surfaceFragmentTargetId,
+                                                           surfaceOptionalField,
+                                                           (&:))
 import Application.Helper.XeroAdminTypes
 import Application.Xero.ReferenceTrust
 import Application.Xero.ReferenceTrust.Presentation (xeroReferenceSyncPhaseText)
@@ -196,7 +202,7 @@ renderXeroReferenceSyncForm actionsAllowed =
 renderOpenXeroTimesheetPreparationForm :: Bool -> Html
 renderOpenXeroTimesheetPreparationForm connectionActionsAllowed =
     renderAppShellActionForm
-        (appShellActionByMarker @OpenXeroTimesheetPreparationOverlay)
+        (appShellActionFor fields)
         (xeroAppShellActionRoute (pathTo OpenXeroTimesheetPreparationAction))
             { appShellActionRouteExtraAttrs = [("data-xero-timesheet-preparation-form", "true")]
             }
@@ -207,6 +213,11 @@ renderOpenXeroTimesheetPreparationForm connectionActionsAllowed =
                 Upload timesheets
             </button>
         |]
+  where
+    fields =
+        appShellActionFields @OpenXeroTimesheetPreparationOverlay
+            (surfaceOptionalField @ReferenceWaitStartedAtField Nothing)
+            (surfaceOptionalField @ReferenceDemandField Nothing &: noSurfaceFields)
 
 renderOpenXeroPayItemImportForm :: Bool -> Html
 renderOpenXeroPayItemImportForm connectionActionsAllowed =

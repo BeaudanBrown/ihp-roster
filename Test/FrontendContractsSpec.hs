@@ -8,6 +8,9 @@ module Test.FrontendContractsSpec
 
 import qualified Application.Helper.FrontendContract.App as App
 import qualified Application.Helper.FrontendContract.AppShell as AppShell
+import Application.Helper.FrontendContract.AppShell.Request (appShellActionFields,
+                                                             appShellActionFor,
+                                                             parseAppShellActionParamPairs)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              appShellActionHtmxAttrPairs)
@@ -46,6 +49,10 @@ import Application.Helper.FrontendContract.Registry (registeredFrontendContractI
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendContract.Surface.Reflect (reflectSurfaceSpec)
+import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
+                                                           surfaceField,
+                                                           surfaceFieldNameFrom,
+                                                           surfaceFieldValue)
 import qualified Application.Helper.FrontendContract.TimePicker as TimePicker
 import Application.Helper.FrontendContract.TimePicker.Runtime (TimePickerDom (..),
                                                                canonicalTimePickerDom)
@@ -232,6 +239,32 @@ tests = describe "Frontend contract generator foundation" do
                        , ("hx-swap", "outerHTML")
                        , ("hx-push-url", "false")
                        ]
+
+    it "derives nominal AppShell field bundles, names, metadata, and exact parsing from one declaration" do
+        let authored =
+                appShellActionFields @AppShell.SelectXeroTimesheetPreparationPeriodOverlay
+                    (surfaceField @AppShell.PeriodKeyField "calendar:period")
+                    noSurfaceFields
+        surfaceFieldNameFrom @AppShell.PeriodKeyField authored `shouldBe` "periodKey"
+        surfaceFieldValue @AppShell.PeriodKeyField authored `shouldBe` "calendar:period"
+        (appShellActionFor authored).appShellActionName
+            `shouldBe` "select-xero-timesheet-preparation-period-overlay"
+        let parsed =
+                parseAppShellActionParamPairs @AppShell.SelectXeroTimesheetPreparationPeriodOverlay
+                    [("periodKey", Just "calendar:period")]
+        fmap (surfaceFieldValue @AppShell.PeriodKeyField) parsed
+            `shouldBe` Right "calendar:period"
+        case parseAppShellActionParamPairs @AppShell.SelectXeroTimesheetPreparationPeriodOverlay [] of
+            Left _  -> pure ()
+            Right _ -> expectationFailure "missing required periodKey parsed successfully"
+        case parseAppShellActionParamPairs @AppShell.SelectXeroTimesheetPreparationPeriodOverlay
+            [("periodKey", Just "first"), ("periodKey", Just "second")] of
+            Left _  -> pure ()
+            Right _ -> expectationFailure "repeated scalar periodKey parsed successfully"
+        case parseAppShellActionParamPairs @AppShell.ApproveXeroTimesheetPreparationPayItemsOverlay
+            [("accountCode", Just ""), ("accountCode", Just "")] of
+            Left _  -> pure ()
+            Right _ -> expectationFailure "repeated empty optional accountCode parsed successfully"
 
     it "reflects generated AppShell action manifests and runtime attrs" do
         let appShellActions =

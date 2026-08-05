@@ -22,6 +22,8 @@ module Application.Helper.FrontendContract.Surface.Request
     , surfaceRequestFieldErrorsMessage
     , surfaceActionParamsComplete
     , surfaceActionParamsPresent
+    , parseDeclaredRequestParamPairs
+    , parseDeclaredRequestParams
     , parseSurfaceActionParamPairs
     , parseSurfaceActionParams
     , parseSurfaceIntentParamPairs
@@ -89,6 +91,27 @@ surfaceRequestFieldErrorsMessage errors =
         [ surfaceRequestFieldErrorName <> " " <> surfaceRequestFieldErrorMessage
         | SurfaceRequestFieldError { surfaceRequestFieldErrorName, surfaceRequestFieldErrorMessage } <- errors
         ]
+
+-- | Parse one non-Surface nominal declaration through the same exact field
+-- evaluator used by Surface actions and intents.
+parseDeclaredRequestParams ::
+    forall owner fields.
+    ( ?request :: Request
+    , KnownSurfaceRequestFields fields
+    ) =>
+    Either [SurfaceRequestFieldError] (DeclaredRequestFields owner fields)
+parseDeclaredRequestParams =
+    parseDeclaredRequestParamPairs @owner @fields allParams
+
+-- | Pure pair-based form of 'parseDeclaredRequestParams'.
+parseDeclaredRequestParamPairs ::
+    forall owner fields.
+    KnownSurfaceRequestFields fields =>
+    [(ByteString, Maybe ByteString)] ->
+    Either [SurfaceRequestFieldError] (DeclaredRequestFields owner fields)
+parseDeclaredRequestParamPairs params =
+    parsedDeclaredRequestFields @owner
+        <$> parseSurfaceRequestFields @fields params
 
 -- | Parse one action's complete declared field contract from the active IHP
 -- request. Unknown parameters are intentionally ignored because route and
@@ -188,6 +211,24 @@ data ParsedSurfaceFields (fields :: [FieldSpec]) where
         ParsedSurfaceFields rest ->
         ParsedSurfaceFields (('NullableField marker wire) ': rest)
 
+parsedDeclaredRequestFields ::
+    forall owner fields.
+    ParsedSurfaceFields fields ->
+    DeclaredRequestFields owner fields
+parsedDeclaredRequestFields ParsedNoSurfaceFields = noDeclaredRequestFields
+parsedDeclaredRequestFields (ParsedRequiredSurfaceField @marker @wire value rest) =
+    declaredRequestFields @owner @fields @'SurfaceRequired @marker @wire
+        (surfaceField @marker @wire value)
+        (parsedSurfaceFieldsValue rest)
+parsedDeclaredRequestFields (ParsedOptionalSurfaceField @marker @wire value rest) =
+    declaredRequestFields @owner @fields @'SurfaceOptional @marker @wire
+        (surfaceOptionalField @marker @wire value)
+        (parsedSurfaceFieldsValue rest)
+parsedDeclaredRequestFields (ParsedNullableSurfaceField @marker @wire value rest) =
+    declaredRequestFields @owner @fields @'SurfaceNullable @marker @wire
+        (surfaceNullableField @marker @wire value)
+        (parsedSurfaceFieldsValue rest)
+
 parsedSurfaceActionFields ::
     forall spec action.
     ParsedSurfaceFields (SurfaceActionFieldSpecs spec action) ->
@@ -281,10 +322,10 @@ instance
         optionalValue =
             case requestParamValues @marker params of
                 [] -> Right Nothing
-                rawValues
-                    | all ByteString.null rawValues -> Right Nothing
-                    | otherwise ->
-                        Bifunctor.first (pure . malformedFieldError @marker) (Just <$> parseSurfaceRequestWireValues @wire rawValues)
+                [rawValue]
+                    | ByteString.null rawValue -> Right Nothing
+                rawValues ->
+                    Bifunctor.first (pure . malformedFieldError @marker) (Just <$> parseSurfaceRequestWireValues @wire rawValues)
 
 instance
     ( Typeable marker
@@ -302,10 +343,10 @@ instance
         nullableValue =
             case requestParamValues @marker params of
                 [] -> Left [missingFieldError @marker]
-                rawValues
-                    | all ByteString.null rawValues -> Right Nothing
-                    | otherwise ->
-                        Bifunctor.first (pure . malformedFieldError @marker) (Just <$> parseSurfaceRequestWireValues @wire rawValues)
+                [rawValue]
+                    | ByteString.null rawValue -> Right Nothing
+                rawValues ->
+                    Bifunctor.first (pure . malformedFieldError @marker) (Just <$> parseSurfaceRequestWireValues @wire rawValues)
 
 surfaceRequestParamsPresent ::
     forall fields.
@@ -368,7 +409,8 @@ class KnownSurfaceRequestWire (wire :: WireType) where
     parseSurfaceRequestWire :: ByteString -> Either Text (SurfaceWireValue wire)
     parseSurfaceRequestWireValues :: [ByteString] -> Either Text (SurfaceWireValue wire)
     parseSurfaceRequestWireValues [] = Left "must be present"
-    parseSurfaceRequestWireValues (rawValue : _) = parseSurfaceRequestWire @wire rawValue
+    parseSurfaceRequestWireValues [rawValue] = parseSurfaceRequestWire @wire rawValue
+    parseSurfaceRequestWireValues _ = Left "must be submitted once"
 
 instance KnownSurfaceRequestWire 'WireText where
     parseSurfaceRequestWire =

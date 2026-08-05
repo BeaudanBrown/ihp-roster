@@ -13,6 +13,25 @@ module Web.Controller.Admin.Xero.Timesheets
     , submitXeroTimesheetPreparationAction
     ) where
 
+import Application.Helper.FrontendContract.AppShell (AccountCodeField,
+                                                     ApplyXeroTimesheetPreparationStaffDecisionOverlay,
+                                                     ApproveXeroTimesheetPreparationPayItemsOverlay,
+                                                     ConfirmXeroTimesheetPreparationSubmissionOverlay,
+                                                     ContinueXeroTimesheetPreparationStaffOverlay,
+                                                     DecisionField,
+                                                     OpenXeroTimesheetPreparationOverlay,
+                                                     PeriodKeyField,
+                                                     ReferenceDemandField,
+                                                     ReferenceWaitStartedAtField,
+                                                     RefreshXeroTimesheetPreparationOverlay,
+                                                     RunXeroTimesheetPreparationOverlay,
+                                                     RunXeroTimesheetPreparationSubmissionOverlay,
+                                                     SelectXeroTimesheetPreparationPeriodOverlay,
+                                                     StaffIdField,
+                                                     SubmitXeroTimesheetPreparationOverlay,
+                                                     XeroEmployeeSelectionField)
+import Application.Helper.FrontendContract.AppShell.Request (AppShellActionFields,
+                                                             parseAppShellActionParams)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldErrorsMessage)
@@ -31,6 +50,7 @@ import Application.Xero.ReferenceTrust.Service
 import Application.Xero.Timesheets.Prepare (XeroPreparationStaffDecision (..),
                                             loadXeroTimesheetPreparationView)
 import qualified Data.Text as Text
+import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Web.Admin.Xero.Mutations (applyXeroTimesheetPreparationStaffDecisionMutation,
                                  approveXeroTimesheetPreparationPayItemsMutation,
                                  approveXeroTimesheetPreparationStaffStepMutation,
@@ -47,20 +67,36 @@ openXeroTimesheetPreparationAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     IO ()
 openXeroTimesheetPreparationAction =
-    startOrWaitForXeroTimesheetPreparation
+    case parseAppShellActionParams @OpenXeroTimesheetPreparationOverlay of
+        Left errors -> respondWithPreparationDialog (Left (surfaceRequestFieldErrorsMessage errors))
+        Right fields ->
+            case parseReferenceWaitStartedAt (surfaceFieldValue @ReferenceWaitStartedAtField fields) of
+                Left message -> respondWithPreparationDialog (Left message)
+                Right maybeWaitStartedAt ->
+                    startOrWaitForXeroTimesheetPreparation
+                        maybeWaitStartedAt
+                        (surfaceFieldValue @ReferenceDemandField fields)
 
 runXeroTimesheetPreparationAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     IO ()
 runXeroTimesheetPreparationAction =
-    startOrWaitForXeroTimesheetPreparation
+    case parseAppShellActionParams @RunXeroTimesheetPreparationOverlay of
+        Left errors -> respondWithPreparationDialog (Left (surfaceRequestFieldErrorsMessage errors))
+        Right fields ->
+            case parseReferenceWaitStartedAt (surfaceFieldValue @ReferenceWaitStartedAtField fields) of
+                Left message -> respondWithPreparationDialog (Left message)
+                Right maybeWaitStartedAt ->
+                    startOrWaitForXeroTimesheetPreparation
+                        maybeWaitStartedAt
+                        (surfaceFieldValue @ReferenceDemandField fields)
 
 startOrWaitForXeroTimesheetPreparation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Maybe UTCTime ->
+    Maybe Text ->
     IO ()
-startOrWaitForXeroTimesheetPreparation = do
-    let maybeWaitStartedAt = paramOrNothing @UTCTime "referenceWaitStartedAt"
-        maybeReferenceDemand = paramOrNothing @Text "referenceDemand"
+startOrWaitForXeroTimesheetPreparation maybeWaitStartedAt maybeReferenceDemand = do
     maybeConnection <- fetchCurrentVenueXeroConnection
     case maybeConnection of
         Nothing -> respondWithPreparationErrorToast "Connect Xero before preparing draft timesheets."
@@ -117,9 +153,12 @@ refreshXeroTimesheetPreparationAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id XeroTimesheetPreparationRun ->
     IO ()
-refreshXeroTimesheetPreparationAction runId = do
-    result <- liveMutationValue <$> refreshXeroTimesheetPreparationMutation runId
-    respondWithPreparationDialog result
+refreshXeroTimesheetPreparationAction runId =
+    case parseAppShellActionParams @RefreshXeroTimesheetPreparationOverlay of
+        Left errors -> respondWithPreparationDialog (Left (surfaceRequestFieldErrorsMessage errors))
+        Right _ -> do
+            result <- liveMutationValue <$> refreshXeroTimesheetPreparationMutation runId
+            respondWithPreparationDialog result
 
 showXeroTimesheetPreparationStaffMappingsFragmentAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -141,41 +180,53 @@ applyXeroTimesheetPreparationStaffDecisionAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id XeroTimesheetPreparationRun ->
     IO ()
-applyXeroTimesheetPreparationStaffDecisionAction runId = do
-    let staffId = param @(Id Staff) "staffId"
-    case parseStaffDecision of
-        Left message -> respondWithPreparationDialog (Left message)
-        Right decision -> do
-            result <- liveMutationValue <$> applyXeroTimesheetPreparationStaffDecisionMutation runId staffId decision
-            respondWithPreparationDialog result
+applyXeroTimesheetPreparationStaffDecisionAction runId =
+    case parseAppShellActionParams @ApplyXeroTimesheetPreparationStaffDecisionOverlay of
+        Left errors -> respondWithPreparationDialog (Left (surfaceRequestFieldErrorsMessage errors))
+        Right fields ->
+            case parseStaffDecision fields of
+                Left message -> respondWithPreparationDialog (Left message)
+                Right decision -> do
+                    let staffId = Id (surfaceFieldValue @StaffIdField fields)
+                    result <- liveMutationValue <$> applyXeroTimesheetPreparationStaffDecisionMutation runId staffId decision
+                    respondWithPreparationDialog result
 
 continueXeroTimesheetPreparationStaffStepAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id XeroTimesheetPreparationRun ->
     IO ()
-continueXeroTimesheetPreparationStaffStepAction runId = do
-    result <- liveMutationValue <$> approveXeroTimesheetPreparationStaffStepMutation runId
-    respondWithPreparationDialog result
+continueXeroTimesheetPreparationStaffStepAction runId =
+    case parseAppShellActionParams @ContinueXeroTimesheetPreparationStaffOverlay of
+        Left errors -> respondWithPreparationDialog (Left (surfaceRequestFieldErrorsMessage errors))
+        Right _ -> do
+            result <- liveMutationValue <$> approveXeroTimesheetPreparationStaffStepMutation runId
+            respondWithPreparationDialog result
 
 selectXeroTimesheetPreparationPeriodAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id XeroTimesheetPreparationRun ->
     IO ()
-selectXeroTimesheetPreparationPeriodAction runId = do
-    let selectedPeriodKey = Text.strip (paramOrDefault @Text "" "periodKey")
-    result <- liveMutationValue <$> selectXeroTimesheetPreparationPeriodMutation runId selectedPeriodKey
-    respondWithPreparationDialog result
+selectXeroTimesheetPreparationPeriodAction runId =
+    case parseAppShellActionParams @SelectXeroTimesheetPreparationPeriodOverlay of
+        Left errors -> respondWithPreparationDialog (Left (surfaceRequestFieldErrorsMessage errors))
+        Right fields -> do
+            let selectedPeriodKey = Text.strip (surfaceFieldValue @PeriodKeyField fields)
+            result <- liveMutationValue <$> selectXeroTimesheetPreparationPeriodMutation runId selectedPeriodKey
+            respondWithPreparationDialog result
 
 approveXeroTimesheetPreparationPayItemsAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id XeroTimesheetPreparationRun ->
     IO ()
-approveXeroTimesheetPreparationPayItemsAction runId = do
-    let maybeAccountCode = Text.strip <$> paramOrNothing @Text "accountCode"
-    result <- liveMutationValue <$> approveXeroTimesheetPreparationPayItemsMutation runId maybeAccountCode
-    case result of
-        Left message -> respondWithPreparationDialog (Left message)
-        Right _      -> showXeroTimesheetPreparationSummaryAction runId
+approveXeroTimesheetPreparationPayItemsAction runId =
+    case parseAppShellActionParams @ApproveXeroTimesheetPreparationPayItemsOverlay of
+        Left errors -> respondWithPreparationDialog (Left (surfaceRequestFieldErrorsMessage errors))
+        Right fields -> do
+            let maybeAccountCode = Text.strip <$> surfaceFieldValue @AccountCodeField fields
+            result <- liveMutationValue <$> approveXeroTimesheetPreparationPayItemsMutation runId maybeAccountCode
+            case result of
+                Left message -> respondWithPreparationDialog (Left message)
+                Right _      -> showXeroTimesheetPreparationSummaryAction runId
 
 showXeroTimesheetPreparationSummaryAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -191,24 +242,40 @@ confirmXeroTimesheetPreparationSubmissionAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id XeroTimesheetPreparationRun ->
     IO ()
-confirmXeroTimesheetPreparationSubmissionAction runId = do
-    result <- loadXeroTimesheetPreparationView runId
-    case result of
-        Left message -> respondWithPreparationErrorToast message
-        Right view -> respondHtml (renderXeroTimesheetPreparationSubmittingDialog view)
+confirmXeroTimesheetPreparationSubmissionAction runId =
+    case parseAppShellActionParams @ConfirmXeroTimesheetPreparationSubmissionOverlay of
+        Left errors -> respondWithPreparationErrorToast (surfaceRequestFieldErrorsMessage errors)
+        Right _ -> do
+            result <- loadXeroTimesheetPreparationView runId
+            case result of
+                Left message -> respondWithPreparationErrorToast message
+                Right view -> respondHtml (renderXeroTimesheetPreparationSubmittingDialog view)
 
 runXeroTimesheetPreparationSubmissionAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id XeroTimesheetPreparationRun ->
     IO ()
-runXeroTimesheetPreparationSubmissionAction = submitXeroTimesheetPreparationAction
+runXeroTimesheetPreparationSubmissionAction runId =
+    case parseAppShellActionParams @RunXeroTimesheetPreparationSubmissionOverlay of
+        Left errors -> respondWithPreparationDialog (Left (surfaceRequestFieldErrorsMessage errors))
+        Right _ -> submitXeroTimesheetPreparation runId Nothing
 
 submitXeroTimesheetPreparationAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id XeroTimesheetPreparationRun ->
     IO ()
-submitXeroTimesheetPreparationAction runId = do
-    let maybeAccountCode = Text.strip <$> paramOrNothing @Text "accountCode"
+submitXeroTimesheetPreparationAction runId =
+    case parseAppShellActionParams @SubmitXeroTimesheetPreparationOverlay of
+        Left errors -> respondWithPreparationDialog (Left (surfaceRequestFieldErrorsMessage errors))
+        Right fields ->
+            submitXeroTimesheetPreparation runId (Text.strip <$> surfaceFieldValue @AccountCodeField fields)
+
+submitXeroTimesheetPreparation ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Id XeroTimesheetPreparationRun ->
+    Maybe Text ->
+    IO ()
+submitXeroTimesheetPreparation runId maybeAccountCode = do
     result <- liveMutationValue <$> submitXeroTimesheetPreparationMutation runId maybeAccountCode
     case result of
         Right view | view.preparationState == XeroPreparationSubmitted ->
@@ -219,16 +286,24 @@ submitXeroTimesheetPreparationAction runId = do
                     redirectTo XeroAction
         _ -> respondWithPreparationDialog result
 
-parseStaffDecision :: (?context :: ControllerContext, ?request :: Request) => Either Text XeroPreparationStaffDecision
-parseStaffDecision =
-    case Text.strip (paramOrDefault @Text "" "decision") of
+parseStaffDecision :: AppShellActionFields ApplyXeroTimesheetPreparationStaffDecisionOverlay -> Either Text XeroPreparationStaffDecision
+parseStaffDecision fields =
+    case Text.strip (surfaceFieldValue @DecisionField fields) of
         "select_employee" ->
-            case Text.strip (paramOrDefault @Text "" "xeroEmployeeSelection") of
+            case Text.strip (surfaceFieldValue @XeroEmployeeSelectionField fields) of
                 "" -> Left "Choose a Xero employee or Not paid through Xero before approving."
                 "not_applicable" -> Right MarkStaffNotPaidThroughXero
                 employeeId -> Right (SelectXeroEmployee employeeId)
         "not_paid" -> Right MarkStaffNotPaidThroughXero
         _ -> Left "Choose a supported Xero preparation decision."
+
+parseReferenceWaitStartedAt :: Maybe Text -> Either Text (Maybe UTCTime)
+parseReferenceWaitStartedAt Nothing = Right Nothing
+parseReferenceWaitStartedAt (Just value) =
+    maybe
+        (Left "referenceWaitStartedAt must be a UTC timestamp in YYYY-MM-DDTHH:MM:SSZ format")
+        (Right . Just)
+        (parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" (cs value))
 
 respondWithPreparationDialog ::
     (?context :: ControllerContext, ?request :: Request) =>

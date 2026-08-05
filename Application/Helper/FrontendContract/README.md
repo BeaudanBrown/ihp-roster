@@ -141,7 +141,21 @@ that are not owned by a mounted `FrontendSurface`, including dialog/overlay
 workflows targeting the generated shared dialog mount. The DSL owns
 browser-visible HTMX metadata and submitted fields; Haskell still owns IHP
 route/path construction through
-`Application.Helper.FrontendContract.AppShell.Runtime`. Successful final dialog
+`Application.Helper.FrontendContract.AppShell.Runtime`.
+`Application.Helper.FrontendContract.AppShell.Request` derives nominal field
+bundles, field names, reflected action metadata, route-field serialization, and
+exact request parsers directly from `AppShellContract`. It converts only the
+global DSL's type-level field view, then delegates all value construction,
+lookup, diagnostics, and parsing to the existing Surface field evaluator;
+AppShell has no second runtime registry or generator. Controllers and views must
+select the same action marker, so wrong fields and cross-operation bundle reuse
+fail compilation. Exact scalar parsing rejects repeated values, including
+repeated empty optional values; repeated fields must declare `WireList`.
+
+The guided Xero preparation period, staff-decision, managed-pay-item, and
+submission forms use this nominal interface. Their app-owned field names are not
+handwritten in production views or reparsed with raw IHP parameter names.
+Successful final dialog
 workflow mutations should close/clear overlays and refresh business surfaces
 through actor-local/passive invalidation rather than returning authoritative
 business fragments OOB.
