@@ -1293,6 +1293,8 @@ a private draft through a group-only identity.
 
 `RosterTemplateDesignerSurface` owns the isolated designer/reference mount. Its scope carries venue, roster group, and effective user, but it declares no live fragments or ordinary roster mutation intents. A generated reference-target role and closed `compatible` state annotate native GET selection forms; Haskell/controller authority owns selection and confirmation while CSS provides hover/focus treatment and native forms provide keyboard/touch activation.
 
+The ordinary Roster Surface owns its editor-only template library and application interactions. A user-parameterized live library fragment depends on group-library and effective-user draft resources. Generated card/config/form/target/cancel roles, Day/Week drag source refs, Day/whole-week dropzone refs, and typed preview/apply actions are the only browser contract. The roster adapter manages cancellable Day selection mechanics; generic pointer sessions manage drag; both submit the same server-rendered confirmation boundary.
+
 The singular actor/passive planner is generated-data driven:
 
 1. accept exact semantic keys from an actor mount or active subscription;

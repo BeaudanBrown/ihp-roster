@@ -165,6 +165,8 @@ SurfaceFamily
 
 The isolated roster Template Designer uses generated Surface browser role/state attributes for compatible reference targets. Selection remains native GET form activation, so keyboard and touch need no feature-specific TypeScript session or mutation transport; confirmation and source isolation remain server-owned.
 
+Roster template application stays inside the ordinary Roster Surface. Saved Day and Week cards carry exact generated config roles and generated drag source refs; editable day and complete-week targets carry distinct generated roles/dropzone refs. The focused roster adapter owns only cancellable Day target-mode mechanics and fills the Haskell-rendered typed preview form. Week activation and generic pointer drag converge on that same server confirmation. Edit/Delete descendants are isolated controls, live rosters omit forms/sources/targets, and all committed application authority remains server-side.
+
 Views should not handwrite raw interaction `data-bepis-*` attributes, ref names,
 disposable layer mounts, intent forms, HTMX intent attributes, or target ids once
 helpers exist. Feature views should call typed Haskell helpers derived from
