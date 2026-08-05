@@ -28,6 +28,20 @@ async function openTemplateCreation(page: Parameters<typeof gotoWhenReady>[0]) {
 
 test.beforeEach(async ({ page }) => {
     resetTemplateDesignerState();
+    runSql(`
+        INSERT INTO roster_days (roster_week_id, day_offset)
+        SELECT roster_weeks.id, offsets.day_offset
+        FROM roster_weeks
+        CROSS JOIN generate_series(0, 6) AS offsets(day_offset)
+        WHERE roster_weeks.roster_group_id = '${defaultE2ERosterGroupId}'
+          AND roster_weeks.week_offset = 0
+          AND roster_weeks.archived_at IS NULL
+          AND NOT EXISTS (
+              SELECT 1 FROM roster_days
+              WHERE roster_days.roster_week_id = roster_weeks.id
+                AND roster_days.day_offset = offsets.day_offset
+          );
+    `);
     await loginAs(page, managerEmail, password);
 });
 
@@ -58,6 +72,38 @@ test('blank design opens in the roster card and occupied work remains recoverabl
     await expect(page.getByRole('link', { name: 'Continue draft' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Discard and start new' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Cancel' })).toBeVisible();
+
+    await page.getByRole('link', { name: 'Continue draft' }).click();
+    await expect(page.getByText('e2e blank week', { exact: true })).toBeVisible();
+
+    await openTemplateCreation(page);
+    await page.getByRole('radio', { name: 'Day', exact: true }).check();
+    await page.getByLabel('Template name').fill('e2e replacement day');
+    await page.getByLabel(/Start from a blank design/).check();
+    await page.getByRole('button', { name: 'Continue' }).click();
+    await page.getByRole('button', { name: 'Discard and start new' }).click();
+
+    await expect(page).toHaveURL(/ShowRosterTemplateDesigner/, { timeout: E2E_TIMEOUT.navigation });
+    await expect(page.getByText('e2e replacement day', { exact: true })).toBeVisible();
+    await expect(page.getByText('Day template · Private draft · Autosaved')).toBeVisible();
+});
+
+test('complete Week references open an isolated prefilled designer', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop-chromium', 'Week reference acceptance is covered once on desktop.');
+    await openTemplateCreation(page);
+    await page.getByRole('radio', { name: 'Week', exact: true }).check();
+    await page.getByLabel('Template name').fill('e2e week reference');
+    await page.getByLabel(/Use a roster as reference/).check();
+    await page.getByRole('button', { name: 'Continue' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Select a reference week' })).toBeVisible();
+    await page.getByRole('button', { name: /Use this week as template reference/ }).click();
+    await expect(page.getByRole('heading', { name: 'Confirm reference' })).toBeVisible();
+    await page.getByRole('button', { name: 'Open prefilled designer' }).click();
+
+    await expect(page).toHaveURL(/ShowRosterTemplateDesigner/, { timeout: E2E_TIMEOUT.navigation });
+    await expect(page.getByText('e2e week reference', { exact: true })).toBeVisible();
+    await expect(page.getByText('Week template · Private draft · Autosaved')).toBeVisible();
 });
 
 test('reference selection is keyboard and touch operable before confirmation @canonical-mobile', async ({ page }, testInfo) => {

@@ -15,6 +15,9 @@ function resetTemplates() {
     runSql(`
         TRUNCATE roster_template_shifts, roster_template_columns, roster_template_days,
             roster_template_designs, roster_templates;
+        UPDATE roster_weeks
+        SET is_live = FALSE
+        WHERE roster_group_id = '${defaultE2ERosterGroupId}';
     `);
 }
 
@@ -58,6 +61,44 @@ test.beforeEach(async ({ page }) => {
     await openTemplatesTab(page);
 });
 
+test('live roster explains rejection and exposes no application targets', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop-chromium', 'Live-target rejection is covered once on desktop.');
+    const viewedUrl = new URL(page.url());
+    const viewedWeekOffset = Number(viewedUrl.searchParams.get('weekOffset') ?? '0');
+    runSql(`
+        UPDATE roster_weeks
+        SET is_live = TRUE
+        WHERE roster_group_id = '${defaultE2ERosterGroupId}'
+          AND week_offset = ${viewedWeekOffset};
+    `);
+    await gotoWhenReady(page, viewedUrl.toString(), '#roster-content');
+    await openTemplatesTab(page);
+
+    await expect(page.getByRole('status')).toContainText('Templates cannot be applied to a live roster');
+    await expect(page.getByRole('button', { name: 'Apply Lunch service' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Apply Standard week' })).toBeDisabled();
+    await expect(page.locator('[data-bepis-dropzone-ref="day-template-dropzone"]')).toHaveCount(0);
+    await expect(page.locator('[data-bepis-dropzone-ref="week-template-dropzone"]')).toHaveCount(0);
+});
+
+test('saved edit conflicts preserve recovery choices', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop-chromium', 'Optimistic conflict acceptance is covered once on desktop.');
+    await page.getByRole('button', { name: 'Edit Lunch service' }).click();
+    await expect(page).toHaveURL(/ShowRosterTemplateDesigner/, { timeout: E2E_TIMEOUT.navigation });
+
+    runSql(`
+        UPDATE roster_templates
+        SET current_version = current_version + 1
+        WHERE name = 'Lunch service'
+          AND roster_group_id = '${defaultE2ERosterGroupId}';
+    `);
+    await page.getByRole('button', { name: 'Save template' }).click();
+
+    await expect(page.getByText(/This template changed elsewhere/)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Reload latest' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Save as new' })).toBeVisible();
+});
+
 test('Day and Week cards converge on confirmation while controls and cancellation stay isolated @canonical-mobile', async ({ page }) => {
     const dayApply = page.getByRole('button', { name: 'Apply Lunch service' });
     await dayApply.click();
@@ -87,6 +128,8 @@ test('Day and Week cards converge on confirmation while controls and cancellatio
     expect(await previewHttpResponse.text()).toContain('Apply Lunch service');
     await expect(page.locator('[data-bepis-roster-template-target-input]').first()).toHaveValue(/^day:/);
     await expect(page.getByRole('heading', { name: 'Apply Lunch service' })).toBeVisible();
+    await page.getByRole('button', { name: 'Apply template' }).click();
+    await expect(page.getByText('Template applied.')).toBeVisible();
     await gotoWhenReady(page, '/RosterWeeks', '#roster-content');
     await openTemplatesTab(page);
 

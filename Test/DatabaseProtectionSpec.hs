@@ -331,6 +331,28 @@ tests = aroundAll withDatabaseTestContext do
                 wholeShiftBreak `shouldSatisfy` isRight
 
     describe "roster template persistence constraints" do
+        it "adds roster templates without changing representative legacy roster rows" $ withContext do
+            withCleanDb do
+                legacyFixture <- TextIO.readFile "Test/Fixtures/roster-templates/pre-template-schema.sql"
+                templateMigration <- TextIO.readFile "Application/Migration/1785826000.sql"
+                sealingMigration <- TextIO.readFile "Application/Migration/1785839000.sql"
+                withTransaction do
+                    case transactionRunner ?modelContext of
+                        Nothing -> error "Roster template migration acceptance requires a transaction runner"
+                        Just runner -> do
+                            runInTransaction runner (HasqlSession.script legacyFixture)
+                            runInTransaction runner (HasqlSession.script templateMigration)
+                            runInTransaction runner (HasqlSession.script sealingMigration)
+                    retainedRows :: [Only Text] <- sqlQuery
+                        "SELECT marker FROM roster_template_migration_acceptance.roster_weeks ORDER BY marker"
+                        ()
+                    createdTables :: [Only (Maybe Text)] <- sqlQuery
+                        "SELECT to_regclass('roster_template_migration_acceptance.' || table_name)::text FROM unnest(ARRAY['roster_templates', 'roster_template_designs', 'roster_template_days', 'roster_template_columns', 'roster_template_shifts']) table_name"
+                        ()
+                    map fromOnly retainedRows `shouldBe` ["legacy-draft-week", "legacy-live-week"]
+                    createdTables `shouldSatisfy` all (isJust . fromOnly)
+                    sqlExecDiscardResult "DROP SCHEMA roster_template_migration_acceptance CASCADE" ()
+
         it "enforces reserved names, one private draft, structurally valid shifts, and next-version sealing" $ withContext do
             withCleanDb do
                 sealingMigration <- TextIO.readFile "Application/Migration/1785839000.sql"
