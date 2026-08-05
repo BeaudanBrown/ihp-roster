@@ -110,11 +110,17 @@ test('Day template keyboard targeting works in timeline mode', async ({ page }, 
     await openTemplatesTab(page);
 
     await page.getByRole('button', { name: 'Apply Lunch service' }).click();
-    const timelineDayTarget = page.locator('.roster-template-timeline-day-target [data-bepis-roster-template-day-target]');
+    let timelineDayTarget = page.locator('.roster-template-timeline-day-target [data-bepis-roster-template-day-target]');
     await expect(timelineDayTarget).toBeVisible();
+    await timelineDayTarget.click();
+    await expect(page.getByRole('heading', { name: 'Apply Lunch service' })).toBeVisible();
+
+    await gotoWhenReady(page, timelineUrl.toString(), '.roster-day-timeline-shell');
+    await openTemplatesTab(page);
+    await page.getByRole('button', { name: 'Apply Lunch service' }).click();
+    timelineDayTarget = page.locator('.roster-template-timeline-day-target [data-bepis-roster-template-day-target]');
     await timelineDayTarget.focus();
     await page.keyboard.press('Enter');
-
     await expect(page.getByRole('heading', { name: 'Apply Lunch service' })).toBeVisible();
 });
 
