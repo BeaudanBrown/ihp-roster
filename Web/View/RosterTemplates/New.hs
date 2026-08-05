@@ -104,6 +104,7 @@ renderSavedTemplate template = [hsx|
                 <button class="btn btn-outline-primary btn-sm" type="submit">Edit</button>
             </form>
             <form method="POST" action={DeleteRosterTemplateAction template.id}>
+                <input type="hidden" name="_method" value="DELETE" />
                 <button class="btn btn-outline-danger btn-sm" type="submit">Delete</button>
             </form>
         </div>
