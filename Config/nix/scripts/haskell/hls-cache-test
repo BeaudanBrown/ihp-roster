@@ -131,8 +131,53 @@ symlink_output="$(cd "$fixture_repo" && BEPIS_HLS_CACHE_PARENT="$cache_parent" b
 symlink_status=$?
 set -e
 [ "$symlink_status" -eq 65 ] || fail "symlinked cache root was accepted: $symlink_output"
+rm "$foreign_root"
+(
+    cd "$fixture_repo"
+    BEPIS_HLS_CACHE_PARENT="$cache_parent" \
+    BEPIS_HLS_SERVER_COMMAND="$fixture_root/bin/capture-hls" \
+    HLS_TEST_OUTPUT="$linked_output" \
+        bash "$wrapper" --lsp
+)
+rm -rf "$foreign_root/xdg"
+ln -s "$fixture_root" "$foreign_root/xdg"
+set +e
+xdg_symlink_output="$(cd "$fixture_repo" && BEPIS_HLS_CACHE_PARENT="$cache_parent" bash "$wrapper" --lsp 2>&1)"
+xdg_symlink_status=$?
+set -e
+[ "$xdg_symlink_status" -eq 65 ] || fail "symlinked XDG cache directory was accepted: $xdg_symlink_output"
 
-jq -e '.servers.haskell.command == "hls-lsp" and .servers.haskell.args == ["--lsp"]' \
-    "$repo_root/.pi-lsp.json" >/dev/null || fail ".pi-lsp.json does not select the cache wrapper"
+legacy_root="$fixture_root/legacy-cache/ghcide"
+mkdir -p "$legacy_root"
+printf 'legacy\n' >"$legacy_root/session"
+cat >"$fixture_root/bin/haskell-language-server-wrapper" <<'EOF'
+#!/usr/bin/env bash
+while :; do sleep 1; done
+EOF
+chmod +x "$fixture_root/bin/haskell-language-server-wrapper"
+(
+    cd "$fixture_repo"
+    XDG_CACHE_HOME="${legacy_root%/ghcide}" \
+        exec setsid "$fixture_root/bin/haskell-language-server-wrapper" --lsp
+) &
+hls_pid="$!"
+sleep 0.1
+set +e
+legacy_active_output="$(cd "$fixture_repo" && BEPIS_HLS_LEGACY_ROOT="$legacy_root" bash "$cache_command" legacy --apply 2>&1)"
+legacy_active_status=$?
+set -e
+[ "$legacy_active_status" -eq 75 ] || fail "legacy cleanup accepted an old live HLS daemon: $legacy_active_output"
+kill -TERM -"$hls_pid" 2>/dev/null || kill "$hls_pid" 2>/dev/null || true
+wait "$hls_pid" 2>/dev/null || true
+hls_pid=""
+legacy_dry_run="$(cd "$fixture_repo" && BEPIS_HLS_LEGACY_ROOT="$legacy_root" bash "$cache_command" legacy)"
+[[ "$legacy_dry_run" == *"dry run"* ]] || fail "legacy cleanup was not dry-run by default"
+[ -d "$legacy_root" ] || fail "legacy dry-run removed the cache"
+cd "$fixture_repo"
+BEPIS_HLS_LEGACY_ROOT="$legacy_root" bash "$cache_command" legacy --apply >/dev/null
+[ ! -e "$legacy_root" ] || fail "approved legacy cleanup left the cache"
+
+jq -e '.servers.haskell.command == "bash" and .servers.haskell.args == ["./bin/in-env", "hls-lsp", "--lsp"]' \
+    "$repo_root/.pi-lsp.json" >/dev/null || fail ".pi-lsp.json does not enter the worktree environment before selecting the cache wrapper"
 
 echo "hls-cache-test: ok"

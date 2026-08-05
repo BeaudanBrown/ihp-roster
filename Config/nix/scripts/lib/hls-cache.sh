@@ -118,7 +118,11 @@ bepis_hls_cache_prepare_locked() {
         fi
     fi
     chmod 700 "$BEPIS_HLS_CACHE_ROOT"
-    mkdir -p "$BEPIS_HLS_CACHE_ROOT/xdg"
+    if [ -e "$BEPIS_HLS_CACHE_ROOT/xdg" ] || [ -L "$BEPIS_HLS_CACHE_ROOT/xdg" ]; then
+        bepis_hls_cache_validate_owned_directory "$BEPIS_HLS_CACHE_ROOT/xdg" "XDG cache directory" || return
+    else
+        mkdir "$BEPIS_HLS_CACHE_ROOT/xdg"
+    fi
     chmod 700 "$BEPIS_HLS_CACHE_ROOT/xdg"
     flock -u "$BEPIS_HLS_CACHE_REGISTRY_FD"
     eval "exec ${BEPIS_HLS_CACHE_REGISTRY_FD}>&-"

@@ -10,13 +10,25 @@ ihp_roster_verification_build_dir() {
     printf '%s\n' "${VERIFICATION_BUILD_DIR:-$PWD/build/Verification}"
 }
 
-ihp_roster_configure_compiler_tmpdir() {
-    # Respect an explicit caller choice. The fallback exists only to keep an
-    # unexpectedly full tmpfs from aborting compile-heavy project commands.
-    if [ -n "${TMPDIR:-}" ]; then
-        return 0
+ihp_roster_report_tmp_pressure() {
+    local tmp_path="$1"
+    local free_bytes="$2"
+    local threshold="$3"
+    local action="$4"
+    echo "compiler-tmp: $tmp_path has $free_bytes bytes free, less than $threshold; $action" >&2
+    if [ "${BEPIS_TMP_PRESSURE_REPORT:-1}" = 1 ] && [ -d "$tmp_path" ]; then
+        find "$tmp_path" -mindepth 1 -maxdepth 1 -type d \
+            \( -name 'nix-cache' -o -name 'bepis-*' \) -print0 2>/dev/null \
+            | xargs -0 -r du -s -B1 2>/dev/null \
+            | sort -nr | head -n 8 \
+            | awk '{printf "compiler-tmp: consumer bytes=%s path=%s\\n", $1, $2}' >&2 || true
     fi
+}
 
+ihp_roster_configure_compiler_tmpdir() {
+    # Respect an explicit caller choice while still reporting pressure on the
+    # shared tmpfs. The fallback exists only to keep an unexpectedly full
+    # tmpfs from aborting compile-heavy project commands.
     local threshold="${BEPIS_TMP_FREE_THRESHOLD_BYTES:-2147483648}"
     local free_bytes="${BEPIS_TMP_FREE_BYTES_OVERRIDE:-}"
     local tmp_path="${BEPIS_TMP_PATH:-/tmp}"
@@ -32,6 +44,10 @@ ihp_roster_configure_compiler_tmpdir() {
         return 69
     }
     [ "$free_bytes" -lt "$threshold" ] || return 0
+    if [ -n "${TMPDIR:-}" ]; then
+        ihp_roster_report_tmp_pressure "$tmp_path" "$free_bytes" "$threshold" "retaining explicit TMPDIR=$TMPDIR"
+        return 0
+    fi
 
     local workspace parent workspace_id root marker temporary
     workspace="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
@@ -72,14 +88,7 @@ ihp_roster_configure_compiler_tmpdir() {
     fi
     chmod 700 "$root"
     export TMPDIR="$root"
-    echo "compiler-tmp: $tmp_path has $free_bytes bytes free, less than $threshold; using $TMPDIR" >&2
-    if [ "${BEPIS_TMP_PRESSURE_REPORT:-1}" = 1 ] && [ -d "$tmp_path" ]; then
-        find "$tmp_path" -mindepth 1 -maxdepth 1 -type d \
-            \( -name 'nix-cache' -o -name 'bepis-*' \) -print0 2>/dev/null \
-            | xargs -0 -r du -s -B1 2>/dev/null \
-            | sort -nr | head -n 8 \
-            | awk '{printf "compiler-tmp: consumer bytes=%s path=%s\\n", $1, $2}' >&2 || true
-    fi
+    ihp_roster_report_tmp_pressure "$tmp_path" "$free_bytes" "$threshold" "using $TMPDIR"
 }
 
 ihp_roster_prepare_ghc_build_dir() {

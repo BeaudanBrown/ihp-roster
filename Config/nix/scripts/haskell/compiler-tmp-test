@@ -45,8 +45,11 @@ result="$({
     BEPIS_TMP_FREE_BYTES_OVERRIDE=1024 \
     BEPIS_COMPILER_TMP_PARENT="$fixture_root/compiler-tmp" \
     bash -c '. "$1"; ihp_roster_configure_compiler_tmpdir; printf "TMPDIR=%s\n" "$TMPDIR"' bash "$ghc_library"
-})"
+} 2>"$fixture_root/explicit.err")"
 [ "$result" = "TMPDIR=$explicit" ] || fail "explicit TMPDIR was overwritten: $result"
+grep -q 'less than' "$fixture_root/explicit.err" || fail "explicit TMPDIR suppressed the pressure warning"
+grep -q "retaining explicit TMPDIR=$explicit" "$fixture_root/explicit.err" \
+    || fail "pressure warning did not explain that explicit TMPDIR was retained"
 
 rm -rf "$fixture_root/compiler-tmp"
 ln -s "$fixture_root" "$fixture_root/compiler-tmp"
