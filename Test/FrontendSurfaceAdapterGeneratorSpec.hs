@@ -391,6 +391,7 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
                         , ("roster", "roster-wage-rail")
                         , ("roster", "roster-slots-grid")
                         , ("roster", "roster-staff-panel")
+                        , ("roster", "roster-template-library")
                         , ("roster", "roster-day-section")
                         , ("roster", "roster-row")
                         , ("roster-day-timeline", "roster-day-timeline-content")
@@ -505,7 +506,7 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
         extraDiagnosticCodes `shouldContain` ["missing-adapter-scope-home"]
 
     it "publishes exactly one production home for every eligible Action declaration" do
-        length registeredSurfaceAdapterRegistry.surfaceActionAdapterHomes `shouldBe` 51
+        length registeredSurfaceAdapterRegistry.surfaceActionAdapterHomes `shouldBe` 53
         case generateSurfaceActionAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
             Left diagnostics -> expectationFailure (cs (show diagnostics))
             Right generatedModules ->
@@ -562,7 +563,7 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
         extraDiagnosticCodes `shouldContain` ["missing-adapter-action-home"]
 
     it "publishes exactly one production home for every eligible Intent declaration" do
-        length registeredSurfaceAdapterRegistry.surfaceIntentAdapterHomes `shouldBe` 5
+        length registeredSurfaceAdapterRegistry.surfaceIntentAdapterHomes `shouldBe` 6
         case generateSurfaceIntentAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
             Left diagnostics -> expectationFailure (cs (show diagnostics))
             Right generatedModules ->
