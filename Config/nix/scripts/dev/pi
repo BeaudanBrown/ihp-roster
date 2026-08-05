@@ -31,6 +31,11 @@ find_real_pi() {
     return 69
 }
 
+# Marks sessions launched after worktree-scoped HLS cache support landed.
+# Legacy-cache retirement refuses while an older unmarked Pi could still
+# lazily start HLS with the former shared XDG cache.
+export BEPIS_HLS_CACHE_PROTOCOL=worktree-v1
+
 real_pi="$(find_real_pi)" || {
     echo "workspace-pi: cannot locate the real pi executable behind the project shim" >&2
     exit 69

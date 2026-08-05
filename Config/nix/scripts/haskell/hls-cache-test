@@ -29,6 +29,8 @@ git -C "$fixture_repo" config user.email "hls-cache-test@example.invalid"
 printf 'fixture\n' >"$fixture_repo/README"
 git -C "$fixture_repo" add README
 git -C "$fixture_repo" commit --quiet -m fixture
+mkdir -p "$fixture_repo/Config/nix/flake"
+: >"$fixture_repo/Config/nix/flake/scripts.nix"
 
 cat >"$fixture_root/bin/fake-hls" <<'EOF'
 #!/usr/bin/env bash
@@ -200,12 +202,46 @@ set -e
 kill -TERM -"$hls_pid" 2>/dev/null || kill "$hls_pid" 2>/dev/null || true
 wait "$hls_pid" 2>/dev/null || true
 hls_pid=""
+
+cp "$(command -v bash)" "$fixture_root/bin/legacy-pi"
+chmod +x "$fixture_root/bin/legacy-pi"
+(
+    cd "$fixture_repo"
+    # The inner bash expands $1 after exec changes argv[0].
+    # shellcheck disable=SC2016
+    XDG_CACHE_HOME="${legacy_root%/ghcide}/" \
+        exec setsid bash -c 'exec -a pi "$1" -c "while :; do sleep 1; done"' bash "$fixture_root/bin/legacy-pi"
+) &
+hls_pid="$!"
+sleep 0.1
+set +e
+legacy_pi_output="$(cd "$fixture_repo" && BEPIS_HLS_LEGACY_ROOT="$legacy_root" bash "$cache_command" legacy --apply 2>&1)"
+legacy_pi_status=$?
+set -e
+[ "$legacy_pi_status" -eq 75 ] || fail "legacy cleanup accepted an old Pi session: $legacy_pi_output"
+kill -TERM -"$hls_pid" 2>/dev/null || kill "$hls_pid" 2>/dev/null || true
+wait "$hls_pid" 2>/dev/null || true
+hls_pid=""
+
+(
+    cd "$fixture_repo"
+    # The inner bash expands $1 after exec changes argv[0].
+    # shellcheck disable=SC2016
+    XDG_CACHE_HOME="${legacy_root%/ghcide}/" \
+    BEPIS_HLS_CACHE_PROTOCOL=worktree-v1 \
+        exec setsid bash -c 'exec -a pi "$1" -c "while :; do sleep 1; done"' bash "$fixture_root/bin/legacy-pi"
+) &
+hls_pid="$!"
+sleep 0.1
 legacy_dry_run="$(cd "$fixture_repo" && BEPIS_HLS_LEGACY_ROOT="$legacy_root" bash "$cache_command" legacy)"
 [[ "$legacy_dry_run" == *"dry run"* ]] || fail "legacy cleanup was not dry-run by default"
 [ -d "$legacy_root" ] || fail "legacy dry-run removed the cache"
 cd "$fixture_repo"
 BEPIS_HLS_LEGACY_ROOT="$legacy_root" bash "$cache_command" legacy --apply >/dev/null
 [ ! -e "$legacy_root" ] || fail "approved legacy cleanup left the cache"
+kill -TERM -"$hls_pid" 2>/dev/null || kill "$hls_pid" 2>/dev/null || true
+wait "$hls_pid" 2>/dev/null || true
+hls_pid=""
 
 jq -e '.servers.haskell.command == "bash" and .servers.haskell.args == ["./bin/in-env", "hls-lsp", "--lsp"]' \
     "$repo_root/.pi-lsp.json" >/dev/null || fail ".pi-lsp.json does not enter the worktree environment before selecting the cache wrapper"

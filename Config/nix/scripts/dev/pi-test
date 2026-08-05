@@ -65,7 +65,8 @@ EOF
 cat >"$fake_bin/real-pi" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-printf 'pi-contained=%s arg=%s\n' "${WORKSPACE_PI_CONTAINED:-0}" "${1:-}"
+printf 'pi-contained=%s arg=%s hls-cache-protocol=%s\n' \
+    "${WORKSPACE_PI_CONTAINED:-0}" "${1:-}" "${BEPIS_HLS_CACHE_PROTOCOL:-missing}"
 bash -c 'printf "child-contained=%s\n" "${WORKSPACE_PI_CONTAINED:-0}"'
 EOF
 chmod +x "$fake_bin"/*
@@ -87,13 +88,15 @@ run_pi() {
 }
 
 primary_output="$(run_pi "$primary" primary)"
-[[ "$primary_output" == *'pi-contained=1 arg=primary'* ]] || fail "primary Pi was not contained"
+[[ "$primary_output" == *'pi-contained=1 arg=primary hls-cache-protocol=worktree-v1'* ]] \
+    || fail "primary Pi was not contained with the current HLS cache protocol"
 [[ "$primary_output" == *'child-contained=1'* ]] || fail "Pi child did not inherit containment"
 primary_slice="$(grep 'systemd-run' "$fixture_root/systemd.log" | tail -1 | grep -Eo -- '--slice=[^|]+' | cut -d= -f2)"
 [[ "$primary_slice" == *'-primary.slice' ]] || fail "primary slice identity is wrong: $primary_slice"
 
 epic_output="$(run_pi "$epic_path" epic)"
-[[ "$epic_output" == *'pi-contained=1 arg=epic'* ]] || fail "epic Pi was not contained"
+[[ "$epic_output" == *'pi-contained=1 arg=epic hls-cache-protocol=worktree-v1'* ]] \
+    || fail "epic Pi was not contained with the current HLS cache protocol"
 epic_slice="$(grep 'systemd-run' "$fixture_root/systemd.log" | tail -1 | grep -Eo -- '--slice=[^|]+' | cut -d= -f2)"
 [[ "$epic_slice" == *'-epic1.slice' ]] || fail "epic slot slice identity is wrong: $epic_slice"
 [ "$primary_slice" != "$epic_slice" ] || fail "primary and epic shared one slice"
@@ -104,7 +107,7 @@ epic_slice="$(grep 'systemd-run' "$fixture_root/systemd.log" | tail -1 | grep -E
 bypass_output="$(cd "$epic_path" && PATH="$fake_bin:$PATH" BEPIS_SCRIPTS_ROOT="$repo_root/Config/nix/scripts" \
     BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" BEPIS_REAL_PI_COMMAND="$fake_bin/real-pi" \
     BEPIS_WORKSPACE_CPU_SHARING=off bash "$pi_command" bypass 2>&1)"
-[[ "$bypass_output" == *'explicitly disabled'* && "$bypass_output" == *'pi-contained=0 arg=bypass'* ]] \
+[[ "$bypass_output" == *'explicitly disabled'* && "$bypass_output" == *'pi-contained=0 arg=bypass hls-cache-protocol=worktree-v1'* ]] \
     || fail "explicit bypass was not visible and uncontained"
 
 unknown="$fixture_root/unknown"

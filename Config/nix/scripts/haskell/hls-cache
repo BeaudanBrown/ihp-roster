@@ -86,6 +86,7 @@ if [ "$command_name" = legacy ]; then
     fi
 
     legacy_processes='[]'
+    legacy_clients='[]'
     for proc in /proc/[0-9]*; do
         pid="${proc##*/}"
         [ -r "$proc/status" ] || continue
@@ -93,11 +94,19 @@ if [ "$command_name" = legacy ]; then
         process_command="$(head -c 8192 "$proc/cmdline" 2>/dev/null | tr '\0' ' ' || true)"
         process_executable="$(readlink "$proc/exe" 2>/dev/null || true)"
         process_cache=""
+        process_protocol=""
+        process_cwd="$(readlink "$proc/cwd" 2>/dev/null || true)"
         is_hls=false
+        is_pi=false
         references_legacy=false
         if [[ "$process_command" == *haskell-language-server* ]] \
             || [[ "$process_executable" == *haskell-language-server* ]]; then
             is_hls=true
+        fi
+        first_command="${process_command%% *}"
+        if { [ "${first_command##*/}" = pi ] || [[ "$process_command" == "pi "* ]]; } \
+            && [ -f "$process_cwd/Config/nix/flake/scripts.nix" ]; then
+            is_pi=true
         fi
         for fd in "$proc"/fd/*; do
             target="$(readlink "$fd" 2>/dev/null || true)"
@@ -108,12 +117,19 @@ if [ "$command_name" = legacy ]; then
                 references_legacy=true
             fi
         done
-        if [ "$is_hls" = true ]; then
-            process_cache="$({ tr '\0' '\n' <"$proc/environ"; } 2>/dev/null \
-                | awk -F= '$1 == "XDG_CACHE_HOME" {sub(/^[^=]*=/, ""); print; exit}' || true)"
-            if [ -n "$process_cache" ] \
+        if [ "$is_hls" = true ] || [ "$is_pi" = true ]; then
+            process_environment="$({ tr '\0' '\n' <"$proc/environ"; } 2>/dev/null || true)"
+            process_cache="$(awk -F= '$1 == "XDG_CACHE_HOME" {sub(/^[^=]*=/, ""); print; exit}' <<<"$process_environment")"
+            process_protocol="$(awk -F= '$1 == "BEPIS_HLS_CACHE_PROTOCOL" {sub(/^[^=]*=/, ""); print; exit}' <<<"$process_environment")"
+            if [ "$is_hls" = true ] && [ -n "$process_cache" ] \
                 && [ "$(realpath -m "$process_cache/ghcide")" = "$legacy_root" ]; then
                 references_legacy=true
+            fi
+            if [ "$is_pi" = true ] && [ "$process_protocol" != worktree-v1 ] \
+                && [ -n "$process_cache" ] \
+                && [ "$(realpath -m "$process_cache/ghcide")" = "$legacy_root" ]; then
+                legacy_clients="$(jq -c --argjson pid "$pid" --arg command "$process_command" \
+                    --arg cwd "$process_cwd" '. + [{pid: $pid, command: $command, cwd: $cwd}]' <<<"$legacy_clients")"
             fi
         fi
         [ "$references_legacy" = true ] || continue
@@ -122,8 +138,10 @@ if [ "$command_name" = legacy ]; then
             '. + [{pid: $pid, command: $command, executable: $executable}]' <<<"$legacy_processes")"
     done
 
-    if [ "$apply" = true ] && [ "$(jq 'length' <<<"$legacy_processes")" -gt 0 ]; then
-        die 75 "live HLS processes still reference legacy cache: $(jq -r '[.[].pid | tostring] | join(",")' <<<"$legacy_processes")"
+    if [ "$apply" = true ] \
+        && { [ "$(jq 'length' <<<"$legacy_processes")" -gt 0 ] \
+            || [ "$(jq 'length' <<<"$legacy_clients")" -gt 0 ]; }; then
+        die 75 "legacy cache still has old clients: HLS=$(jq -r '[.[].pid | tostring] | join(",")' <<<"$legacy_processes") Pi=$(jq -r '[.[].pid | tostring] | join(",")' <<<"$legacy_clients")"
     fi
     if [ "$apply" = true ] && [ "$legacy_state" = present ]; then
         rm -rf --one-file-system "$legacy_root"
@@ -131,15 +149,15 @@ if [ "$command_name" = legacy ]; then
     result="$(jq -cn \
         --arg state "$legacy_state" --arg root "$legacy_root" \
         --argjson bytes "$legacy_bytes" --argjson processes "$legacy_processes" \
-        --argjson applied "$apply" \
+        --argjson clients "$legacy_clients" --argjson applied "$apply" \
         '{action: "legacy", applied: ($applied and $state == "present"), state: $state,
-          root: $root, bytes: $bytes, processes: $processes}')"
+          root: $root, bytes: $bytes, processes: $processes, oldPiClients: $clients}')"
     if [ "$json" = true ]; then
         jq . <<<"$result"
     elif [ "$apply" = true ]; then
         jq -r 'if .state == "present" then "cleared legacy cache (\(.bytes) bytes): \(.root)" else "legacy cache absent: \(.root)" end' <<<"$result"
     else
-        jq -r 'if .state == "present" then "dry run: would clear legacy cache (\(.bytes) bytes): \(.root); live HLS=\(.processes | length); repeat with --apply" else "legacy cache absent: \(.root)" end' <<<"$result"
+        jq -r 'if .state == "present" then "dry run: would clear legacy cache (\(.bytes) bytes): \(.root); live HLS=\(.processes | length), old Pi=\(.oldPiClients | length); repeat with --apply" else "legacy cache absent: \(.root)" end' <<<"$result"
     fi
     exit 0
 fi
