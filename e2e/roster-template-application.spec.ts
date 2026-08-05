@@ -19,6 +19,29 @@ function resetTemplates() {
         SET is_live = FALSE
         WHERE roster_group_id = '${defaultE2ERosterGroupId}';
     `);
+    resetApplicationTargetState();
+}
+
+function resetApplicationTargetState() {
+    runSql(`
+        UPDATE roster_days
+        SET is_closed = FALSE, row_count = 4
+        WHERE roster_week_id = 'a1000000-0000-0000-0000-000000000051';
+        UPDATE roster_week_slot_definitions
+        SET deleted_at = CASE
+                WHEN id = 'a1000000-0000-0000-0000-000000000081' THEN NULL
+                ELSE COALESCE(deleted_at, NOW())
+            END,
+            deleted_by_user_id = NULL,
+            delete_reason = CASE
+                WHEN id = 'a1000000-0000-0000-0000-000000000081' THEN NULL
+                ELSE 'e2e_template_acceptance_reset'
+            END
+        WHERE roster_week_id = 'a1000000-0000-0000-0000-000000000051';
+        UPDATE roster_slots
+        SET deleted_at = NULL, deleted_by_user_id = NULL, delete_reason = NULL
+        WHERE id = 'a1000000-0000-0000-0000-000000000071';
+    `);
 }
 
 async function createBlankTemplate(page: Page, name: string, scale: 'Day' | 'Week') {
@@ -36,6 +59,10 @@ async function openTemplatesTab(page: Page) {
     await page.getByRole('tab', { name: 'Templates' }).click();
     await expect(page.getByRole('heading', { name: 'Templates', exact: true })).toBeVisible();
 }
+
+test.afterEach(() => {
+    resetApplicationTargetState();
+});
 
 test.beforeEach(async ({ page }) => {
     resetTemplates();
