@@ -1149,15 +1149,16 @@ ON CONFLICT (id) DO UPDATE SET
     week_offset = EXCLUDED.week_offset,
     is_live = EXCLUDED.is_live;
 
-INSERT INTO roster_days (id, roster_week_id, day_offset, is_closed)
+INSERT INTO roster_days (id, roster_week_id, day_offset, is_closed, row_count)
 VALUES
-    ('a1000000-0000-0000-0000-000000000061', 'a1000000-0000-0000-0000-000000000051', 0, FALSE),
-    ('a1000000-0000-0000-0000-000000000063', 'a1000000-0000-0000-0000-000000000053', 0, FALSE),
-    ('a1000000-0000-0000-0000-000000000062', 'a1000000-0000-0000-0000-000000000052', 0, FALSE)
+    ('a1000000-0000-0000-0000-000000000061', 'a1000000-0000-0000-0000-000000000051', 0, FALSE, 4),
+    ('a1000000-0000-0000-0000-000000000063', 'a1000000-0000-0000-0000-000000000053', 0, FALSE, 4),
+    ('a1000000-0000-0000-0000-000000000062', 'a1000000-0000-0000-0000-000000000052', 0, FALSE, 4)
 ON CONFLICT (id) DO UPDATE SET
     roster_week_id = EXCLUDED.roster_week_id,
     day_offset = EXCLUDED.day_offset,
-    is_closed = EXCLUDED.is_closed;
+    is_closed = EXCLUDED.is_closed,
+    row_count = EXCLUDED.row_count;
 
 INSERT INTO roster_week_slot_definitions (id, roster_week_id, name, sort_order)
 VALUES
