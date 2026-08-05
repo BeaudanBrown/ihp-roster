@@ -2136,23 +2136,23 @@
       activateCard(mount, card);
       return;
     }
-    const session = sessions.get(mount);
-    if (session?.state.kind !== "selecting-day") return;
+    const selectionMount = closestSelectingMount(target);
+    if (!selectionMount) return;
     const dayTarget = target.closest(dayTargetSelector);
     const targetKey = dayTarget ? dayTargetKey(dayTarget) : null;
     if (dayTarget && targetKey) {
       stopEvent(event);
-      transition(mount, { kind: "activate-day", targetKey });
+      transition(selectionMount, { kind: "activate-day", targetKey });
       return;
     }
     stopEvent(event);
-    transition(mount, { kind: "invalid-area" });
+    transition(selectionMount, { kind: "invalid-area" });
   }
   function handleKeydown(event) {
     const target = event.target;
     if (!(target instanceof Element)) return;
-    const mount = target.closest(rosterMountSelector);
-    if (!mount || sessions.get(mount)?.state.kind !== "selecting-day") return;
+    const mount = closestSelectingMount(target);
+    if (!mount) return;
     if (event.key === "Escape") {
       event.preventDefault();
       transition(mount, { kind: "escape" });
@@ -2227,6 +2227,14 @@
     const created = { state: { kind: "idle" }, activeCard: null };
     sessions.set(mount, created);
     return created;
+  }
+  function closestSelectingMount(target) {
+    let mount = target.closest(rosterMountSelector);
+    while (mount) {
+      if (sessions.get(mount)?.state.kind === "selecting-day") return mount;
+      mount = mount.parentElement?.closest(rosterMountSelector) ?? null;
+    }
+    return null;
   }
   function dayTargetKey(target) {
     return target.closest(`[${InteractionDom.attributes.dropzoneKey}]`)?.getAttribute(InteractionDom.attributes.dropzoneKey) ?? null;

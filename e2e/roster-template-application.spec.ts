@@ -101,6 +101,23 @@ test('Day and Week cards converge on confirmation while controls and cancellatio
     await expect(page.getByText('Template applied.')).toBeVisible();
 });
 
+test('Day template keyboard targeting works in timeline mode', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop-chromium', 'Timeline keyboard targeting is exercised once on desktop.');
+    const timelineUrl = new URL(page.url());
+    timelineUrl.searchParams.set('rosterView', 'timeline');
+    timelineUrl.searchParams.set('dayOffset', '0');
+    await gotoWhenReady(page, timelineUrl.toString(), '.roster-day-timeline-shell');
+    await openTemplatesTab(page);
+
+    await page.getByRole('button', { name: 'Apply Lunch service' }).click();
+    const timelineDayTarget = page.locator('.roster-template-timeline-day-target [data-bepis-roster-template-day-target]');
+    await expect(timelineDayTarget).toBeVisible();
+    await timelineDayTarget.focus();
+    await page.keyboard.press('Enter');
+
+    await expect(page.getByRole('heading', { name: 'Apply Lunch service' })).toBeVisible();
+});
+
 test('Day template cards drag to compatible day targets', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop-chromium', 'Mouse drag is covered on desktop; touch converges through card activation.');
     const dayCard = page.locator('[data-bepis-source-ref="day-template-drag-source"]').first();
