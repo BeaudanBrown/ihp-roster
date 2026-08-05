@@ -130,6 +130,7 @@ in
         architecture-web-map = script ../scripts/architecture/web-map;
         architecture-module-graph = script ../scripts/architecture/module-graph;
         architecture-surface-request-closure = script ../scripts/architecture/surface-request-closure;
+        typed-contract-authority-audit = script ../scripts/architecture/typed-contract-authority-audit;
         architecture-runtime-overlay = script ../scripts/architecture/runtime-overlay;
         architecture-query = script ../scripts/architecture/query;
         architecture-trace-diagram = script ../scripts/architecture/trace-diagram;

@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# Reporting-only baseline for the typed-contract-authority workstream.
+# Keep this separate from blocking guardrails until each candidate is migrated
+# or classified as a narrow external/platform exception.
+set -euo pipefail
+
+repo_root="${TYPED_CONTRACT_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+cd "$repo_root"
+
+section() {
+    printf '\n== %s ==\n' "$1"
+}
+
+report_matches() {
+    local pattern="$1"
+    shift
+    rg --line-number --glob '*.hs' --glob '!**/Generated/**' "$pattern" "$@" 2>/dev/null || true
+}
+
+count_files_and_lines() {
+    local label="$1"
+    shift
+    local -a files=("$@")
+    local lines=0
+    local file
+    for file in "${files[@]}"; do
+        lines=$((lines + $(wc -l < "$file")))
+    done
+    printf '%-42s %3d files %5d LOC\n' "$label" "${#files[@]}" "$lines"
+}
+
+section "rendered-value branch candidates (enum decisions versus boundary parsing/ids)"
+report_matches \
+    'case[[:space:]]+(inputValue|rosterLayoutModeValue)|inputValue[^\n]*(==|/=|`elem`)|rosterLayoutModeValue[^\n]*(==|/=|`elem`)' \
+    Application Web
+
+section "app-owned closed-domain candidates still declared as WireText"
+report_matches \
+    "(FeedbackTypeField|ConfigFieldField|ExportType|PayRateSelection|ColourKey|VenueRoleField|EmploymentBasisField|SectionField|LeaveSection|StaffScope|layoutModeField|DecisionField|XeroEmployeeSelectionField)[^\n]*'WireText" \
+    Application/Helper/FrontendContract
+
+section "literal names in files using typed Surface/AppShell form metadata"
+mapfile -t typed_form_files < <(
+    rg -l --glob '*.hs' --glob '!**/Generated/**' \
+        'renderAppShellActionForm|applyAppShellActionAttrs|renderFrontendSurfaceAction(Form|Link|Submit|Htmx)|applyFrontendSurfaceActionAttrs' \
+        Application Web 2>/dev/null | sort -u || true
+)
+if [ "${#typed_form_files[@]}" -gt 0 ]; then
+    rg --line-number 'name="[A-Za-z][A-Za-z0-9_]*"' "${typed_form_files[@]}" 2>/dev/null || true
+fi
+
+section "literal closed values in files using typed Surface/AppShell form metadata"
+if [ "${#typed_form_files[@]}" -gt 0 ]; then
+    rg --line-number 'value="[A-Za-z][A-Za-z0-9_-]*"' "${typed_form_files[@]}" 2>/dev/null || true
+fi
+
+section "catch-all venue-configuration discriminator evidence"
+report_matches \
+    'UpdateVenueConfig|ConfigFieldField|"(timePickerWindow|minutePrecisionShiftTimesEnabled|unavailableStaffWarningThreshold|rosterEndTimesEnabled)"' \
+    Application/Helper/FrontendContract/Surface/Admin.hs Web/Controller/Admin.hs Web/View/Admin/VenueSettings.hs
+
+section "raw recurring HTMX request recipes outside contract runtimes"
+report_matches \
+    'hx-(get|post|put|patch|delete|target|trigger|swap|sync|include|disabled-elt)' \
+    Application/Helper/View Web/View Web/LeaveRequests \
+    | grep -v 'hx-swap-oob' || true
+
+section "generator topology metrics"
+mapfile -t generator_foundation < <(find Application/Helper/FrontendContract/Surface/HaskellAdapter -maxdepth 1 -type f -name '*.hs' | sort)
+mapfile -t family_associations < <(find Application/Helper/FrontendContract/Surface -mindepth 2 -maxdepth 2 -type f -name 'HaskellAdapter.hs' | sort)
+mapfile -t generated_haskell < <(find Application/Helper/FrontendContract/Surface -path '*/Generated/*.hs' -type f | sort)
+mapfile -t generated_typescript < <(find frontend/ts/generated -maxdepth 1 -type f | sort)
+mapfile -t adapter_facades < <(
+    for generated in "${generated_haskell[@]}"; do
+        printf '%s\n' "${generated/\/Generated\//\/}"
+    done | sort -u
+)
+count_files_and_lines "generator foundation" "${generator_foundation[@]}"
+count_files_and_lines "feature family/home associations" "${family_associations[@]}"
+count_files_and_lines "generated Haskell adapters" "${generated_haskell[@]}"
+count_files_and_lines "curated adapter facades" "${adapter_facades[@]}"
+count_files_and_lines "generated TypeScript contracts" "${generated_typescript[@]}"
+
+printf '\nCompile closure: bash ./bin/in-env architecture-surface-request-closure --print-modules\n'
+printf 'Reachability:   WEEDER_PRINT_CANDIDATES=1 bash ./bin/in-env weeder-check\n'

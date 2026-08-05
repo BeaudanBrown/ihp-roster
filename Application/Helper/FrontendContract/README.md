@@ -258,8 +258,8 @@ remains in `Surface.Runtime`. The broad runtime consumes read-only metadata
 selectors without re-exporting the focused interface.
 
 The exact source-derived closure contract is checked by
-`architecture-surface-request-closure`: Profile Action retains 18
-`Application.*` modules and Roster Intent retains 19, with no unrelated Surface
+`architecture-surface-request-closure`: Profile Action retains 19
+`Application.*` modules and Roster Intent retains 20, with no unrelated Surface
 catalog, mount/live/wire runtime, or Haskell adapter generator implementation.
 The compiler-observed baseline, candidate sets, deltas, and retained-dependency
 classification are recorded in `Surface/README.md`.
