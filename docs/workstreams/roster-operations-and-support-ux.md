@@ -1,6 +1,6 @@
 # Roster Operations And Support UX
 
-Status: proposed
+Status: active
 
 ## GitHub graph
 
@@ -18,6 +18,11 @@ Status: proposed
 - `#309` - Create the isolated roster Template Designer and reference-selection flow
 - `#310` - Integrate the Templates library and application interactions into Roster
 - `#311` - Close roster-template acceptance, documentation, and destructive-edge coverage
+
+The Day and Week template runtime landed through `#307`–`#310`; `#311` owns its
+final migration, destructive-edge, responsive browser, live-convergence, and
+documentation acceptance. Durable behavior now lives in
+`Application/RosterTemplates/README.md` and `Web/RosterWeeks/{README,SPEC}.md`.
 
 ### Roster email notifications
 

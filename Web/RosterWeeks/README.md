@@ -32,7 +32,7 @@ The designer clearly identifies Template design. Complete day, column, and shift
 
 Template application targets one explicitly scoped, non-live roster-group week. Day templates replace one day while matching columns case-insensitively by name, adding missing columns, and preserving unrelated columns and days. Week templates replace all seven day states/rows, columns/order, and shifts.
 
-Preview returns authoritative template and target revisions, resolved shift instants, destructive and Timesheet warnings, assignment-cleanup reasons, and typed touched resources. Confirmation locks the template, target week structure/content, Timesheet snapshots, Shift types, Staff rows, and group memberships; revalidates both revisions, and performs all source-template cleanup and target replacement in one transaction. Replaced roster shifts are soft-deleted, so materialized Timesheet snapshots retain their source and values.
+Preview returns authoritative template and target revisions, resolved shift instants, destructive and Timesheet warnings, assignment-cleanup reasons, and typed touched resources. It intentionally confirms scope and consequences without a Before/After visual comparison. Confirmation locks the template, target week structure/content, Timesheet snapshots, Shift types, Staff rows, and group memberships; revalidates both revisions, and performs all source-template cleanup and target replacement in one transaction. Replaced roster shifts are soft-deleted, so materialized Timesheet snapshots retain their source and values.
 
 The editor-only roster side panel exposes `Staff | Templates | Settings`. Its authoritative user-specific library fragment separates Day and Week cards, private-draft recovery, and isolated Edit/Delete controls. Day activation enters cancellable compatible-day target mode; Week activation targets the complete viewed week immediately. The same generated source/dropzone contracts drive mouse drag, while keyboard and touch activation use the server-rendered confirmation form. Live or incomplete targets expose no compatible application target. Library, delete, save, draft, and application resources invalidate mounted fragments for actor and passive viewers.
 
@@ -216,3 +216,7 @@ controller owns all parsing, validation, row-index placement, and mutation.
 - `docs/archive/plans/20-roster-and-conflicts.md`
 - `docs/archive/plans/49-roster-groups-and-venue-bootstrap.md`
 - `docs/archive/plans/52-roster-mobile-refactor.md`
+- `docs/adr/0002-haskell-owns-browser-business-authority.md`
+- `docs/adr/0003-frontend-contract-runtime-authority.md`
+- `docs/adr/0005-explicit-roster-shift-assignment-state.md`
+- `docs/workstreams/roster-operations-and-support-ux.md`

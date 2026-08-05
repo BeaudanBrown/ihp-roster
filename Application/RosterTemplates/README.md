@@ -12,7 +12,7 @@
 - `Web.RosterWeeks.TemplateDesigner` projects blank, Day-reference, and Week-reference content into private drafts without mutating source rosters. Typed autosave mutations persist only structurally complete shifts with active same-venue Shift types and eligible roster-group Staff/pay references.
 - Dedicated `RosterTemplatesController` routes own creation, read-only reference navigation/confirmation, occupied-draft decisions, isolated editing, save/conflict recovery, and soft deletion.
 
-`Application.RosterTemplates.Mutations` contains the minimal PostgreSQL row lock used to serialize optimistic commits. All ordinary reads use IHP QueryBuilder.
+`Application.RosterTemplates.Mutations` contains the minimal PostgreSQL row lock used to serialize optimistic commits. All ordinary reads use IHP QueryBuilder. Persistence is introduced additively by migrations `1785826000.sql` and `1785839000.sql`; `Test/Fixtures/roster-templates/pre-template-schema.sql` exercises those migrations over retained representative draft/live roster rows.
 
 `Web.RosterWeeks.TemplateApplication` owns authoritative preview and confirmation application. It:
 

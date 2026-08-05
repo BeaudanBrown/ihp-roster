@@ -56,6 +56,14 @@ or roster views.
   suggestions; include the corresponding Timesheet week touched resource.
 - Do not return `hx-swap-oob` wrappers from viewer-side fragment GET actions;
   return the plain target fragment and let the live runtime replace it.
+- The roster-template library fragment is user-specific because private drafts
+  belong to the effective user; carry that user id explicitly through frozen or
+  asynchronous render contexts.
+- Day template activation uses a separate temporary native button overlay. Do
+  not put `role="button"` on day containers that own nested shift controls.
+- Timeline template targets sit across nested Roster and RosterDayTimeline
+  mounts. Browser selection must resolve the ancestor mount that owns the active
+  template session instead of assuming the nearest Surface owns it.
 
 ## Verification
 
