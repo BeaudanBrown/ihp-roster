@@ -25,6 +25,7 @@
                     pkgs.jq
                     pkgs.gh
                     pkgs.lsof
+                    pkgs.procps
                     pkgs.graphviz
                     pkgs.opentelemetry-collector-contrib
                     pkgs.tempo

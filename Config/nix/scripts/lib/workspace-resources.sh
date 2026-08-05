@@ -159,7 +159,7 @@ bepis_workspace_processes_in_path() {
         command="$(head -c 8192 "$proc/cmdline" 2>/dev/null | tr '\0' ' ' || true)"
         rss="$(awk '/^VmRSS:/ {print $2; exit}' "$proc/status" 2>/dev/null || true)"
         [[ "$rss" =~ ^[0-9]+$ ]] || rss=0
-        cpu="$(ps -p "$pid" -o pcpu= 2>/dev/null | awk '{printf "%.1f", $1}' || true)"
+        cpu="$(LC_ALL=C ps -p "$pid" -o pcpu= 2>/dev/null | awk '{printf "%.1f", $1}' || true)"
         [[ "$cpu" =~ ^[0-9]+([.][0-9]+)?$ ]] || cpu=0
         rows="$(jq -c \
             --argjson pid "$pid" --arg cwd "$cwd" --arg command "$command" \
@@ -185,9 +185,9 @@ bepis_workspace_hls_status() {
 
         rss="$(awk '/^VmRSS:/ {print $2; exit}' "/proc/$pid/status" 2>/dev/null || true)"
         [[ "$rss" =~ ^[0-9]+$ ]] || rss=0
-        cpu="$(ps -p "$pid" -o pcpu= 2>/dev/null | awk '{printf "%.1f", $1}' || true)"
+        cpu="$(LC_ALL=C ps -p "$pid" -o pcpu= 2>/dev/null | awk '{printf "%.1f", $1}' || true)"
         [[ "$cpu" =~ ^[0-9]+([.][0-9]+)?$ ]] || cpu=0
-        elapsed="$(ps -p "$pid" -o etimes= 2>/dev/null | tr -d ' ' || true)"
+        elapsed="$(LC_ALL=C ps -p "$pid" -o etimes= 2>/dev/null | tr -d ' ' || true)"
         [[ "$elapsed" =~ ^[0-9]+$ ]] || elapsed=0
 
         cache_base=""
