@@ -167,13 +167,38 @@ test.describe('Roster staff shift highlight', () => {
         const fixtureSlotId = 'b3000000-0000-0000-0000-000000000001';
         try {
             runSql(`
+                UPDATE roster_weeks
+                SET is_live = FALSE, updated_at = NOW()
+                WHERE id = 'a1000000-0000-0000-0000-000000000051';
+
                 UPDATE roster_days
-                SET row_count = 4, updated_at = NOW()
+                SET row_count = 4, is_closed = FALSE, updated_at = NOW()
                 WHERE id = 'a1000000-0000-0000-0000-000000000061';
 
-                INSERT INTO user_preferences (user_id, show_wage_estimates)
-                VALUES ('a0000000-0000-0000-0000-000000000003', TRUE)
-                ON CONFLICT (user_id) DO UPDATE SET show_wage_estimates = TRUE, updated_at = NOW();
+                UPDATE staff
+                SET pay_assignment_mode = 'award_rate',
+                    default_award_level_id = 'a1000000-0000-0000-0000-000000000111',
+                    imported_xero_pay_item_id = NULL,
+                    is_active = TRUE,
+                    archived_at = NULL,
+                    updated_at = NOW()
+                WHERE id = 'a1000000-0000-0000-0000-000000000033';
+
+                UPDATE shift_types
+                SET pay_assignment_mode = 'staff_default',
+                    override_award_level_id = NULL,
+                    imported_xero_pay_item_id = NULL,
+                    is_active = TRUE,
+                    archived_at = NULL,
+                    updated_at = NOW()
+                WHERE id = 'a1000000-0000-0000-0000-000000000133';
+
+                INSERT INTO user_preferences (user_id, roster_layout_mode, show_wage_estimates)
+                VALUES ('a0000000-0000-0000-0000-000000000003', 'day_rows', TRUE)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    roster_layout_mode = 'day_rows',
+                    show_wage_estimates = TRUE,
+                    updated_at = NOW();
 
                 UPDATE staff_pay_versions
                 SET locked_at = NOW(),
@@ -340,6 +365,22 @@ test.describe('Roster staff shift highlight', () => {
                     locked_by_user_id = NULL,
                     updated_at = NOW()
                 WHERE id = 'a1000000-0000-0000-0000-000000000303';
+                UPDATE staff
+                SET pay_assignment_mode = 'award_rate',
+                    default_award_level_id = 'a1000000-0000-0000-0000-000000000111',
+                    imported_xero_pay_item_id = NULL,
+                    is_active = TRUE,
+                    archived_at = NULL,
+                    updated_at = NOW()
+                WHERE id = 'a1000000-0000-0000-0000-000000000033';
+                UPDATE shift_types
+                SET pay_assignment_mode = 'award_rate',
+                    override_award_level_id = 'a1000000-0000-0000-0000-000000000113',
+                    imported_xero_pay_item_id = NULL,
+                    is_active = TRUE,
+                    archived_at = NULL,
+                    updated_at = NOW()
+                WHERE id = 'a1000000-0000-0000-0000-000000000133';
                 DELETE FROM user_preferences WHERE user_id = 'a0000000-0000-0000-0000-000000000003';
             `);
         }

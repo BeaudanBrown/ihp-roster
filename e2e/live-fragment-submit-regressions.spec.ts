@@ -1,7 +1,7 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
 import { dialogOverlayMountDomId, fragmentDomAttr, pageReadyEvent, regionAfterSwapEvent, surfaceConfigDomAttr, surfaceDomAttr, toastOverlayMountDomId } from '../frontend/ts/generated/contracts';
-import { defaultE2ERosterGroupId, gotoWhenReady, loginAs, openNewLeaveRequestDialog, openProfileLeaveSection, setFlatpickrDate } from './test-helpers';
+import { defaultE2ERosterGroupId, gotoWhenReady, loginAs, openNewLeaveRequestDialog, openProfileLeaveSection, runSql, setFlatpickrDate } from './test-helpers';
 
 function displayDate(isoDate: string): string {
     const [year, month, day] = isoDate.split('-');
@@ -250,21 +250,45 @@ test.describe('HTMX submit regressions', () => {
     });
 
     test('timesheet modal delete prompts for confirmation once', async ({ page }) => {
+        const deletedEntryId = 'b1000000-0000-0000-0000-000000000091';
+        runSql(`
+            INSERT INTO timesheet_entries (
+                id, venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone, is_approved,
+                approved_at, approved_by_user_id, deleted_at, deleted_by_user_id, delete_reason
+            )
+            SELECT
+                '${deletedEntryId}', venue_id, staff_id, shift_type_id,
+                ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '17:00') AT TIME ZONE 'Australia/Melbourne',
+                ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '18:00') AT TIME ZONE 'Australia/Melbourne',
+                timezone, FALSE, NULL, NULL, NULL, NULL, NULL
+            FROM timesheet_entries
+            WHERE id = 'a1000000-0000-0000-0000-000000000091'
+            ON CONFLICT (id) DO UPDATE SET
+                starts_at = EXCLUDED.starts_at,
+                ends_at = EXCLUDED.ends_at,
+                is_approved = FALSE,
+                approved_at = NULL,
+                approved_by_user_id = NULL,
+                deleted_at = NULL,
+                deleted_by_user_id = NULL,
+                delete_reason = NULL,
+                updated_at = NOW();
+        `);
+
         await login(page);
         await gotoWhenReady(page, '/Timesheets?showApproved=true&showAllStaff=true', '#timesheet-week-shell');
 
-        const approvedEntry = page.locator('.timesheet-entry-card[data-timesheet-entry-approved="true"]').first();
-        await expect(approvedEntry).toBeVisible();
-        const daySection = approvedEntry.locator('xpath=ancestor::*[starts-with(@id, "timesheet-day-section-")]').first();
+        const targetEntry = page.locator(`.timesheet-entry-card:has(a[href*="${deletedEntryId}"])`);
+        await expect(targetEntry).toBeVisible();
+        const daySection = targetEntry.locator('xpath=ancestor::*[starts-with(@id, "timesheet-day-section-")]').first();
         const daySectionId = await daySection.getAttribute('id');
         expect(daySectionId).not.toBeNull();
         const updatedDaySection = page.locator(`#${daySectionId}`);
 
-        const editLink = approvedEntry.getByRole('link', { name: /Edit timesheet entry for/ });
+        const editLink = targetEntry.getByRole('link', { name: /Edit timesheet entry for/ });
         const editHref = await editLink.getAttribute('href');
         expect(editHref).not.toBeNull();
-        const deletedEntryId = new URL(editHref!, page.url()).searchParams.get('timesheetEntryId');
-        expect(deletedEntryId).not.toBeNull();
+        expect(new URL(editHref!, page.url()).searchParams.get('timesheetEntryId')).toBe(deletedEntryId);
 
         await editLink.click();
         await expect(page.locator('#timesheet-entry-edit-form')).toBeVisible();
