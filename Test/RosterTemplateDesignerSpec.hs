@@ -6,6 +6,7 @@ import Application.RosterTemplates
 import Control.Concurrent (newEmptyMVar, putMVar, readMVar, takeMVar,
                            threadDelay)
 import Control.Concurrent.Async (concurrently)
+import Data.Either (isRight)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
@@ -208,6 +209,24 @@ tests = aroundAll withDatabaseTestContext do
                 map (.rowCount) draft.draftDays `shouldBe` [1 .. 7]
                 map (.isClosed) draft.draftDays `shouldBe` replicate 6 False <> [True]
                 map (.name) draft.draftColumns `shouldBe` ["Shift"]
+
+        it "serializes concurrent starts into one draft and one occupied outcome" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Concurrent designer start"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                owner <- createUserRecord "designer-concurrent-start@example.com" "staff" True
+                let actor = rosterTemplateActor owner venue True
+
+                (first, second) <- concurrently
+                    (startBlankRosterTemplateDesignerDraft actor rosterGroup Day "First")
+                    (startBlankRosterTemplateDesignerDraft actor rosterGroup Week "Second")
+                draftCount <- query @RosterTemplateDesign
+                    |> filterWhere (#draftOwnerUserId, Just (unpackId owner.id))
+                    |> fetchCount
+
+                length (filter isRight [first, second]) `shouldBe` 1
+                length (filter (== Left RosterTemplateDraftSlotOccupied) [first, second]) `shouldBe` 1
+                draftCount `shouldBe` 1
 
         it "creates an isolated Day draft from one reference roster day" $ withContext do
             withCleanDb do

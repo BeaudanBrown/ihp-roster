@@ -43,6 +43,7 @@ import Application.PayAssignment (EffectivePayAssignment (..),
 import Application.RosterShiftAssignment (RosterShiftAssignment (..))
 import Application.RosterTemplates.Mutations (lockRosterTemplateContentReferenceRows,
                                               lockRosterTemplateDraftDesign,
+                                              lockRosterTemplateDraftSlot,
                                               lockRosterTemplateName,
                                               lockRosterTemplateVersion)
 import Control.Monad (void)
@@ -170,11 +171,22 @@ startBlankRosterTemplateDraft ::
     RosterTemplateScaleEnum ->
     Text ->
     IO (Either RosterTemplateError RosterTemplateDraft)
-startBlankRosterTemplateDraft actor rosterGroup scale requestedName
+startBlankRosterTemplateDraft actor rosterGroup scale requestedName =
+    withTransaction (startBlankRosterTemplateDraftInCurrentTransaction actor rosterGroup scale requestedName)
+
+startBlankRosterTemplateDraftInCurrentTransaction ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    RosterGroup ->
+    RosterTemplateScaleEnum ->
+    Text ->
+    IO (Either RosterTemplateError RosterTemplateDraft)
+startBlankRosterTemplateDraftInCurrentTransaction actor rosterGroup scale requestedName
     | not actor.actorCanEditRosters = pure (Left RosterTemplateForbidden)
     | rosterGroup.venueId /= unpackId actor.actorVenueId = pure (Left RosterTemplateScopeMismatch)
     | Text.null normalizedName || Text.length normalizedName > 120 = pure (Left RosterTemplateInvalidName)
     | otherwise = do
+        lockRosterTemplateDraftSlot actor.actorUserId
         existingDesign <- fetchDraftDesignForOwner actor.actorUserId
         case existingDesign of
             Just _ -> pure (Left RosterTemplateDraftSlotOccupied)
@@ -206,7 +218,7 @@ startRosterTemplateDraftWithContent actor rosterGroup scale requestedName conten
         case references of
             Left templateError -> pure (Left templateError)
             Right () -> do
-                started <- startBlankRosterTemplateDraft actor rosterGroup scale requestedName
+                started <- startBlankRosterTemplateDraftInCurrentTransaction actor rosterGroup scale requestedName
                 case started of
                     Left templateError -> pure (Left templateError)
                     Right draft -> do
@@ -259,7 +271,7 @@ reloadLatestRosterTemplateDraft actor designId = do
                 Nothing -> pure (Left RosterTemplateNotFound)
                 Just draft -> do
                     deleteRecord draft
-                    startRosterTemplateEditDraft actor (Id sourceTemplateId)
+                    startRosterTemplateEditDraftInCurrentTransaction actor (Id sourceTemplateId)
 
 softDeleteRosterTemplate ::
     (?modelContext :: ModelContext) =>
@@ -288,9 +300,18 @@ startRosterTemplateEditDraft ::
     RosterTemplateActor ->
     Id RosterTemplate ->
     IO (Either RosterTemplateError RosterTemplateDraft)
-startRosterTemplateEditDraft actor templateId
+startRosterTemplateEditDraft actor templateId =
+    withTransaction (startRosterTemplateEditDraftInCurrentTransaction actor templateId)
+
+startRosterTemplateEditDraftInCurrentTransaction ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    Id RosterTemplate ->
+    IO (Either RosterTemplateError RosterTemplateDraft)
+startRosterTemplateEditDraftInCurrentTransaction actor templateId
     | not actor.actorCanEditRosters = pure (Left RosterTemplateForbidden)
     | otherwise = do
+        lockRosterTemplateDraftSlot actor.actorUserId
         existingDesign <- fetchDraftDesignForOwner actor.actorUserId
         case existingDesign of
             Just _ -> pure (Left RosterTemplateDraftSlotOccupied)
@@ -300,24 +321,24 @@ startRosterTemplateEditDraft actor templateId
                     Nothing -> pure (Left RosterTemplateNotFound)
                     Just saved -> do
                         let template = saved.savedTemplate
-                        design <-
-                            newRecord @RosterTemplateDesign
-                                |> set #rosterGroupId template.rosterGroupId
-                                |> set #scale template.scale
-                                |> set #draftOwnerUserId (Just (unpackId actor.actorUserId))
-                                |> set #draftName (Just template.name)
-                                |> set #sourceTemplateId (Just (unpackId template.id))
-                                |> set #baseVersionNumber (Just template.currentVersion)
-                                |> set #createdByUserId (unpackId actor.actorUserId)
-                                |> createRecord
                         let content = savedContentInput saved
-                        replaced <-
-                            if null content.contentDays && null content.contentColumns && null content.contentShifts
-                                then pure (Right ())
-                                else replaceRosterTemplateDraftContent actor design.id content
-                        case replaced of
+                        references <- validateContentInputReferences actor template.rosterGroupId content
+                        case references of
                             Left problem -> pure (Left problem)
-                            Right () -> maybe (Left RosterTemplateNotFound) Right <$> fetchPrivateRosterTemplateDraft actor
+                            Right () -> do
+                                design <-
+                                    newRecord @RosterTemplateDesign
+                                        |> set #rosterGroupId template.rosterGroupId
+                                        |> set #scale template.scale
+                                        |> set #draftOwnerUserId (Just (unpackId actor.actorUserId))
+                                        |> set #draftName (Just template.name)
+                                        |> set #sourceTemplateId (Just (unpackId template.id))
+                                        |> set #baseVersionNumber (Just template.currentVersion)
+                                        |> set #createdByUserId (unpackId actor.actorUserId)
+                                        |> createRecord
+                                unless (null content.contentDays && null content.contentColumns && null content.contentShifts) do
+                                    persistRosterTemplateDraftContent design content
+                                Right <$> loadDraft design
 
 saveRosterTemplateDraft ::
     (?modelContext :: ModelContext) =>

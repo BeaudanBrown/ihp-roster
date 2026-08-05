@@ -2,6 +2,7 @@ module Application.RosterTemplates.Mutations
     ( lockRosterTemplateApplicationRows
     , lockRosterTemplateContentReferenceRows
     , lockRosterTemplateDraftDesign
+    , lockRosterTemplateDraftSlot
     , lockRosterTemplateName
     , lockRosterTemplateVersion
     ) where
@@ -11,6 +12,15 @@ import Database.PostgreSQL.Simple (Only (..))
 import Generated.Types
 import IHP.ModelSupport (sqlQuery, sqlQueryScalar, unpackId)
 import IHP.Prelude
+
+lockRosterTemplateDraftSlot :: (?modelContext :: ModelContext) => Id User -> IO ()
+lockRosterTemplateDraftSlot userId = do
+    let lockKey = "roster-template-draft-slot:" <> tshow (unpackId userId)
+    lockResults :: [Only Bool] <- sqlQuery
+        "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS roster_template_draft_slot_lock"
+        (Only lockKey)
+    unless (lockResults == [Only True]) do
+        error "Unable to lock roster template draft slot"
 
 lockRosterTemplateDraftDesign ::
     (?modelContext :: ModelContext) =>
