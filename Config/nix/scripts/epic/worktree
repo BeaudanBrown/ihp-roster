@@ -205,11 +205,25 @@ record_with_status() {
             *) status="inconsistent-identity" ;;
         esac
     fi
-    local resources path uncontained
+    local resources path uncontained uncontained_work hls
     path="$(jq -r '.path' <<<"$record")"
     resources="$(bepis_workspace_resource_status "$RESOLVED_COMMON_DIR" epic "$(jq -r '.slot' <<<"$record")")"
     uncontained="$(bepis_workspace_uncontained_processes_in_path "$path" "$(jq -r '.slice' <<<"$resources")")"
-    resources="$(jq -c --argjson uncontained "$uncontained" '. + {uncontainedPathProcesses: $uncontained, warning: (if ($uncontained | length) > 0 then "processes in worktree are outside expected slice" else null end)}' <<<"$resources")"
+    uncontained_work="$(jq -c '
+        [.[] | select(
+            .cpuPercent >= 1
+            or .rssKiB >= 262144
+            or (.command | test("haskell-language-server|(^|[/ ])ghc([ -]|$)|cabal|playwright|RunE2EApp")))]
+    ' <<<"$uncontained")"
+    hls="$(bepis_workspace_hls_status "$path")"
+    resources="$(jq -c \
+        --argjson uncontained "$uncontained" \
+        --argjson uncontainedWork "$uncontained_work" \
+        --argjson hls "$hls" \
+        '. + {hls: $hls, uncontainedPathProcesses: $uncontained,
+              uncontainedWorkProcesses: $uncontainedWork,
+              warning: (if ($uncontainedWork | length) > 0 then "resource-consuming processes in worktree are outside expected slice" else null end)}' \
+        <<<"$resources")"
     jq -c --arg status "$status" --argjson resources "$resources" '. + {status: $status, resources: $resources}' <<<"$record"
 }
 
@@ -220,7 +234,8 @@ print_record() {
         jq . <<<"$record"
     else
         jq -r '
-            "epic #\(.epic) | \(.kind) | slot \(.slot) | \(.branch) -> \(.targetBranch) | \(.status) | cpu weight \(.resources.cpuWeight), processes \(.resources.processes), uncontained \(.resources.uncontainedPathProcesses | length) | \(.path)",
+            "epic #\(.epic) | \(.kind) | slot \(.slot) | \(.branch) -> \(.targetBranch) | \(.status) | cpu weight \(.resources.cpuWeight), processes \(.resources.processes), uncontained \(.resources.uncontainedPathProcesses | length) (work \(.resources.uncontainedWorkProcesses | length)), HLS \(.resources.hls.processes | length), HLS RSS \(.resources.hls.totalRssKiB) KiB, HLS cache \(.resources.hls.cacheBytes) bytes, indexing \(.resources.hls.indexingActive) | \(.path)",
+            (.resources.hls.processes[] | "  HLS pid \(.pid) | CPU \(.cpuPercent)% | RSS \(.rssKiB) KiB | elapsed \(.elapsedSeconds)s | cache \(.cacheBytes) bytes | indexing \(.indexingActive)"),
             (if .resources.warning == null then empty else "WARNING: \(.resources.warning)" end)
         ' <<<"$record"
     fi

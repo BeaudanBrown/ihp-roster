@@ -140,7 +140,7 @@ bepis_workspace_pid_in_path() {
 
 bepis_workspace_processes_in_path() {
     local path="$1"
-    local rows='[]' proc pid cwd command
+    local rows='[]' proc pid cwd command rss cpu
     local caller_ancestors=" " current="$BASHPID" parent
     while [[ "$current" =~ ^[1-9][0-9]*$ ]]; do
         caller_ancestors+="$current "
@@ -153,10 +153,88 @@ bepis_workspace_processes_in_path() {
         [[ "$caller_ancestors" == *" $pid "* ]] && continue
         bepis_workspace_pid_in_path "$pid" "$path" || continue
         cwd="$(readlink "$proc/cwd" 2>/dev/null || true)"
-        command="$(tr '\0' ' ' <"$proc/cmdline" 2>/dev/null || true)"
-        rows="$(jq -c --argjson pid "$pid" --arg cwd "$cwd" --arg command "$command" '. + [{pid: $pid, cwd: $cwd, command: $command}]' <<<"$rows")"
+        # Kernel command lines can exceed the per-process argument limit when
+        # forwarded to jq (notably GHC/HLS cradles). Status only needs a bounded
+        # diagnostic preview and executable classification.
+        command="$(head -c 8192 "$proc/cmdline" 2>/dev/null | tr '\0' ' ' || true)"
+        rss="$(awk '/^VmRSS:/ {print $2; exit}' "$proc/status" 2>/dev/null || true)"
+        [[ "$rss" =~ ^[0-9]+$ ]] || rss=0
+        cpu="$(ps -p "$pid" -o pcpu= 2>/dev/null | awk '{printf "%.1f", $1}' || true)"
+        [[ "$cpu" =~ ^[0-9]+([.][0-9]+)?$ ]] || cpu=0
+        rows="$(jq -c \
+            --argjson pid "$pid" --arg cwd "$cwd" --arg command "$command" \
+            --argjson cpuPercent "$cpu" --argjson rssKiB "$rss" \
+            '. + [{pid: $pid, cwd: $cwd, command: $command, cpuPercent: $cpuPercent, rssKiB: $rssKiB}]' \
+            <<<"$rows")"
     done
     printf '%s\n' "$rows"
+}
+
+bepis_workspace_hls_status() {
+    local path="$1"
+    local workspace_processes rows='[]' row pid command rss cpu elapsed
+    local cache_base cache_bytes latest_mtime indexing_active now fd target file size mtime
+    workspace_processes="$(bepis_workspace_processes_in_path "$path")"
+    now="$(date +%s)"
+
+    while IFS= read -r row; do
+        command="$(jq -r '.command' <<<"$row")"
+        [[ "$command" == *haskell-language-server* ]] || continue
+        pid="$(jq -r '.pid' <<<"$row")"
+        [ -r "/proc/$pid/status" ] || continue
+
+        rss="$(awk '/^VmRSS:/ {print $2; exit}' "/proc/$pid/status" 2>/dev/null || true)"
+        [[ "$rss" =~ ^[0-9]+$ ]] || rss=0
+        cpu="$(ps -p "$pid" -o pcpu= 2>/dev/null | awk '{printf "%.1f", $1}' || true)"
+        [[ "$cpu" =~ ^[0-9]+([.][0-9]+)?$ ]] || cpu=0
+        elapsed="$(ps -p "$pid" -o etimes= 2>/dev/null | tr -d ' ' || true)"
+        [[ "$elapsed" =~ ^[0-9]+$ ]] || elapsed=0
+
+        cache_base=""
+        for fd in /proc/"$pid"/fd/*; do
+            target="$(readlink "$fd" 2>/dev/null || true)"
+            case "$target" in
+                *.hiedb) cache_base="$target"; break ;;
+                *.hiedb-wal) cache_base="${target%-wal}"; break ;;
+                *.hiedb-shm) cache_base="${target%-shm}"; break ;;
+            esac
+        done
+
+        cache_bytes=0
+        latest_mtime=0
+        if [ -n "$cache_base" ]; then
+            for file in "$cache_base" "$cache_base-wal" "$cache_base-shm"; do
+                [ -f "$file" ] || continue
+                size="$(stat -c %s "$file" 2>/dev/null || printf 0)"
+                mtime="$(stat -c %Y "$file" 2>/dev/null || printf 0)"
+                [[ "$size" =~ ^[0-9]+$ ]] && cache_bytes=$((cache_bytes + size))
+                [[ "$mtime" =~ ^[0-9]+$ ]] && [ "$mtime" -gt "$latest_mtime" ] && latest_mtime="$mtime"
+            done
+        fi
+        indexing_active=false
+        if [ "$latest_mtime" -gt 0 ] && [ $((now - latest_mtime)) -le 10 ]; then
+            indexing_active=true
+        fi
+
+        rows="$(jq -c \
+            --argjson pid "$pid" \
+            --argjson cpuPercent "$cpu" \
+            --argjson rssKiB "$rss" \
+            --argjson elapsedSeconds "$elapsed" \
+            --arg cachePath "$cache_base" \
+            --argjson cacheBytes "$cache_bytes" \
+            --argjson indexingActive "$indexing_active" \
+            '. + [{pid: $pid, cpuPercent: $cpuPercent, rssKiB: $rssKiB,
+                    elapsedSeconds: $elapsedSeconds,
+                    cachePath: (if $cachePath == "" then null else $cachePath end),
+                    cacheBytes: $cacheBytes, indexingActive: $indexingActive}]' <<<"$rows")"
+    done < <(jq -c '.[]' <<<"$workspace_processes")
+
+    jq -c '
+        {processes: ., totalRssKiB: ([.[].rssKiB] | add // 0),
+         cacheBytes: ([.[].cacheBytes] | add // 0),
+         indexingActive: any(.[]; .indexingActive)}
+    ' <<<"$rows"
 }
 
 bepis_workspace_uncontained_processes_in_path() {

@@ -4,7 +4,12 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 command_path="$repo_root/Config/nix/scripts/epic/worktree"
 fixture_root="$(mktemp -d)"
+hls_pid=""
 cleanup() {
+    if [ -n "$hls_pid" ]; then
+        kill -TERM -"$hls_pid" 2>/dev/null || kill "$hls_pid" 2>/dev/null || true
+        wait "$hls_pid" 2>/dev/null || true
+    fi
     rm -rf "$fixture_root"
 }
 trap cleanup EXIT
@@ -35,6 +40,22 @@ assert_contains "$register_output" "slot 1"
 
 identity_file="$fixture_repo/.bepis-epic-worktree.json"
 [ -f "$identity_file" ] || fail "register did not write identity"
+
+mkdir -p "$fixture_root/cache" "$fixture_root/bin"
+printf 'fixture hiedb\n' >"$fixture_root/cache/fixture.hiedb"
+cat >"$fixture_root/bin/haskell-language-server-wrapper" <<'EOF'
+#!/usr/bin/env bash
+sleep 60
+EOF
+chmod +x "$fixture_root/bin/haskell-language-server-wrapper"
+long_hls_argument="$(printf '%100000s' '' | tr ' ' x)"
+(
+    cd "$fixture_repo"
+    exec 8<>"$fixture_root/cache/fixture.hiedb"
+    exec setsid "$fixture_root/bin/haskell-language-server-wrapper" "$long_hls_argument"
+) &
+hls_pid="$!"
+
 identity_keys="$(jq -r 'keys | sort | join(",")' "$identity_file")"
 [ "$identity_keys" = "epic,kind,slot,targetBranch,version" ] || fail "identity contains unexpected fields: $identity_keys"
 [ "$(jq -r '.version' "$identity_file")" = "1" ] || fail "identity version is not 1"
@@ -46,6 +67,19 @@ json_output="$(cd "$fixture_repo" && bash "$command_path" inspect --json)"
 [ "$(jq -r '.status' <<<"$json_output")" = "active" ] || fail "inspect did not report active workspace"
 [ "$(jq -r '.resources.cpuWeight' <<<"$json_output")" = "100" ] || fail "inspect omitted equal CPU weight"
 [[ "$(jq -r '.resources.slice' <<<"$json_output")" == *'-epic1.slice' ]] || fail "inspect omitted slot slice identity"
+[ "$(jq -r '.resources.hls.processes | length' <<<"$json_output")" = "1" ] || fail "inspect omitted HLS process details"
+[ "$(jq -r '.resources.hls.processes[0].pid' <<<"$json_output")" = "$hls_pid" ] || fail "inspect reported the wrong HLS PID"
+[ "$(jq -r '.resources.hls.totalRssKiB > 0' <<<"$json_output")" = "true" ] || fail "inspect omitted HLS RSS"
+[ "$(jq -r '.resources.hls.cacheBytes > 0' <<<"$json_output")" = "true" ] || fail "inspect omitted ghcide cache size"
+[ "$(jq -r '.resources.hls.indexingActive' <<<"$json_output")" = "true" ] || fail "inspect omitted current indexing activity"
+[ "$(jq -r '.resources.uncontainedWorkProcesses | length' <<<"$json_output")" = "1" ] \
+    || fail "inspect did not distinguish uncontained HLS work from idle launchers"
+[ "$(jq -r '.resources.warning' <<<"$json_output")" = "resource-consuming processes in worktree are outside expected slice" ] \
+    || fail "inspect warning did not identify resource-consuming work"
+human_inspect_output="$(cd "$fixture_repo" && bash "$command_path" inspect)"
+assert_contains "$human_inspect_output" "HLS pid $hls_pid"
+assert_contains "$human_inspect_output" "CPU "
+assert_contains "$human_inspect_output" "elapsed "
 
 second_output="$(cd "$fixture_repo" && bash "$command_path" register --epic 266 --target roster --branch epic-266-identity --kind epic)"
 assert_contains "$second_output" "slot 1"
