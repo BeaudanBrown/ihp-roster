@@ -77,6 +77,9 @@ lockRosterTemplateReferenceRows ::
     Maybe Int ->
     IO ()
 lockRosterTemplateReferenceRows rosterWeekId selectedDayOffset = do
+    -- Parent FOR UPDATE locks conflict with PostgreSQL's foreign-key FOR KEY SHARE
+    -- checks, so concurrent day, definition, and slot inserts cannot become phantoms
+    -- while the locked reference snapshot is read and copied.
     _weekLocks :: [Only UUID] <- sqlQuery
         "SELECT id FROM roster_weeks WHERE id = ? FOR UPDATE"
         (Only (unpackId rosterWeekId))
