@@ -205,7 +205,7 @@ renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRende
             RosterDayTimelineGridView _ -> True
             RosterWeekGridView          -> False
         isDayColumnsLayout = not rosterIsHiddenDraft && not isTimelineLayout && rosterLayoutModeValue gridRosterLayoutMode == "day_columns"
-        weekTemplateTargetAvailable = rosterWeekIsEditable gridRosterWeek && length gridRosterDays == 7 && not isTimelineLayout
+        weekTemplateTargetAvailable = rosterWeekIsEditable gridRosterWeek && length gridRosterDays == 7
         frameLayoutValue = case gridViewMode of
             RosterDayTimelineGridView _ -> "timeline"
             RosterWeekGridView -> if rosterIsHiddenDraft then ("hidden_draft" :: Text) else rosterLayoutModeValue gridRosterLayoutMode
@@ -213,7 +213,7 @@ renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRende
             RosterDayTimelineGridView dayOffset ->
                 case find ((== dayOffset) . (.dayOffset)) gridRosterDays of
                     Nothing -> [hsx|<div class="alert alert-warning mb-0">Selected timeline day is not available.</div>|]
-                    Just rosterDay -> renderRosterDayTimelinePanel gridModel rosterDay
+                    Just rosterDay -> renderRosterTimelineTemplateDayTarget gridModel rosterDay (renderRosterDayTimelinePanel gridModel rosterDay)
             RosterWeekGridView -> renderRosterGridInnerFragments gridModel
         frameHtml = profileHtmlComponent "render.roster.grid_frame" [hsx|
         <div id={rosterGridFrameFragmentId}
@@ -516,6 +516,27 @@ renderRosterDay :: (?context :: ControllerContext) => RosterDayRenderModel -> Ro
 renderRosterDay =
     renderRosterDaySectionFragment
 
+renderRosterTemplateDayActivationTarget :: RosterDay -> Html
+renderRosterTemplateDayActivationTarget rosterDay = [hsx|
+    <button class="roster-template-day-activation-target"
+            type="button"
+            hidden="hidden"
+            tabindex="-1"
+            aria-label={"Apply Day template to day " <> tshow (rosterDay.dayOffset + 1)}
+            {...rosterTemplateDayTargetAttrs}></button>
+|]
+
+renderRosterTimelineTemplateDayTarget :: RosterGridRenderModel -> RosterDay -> Html -> Html
+renderRosterTimelineTemplateDayTarget RosterGridRenderModel { gridRosterWeek } rosterDay body
+    | rosterWeekIsEditable gridRosterWeek && not rosterDay.isClosed =
+        SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDayTemplateDropzoneRef ("day:" <> tshow rosterDay.id) [hsx|
+            <div class="roster-template-timeline-day-target">
+                {renderRosterTemplateDayActivationTarget rosterDay}
+                {body}
+            </div>
+        |]
+    | otherwise = body
+
 renderRosterDaySectionFragment :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterDay -> Html
 renderRosterDaySectionFragment =
     renderRosterDaySectionFragmentWithSwap Nothing
@@ -536,13 +557,11 @@ renderRosterDaySectionFragmentWithSwap maybeSwapOob dayModel@RosterDayRenderMode
     {profileRenderCounter "render.roster.row" (length dayRows)}
     <div id={rosterDaySectionDomId rosterDay.id}
          class="roster-grid-day-section"
-         role={if dayIsEditable && not rosterDay.isClosed then ("button" :: Text) else "rowgroup"}
-         tabindex={if dayIsEditable && not rosterDay.isClosed then Just ("0" :: Text) else Nothing}
-         aria-label={if dayIsEditable && not rosterDay.isClosed then Just ("Apply Day template to day " <> tshow (rosterDay.dayOffset + 1)) else Nothing}
+         role="rowgroup"
          data-roster-day-section="true"
          hx-swap-oob={maybeSwapOob}
-         {...if dayIsEditable && not rosterDay.isClosed then rosterTemplateDayTargetAttrs else []}
          style={"--roster-day-row-count:" <> tshow (length dayRows) <> ";"}>
+        {when (dayIsEditable && not rosterDay.isClosed) (renderRosterTemplateDayActivationTarget rosterDay)}
         {renderDayRows dayModel (Calendar.addDays (toInteger (get #dayOffset rosterDay)) dayWeekStartDate) rosterDay dayRows}
     </div>
 |]
@@ -649,12 +668,10 @@ renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIs
         columnHtml = [hsx|
             <section id={rosterDaySectionDomId rosterDay.id}
                      data-roster-day-section="true"
-                     role={if dayIsEditable && not rosterDay.isClosed then ("button" :: Text) else "group"}
-                     tabindex={if dayIsEditable && not rosterDay.isClosed then Just ("0" :: Text) else Nothing}
-                     aria-label={if dayIsEditable && not rosterDay.isClosed then Just ("Apply Day template to day " <> tshow (rosterDay.dayOffset + 1)) else Nothing}
+                     role="group"
                      hx-swap-oob={maybeSwapOob}
-                     {...if dayIsEditable && not rosterDay.isClosed then rosterTemplateDayTargetAttrs else []}
                      class={classes [("roster-day-column", True), ("app-horizontal-panel", True), ("day-alt-dark", odd (get #dayOffset rosterDay)), ("day-alt-light", even (get #dayOffset rosterDay))]}>
+                {when (dayIsEditable && not rosterDay.isClosed) (renderRosterTemplateDayActivationTarget rosterDay)}
                 <header class="roster-day-column-header">
                     <div class="roster-day-heading">
                         {renderPrimaryDayLabel (Map.lookup date dayPublicHolidays) date}

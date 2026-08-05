@@ -537,12 +537,12 @@
       report(diagnostic(editor, "invalid-editor-role", "Roster column editor role must equal true"));
       return null;
     }
-    const state2 = editor.getAttribute(rosterColumnEditingDomAttr);
-    if (!isRosterColumnEditingState(state2)) {
+    const state = editor.getAttribute(rosterColumnEditingDomAttr);
+    if (!isRosterColumnEditingState(state)) {
       report(diagnostic(editor, "invalid-state", "Roster column-editing state is not declared by the Surface contract"));
       return null;
     }
-    return state2;
+    return state;
   }
   function createRosterColumnEditController(report = defaultDiagnosticReporter, scheduler = defaultScheduler()) {
     const pendingFinishTimers = /* @__PURE__ */ new Map();
@@ -553,9 +553,9 @@
       pendingFinishTimers.delete(editor);
     }
     function reconcile(editor) {
-      const state2 = stateFor(editor, report);
-      if (!state2) return false;
-      const active = state2 === rosterColumnEditingStates.active;
+      const state = stateFor(editor, report);
+      if (!state) return false;
+      const active = state === rosterColumnEditingStates.active;
       const starts = ownedControls(editor, startSelector);
       const doneControls = ownedControls(editor, doneSelector);
       const invalidStarts = starts.filter((start2) => start2.getAttribute(rosterColumnEditStartDomAttr) !== "true");
@@ -570,10 +570,10 @@
       starts.forEach((start2) => start2.setAttribute("aria-pressed", active ? "true" : "false"));
       return true;
     }
-    function setState(editor, state2) {
+    function setState(editor, state) {
       if (!stateFor(editor, report)) return false;
       clearPendingFinish(editor);
-      editor.setAttribute(rosterColumnEditingDomAttr, state2);
+      editor.setAttribute(rosterColumnEditingDomAttr, state);
       return reconcile(editor);
     }
     function start(target) {
@@ -670,12 +670,12 @@
       report(diagnostic2(root, "invalid-root-role", "Roster fullscreen root role must equal true"));
       return null;
     }
-    const state2 = root.getAttribute(rosterFullscreenDomAttr);
-    if (!isRosterFullscreenState(state2)) {
+    const state = root.getAttribute(rosterFullscreenDomAttr);
+    if (!isRosterFullscreenState(state)) {
       report(diagnostic2(root, "invalid-state", "Roster fullscreen state is not declared by the Surface contract"));
       return null;
     }
-    return state2;
+    return state;
   }
   function validateToggle(toggle, report) {
     if (toggle.getAttribute(rosterFullscreenToggleDomAttr) !== "true") {
@@ -689,8 +689,8 @@
     }
     return { toggle, label: labels[0] };
   }
-  function updateToggle(validated, state2) {
-    const expanded = state2 === rosterFullscreenStates.expanded;
+  function updateToggle(validated, state) {
+    const expanded = state === rosterFullscreenStates.expanded;
     const labels = rosterFullscreenLabels(expanded);
     validated.toggle.setAttribute("aria-pressed", labels.pressed);
     validated.toggle.setAttribute("aria-label", labels.label);
@@ -709,19 +709,19 @@
       return validated.some((toggle2) => toggle2 === null) ? null : validated;
     }
     function reconcile(root) {
-      const state2 = stateFor2(root, report);
+      const state = stateFor2(root, report);
       const toggles = validatedToggles(root);
-      if (!state2 || !toggles) return false;
-      toggles.forEach((toggle2) => updateToggle(toggle2, state2));
+      if (!state || !toggles) return false;
+      toggles.forEach((toggle2) => updateToggle(toggle2, state));
       return true;
     }
-    function setState(root, state2, focusToggle) {
+    function setState(root, state, focusToggle) {
       if (!stateFor2(root, report)) return false;
       const toggles = validatedToggles(root);
       if (!toggles) return false;
-      root.setAttribute(rosterFullscreenDomAttr, state2);
-      toggles.forEach((toggle2) => updateToggle(toggle2, state2));
-      if (state2 === rosterFullscreenStates.expanded && focusToggle) {
+      root.setAttribute(rosterFullscreenDomAttr, state);
+      toggles.forEach((toggle2) => updateToggle(toggle2, state));
+      if (state === rosterFullscreenStates.expanded && focusToggle) {
         const focus = focusToggle.focus;
         if (typeof focus === "function") focus.call(focusToggle, { preventScroll: true });
       }
@@ -732,9 +732,9 @@
       if (!toggleElement || !validateToggle(toggleElement, report)) return false;
       const root = closestRoot(toggleElement);
       if (!root) return false;
-      const state2 = stateFor2(root, report);
-      if (!state2) return false;
-      const nextState = state2 === rosterFullscreenStates.expanded ? rosterFullscreenStates.collapsed : rosterFullscreenStates.expanded;
+      const state = stateFor2(root, report);
+      if (!state) return false;
+      const nextState = state === rosterFullscreenStates.expanded ? rosterFullscreenStates.collapsed : rosterFullscreenStates.expanded;
       return setState(root, nextState, toggleElement);
     }
     function collapse(root) {
@@ -794,12 +794,12 @@
         mountStates = /* @__PURE__ */ new Map();
         statesByMount.set(mount, mountStates);
       }
-      let state2 = mountStates.get(definition.name);
-      if (!state2) {
-        state2 = { hoverKey: null, focusKey: null, pinnedKey: null };
-        mountStates.set(definition.name, state2);
+      let state = mountStates.get(definition.name);
+      if (!state) {
+        state = { hoverKey: null, focusKey: null, pinnedKey: null };
+        mountStates.set(definition.name, state);
       }
-      return state2;
+      return state;
     }
     function pointerEntered(target, relatedTarget) {
       const context = sourceContext(target);
@@ -812,8 +812,8 @@
       const context = sourceContext(target);
       if (!context || !context.definition.activations.includes("hover")) return;
       if (relatedSourceMatches(context, relatedTarget)) return;
-      const state2 = stateFor3(context.mount, context.definition);
-      if (state2.hoverKey === context.membershipKey) state2.hoverKey = null;
+      const state = stateFor3(context.mount, context.definition);
+      if (state.hoverKey === context.membershipKey) state.hoverKey = null;
       refreshMount(context.mount);
     }
     function focusEntered(target) {
@@ -826,26 +826,26 @@
       const context = sourceContext(target);
       if (!context || !context.definition.activations.includes("focus")) return;
       if (relatedSourceMatches(context, relatedTarget)) return;
-      const state2 = stateFor3(context.mount, context.definition);
-      if (state2.focusKey === context.membershipKey) state2.focusKey = null;
+      const state = stateFor3(context.mount, context.definition);
+      if (state.focusKey === context.membershipKey) state.focusKey = null;
       refreshMount(context.mount);
     }
     function togglePin(target) {
       const context = pinContext(target);
       if (!context || !context.definition.activations.includes("pin")) return false;
-      const state2 = stateFor3(context.mount, context.definition);
-      if (state2.pinnedKey === context.membershipKey) {
-        state2.pinnedKey = null;
-        state2.hoverKey = null;
-        state2.focusKey = null;
+      const state = stateFor3(context.mount, context.definition);
+      if (state.pinnedKey === context.membershipKey) {
+        state.pinnedKey = null;
+        state.hoverKey = null;
+        state.focusKey = null;
       } else {
-        state2.pinnedKey = context.membershipKey;
+        state.pinnedKey = context.membershipKey;
       }
       refreshMount(context.mount);
       options.onPinChange?.({
         mount: context.mount,
         pinRoleAttribute: context.definition.pinRoleAttribute ?? "",
-        pinnedKey: state2.pinnedKey
+        pinnedKey: state.pinnedKey
       });
       return true;
     }
@@ -863,9 +863,9 @@
       if (isElementLike(root) && root.getAttribute(surfaceDomAttr) !== null) mounts.unshift(root);
       for (const mount of mounts) {
         for (const definition of definitionsForMount(mount)) {
-          const state2 = stateFor3(mount, definition);
-          if (state2.pinnedKey && !sourceExists(mount, definition, state2.pinnedKey)) {
-            state2.pinnedKey = null;
+          const state = stateFor3(mount, definition);
+          if (state.pinnedKey && !sourceExists(mount, definition, state.pinnedKey)) {
+            state.pinnedKey = null;
             if (definition.pinRoleAttribute) {
               options.onPinChange?.({
                 mount,
@@ -874,8 +874,8 @@
               });
             }
           }
-          if (state2.hoverKey && !sourceExists(mount, definition, state2.hoverKey)) state2.hoverKey = null;
-          if (state2.focusKey && !sourceExists(mount, definition, state2.focusKey)) state2.focusKey = null;
+          if (state.hoverKey && !sourceExists(mount, definition, state.hoverKey)) state.hoverKey = null;
+          if (state.focusKey && !sourceExists(mount, definition, state.focusKey)) state.focusKey = null;
         }
         refreshMount(mount);
       }
@@ -884,10 +884,10 @@
       const definitions = definitionsForMount(mount);
       clearEffectClasses(mount);
       for (const definition of definitions) {
-        const state2 = stateFor3(mount, definition);
-        const activeKey = state2.pinnedKey ?? state2.focusKey ?? state2.hoverKey;
+        const state = stateFor3(mount, definition);
+        const activeKey = state.pinnedKey ?? state.focusKey ?? state.hoverKey;
         if (activeKey) applyEffects(mount, definition, activeKey);
-        syncPinControls(mount, definition, state2.pinnedKey);
+        syncPinControls(mount, definition, state.pinnedKey);
       }
     }
     return {
@@ -1454,12 +1454,12 @@
         rootStates = /* @__PURE__ */ new Map();
         statesByRoot.set(root, rootStates);
       }
-      let state2 = rootStates.get(definition.name);
-      if (!state2) {
-        state2 = { key: definition.defaultKey, direction: definition.defaultDirection };
-        rootStates.set(definition.name, state2);
+      let state = rootStates.get(definition.name);
+      if (!state) {
+        state = { key: definition.defaultKey, direction: definition.defaultDirection };
+        rootStates.set(definition.name, state);
       }
-      return state2;
+      return state;
     }
     function reconcile(root) {
       for (const mount of surfaceMountsWithin(root)) {
@@ -1469,8 +1469,8 @@
               report(diagnostic4(sortRoot, "invalid-root-role", "Complete-set sort root role must equal true"));
               continue;
             }
-            const state2 = stateFor3(sortRoot, definition);
-            applySort({ mount, root: sortRoot, definition }, state2);
+            const state = stateFor3(sortRoot, definition);
+            applySort({ mount, root: sortRoot, definition }, state);
           }
         }
       }
@@ -1502,8 +1502,8 @@
       }
       return false;
     }
-    function applySort(context, state2) {
-      const key = context.definition.keys.find((candidate) => candidate.key === state2.key);
+    function applySort(context, state) {
+      const key = context.definition.keys.find((candidate) => candidate.key === state.key);
       if (!key) {
         report(diagnostic4(context.root, "missing-default-key", "Complete-set sort definition has no matching active key"));
         return false;
@@ -1529,7 +1529,7 @@
         return false;
       }
       try {
-        rows.sort((left, right) => compareRows(left.value, right.value, key.comparators, state2.direction));
+        rows.sort((left, right) => compareRows(left.value, right.value, key.comparators, state.direction));
       } catch (error) {
         report(diagnostic4(
           context.root,
@@ -1539,7 +1539,7 @@
         return false;
       }
       if (rowParent) rows.forEach((row) => rowParent.appendChild(row.element));
-      syncControlStates(context, state2);
+      syncControlStates(context, state);
       return true;
     }
     return { activate, reconcile };
@@ -1598,11 +1598,11 @@
         return assertNever(direction);
     }
   }
-  function syncControlStates(context, state2) {
+  function syncControlStates(context, state) {
     for (const control of ownedSurfaceRoleElements(context.root, context.mount, context.definition.controlRoleAttribute)) {
       const rawKey = control.getAttribute(context.definition.controlRoleAttribute);
-      const isActive = context.definition.isKey(rawKey) && rawKey === state2.key;
-      const ariaSort = isActive ? state2.direction : "none";
+      const isActive = context.definition.isKey(rawKey) && rawKey === state.key;
+      const ariaSort = isActive ? state.direction : "none";
       control.setAttribute("aria-sort", ariaSort);
       const header = control.closest("th");
       if (isSurfaceElementLike(header) && closestSurfaceRole(header, context.definition.rootRoleAttribute) === context.root) {
@@ -2064,18 +2064,18 @@
 
   // frontend/ts/roster/template-application-selection.ts
   var idle = { kind: "idle" };
-  function reduceTemplateApplicationSelection(state2, event) {
+  function reduceTemplateApplicationSelection(state, event) {
     switch (event.kind) {
       case "isolated-control":
-        return state2;
+        return state;
       case "escape":
       case "cancel":
       case "invalid-area":
         return idle;
       case "activate-day":
-        return state2.kind === "selecting-day" ? { kind: "commit", templateId: state2.templateId, targetKey: event.targetKey } : state2;
+        return state.kind === "selecting-day" ? { kind: "commit", templateId: state.templateId, targetKey: event.targetKey } : state;
       case "activate-card":
-        if (state2.kind === "selecting-day" && state2.templateId === event.templateId) return idle;
+        if (state.kind === "selecting-day" && state.templateId === event.templateId) return idle;
         if (event.scale === "week") {
           return { kind: "commit", templateId: event.templateId, targetKey: event.weekTargetKey };
         }
@@ -2098,31 +2098,16 @@
   var cancelSelector = `[${rosterTemplateCancelDomAttr}]`;
   var formSelector = `[${rosterTemplateApplicationFormDomAttr}]`;
   var targetInputSelector = `[${rosterTemplateTargetInputDomAttr}]`;
-  var rosterMountSelector = `[${InteractionDom.attributes.surface}="roster"]`;
-  var state = { kind: "idle" };
-  var activeMount = null;
-  var activeCard = null;
+  var rosterMountSelector = `[${InteractionDom.attributes.surface}]`;
+  var sessions = /* @__PURE__ */ new WeakMap();
   function enableRosterTemplateApplication() {
     if (typeof document === "undefined") return () => void 0;
     const click = (event) => handleClick(event);
-    const keydown = (event) => {
-      if (state.kind !== "selecting-day") return;
-      if (event.key === "Escape") {
-        event.preventDefault();
-        transition({ kind: "escape" });
-        return;
-      }
-      if (event.key !== "Enter" && event.key !== " " && event.key !== "Spacebar") return;
-      const target = event.target instanceof Element ? event.target.closest(dayTargetSelector) : null;
-      const targetKey = target?.getAttribute(InteractionDom.attributes.dropzoneKey);
-      if (!target || !targetKey || !activeMount?.contains(target)) return;
-      event.preventDefault();
-      transition({ kind: "activate-day", targetKey });
-    };
+    const keydown = (event) => handleKeydown(event);
     const cleanup = (event) => {
-      if (activeMount && event.target instanceof Node && (event.target === activeMount || event.target.contains(activeMount))) {
-        resetPresentation();
-      }
+      if (!(event.target instanceof Element)) return;
+      if (event.target.matches(rosterMountSelector)) resetMount(event.target);
+      event.target.querySelectorAll(rosterMountSelector).forEach(resetMount);
     };
     document.addEventListener("click", click, true);
     document.addEventListener("keydown", keydown);
@@ -2131,44 +2116,56 @@
       document.removeEventListener("click", click, true);
       document.removeEventListener("keydown", keydown);
       document.removeEventListener("htmx:beforeCleanupElement", cleanup);
-      resetPresentation();
+      document.querySelectorAll(rosterMountSelector).forEach(resetMount);
     };
   }
   function handleClick(event) {
     const target = event.target;
     if (!(target instanceof Element)) return;
+    const mount = target.closest(rosterMountSelector);
+    if (!mount) return;
     if (target.closest(cancelSelector)) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      transition({ kind: "cancel" });
+      stopEvent(event);
+      transition(mount, { kind: "cancel" });
       return;
     }
     if (target.closest(".roster-template-card-actions")) return;
     const card = target.closest(cardSelector);
     if (card && target.closest(".roster-template-card-apply")) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      activateCard(card);
+      stopEvent(event);
+      activateCard(mount, card);
       return;
     }
-    if (state.kind !== "selecting-day") return;
+    const session = sessions.get(mount);
+    if (session?.state.kind !== "selecting-day") return;
     const dayTarget = target.closest(dayTargetSelector);
-    if (dayTarget && activeMount?.contains(dayTarget)) {
-      const targetKey = dayTarget.getAttribute(InteractionDom.attributes.dropzoneKey);
-      if (targetKey) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        transition({ kind: "activate-day", targetKey });
-        return;
-      }
+    const targetKey = dayTarget ? dayTargetKey(dayTarget) : null;
+    if (dayTarget && targetKey) {
+      stopEvent(event);
+      transition(mount, { kind: "activate-day", targetKey });
+      return;
     }
-    if (activeMount?.contains(target)) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      transition({ kind: "invalid-area" });
-    }
+    stopEvent(event);
+    transition(mount, { kind: "invalid-area" });
   }
-  function activateCard(card) {
+  function handleKeydown(event) {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const mount = target.closest(rosterMountSelector);
+    if (!mount || sessions.get(mount)?.state.kind !== "selecting-day") return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      transition(mount, { kind: "escape" });
+      return;
+    }
+    if (event.key !== "Enter" && event.key !== " " && event.key !== "Spacebar") return;
+    const dayTarget = target.closest(dayTargetSelector);
+    const targetKey = dayTarget ? dayTargetKey(dayTarget) : null;
+    if (!targetKey) return;
+    event.preventDefault();
+    transition(mount, { kind: "activate-day", targetKey });
+  }
+  function activateCard(mount, card) {
     const configOwner = card.matches(cardConfigSelector) ? card : card.querySelector(cardConfigSelector);
     if (!configOwner) return;
     let config;
@@ -2177,51 +2174,66 @@
     } catch {
       return;
     }
-    const mount = card.closest(rosterMountSelector);
-    if (!mount) return;
-    activeMount = mount;
-    activeCard = card;
+    const session = sessionFor(mount);
+    session.activeCard = card;
     if (config.templateScale === "week") {
-      const weekTarget = mount.querySelector(weekTargetSelector);
-      const weekTargetKey = weekTarget?.getAttribute(InteractionDom.attributes.dropzoneKey);
-      if (!weekTargetKey) return resetPresentation();
-      transition({ kind: "activate-card", templateId: config.templateId, scale: "week", weekTargetKey });
+      const weekTargetKey = mount.querySelector(weekTargetSelector)?.getAttribute(InteractionDom.attributes.dropzoneKey);
+      if (!weekTargetKey) return resetMount(mount);
+      transition(mount, { kind: "activate-card", templateId: config.templateId, scale: "week", weekTargetKey });
       return;
     }
-    if (config.templateScale !== "day") return resetPresentation();
-    transition({ kind: "activate-card", templateId: config.templateId, scale: "day" });
+    if (config.templateScale !== "day") return resetMount(mount);
+    transition(mount, { kind: "activate-card", templateId: config.templateId, scale: "day" });
   }
-  function transition(event) {
-    const next = reduceTemplateApplicationSelection(state, event);
-    state = next;
-    if (next.kind === "commit") {
-      const card = activeCard;
-      const form = card?.querySelector(formSelector);
+  function transition(mount, event) {
+    const session = sessionFor(mount);
+    session.state = reduceTemplateApplicationSelection(session.state, event);
+    if (session.state.kind === "commit") {
+      const form = session.activeCard?.querySelector(formSelector);
       const targetInput = form?.querySelector(targetInputSelector);
       if (form instanceof HTMLFormElement && targetInput instanceof HTMLInputElement) {
-        targetInput.value = next.targetKey;
+        targetInput.value = session.state.targetKey;
         form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
       }
-      resetPresentation();
+      resetMount(mount);
       return;
     }
-    renderPresentation();
+    renderMount(mount, session);
   }
-  function renderPresentation() {
-    const selecting = state.kind === "selecting-day";
-    activeMount?.classList.toggle(selectingClass, selecting);
-    activeCard?.classList.toggle(selectedCardClass, selecting);
-    activeMount?.querySelectorAll(cancelSelector).forEach((button) => {
+  function renderMount(mount, session) {
+    const selecting = session.state.kind === "selecting-day";
+    mount.classList.toggle(selectingClass, selecting);
+    session.activeCard?.classList.toggle(selectedCardClass, selecting);
+    mount.querySelectorAll(cancelSelector).forEach((button) => {
       if (button instanceof HTMLElement) button.hidden = !selecting;
     });
-    if (!selecting) {
-      activeMount = null;
-      activeCard = null;
-    }
+    mount.querySelectorAll(dayTargetSelector).forEach((target) => {
+      if (!(target instanceof HTMLElement)) return;
+      target.hidden = !selecting;
+      target.tabIndex = selecting ? 0 : -1;
+    });
+    if (!selecting) session.activeCard = null;
   }
-  function resetPresentation() {
-    state = { kind: "idle" };
-    renderPresentation();
+  function resetMount(mount) {
+    const session = sessions.get(mount);
+    if (!session) return;
+    session.state = { kind: "idle" };
+    renderMount(mount, session);
+    sessions.delete(mount);
+  }
+  function sessionFor(mount) {
+    const existing = sessions.get(mount);
+    if (existing) return existing;
+    const created = { state: { kind: "idle" }, activeCard: null };
+    sessions.set(mount, created);
+    return created;
+  }
+  function dayTargetKey(target) {
+    return target.closest(`[${InteractionDom.attributes.dropzoneKey}]`)?.getAttribute(InteractionDom.attributes.dropzoneKey) ?? null;
+  }
+  function stopEvent(event) {
+    if (event.cancelable) event.preventDefault();
+    event.stopImmediatePropagation();
   }
 
   // frontend/ts/app-roster.ts

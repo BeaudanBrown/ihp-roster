@@ -18,14 +18,29 @@
     box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--bs-success) 20%, transparent);
 }
 
-[data-bepis-roster-template-day-target] {
-    outline: 0 solid transparent;
-    outline-offset: -3px;
+.roster-grid-day-section,
+.roster-day-column,
+.roster-template-timeline-day-target {
+    position: relative;
 }
 
-.is-template-day-targeting [data-bepis-roster-template-day-target]:hover,
-.is-template-day-targeting [data-bepis-roster-template-day-target]:focus,
-.is-template-day-targeting [data-bepis-roster-template-day-target]:focus-within {
+.roster-template-day-activation-target {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: block;
+    border: 0;
+    outline: 0 solid transparent;
+    outline-offset: -3px;
+    background: transparent;
+}
+
+.roster-template-day-activation-target[hidden] {
+    display: none;
+}
+
+.roster-template-day-activation-target:hover,
+.roster-template-day-activation-target:focus-visible {
     outline: 3px solid var(--bs-success);
     background-color: color-mix(in srgb, var(--bs-success) 10%, transparent);
 }

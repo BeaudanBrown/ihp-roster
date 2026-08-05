@@ -20,34 +20,23 @@ const weekTargetSelector = `[${rosterTemplateWeekTargetDomAttr}]`;
 const cancelSelector = `[${rosterTemplateCancelDomAttr}]`;
 const formSelector = `[${rosterTemplateApplicationFormDomAttr}]`;
 const targetInputSelector = `[${rosterTemplateTargetInputDomAttr}]`;
-const rosterMountSelector = `[${InteractionDom.attributes.surface}="roster"]`;
+const rosterMountSelector = `[${InteractionDom.attributes.surface}]`;
+interface MountSelectionSession {
+    state: TemplateApplicationSelection;
+    activeCard: Element | null;
+}
 
-let state: TemplateApplicationSelection = { kind: "idle" };
-let activeMount: Element | null = null;
-let activeCard: Element | null = null;
+const sessions = new WeakMap<Element, MountSelectionSession>();
 
 export function enableRosterTemplateApplication(): () => void {
     if (typeof document === "undefined") return () => undefined;
 
     const click = (event: Event) => handleClick(event);
-    const keydown = (event: KeyboardEvent) => {
-        if (state.kind !== "selecting-day") return;
-        if (event.key === "Escape") {
-            event.preventDefault();
-            transition({ kind: "escape" });
-            return;
-        }
-        if (event.key !== "Enter" && event.key !== " " && event.key !== "Spacebar") return;
-        const target = event.target instanceof Element ? event.target.closest(dayTargetSelector) : null;
-        const targetKey = target?.getAttribute(InteractionDom.attributes.dropzoneKey);
-        if (!target || !targetKey || !activeMount?.contains(target)) return;
-        event.preventDefault();
-        transition({ kind: "activate-day", targetKey });
-    };
+    const keydown = (event: KeyboardEvent) => handleKeydown(event);
     const cleanup = (event: Event) => {
-        if (activeMount && event.target instanceof Node && (event.target === activeMount || event.target.contains(activeMount))) {
-            resetPresentation();
-        }
+        if (!(event.target instanceof Element)) return;
+        if (event.target.matches(rosterMountSelector)) resetMount(event.target);
+        event.target.querySelectorAll(rosterMountSelector).forEach(resetMount);
     };
 
     document.addEventListener("click", click, true);
@@ -58,7 +47,7 @@ export function enableRosterTemplateApplication(): () => void {
         document.removeEventListener("click", click, true);
         document.removeEventListener("keydown", keydown);
         document.removeEventListener("htmx:beforeCleanupElement", cleanup);
-        resetPresentation();
+        document.querySelectorAll(rosterMountSelector).forEach(resetMount);
     };
 }
 
@@ -66,10 +55,12 @@ function handleClick(event: Event): void {
     const target = event.target;
     if (!(target instanceof Element)) return;
 
+    const mount = target.closest(rosterMountSelector);
+    if (!mount) return;
+
     if (target.closest(cancelSelector)) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        transition({ kind: "cancel" });
+        stopEvent(event);
+        transition(mount, { kind: "cancel" });
         return;
     }
 
@@ -77,33 +68,47 @@ function handleClick(event: Event): void {
 
     const card = target.closest(cardSelector);
     if (card && target.closest(".roster-template-card-apply")) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        activateCard(card);
+        stopEvent(event);
+        activateCard(mount, card);
         return;
     }
 
-    if (state.kind !== "selecting-day") return;
+    const session = sessions.get(mount);
+    if (session?.state.kind !== "selecting-day") return;
 
     const dayTarget = target.closest(dayTargetSelector);
-    if (dayTarget && activeMount?.contains(dayTarget)) {
-        const targetKey = dayTarget.getAttribute(InteractionDom.attributes.dropzoneKey);
-        if (targetKey) {
-            event.preventDefault();
-            event.stopImmediatePropagation();
-            transition({ kind: "activate-day", targetKey });
-            return;
-        }
+    const targetKey = dayTarget ? dayTargetKey(dayTarget) : null;
+    if (dayTarget && targetKey) {
+        stopEvent(event);
+        transition(mount, { kind: "activate-day", targetKey });
+        return;
     }
 
-    if (activeMount?.contains(target)) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        transition({ kind: "invalid-area" });
-    }
+    stopEvent(event);
+    transition(mount, { kind: "invalid-area" });
 }
 
-function activateCard(card: Element): void {
+function handleKeydown(event: KeyboardEvent): void {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const mount = target.closest(rosterMountSelector);
+    if (!mount || sessions.get(mount)?.state.kind !== "selecting-day") return;
+
+    if (event.key === "Escape") {
+        event.preventDefault();
+        transition(mount, { kind: "escape" });
+        return;
+    }
+    if (event.key !== "Enter" && event.key !== " " && event.key !== "Spacebar") return;
+
+    const dayTarget = target.closest(dayTargetSelector);
+    const targetKey = dayTarget ? dayTargetKey(dayTarget) : null;
+    if (!targetKey) return;
+    event.preventDefault();
+    transition(mount, { kind: "activate-day", targetKey });
+}
+
+function activateCard(mount: Element, card: Element): void {
     const configOwner = card.matches(cardConfigSelector) ? card : card.querySelector(cardConfigSelector);
     if (!configOwner) return;
 
@@ -114,57 +119,73 @@ function activateCard(card: Element): void {
         return;
     }
 
-    const mount = card.closest(rosterMountSelector);
-    if (!mount) return;
-
-    activeMount = mount;
-    activeCard = card;
+    const session = sessionFor(mount);
+    session.activeCard = card;
     if (config.templateScale === "week") {
-        const weekTarget = mount.querySelector(weekTargetSelector);
-        const weekTargetKey = weekTarget?.getAttribute(InteractionDom.attributes.dropzoneKey);
-        if (!weekTargetKey) return resetPresentation();
-        transition({ kind: "activate-card", templateId: config.templateId, scale: "week", weekTargetKey });
+        const weekTargetKey = mount.querySelector(weekTargetSelector)?.getAttribute(InteractionDom.attributes.dropzoneKey);
+        if (!weekTargetKey) return resetMount(mount);
+        transition(mount, { kind: "activate-card", templateId: config.templateId, scale: "week", weekTargetKey });
         return;
     }
-    if (config.templateScale !== "day") return resetPresentation();
-
-    transition({ kind: "activate-card", templateId: config.templateId, scale: "day" });
+    if (config.templateScale !== "day") return resetMount(mount);
+    transition(mount, { kind: "activate-card", templateId: config.templateId, scale: "day" });
 }
 
-function transition(event: Parameters<typeof reduceTemplateApplicationSelection>[1]): void {
-    const next = reduceTemplateApplicationSelection(state, event);
-    state = next;
+function transition(mount: Element, event: Parameters<typeof reduceTemplateApplicationSelection>[1]): void {
+    const session = sessionFor(mount);
+    session.state = reduceTemplateApplicationSelection(session.state, event);
 
-    if (next.kind === "commit") {
-        const card = activeCard;
-        const form = card?.querySelector(formSelector);
+    if (session.state.kind === "commit") {
+        const form = session.activeCard?.querySelector(formSelector);
         const targetInput = form?.querySelector(targetInputSelector);
         if (form instanceof HTMLFormElement && targetInput instanceof HTMLInputElement) {
-            targetInput.value = next.targetKey;
+            targetInput.value = session.state.targetKey;
             form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
         }
-        resetPresentation();
+        resetMount(mount);
         return;
     }
 
-    renderPresentation();
+    renderMount(mount, session);
 }
 
-function renderPresentation(): void {
-    const selecting = state.kind === "selecting-day";
-    activeMount?.classList.toggle(selectingClass, selecting);
-    activeCard?.classList.toggle(selectedCardClass, selecting);
-    activeMount?.querySelectorAll(cancelSelector).forEach((button) => {
+function renderMount(mount: Element, session: MountSelectionSession): void {
+    const selecting = session.state.kind === "selecting-day";
+    mount.classList.toggle(selectingClass, selecting);
+    session.activeCard?.classList.toggle(selectedCardClass, selecting);
+    mount.querySelectorAll(cancelSelector).forEach((button) => {
         if (button instanceof HTMLElement) button.hidden = !selecting;
     });
+    mount.querySelectorAll(dayTargetSelector).forEach((target) => {
+        if (!(target instanceof HTMLElement)) return;
+        target.hidden = !selecting;
+        target.tabIndex = selecting ? 0 : -1;
+    });
 
-    if (!selecting) {
-        activeMount = null;
-        activeCard = null;
-    }
+    if (!selecting) session.activeCard = null;
 }
 
-function resetPresentation(): void {
-    state = { kind: "idle" };
-    renderPresentation();
+function resetMount(mount: Element): void {
+    const session = sessions.get(mount);
+    if (!session) return;
+    session.state = { kind: "idle" };
+    renderMount(mount, session);
+    sessions.delete(mount);
+}
+
+function sessionFor(mount: Element): MountSelectionSession {
+    const existing = sessions.get(mount);
+    if (existing) return existing;
+    const created: MountSelectionSession = { state: { kind: "idle" }, activeCard: null };
+    sessions.set(mount, created);
+    return created;
+}
+
+function dayTargetKey(target: Element): string | null {
+    return target.closest(`[${InteractionDom.attributes.dropzoneKey}]`)?.getAttribute(InteractionDom.attributes.dropzoneKey) ?? null;
+}
+
+function stopEvent(event: Event): void {
+    if (event.cancelable) event.preventDefault();
+    event.stopImmediatePropagation();
 }

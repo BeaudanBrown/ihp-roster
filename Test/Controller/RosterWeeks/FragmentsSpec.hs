@@ -428,6 +428,9 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-roster-timeline-minute=\"780\""
                 response `responseBodyShouldContain` ("data-bepis-roster-day-timeline-shift-group-highlight-source=\"existing:" <> cs (tshow timelineSlot.id) <> "\"")
                 response `responseBodyShouldContain` ("data-bepis-roster-day-timeline-shift-group-highlight-member=\"existing:" <> cs (tshow timelineSlot.id) <> "\"")
+                response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"day-template-dropzone\""
+                response `responseBodyShouldContain` "data-bepis-roster-template-day-target=\"true\""
+                response `responseBodyShouldNotContain` "data-bepis-dropzone-ref=\"week-template-dropzone\""
                 response `responseBodyShouldNotContain` "data-roster-timeline-minute=\"360\""
 
         it "renders an equal-clock repeated shift on the roster timeline" $ withContext do
