@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# The test creates synthetic worktrees and must not inherit the caller's active
+# workspace identity, state directory, or resource policy.
+while IFS='=' read -r name _; do
+    case "$name" in
+        BEPIS_WORKSPACE_*|DEVENV_AGENT_STATE_DIR)
+            unset "$name"
+            ;;
+    esac
+done < <(env)
+
 repo_root="$(git rev-parse --show-toplevel)"
 pi_command="$repo_root/Config/nix/scripts/dev/pi"
 registry_command="$repo_root/Config/nix/scripts/epic/worktree"
