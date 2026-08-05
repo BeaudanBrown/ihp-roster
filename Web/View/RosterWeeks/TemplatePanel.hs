@@ -3,7 +3,6 @@ module Web.View.RosterWeeks.TemplatePanel
     , renderRosterTemplatePanel
     ) where
 
-import Application.RosterTemplates
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
@@ -12,6 +11,8 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceActionForm)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom)
 import Application.Helper.View.Overlay (dialogOverlayMountId)
+import Application.RosterTemplates
+import qualified Prelude
 import Web.RosterWeeks.Dom (rosterTemplateLibraryFragmentId)
 import Web.RosterWeeks.FrontendSurface (rosterDayTemplateDragSourceRef,
                                         rosterWeekTemplateDragSourceRef)
@@ -95,7 +96,7 @@ renderTemplateCard weekOffset rosterGroup maybeRosterWeek template = cardHtml
         </article>
     |]
     applicationAvailable = maybe False (not . (.isLive)) maybeRosterWeek
-    applyButton = (if applicationAvailable then SurfaceInteraction.withFrontendSurfaceSourceRef templateSourceRef (tshow template.id) else \html -> html) [hsx|
+    applyButton = (if applicationAvailable then SurfaceInteraction.withFrontendSurfaceSourceRef templateSourceRef (tshow template.id) else Prelude.id) [hsx|
         <button class="btn text-start flex-grow-1 p-3 roster-template-card-apply"
                 type="button"
                 disabled={not applicationAvailable}

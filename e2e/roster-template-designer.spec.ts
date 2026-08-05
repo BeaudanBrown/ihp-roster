@@ -13,10 +13,8 @@ const password = 'test-password-123';
 
 function resetTemplateDesignerState() {
     runSql(`
-        DELETE FROM roster_template_designs
-        WHERE draft_owner_user_id = (SELECT id FROM users WHERE email = '${managerEmail}');
-        DELETE FROM roster_templates
-        WHERE roster_group_id = '${defaultE2ERosterGroupId}';
+        TRUNCATE roster_template_shifts, roster_template_columns, roster_template_days,
+            roster_template_designs, roster_templates;
     `);
 }
 

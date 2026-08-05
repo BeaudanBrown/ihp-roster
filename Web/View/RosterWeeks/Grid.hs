@@ -68,6 +68,7 @@ import qualified Data.Time.Calendar as Calendar
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay)
 import Data.UUID (UUID)
+import qualified Prelude
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         rosterDayColumnDropzoneRef,
@@ -530,7 +531,7 @@ renderRosterDaySectionFragmentWithSwap maybeSwapOob dayModel@RosterDayRenderMode
 renderRosterDaySectionFragmentWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIsEditable, dayWeekStartDate, dayAllSlots, dayRenderIndexes } rosterDay =
     (if dayIsEditable && not rosterDay.isClosed
         then SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDayTemplateDropzoneRef ("day:" <> tshow rosterDay.id)
-        else \html -> html) $ profileHtmlComponent "render.roster.day_section_component" [hsx|
+        else Prelude.id) $ profileHtmlComponent "render.roster.day_section_component" [hsx|
     {profileRenderCounter "render.roster.day_section" 1}
     {profileRenderCounter "render.roster.row" (length dayRows)}
     <div id={rosterDaySectionDomId rosterDay.id}
