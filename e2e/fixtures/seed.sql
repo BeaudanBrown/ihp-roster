@@ -907,6 +907,7 @@ ON CONFLICT (id) DO UPDATE SET
     user_id = EXCLUDED.user_id,
     first_name = EXCLUDED.first_name,
     last_name = EXCLUDED.last_name,
+    preferred_name = EXCLUDED.preferred_name,
     phone = EXCLUDED.phone,
     emergency_contact_name = EXCLUDED.emergency_contact_name,
     emergency_contact_phone = EXCLUDED.emergency_contact_phone,
@@ -915,7 +916,10 @@ ON CONFLICT (id) DO UPDATE SET
     pay_assignment_mode = EXCLUDED.pay_assignment_mode,
     default_award_level_id = EXCLUDED.default_award_level_id,
     imported_xero_pay_item_id = NULL,
-    is_active = EXCLUDED.is_active;
+    is_active = EXCLUDED.is_active,
+    archived_at = NULL,
+    archived_by_user_id = NULL,
+    archive_reason = NULL;
 
 INSERT INTO shift_types (id, venue_id, name, sort_order, pay_assignment_mode, override_award_level_id, is_active)
 VALUES
