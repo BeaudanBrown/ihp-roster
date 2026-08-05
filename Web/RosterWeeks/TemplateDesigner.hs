@@ -15,6 +15,7 @@ module Web.RosterWeeks.TemplateDesigner
 import Application.Helper.WeekBoundaries (venueWeekStartDate)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..))
 import Application.RosterTemplates
+import Application.RosterTemplates.Mutations (lockRosterTemplateReferenceRows)
 import Application.VenueTime (resolvedInstantFromUTC, resolvedInstantLocalTime)
 import Control.Monad (guard)
 import qualified "crypton" Crypto.Hash as Hash
@@ -226,14 +227,15 @@ replaceRosterTemplateDraftFromReference ::
     Text ->
     Text ->
     IO (Either RosterTemplateError RosterTemplateDraft)
-replaceRosterTemplateDraftFromReference actor designId rosterGroup requestedName reference expectedSourceRevision expectedDraftRevision = do
+replaceRosterTemplateDraftFromReference actor designId rosterGroup requestedName reference expectedSourceRevision expectedDraftRevision = withTransaction do
+    lockRosterTemplateReferenceRows (referenceWeekId reference) (referenceDayOffset reference)
     maybeSource <- fetchReferenceSource rosterGroup reference
     case maybeSource of
         Nothing -> pure (Left RosterTemplateNotFound)
         Just source
             | referenceSourceRevision source /= expectedSourceRevision -> pure (Left RosterTemplateNotFound)
             | otherwise ->
-                replaceRosterTemplateDraftWithContent actor designId rosterGroup source.sourceScale requestedName source.sourceContent (Just expectedDraftRevision)
+                replaceRosterTemplateDraftWithContentInCurrentTransaction actor designId rosterGroup source.sourceScale requestedName source.sourceContent (Just expectedDraftRevision)
 
 startConfirmedRosterTemplateDraftFromReference ::
     (?modelContext :: ModelContext) =>
@@ -243,13 +245,22 @@ startConfirmedRosterTemplateDraftFromReference ::
     RosterTemplateReference ->
     Text ->
     IO (Either RosterTemplateError RosterTemplateDraft)
-startConfirmedRosterTemplateDraftFromReference actor rosterGroup requestedName reference expectedSourceRevision = do
+startConfirmedRosterTemplateDraftFromReference actor rosterGroup requestedName reference expectedSourceRevision = withTransaction do
+    lockRosterTemplateReferenceRows (referenceWeekId reference) (referenceDayOffset reference)
     maybeSource <- fetchReferenceSource rosterGroup reference
     case maybeSource of
         Nothing -> pure (Left RosterTemplateNotFound)
         Just source
             | referenceSourceRevision source /= expectedSourceRevision -> pure (Left RosterTemplateNotFound)
-            | otherwise -> startRosterTemplateDraftWithContent actor rosterGroup source.sourceScale requestedName source.sourceContent
+            | otherwise -> startRosterTemplateDraftWithContentInCurrentTransaction actor rosterGroup source.sourceScale requestedName source.sourceContent
+
+referenceWeekId :: RosterTemplateReference -> Id RosterWeek
+referenceWeekId (RosterTemplateDayReference weekId _) = weekId
+referenceWeekId (RosterTemplateWeekReference weekId)  = weekId
+
+referenceDayOffset :: RosterTemplateReference -> Maybe Int
+referenceDayOffset (RosterTemplateDayReference _ dayOffset) = Just dayOffset
+referenceDayOffset RosterTemplateWeekReference {}           = Nothing
 
 fetchRosterTemplateReferenceRevision ::
     (?modelContext :: ModelContext) =>

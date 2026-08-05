@@ -4,6 +4,7 @@ module Application.RosterTemplates.Mutations
     , lockRosterTemplateDraftDesign
     , lockRosterTemplateDraftSlot
     , lockRosterTemplateName
+    , lockRosterTemplateReferenceRows
     , lockRosterTemplateVersion
     ) where
 
@@ -68,6 +69,36 @@ lockRosterTemplateContentReferenceRows rosterGroupId shiftTypeIds staffIds = do
         \    SELECT imported_xero_pay_item_id FROM shift_types WHERE id = ANY(?) \
         \) ORDER BY id FOR UPDATE"
         (staffUuids, shiftTypeUuids)
+    pure ()
+
+lockRosterTemplateReferenceRows ::
+    (?modelContext :: ModelContext) =>
+    Id RosterWeek ->
+    Maybe Int ->
+    IO ()
+lockRosterTemplateReferenceRows rosterWeekId selectedDayOffset = do
+    _weekLocks :: [Only UUID] <- sqlQuery
+        "SELECT id FROM roster_weeks WHERE id = ? FOR UPDATE"
+        (Only (unpackId rosterWeekId))
+    _dayLocks :: [Only UUID] <- sqlQuery
+        "SELECT id FROM roster_days \
+        \WHERE roster_week_id = ? \
+        \AND (?::int IS NULL OR day_offset = ?::int) \
+        \ORDER BY id FOR UPDATE"
+        (unpackId rosterWeekId, selectedDayOffset, selectedDayOffset)
+    _definitionLocks :: [Only UUID] <- sqlQuery
+        "SELECT id FROM roster_week_slot_definitions \
+        \WHERE roster_week_id = ? AND deleted_at IS NULL \
+        \ORDER BY id FOR UPDATE"
+        (Only (unpackId rosterWeekId))
+    _slotLocks :: [Only UUID] <- sqlQuery
+        "SELECT roster_slots.id FROM roster_slots \
+        \JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
+        \WHERE roster_days.roster_week_id = ? \
+        \AND (?::int IS NULL OR roster_days.day_offset = ?::int) \
+        \AND roster_slots.deleted_at IS NULL \
+        \ORDER BY roster_slots.id FOR UPDATE OF roster_slots"
+        (unpackId rosterWeekId, selectedDayOffset, selectedDayOffset)
     pure ()
 
 lockRosterTemplateApplicationRows ::

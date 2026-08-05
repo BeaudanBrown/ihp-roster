@@ -17,6 +17,7 @@ module Application.RosterTemplates
     , fetchSavedRosterTemplate
     , replaceRosterTemplateDraftContent
     , replaceRosterTemplateDraftWithContent
+    , replaceRosterTemplateDraftWithContentInCurrentTransaction
     , rosterTemplateActor
     , rosterTemplateActorCanEditRosters
     , rosterTemplateActorUserId
@@ -29,6 +30,7 @@ module Application.RosterTemplates
     , softDeleteRosterTemplate
     , startBlankRosterTemplateDraft
     , startRosterTemplateDraftWithContent
+    , startRosterTemplateDraftWithContentInCurrentTransaction
     , startRosterTemplateEditDraft
     , updateRosterTemplateDraftContent
     ) where
@@ -215,9 +217,20 @@ startRosterTemplateDraftWithContent ::
     Text ->
     RosterTemplateContent ->
     IO (Either RosterTemplateError RosterTemplateDraft)
-startRosterTemplateDraftWithContent actor rosterGroup scale requestedName content
+startRosterTemplateDraftWithContent actor rosterGroup scale requestedName content =
+    withTransaction (startRosterTemplateDraftWithContentInCurrentTransaction actor rosterGroup scale requestedName content)
+
+startRosterTemplateDraftWithContentInCurrentTransaction ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    RosterGroup ->
+    RosterTemplateScaleEnum ->
+    Text ->
+    RosterTemplateContent ->
+    IO (Either RosterTemplateError RosterTemplateDraft)
+startRosterTemplateDraftWithContentInCurrentTransaction actor rosterGroup scale requestedName content
     | not (validTemplateContentForScale scale content) = pure (Left (RosterTemplateInvalidContent "Template days, columns, shifts, or times are invalid."))
-    | otherwise = withTransaction do
+    | otherwise = do
         references <- validateContentInputReferences actor (unpackId rosterGroup.id) content
         case references of
             Left templateError -> pure (Left templateError)
@@ -240,12 +253,25 @@ replaceRosterTemplateDraftWithContent ::
     RosterTemplateContent ->
     Maybe Text ->
     IO (Either RosterTemplateError RosterTemplateDraft)
-replaceRosterTemplateDraftWithContent actor existingDesignId rosterGroup scale requestedName content expectedDraftRevision
+replaceRosterTemplateDraftWithContent actor existingDesignId rosterGroup scale requestedName content expectedDraftRevision =
+    withTransaction (replaceRosterTemplateDraftWithContentInCurrentTransaction actor existingDesignId rosterGroup scale requestedName content expectedDraftRevision)
+
+replaceRosterTemplateDraftWithContentInCurrentTransaction ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    Id RosterTemplateDesign ->
+    RosterGroup ->
+    RosterTemplateScaleEnum ->
+    Text ->
+    RosterTemplateContent ->
+    Maybe Text ->
+    IO (Either RosterTemplateError RosterTemplateDraft)
+replaceRosterTemplateDraftWithContentInCurrentTransaction actor existingDesignId rosterGroup scale requestedName content expectedDraftRevision
     | not actor.actorCanEditRosters = pure (Left RosterTemplateForbidden)
     | rosterGroup.venueId /= unpackId actor.actorVenueId = pure (Left RosterTemplateScopeMismatch)
     | Text.null normalizedName || Text.length normalizedName > 120 = pure (Left RosterTemplateInvalidName)
     | not (validTemplateContentForScale scale content) = pure (Left (RosterTemplateInvalidContent "Template days, columns, shifts, or times are invalid."))
-    | otherwise = withTransaction do
+    | otherwise = do
         lockRosterTemplateDraftSlot actor.actorUserId
         designExists <- lockRosterTemplateDraftDesign existingDesignId
         maybeExisting <- if designExists then fetchOwnedDraft actor existingDesignId else pure Nothing

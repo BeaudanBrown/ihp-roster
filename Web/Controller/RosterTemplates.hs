@@ -88,13 +88,17 @@ instance Controller RosterTemplatesController where
                 case selectedReference templateScale selectedDayOffset referenceWeek of
                     Just reference -> do
                         maybeSourceRevision <- fetchRosterTemplateReferenceRevision rosterGroup reference
-                        let sourceRevision = fromMaybe (error "confirmed reference source missing") maybeSourceRevision
-                        maybeDraft <- fetchPrivateRosterTemplateDraft actor
-                        let confirmedDraftRevision = rosterTemplateDraftRevision <$> maybeDraft
-                        confirmationToken <- UUID.toText <$> UUIDv4.nextRandom
-                        setSession rosterTemplateReferenceConfirmationSessionKey
-                            (referenceConfirmationSessionValue confirmationToken rosterGroup.id weekOffset templateName templateScale selectedDayOffset sourceRevision confirmedDraftRevision)
-                        render ConfirmReferenceView { .. }
+                        case maybeSourceRevision of
+                            Nothing -> do
+                                setErrorMessage "The selected roster reference changed. Select it again."
+                                redirectToPath (referenceSelectionPath rosterGroup weekOffset templateName templateScale)
+                            Just sourceRevision -> do
+                                maybeDraft <- fetchPrivateRosterTemplateDraft actor
+                                let confirmedDraftRevision = rosterTemplateDraftRevision <$> maybeDraft
+                                confirmationToken <- UUID.toText <$> UUIDv4.nextRandom
+                                setSession rosterTemplateReferenceConfirmationSessionKey
+                                    (referenceConfirmationSessionValue confirmationToken rosterGroup.id weekOffset templateName templateScale selectedDayOffset sourceRevision confirmedDraftRevision)
+                                render ConfirmReferenceView { .. }
                     Nothing -> do
                         setErrorMessage "Select an existing roster day or complete week."
                         redirectToPath (referenceSelectionPath rosterGroup weekOffset templateName templateScale)
@@ -116,15 +120,19 @@ instance Controller RosterTemplatesController where
                         redirectToPath (referenceSelectionPath rosterGroup weekOffset templateName templateScale)
                     Just reference -> do
                         maybeSourceRevision <- fetchRosterTemplateReferenceRevision rosterGroup reference
-                        let sourceRevision = fromMaybe (error "selected reference source missing") maybeSourceRevision
-                        maybeDraft <- fetchPrivateRosterTemplateDraft actor
-                        let confirmedDraftRevision = rosterTemplateDraftRevision <$> maybeDraft
-                        let maybeConfirmationToken = paramOrNothing @Text "confirmationToken"
-                        confirmationMatches <- maybe (pure False) (referenceConfirmationMatches rosterGroup.id weekOffset templateName templateScale selectedDayOffset sourceRevision confirmedDraftRevision) maybeConfirmationToken
-                        unless confirmationMatches do
-                            setErrorMessage "Confirm the selected roster reference before creating its template draft."
-                            redirectToPath (referenceSelectionPath rosterGroup weekOffset templateName templateScale)
-                        startFromReference actor rosterGroup templateName templateScale weekOffset selectedDayOffset maybeConfirmationToken sourceRevision confirmedDraftRevision reference
+                        case maybeSourceRevision of
+                            Nothing -> do
+                                setErrorMessage "The selected roster reference changed. Select it again."
+                                redirectToPath (referenceSelectionPath rosterGroup weekOffset templateName templateScale)
+                            Just sourceRevision -> do
+                                maybeDraft <- fetchPrivateRosterTemplateDraft actor
+                                let confirmedDraftRevision = rosterTemplateDraftRevision <$> maybeDraft
+                                let maybeConfirmationToken = paramOrNothing @Text "confirmationToken"
+                                confirmationMatches <- maybe (pure False) (referenceConfirmationMatches rosterGroup.id weekOffset templateName templateScale selectedDayOffset sourceRevision confirmedDraftRevision) maybeConfirmationToken
+                                unless confirmationMatches do
+                                    setErrorMessage "Confirm the selected roster reference before creating its template draft."
+                                    redirectToPath (referenceSelectionPath rosterGroup weekOffset templateName templateScale)
+                                startFromReference actor rosterGroup templateName templateScale weekOffset selectedDayOffset maybeConfirmationToken sourceRevision confirmedDraftRevision reference
 
     action currentAction@DiscardAndRestartRosterTemplateDraftAction { rosterGroupId, rosterTemplateDesignId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
