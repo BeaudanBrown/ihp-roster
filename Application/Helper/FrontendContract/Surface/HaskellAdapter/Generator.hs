@@ -16,12 +16,12 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Generator
     ) where
 
 import Application.Helper.FrontendContract.Surface.ContractIR
-import Application.Helper.FrontendContract.Surface.HaskellAdapter.Action (generateSurfaceActionAdapterModules)
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Core (GeneratedHaskellModule (..),
                                                                         stableDiagnostics)
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
-import Application.Helper.FrontendContract.Surface.HaskellAdapter.Intent (generateSurfaceIntentAdapterModules)
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Live (generateSurfaceLiveAdapterModules)
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Request (generateSurfaceActionAdapterModules,
+                                                                           generateSurfaceIntentAdapterModules)
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Resource (generateSurfaceResourceAdapterModules)
 import Data.Either (lefts)
 import qualified Data.List as List

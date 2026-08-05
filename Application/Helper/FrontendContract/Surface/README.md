@@ -741,23 +741,24 @@ goldens in `Test.LiveUpdateSpec` continue to pin production scope JSON,
 fragment-key JSON, and canonical `surfaceScopeKey` values across the replacement;
 generated-vs-generic equality is not their source of truth.
 
-The focused Action and Intent renderers independently normalize every checked
-`HtmxActionIR` and `IntentIR`, validate a kind-indexed typed registration, and
-retain their kind through home resolution. Only then can `toRenderableAdapter`
-cross into deterministic module rendering; its constructor and the
-`ResolvedAdapter` constructor are private. Action output therefore cannot enter
-the Intent renderer or vice versa. The only shared request-adapter operations
-are a declaration-complete `SurfaceFields` builder, marker-indexed render
-metadata (`FrontendSurfaceAction` or `FrontendSurfaceIntentForm`), and an exact
-request parser delegating to `parseSurfaceActionParams` or
-`parseSurfaceIntentParams`. Each operation has an explicit generated/excluded
-decision, and every exclusion requires a non-empty reason.
+`HaskellAdapter.Request` is one checked implementation for Action and Intent
+request adapters. Kind-indexed layouts and `ResolvedAdapter` retain nominal lane
+identity through home resolution, so Action output cannot enter the Intent
+renderer or vice versa. Each inventory registration owns both its typed home and
+its generated/excluded operation decisions; no parallel Action/Intent home list
+exists. The validated source-resolved adapter from inventory resolution is
+prepared directly for deterministic rendering rather than resolved a second
+time. The shared implementation emits a declaration-complete `SurfaceFields`
+builder, marker-indexed metadata (`FrontendSurfaceAction` or
+`FrontendSurfaceIntentForm`), and an exact parser delegating to
+`parseSurfaceActionParams` or `parseSurfaceIntentParams`. Every exclusion
+requires a non-empty reason.
 
 The production inventory contains all 60 checked actions and all five checked
 intents. Fifty-five actions have Haskell adapter consumers; the five action
 declarations backing the same-named interaction intents remain typed,
-reason-bearing declaration exclusions. Exactly one checked home is registered
-for each eligible action across the Admin, LeaveRequests, Profile, Roster,
+reason-bearing declaration exclusions. Exactly one inventory registration owns
+each action across the Admin, LeaveRequests, Profile, Roster,
 SelfServiceLeave, Support, and Timesheets families. Fifty-four provide
 generated field-builder and render-metadata operations; the hidden
 roster-week-start compatibility mutation is parser-only with typed exclusions
@@ -766,8 +767,8 @@ for its inactive rendering operations. Forty provide exact parsers and the other
 use the seven curated `Action` facades: generic parser and metadata calls under
 `Web/` are both zero, enforced by source guardrails.
 
-All five intents have exactly one checked production home across the Roster and
-Roster day-timeline families. Each emits its inventoried builder, form metadata,
+All five intents have exactly one checked production registration across the
+Roster and Roster day-timeline families. Each emits its inventoried builder, form metadata,
 and exact parser into the single private `Surface.Roster.Generated.Intent`
 module behind `Surface.Roster.Intent`. The former five generic form constructors
 and five generic parser calls under `Web/` are zero, enforced by source
@@ -869,23 +870,63 @@ fixture/import impact for #186/#187; they are not benchmarks.
 `generateSurfaceAdapterModules` composes Resource, Live, Action, and Intent lane
 results, accumulates complete diagnostics, and rejects duplicate physical module
 paths before the script writes or removes files. Every lane is mandatory and
-complete; empty, partial, extra, or duplicate Action or Intent homes fail before
+complete; empty, partial, or duplicate Action or Intent registrations fail before
 a managed module set is exposed. Failure-injection coverage proves a failed
 Live, Action, or Intent lane leaves every other existing lane untouched. The
 write workflow renders, formats, and typechecks the complete temporary set
 before any managed stale deletion or write.
 
-The #185 shared-file merge boundary remains intentionally narrow:
-`HaskellAdapter.Core` owns private checked-conversion input, standalone shared
-field rendering, and the already-exercised shared Interaction-marker locality;
-`HaskellAdapter.RequestRenderer` owns only the import, operation-filtering,
-field-builder, and parser source mechanics exercised by both focused renderers;
-`HaskellAdapter.Family` owns typed operation inventory; and
-`HaskellAdapter.Generator` owns closed all-kind lane composition. #192 and #187
-consumed those seams only by adding homes, facades, and callers. Neither slice
-evolved a parallel registry, operation model, universal renderer, or publication
-path. With every lane mandatory, the temporary publication-state type and parent
-expiry validation have been removed.
+The current shared-file seam is intentionally narrow:
+`HaskellAdapter.Core` owns checked conversion, source types, field rendering,
+and locality; `HaskellAdapter.Request` owns Action/Intent inventory-to-source
+rendering; `HaskellAdapter.Family` owns typed inventory reflection and validation;
+and `HaskellAdapter.Generator` owns closed all-kind lane composition. Resource
+and Live keep focused renderers because their constructor/matcher semantics and
+eligibility differ materially. With every lane mandatory, no partial publication
+state is exposed.
+
+### Generator topology simplification (#335)
+
+The selected design deepens the request-generator module at
+`HaskellAdapter.Request`. A normal Action or Intent now adds one typed inventory
+registration that owns its home and three operation decisions; it no longer
+repeats the same family/declaration pair in a separate type-level home list.
+Action and Intent still select distinct checked declarations, kind-indexed
+layouts, output modules, nominal bundles, generic metadata constructors, and
+exact parsers. Inventory validation now hands its already source-resolved
+adapter directly to rendering instead of running home/family/source resolution a
+second time.
+
+Compared with the #332 checkpoint, the generator foundation moves from 10 files
+/ 3,118 LOC to 8 files / 2,916 LOC. `Action`, `Intent`, and `RequestRenderer`
+collapse into `Request`; duplicate production request-home inventories are
+deleted. The 8 family association files / 156 LOC, 24 generated modules / 3,556
+LOC, 24 curated facades / 634 LOC, and generated TypeScript 1 file / 1,671 LOC
+are unchanged. Drift output is byte-identical. Profile Action and Roster Intent
+focused closures remain exactly 20 and 21 `Application.*` modules respectively;
+neither includes `HaskellAdapter.Core`, `Family`, `Registry`, `Request`, or
+`Generator`. Existing lane-misuse compile failures, inventory diagnostics,
+goldens, and atomic failure-injection tests remain the interface test surface.
+
+Rejected alternatives:
+
+- **One generated module per Surface/family:** fewer physical generated files,
+  but Resource/Live declaration-complete reachability and request-operation
+  reachability would share imports and Weeder policy. Curated facades would
+  pull unrelated lanes into focused runtime closures, reducing depth and
+  locality for ordinary feature callers.
+- **Keep separate Action/Intent renderers over a shared kernel:** preserves the
+  pre-change three-module request interface and duplicate projection path. The
+  lane differences are configuration (layout, names, metadata type, parser),
+  while kind indices already enforce the meaningful distinction.
+- **Build-only generated Haskell:** removes checked-in artifacts but makes code
+  generation an ordering prerequisite for normal typecheck/deployment and
+  weakens reviewable byte drift. Deterministic checked-in output remains the
+  simpler publication contract.
+- **Generate the curated facades:** would either expose declaration-complete dead
+  operations or require a second consumer inventory, while domain matchers and
+  orchestration still need handwritten locality. The existing facades continue
+  to earn their interface.
 
 The #191 Profile/Staff checkpoint keeps production Action homes empty while
 capturing the first migration boundary. Action/Intent builder, metadata, parser,
@@ -999,7 +1040,7 @@ modules. Its complete closure grouped by module family was:
 - `Application.Helper.{LiveUpdate.Internal,Profiling,Telemetry,UiRegion,Url}`.
 
 Neither post-migration closure contains
-`Surface.HaskellAdapter.{Core,Family,Generator,Registry,RequestRenderer}`. The
+`Surface.HaskellAdapter.{Core,Family,Generator,Registry,Request}`. The
 wall-clock figures are compile-impact records, not benchmarks; the bounded,
 feature-owned closure and absence of generator implementation modules are the
 acceptance signal.
@@ -1045,7 +1086,7 @@ modules. Its complete closure grouped by module family was:
 - `Application.Helper.{LiveUpdate.Internal,Profiling,Telemetry,UiRegion,Url}`.
 
 Neither #187 closure contains
-`Surface.HaskellAdapter.{Core,Family,Generator,Registry,RequestRenderer}`. The
+`Surface.HaskellAdapter.{Core,Family,Generator,Registry,Request}`. The
 wall-clock samples are compile-impact records, not benchmarks; the exact
 feature-owned two-module caller increase and bounded facade closure are the
 acceptance signals.
@@ -1153,7 +1194,7 @@ bash ./bin/in-env architecture-surface-request-closure --print-modules
 
 It is also part of `architecture-check-fresh`. Both closures exclude unrelated
 Surface specs, `Surface.Runtime`, mount/live/wire implementation, and
-`Surface.HaskellAdapter.{Core,Family,Generator,Registry,RequestRenderer}`.
+`Surface.HaskellAdapter.{Core,Family,Generator,Registry,Request}`.
 
 Write and verify output with:
 

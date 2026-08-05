@@ -258,6 +258,25 @@ modules for adjacent `AppShell.Runtime` and 565 for `AppShell.Request`; measured
 wall times were 32.0s and 28.3s respectively, so only the four-module closure
 delta is treated as signal, not the noisy timing difference.
 
+## Generator Topology Simplification Checkpoint
+
+[#335](https://github.com/BeaudanBrown/ihp-roster/issues/335) selects one deep
+`HaskellAdapter.Request` module for both kind-indexed Action and Intent lanes.
+Each request inventory registration now owns its typed home and operation
+eligibility once; the duplicated type-level production Action/Intent home lists
+and the second home/source resolution projection are removed. Nominal wrappers,
+separate generated output lanes, exact parsers, complete diagnostics, and atomic
+publication remain unchanged.
+
+The generator foundation falls from 10 files / 3,118 LOC at #332 to 8 files /
+2,916 LOC. Associations remain 8/156, generated Haskell remains 24/3,556,
+facades remain 24/634, and generated TypeScript remains 1/1,671. Generated
+Haskell output is byte-identical. Profile Action and Roster Intent closures
+remain 20 and 21 `Application.*` modules with no generator implementation in
+either closure. `Surface/README.md` records the selected interface and rejected
+one-module-per-family, separate-renderer, build-only-generation, and generated-
+facade alternatives.
+
 ## Baseline Metrics
 
 Captured on the #329 baseline:

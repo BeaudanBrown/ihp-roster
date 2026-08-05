@@ -70,6 +70,7 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Core
     , intentAdapterLayout
     , lowerCamel
     , mapCheckedAdapterPayload
+    , prepareResolvedAdapter
     , qualifyHaskellType
     , renderAdapterArguments
     , renderAdapterFieldBuilder
@@ -376,6 +377,22 @@ data RenderableAdapter payload = RenderableAdapter
     , renderableAdapterFields          :: ![ResolvedAdapterField]
     , renderableAdapterPayload         :: !payload
     }
+
+-- | Reuse one fully validated, source-resolved adapter while attaching the
+-- focused renderer payload and generated operation names. Request inventory
+-- resolution uses this to avoid a second home/source validation projection.
+prepareResolvedAdapter ::
+    (sourcePayload -> renderedPayload) ->
+    (CheckedAdapterDeclaration kind renderedPayload -> [Text]) ->
+    ResolvedAdapter kind sourcePayload ->
+    ResolvedAdapter kind renderedPayload
+prepareResolvedAdapter transform generatedNames adapter =
+    adapter
+        { resolvedAdapterDeclaration = declaration
+        , resolvedAdapterGeneratedNames = generatedNames declaration
+        }
+  where
+    declaration = mapCheckedAdapterPayload transform adapter.resolvedAdapterDeclaration
 
 toRenderableAdapter ::
     (sourcePayload -> renderedPayload) ->

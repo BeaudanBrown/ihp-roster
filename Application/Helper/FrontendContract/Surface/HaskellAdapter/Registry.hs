@@ -8,10 +8,8 @@
 -- eligible Resource, Live, Action, and Intent declaration without repeating
 -- field or wire declarations.
 module Application.Helper.FrontendContract.Surface.HaskellAdapter.Registry
-    ( RegisteredSurfaceActionAdapterHomes
-    , RegisteredSurfaceAdapterFamilies
+    ( RegisteredSurfaceAdapterFamilies
     , RegisteredSurfaceFragmentAdapterHomes
-    , RegisteredSurfaceIntentAdapterHomes
     , registeredSurfaceActionAdapterRegistrations
     , registeredSurfaceIntentAdapterRegistrations
     , RegisteredSurfaceResourceAdapterHomes
@@ -172,70 +170,10 @@ type RegisteredSurfaceResourceAdapterHomes =
      , SurfaceResourceAdapterHome AdminXeroAdapterFamily Admin.XeroConnection
      ]
 
-type RegisteredSurfaceActionAdapterHomes =
-    '[ SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.NavigateTimesheetWeek
-     , SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.UpdateTimesheetFilters
-     , SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.CreateTimesheetEntryFromSuggestion
-     , SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.ApproveTimesheetEntry
-     , SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.UnapproveTimesheetEntry
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.NavigateRosterWeek
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterWarnings
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterWageEstimates
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.SortRosterWeek
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterWeekLiveStatus
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterAssignmentFilters
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.CopyRosterWeek
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.CreateRosterWeekSlotDefinition
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.DeleteRosterWeekSlotDefinition
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterDayClosed
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.AddRosterRow
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.RemoveRosterRow
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterStaffScope
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.PreviewRosterTemplateApplication
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ApplyRosterTemplateApplication
-     , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.ArchiveLeaveRequestsPage
-     , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.ApproveLeaveRequest
-     , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.DenyLeaveRequest
-     , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.CreateUnavailabilityBlackout
-     , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.UpdateUnavailabilityBlackout
-     , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.DeleteUnavailabilityBlackout
-     , SurfaceActionAdapterHome SelfServiceLeaveAdapterFamily SelfServiceLeave.CreateSelfServiceLeaveRequest
-     , SurfaceActionAdapterHome SupportAdapterFamily Support.CreatePublicHolidayRefreshJob
-     , SurfaceActionAdapterHome SupportAdapterFamily Support.CreateFwcMapdRefreshJob
-     , SurfaceActionAdapterHome ProfileAdapterFamily Profile.UpdateProfileDetails
-     , SurfaceActionAdapterHome ProfileAdapterFamily Profile.UpdateProfileShiftPreferences
-     , SurfaceActionAdapterHome StaffAdapterFamily Profile.UpdateStaffProfile
-     , SurfaceActionAdapterHome StaffAdapterFamily Profile.UpdateStaffShiftPreferences
-     , SurfaceActionAdapterHome StaffAdapterFamily Profile.CreateStaffLeaveRequest
-     , SurfaceActionAdapterHome AdminVenueSettingsAdapterFamily Admin.UpdateRosterEndTimesEnabled
-     , SurfaceActionAdapterHome AdminVenueSettingsAdapterFamily Admin.UpdateMinutePrecisionShiftTimesEnabled
-     , SurfaceActionAdapterHome AdminVenueSettingsAdapterFamily Admin.UpdateUnavailableStaffWarningThreshold
-     , SurfaceActionAdapterHome AdminVenueSettingsAdapterFamily Admin.UpdateRosterTimePickerWindow
-     , SurfaceActionAdapterHome AdminVenueSettingsAdapterFamily Admin.UpdateRosterWeekStartsOn
-     , SurfaceActionAdapterHome AdminInvitesAdapterFamily Admin.CreateVenueInvitation
-     , SurfaceActionAdapterHome AdminInvitesAdapterFamily Admin.RevokeVenueInvitation
-     , SurfaceActionAdapterHome AdminInvitesAdapterFamily Admin.RenewVenueInvitation
-     , SurfaceActionAdapterHome AdminExportsAdapterFamily Admin.CreateExportJob
-     , SurfaceActionAdapterHome AdminShiftTypesAdapterFamily Admin.CreateShiftType
-     , SurfaceActionAdapterHome AdminShiftTypesAdapterFamily Admin.UpdateShiftType
-     , SurfaceActionAdapterHome AdminShiftTypesAdapterFamily Admin.MoveShiftTypeUp
-     , SurfaceActionAdapterHome AdminShiftTypesAdapterFamily Admin.MoveShiftTypeDown
-     , SurfaceActionAdapterHome AdminShiftTypesAdapterFamily Admin.AutosaveShiftTypeName
-     , SurfaceActionAdapterHome AdminShiftTypesAdapterFamily Admin.AutosaveShiftTypeSelection
-     , SurfaceActionAdapterHome AdminShiftTypesAdapterFamily Admin.ToggleInactiveShiftTypes
-     , SurfaceActionAdapterHome AdminRosterGroupsAdapterFamily Admin.CreateRosterGroup
-     , SurfaceActionAdapterHome AdminRosterGroupsAdapterFamily Admin.UpdateRosterGroup
-     , SurfaceActionAdapterHome AdminRosterGroupsAdapterFamily Admin.MoveRosterGroupUp
-     , SurfaceActionAdapterHome AdminRosterGroupsAdapterFamily Admin.MoveRosterGroupDown
-     , SurfaceActionAdapterHome AdminRosterGroupsAdapterFamily Admin.ToggleInactiveRosterGroups
-     , SurfaceActionAdapterHome AdminXeroAdapterFamily Admin.SyncXeroPayrollReferenceData
-     , SurfaceActionAdapterHome AdminXeroAdapterFamily Admin.ShowXeroTimesheetPreparationStaffMappings
-     ]
-
--- Every eligible Action emits builders and render metadata. The exact parser
--- The inventory contains 55 generated adapter registrations. Forty emit exact
--- parsers and 15 retain typed parser exclusions for endpoints that consume no
--- complete Surface envelope. The hidden roster-week setting is parser-only.
+-- The inventory contains all 60 Actions: 55 generated registrations and five
+-- typed declaration exclusions. Fifty-four emit builders/render metadata,
+-- forty emit exact parsers, and 15 retain typed parser exclusions. The hidden
+-- roster-week setting is parser-only.
 registeredSurfaceActionAdapterRegistrations :: [SurfaceRequestAdapterRegistration 'ActionAdapterKind]
 registeredSurfaceActionAdapterRegistrations =
     [ surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.NavigateTimesheetWeek allRequestAdapterOperations
@@ -318,15 +256,6 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceActionAdapter @AdminXeroAdapterFamily @Admin.ShowXeroTimesheetPreparationStaffMappings allRequestAdapterOperations
     ]
 
-type RegisteredSurfaceIntentAdapterHomes =
-    '[ SurfaceIntentAdapterHome RosterAdapterFamily Roster.SetRosterLayoutMode
-     , SurfaceIntentAdapterHome RosterAdapterFamily Roster.MoveRosterShiftToSlot
-     , SurfaceIntentAdapterHome RosterAdapterFamily Roster.DuplicateRosterShiftToDay
-     , SurfaceIntentAdapterHome RosterAdapterFamily Roster.DropRosterStaff
-     , SurfaceIntentAdapterHome RosterAdapterFamily Roster.PreviewRosterTemplateApplication
-     , SurfaceIntentAdapterHome RosterDayTimelineAdapterFamily Roster.MoveRosterTimelineShift
-     ]
-
 -- All five production intents emit the complete inventoried builder,
 -- form-metadata, and exact parser operation set through the Roster facade.
 registeredSurfaceIntentAdapterRegistrations :: [SurfaceRequestAdapterRegistration 'IntentAdapterKind]
@@ -372,8 +301,6 @@ registeredSurfaceAdapterRegistry =
         @RegisteredSurfaceResourceAdapterHomes
         @RegisteredSurfaceScopeAdapterHomes
         @RegisteredSurfaceFragmentAdapterHomes
-        @RegisteredSurfaceActionAdapterHomes
-        @RegisteredSurfaceIntentAdapterHomes
         registeredSurfaceActorOnlyFragments
         registeredSurfaceActionAdapterRegistrations
         registeredSurfaceIntentAdapterRegistrations

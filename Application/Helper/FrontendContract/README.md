@@ -210,9 +210,11 @@ field, discriminator, or case literals.
 Mechanical Haskell Surface adapters use the separate foundation under
 `Application.Helper.FrontendContract.Surface.HaskellAdapter`. Nominal adapter
 families are associated with existing Surface aliases once through
-`AdapterFamilySurface`; resource, scope, fragment, action, and intent homes are
-kind-indexed uses of that same family association and never repeat fields,
-presence, or wires. `HaskellAdapter.Core` is the single checked implementation
+`AdapterFamilySurface`; resource, scope, and fragment homes are kind-indexed
+uses of that association. Each Action or Intent inventory registration carries
+its typed home and operation eligibility together, so no parallel request-home
+list repeats ownership. None repeat fields, presence, or wires.
+`HaskellAdapter.Core` is the single checked implementation
 of Typeable metadata, source-type rendering, home/family/locality validation,
 kind-indexed identity and collision checks, import aliases, deterministic module
 layout, and generated-file bookkeeping. Resource identity is the checked shared
@@ -228,11 +230,13 @@ through home resolution, and combines only `LiveScope` and `LiveFragment` in
 `.Generated.Live`; resources, actions, and intents cannot enter that lane.
 Passive fragments are eligible from their closed `Live` option. The two
 non-passive Admin parent-page keys remain typed, reason-bearing actor-only
-exceptions. Separate Action and Intent renderers normalize checked declarations
-through kind-specific constructors, cross the private checked-resolution seam,
-and can emit only inventoried field builders, render metadata, and exact request
-parsers. The compiled cross-kind fixture proves same-marker Action/Intent output
-in separate private modules behind separate facades.
+exceptions. One `HaskellAdapter.Request` implementation normalizes Action and
+Intent declarations through kind-indexed layouts and can emit only inventoried
+field builders, render metadata, and exact request parsers. Inventory resolution
+also supplies the validated adapter directly to rendering, avoiding a second
+home/source projection. The compiled cross-kind fixture proves same-marker
+Action/Intent output remains in separate private modules behind separate
+facades.
 
 The production registry assigns exactly one typed home to every checked Live
 scope and eligible fragment. Empty, partial, extra, or duplicate production

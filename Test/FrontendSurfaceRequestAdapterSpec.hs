@@ -9,11 +9,10 @@ module Test.FrontendSurfaceRequestAdapterSpec
 
 import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
-import Application.Helper.FrontendContract.Surface.HaskellAdapter.Action
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Core
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
-import Application.Helper.FrontendContract.Surface.HaskellAdapter.Intent
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Registry (registeredSurfaceAdapterRegistry)
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Request
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.Profile as Profile
 import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
@@ -357,7 +356,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRequestParserOperation)) generatedActionOperations)
             `shouldBe` 40
         let actionIdentity registration =
-                let declaration = registration.checkedSurfaceRequestAdapterDeclaration
+                let declaration = registration.checkedSurfaceRequestAdapter.resolvedAdapterDeclaration
                  in (declaration.checkedAdapterSurfaceName, declaration.checkedAdapterDeclarationName)
         List.sort
             [ actionIdentity registration
@@ -436,7 +435,6 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                         , "Application.Helper.FrontendContract.Surface.Support.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action"
                         ]
-        length registeredSurfaceAdapterRegistry.surfaceIntentAdapterHomes `shouldBe` 6
         case generateSurfaceIntentAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
             Left diagnostics -> expectationFailure (cs (show diagnostics))
             Right generatedModules ->
@@ -784,8 +782,6 @@ fixtureRegistry =
         @Fixture.FixtureResourceHomes
         @Fixture.FixtureScopeHomes
         @Fixture.FixtureFragmentHomes
-        @Fixture.FixtureActionHomes
-        @Fixture.FixtureIntentHomes
         Fixture.fixtureActorOnlyFragments
         [ surfaceActionAdapter
             @Fixture.AdapterFixtureFamily
