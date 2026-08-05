@@ -23,7 +23,7 @@ renderRosterWeekShell ShowView { .. } =
     let page = renderAppPage (AppPageConfig
             { appPageTitle = "Roster"
             , appPageDescription = Nothing
-            , appPageActions = mempty
+            , appPageActions = renderTemplateLibraryAction viewCapabilities currentRosterGroup
             , appPageHelpTopic = Just (PageHelpTopicId "roster")
             , appPageWidthClass = ""
             , appPageBody =
@@ -78,6 +78,13 @@ renderRosterWeekShell ShowView { .. } =
             </section>
         |]
      in profileHtmlComponent "render.roster.full_shell" shell
+
+renderTemplateLibraryAction :: (?context :: ControllerContext) => RosterViewCapabilities -> RosterGroup -> Html
+renderTemplateLibraryAction capabilities rosterGroup
+    | capabilities.canCopyRosterWeek = [hsx|
+        <a id="roster-template-library-link" class="btn btn-outline-primary" href={NewRosterTemplateAction rosterGroup.id}>Templates</a>
+    |]
+    | otherwise = mempty
 
 renderPasskeySetupPrompt :: (?context :: ControllerContext) => Bool -> Maybe Passkey.PasskeySetupPromptMode -> Html
 renderPasskeySetupPrompt _ Nothing = mempty

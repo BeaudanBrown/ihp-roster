@@ -228,6 +228,22 @@ tests = aroundAll withDatabaseTestContext do
                 length (filter (== Left RosterTemplateDraftSlotOccupied) [first, second]) `shouldBe` 1
                 draftCount `shouldBe` 1
 
+        it "preserves autosaves acknowledged after a blank replacement page was rendered" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Stale blank replacement"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                owner <- createUserRecord "designer-stale-blank-replacement@example.com" "staff" True
+                let actor = rosterTemplateActor owner venue True
+                Right existing <- startBlankRosterTemplateDesignerDraft actor rosterGroup Day "Existing"
+                let renderedRevision = rosterTemplateDraftRevision existing
+                Right () <- mutateRosterTemplateDesignerDraft actor existing.draftDesign.id (AddRosterTemplateColumn "Acknowledged")
+
+                replaced <- replaceBlankRosterTemplateDesignerDraft actor existing.draftDesign.id rosterGroup Week "Stale replacement" renderedRevision
+                retained <- fetchPrivateRosterTemplateDraft actor
+
+                replaced `shouldBe` Left RosterTemplateDraftSlotOccupied
+                fmap (map (.name) . (.draftColumns)) retained `shouldBe` Just ["Shift", "Acknowledged"]
+
         it "allows a confirmed occupied draft revision to be replaced only once" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Single-use designer replacement"

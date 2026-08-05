@@ -42,9 +42,10 @@ replaceBlankRosterTemplateDesignerDraft ::
     RosterGroup ->
     RosterTemplateScaleEnum ->
     Text ->
+    Text ->
     IO (Either RosterTemplateError RosterTemplateDraft)
-replaceBlankRosterTemplateDesignerDraft actor designId rosterGroup scale requestedName =
-    replaceRosterTemplateDraftWithContent actor designId rosterGroup scale requestedName (blankTemplateContent scale) Nothing
+replaceBlankRosterTemplateDesignerDraft actor designId rosterGroup scale requestedName expectedDraftRevision =
+    replaceRosterTemplateDraftWithContent actor designId rosterGroup scale requestedName (blankTemplateContent scale) (Just expectedDraftRevision)
 
 blankTemplateContent :: RosterTemplateScaleEnum -> RosterTemplateContent
 blankTemplateContent scale = RosterTemplateContent

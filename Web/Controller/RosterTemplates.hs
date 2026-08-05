@@ -31,6 +31,10 @@ instance Controller RosterTemplatesController where
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- fetchScopedRosterGroup rosterGroupId
+        actor <- currentRosterTemplateActor
+        maybeTemplateLibrary <- fetchRosterTemplateLibrary actor rosterGroup
+        accessDeniedUnless (isJust maybeTemplateLibrary)
+        let templateLibrary = fromMaybe (error "authorized template library missing") maybeTemplateLibrary
         let creationError = Nothing
         render NewView { .. }
 
@@ -55,6 +59,9 @@ instance Controller RosterTemplatesController where
                 currentWeekOffset <- fetchCurrentRosterWeekOffset
                 redirectToPathSeeOther (referenceSelectionPath rosterGroup currentWeekOffset name scale)
             _ -> do
+                maybeTemplateLibrary <- fetchRosterTemplateLibrary actor rosterGroup
+                accessDeniedUnless (isJust maybeTemplateLibrary)
+                let templateLibrary = fromMaybe (error "authorized template library missing") maybeTemplateLibrary
                 let creationError = Just "Choose Day or Week, enter a name, and select a starting point."
                 render NewView { .. }
 
@@ -140,11 +147,12 @@ instance Controller RosterTemplatesController where
         rosterGroup <- fetchScopedRosterGroup rosterGroupId
         actor <- currentRosterTemplateActor
         case (paramOrNothing @Text "name", paramOrNothing @Text "scale" >>= parseTemplateScale, paramOrNothing @Text "startingPoint") of
-            (Just templateName, Just templateScale, Just "blank") -> do
-                replaced <- replaceBlankRosterTemplateDesignerDraft actor rosterTemplateDesignId rosterGroup templateScale templateName
-                case replaced of
-                    Right draft -> redirectToSeeOther ShowRosterTemplateDesignerAction { rosterTemplateDesignId = draft.draftDesign.id }
-                    Left templateError -> renderCreationFailure rosterGroup templateError
+            (Just templateName, Just templateScale, Just "blank")
+                | Just expectedDraftRevision <- paramOrNothing @Text "expectedDraftRevision" -> do
+                    replaced <- replaceBlankRosterTemplateDesignerDraft actor rosterTemplateDesignId rosterGroup templateScale templateName expectedDraftRevision
+                    case replaced of
+                        Right draft -> redirectToSeeOther ShowRosterTemplateDesignerAction { rosterTemplateDesignId = draft.draftDesign.id }
+                        Left templateError -> renderCreationFailure rosterGroup templateError
             (Just templateName, Just templateScale, Just "reference") ->
                 restartFromReference actor rosterTemplateDesignId rosterGroup templateName templateScale
             _ -> redirectTo NewRosterTemplateAction { .. }
@@ -505,8 +513,12 @@ parseTemplateScale "day"  = Just Day
 parseTemplateScale "week" = Just Week
 parseTemplateScale _      = Nothing
 
-renderCreationFailure :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => RosterGroup -> RosterTemplateError -> IO ()
+renderCreationFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterGroup -> RosterTemplateError -> IO ()
 renderCreationFailure rosterGroup templateError = do
+    actor <- currentRosterTemplateActor
+    maybeTemplateLibrary <- fetchRosterTemplateLibrary actor rosterGroup
+    accessDeniedUnless (isJust maybeTemplateLibrary)
+    let templateLibrary = fromMaybe (error "authorized template library missing") maybeTemplateLibrary
     let creationError = Just case templateError of
             RosterTemplateDraftSlotOccupied -> "You already have a private template draft. Continue it, discard it, or cancel."
             RosterTemplateInvalidName        -> "Template names must contain between 1 and 120 characters."

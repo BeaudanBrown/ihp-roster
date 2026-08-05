@@ -5,6 +5,7 @@ import Application.RosterTemplates (RosterTemplateDraft (..),
                                     RosterTemplateSave (..),
                                     fetchPrivateRosterTemplateDraft,
                                     rosterTemplateActor,
+                                    rosterTemplateDraftRevision,
                                     saveRosterTemplateDraft,
                                     startRosterTemplateEditDraft)
 import qualified Data.ByteString.Char8 as ByteString
@@ -69,6 +70,9 @@ tests = aroundAll withDatabaseTestContext do
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 manager <- createUserRecord "template-controller@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager Manager
+                let actor = rosterTemplateActor manager venue True
+                Right draft <- startBlankRosterTemplateDesignerDraft actor rosterGroup Day "Saved service day"
+                Right _ <- saveRosterTemplateDraft actor draft.draftDesign.id
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction NewRosterTemplateAction { rosterGroupId = rosterGroup.id }
@@ -78,6 +82,10 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Start from a blank design"
                 response `responseBodyShouldContain` "Use a roster as reference"
                 response `responseBodyShouldContain` "roster-main-panel"
+                response `responseBodyShouldContain` "Saved templates"
+                response `responseBodyShouldContain` "Saved service day"
+                response `responseBodyShouldContain` "Edit"
+                response `responseBodyShouldContain` "Delete"
 
         it "renders read-only reference selection without materializing or mutating rosters" $ withContext do
             withCleanDb do
@@ -371,7 +379,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams DiscardAndRestartRosterTemplateDraftAction
                         { rosterGroupId = rosterGroup.id, rosterTemplateDesignId = existing.draftDesign.id }
-                        [("name", "Replacement week"), ("scale", "week"), ("startingPoint", "blank")]
+                        [("name", "Replacement week"), ("scale", "week"), ("startingPoint", "blank"), ("expectedDraftRevision", cs (rosterTemplateDraftRevision existing))]
                 replacement <- fetchPrivateRosterTemplateDraft actor
 
                 response `responseStatusShouldBe` status303

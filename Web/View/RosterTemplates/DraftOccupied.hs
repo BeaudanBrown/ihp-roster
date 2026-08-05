@@ -34,6 +34,7 @@ instance View DraftOccupiedView where
                                     <input type="hidden" name="name" value={pendingName} />
                                     <input type="hidden" name="scale" value={scaleValue pendingScale} />
                                     <input type="hidden" name="startingPoint" value={pendingStartingPoint} />
+                                    <input type="hidden" name="expectedDraftRevision" value={rosterTemplateDraftRevision existingDraft} />
                                     {forEach pendingWeekOffset renderWeekOffset}
                                     {forEach pendingDayOffset renderDayOffset}
                                     {forEach pendingConfirmationToken renderConfirmationToken}

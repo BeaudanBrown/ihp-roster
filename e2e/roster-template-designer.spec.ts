@@ -4,6 +4,7 @@ import {
     E2E_TIMEOUT,
     gotoWhenReady,
     loginAs,
+    openRoster,
     runSql,
 } from './test-helpers';
 
@@ -33,7 +34,10 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('blank design opens in the roster card and occupied work remains recoverable', async ({ page }) => {
-    await openTemplateCreation(page);
+    await openRoster(page, { email: managerEmail });
+    await expect(page.locator('#roster-template-library-link')).toBeVisible();
+    await page.locator('#roster-template-library-link').click();
+    await expect(page.locator('#roster-template-create')).toBeVisible();
     await page.getByRole('radio', { name: 'Week', exact: true }).check();
     await page.getByLabel('Template name').fill('e2e blank week');
     await page.getByLabel(/Start from a blank design/).check();
