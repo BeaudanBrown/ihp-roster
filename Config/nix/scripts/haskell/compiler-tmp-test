@@ -65,4 +65,20 @@ symlink_status=$?
 set -e
 [ "$symlink_status" -eq 65 ] || fail "symlinked compiler temp parent was accepted: $symlink_output"
 
+rm "$fixture_root/compiler-tmp"
+mkdir "$fixture_root/real-parent"
+ln -s "$fixture_root/real-parent" "$fixture_root/linked-parent"
+set +e
+intermediate_output="$({
+    cd "$fixture_repo"
+    unset TMPDIR
+    BEPIS_TMP_FREE_BYTES_OVERRIDE=1024 \
+    BEPIS_COMPILER_TMP_PARENT="$fixture_root/linked-parent/compiler-tmp" \
+    bash -c '. "$1"; ihp_roster_configure_compiler_tmpdir' bash "$ghc_library"
+} 2>&1)"
+intermediate_status=$?
+set -e
+[ "$intermediate_status" -eq 65 ] \
+    || fail "compiler temp parent with an intermediate symlink was accepted: $intermediate_output"
+
 echo "compiler-tmp-test: ok"

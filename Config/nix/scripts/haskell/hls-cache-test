@@ -146,6 +146,23 @@ xdg_symlink_output="$(cd "$fixture_repo" && BEPIS_HLS_CACHE_PARENT="$cache_paren
 xdg_symlink_status=$?
 set -e
 [ "$xdg_symlink_status" -eq 65 ] || fail "symlinked XDG cache directory was accepted: $xdg_symlink_output"
+rm "$foreign_root/xdg"
+mkdir "$foreign_root/xdg"
+chmod 0755 "$foreign_root"
+set +e
+permissive_output="$(cd "$fixture_repo" && BEPIS_HLS_CACHE_PARENT="$cache_parent" bash "$cache_command" status --json 2>&1)"
+permissive_status=$?
+set -e
+[ "$permissive_status" -eq 65 ] || fail "overly permissive cache root was accepted: $permissive_output"
+chmod 0700 "$foreign_root"
+
+mkdir "$fixture_root/real-parent"
+ln -s "$fixture_root/real-parent" "$fixture_root/linked-parent"
+set +e
+parent_symlink_output="$(cd "$fixture_repo" && BEPIS_HLS_CACHE_PARENT="$fixture_root/linked-parent/cache" bash "$cache_command" status --json 2>&1)"
+parent_symlink_status=$?
+set -e
+[ "$parent_symlink_status" -eq 65 ] || fail "cache parent with an intermediate symlink was accepted: $parent_symlink_output"
 
 legacy_root="$fixture_root/legacy-cache/ghcide"
 mkdir -p "$legacy_root"

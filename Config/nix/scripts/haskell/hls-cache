@@ -185,6 +185,10 @@ fi
 if [ "$apply" = true ]; then
     while IFS= read -r cache; do
         workspace="$(jq -r .workspace <<<"$cache")"
+        top_level="$(git -C "$workspace" rev-parse --show-toplevel 2>/dev/null || true)"
+        if [ -n "$top_level" ] && [ "$(realpath "$top_level")" = "$workspace" ]; then
+            die 75 "worktree reappeared during stale cleanup; refusing cache removal: $workspace"
+        fi
         bepis_hls_cache_identity_for_path "$workspace"
         bepis_hls_cache_clear_identity true
     done < <(jq -c '.[]' <<<"$caches")

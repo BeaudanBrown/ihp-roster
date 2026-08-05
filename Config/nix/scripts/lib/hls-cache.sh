@@ -79,6 +79,8 @@ bepis_hls_cache_expected_marker() {
 bepis_hls_cache_validate_root() {
     local marker="$BEPIS_HLS_CACHE_ROOT/.bepis-hls-cache"
     bepis_hls_cache_validate_owned_directory "$BEPIS_HLS_CACHE_ROOT" "cache root" || return
+    [ "$(stat -c %a "$BEPIS_HLS_CACHE_ROOT" 2>/dev/null)" = 700 ] \
+        || bepis_hls_cache_die 65 "cache root must be mode 0700: $BEPIS_HLS_CACHE_ROOT" || return
     [ -f "$marker" ] && [ ! -L "$marker" ] \
         || bepis_hls_cache_die 65 "cache root has no trusted marker: $BEPIS_HLS_CACHE_ROOT" || return
     [ "$(stat -c %u "$marker" 2>/dev/null)" = "$(id -u)" ] \
@@ -120,6 +122,8 @@ bepis_hls_cache_prepare_locked() {
     chmod 700 "$BEPIS_HLS_CACHE_ROOT"
     if [ -e "$BEPIS_HLS_CACHE_ROOT/xdg" ] || [ -L "$BEPIS_HLS_CACHE_ROOT/xdg" ]; then
         bepis_hls_cache_validate_owned_directory "$BEPIS_HLS_CACHE_ROOT/xdg" "XDG cache directory" || return
+        [ "$(stat -c %a "$BEPIS_HLS_CACHE_ROOT/xdg" 2>/dev/null)" = 700 ] \
+            || bepis_hls_cache_die 65 "XDG cache directory must be mode 0700: $BEPIS_HLS_CACHE_ROOT/xdg" || return
     else
         mkdir "$BEPIS_HLS_CACHE_ROOT/xdg"
     fi
