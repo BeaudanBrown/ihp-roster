@@ -217,6 +217,27 @@ newtype LiveUpdatesWSApp
         }
     deriving (Eq, Show, Data)
 
+data RosterTemplatesController
+    = NewRosterTemplateAction { rosterGroupId :: !(Id RosterGroup) }
+    | CreateRosterTemplateDraftAction { rosterGroupId :: !(Id RosterGroup) }
+    | ShowRosterTemplateReferenceAction { rosterGroupId :: !(Id RosterGroup), weekOffset :: !Int }
+    | ConfirmRosterTemplateReferenceAction { rosterGroupId :: !(Id RosterGroup), weekOffset :: !Int }
+    | CreateRosterTemplateFromReferenceAction { rosterGroupId :: !(Id RosterGroup), weekOffset :: !Int }
+    | DiscardAndRestartRosterTemplateDraftAction { rosterGroupId :: !(Id RosterGroup), rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
+    | ShowRosterTemplateDesignerAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
+    | UpdateRosterTemplateDayAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign), dayIndex :: !Int }
+    | AddRosterTemplateColumnAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
+    | UpdateRosterTemplateColumnAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign), columnSortOrder :: !Int }
+    | DeleteRosterTemplateColumnAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign), columnSortOrder :: !Int }
+    | UpsertRosterTemplateShiftAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
+    | DeleteRosterTemplateShiftAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign), dayIndex :: !Int, columnSortOrder :: !Int, rowIndex :: !Int }
+    | SaveRosterTemplateAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
+    | ReloadRosterTemplateDraftAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
+    | SaveRosterTemplateDraftAsNewAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
+    | EditRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate) }
+    | DeleteRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate) }
+    deriving (Eq, Show, Data)
+
 data RosterWeeksController
     = RosterWeeksAction
     | ShowRosterWeekAction { weekOffset :: !Int }

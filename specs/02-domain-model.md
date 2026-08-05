@@ -98,6 +98,7 @@
   - Active names are trimmed and case-insensitively unique per roster group across both scales.
   - A design is either one saved template version or the single private recoverable draft owned by an effective user globally.
   - Template days, columns, and shifts are child content; shifts require valid local minute boundaries, a Shift type, and explicit Staff/Open assignment.
+  - Blank and confirmed live/draft roster references initialize only the private design copy. Designer autosaves never mutate the reference and reject incomplete or currently invalid shift references before persistence.
   - Saved templates soft-delete; discarded unsaved designs may be permanently removed.
   - Applying a Day version replaces one draft roster day while preserving unrelated week structure; applying a Week version replaces the complete draft week. Target-local clocks resolve under Melbourne DST rules. Stale Staff assignments become Open through a new immutable template version in the same transaction as target replacement; stale Shift types block. Replaced roster shifts remain soft-deleted Timesheet provenance.
 - `roster_slots`

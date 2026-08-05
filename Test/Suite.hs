@@ -41,6 +41,7 @@ import qualified Test.Controller.HelpSpec
 import qualified Test.Controller.LeaveRequestsSpec
 import qualified Test.Controller.PasskeysSpec
 import qualified Test.Controller.ProfilesSpec
+import qualified Test.Controller.RosterTemplatesSpec
 import qualified Test.Controller.RosterWeeks.BaselineSpec
 import qualified Test.Controller.RosterWeeks.DirectReadModelSpec
 import qualified Test.Controller.RosterWeeks.FragmentsSpec
@@ -80,7 +81,9 @@ import qualified Test.RosterAwardDurationSpec
 import qualified Test.RosterGridSpec
 import qualified Test.RosterInteractionWorkflowSpec
 import qualified Test.RosterTemplateApplicationSpec
+import qualified Test.RosterTemplateDesignerSpec
 import qualified Test.RosterTemplatesSpec
+import qualified Test.RosterTemplateSurfaceSpec
 import qualified Test.SchemaSpec
 import qualified Test.StaffDocumentsRsaSpec
 import qualified Test.StripeBillingSpec
@@ -414,6 +417,9 @@ allSuites =
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "SessionsController", definitionEstimatedRuntimeSeconds = 2.5, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = AccessAndOnboarding, definitionFixtureCost = MediumFixture, definitionExternalMocks = [], definitionOwnedInvariants = [A3], definitionPartialInvariants = []} Test.Controller.SessionsSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "RosterTemplates", definitionEstimatedRuntimeSeconds = 0.5, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = Rostering, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.RosterTemplatesSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityRequired SuiteDefinition{definitionLabel = "RosterTemplateApplication", definitionEstimatedRuntimeSeconds = 0.5, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = Rostering, definitionFixtureCost = MediumFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.RosterTemplateApplicationSpec.tests
+    , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "RosterTemplateDesigner", definitionEstimatedRuntimeSeconds = 0.5, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = Rostering, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.RosterTemplateDesignerSpec.tests
+    , pureSuite SuiteDefinition{definitionLabel = "RosterTemplateSurface", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = Rostering, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.RosterTemplateSurfaceSpec.tests
+    , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "RosterTemplatesController", definitionEstimatedRuntimeSeconds = 0.5, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = Rostering, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.Controller.RosterTemplatesSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "RosterWeeksController.Navigation", definitionEstimatedRuntimeSeconds = 1.5, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = Rostering, definitionFixtureCost = MediumFixture, definitionExternalMocks = [], definitionOwnedInvariants = [A3, R1], definitionPartialInvariants = []} Test.Controller.RosterWeeks.NavigationSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "RosterWeeksController.Workflow", definitionEstimatedRuntimeSeconds = 6.5, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = Rostering, definitionFixtureCost = LargeFixture, definitionExternalMocks = [], definitionOwnedInvariants = [R1, R2, R3, R4], definitionPartialInvariants = []} Test.Controller.RosterWeeks.WorkflowSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "RosterWeeksController.Fragments", definitionEstimatedRuntimeSeconds = 8.0, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = Rostering, definitionFixtureCost = LargeFixture, definitionExternalMocks = [], definitionOwnedInvariants = [R1, R4, T4], definitionPartialInvariants = []} Test.Controller.RosterWeeks.FragmentsSpec.tests

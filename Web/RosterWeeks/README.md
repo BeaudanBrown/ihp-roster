@@ -20,6 +20,14 @@
 - `Web/RosterWeeks/ShiftWorkflow.hs` - shift-dialog create/edit context, render-data preparation, submitted field/DST validation, and authoritative slot application.
 - `Web/View/RosterWeeks/` - HSX rendering.
 
+## Template Designer Contract
+
+Template creation and editing use dedicated `RosterTemplatesController` routes but retain the same main `roster-main-panel` card geometry and roster editing vocabulary. The registered `RosterTemplateDesignerSurface` is isolated from ordinary roster actions and subscriptions.
+
+Creation selects Day/Week and blank/reference. Reference mode reads only existing live or draft weeks, supports previous/next/this-week navigation, renders native keyboard/touch targets with a generated compatibility role/state, and confirms before copying. Hover/focus alone shows the green compatible-target treatment. One private draft slot offers Continue, Discard and start new, or Cancel.
+
+The designer clearly identifies Template design. Complete day, column, and shift mutations autosave through typed draft content; incomplete shifts and stale Shift types/Staff/pay references do not persist. Saved edits retain immutable versions, optimistic conflicts, reload-latest/save-as-new recovery, and soft deletion. Source roster rows are never changed.
+
 ## Template Application Contract
 
 Template application targets one explicitly scoped, non-live roster-group week. Day templates replace one day while matching columns case-insensitively by name, adding missing columns, and preserving unrelated columns and days. Week templates replace all seven day states/rows, columns/order, and shifts.

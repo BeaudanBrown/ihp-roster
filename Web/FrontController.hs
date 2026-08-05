@@ -31,6 +31,7 @@ import Web.Controller.LeaveRequests
 import Web.Controller.LiveUpdates
 import Web.Controller.Passkeys
 import Web.Controller.Profiles
+import Web.Controller.RosterTemplates
 import Web.Controller.RosterWeeks
 import Web.Controller.Sessions
 import Web.Controller.Staff
@@ -62,6 +63,7 @@ instance FrontController WebApplication where
         , parseRoute @HelpController
         , parseRoute @SupportController
         , parseRoute @StaffController
+        , parseRoute @RosterTemplatesController
         , parseRoute @RosterWeeksController
         , webSocketAppWithCustomPath @LiveUpdatesWSApp (cs liveUpdateSocketPathSegment)
         -- Generator Marker

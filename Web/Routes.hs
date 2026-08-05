@@ -29,4 +29,5 @@ instance AutoRoute FeedbackController
 instance AutoRoute HelpController
 instance AutoRoute SupportController
 instance AutoRoute StaffController
+instance AutoRoute RosterTemplatesController
 instance AutoRoute RosterWeeksController

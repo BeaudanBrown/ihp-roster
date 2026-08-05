@@ -1041,12 +1041,13 @@ ON CONFLICT (id) DO UPDATE SET
     deleted_at = NULL,
     updated_at = NOW();
 
-INSERT INTO roster_slots (id, roster_day_id, staff_id, roster_week_slot_definition_id, row_index, starts_at, ends_at, timezone, shift_type_id)
+INSERT INTO roster_slots (id, roster_day_id, staff_id, assignment_state, roster_week_slot_definition_id, row_index, starts_at, ends_at, timezone, shift_type_id)
 VALUES
     (
         'a1000000-0000-0000-0000-000000000071',
         'a1000000-0000-0000-0000-000000000061',
         'a1000000-0000-0000-0000-000000000031',
+        'staff',
         'a1000000-0000-0000-0000-000000000081',
         0,
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '09:00') AT TIME ZONE 'Australia/Melbourne',
@@ -1058,6 +1059,7 @@ VALUES
         'a1000000-0000-0000-0000-000000000072',
         'a1000000-0000-0000-0000-000000000062',
         'a1000000-0000-0000-0000-000000000032',
+        'staff',
         'a1000000-0000-0000-0000-000000000082',
         0,
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '09:00') AT TIME ZONE 'Australia/Melbourne',
@@ -1069,6 +1071,7 @@ VALUES
         'a1000000-0000-0000-0000-000000000073',
         'a1000000-0000-0000-0000-000000000063',
         'a1000000-0000-0000-0000-000000000031',
+        'staff',
         'a1000000-0000-0000-0000-000000000083',
         0,
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 7) + TIME '09:00') AT TIME ZONE 'Australia/Melbourne',
@@ -1080,6 +1083,7 @@ VALUES
         'a1000000-0000-0000-0000-000000000074',
         'a1000000-0000-0000-0000-000000000063',
         'a1000000-0000-0000-0000-000000000031',
+        'staff',
         'a1000000-0000-0000-0000-000000000083',
         1,
         ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 7) + TIME '13:00') AT TIME ZONE 'Australia/Melbourne',
@@ -1090,6 +1094,7 @@ VALUES
 ON CONFLICT (id) DO UPDATE SET
     roster_day_id = EXCLUDED.roster_day_id,
     staff_id = EXCLUDED.staff_id,
+    assignment_state = EXCLUDED.assignment_state,
     roster_week_slot_definition_id = EXCLUDED.roster_week_slot_definition_id,
     row_index = EXCLUDED.row_index,
     starts_at = EXCLUDED.starts_at,
