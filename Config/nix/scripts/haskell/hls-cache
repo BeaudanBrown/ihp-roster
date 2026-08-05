@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+program="hls-cache"
+scripts_root="${BEPIS_SCRIPTS_ROOT:-@scriptsRoot@}"
+scripts_root_placeholder="@""scriptsRoot@"
+if [ "$scripts_root" = "$scripts_root_placeholder" ]; then
+    scripts_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fi
+# shellcheck source=../lib/hls-cache.sh
+# shellcheck disable=SC1091
+. "$scripts_root/lib/hls-cache.sh"
+
+usage() {
+    cat <<'EOF'
+Usage:
+  hls-cache status [--json]
+  hls-cache clear [--apply] [--json]
+  hls-cache stale --all [--apply] [--json]
+
+Reports and clears worktree-scoped HLS caches. Mutations are dry-run by
+default. Clear refuses while HLS holds the workspace lifecycle lock. Stale
+cleanup considers only validated cache markers whose recorded worktree no
+longer exists.
+EOF
+}
+
+die() {
+    local status="$1"
+    shift
+    echo "$program: $*" >&2
+    exit "$status"
+}
+
+for required in du flock git jq realpath sha256sum stat; do
+    command -v "$required" >/dev/null 2>&1 || die 69 "required command is unavailable: $required"
+done
+
+command_name="${1:-}"
+case "$command_name" in
+    status|clear|stale) shift ;;
+    help|-h|--help) usage; exit 0 ;;
+    *) usage >&2; die 64 "expected status, clear, or stale" ;;
+esac
+
+apply=false
+json=false
+all=false
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --apply) apply=true; shift ;;
+        --json) json=true; shift ;;
+        --all) all=true; shift ;;
+        -h|--help) usage; exit 0 ;;
+        *) die 64 "unknown option: $1" ;;
+    esac
+done
+
+if [ "$command_name" != stale ] && [ "$all" = true ]; then
+    die 64 "--all is valid only with stale"
+fi
+if [ "$command_name" = status ] && [ "$apply" = true ]; then
+    die 64 "--apply is not valid with status"
+fi
+if [ "$command_name" = stale ] && [ "$all" = false ]; then
+    die 64 "stale requires --all"
+fi
+
+bepis_hls_cache_resolve_workspace
+
+if [ "$command_name" = status ]; then
+    result="$(bepis_hls_cache_status_json_for_identity)"
+    if [ "$json" = true ]; then
+        jq . <<<"$result"
+    else
+        jq -r '"state=\(.state) active=\(.active) bytes=\(.bytes) filesystem=\(.filesystem) root=\(.root)"' <<<"$result"
+    fi
+    exit 0
+fi
+
+if [ "$command_name" = clear ]; then
+    before="$(bepis_hls_cache_status_json_for_identity)"
+    if [ "$(jq -r .state <<<"$before")" = present ]; then
+        bepis_hls_cache_clear_identity "$apply"
+    fi
+    result="$(jq -cn --argjson cache "$before" --argjson applied "$apply" \
+        '{action: "clear", applied: ($applied and $cache.state == "present"), cache: $cache}')"
+    if [ "$json" = true ]; then
+        jq . <<<"$result"
+    elif [ "$apply" = true ]; then
+        jq -r 'if .cache.state == "present" then "cleared \(.cache.bytes) bytes from \(.cache.root)" else "cache absent: \(.cache.root)" end' <<<"$result"
+    else
+        jq -r 'if .cache.state == "present" then "dry run: would clear \(.cache.bytes) bytes from \(.cache.root); repeat with --apply" else "cache absent: \(.cache.root)" end' <<<"$result"
+    fi
+    exit 0
+fi
+
+cache_parent="$BEPIS_HLS_CACHE_PARENT"
+caches='[]'
+if [ -e "$cache_parent" ] || [ -L "$cache_parent" ]; then
+    bepis_hls_cache_validate_owned_directory "$cache_parent" "cache parent"
+    while IFS= read -r candidate; do
+        [ -d "$candidate" ] && [ ! -L "$candidate" ] || continue
+        marker="$candidate/.bepis-hls-cache"
+        [ -f "$marker" ] && [ ! -L "$marker" ] || die 65 "unmarked cache directory under managed parent: $candidate"
+        workspace="$(jq -er '.workspace | select(type == "string")' "$marker" 2>/dev/null)" \
+            || die 65 "malformed cache marker: $marker"
+        bepis_hls_cache_identity_for_path "$workspace"
+        [ "$BEPIS_HLS_CACHE_ROOT" = "$candidate" ] \
+            || die 65 "cache directory does not match its workspace identity: $candidate"
+        bepis_hls_cache_validate_root
+        top_level="$(git -C "$workspace" rev-parse --show-toplevel 2>/dev/null || true)"
+        if [ -n "$top_level" ] && [ "$(realpath "$top_level")" = "$workspace" ]; then
+            continue
+        fi
+        status="$(bepis_hls_cache_status_json_for_identity)"
+        caches="$(jq -c --argjson cache "$status" '. + [$cache]' <<<"$caches")"
+    done < <(find "$cache_parent" -mindepth 1 -maxdepth 1 -type d ! -name locks -print | sort)
+fi
+
+if [ "$apply" = true ]; then
+    while IFS= read -r cache; do
+        workspace="$(jq -r .workspace <<<"$cache")"
+        bepis_hls_cache_identity_for_path "$workspace"
+        bepis_hls_cache_clear_identity true
+    done < <(jq -c '.[]' <<<"$caches")
+fi
+result="$(jq -cn --argjson caches "$caches" --argjson applied "$apply" \
+    '{action: "stale", applied: $applied, caches: $caches, bytes: ([ $caches[].bytes ] | add // 0)}')"
+if [ "$json" = true ]; then
+    jq . <<<"$result"
+elif [ "$apply" = true ]; then
+    jq -r '"cleared \(.caches | length) stale caches (\(.bytes) bytes)"' <<<"$result"
+else
+    jq -r '"dry run: would clear \(.caches | length) stale caches (\(.bytes) bytes); repeat with --apply"' <<<"$result"
+fi

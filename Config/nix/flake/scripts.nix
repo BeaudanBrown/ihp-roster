@@ -142,6 +142,10 @@ in
         regen-types = script ../scripts/haskell/regen-types;
         generated-code-sync = script ../scripts/haskell/generated-code-sync;
         hie-bios-test = script ../scripts/haskell/hie-bios-test;
+        hls-lsp = script ../scripts/haskell/hls-lsp;
+        hls-cache = script ../scripts/haskell/hls-cache;
+        hls-cache-test = script ../scripts/haskell/hls-cache-test;
+        compiler-tmp-test = script ../scripts/haskell/compiler-tmp-test;
         test-db-reset = script ../scripts/db/test-db-reset;
         test-postgres = script ../scripts/db/test-postgres;
         billing-migration-check = script ../scripts/db/billing-migration-check;

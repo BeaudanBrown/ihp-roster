@@ -174,8 +174,16 @@ bepis_workspace_hls_status() {
     local path="$1"
     local workspace_processes rows='[]' row pid command rss cpu elapsed
     local cache_base cache_bytes latest_mtime indexing_active now fd target file size mtime
+    local workspace_cache
     workspace_processes="$(bepis_workspace_processes_in_path "$path")"
     now="$(date +%s)"
+    if declare -F bepis_hls_cache_identity_for_path >/dev/null \
+        && declare -F bepis_hls_cache_status_json_for_identity >/dev/null; then
+        bepis_hls_cache_identity_for_path "$path"
+        workspace_cache="$(bepis_hls_cache_status_json_for_identity)"
+    else
+        workspace_cache='{"state":"unavailable","root":null,"bytes":0,"active":false}'
+    fi
 
     while IFS= read -r row; do
         command="$(jq -r '.command' <<<"$row")"
@@ -230,9 +238,13 @@ bepis_workspace_hls_status() {
                     cacheBytes: $cacheBytes, indexingActive: $indexingActive}]' <<<"$rows")"
     done < <(jq -c '.[]' <<<"$workspace_processes")
 
-    jq -c '
+    jq -c --argjson workspaceCache "$workspace_cache" '
         {processes: ., totalRssKiB: ([.[].rssKiB] | add // 0),
          cacheBytes: ([.[].cacheBytes] | add // 0),
+         cacheState: $workspaceCache.state,
+         cacheRoot: $workspaceCache.root,
+         cacheTotalBytes: $workspaceCache.bytes,
+         cacheActive: $workspaceCache.active,
          indexingActive: any(.[]; .indexingActive)}
     ' <<<"$rows"
 }

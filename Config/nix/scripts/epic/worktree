@@ -9,6 +9,9 @@ scripts_root_placeholder="@""scriptsRoot@"
 if [ "$scripts_root" = "$scripts_root_placeholder" ]; then
     scripts_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fi
+# shellcheck source=../lib/hls-cache.sh
+# shellcheck disable=SC1091
+. "$scripts_root/lib/hls-cache.sh"
 # shellcheck source=../lib/workspace-resources.sh
 # shellcheck disable=SC1091
 . "$scripts_root/lib/workspace-resources.sh"
@@ -234,7 +237,7 @@ print_record() {
         jq . <<<"$record"
     else
         jq -r '
-            "epic #\(.epic) | \(.kind) | slot \(.slot) | \(.branch) -> \(.targetBranch) | \(.status) | cpu weight \(.resources.cpuWeight), processes \(.resources.processes), uncontained \(.resources.uncontainedPathProcesses | length) (work \(.resources.uncontainedWorkProcesses | length)), HLS \(.resources.hls.processes | length), HLS RSS \(.resources.hls.totalRssKiB) KiB, HLS cache \(.resources.hls.cacheBytes) bytes, indexing \(.resources.hls.indexingActive) | \(.path)",
+            "epic #\(.epic) | \(.kind) | slot \(.slot) | \(.branch) -> \(.targetBranch) | \(.status) | cpu weight \(.resources.cpuWeight), processes \(.resources.processes), uncontained \(.resources.uncontainedPathProcesses | length) (work \(.resources.uncontainedWorkProcesses | length)), HLS \(.resources.hls.processes | length), HLS RSS \(.resources.hls.totalRssKiB) KiB, HLS cache \(.resources.hls.cacheTotalBytes) bytes, cache root \(.resources.hls.cacheRoot), indexing \(.resources.hls.indexingActive) | \(.path)",
             (.resources.hls.processes[] | "  HLS pid \(.pid) | CPU \(.cpuPercent)% | RSS \(.rssKiB) KiB | elapsed \(.elapsedSeconds)s | cache \(.cacheBytes) bytes | indexing \(.indexingActive)"),
             (if .resources.warning == null then empty else "WARNING: \(.resources.warning)" end)
         ' <<<"$record"

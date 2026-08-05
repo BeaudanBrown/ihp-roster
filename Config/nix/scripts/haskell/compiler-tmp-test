@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+ghc_library="$repo_root/Config/nix/scripts/lib/ghc.sh"
+fixture_root="$(mktemp -d)"
+trap 'rm -rf "$fixture_root"' EXIT
+
+fail() {
+    echo "compiler-tmp-test: $*" >&2
+    exit 1
+}
+
+fixture_repo="$fixture_root/repo"
+mkdir -p "$fixture_repo"
+git init --quiet "$fixture_repo"
+
+result="$({
+    cd "$fixture_repo"
+    unset TMPDIR
+    BEPIS_TMP_FREE_BYTES_OVERRIDE=1024 \
+    BEPIS_COMPILER_TMP_PARENT="$fixture_root/compiler-tmp" \
+    bash -c '. "$1"; ihp_roster_configure_compiler_tmpdir; printf "TMPDIR=%s\n" "$TMPDIR"' bash "$ghc_library"
+} 2>"$fixture_root/low-space.err")"
+[[ "$result" == TMPDIR="$fixture_root/compiler-tmp/"* ]] || fail "low-space fallback selected an unexpected path: $result"
+selected_tmp="${result#TMPDIR=}"
+[ -d "$selected_tmp" ] || fail "low-space fallback did not create TMPDIR"
+[ "$(stat -c %a "$selected_tmp")" = 700 ] || fail "compiler TMPDIR is not mode 0700"
+grep -q 'less than' "$fixture_root/low-space.err" || fail "low-space fallback emitted no pressure warning"
+
+result="$({
+    cd "$fixture_repo"
+    unset TMPDIR
+    BEPIS_TMP_FREE_BYTES_OVERRIDE=4294967296 \
+    BEPIS_COMPILER_TMP_PARENT="$fixture_root/compiler-tmp" \
+    bash -c '. "$1"; ihp_roster_configure_compiler_tmpdir; printf "TMPDIR=%s\n" "${TMPDIR:-}"' bash "$ghc_library"
+})"
+[ "$result" = TMPDIR= ] || fail "healthy /tmp unexpectedly changed TMPDIR: $result"
+
+explicit="$fixture_root/explicit"
+mkdir "$explicit"
+result="$({
+    cd "$fixture_repo"
+    TMPDIR="$explicit" \
+    BEPIS_TMP_FREE_BYTES_OVERRIDE=1024 \
+    BEPIS_COMPILER_TMP_PARENT="$fixture_root/compiler-tmp" \
+    bash -c '. "$1"; ihp_roster_configure_compiler_tmpdir; printf "TMPDIR=%s\n" "$TMPDIR"' bash "$ghc_library"
+})"
+[ "$result" = "TMPDIR=$explicit" ] || fail "explicit TMPDIR was overwritten: $result"
+
+rm -rf "$fixture_root/compiler-tmp"
+ln -s "$fixture_root" "$fixture_root/compiler-tmp"
+set +e
+symlink_output="$({
+    cd "$fixture_repo"
+    unset TMPDIR
+    BEPIS_TMP_FREE_BYTES_OVERRIDE=1024 \
+    BEPIS_COMPILER_TMP_PARENT="$fixture_root/compiler-tmp" \
+    bash -c '. "$1"; ihp_roster_configure_compiler_tmpdir' bash "$ghc_library"
+} 2>&1)"
+symlink_status=$?
+set -e
+[ "$symlink_status" -eq 65 ] || fail "symlinked compiler temp parent was accepted: $symlink_output"
+
+echo "compiler-tmp-test: ok"

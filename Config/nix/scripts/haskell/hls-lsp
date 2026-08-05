@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+scripts_root="${BEPIS_SCRIPTS_ROOT:-@scriptsRoot@}"
+scripts_root_placeholder="@""scriptsRoot@"
+if [ "$scripts_root" = "$scripts_root_placeholder" ]; then
+    scripts_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fi
+# shellcheck source=../lib/hls-cache.sh
+# shellcheck disable=SC1091
+. "$scripts_root/lib/hls-cache.sh"
+
+for required in flock git jq realpath sha256sum; do
+    command -v "$required" >/dev/null 2>&1 || {
+        echo "hls-lsp: required command is unavailable: $required" >&2
+        exit 69
+    }
+done
+
+bepis_hls_cache_resolve_workspace
+bepis_hls_cache_ensure_parent
+exec 9>>"$BEPIS_HLS_CACHE_LIFECYCLE_LOCK"
+flock -s 9
+bepis_hls_cache_prepare_locked
+export XDG_CACHE_HOME="$BEPIS_HLS_CACHE_ROOT/xdg"
+
+server_command="${BEPIS_HLS_SERVER_COMMAND:-haskell-language-server-wrapper}"
+command -v "$server_command" >/dev/null 2>&1 || {
+    echo "hls-lsp: HLS command is unavailable: $server_command" >&2
+    exit 69
+}
+exec "$server_command" "$@"

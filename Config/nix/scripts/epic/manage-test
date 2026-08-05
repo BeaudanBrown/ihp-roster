@@ -4,7 +4,10 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 manage_source="$repo_root/Config/nix/scripts/epic/manage"
 registry_command="$repo_root/Config/nix/scripts/epic/worktree"
+hls_wrapper="$repo_root/Config/nix/scripts/haskell/hls-lsp"
+hls_cache_command="$repo_root/Config/nix/scripts/haskell/hls-cache"
 fixture_root="$(mktemp -d)"
+export BEPIS_HLS_CACHE_PARENT="$fixture_root/hls-cache-parent"
 manage_command="$fixture_root/manage"
 scripts_root_replacement="$(printf '%s' "$repo_root/Config/nix/scripts" | sed 's/[\&|]/\\&/g')"
 scripts_root_token="@scripts""Root@"
@@ -208,9 +211,15 @@ wait "$runtime_pid" 2>/dev/null || true
 runtime_pid=""
 rm -f "$state_dir/devenv.pid"
 
-workspace_id="$(printf '%s' "$epic_path" | sha256sum | cut -c1-12)"
-explicit_epic_state="$fixture_root/caller-state/workspace-$workspace_id"
-mkdir -p "$explicit_epic_state"
+explicit_epic_state="$(
+    env -u BEPIS_WORKSPACE_STATE_CONFIGURED -u BEPIS_WORKSPACE_REPO_ROOT \
+        -u BEPIS_WORKSPACE_STATE_ROOT \
+        BEPIS_WORKSPACE_REPO_ROOT="$epic_path" \
+        DEVENV_AGENT_STATE_DIR="$fixture_root/caller-state" \
+        BEPIS_EPIC_WORKTREE_COMMAND="$registry_command" \
+        bash -c '. "$1"; bepis_workspace_configure >/dev/null; printf "%s" "$DEVENV_AGENT_STATE_DIR"' \
+        bash "$repo_root/Config/nix/scripts/lib/workspace.sh"
+)"
 (cd "$epic_path" && exec sleep 300) &
 runtime_pid=$!
 printf '%s\n' "$runtime_pid" >"$explicit_epic_state/devenv.pid"
@@ -222,10 +231,17 @@ wait "$runtime_pid" 2>/dev/null || true
 runtime_pid=""
 rm -f "$explicit_epic_state/devenv.pid"
 
+(
+    cd "$epic_path"
+    BEPIS_HLS_SERVER_COMMAND=true bash "$hls_wrapper" --lsp
+)
+epic_cache_root="$(cd "$epic_path" && bash "$hls_cache_command" status --json | jq -r .root)"
+[ -d "$epic_cache_root" ] || fail "fixture did not create the epic HLS cache"
 cleanup_plan="$(run_manage cleanup --epic 270 --json)"
 [ "$(jq -r '.action' <<<"$cleanup_plan")" = cleanup ] || fail "cleanup plan action missing"
 [ "$(jq -r '.applied' <<<"$cleanup_plan")" = false ] || fail "cleanup mutated without approval"
 [ -d "$epic_path" ] || fail "dry-run cleanup removed worktree"
+[ -d "$epic_cache_root" ] || fail "dry-run cleanup removed the HLS cache"
 
 (cd "$epic_path" && exec sleep 300) &
 runtime_pid=$!
@@ -240,6 +256,7 @@ fi
 wait "$runtime_pid" 2>/dev/null || true
 runtime_pid=""
 [ ! -e "$epic_path" ] || fail "approved cleanup left worktree behind"
+[ ! -e "$epic_cache_root" ] || fail "approved cleanup left the epic HLS cache"
 if git -C "$primary_repo" show-ref --verify --quiet refs/heads/epic-270; then
     fail "approved cleanup left epic branch behind"
 fi

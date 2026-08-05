@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "haskell": {
+      "command": "hls-lsp",
+      "args": ["--lsp"]
+    }
+  }
+}

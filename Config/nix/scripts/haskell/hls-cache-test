@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+wrapper="$repo_root/Config/nix/scripts/haskell/hls-lsp"
+cache_command="$repo_root/Config/nix/scripts/haskell/hls-cache"
+fixture_root="$(mktemp -d)"
+hls_pid=""
+cleanup() {
+    if [ -n "$hls_pid" ]; then
+        kill "$hls_pid" 2>/dev/null || true
+        wait "$hls_pid" 2>/dev/null || true
+    fi
+    rm -rf "$fixture_root"
+}
+trap cleanup EXIT
+
+fail() {
+    echo "hls-cache-test: $*" >&2
+    exit 1
+}
+
+fixture_repo="$fixture_root/repo"
+cache_parent="$fixture_root/cache-parent"
+mkdir -p "$fixture_repo" "$fixture_root/bin"
+git init --quiet --initial-branch=roster "$fixture_repo"
+git -C "$fixture_repo" config user.name "HLS Cache Test"
+git -C "$fixture_repo" config user.email "hls-cache-test@example.invalid"
+printf 'fixture\n' >"$fixture_repo/README"
+git -C "$fixture_repo" add README
+git -C "$fixture_repo" commit --quiet -m fixture
+
+cat >"$fixture_root/bin/fake-hls" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$XDG_CACHE_HOME" >"$HLS_TEST_OUTPUT/cache"
+printf '%s\n' "$PWD" >"$HLS_TEST_OUTPUT/cwd"
+printf '%s\n' "$@" >"$HLS_TEST_OUTPUT/args"
+touch "$HLS_TEST_OUTPUT/started"
+exec sleep 60
+EOF
+chmod +x "$fixture_root/bin/fake-hls"
+
+primary_output="$fixture_root/primary-output"
+mkdir -p "$primary_output"
+(
+    cd "$fixture_repo"
+    BEPIS_HLS_CACHE_PARENT="$cache_parent" \
+    BEPIS_HLS_SERVER_COMMAND="$fixture_root/bin/fake-hls" \
+    HLS_TEST_OUTPUT="$primary_output" \
+        exec bash "$wrapper" --lsp --test-argument
+) &
+hls_pid="$!"
+for _ in $(seq 1 100); do
+    [ -f "$primary_output/started" ] && break
+    sleep 0.05
+done
+[ -f "$primary_output/started" ] || fail "wrapper did not launch the HLS command"
+
+primary_cache="$(cat "$primary_output/cache")"
+[[ "$primary_cache" == "$cache_parent/"*/xdg ]] || fail "wrapper selected an unexpected cache: $primary_cache"
+[ "$(cat "$primary_output/cwd")" = "$fixture_repo" ] || fail "wrapper changed the HLS working directory"
+printf '%s\n' --lsp --test-argument >"$fixture_root/expected-args"
+cmp -s "$fixture_root/expected-args" "$primary_output/args" || fail "wrapper changed HLS arguments"
+[ "$(stat -c %a "${primary_cache%/xdg}")" = 700 ] || fail "cache root is not mode 0700"
+
+status_json="$(cd "$fixture_repo" && BEPIS_HLS_CACHE_PARENT="$cache_parent" bash "$cache_command" status --json)"
+[ "$(jq -r '.state' <<<"$status_json")" = present ] || fail "status did not report the cache"
+[ "$(jq -r '.active' <<<"$status_json")" = true ] || fail "status did not report the live HLS lock"
+[ "$(jq -r '.root' <<<"$status_json")/xdg" = "$primary_cache" ] || fail "status reported a different cache root"
+
+set +e
+active_clear="$(cd "$fixture_repo" && BEPIS_HLS_CACHE_PARENT="$cache_parent" bash "$cache_command" clear --apply 2>&1)"
+active_clear_status=$?
+set -e
+[ "$active_clear_status" -eq 75 ] || fail "clear did not refuse an active HLS cache: $active_clear"
+
+kill "$hls_pid"
+wait "$hls_pid" 2>/dev/null || true
+hls_pid=""
+dry_run="$(cd "$fixture_repo" && BEPIS_HLS_CACHE_PARENT="$cache_parent" bash "$cache_command" clear)"
+[[ "$dry_run" == *"dry run"* ]] || fail "clear was not dry-run by default"
+[ -d "${primary_cache%/xdg}" ] || fail "dry-run removed the cache"
+cd "$fixture_repo"
+BEPIS_HLS_CACHE_PARENT="$cache_parent" bash "$cache_command" clear --apply >/dev/null
+[ ! -e "${primary_cache%/xdg}" ] || fail "approved clear left the cache"
+
+linked_repo="$fixture_root/linked"
+git -C "$fixture_repo" branch linked
+# A distinct canonical worktree must receive a distinct cache identity.
+git -C "$fixture_repo" worktree add --quiet "$linked_repo" linked
+linked_output="$fixture_root/linked-output"
+mkdir -p "$linked_output"
+cat >"$fixture_root/bin/capture-hls" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$XDG_CACHE_HOME" >"$HLS_TEST_OUTPUT/cache"
+EOF
+chmod +x "$fixture_root/bin/capture-hls"
+(
+    cd "$linked_repo"
+    BEPIS_HLS_CACHE_PARENT="$cache_parent" \
+    BEPIS_HLS_SERVER_COMMAND="$fixture_root/bin/capture-hls" \
+    HLS_TEST_OUTPUT="$linked_output" \
+        bash "$wrapper" --lsp
+)
+linked_cache="$(cat "$linked_output/cache")"
+[ "$linked_cache" != "$primary_cache" ] || fail "linked worktree shared the primary cache"
+
+git -C "$fixture_repo" worktree remove "$linked_repo"
+stale_json="$(cd "$fixture_repo" && BEPIS_HLS_CACHE_PARENT="$cache_parent" bash "$cache_command" stale --all --json)"
+[ "$(jq --arg root "${linked_cache%/xdg}" '[.caches[].root] | index($root) != null' <<<"$stale_json")" = true ] \
+    || fail "stale scan omitted the removed worktree cache"
+[ -d "${linked_cache%/xdg}" ] || fail "stale scan mutated without approval"
+cd "$fixture_repo"
+BEPIS_HLS_CACHE_PARENT="$cache_parent" bash "$cache_command" stale --all --apply >/dev/null
+[ ! -e "${linked_cache%/xdg}" ] || fail "approved stale cleanup left the cache"
+
+# Existing foreign and symlinked roots must be rejected rather than adopted.
+foreign_root="$(cd "$fixture_repo" && BEPIS_HLS_CACHE_PARENT="$cache_parent" bash "$cache_command" status --json | jq -r .root)"
+mkdir -p "$foreign_root"
+printf 'foreign\n' >"$foreign_root/.bepis-hls-cache"
+set +e
+foreign_output="$(cd "$fixture_repo" && BEPIS_HLS_CACHE_PARENT="$cache_parent" bash "$cache_command" status --json 2>&1)"
+foreign_status=$?
+set -e
+[ "$foreign_status" -eq 65 ] || fail "foreign marker was accepted: $foreign_output"
+rm -rf "$foreign_root"
+ln -s "$fixture_root" "$foreign_root"
+set +e
+symlink_output="$(cd "$fixture_repo" && BEPIS_HLS_CACHE_PARENT="$cache_parent" bash "$wrapper" --lsp 2>&1)"
+symlink_status=$?
+set -e
+[ "$symlink_status" -eq 65 ] || fail "symlinked cache root was accepted: $symlink_output"
+
+jq -e '.servers.haskell.command == "hls-lsp" and .servers.haskell.args == ["--lsp"]' \
+    "$repo_root/.pi-lsp.json" >/dev/null || fail ".pi-lsp.json does not select the cache wrapper"
+
+echo "hls-cache-test: ok"

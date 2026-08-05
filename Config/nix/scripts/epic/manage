@@ -8,6 +8,9 @@ scripts_root_placeholder="@""scriptsRoot@"
 if [ "$scripts_root" = "$scripts_root_placeholder" ]; then
     scripts_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fi
+# shellcheck source=../lib/hls-cache.sh
+# shellcheck disable=SC1091
+. "$scripts_root/lib/hls-cache.sh"
 # shellcheck source=../lib/workspace-resources.sh
 # shellcheck disable=SC1091
 . "$scripts_root/lib/workspace-resources.sh"
@@ -467,13 +470,15 @@ parent_state="$(gh api "repos/$repository/issues/$epic" 2>/dev/null | jq -r '.st
 runtime="$(runtime_state)"
 path_processes="$(bepis_workspace_processes_in_path "$epic_path")"
 resources="$(bepis_workspace_resource_status "$common_dir" epic "$slot")"
+bepis_hls_cache_identity_for_path "$epic_path"
+hls_cache="$(bepis_hls_cache_status_json_for_identity)"
 git -C "$current_root" show-ref --verify --quiet "refs/heads/$epic_branch" \
     || die 65 "cannot prove integration because the epic branch is missing; registry retained for recovery"
 git -C "$current_root" rev-parse --verify --quiet "$target_branch^{commit}" >/dev/null \
     || die 65 "recorded target branch is unavailable: $target_branch"
 git -C "$current_root" merge-base --is-ancestor "$epic_branch" "$target_branch" \
     || die 65 "refusing cleanup with unintegrated commits"
-cleanup_report="$(jq -cn --argjson epic "$epic" --arg path "$epic_path" --arg branch "$epic_branch" --arg target "$target_branch" --arg status "$workspace_status" --argjson runtime "$runtime" --argjson pathProcesses "$path_processes" --argjson resources "$resources" '{action: "cleanup", applied: false, epic: $epic, path: $path, branch: $branch, targetBranch: $target, registryStatus: $status, runtime: $runtime, pathProcesses: $pathProcesses, resources: $resources, termination: "SIGTERM, wait 5 seconds, then SIGKILL"}')"
+cleanup_report="$(jq -cn --argjson epic "$epic" --arg path "$epic_path" --arg branch "$epic_branch" --arg target "$target_branch" --arg status "$workspace_status" --argjson runtime "$runtime" --argjson pathProcesses "$path_processes" --argjson resources "$resources" --argjson hlsCache "$hls_cache" '{action: "cleanup", applied: false, epic: $epic, path: $path, branch: $branch, targetBranch: $target, registryStatus: $status, runtime: $runtime, pathProcesses: $pathProcesses, resources: $resources, hlsCache: $hlsCache, termination: "SIGTERM, wait 5 seconds, then SIGKILL"}')"
 if [ "$approve" = false ]; then
     if [ "$json" = true ]; then jq . <<<"$cleanup_report"; else echo "cleanup safe but not applied; rerun with --approve"; fi
     exit 0
@@ -509,6 +514,9 @@ locked_runtime="$(runtime_state)"
     || die 65 "epic runtime survived approved cleanup termination"
 [ "$(bepis_workspace_processes_in_path "$epic_path" | jq 'length')" -eq 0 ] \
     || die 65 "worktree processes survived approved cleanup termination"
+bepis_hls_cache_identity_for_path "$epic_path"
+bepis_hls_cache_clear_identity true \
+    || die 75 "cannot clear epic HLS cache after runtime termination"
 branch_oid="$(git -C "$current_root" rev-parse --verify "refs/heads/$epic_branch^{commit}" 2>/dev/null || true)"
 [ -n "$branch_oid" ] \
     || die 65 "epic branch disappeared after cleanup preflight; registry retained for recovery"

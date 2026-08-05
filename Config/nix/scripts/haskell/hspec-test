@@ -2,6 +2,7 @@
 set -euo pipefail
 # shellcheck source=../lib/ghc.sh
 . "@scriptsRoot@/lib/ghc.sh"
+ihp_roster_configure_compiler_tmpdir
 # shellcheck source=../lib/common.sh
 . "@scriptsRoot@/lib/common.sh"
 BASE_TEST_DATABASE_NAME="${TEST_DATABASE_NAME:-app_test}"
