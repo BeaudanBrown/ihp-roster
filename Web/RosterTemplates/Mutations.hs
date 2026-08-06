@@ -5,7 +5,8 @@ module Web.RosterTemplates.Mutations
     ) where
 
 import Application.Helper.FrontendContract.Surface.Roster.Resource
-import Application.Helper.SurfaceResource (LiveMutationResult (..), liveMutationResult)
+import Application.Helper.SurfaceResource (LiveMutationResult (..),
+                                           liveMutationResult)
 import Application.RosterTemplates
 import Data.Traversable (traverse)
 import Web.Controller.Prelude

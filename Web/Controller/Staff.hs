@@ -39,9 +39,9 @@ import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
                                      parseSubmittedPayRateSelectionValue)
 import Web.Controller.Prelude
 import Web.RosterWeeks.Projection (rosterGridInnerAndStaffPanelFragments)
-import Web.RosterWeeks.StaffOptions (fetchStaffPayConfigurationRequiredIds)
 import Web.RosterWeeks.Responses (respondWithRosterContentOob,
                                   respondWithRosterResourceInvalidation)
+import Web.RosterWeeks.StaffOptions (fetchStaffPayConfigurationRequiredIds)
 import Web.Staff.Mutations
 import Web.Staff.ProfileSurfaceRequest (StaffProfileDetailsSubmission (..),
                                         StaffProfileSurfaceSubmission (..),

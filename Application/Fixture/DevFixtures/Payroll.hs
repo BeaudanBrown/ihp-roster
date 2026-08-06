@@ -14,7 +14,8 @@ import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
 import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey)
 import Application.Helper.TimesheetPayLedger (persistApprovedTimesheetPayCalculation)
-import Application.PayAssignment (StaffPayAssignment (..), staffAssignmentAllowsTimesheets)
+import Application.PayAssignment (StaffPayAssignment (..),
+                                  staffAssignmentAllowsTimesheets)
 import Application.VenueTime.Model
 import qualified Data.Aeson as Aeson
 import Data.Time.Calendar (Day, addDays, fromGregorian)
@@ -29,11 +30,11 @@ import IHP.Prelude
 import qualified IHP.Prelude as Prelude
 
 data PayFixture = PayFixture
-    { floorShift       :: !ShiftType
-    , kitchenShift     :: !ShiftType
-    , allShiftTypes    :: ![ShiftType]
-    , floorAwardLevel  :: !(Id AwardLevel)
-    , importedPayItem  :: !XeroImportedPayItem
+    { floorShift      :: !ShiftType
+    , kitchenShift    :: !ShiftType
+    , allShiftTypes   :: ![ShiftType]
+    , floorAwardLevel :: !(Id AwardLevel)
+    , importedPayItem :: !XeroImportedPayItem
     }
 
 ensurePayReferenceData :: (?modelContext :: ModelContext) => IO ()

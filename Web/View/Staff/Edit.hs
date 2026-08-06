@@ -59,25 +59,25 @@ instance View NewView where
             (renderNewStaffBody PageOverlayForm staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds weekOffset maybeRosterGroupId)
 
 data EditView = EditView
-    { staff                    :: Staff
+    { staff                         :: Staff
     , staffPayConfigurationRequired :: Bool
-    , maybeLinkedUserEmail     :: Maybe Text
-    , rosterGroups             :: [RosterGroup]
-    , awardLevels              :: [AwardLevel]
-    , awardLevelBaseRates      :: [AwardLevelBaseRate]
-    , importedPayItems         :: [XeroImportedPayItem]
-    , selectedRosterGroupIds   :: [Id RosterGroup]
-    , maybeVenueMembership     :: Maybe VenueMembership
-    , staffRemovalAllowed      :: Bool
-    , preferenceWeekdays       :: [PreferenceWeekday]
-    , selectedShiftPreferences :: [ShiftPreferenceSelection]
-    , staffRsaDocument         :: Maybe StaffDocument
-    , leaveRequest             :: LeaveRequest
-    , leaveRequests            :: [LeaveRequest]
-    , today                    :: Day
-    , weekOffset               :: Int
-    , maybeRosterGroupId       :: Maybe (Id RosterGroup)
-    , openSection              :: Text
+    , maybeLinkedUserEmail          :: Maybe Text
+    , rosterGroups                  :: [RosterGroup]
+    , awardLevels                   :: [AwardLevel]
+    , awardLevelBaseRates           :: [AwardLevelBaseRate]
+    , importedPayItems              :: [XeroImportedPayItem]
+    , selectedRosterGroupIds        :: [Id RosterGroup]
+    , maybeVenueMembership          :: Maybe VenueMembership
+    , staffRemovalAllowed           :: Bool
+    , preferenceWeekdays            :: [PreferenceWeekday]
+    , selectedShiftPreferences      :: [ShiftPreferenceSelection]
+    , staffRsaDocument              :: Maybe StaffDocument
+    , leaveRequest                  :: LeaveRequest
+    , leaveRequests                 :: [LeaveRequest]
+    , today                         :: Day
+    , weekOffset                    :: Int
+    , maybeRosterGroupId            :: Maybe (Id RosterGroup)
+    , openSection                   :: Text
     }
 
 instance View EditView where
