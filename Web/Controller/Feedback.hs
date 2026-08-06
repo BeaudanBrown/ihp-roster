@@ -1,7 +1,17 @@
 module Web.Controller.Feedback where
 
-import Application.Helper.Controller (boundedText, normalizeTextField,
-                                      requireParam)
+import Application.Helper.Controller (boundedText, normalizeTextField)
+import Application.Helper.FrontendContract.AppShell (ContentField,
+                                                     FeedbackDevicePixelRatioField,
+                                                     FeedbackDisplayModeField,
+                                                     FeedbackTypeField,
+                                                     FeedbackViewportHeightField,
+                                                     FeedbackViewportWidthField,
+                                                     SubmitFeedback)
+import Application.Helper.FrontendContract.AppShell.Request (AppShellActionFields,
+                                                             parseAppShellActionParams)
+import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldErrorsMessage)
+import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
                                 renderToastOob, successToast)
 import Control.Monad (guard)
@@ -28,65 +38,75 @@ instance Controller FeedbackController where
             else render NewView { .. }
 
     action currentAction@CreateFeedbackAction = runBepis currentAction BepisMutationAction do
-        let feedbackItem = buildSubmittedFeedbackItem
-        feedbackItem
-            |> ifValid \case
-                Left feedbackItem ->
-                    if isHtmxRequest
-                        then respondHtml (renderNewFeedbackDialog feedbackItem)
-                        else render NewView { .. }
-                Right feedbackItem -> do
-                    _ <- feedbackItem |> createRecord
-                    if isHtmxRequest
-                        then respondHtml [hsx|
-                            <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
-                            {renderToastOob ToastBottomCenter (successToast "Thanks — your feedback was sent.")}
-                        |]
-                        else do
-                            setSuccessMessage "Thanks — your feedback was sent."
-                            redirectTo RosterWeeksAction
+        case parseAppShellActionParams @SubmitFeedback of
+            Left errors -> do
+                let errorSummary = surfaceRequestFieldErrorsMessage errors
+                let feedbackItem =
+                        if "feedbackType" `Text.isInfixOf` errorSummary
+                            then buildNewFeedbackItem |> attachFailure #feedbackType "Choose a feedback type"
+                            else buildNewFeedbackItem |> attachFailure #content "Please enter at least 3 characters"
+                renderInvalidFeedback feedbackItem
+            Right fields -> do
+                let feedbackItem = buildSubmittedFeedbackItem fields
+                feedbackItem
+                    |> ifValid \case
+                        Left invalidFeedbackItem -> renderInvalidFeedback invalidFeedbackItem
+                        Right validFeedbackItem -> do
+                            _ <- validFeedbackItem |> createRecord
+                            if isHtmxRequest
+                                then respondHtml [hsx|
+                                    <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+                                    {renderToastOob ToastBottomCenter (successToast "Thanks — your feedback was sent.")}
+                                |]
+                                else do
+                                    setSuccessMessage "Thanks — your feedback was sent."
+                                    redirectTo RosterWeeksAction
+      where
+        renderInvalidFeedback feedbackItem =
+            if isHtmxRequest
+                then respondHtml (renderNewFeedbackDialog feedbackItem)
+                else render NewView { .. }
 
 buildNewFeedbackItem :: (?context :: ControllerContext, ?request :: Request) => UserFeedbackItem
 buildNewFeedbackItem =
     newRecord @UserFeedbackItem
         |> set #venueId (coerce currentVenueId)
         |> set #submittedByUserId (coerce currentUser.id)
-        |> set #feedbackType "bug"
+        |> set #feedbackType Bug
         |> set #status "new"
         |> set #priority "normal"
         |> set #content ""
 
-buildSubmittedFeedbackItem :: (?context :: ControllerContext, ?request :: Request) => UserFeedbackItem
-buildSubmittedFeedbackItem =
+buildSubmittedFeedbackItem :: (?context :: ControllerContext, ?request :: Request) => AppShellActionFields SubmitFeedback -> UserFeedbackItem
+buildSubmittedFeedbackItem fields =
     buildNewFeedbackItem
-        |> requireParam #content "content" "Please enter your feedback"
-        |> fill @'["feedbackType", "content"]
+        |> set #feedbackType (surfaceFieldValue @FeedbackTypeField fields)
+        |> set #content (surfaceFieldValue @ContentField fields)
         |> normalizeTextField #content
-        |> validateField #feedbackType validateFeedbackType
         |> validateField #content nonEmpty
         |> validateField #content feedbackContentMinLength
         |> validateField #content (boundedText 3000)
         |> set #submittedPath submittedOriginPath
         |> set #userAgent currentUserAgent
         |> set #submittedRole currentSubmittedRole
-        |> set #viewportWidth submittedViewportWidth
-        |> set #viewportHeight submittedViewportHeight
-        |> set #devicePixelRatio submittedDevicePixelRatio
-        |> set #deviceClass (viewportDeviceClass submittedViewportWidth)
-        |> set #displayMode submittedDisplayMode
+        |> set #viewportWidth viewportWidth
+        |> set #viewportHeight viewportHeight
+        |> set #devicePixelRatio devicePixelRatio
+        |> set #deviceClass (viewportDeviceClass viewportWidth)
+        |> set #displayMode displayMode
+  where
+    viewportWidth = parseBoundedNumber 1 10000 (surfaceFieldValue @FeedbackViewportWidthField fields)
+    viewportHeight = parseBoundedNumber 1 10000 (surfaceFieldValue @FeedbackViewportHeightField fields)
+    devicePixelRatio = parseBoundedNumber 0 100 (surfaceFieldValue @FeedbackDevicePixelRatioField fields) >>= positiveOnly
+    displayMode = validDisplayMode (surfaceFieldValue @FeedbackDisplayModeField fields)
+    positiveOnly value
+        | value > 0 = Just value
+        | otherwise = Nothing
 
 feedbackContentMinLength :: Text -> ValidatorResult
 feedbackContentMinLength content
     | Text.length content >= 3 = Success
     | otherwise = Failure "Please enter at least 3 characters"
-
-validateFeedbackType :: Text -> ValidatorResult
-validateFeedbackType feedbackType
-    | feedbackType `elem` allowedFeedbackTypes = Success
-    | otherwise = Failure "Choose a feedback type"
-
-allowedFeedbackTypes :: [Text]
-allowedFeedbackTypes = ["bug", "suggestion", "other"]
 
 submittedOriginPath :: (?request :: Request) => Maybe Text
 submittedOriginPath = do
@@ -115,22 +135,9 @@ sanitizeOriginPath rawPath
     where
         pathOnly = Text.takeWhile (\character -> character /= '?' && character /= '#') rawPath
 
-submittedViewportWidth :: (?request :: Request) => Maybe Int
-submittedViewportWidth = parseBoundedNumber 1 10000 "feedbackViewportWidth"
-
-submittedViewportHeight :: (?request :: Request) => Maybe Int
-submittedViewportHeight = parseBoundedNumber 1 10000 "feedbackViewportHeight"
-
-submittedDevicePixelRatio :: (?request :: Request) => Maybe Double
-submittedDevicePixelRatio = parseBoundedNumber 0 100 "feedbackDevicePixelRatio" >>= positiveOnly
-    where
-        positiveOnly value
-            | value > 0 = Just value
-            | otherwise = Nothing
-
-parseBoundedNumber :: (?request :: Request, Read value, Ord value) => value -> value -> Text -> Maybe value
-parseBoundedNumber minimumValue maximumValue paramName = do
-    rawValue <- requestParamText paramName
+parseBoundedNumber :: (Read value, Ord value) => value -> value -> Maybe Text -> Maybe value
+parseBoundedNumber minimumValue maximumValue maybeRawValue = do
+    rawValue <- maybeRawValue
     value <- readMaybe (cs rawValue)
     guard (value >= minimumValue && value <= maximumValue)
     pure value
@@ -138,9 +145,9 @@ parseBoundedNumber minimumValue maximumValue paramName = do
 viewportDeviceClass :: Maybe Int -> Maybe Text
 viewportDeviceClass = fmap \width -> if width < 768 then "mobile" else "desktop"
 
-submittedDisplayMode :: (?request :: Request) => Maybe Text
-submittedDisplayMode = do
-    displayMode <- requestParamText "feedbackDisplayMode"
+validDisplayMode :: Maybe Text -> Maybe Text
+validDisplayMode maybeDisplayMode = do
+    displayMode <- maybeDisplayMode
     guard (displayMode == "browser" || displayMode == "standalone")
     pure displayMode
 
@@ -148,14 +155,6 @@ currentSubmittedRole :: (?context :: ControllerContext) => Maybe Text
 currentSubmittedRole
     | currentUserIsSuperAdmin = Just "support_super_admin"
     | otherwise = venueRoleToText <$> currentVenueRoleOrNothing
-
-requestParamText :: (?request :: Request) => Text -> Maybe Text
-requestParamText paramName =
-    listToMaybe
-        [ decodeHeader rawValue
-        | (rawName, Just rawValue) <- allParams
-        , decodeHeader rawName == paramName
-        ]
 
 currentUserAgent :: (?request :: Request) => Maybe Text
 currentUserAgent = do

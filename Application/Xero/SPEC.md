@@ -23,8 +23,10 @@ lands.
   but it must not load or render standalone staff-mapping, earnings-mapping,
   calendar, readiness, pay-item, or legacy timesheet panels.
 - Staff decisions, managed pay items, readiness checks, preview, and submission
-  belong to the guided preparation workflow. The pre-wizard preview, submit,
-  and retry endpoints are retired.
+  belong to the guided preparation workflow. The staff-selection AppShell action
+  is nominal: it carries staff identity plus one provider-owned employee
+  selection and has no second text decision discriminator. The pre-wizard
+  preview, submit, and retry endpoints are retired.
 - App-owned Xero sync, staff/earnings mapping, account-code selection, managed
   pay-item requirement, preparation run/decision, submission run/source, and
   per-staff submission state persists as PostgreSQL enums. Production decisions

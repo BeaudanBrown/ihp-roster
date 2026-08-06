@@ -139,6 +139,7 @@ in
         haskell-module-name-check = script ../scripts/haskell/module-name-check;
         typecheck = script ../scripts/haskell/typecheck;
         enum-authority-check = script ../scripts/haskell/enum-authority-check;
+        typed-contract-authority-check = script ../scripts/haskell/typed-contract-authority-check;
         frontend-contract-warnings = script ../scripts/haskell/frontend-contract-warnings;
         weeder-check = script ../scripts/haskell/weeder-check;
         weeder-policy-test = script ../scripts/haskell/weeder-policy-test;

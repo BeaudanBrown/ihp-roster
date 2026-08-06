@@ -32,6 +32,7 @@ module Application.Helper.FrontendContract.Toggle.Runtime
     , toggleTransportKey
     ) where
 
+import Application.Helper.FrontendContract.ClosedScalar (KnownClosedScalar)
 import Application.Helper.FrontendContract.Surface.DSL (WireType (..))
 import Application.Helper.FrontendContract.Surface.Values hiding ((&:))
 import qualified Application.Helper.FrontendContract.Toggle as Contract
@@ -123,6 +124,9 @@ instance KnownToggleScalarWire 'WireUUID where
 
 instance KnownToggleScalarWire 'WireDay where
     toggleScalarTarget = ToggleTargetValue . surfaceWireText @'WireDay
+
+instance KnownClosedScalar value => KnownToggleScalarWire ('WireClosed value) where
+    toggleScalarTarget = ToggleTargetValue . surfaceWireText @('WireClosed value)
 
 type family ToggleScalarFieldValue (lookup :: SurfaceFieldLookup) :: Type where
     ToggleScalarFieldValue ('SurfaceFieldRequired wire) = SurfaceWireValue wire

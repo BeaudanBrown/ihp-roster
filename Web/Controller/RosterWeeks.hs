@@ -20,6 +20,7 @@ import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldE
                                                             surfaceActionParamsPresent,
                                                             surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceIntentForm)
+import Application.Helper.FrontendContract.Surface.Roster (RosterStaffScopeValue (..))
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as RosterIntent
@@ -132,10 +133,9 @@ parseRosterStaffPanelScope
         case RosterAction.parseToggleRosterStaffScopeActionParams of
             Left errors -> Left (rosterSurfaceRequestErrorMessage errors)
             Right fields ->
-                case Text.toLower (surfaceFieldValue @Surface.StaffScope fields) of
-                    "all"   -> Right RosterStaffPanelAllVenue
-                    "group" -> Right RosterStaffPanelCurrentGroup
-                    _       -> Left "Choose a valid roster staff scope."
+                case surfaceFieldValue @Surface.StaffScope fields of
+                    RosterStaffAllVenue     -> Right RosterStaffPanelAllVenue
+                    RosterStaffCurrentGroup -> Right RosterStaffPanelCurrentGroup
 
 respondWithRosterCopyFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
 respondWithRosterCopyFailure rosterGroupId targetWeekOffset message =

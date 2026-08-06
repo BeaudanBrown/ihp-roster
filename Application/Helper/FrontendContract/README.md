@@ -152,8 +152,12 @@ select the same action marker, so wrong fields and cross-operation bundle reuse
 fail compilation. Exact scalar parsing rejects repeated values, including
 repeated empty optional values; repeated fields must declare `WireList`.
 
-The guided Xero preparation period, staff-decision, managed-pay-item, and
-submission forms use this nominal interface. Their app-owned field names are not
+The guided Xero preparation period, staff-selection, managed-pay-item, and
+submission forms use this nominal interface. The staff-selection operation no
+longer carries a second `DecisionField` discriminator: the nominal action plus
+its provider-owned employee selection is the complete request. Feedback submit
+uses the same exact AppShell parser; optional browser diagnostics remain
+best-effort fields in that nominal bundle. Their app-owned field names are not
 handwritten in production views or reparsed with raw IHP parameter names.
 Successful final dialog
 workflow mutations should close/clear overlays and refresh business surfaces
@@ -188,10 +192,14 @@ collapsing it to `Text`. Persisted domains use their generated PostgreSQL enum
 constructors directly; DSL-owned domains use their own `Bounded`/`Enum` ADT and
 canonical `InputValue` projection. Reflection enumerates that exact type—there
 is no registry scan or shadow ADT—and browser unions/guards/parsers are emitted
-only for the declaration's explicit reachability. Production registrations
-currently include server-carried `RosterLayoutModeEnum` and browser-inbound
-`RosterTemplateScaleEnum`; the latter drives the generated template-card DTO
-union and guard consumed by the roster TypeScript runtime.
+only for the declaration's explicit reachability. Production registrations include generated `RosterLayoutModeEnum`,
+`RosterTemplateScaleEnum`, `VenueRoleEnum`, `StaffEmploymentBasisEnum`,
+`FeedbackTypeEnum`, and `ShiftTypeColourKeyEnum`, plus app-owned profile section,
+roster staff scope, leave section, and export-type authorities. Feature-local finite types live
+with their Surface/domain module; the aggregate `ClosedScalars` module only
+registers them. `RosterTemplateScaleEnum` drives the generated template-card DTO
+union and guard, while `LeaveSectionValue` is browser-inbound because live mount
+fragment keys carry it. Other request-only values remain server schemas.
 
 Outer field presence remains separate from recursive wire nullability. An absent
 `OptionalField` is omitted, a present optional nullable value can be explicit
@@ -358,14 +366,31 @@ one typed `MountTarget`; descriptor and view IDs are rendered through
 
 ## Authority Reconciliation
 
-The zero-legacy authority audit uses structural source checks for
-contract-bound vocabulary rather than broad word-based regexes; generated
-adapter drift, publication, compile-failure, and CSS ownership checks protect
-the same authority boundary. `frontend-contract-warnings` discovers the exact
-reflected registry closure, precompiles generated/framework dependencies, then
-applies curated warning errors only to the reachable app-owned FrontendContract
-sources. Generated IHP source warnings are not an application authority failure.
-Verify it with `verify-full`, `lint`, and `format`.
+`typed-contract-authority-check` is the blocking zero-bypass source gate. It
+rejects generic production Surface Action/Intent parser or metadata calls,
+handwritten migrated operation field names, finite fields regressed to
+`WireText`, retired decision/discriminator envelopes, rendered-enum branching,
+and any non-empty Weeder baseline. Two open shapes are explicitly classified:
+pay-rate selection is a server-validated tagged Award/Xero UUID or roster-only
+reference, and Xero employee selection carries provider-owned ids plus the
+not-applicable sentinel. Neither is falsely represented as a finite scalar;
+both retain nominal generated field-name ownership.
+
+The historical reporting audit uses structural source checks for contract-bound
+vocabulary rather than broad word-based regexes; generated adapter drift,
+publication, compile-failure, and CSS ownership checks protect the same authority
+boundary. `frontend-contract-warnings` discovers the exact reflected registry
+closure, precompiles generated/framework dependencies, then applies curated
+warning errors only to reachable app-owned sources. Generated IHP source warnings
+are not an application authority failure.
+
+Final #338 topology is 8 generator-foundation files / 2,923 LOC, 8 family
+association files / 161 LOC, 24 generated Haskell adapter files / 3,749 LOC, 24
+curated facades / 671 LOC, and one generated TypeScript file / 1,773 LOC. The
+exact Profile Action and Roster Intent closures remain 20 and 21
+`Application.*` modules. Verify final authority with
+`typed-contract-authority-check`, `frontend-check`, `weeder-check`, and
+`verify-full`.
 #151 is separately approved live-data schema-retirement work, not a
 FrontendContract compatibility exception. The historical audit and closeout
 evidence are archived at `docs/archive/frontend-contract-authority-hardening.md`.

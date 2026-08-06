@@ -15,6 +15,7 @@ module Web.LeaveRequests.ReadModel
     ) where
 
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
+import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveSectionValue)
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Action as LeaveRequestsAction
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Live (leaveRequestsLiveScope)
@@ -51,8 +52,8 @@ data LeaveRequestsFragment
     = LeaveRequestsContent
     | UnavailabilityBlackouts
     | LeaveAvailabilityWarnings
-    | LeaveRequestsSectionCount !Text
-    | LeaveRequestsSectionList !Text
+    | LeaveRequestsSectionCount !LeaveSectionValue
+    | LeaveRequestsSectionList !LeaveSectionValue
     deriving (Eq, Show)
 
 data LeaveRequestsSectionFragment

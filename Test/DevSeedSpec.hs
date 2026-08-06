@@ -2,6 +2,7 @@ module Test.DevSeedSpec where
 
 import Application.Fixture.DevFixtures
 import Application.Fixture.Seed.Scenario
+import Application.Helper.ShiftTypeColours (shiftTypeColourKeyCssValue)
 import Application.PayAssignment (EffectivePayAssignment (..),
                                   ShiftPayAssignment (..),
                                   StaffPayAssignment (..), resolvePayAssignment)
@@ -373,7 +374,7 @@ tests = aroundAll withDatabaseTestContext do
                         |> orderByAsc #payrollLabel
                         |> fetch
 
-                map (\shiftType -> (shiftType.name, shiftType.colourKey, shiftType.payAssignmentMode, tshow <$> shiftType.overrideAwardLevelId, isJust shiftType.importedXeroPayItemId)) shiftTypes
+                map (\shiftType -> (shiftType.name, shiftTypeColourKeyCssValue shiftType.colourKey, shiftType.payAssignmentMode, tshow <$> shiftType.overrideAwardLevelId, isJust shiftType.importedXeroPayItemId)) shiftTypes
                     `shouldBe` expectedSeedShiftTypesBySortOrder
                 map (\version -> (version.payrollLabel, version.payAssignmentMode, tshow <$> version.overrideAwardLevelId, isJust version.importedXeroPayItemId)) shiftTypeVersions
                     `shouldBe` expectedSeedShiftTypeVersionsByLabel

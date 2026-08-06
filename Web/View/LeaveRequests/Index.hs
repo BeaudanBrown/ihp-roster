@@ -3,6 +3,7 @@
 module Web.View.LeaveRequests.Index where
 
 import Application.Helper.Controller (leaveRequestIsArchivedOn)
+import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveSectionValue (..))
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Action as LeaveRequestsAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
@@ -47,13 +48,13 @@ leaveRequestsShellId = "leave-requests-shell"
 leaveRequestsContentFragmentId :: Text
 leaveRequestsContentFragmentId = "leave-requests-content"
 
-leavePendingSection, leaveApprovedSection, leaveDeniedSection, leaveArchiveSection :: Text
-leavePendingSection = "pending"
-leaveApprovedSection = "approved"
-leaveDeniedSection = "denied"
-leaveArchiveSection = "archive"
+leavePendingSection, leaveApprovedSection, leaveDeniedSection, leaveArchiveSection :: LeaveSectionValue
+leavePendingSection = LeavePendingSection
+leaveApprovedSection = LeaveApprovedSection
+leaveDeniedSection = LeaveDeniedSection
+leaveArchiveSection = LeaveArchiveSection
 
-leaveSectionCountFragmentId, leaveSectionListFragmentId :: Text -> Text
+leaveSectionCountFragmentId, leaveSectionListFragmentId :: LeaveSectionValue -> Text
 leaveSectionCountFragmentId section =
     surfaceFragmentTargetId @Surface.LeaveRequestsSurface @Surface.LeaveSectionCount
         ( surfaceField @Surface.LeaveSection section
@@ -371,14 +372,14 @@ renderManagerLeaveRequests leaveRequests staffMembers currentViewerStaffId today
         approvedRequests = sortOn (Down . (.startDate)) (filter ((== LeaveRequestStatusEnumApproved) . (.status)) activeRequests)
         deniedRequests = sortOn (Down . (.startDate)) (filter ((== LeaveRequestStatusEnumDenied) . (.status)) activeRequests)
 
-renderLeaveSectionCountLiveFragment :: Text -> [LeaveRequest] -> Day -> Html
+renderLeaveSectionCountLiveFragment :: LeaveSectionValue -> [LeaveRequest] -> Day -> Html
 renderLeaveSectionCountLiveFragment section leaveRequests today
     | section == leaveApprovedSection = renderManagerSectionCount (leaveSectionCountFragmentId section) (approvedLeaveRequests leaveRequests today)
     | section == leaveDeniedSection = renderManagerSectionCount (leaveSectionCountFragmentId section) (deniedLeaveRequests leaveRequests today)
     | section == leaveArchiveSection = renderArchiveCountLiveFragment (buildArchivePagination 1 (archivedLeaveRequests leaveRequests today))
     | otherwise = renderManagerSectionCount (leaveSectionCountFragmentId leavePendingSection) (pendingLeaveRequests leaveRequests today)
 
-renderLeaveSectionListLiveFragment :: (?context :: ControllerContext) => Text -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> ArchivePagination -> [LeaveRequest] -> Html
+renderLeaveSectionListLiveFragment :: (?context :: ControllerContext) => LeaveSectionValue -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> ArchivePagination -> [LeaveRequest] -> Html
 renderLeaveSectionListLiveFragment section leaveRequests staffMembers currentViewerStaffId today archivePagination archivedPageRequests
     | section == leaveApprovedSection = renderManagerSectionList (leaveSectionListFragmentId section) (approvedLeaveRequests leaveRequests today) staffMembers currentViewerStaffId True
     | section == leaveDeniedSection = renderManagerSectionList (leaveSectionListFragmentId section) (deniedLeaveRequests leaveRequests today) staffMembers currentViewerStaffId True

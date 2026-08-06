@@ -59,7 +59,7 @@ tests = aroundAll withDatabaseTestContext do
                 let [feedbackItem] = feedbackItems
                 feedbackItem.venueId `shouldBe` unpackId venue.id
                 feedbackItem.submittedByUserId `shouldBe` unpackId user.id
-                feedbackItem.feedbackType `shouldBe` "suggestion"
+                feedbackItem.feedbackType `shouldBe` Suggestion
                 feedbackItem.content `shouldBe` "Please add a daily print view."
                 feedbackItem.userAgent `shouldBe` Just "FeedbackSpec/1.0"
                 feedbackItem.submittedPath `shouldBe` Just "/LeaveRequests"

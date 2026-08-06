@@ -77,7 +77,9 @@ module Application.Helper.FrontendContract.Surface.Admin
     , ShowMatched
     ) where
 
+import Application.Helper.Export.Types (ExportJobType)
 import Application.Helper.FrontendContract.Surface.DSL
+import Application.Helper.ShiftTypeColours (ShiftTypeColourKeyEnum)
 
 data AdminPageScope
 data AdminXeroPageScope
@@ -272,7 +274,7 @@ type AdminExportsSurface =
          , Action CreateExportJob
             '[ Field RangeStart 'WireDay
              , Field RangeEnd 'WireDay
-             , Field ExportType 'WireText
+             , Field ExportType ('WireClosed ExportJobType)
              ]
             '[ 'HtmxMethod 'HtmxPost
              , 'HtmxTarget ('HtmxId AdminExportsFragment)
@@ -289,7 +291,7 @@ type AdminShiftTypesSurface =
             '[ Field ShowInactiveShiftTypes 'WireBool
              , Field Name 'WireText
              , Field PayRateSelection 'WireText
-             , Field ColourKey 'WireText
+             , Field ColourKey ('WireClosed ShiftTypeColourKeyEnum)
              , Field IsActive 'WireBool
              ]
             '[ 'HtmxMethod 'HtmxPost
@@ -300,7 +302,7 @@ type AdminShiftTypesSurface =
             '[ Field ShowInactiveShiftTypes 'WireBool
              , Field Name 'WireText
              , Field PayRateSelection 'WireText
-             , Field ColourKey 'WireText
+             , Field ColourKey ('WireClosed ShiftTypeColourKeyEnum)
              , Field IsActive 'WireBool
              ]
             '[ 'HtmxMethod 'HtmxPost
@@ -329,7 +331,7 @@ type AdminShiftTypesSurface =
             '[ Field ShowInactiveShiftTypes 'WireBool
              , Field Name 'WireText
              , Field PayRateSelection 'WireText
-             , Field ColourKey 'WireText
+             , Field ColourKey ('WireClosed ShiftTypeColourKeyEnum)
              , Field IsActive 'WireBool
              ]
             '[ 'HtmxMethod 'HtmxPost
@@ -341,7 +343,7 @@ type AdminShiftTypesSurface =
             '[ Field ShowInactiveShiftTypes 'WireBool
              , Field Name 'WireText
              , Field PayRateSelection 'WireText
-             , Field ColourKey 'WireText
+             , Field ColourKey ('WireClosed ShiftTypeColourKeyEnum)
              , Field IsActive 'WireBool
              ]
             '[ 'HtmxMethod 'HtmxPost

@@ -15,8 +15,7 @@ staffDecisionFields :: AppShellActionFields AppShell.ApplyXeroTimesheetPreparati
 staffDecisionFields =
     appShellActionFields @AppShell.ApplyXeroTimesheetPreparationStaffDecisionOverlay
         (surfaceField @AppShell.StaffIdField staffUuid)
-        ( surfaceField @AppShell.DecisionField "select_employee"
-            &: surfaceField @AppShell.XeroEmployeeSelectionField "employee-1"
+        ( surfaceField @AppShell.XeroEmployeeSelectionField "employee-1"
             &: noSurfaceFields
         )
 

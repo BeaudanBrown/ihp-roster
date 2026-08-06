@@ -14,7 +14,8 @@ import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
 import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey)
 import Application.Helper.TimesheetPayLedger (persistApprovedTimesheetPayCalculation)
-import Application.PayAssignment (StaffPayAssignment (..), staffAssignmentAllowsTimesheets)
+import Application.PayAssignment (StaffPayAssignment (..),
+                                  staffAssignmentAllowsTimesheets)
 import Application.VenueTime.Model
 import qualified Data.Aeson as Aeson
 import Data.Time.Calendar (Day, addDays, fromGregorian)
@@ -29,11 +30,11 @@ import IHP.Prelude
 import qualified IHP.Prelude as Prelude
 
 data PayFixture = PayFixture
-    { floorShift       :: !ShiftType
-    , kitchenShift     :: !ShiftType
-    , allShiftTypes    :: ![ShiftType]
-    , floorAwardLevel  :: !(Id AwardLevel)
-    , importedPayItem  :: !XeroImportedPayItem
+    { floorShift      :: !ShiftType
+    , kitchenShift    :: !ShiftType
+    , allShiftTypes   :: ![ShiftType]
+    , floorAwardLevel :: !(Id AwardLevel)
+    , importedPayItem :: !XeroImportedPayItem
     }
 
 ensurePayReferenceData :: (?modelContext :: ModelContext) => IO ()
@@ -42,8 +43,8 @@ ensurePayReferenceData = ensureSeedShiftTypeAwardLevels
 seedShiftTypes :: (?modelContext :: ModelContext) => Venue -> User -> Day -> IO PayFixture
 seedShiftTypes venue admin fixtureWeekStart = do
     importedPayItem <- createSeedImportedXeroPayItem venue admin
-    floorShift <- createSeedShiftTypeRecord venue admin fixtureWeekStart "Floor" 10 "palette-1" StaffDefault Nothing Nothing
-    kitchenShift <- createSeedShiftTypeRecord venue admin fixtureWeekStart "Kitchen" 20 "palette-2" AwardRate (Just seededKitchenAwardLevelId) Nothing
+    floorShift <- createSeedShiftTypeRecord venue admin fixtureWeekStart "Floor" 10 Palette1 StaffDefault Nothing Nothing
+    kitchenShift <- createSeedShiftTypeRecord venue admin fixtureWeekStart "Kitchen" 20 Palette2 AwardRate (Just seededKitchenAwardLevelId) Nothing
     extraShiftTypes <- forM (seedExtraShiftTypeSpecs importedPayItem.id) \(shiftTypeName, sortOrder, colourKey, payMode, awardLevelId, importedPayItemId) ->
         createSeedShiftTypeRecord venue admin fixtureWeekStart shiftTypeName sortOrder colourKey payMode awardLevelId importedPayItemId
     let allShiftTypes = [floorShift, kitchenShift] <> extraShiftTypes
@@ -80,7 +81,7 @@ applyDevTimesheetBoundaries workedOn startTime endTime hadBreak maybeBreakStart 
      in applyTimesheetEntryBoundaries boundaries entry
 
 
-createSeedShiftTypeRecord :: (?modelContext :: ModelContext) => Venue -> User -> Day -> Text -> Int -> Text -> PayAssignmentModeEnum -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> IO ShiftType
+createSeedShiftTypeRecord :: (?modelContext :: ModelContext) => Venue -> User -> Day -> Text -> Int -> ShiftTypeColourKeyEnum -> PayAssignmentModeEnum -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> IO ShiftType
 createSeedShiftTypeRecord venue actorUser effectiveFrom shiftTypeName sortOrder colourKey payMode awardLevelId importedPayItemId = do
     shiftType <-
         newRecord @ShiftType
@@ -96,7 +97,7 @@ createSeedShiftTypeRecord venue actorUser effectiveFrom shiftTypeName sortOrder 
     _ <- ensureShiftTypePayVersionForShiftType actorUser.id shiftType effectiveFrom
     pure shiftType
 
-seedExtraShiftTypeSpecs :: Id XeroImportedPayItem -> [(Text, Int, Text, PayAssignmentModeEnum, Maybe (Id AwardLevel), Maybe (Id XeroImportedPayItem))]
+seedExtraShiftTypeSpecs :: Id XeroImportedPayItem -> [(Text, Int, ShiftTypeColourKeyEnum, PayAssignmentModeEnum, Maybe (Id AwardLevel), Maybe (Id XeroImportedPayItem))]
 seedExtraShiftTypeSpecs importedPayItemId =
     [ ("Bar", 30, blankShiftTypeColourKey, XeroRate, Nothing, Just importedPayItemId)
     , ("Gaming", 40, blankShiftTypeColourKey, RosterOnly, Nothing, Nothing)

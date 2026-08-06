@@ -36,6 +36,7 @@ import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFields,
                                                            (&:))
 import Data.Time (Day)
 import qualified Data.UUID as UUID
+import qualified Generated.Types as Types3
 import IHP.Prelude
 import Network.Wai (Request)
 
@@ -74,9 +75,9 @@ updateProfileDetailsActionFields ::
     Int ->
     Text ->
     Text ->
-    Text ->
-    Maybe Text ->
-    Maybe Text ->
+    Types1.StaffProfileSectionValue ->
+    Maybe Types3.VenueRoleEnum ->
+    Maybe Types3.StaffEmploymentBasisEnum ->
     Maybe Text ->
     Maybe [UUID.UUID] ->
     SurfaceActionFields (AdapterFamilySurface Types2.ProfileAdapterFamily) Types1.UpdateProfileDetails
@@ -112,7 +113,7 @@ parseUpdateProfileDetailsActionParams =
         @Types1.UpdateProfileDetails
 
 updateProfileShiftPreferencesActionFields ::
-    Text ->
+    Types1.StaffProfileSectionValue ->
     Maybe [Text] ->
     SurfaceActionFields (AdapterFamilySurface Types2.ProfileAdapterFamily) Types1.UpdateProfileShiftPreferences
 updateProfileShiftPreferencesActionFields section shiftPreferenceKeys =
@@ -144,9 +145,9 @@ updateStaffProfileActionFields ::
     Int ->
     Text ->
     Text ->
-    Text ->
-    Maybe Text ->
-    Maybe Text ->
+    Types1.StaffProfileSectionValue ->
+    Maybe Types3.VenueRoleEnum ->
+    Maybe Types3.StaffEmploymentBasisEnum ->
     Maybe Text ->
     Maybe [UUID.UUID] ->
     SurfaceActionFields (AdapterFamilySurface Types2.StaffAdapterFamily) Types1.UpdateStaffProfile
@@ -182,7 +183,7 @@ parseUpdateStaffProfileActionParams =
         @Types1.UpdateStaffProfile
 
 updateStaffShiftPreferencesActionFields ::
-    Text ->
+    Types1.StaffProfileSectionValue ->
     Maybe [Text] ->
     SurfaceActionFields (AdapterFamilySurface Types2.StaffAdapterFamily) Types1.UpdateStaffShiftPreferences
 updateStaffShiftPreferencesActionFields section shiftPreferenceKeys =

@@ -268,14 +268,16 @@ bash ./bin/in-env frontend-generated-sync
 bash ./bin/in-env frontend-generated-watch
 bash ./bin/in-env frontend-surface-adapters
 bash ./bin/in-env frontend-surface-adapters-check
+bash ./bin/in-env typed-contract-authority-check
 bash ./bin/in-env frontend-watch
 bash ./bin/in-env generated-code-sync
 ```
 
 `frontend-check` runs contract drift, strict TypeScript validation including
 unused-code checks, frontend unit/DOM tests, and generated JS drift. The full
-verification gate additionally runs curated FrontendContract GHC warnings and
-Weeder reachability, CSS stale-selector ownership, architecture freshness, and
+verification gate additionally runs the zero-bypass typed-authority gate,
+curated FrontendContract GHC warnings and Weeder reachability, CSS stale-selector
+ownership, architecture freshness, and
 documentation drift. `dev-start` and `just dev` first use content fingerprints
 to generate only stale frontend contracts, Haskell Surface adapters, and
 JavaScript, then run the coordinated frontend-generated watcher plus the

@@ -14,6 +14,7 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              appShellActionByMarker,
                                                              applyAppShellActionAttrs)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
+import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue (..))
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
 import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
@@ -140,7 +141,7 @@ renderNewStaffBody formMode staff rosterGroups awardLevels awardLevelBaseRates i
             , managementWeekOffset = Just weekOffset
             , managementRosterGroupId = maybeRosterGroupId
             }
-    values = staffProfileDetailsSurfaceValues "profile" staff (Just managementFields)
+    values = staffProfileDetailsSurfaceValues StaffProfileDetailsSection staff (Just managementFields)
     fields =
         ProfileAction.updateStaffProfileActionFields
             values.profileDetailsFirstName
@@ -427,7 +428,7 @@ renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields acti
             , staffProfileDetailsFormRequestMode = staffDetailsFormRequestMode formMode (pathTo action) UpdateStaffProfileOverlayMarker
             , staffProfileDetailsSurfaceFields = fields
             , staffProfileDetailsFormAttributes = []
-            , staffProfileDetailsFormHiddenInputs = [hsx|<input type="hidden" name={surfaceFieldNameFrom @Surface.SectionField fields} value="profile"/>|]
+            , staffProfileDetailsFormHiddenInputs = [hsx|<input type="hidden" name={surfaceFieldNameFrom @Surface.SectionField fields} value={inputValue StaffProfileDetailsSection}/>|]
             , staffProfileDetailsFormBeforeFields = mempty
             , staffProfileDetailsFormFieldsHeading = Nothing
             , staffProfileDetailsFormEmailField = renderPersonalProfileFields
@@ -439,7 +440,7 @@ renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields acti
         staff
         maybeLinkedUserEmail
   where
-    values = staffProfileDetailsSurfaceValues "profile" staff (Just managementFields)
+    values = staffProfileDetailsSurfaceValues StaffProfileDetailsSection staff (Just managementFields)
     fields =
         ProfileAction.updateStaffProfileActionFields
             values.profileDetailsFirstName
@@ -564,7 +565,7 @@ renderStaffShiftPreferencesEditForm formMode preferenceWeekdays selectedShiftPre
             , staffShiftPreferencesFormRequestMode = staffShiftPreferencesOverlayRequestMode formMode (pathTo action)
             , staffShiftPreferencesSurfaceFields = fields
             , staffShiftPreferencesFormHiddenInputs = [hsx|
-                <input type="hidden" name={surfaceFieldNameFrom @Surface.SectionField fields} value="preferences"/>
+                <input type="hidden" name={surfaceFieldNameFrom @Surface.SectionField fields} value={inputValue StaffProfilePreferencesSection}/>
                 {renderWeekOffsetHiddenInput weekOffset}
                 {renderRosterGroupHiddenInput maybeRosterGroupId}
             |]
@@ -573,7 +574,7 @@ renderStaffShiftPreferencesEditForm formMode preferenceWeekdays selectedShiftPre
         preferenceWeekdays
         selectedShiftPreferences
   where
-    values = staffShiftPreferencesSurfaceValues "preferences" selectedShiftPreferences
+    values = staffShiftPreferencesSurfaceValues StaffProfilePreferencesSection selectedShiftPreferences
     fields =
         ProfileAction.updateStaffShiftPreferencesActionFields
             values.shiftPreferencesSection

@@ -13,6 +13,7 @@ import Application.Helper.FrontendContract.Surface.Authorization (frontendSurfac
                                                                   validateFrontendSurfaceLiveSubscription)
 import Application.Helper.FrontendContract.Surface.AuthorizationRequirement (SurfaceScopeAuthorizationRequirement (..))
 import qualified Application.Helper.FrontendContract.Surface.Billing.Live as BillingLive
+import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveSectionValue (..))
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Live as LeaveLive
 import Application.Helper.FrontendContract.Surface.Live (frontendSurfaceFragmentKey,
                                                          frontendSurfaceScope,
@@ -492,7 +493,7 @@ tests = describe "LiveUpdate runtime types" do
         frontendSurfaceScopeAuthorizationRequirement staffScope `shouldBe` Just (Just (RequireCurrentVenueManager venueId))
 
 leavePendingCountLiveFragment :: SurfaceFragmentKey
-leavePendingCountLiveFragment = LeaveLive.leaveSectionCountLiveFragment "pending"
+leavePendingCountLiveFragment = LeaveLive.leaveSectionCountLiveFragment LeavePendingSection
 
 decodeValueAs :: forall value. Aeson.FromJSON value => Aeson.Value -> Either String value
 decodeValueAs value = Aeson.eitherDecode (Aeson.encode value)

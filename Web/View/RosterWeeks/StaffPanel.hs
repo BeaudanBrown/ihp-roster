@@ -14,6 +14,7 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              renderAppShellActionHtmxControl)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
+import Application.Helper.FrontendContract.Surface.Roster (RosterStaffScopeValue (..))
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Roster.StaffPanel (RosterStaffPanelSortKey (..),
@@ -291,14 +292,14 @@ renderStaffScopeToggle weekOffset currentRosterGroupId panelScope =
         |]
   where
     actionUrl = pathTo (ShowRosterWeekStaffPanelFragmentAction weekOffset)
-    fields = RosterAction.toggleRosterStaffScopeActionFields (if panelScope == RosterStaffPanelAllVenue then "all" else "group")
+    fields = RosterAction.toggleRosterStaffScopeActionFields (if panelScope == RosterStaffPanelAllVenue then RosterStaffAllVenue else RosterStaffCurrentGroup)
 
 renderStaffScopeToggleButton :: SurfaceActionFields Surface.RosterSurface Surface.ToggleRosterStaffScope -> Id RosterGroup -> RosterStaffPanelScope -> Html
 renderStaffScopeToggleButton fields currentRosterGroupId panelScope =
     renderAppToggleButton $
         ( defaultAppToggleButtonConfig
             (staffScopeToggleInputId currentRosterGroupId)
-            (surfaceToggleScalarField @Surface.StaffScope fields "all" "group")
+            (surfaceToggleScalarField @Surface.StaffScope fields RosterStaffAllVenue RosterStaffCurrentGroup)
             (panelScope == RosterStaffPanelAllVenue)
             [hsx|<span class="small fw-semibold">Show all staff</span>|]
         )

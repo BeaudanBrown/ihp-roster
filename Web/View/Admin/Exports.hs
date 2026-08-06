@@ -116,7 +116,7 @@ renderExportGenerationForm selection =
             </div>
         |]
   where
-    fields = AdminAction.createExportJobActionFields selection.weekStart selection.weekEnd (exportJobTypeToText StaffPayCsv)
+    fields = AdminAction.createExportJobActionFields selection.weekStart selection.weekEnd StaffPayCsv
 
 createExportRoute :: FrontendSurfaceActionRoute
 createExportRoute = FrontendSurfaceActionRoute

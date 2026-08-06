@@ -67,12 +67,9 @@ instance Controller ExportsController where
             Left errors ->
                 respondWithExportGenerationError ("Choose an export type and a valid roster week. " <> surfaceRequestFieldErrorsMessage errors)
             Right fields ->
-                case parseExportJobType (surfaceFieldValue @Surface.ExportType fields) of
-                    Just exportType ->
-                        requestFixedExportMutation exportType (surfaceFieldValue @Surface.RangeStart fields) (surfaceFieldValue @Surface.RangeEnd fields) >>= \case
-                            Left message -> respondWithExportGenerationError message
-                            Right result -> respondWithGeneratedExportDownload result.liveMutationValue
-                    Nothing -> respondWithExportGenerationError "Choose a valid export type and roster week."
+                requestFixedExportMutation (surfaceFieldValue @Surface.ExportType fields) (surfaceFieldValue @Surface.RangeStart fields) (surfaceFieldValue @Surface.RangeEnd fields) >>= \case
+                    Left message -> respondWithExportGenerationError message
+                    Right result -> respondWithGeneratedExportDownload result.liveMutationValue
 
     action currentAction@DownloadExportJobAction { exportJobId } = runBepis currentAction BepisExportAction do
         let downloadToken = param @UUID "token"

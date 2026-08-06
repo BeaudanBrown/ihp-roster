@@ -226,7 +226,7 @@ tests = aroundAll withDatabaseTestContext do
                         [ ("showInactiveShiftTypes", "false")
                         , ("name", "Imported Pay Rate Shift")
                         , ("payRateSelection", cs ("xero:" <> tshow importedPayItem.id))
-                        , ("colourKey", "")
+                        , ("colourKey", "no_colour")
                         , ("isActive", "true")
                         ]
                 createResponse `responseStatusShouldBe` status302
@@ -249,7 +249,7 @@ tests = aroundAll withDatabaseTestContext do
                         [ ("showInactiveShiftTypes", "false")
                         , ("name", "Roster only")
                         , ("payRateSelection", "roster-only")
-                        , ("colourKey", "")
+                        , ("colourKey", "no_colour")
                         , ("isActive", "true")
                         ]
                 response `responseStatusShouldBe` status302
@@ -481,7 +481,7 @@ tests = aroundAll withDatabaseTestContext do
                             [ ("showInactiveShiftTypes", "true")
                             , ("name", "Fragment Shift")
                             , ("payRateSelection", cs ("award:" <> tshow level.id))
-                            , ("colourKey", "")
+                            , ("colourKey", "no_colour")
                             , ("isActive", "true")
                             ]
                 createShiftResponse `responseStatusShouldBe` status200
@@ -521,7 +521,7 @@ tests = aroundAll withDatabaseTestContext do
                             [ ("showInactiveShiftTypes", "true")
                             , ("name", "Updated Fragment Shift")
                             , ("payRateSelection", "")
-                            , ("colourKey", "")
+                            , ("colourKey", "no_colour")
                             , ("isActive", "false")
                             ]
                 updateShiftResponse `responseStatusShouldBe` status200
@@ -609,7 +609,7 @@ tests = aroundAll withDatabaseTestContext do
                         [ ("showInactiveShiftTypes", "false")
                         , ("name", "Supervisor")
                         , ("payRateSelection", "")
-                        , ("colourKey", "")
+                        , ("colourKey", "no_colour")
                         , ("isActive", "true")
                         ]
                 shiftTypeResponse `responseStatusShouldBe` status302
@@ -807,7 +807,7 @@ tests = aroundAll withDatabaseTestContext do
                         [ ("showInactiveShiftTypes", "false")
                         , ("name", "Unhighlighted Shift")
                         , ("payRateSelection", "")
-                        , ("colourKey", "")
+                        , ("colourKey", "no_colour")
                         , ("isActive", "true")
                         ]
                 response `responseStatusShouldBe` status302
@@ -830,7 +830,7 @@ tests = aroundAll withDatabaseTestContext do
                 level <- createPayLevelRecord venue "Level 1"
                 activeShiftType <-
                     createShiftTypeRecord venue level "Active Shift"
-                        >>= updateRecord . set #colourKey "palette-1"
+                        >>= updateRecord . set #colourKey Palette1
                 inactiveShiftType <-
                     createShiftTypeRecord venue level "Inactive Shift"
                         >>= updateRecord . set #isActive False . set #colourKey activeShiftType.colourKey
@@ -840,7 +840,7 @@ tests = aroundAll withDatabaseTestContext do
                         [ ("showInactiveShiftTypes", "false")
                         , ("name", "Inactive Shift")
                         , ("payRateSelection", cs ("award:" <> tshow level.id))
-                        , ("colourKey", cs activeShiftType.colourKey)
+                        , ("colourKey", cs (inputValue activeShiftType.colourKey))
                         , ("isActive", "true")
                         ]
                 response `responseStatusShouldBe` status302
@@ -857,22 +857,22 @@ tests = aroundAll withDatabaseTestContext do
                 level <- createPayLevelRecord venue "Level 1"
                 firstShiftType <-
                     createShiftTypeRecord venue level "First Shift"
-                        >>= updateRecord . set #colourKey "palette-3"
+                        >>= updateRecord . set #colourKey Palette3
                 secondShiftType <-
                     createShiftTypeRecord venue level "Second Shift"
-                        >>= updateRecord . set #colourKey "palette-2"
+                        >>= updateRecord . set #colourKey Palette2
 
                 createResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateShiftTypeAction
                         [ ("showInactiveShiftTypes", "false")
                         , ("name", "Manual Colour Shift")
                         , ("payRateSelection", "")
-                        , ("colourKey", "palette-4")
+                        , ("colourKey", "palette_4")
                         , ("isActive", "true")
                         ]
                 createResponse `responseStatusShouldBe` status302
                 createdShiftType <- query @ShiftType |> filterWhere (#name, "Manual Colour Shift") |> fetchOne
-                createdShiftType.colourKey `shouldBe` "palette-4"
+                createdShiftType.colourKey `shouldBe` Palette4
 
                 duplicateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -880,7 +880,7 @@ tests = aroundAll withDatabaseTestContext do
                             [ ("showInactiveShiftTypes", "false")
                             , ("name", "Second Shift")
                             , ("payRateSelection", cs ("award:" <> tshow level.id))
-                            , ("colourKey", cs firstShiftType.colourKey)
+                            , ("colourKey", cs (inputValue firstShiftType.colourKey))
                             , ("isActive", "true")
                             ]
                 duplicateResponse `responseStatusShouldBe` status200
@@ -892,7 +892,7 @@ tests = aroundAll withDatabaseTestContext do
                         [ ("showInactiveShiftTypes", "false")
                         , ("name", "Another Manual Colour Shift")
                         , ("payRateSelection", "")
-                        , ("colourKey", cs firstShiftType.colourKey)
+                        , ("colourKey", cs (inputValue firstShiftType.colourKey))
                         , ("isActive", "true")
                         ]
                 duplicateCreateResponse `responseStatusShouldBe` status302
@@ -1098,7 +1098,7 @@ tests = aroundAll withDatabaseTestContext do
                         [ ("showInactiveShiftTypes", "false")
                         , ("name", "Kitchen Updated")
                         , ("payRateSelection", cs ("award:" <> tshow overrideLevel.id))
-                        , ("colourKey", cs shiftType.colourKey)
+                        , ("colourKey", cs (inputValue shiftType.colourKey))
                         , ("isActive", "false")
                         ]
                 shiftTypeResponse `responseStatusShouldBe` status302
@@ -1217,7 +1217,7 @@ tests = aroundAll withDatabaseTestContext do
                         [ ("showInactiveShiftTypes", "false")
                         , ("name", "Should Not Work")
                         , ("payRateSelection", "")
-                        , ("colourKey", "")
+                        , ("colourKey", "no_colour")
                         , ("isActive", "false")
                         ]
 
@@ -1249,7 +1249,7 @@ tests = aroundAll withDatabaseTestContext do
                         [ ("showInactiveShiftTypes", "false")
                         , ("name", "Supervisor")
                         , ("payRateSelection", "")
-                        , ("colourKey", "")
+                        , ("colourKey", "no_colour")
                         , ("isActive", "true")
                         ]
                 shiftTypeResponse `responseStatusShouldBe` status302

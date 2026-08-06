@@ -42,6 +42,11 @@ When enum, constraint, trigger, or parser-sensitive SQL changes are involved,
 restart/wait for the dev server after applying locally so IHP sees the final
 `pg_dump` shape.
 
+## Data-Preserving Enum Conversions
+
+GitHub #338's feedback/shift-colour enum preflight, verification, and rollback
+procedure is documented in `typed-authority-enums-338-runbook.md`.
+
 ## Operator-Gated Retirements
 
 GitHub #334's data-preserving Xero workflow enum conversion, preflight failure

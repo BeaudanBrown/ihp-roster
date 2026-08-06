@@ -1,5 +1,7 @@
 module Web.Controller.LeaveRequests where
 
+import Application.Helper.FrontendContract.ClosedScalar (parseClosedScalarLiteral)
+import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveSectionValue (..))
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as LeaveRequestsSurface
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Action as LeaveRequestsAction
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (unavailabilityBlackoutsResource)
@@ -294,11 +296,9 @@ requestedLeaveRequestsFragment =
         "leave-section-list"          -> LeaveRequestsSectionList requestedLeaveSection
         _                     -> LeaveRequestsContent
 
-requestedLeaveSection :: (?request :: Request) => Text
+requestedLeaveSection :: (?request :: Request) => LeaveSectionValue
 requestedLeaveSection =
-    case paramOrDefault @Text leavePendingSection "section" of
-        section | section `elem` [leavePendingSection, leaveApprovedSection, leaveDeniedSection, leaveArchiveSection] -> section
-        _ -> leavePendingSection
+    fromMaybe LeavePendingSection (parseClosedScalarLiteral (paramOrDefault @Text "pending" "section"))
 
 ensureUnavailabilityBlackoutManager :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 ensureUnavailabilityBlackoutManager = ensureAdminRole

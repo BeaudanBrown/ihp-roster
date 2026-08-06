@@ -114,6 +114,9 @@ it emits generated root/control/tab roles and one exact JSON row payload with an
 opaque staff-row key, name, role, assigned-shift count, and ideal-shift count.
 The view does not expose parallel per-field `data-roster-staff-*` attributes.
 
+The group/all staff-panel scope transport uses closed `RosterStaffScopeValue`;
+the view and controller never branch on rendered `"group"`/`"all"` text.
+
 The generic complete-set sort runtime owns mount-local name/role/shifts ordering,
 ascending/descending toggles, deterministic opaque tie-breaking, and
 `aria-sort`. The generic tab-set runtime remembers a valid Staff/Settings key

@@ -3,6 +3,7 @@ module Test.SurfaceDependencySpec where
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.FrontendContract.Surface.Billing.Resource
+import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveSectionValue (..))
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource
 import Application.Helper.FrontendContract.Surface.Profile.Resource
 import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
@@ -123,8 +124,8 @@ tests = do
             let candidates = leaveRequestsCandidateMountedFragments scopeValue
             let blackoutResources = Set.fromList [unavailabilityBlackoutsResource venueId]
             let warningResources = Set.fromList [leaveAvailabilityWarningsResource venueId]
-            let pendingResources = Set.fromList [leaveRequestsSectionResource venueId "pending"]
-            let approvedResources = Set.fromList [leaveRequestsSectionResource venueId "approved"]
+            let pendingResources = Set.fromList [leaveRequestsSectionResource venueId LeavePendingSection]
+            let approvedResources = Set.fromList [leaveRequestsSectionResource venueId LeaveApprovedSection]
             let affectedByBlackouts = planMountedFragments blackoutResources (leaveRequestsSurfaceScope scopeValue) candidates
             let affectedByWarnings = planMountedFragments warningResources (leaveRequestsSurfaceScope scopeValue) candidates
             let affectedByPending = planMountedFragments pendingResources (leaveRequestsSurfaceScope scopeValue) candidates

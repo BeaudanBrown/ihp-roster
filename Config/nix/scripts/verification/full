@@ -11,8 +11,8 @@ typecheck
 echo "verify-full: complete Hspec"
 hspec-test
 
-echo "verify-full: generated enum authority"
-enum-authority-check
+echo "verify-full: zero-bypass typed contract authority"
+typed-contract-authority-check
 
 echo "verify-full: curated FrontendContract warnings"
 frontend-contract-warnings

@@ -86,7 +86,6 @@ module Application.Helper.FrontendContract.AppShell
     , ReferenceWaitStartedAtField
     , ReferenceDemandField
     , PeriodKeyField
-    , DecisionField
     , XeroEmployeeSelectionField
     , XeroEarningsRateIdField
     , AccountCodeField
@@ -95,6 +94,9 @@ module Application.Helper.FrontendContract.AppShell
 
 import Application.Helper.FrontendContract.DSL
 import Application.Helper.FrontendContract.Overlay (DialogOverlayMount)
+import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue)
+import Generated.Types (FeedbackTypeEnum, StaffEmploymentBasisEnum,
+                        VenueRoleEnum)
 
 data AppShell
 data PartialNavigate
@@ -182,7 +184,6 @@ data LoadCandidatesField
 data ReferenceWaitStartedAtField
 data ReferenceDemandField
 data PeriodKeyField
-data DecisionField
 data XeroEmployeeSelectionField
 data XeroEarningsRateIdField
 data AccountCodeField
@@ -206,12 +207,12 @@ type AppShellContract =
             '[]
             DialogLauncherOptions
          , AppShellAction SubmitFeedback
-            '[ Field FeedbackTypeField 'WireText
+            '[ Field FeedbackTypeField ('WireClosed FeedbackTypeEnum)
              , Field ContentField 'WireText
-             , Field FeedbackViewportWidthField 'WireText
-             , Field FeedbackViewportHeightField 'WireText
-             , Field FeedbackDevicePixelRatioField 'WireText
-             , Field FeedbackDisplayModeField 'WireText
+             , OptionalField FeedbackViewportWidthField 'WireText
+             , OptionalField FeedbackViewportHeightField 'WireText
+             , OptionalField FeedbackDevicePixelRatioField 'WireText
+             , OptionalField FeedbackDisplayModeField 'WireText
              ]
             '[ AppShellHtmxMethod 'AppShellPost
              , AppShellHtmxTarget DialogOverlayMount
@@ -285,7 +286,6 @@ type AppShellContract =
              ]
          , AppShellAction ApplyXeroTimesheetPreparationStaffDecisionOverlay
             '[ Field StaffIdField 'WireUUID
-             , Field DecisionField 'WireText
              , Field XeroEmployeeSelectionField 'WireText
              ]
             '[ AppShellHtmxMethod 'AppShellPost
@@ -396,17 +396,17 @@ type StaffProfileFields =
      , Field IdealShiftsPerWeekField 'WireText
      , Field EmergencyContactNameField 'WireText
      , Field EmergencyContactPhoneField 'WireText
-     , Field SectionField 'WireText
+     , Field SectionField ('WireClosed StaffProfileSectionValue)
      , Field WeekOffsetField 'WireText
      , Field RosterGroupIdField 'WireText
-     , Field VenueRoleField 'WireText
-     , Field EmploymentBasisField 'WireText
+     , Field VenueRoleField ('WireClosed VenueRoleEnum)
+     , Field EmploymentBasisField ('WireClosed StaffEmploymentBasisEnum)
      , Field PayRateSelectionField 'WireText
      , Field RosterGroupIdsField 'WireText
      ]
 
 type StaffShiftPreferenceFields =
-    '[ Field SectionField 'WireText
+    '[ Field SectionField ('WireClosed StaffProfileSectionValue)
      , Field WeekOffsetField 'WireText
      , Field RosterGroupIdField 'WireText
      , Field ShiftPreferenceKeysField 'WireText

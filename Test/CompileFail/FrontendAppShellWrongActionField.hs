@@ -14,4 +14,4 @@ periodFields =
         noSurfaceFields
 
 -- A field name can only be obtained from the nominal operation that owns it.
-wrongFieldName = surfaceFieldNameFrom @AppShell.DecisionField periodFields
+wrongFieldName = surfaceFieldNameFrom @AppShell.AccountCodeField periodFields

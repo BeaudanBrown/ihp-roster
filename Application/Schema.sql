@@ -48,6 +48,8 @@ CREATE TYPE staff_document_status_enum AS ENUM ('pending_review', 'verified', 'r
 CREATE TYPE award_penalty_kind_enum AS ENUM ('evening_after_7pm', 'late_night_after_midnight', 'saturday_penalty', 'sunday_penalty', 'public_holiday_penalty', 'delayed_meal_break_weekday', 'delayed_meal_break_saturday', 'delayed_meal_break_sunday', 'delayed_meal_break_public_holiday');
 CREATE TYPE roster_layout_mode_enum AS ENUM ('day_rows', 'day_columns');
 CREATE TYPE roster_template_scale_enum AS ENUM ('day', 'week');
+CREATE TYPE feedback_type_enum AS ENUM ('bug', 'suggestion', 'other');
+CREATE TYPE shift_type_colour_key_enum AS ENUM ('no_colour', 'palette_1', 'palette_2', 'palette_3', 'palette_4', 'palette_5', 'palette_6', 'palette_7', 'palette_8', 'palette_9', 'palette_10');
 CREATE TYPE xero_sync_status_enum AS ENUM ('running', 'succeeded', 'failed');
 CREATE TYPE xero_sync_kind_enum AS ENUM ('payroll_reference_data');
 CREATE TYPE xero_staff_mapping_status_enum AS ENUM ('verified', 'not_applicable', 'stale');
@@ -317,7 +319,7 @@ CREATE TABLE shift_types (
     pay_assignment_mode pay_assignment_mode_enum DEFAULT 'staff_default' NOT NULL,
     override_award_level_id UUID DEFAULT NULL,
     imported_xero_pay_item_id UUID DEFAULT NULL,
-    colour_key TEXT DEFAULT '' NOT NULL,
+    colour_key shift_type_colour_key_enum DEFAULT 'no_colour' NOT NULL,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
     archived_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     archived_by_user_id UUID DEFAULT NULL,
@@ -327,7 +329,6 @@ CREATE TABLE shift_types (
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK ((char_length(btrim(name)) > 0) AND (char_length(name) <= 120)),
-    CHECK (colour_key = '' OR colour_key = 'palette-1' OR colour_key = 'palette-2' OR colour_key = 'palette-3' OR colour_key = 'palette-4' OR colour_key = 'palette-5' OR colour_key = 'palette-6' OR colour_key = 'palette-7' OR colour_key = 'palette-8' OR colour_key = 'palette-9' OR colour_key = 'palette-10'),
     CHECK (
         (pay_assignment_mode = 'award_rate' AND override_award_level_id IS NOT NULL AND imported_xero_pay_item_id IS NULL)
         OR (pay_assignment_mode = 'xero_rate' AND override_award_level_id IS NULL AND imported_xero_pay_item_id IS NOT NULL)
@@ -1013,7 +1014,7 @@ CREATE TABLE user_feedback_items (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
     submitted_by_user_id UUID NOT NULL,
-    feedback_type TEXT DEFAULT 'bug' NOT NULL,
+    feedback_type feedback_type_enum DEFAULT 'bug' NOT NULL,
     status TEXT DEFAULT 'new' NOT NULL,
     priority TEXT DEFAULT 'normal' NOT NULL,
     content TEXT NOT NULL,
@@ -1036,7 +1037,6 @@ CREATE TABLE user_feedback_items (
     FOREIGN KEY (submitted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     FOREIGN KEY (read_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     FOREIGN KEY (resolved_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    CHECK ((feedback_type = 'bug') OR (feedback_type = 'suggestion') OR (feedback_type = 'other')),
     CHECK ((status = 'new') OR (status = 'triaged') OR (status = 'planned') OR (status = 'in_progress') OR (status = 'done') OR (status = 'closed')),
     CHECK ((priority = 'low') OR (priority = 'normal') OR (priority = 'high')),
     CHECK (char_length(content) >= 3),

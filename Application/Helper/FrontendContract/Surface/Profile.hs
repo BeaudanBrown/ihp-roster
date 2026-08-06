@@ -44,10 +44,23 @@ module Application.Helper.FrontendContract.Surface.Profile
     , Notes
     , StaffProfileFields
     , StaffShiftPreferenceFields
+    , StaffProfileSectionValue (..)
     ) where
 
-import Application.Helper.FrontendContract.Surface.DSL
+import Application.Helper.FrontendContract.Surface.DSL hiding (Enum)
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as SelfServiceLeave
+import Generated.Types (StaffEmploymentBasisEnum, VenueRoleEnum)
+import IHP.ModelSupport (InputValue (..))
+import IHP.Prelude
+
+data StaffProfileSectionValue
+    = StaffProfileDetailsSection
+    | StaffProfilePreferencesSection
+    deriving (Eq, Show, Enum, Bounded)
+
+instance InputValue StaffProfileSectionValue where
+    inputValue StaffProfileDetailsSection     = "profile"
+    inputValue StaffProfilePreferencesSection = "preferences"
 
 data Profile
 data Staff
@@ -118,15 +131,15 @@ type StaffProfileFields =
      , Field IdealShiftsPerWeekField 'WireInt
      , Field EmergencyContactNameField 'WireText
      , Field EmergencyContactPhoneField 'WireText
-     , Field SectionField 'WireText
-     , OptionalField VenueRoleField 'WireText
-     , OptionalField EmploymentBasisField 'WireText
+     , Field SectionField ('WireClosed StaffProfileSectionValue)
+     , OptionalField VenueRoleField ('WireClosed VenueRoleEnum)
+     , OptionalField EmploymentBasisField ('WireClosed StaffEmploymentBasisEnum)
      , OptionalField PayRateSelectionField 'WireText
      , OptionalField RosterGroupIdsField ('WireList 'WireUUID)
      ]
 
 type StaffShiftPreferenceFields =
-    '[ Field SectionField 'WireText
+    '[ Field SectionField ('WireClosed StaffProfileSectionValue)
      , OptionalField ShiftPreferenceKeysField ('WireList 'WireText)
      ]
 

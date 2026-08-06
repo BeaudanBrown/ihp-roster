@@ -167,7 +167,7 @@ export type LeaveRequestsSurfaceFragmentKey =
   | { kind: "leave-section-count"; params: LeaveRequestsLeaveSectionCountFragmentParams }
   | { kind: "leave-section-list"; params: LeaveRequestsLeaveSectionListFragmentParams };
 export function isLeaveRequestsSurfaceFragmentKey(value: unknown): value is LeaveRequestsSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "unavailability-blackouts" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-availability-warnings" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-count" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"], ["leaveSection"]) && (typeof value["params"]["leaveSection"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-list" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"], ["leaveSection"]) && (typeof value["params"]["leaveSection"] === "string"))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "unavailability-blackouts" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-availability-warnings" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-count" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"], ["leaveSection"]) && (isLeaveSectionValue(value["params"]["leaveSection"])))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-list" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"], ["leaveSection"]) && (isLeaveSectionValue(value["params"]["leaveSection"])))));
 }
 
 export type SelfServiceLeaveSurfaceFragmentKey =
@@ -352,6 +352,20 @@ export function isRosterTemplateScaleEnum(value: unknown): value is RosterTempla
 export function parseRosterTemplateScaleEnum(value: unknown): RosterTemplateScaleEnum {
     if (isRosterTemplateScaleEnum(value)) return value;
     throw new Error("Invalid RosterTemplateScaleEnum");
+}
+
+export type LeaveSectionValue =
+    "pending"
+  | "approved"
+  | "denied"
+  | "archive";
+export function isLeaveSectionValue(value: unknown): value is LeaveSectionValue {
+    return typeof value === "string" && ["pending", "approved", "denied", "archive"].includes(value);
+}
+
+export function parseLeaveSectionValue(value: unknown): LeaveSectionValue {
+    if (isLeaveSectionValue(value)) return value;
+    throw new Error("Invalid LeaveSectionValue");
 }
 
 export type DialogSubmitConfig = { loadingLabel: string };
@@ -1192,14 +1206,14 @@ export function isLeaveRequestsLeaveAvailabilityWarningsFragmentParams(value: un
     return isRecord(value) && hasExactKeys(value, [], []);
 }
 
-export type LeaveRequestsLeaveSectionCountFragmentParams = { leaveSection: string };
+export type LeaveRequestsLeaveSectionCountFragmentParams = { leaveSection: LeaveSectionValue };
 export function isLeaveRequestsLeaveSectionCountFragmentParams(value: unknown): value is LeaveRequestsLeaveSectionCountFragmentParams {
-    return isRecord(value) && hasExactKeys(value, ["leaveSection"], ["leaveSection"]) && (typeof value["leaveSection"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["leaveSection"], ["leaveSection"]) && (isLeaveSectionValue(value["leaveSection"]));
 }
 
-export type LeaveRequestsLeaveSectionListFragmentParams = { leaveSection: string };
+export type LeaveRequestsLeaveSectionListFragmentParams = { leaveSection: LeaveSectionValue };
 export function isLeaveRequestsLeaveSectionListFragmentParams(value: unknown): value is LeaveRequestsLeaveSectionListFragmentParams {
-    return isRecord(value) && hasExactKeys(value, ["leaveSection"], ["leaveSection"]) && (typeof value["leaveSection"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["leaveSection"], ["leaveSection"]) && (isLeaveSectionValue(value["leaveSection"]));
 }
 
 export type SelfServiceLeaveSelfServiceLeaveScopeScope = { venueId: FrontendContractUuid; staffId: FrontendContractUuid };

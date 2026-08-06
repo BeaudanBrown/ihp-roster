@@ -529,3 +529,7 @@ Implementation tickets should add focused Hspec coverage for Haskell contracts,
 rendered attrs/forms, guardrails against raw interaction attrs/forms, and live
 fragment policy. Generic runtime tickets should add frontend unit/DOM tests and
 focused Playwright only when browser/HTMX/live behavior is part of the contract.
+The final authority gate is `bash ./bin/in-env typed-contract-authority-check`;
+it blocks generic production request seams, handwritten migrated field names,
+finite values regressed to `WireText`, discriminator envelopes, rendered-enum
+branching, and unexplained reachability debt.

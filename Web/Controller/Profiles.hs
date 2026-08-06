@@ -1,5 +1,6 @@
 module Web.Controller.Profiles where
 
+import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue (..))
 import Application.Helper.FrontendContract.Surface.Request (attachSurfaceRequestFieldErrors,
                                                             surfaceRequestFieldErrorsMessage)
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
@@ -78,7 +79,7 @@ instance Controller ProfilesController where
         let openSection =
                 case submissionResult of
                     Right (SubmittedStaffShiftPreferences _) -> "preferences"
-                    Right (SubmittedStaffProfileDetails submitted) -> normalizeProfileOpenSection submitted.submittedProfileSection
+                    Right (SubmittedStaffProfileDetails submitted) -> normalizeProfileOpenSection (inputValue submitted.submittedProfileSection)
                     Left _ -> "profile"
         passkeys <- fetchCurrentUserPasskeys
         let submittedRosterGroupIds =
@@ -131,7 +132,7 @@ instance Controller ProfilesController where
                         Right submittedSelections ->
                             finishCurrentUserUpdate "preferences" staff submittedSelections "Shift preferences updated"
             Right (SubmittedStaffProfileDetails submitted)
-                | submitted.submittedProfileSection /= "profile" -> do
+                | submitted.submittedProfileSection /= StaffProfileDetailsSection -> do
                     setErrorMessage "Choose a valid profile section."
                     renderProfileResponse staff selectedShiftPreferences
                 | otherwise -> do

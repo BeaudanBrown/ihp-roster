@@ -4,6 +4,7 @@ import Application.Helper.Controller (parseVenueRole)
 import Application.Helper.FrontendContract.AppShell (RemoveStaffOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker)
+import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue (..))
 import Application.Helper.FrontendContract.Surface.Request (attachSurfaceRequestFieldErrors,
                                                             surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsContentResource,
@@ -166,7 +167,7 @@ instance Controller StaffController where
         let openSection =
                 case submissionResult of
                     Right (SubmittedStaffShiftPreferences _) -> "preferences"
-                    Right (SubmittedStaffProfileDetails submitted) -> normalizeStaffOpenSection submitted.submittedProfileSection
+                    Right (SubmittedStaffProfileDetails submitted) -> normalizeStaffOpenSection (inputValue submitted.submittedProfileSection)
                     Left _ -> "profile"
         venueConfig <- fetchVenueConfig
         rosterGroups <- fetchCurrentVenueRosterGroups
@@ -236,7 +237,7 @@ instance Controller StaffController where
                                 renderStaffEditResponse originalStaff currentSelectedRosterGroupIds selectedShiftPreferences
                             Just mutationResult -> respondStaffUpdateSuccess mutationResult "Shift preferences updated"
             Right (SubmittedStaffProfileDetails submitted)
-                | submitted.submittedProfileSection /= "profile" -> do
+                | submitted.submittedProfileSection /= StaffProfileDetailsSection -> do
                     setErrorMessage "Choose a valid staff profile section."
                     renderStaffEditResponse staff submittedRosterGroupIds selectedShiftPreferences
                 | otherwise -> do
@@ -513,11 +514,7 @@ buildStaffFromSurfaceSubmission canManageStaffPay maybeSubmittedDefaultAwardLeve
              in applySelectableStaffPayMode withImportedPayItem
 
     applyEmploymentBasis currentStaff =
-        case Text.toLower <$> submitted.submittedEmploymentBasis of
-            Just "permanent" -> currentStaff |> set #employmentBasis Permanent
-            Just "casual" -> currentStaff |> set #employmentBasis Casual
-            Just _ -> currentStaff |> attachFailure #employmentBasis "Choose a valid employment basis."
-            Nothing -> currentStaff
+        maybe currentStaff (\employmentBasis -> currentStaff |> set #employmentBasis employmentBasis) submitted.submittedEmploymentBasis
 
 validateSubmittedRosterGroupIds ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -536,10 +533,10 @@ validateSubmittedRosterGroupIds maybeSubmittedIds = do
                 setErrorMessage "Choose roster groups from the current venue."
                 pure Nothing
 
-validateSubmittedStaffVenueRole :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> Maybe VenueMembership -> Maybe Text -> IO (Maybe (Maybe VenueRoleEnum))
+validateSubmittedStaffVenueRole :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> Maybe VenueMembership -> Maybe VenueRoleEnum -> IO (Maybe (Maybe VenueRoleEnum))
 validateSubmittedStaffVenueRole _ Nothing _ = pure (Just Nothing)
-validateSubmittedStaffVenueRole staff (Just membership) maybeSubmittedRoleText =
-    case maybeSubmittedRoleText >>= parseVenueRole of
+validateSubmittedStaffVenueRole staff (Just membership) maybeSubmittedRole =
+    case maybeSubmittedRole of
         Nothing -> do
             setErrorMessage "Choose a valid staff role."
             pure Nothing

@@ -1,6 +1,7 @@
 module Test.OrderedRangeSpec where
 
 import Application.Helper.FrontendContract.OrderedRange.Runtime
+import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue (..))
 import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import Application.Helper.StaffShiftPreferences
 import Config
@@ -78,7 +79,7 @@ databaseTests = aroundAll withDatabaseTestContext do
     describe "Shift preference ordered range rendering" do
         it "renders generated roles and Haskell-owned state without legacy DOM names" $ withContext do
             withCurrentControllerContext do
-                let fields = ProfileAction.updateProfileShiftPreferencesActionFields "preferences" (Just ["2"])
+                let fields = ProfileAction.updateProfileShiftPreferencesActionFields StaffProfilePreferencesSection (Just ["2"])
                 let weekday = PreferenceWeekday { weekdayIndex = 2, label = "Tuesday" }
                 let selection = ShiftPreferenceSelection { weekdayIndex = 2, startHour = 6, endHour = 17 }
                 let html = renderText (renderShiftPreferenceDayRow fields [selection] weekday)

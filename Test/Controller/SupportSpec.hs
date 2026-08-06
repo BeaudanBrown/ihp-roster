@@ -80,7 +80,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- newRecord @UserFeedbackItem
                     |> set #venueId (unpackId venue.id)
                     |> set #submittedByUserId (unpackId submitter.id)
-                    |> set #feedbackType "bug"
+                    |> set #feedbackType Bug
                     |> set #status "new"
                     |> set #priority "normal"
                     |> set #content "Roster page needs a clearer publish button"
@@ -107,7 +107,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- newRecord @UserFeedbackItem
                     |> set #venueId (unpackId venue.id)
                     |> set #submittedByUserId (unpackId submitter.id)
-                    |> set #feedbackType "bug"
+                    |> set #feedbackType Bug
                     |> set #status "new"
                     |> set #priority "normal"
                     |> set #content "Diagnostics are available"
@@ -142,7 +142,7 @@ tests = aroundAll withDatabaseTestContext do
                 feedbackItem <- newRecord @UserFeedbackItem
                     |> set #venueId (unpackId venue.id)
                     |> set #submittedByUserId (unpackId submitter.id)
-                    |> set #feedbackType "suggestion"
+                    |> set #feedbackType Suggestion
                     |> set #status "new"
                     |> set #priority "normal"
                     |> set #content "Make the copy week action clearer"

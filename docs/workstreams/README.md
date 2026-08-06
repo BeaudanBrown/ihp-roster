@@ -43,8 +43,6 @@ for forward-looking design.
   model where actual effect helpers emit typed facts and telemetry.
 - `opentelemetry-observability.md` - OpenTelemetry traces, agent profile
   artifacts, production trace/log capture, and tailnet Grafana viewing.
-- `typed-contract-authority.md` - typed Haskell authority for closed values,
-  nominal browser operations, generated enums, and reachability guardrails.
 - `roster-operations-and-support-ux.md` - explicit Open shifts, Day/Week
   templates, roster email, shared side panels, and support impersonation.
 - `backlog.md` - smaller open streams that do not yet need dedicated files.

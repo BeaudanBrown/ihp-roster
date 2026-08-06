@@ -75,7 +75,7 @@
     return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-template-designer-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
   }
   function isLeaveRequestsSurfaceFragmentKey(value) {
-    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "unavailability-blackouts" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-availability-warnings" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-count" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"], ["leaveSection"]) && typeof value["params"]["leaveSection"] === "string") || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-list" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"], ["leaveSection"]) && typeof value["params"]["leaveSection"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "unavailability-blackouts" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-availability-warnings" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-count" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"], ["leaveSection"]) && isLeaveSectionValue(value["params"]["leaveSection"])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-list" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"], ["leaveSection"]) && isLeaveSectionValue(value["params"]["leaveSection"]));
   }
   function isSelfServiceLeaveSurfaceFragmentKey(value) {
     return isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "self-service-leave-form" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "visible-unavailability-blackouts" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], [])) || isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "self-service-leave-history" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []));
@@ -142,6 +142,9 @@
   var interactionSessionStartEvent = "bepis:interaction-session-start";
   var interactionSessionEndEvent = "bepis:interaction-session-end";
   var interactionSessionCancelRequestEvent = "bepis:interaction-session-cancel-request";
+  function isLeaveSectionValue(value) {
+    return typeof value === "string" && ["pending", "approved", "denied", "archive"].includes(value);
+  }
   function isUiRegionTransitionProfile(value) {
     return typeof value === "string" && ["none", "fade", "fade-slide", "panel"].includes(value);
   }

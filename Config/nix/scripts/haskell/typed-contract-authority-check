@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# Blocking closeout gate for app-owned typed request/value authority.
+# Keep this structural and narrow: checked IR, generators, compile-failure tests,
+# enum-authority-check, and Weeder own semantic/completeness behavior.
+set -euo pipefail
+
+repo_root="${TYPED_AUTHORITY_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+cd "$repo_root"
+
+failures=0
+fail() {
+    echo "typed-contract-authority-check: $*" >&2
+    failures=$((failures + 1))
+}
+
+expect_no_match() {
+    local reason="$1"
+    local pattern="$2"
+    shift 2
+    local matches
+    matches="$(mktemp)"
+    if rg --line-number --glob '!*.md' --glob '!**/Generated/**' "$pattern" "$@" >"$matches" 2>/dev/null; then
+        fail "$reason"
+        cat "$matches" >&2
+    fi
+    rm -f "$matches"
+}
+
+expect_count() {
+    local reason="$1"
+    local expected="$2"
+    local pattern="$3"
+    shift 3
+    local count
+    count="$( (rg --glob '*.hs' --glob '!**/Generated/**' -o "$pattern" "$@" 2>/dev/null || true) | wc -l)"
+    if [[ "$count" -ne "$expected" ]]; then
+        fail "$reason (expected $expected, found $count)"
+    fi
+}
+
+# Migrated app-owned finite values must remain WireClosed. These marker names
+# are exact tombstones, not a broad ban on legitimate free text.
+expect_no_match \
+    "a migrated app-owned finite request value regressed to WireText" \
+    "(Field|OptionalField)[[:space:]]+(FeedbackTypeField|SectionField|VenueRoleField|EmploymentBasisField|ExportType|ColourKey|LeaveSection|StaffScope)[[:space:]]+'WireText" \
+    Application/Helper/FrontendContract
+
+expect_no_match \
+    "persisted feedback/shift-colour authority regressed to constrained TEXT" \
+    "(feedback_type|colour_key)[[:space:]]+TEXT|CHECK[[:space:]]*\\([^\\n]*(feedback_type|colour_key)" \
+    Application/Schema.sql
+
+# The Xero operation itself now means select/mark-not-paid; a second text
+# discriminator would recreate a catch-all envelope.
+expect_no_match \
+    "the retired Xero staff-decision discriminator returned" \
+    '\bDecisionField\b|name="decision"|value="select_employee"' \
+    Application/Helper/FrontendContract Web
+
+expect_no_match \
+    "the retired catch-all venue configuration action returned" \
+    '\b(UpdateVenueConfig(Action)?|ConfigFieldField)\b|name="configField"' \
+    Application/Helper/FrontendContract/Surface/Admin.hs Web/Controller/Admin.hs Web/Types.hs Web/View/Admin/VenueSettings.hs
+
+# Production callers select generated nominal Action/Intent parsers and
+# metadata through feature facades.
+expect_no_match \
+    "production Web code bypasses generated Surface Action authority" \
+    '\b(parseSurfaceActionParams|frontendSurfaceAction)\b' \
+    Web
+expect_no_match \
+    "production Web code bypasses generated Surface Intent authority" \
+    '\b(parseSurfaceIntentParams|frontendSurfaceIntentForm)\b' \
+    Web
+
+# Migrated operation-owned names are always selected from their complete typed
+# bundle. Composite pay-rate and provider selections are intentionally included:
+# they remain open tagged/reference values, but their names stay nominal.
+expect_no_match \
+    "a migrated typed form handwrites an app-owned field name" \
+    'name="(feedbackType|content|feedbackViewportWidth|feedbackViewportHeight|feedbackDevicePixelRatio|feedbackDisplayMode|section|venueRole|employmentBasis|payRateSelection|exportType|colourKey|staffScope|leaveSection|periodKey|decision|xeroEmployeeSelection|accountCode|referenceWaitStartedAt|referenceDemand)"' \
+    Web/View/Feedback Web/View/Profiles Web/View/Staff Web/View/Admin Web/View/RosterWeeks Web/LeaveRequests
+
+# Two open value shapes are classified rather than misrepresented as finite
+# scalars. Pay-rate selection is a server-validated tagged reference carrying an
+# Award/Xero UUID or roster-only/empty choice. Xero selection carries a
+# provider-owned employee id plus the explicit not-applicable sentinel.
+expect_count \
+    "pay-rate tagged-reference classification changed; replace it with a typed tagged request before changing this exception" \
+    6 \
+    "(PayRateSelectionField|PayRateSelection)[^\n]*'WireText" \
+    Application/Helper/FrontendContract
+expect_count \
+    "Xero provider-selection classification changed; keep provider ids open or introduce an exact tagged request" \
+    1 \
+    "XeroEmployeeSelectionField[^\n]*'WireText" \
+    Application/Helper/FrontendContract/AppShell.hs
+
+# #336 closed with no unexplained application reachability debt.
+if grep -Ev '^[[:space:]]*(#|$)' Config/nix/weeder-baseline.tsv | grep -q .; then
+    fail "the application Weeder baseline is no longer empty"
+fi
+
+if command -v enum-authority-check >/dev/null 2>&1; then
+    enum-authority-check || fail "generated enum authority failed"
+else
+    bash Config/nix/scripts/haskell/enum-authority-check || fail "generated enum authority failed"
+fi
+
+if [[ "$failures" -ne 0 ]]; then
+    echo "typed-contract-authority-check: $failures violation(s)" >&2
+    exit 1
+fi
+
+echo "typed-contract-authority-check: zero bypasses; two explicit open tagged/reference classifications"

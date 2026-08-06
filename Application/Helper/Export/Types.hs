@@ -8,7 +8,10 @@ data ExportJobType
     | StaffPayCsv
     | HourlyBreakdownZip
     | PayrollEarningsCsv
-    deriving (Eq, Show)
+    deriving (Eq, Show, Enum, Bounded)
+
+instance InputValue ExportJobType where
+    inputValue = exportJobTypeToText
 
 data ExportJobStatus
     = ExportPending

@@ -6,8 +6,14 @@ module Application.Helper.FrontendContract.ClosedScalars
     ( ClosedScalarContract
     ) where
 
-import Application.Helper.FrontendContract.DSL
-import Generated.Types (RosterLayoutModeEnum, RosterTemplateScaleEnum)
+import Application.Helper.Export.Types (ExportJobType)
+import Application.Helper.FrontendContract.DSL hiding (Enum)
+import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveSectionValue)
+import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue)
+import Application.Helper.FrontendContract.Surface.Roster (RosterStaffScopeValue)
+import Generated.Types (FeedbackTypeEnum, RosterLayoutModeEnum,
+                        RosterTemplateScaleEnum, ShiftTypeColourKeyEnum,
+                        StaffEmploymentBasisEnum, VenueRoleEnum)
 
 data AppClosedScalars
 
@@ -15,4 +21,12 @@ type ClosedScalarContract =
     Global AppClosedScalars
         '[ ServerSchema (ClosedScalar RosterLayoutModeEnum)
          , BrowserInboundSchema (ClosedScalar RosterTemplateScaleEnum)
+         , ServerSchema (ClosedScalar FeedbackTypeEnum)
+         , ServerSchema (ClosedScalar StaffProfileSectionValue)
+         , ServerSchema (ClosedScalar RosterStaffScopeValue)
+         , BrowserInboundSchema (ClosedScalar LeaveSectionValue)
+         , ServerSchema (ClosedScalar ShiftTypeColourKeyEnum)
+         , ServerSchema (ClosedScalar VenueRoleEnum)
+         , ServerSchema (ClosedScalar StaffEmploymentBasisEnum)
+         , ServerSchema (ClosedScalar ExportJobType)
          ]

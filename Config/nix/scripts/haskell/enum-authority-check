@@ -51,6 +51,12 @@ reject \
 reject \
     "a semantic decision branches on rendered roster-template scale text" \
     '(rosterTemplateScaleValue|inputValue[^\n]*\.scale)[^\n]*(==|/=|`elem`|[[:space:]]+of)'
+reject \
+    "a venue-role or employment-basis decision branches on rendered enum text" \
+    '(case[[:space:]]+)?inputValue[^\n]*(role|Role|basis|Basis)[^\n]*(==|/=|`elem`|[[:space:]]+of)'
+reject \
+    "a feedback-type or shift-colour decision branches on rendered enum text" \
+    '(case[[:space:]]+)?inputValue[^\n]*(feedbackType|FeedbackType|colourKey|ColourKey)[^\n]*(==|/=|`elem`|[[:space:]]+of)'
 
 # #334 tombstones only the migrated app-owned Xero fields. Provider-owned
 # employee/account/pay-run/timesheet statuses deliberately remain open Text.

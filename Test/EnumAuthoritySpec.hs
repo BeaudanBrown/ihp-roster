@@ -1,8 +1,10 @@
 module Test.EnumAuthoritySpec where
 
+import Application.Helper.FeedbackType
 import Application.Helper.InvitationStatus
 import Application.Helper.JobStatus
 import Application.Helper.RosterTemplateScale
+import Application.Helper.ShiftTypeColours
 import Application.Helper.UserPreferences
 import Application.Helper.View.Status
 import Generated.Types
@@ -24,6 +26,12 @@ tests = describe "generated enum authority" do
         map rosterTemplateScaleIsWeek [Day, Week] `shouldBe` [False, True]
         map parseRosterTemplateScale ["day", "week", "month"]
             `shouldBe` [Just Day, Just Week, Nothing]
+
+    it "projects persisted feedback and shift-colour enums exhaustively" do
+        map feedbackTypeLabel [Bug, Suggestion, Other]
+            `shouldBe` ["bug", "suggestion", "other"]
+        map shiftTypeColourKeyCssValue [NoColour, Palette1, Palette2, Palette3, Palette4, Palette5, Palette6, Palette7, Palette8, Palette9, Palette10]
+            `shouldBe` ["", "palette-1", "palette-2", "palette-3", "palette-4", "palette-5", "palette-6", "palette-7", "palette-8", "palette-9", "palette-10"]
 
     it "projects every app job status through one typed presentation" do
         let statuses =

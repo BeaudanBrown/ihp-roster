@@ -1,6 +1,6 @@
 # Typed Contract Authority
 
-Status: active
+Status: implemented and archived
 
 Epic: [#328](https://github.com/BeaudanBrown/ihp-roster/issues/328)
 
@@ -380,6 +380,35 @@ existing four-function external view interface unchanged and avoids pass-through
 or one-adapter seams. Focused controller/render tests and Weeder exercise the
 same interfaces used by production callers.
 
+## Zero-Bypass Closure Checkpoint
+
+[#338](https://github.com/BeaudanBrown/ihp-roster/issues/338) converts the
+remaining finite request candidates to typed authority: generated feedback type,
+profile section, generated venue role and employment basis, export type,
+generated shift-type colour, roster staff scope, and leave section. Migration
+`1787000000.sql` converts the two previously constrained persisted text columns
+with grouped live-value preflight and data-preserving rollback guidance. Feedback now renders and parses
+one exact nominal AppShell bundle with optional browser diagnostics. Xero staff
+selection removes the redundant `DecisionField`; the nominal action itself owns
+the operation. Closed Surface values remain typed through generated builders,
+exact parsers, toggle transport, live fragment/resource identity, and controller
+decisions.
+
+`typed-contract-authority-check` turns the baseline into blocking verification.
+It rejects generic production Surface Action/Intent calls, finite fields
+regressed to `WireText`, handwritten migrated field names, retired discriminator
+envelopes, rendered generated-enum branches, and a non-empty Weeder baseline.
+Two intrinsically open shapes are explicit: pay-rate selection is a validated
+tagged Award/Xero UUID or roster-only reference, and Xero employee selection
+carries provider-owned ids plus the not-applicable sentinel. Their field names
+remain nominal and generated.
+
+Final topology is 8 generator-foundation files / 2,923 LOC, 8 family association
+files / 161 LOC, 24 generated Haskell adapter files / 3,749 LOC, 24 curated
+facades / 671 LOC, and one generated TypeScript file / 1,773 LOC. Profile Action
+and Roster Intent retain exact 20/21-module `Application.*` closures. The
+application Weeder baseline is empty.
+
 ## Baseline Metrics
 
 Captured on the #329 baseline:
@@ -411,9 +440,9 @@ simplification must compare files touched, handwritten foundation/home/facade
 cost, generated output, focused closure, diagnostics, publication atomicity,
 and drift behavior; reducing LOC cannot weaken nominal typing.
 
-## Affected Living Docs
+## Reconciled Living Docs
 
-Update these as their contracts land:
+Implemented contracts were moved into:
 
 - `Application/Helper/FrontendContract/README.md`;
 - `Application/Helper/FrontendContract/Surface/README.md`;
@@ -421,11 +450,10 @@ Update these as their contracts land:
 - `Application/Xero/README.md` and `Application/Xero/SPEC.md`;
 - nearest `AGENTS.md` when a reusable authoring/verification rule emerges.
 
-Durable schema/generator rationale that must survive the workstream belongs in
-`docs/adr/`. When all future behavior has landed, move implemented facts into
-those living docs and archive this workstream.
+Durable authority rationale is retained in ADR 0002 and ADR 0003. This archived
+workstream preserves measurements and ticket-by-ticket historical evidence.
 
-## Exit Criteria
+## Exit Evidence
 
 - No app-owned closed request value degrades to unclassified `WireText`.
 - No catch-all discriminator action or handwritten migrated operation field
@@ -439,5 +467,6 @@ those living docs and archive this workstream.
   residual is narrow and reason-bearing.
 - Generator authoring cost and focused closure improve or retain a documented
   tradeoff without weakening authority guarantees.
-- Living docs describe the final implemented contract, linked issues are
-  closed, and this workstream is archived.
+- Living docs describe the final implemented contract and this workstream is
+  archived; GitHub remains the closure/status authority for the epic and its
+  final issue.

@@ -398,7 +398,7 @@ expect_compile_failure \
 
 expect_compile_failure \
     "Test/CompileFail/FrontendAppShellWrongActionField.hs" \
-    "FrontendSurface field bundle does not declare marker AppShell.DecisionField"
+    "FrontendSurface field bundle does not declare marker AppShell.AccountCodeField"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendAppShellWrongActionOperation.hs" \

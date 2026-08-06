@@ -139,7 +139,12 @@ Wire fields use the closed browser wire universe: `WireText`, `WireInt`,
 and parsers. Use the generated PostgreSQL enum type when persistence owns the
 domain, never a shadow ADT. Roster template-card browser DTOs therefore carry
 `WireClosed RosterTemplateScaleEnum`, not a handwritten `"day" | "week"`
-projection. A non-persisted app domain may use its own finite ADT.
+projection. A non-persisted app domain may use its own finite ADT beside the
+owning feature. Current request authorities include profile section, venue role,
+employment basis, roster staff scope, leave section, feedback type, shift-type
+colour, and export type. Open tagged reference selections such as Award/Xero pay
+references and provider-owned Xero employee ids are explicitly classified and
+must still obtain their field names from the nominal generated operation.
 Do not serialize arbitrary domain models through surface fields; convert to a
 narrow browser DTO or feature-specific render model first.
 
@@ -1451,8 +1456,11 @@ Compile-fail fixtures own impossible marker, field, wire, lane, and operation
 combinations. Byte-identical generated TypeScript/Haskell checks own complete
 rendered output. Architecture queries own generated-facade dependency closure.
 `frontend-surface-guardrails` owns only narrow deleted-vocabulary tombstones and
-forbidden import edges. Do not duplicate those authorities with broad generated
-source substring inventories.
+forbidden import edges. `typed-contract-authority-check` owns the final
+cross-cutting zero-bypass tombstones: migrated finite `WireText`, handwritten
+operation field names, generic production Action/Intent calls, discriminator
+envelopes, rendered-enum decisions, and non-empty Weeder baseline. Do not
+duplicate checked IR or generated output with broad positive source inventories.
 
 ## Verification
 
@@ -1465,6 +1473,7 @@ bash ./bin/in-env frontend-surface-compile-fail-check
 # Focused authoring loop; no argument remains the complete gate:
 bash ./bin/in-env frontend-surface-compile-fail-check FrontendSurfaceWrongClosedScalarDomain
 bash ./bin/in-env frontend-surface-guardrails
+bash ./bin/in-env typed-contract-authority-check
 bash ./bin/in-env typecheck
 bash ./bin/in-env frontend-check
 bash ./bin/in-env hspec-test --match "FrontendSurface"

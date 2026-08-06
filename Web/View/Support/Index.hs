@@ -1,9 +1,12 @@
 {-# LANGUAGE TypeApplications #-}
 
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
+
 module Web.View.Support.Index where
 
 import Application.Helper.Feedback (allowedFeedbackPriorities,
                                     allowedFeedbackStatuses)
+import Application.Helper.FeedbackType (feedbackTypeLabel)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
@@ -205,16 +208,8 @@ renderFeedbackReadBadge feedbackItem
     | isNothing feedbackItem.readAt = [hsx|<span class="badge text-bg-danger">unread</span>|]
     | otherwise = [hsx|<span class="badge text-bg-secondary">read</span>|]
 
-renderFeedbackTypeBadge :: Text -> Html
+renderFeedbackTypeBadge :: FeedbackTypeEnum -> Html
 renderFeedbackTypeBadge feedbackType = [hsx|<span class="badge text-bg-info">{feedbackTypeLabel feedbackType}</span>|]
-
-feedbackTypeLabel :: Text -> Text
-feedbackTypeLabel feedbackType =
-    case feedbackType of
-        "bug"        -> "bug"
-        "suggestion" -> "suggestion"
-        "other"      -> "other"
-        _            -> feedbackType
 
 renderFeedbackStatusForm :: UserFeedbackItem -> Html
 renderFeedbackStatusForm feedbackItem = [hsx|

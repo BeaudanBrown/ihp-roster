@@ -2,8 +2,10 @@
 
 module Test.ToggleButtonSpec where
 
+import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue (..))
 import qualified Application.Helper.FrontendContract.Surface.Profile as ProfileSurface
 import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
+import Application.Helper.FrontendContract.Surface.Roster (RosterStaffScopeValue (..))
 import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.View.ToggleButton
@@ -52,8 +54,8 @@ tests = aroundAll withDatabaseTestContext do
 
         it "keeps presentation state distinct from a typed non-Boolean Action field mapping" $ withContext do
             withCurrentControllerContext do
-                let fields = RosterAction.toggleRosterStaffScopeActionFields "group"
-                let binding = surfaceToggleScalarField @RosterSurface.StaffScope fields "all" "group"
+                let fields = RosterAction.toggleRosterStaffScopeActionFields RosterStaffCurrentGroup
+                let binding = surfaceToggleScalarField @RosterSurface.StaffScope fields RosterStaffAllVenue RosterStaffCurrentGroup
                 let config =
                         (defaultAppToggleButtonConfig "staff-scope" binding False (Html5.toHtml ("Show all staff" :: Text)))
                             { appToggleSubmitPolicy = ToggleSubmitImmediate }
@@ -67,7 +69,7 @@ tests = aroundAll withDatabaseTestContext do
 
         it "renders a declaration-typed repeated Action field as value-or-omitted transport" $ withContext do
             withCurrentControllerContext do
-                let fields = ProfileAction.updateProfileShiftPreferencesActionFields "preferences" (Just ["monday"])
+                let fields = ProfileAction.updateProfileShiftPreferencesActionFields StaffProfilePreferencesSection (Just ["monday"])
                 let binding = surfaceToggleListItemField @ProfileSurface.ShiftPreferenceKeysField fields "monday"
                 let uncheckedHtml = renderText (renderAppToggleButton (defaultAppToggleButtonConfig "monday-available" binding False (Html5.toHtml ("Monday" :: Text))))
                 let checkedHtml = renderText (renderAppToggleButton (defaultAppToggleButtonConfig "monday-available" binding True (Html5.toHtml ("Monday" :: Text))))

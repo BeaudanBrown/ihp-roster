@@ -18,7 +18,6 @@ import Application.Helper.FrontendContract.AppShell (AccountCodeField,
                                                      ApproveXeroTimesheetPreparationPayItemsOverlay,
                                                      ConfirmXeroTimesheetPreparationSubmissionOverlay,
                                                      ContinueXeroTimesheetPreparationStaffOverlay,
-                                                     DecisionField,
                                                      OpenXeroTimesheetPreparationOverlay,
                                                      PeriodKeyField,
                                                      ReferenceDemandField,
@@ -288,14 +287,10 @@ submitXeroTimesheetPreparation runId maybeAccountCode = do
 
 parseStaffDecision :: AppShellActionFields ApplyXeroTimesheetPreparationStaffDecisionOverlay -> Either Text XeroPreparationStaffDecision
 parseStaffDecision fields =
-    case Text.strip (surfaceFieldValue @DecisionField fields) of
-        "select_employee" ->
-            case Text.strip (surfaceFieldValue @XeroEmployeeSelectionField fields) of
-                "" -> Left "Choose a Xero employee or Not paid through Xero before approving."
-                "not_applicable" -> Right MarkStaffNotPaidThroughXero
-                employeeId -> Right (SelectXeroEmployee employeeId)
-        "not_paid" -> Right MarkStaffNotPaidThroughXero
-        _ -> Left "Choose a supported Xero preparation decision."
+    case Text.strip (surfaceFieldValue @XeroEmployeeSelectionField fields) of
+        "" -> Left "Choose a Xero employee or Not paid through Xero before approving."
+        "not_applicable" -> Right MarkStaffNotPaidThroughXero
+        employeeId -> Right (SelectXeroEmployee employeeId)
 
 parseReferenceWaitStartedAt :: Maybe Text -> Either Text (Maybe UTCTime)
 parseReferenceWaitStartedAt Nothing = Right Nothing

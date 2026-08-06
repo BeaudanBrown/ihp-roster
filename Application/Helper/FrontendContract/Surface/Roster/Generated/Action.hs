@@ -276,7 +276,7 @@ toggleRosterDayClosedAction =
         @Types2.ToggleRosterDayClosed
 
 toggleRosterStaffScopeActionFields ::
-    Text ->
+    Types2.RosterStaffScopeValue ->
     SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ToggleRosterStaffScope
 toggleRosterStaffScopeActionFields staffScope =
     surfaceActionFields

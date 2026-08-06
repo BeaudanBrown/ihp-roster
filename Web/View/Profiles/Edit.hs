@@ -2,6 +2,7 @@
 
 module Web.View.Profiles.Edit where
 
+import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue (..))
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
 import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
@@ -219,7 +220,7 @@ renderProfileForm staff currentUserEmail staffManagementFields =
                 Just (StaffProfileDetailsSurfaceAction ProfileAction.updateProfileDetailsAction (profileSectionActionRoute (pathTo UpdateProfileAction) profileDetailsSectionId "outerHTML show:none"))
             , staffProfileDetailsSurfaceFields = fields
             , staffProfileDetailsFormAttributes = []
-            , staffProfileDetailsFormHiddenInputs = [hsx|<input type="hidden" name={surfaceFieldNameFrom @Surface.SectionField fields} value="profile"/>|]
+            , staffProfileDetailsFormHiddenInputs = [hsx|<input type="hidden" name={surfaceFieldNameFrom @Surface.SectionField fields} value={inputValue StaffProfileDetailsSection}/>|]
             , staffProfileDetailsFormBeforeFields = mempty
             , staffProfileDetailsFormFieldsHeading = Nothing
             , staffProfileDetailsFormEmailField = renderPersonalProfileFields
@@ -231,7 +232,7 @@ renderProfileForm staff currentUserEmail staffManagementFields =
         staff
         (Just currentUserEmail)
   where
-    values = staffProfileDetailsSurfaceValues "profile" staff staffManagementFields
+    values = staffProfileDetailsSurfaceValues StaffProfileDetailsSection staff staffManagementFields
     fields =
         ProfileAction.updateProfileDetailsActionFields
             values.profileDetailsFirstName
@@ -257,13 +258,13 @@ renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences =
             , staffShiftPreferencesFormRequestMode =
                 Just (StaffShiftPreferencesSurfaceAction ProfileAction.updateProfileShiftPreferencesAction (profileSectionActionRoute (pathTo UpdateProfileAction) profilePreferencesSectionId "outerHTML show:none"))
             , staffShiftPreferencesSurfaceFields = fields
-            , staffShiftPreferencesFormHiddenInputs = [hsx|<input type="hidden" name={surfaceFieldNameFrom @Surface.SectionField fields} value="preferences"/>|]
+            , staffShiftPreferencesFormHiddenInputs = [hsx|<input type="hidden" name={surfaceFieldNameFrom @Surface.SectionField fields} value={inputValue StaffProfilePreferencesSection}/>|]
             , staffShiftPreferencesFormSubmitLabel = "Save shift preferences"
             }
         preferenceWeekdays
         selectedShiftPreferences
   where
-    values = staffShiftPreferencesSurfaceValues "preferences" selectedShiftPreferences
+    values = staffShiftPreferencesSurfaceValues StaffProfilePreferencesSection selectedShiftPreferences
     fields =
         ProfileAction.updateProfileShiftPreferencesActionFields
             values.shiftPreferencesSection

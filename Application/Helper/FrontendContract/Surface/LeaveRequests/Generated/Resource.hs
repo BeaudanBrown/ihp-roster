@@ -41,7 +41,7 @@ matchLeaveAvailabilityWarningsResource =
 
 leaveRequestsSectionResource ::
     UUID.UUID ->
-    Text ->
+    Types1.LeaveSectionValue ->
     SurfaceResourceValue
 leaveRequestsSectionResource venueId leaveSection =
     frontendSurfaceResource
@@ -52,7 +52,7 @@ leaveRequestsSectionResource venueId leaveSection =
             &: noSurfaceFields
         )
 
-matchLeaveRequestsSectionResource :: SurfaceResourceValue -> Maybe (UUID.UUID, (Text, ()))
+matchLeaveRequestsSectionResource :: SurfaceResourceValue -> Maybe (UUID.UUID, (Types1.LeaveSectionValue, ()))
 matchLeaveRequestsSectionResource =
     matchFrontendSurfaceResource
         @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)

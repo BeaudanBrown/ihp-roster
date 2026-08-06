@@ -236,6 +236,7 @@ bash ./bin/in-env hspec-test
 bash ./bin/in-env hspec-coverage
 bash ./bin/in-env lint
 bash ./bin/in-env format
+bash ./bin/in-env typed-contract-authority-check
 bash ./bin/in-env e2e
 bash ./bin/in-env ./bin/doc-drift-check
 ```

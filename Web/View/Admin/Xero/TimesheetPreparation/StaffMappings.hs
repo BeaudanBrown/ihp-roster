@@ -8,7 +8,6 @@ module Web.View.Admin.Xero.TimesheetPreparation.StaffMappings
     ) where
 
 import Application.Helper.FrontendContract.AppShell (ApplyXeroTimesheetPreparationStaffDecisionOverlay,
-                                                     DecisionField,
                                                      StaffIdField,
                                                      XeroEmployeeSelectionField)
 import Application.Helper.FrontendContract.AppShell.Request (AppShellActionFields,
@@ -166,7 +165,6 @@ renderStaffEmployeeSelectionForm view row =
         ]
         [hsx|
             <input type="hidden" name={surfaceFieldNameFrom @StaffIdField fields} value={tshow staff.id} />
-            <input type="hidden" name={surfaceFieldNameFrom @DecisionField fields} value="select_employee" />
             <select name={surfaceFieldNameFrom @XeroEmployeeSelectionField fields} class="form-select form-select-sm w-auto xero-employee-selection" aria-label={"Xero employee for " <> staffName staff}>
                 {forEach selectableEmployees (renderEmployeeOption currentSelection)}
                 <option value="not_applicable" selected={currentSelection == "not_applicable" || (Text.null currentSelection && null selectableEmployees)}>Not paid through Xero</option>
@@ -180,8 +178,7 @@ renderStaffEmployeeSelectionForm view row =
         fields =
             appShellActionFields @ApplyXeroTimesheetPreparationStaffDecisionOverlay
                 (surfaceField @StaffIdField (unpackId staff.id))
-                ( surfaceField @DecisionField "select_employee"
-                    &: surfaceField @XeroEmployeeSelectionField currentSelection
+                ( surfaceField @XeroEmployeeSelectionField currentSelection
                     &: noSurfaceFields
                 )
 
