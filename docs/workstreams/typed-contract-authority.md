@@ -355,6 +355,31 @@ unavailable UI. The checked baseline is now empty and the fresh
 graph reports zero candidates; future exceptions must name one exact
 declaration and its non-static runtime reason.
 
+## Active Module Deepening Checkpoint
+
+[#337](https://github.com/BeaudanBrown/ihp-roster/issues/337) centralizes the
+roster mutation projection decision behind one typed
+`RosterMutationProjection` interface. Row, day, and timeline mutation targets
+now resolve against `RosterLayoutModeEnum` in `Web/RosterWeeks/Projection.hs`;
+controllers retain authorization, mutation invocation, resource invalidation,
+feedback, and redirect policy without repeating mounted-fragment matrices.
+`Web/Controller/RosterWeeks.hs` falls from 1,361 to 1,339 physical lines and the
+architecture radar's controller body measure falls from 1,161 to 1,144. Its
+heuristic score remains 214 because 37 actions and 362 route references dominate
+that score; no route/controller instance was split into shallow forwarding
+modules.
+
+The active Xero preparation view is now orchestration over two deep internal
+modules. `StaffMappings` exposes mapping-attention plus two render interfaces for
+293 lines of selection and form behavior; the 181-line `Review` exposes two
+render interfaces for summary, readiness, preview, and formatting behavior. The
+orchestrator falls from 899 lines and 20 imports to 449 lines and 17 imports.
+Total physical view code rises from 899 to 923 lines because explicit module
+headers/imports cost 24 lines; that small compile/navigation tradeoff keeps the
+existing four-function external view interface unchanged and avoids pass-through
+or one-adapter seams. Focused controller/render tests and Weeder exercise the
+same interfaces used by production callers.
+
 ## Baseline Metrics
 
 Captured on the #329 baseline:

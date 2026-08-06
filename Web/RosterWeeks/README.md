@@ -10,6 +10,7 @@
 - `Web/Controller/RosterWeeks.hs` - controller actions.
 - `Web/RosterWeeks/DirectReadModel.hs` - canonical direct database/read-model construction for every roster layout and fragment.
 - `Web/RosterWeeks/RenderData.hs` - view-facing render data and fragment rendering helpers.
+- `Web/RosterWeeks/Projection.hs` - typed mutation-to-mounted-fragment projection across row, column, and timeline layouts.
 - `Web/RosterWeeks/Responses.hs` - HTMX/OOB response helpers.
 - `Web/RosterWeeks/FrontendSurface.hs` - FrontendSurface contract/runtime bridge, fragment metadata, live dependencies, and interaction shell helpers for the week grid and single-day timeline surfaces.
 - `Web/RosterWeeks/Paths.hs` - canonical route/query helpers.
@@ -19,6 +20,15 @@
 - `Web/RosterWeeks/DropWorkflow.hs` - typed opaque drop-token parsing, venue/group/week resolution, sparse placement, no-op/delete decisions, and Melbourne repeated-time boundary preparation for move, duplicate, timeline, and staff drops.
 - `Web/RosterWeeks/ShiftWorkflow.hs` - shift-dialog create/edit context, render-data preparation, submitted field/DST validation, and authoritative slot application.
 - `Web/View/RosterWeeks/` - HSX rendering.
+
+## Mutation Projection Contract
+
+Controllers select a typed `RosterMutationProjection` after authorization and
+mutation. `rosterMutationProjectionFragments` owns the complete layout decision:
+row layouts add precise day/row fragments, day-column layouts retain the shared
+inner-grid/staff projection, and timeline mutations select the toolbar, frame,
+and staff panel. Response helpers continue to own HTMX resource invalidation and
+feedback; controllers do not reconstruct layout-dependent fragment lists.
 
 ## Roster Enum Authority
 

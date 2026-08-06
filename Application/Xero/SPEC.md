@@ -134,6 +134,11 @@ lands.
 - `Application/Xero/*` modules own API/service/read-model logic. Ordinary page
   reads load connection state only; preparation-specific reads run after the
   workflow is launched.
+- `Web/View/Admin/Xero/TimesheetPreparation.hs` owns workflow/dialog
+  orchestration. Its `StaffMappings` module owns mapping attention, selection,
+  and rendering through three focused interfaces; its `Review` module owns the
+  complete review and preview projections through two rendering interfaces.
+  Controllers continue to consume only the established top-level view interface.
 - `Web/Controller/Admin/Xero/*` owns params, redirects, toasts, HTMX/OOB
   responses, and permission response choices.
 - Probe scripts are diagnostics; do not make production behavior depend on
