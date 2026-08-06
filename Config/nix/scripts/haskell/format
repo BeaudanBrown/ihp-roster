@@ -8,5 +8,6 @@ find . -name '*.hs' \
     -not -path './build/*' \
     -not -path './.devenv/*' \
     -not -path './.direnv/*' \
-    -exec stylish-haskell -i {} +
+    -print0 \
+    | xargs -0 -r -n 100 -P "${FORMAT_JOBS:-4}" stylish-haskell -i
 echo "Formatted all app sources."

@@ -5,12 +5,31 @@ set -euo pipefail
 
 weeder_build_dir="${WEEDER_BUILD_DIR:-$(ihp_roster_verification_build_dir)/weeder}"
 hie_dir="${WEEDER_HIE_DIR:-$weeder_build_dir/hie}"
-ghc_opts="$(ihp_roster_ghc_opts) -iTest -fwrite-ide-info -fforce-recomp"
+ghc_opts="$(ihp_roster_ghc_opts) -iTest -fwrite-ide-info -fwrite-interface"
 
-# Build a fresh, complete HIE graph so deleted declarations and locally stale
-# editor/typecheck artifacts can never affect the reachability result.
-rm -rf "$weeder_build_dir"
-mkdir -p "$weeder_build_dir/hi" "$hie_dir"
+# Keep a dedicated incremental graph: changed modules refresh through GHC's
+# recompilation checker, while this sweep removes HIE files for deleted modules.
+# This preserves reachability authority without rebuilding ~1,100 modules on
+# every agent iteration.
+ihp_roster_prepare_ghc_build_dir "$weeder_build_dir" "$ghc_opts"
+mkdir -p "$hie_dir"
+declare -A current_modules=()
+while IFS= read -r module_name; do
+    [ -z "$module_name" ] || current_modules["$module_name"]=1
+done < <(
+    find Application Web Test Config build/Generated -type f -name '*.hs' -print0 \
+        | xargs -0 -r awk '/^module [A-Z]/ { print $2; nextfile }'
+    awk '/^module [A-Z]/ { print $2; exit }' Main.hs
+)
+while IFS= read -r -d '' hie_file; do
+    module_name="${hie_file#"$hie_dir"/}"
+    module_name="${module_name%.hie}"
+    module_name="${module_name//\//.}"
+    if [ -z "${current_modules[$module_name]:-}" ]; then
+        rm -f "$hie_file"
+    fi
+done < <(find "$hie_dir" -type f -name '*.hie' -print0)
+# shellcheck disable=SC2086 # ghc_opts is an intentional argument vector.
 ghc -fno-code $ghc_opts -main-is Test.HspecMain Test/HspecMain.hs \
     -hidir "$weeder_build_dir/hi" \
     -hiedir "$hie_dir"

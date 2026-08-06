@@ -100,7 +100,7 @@ ihp_roster_prepare_ghc_build_dir() {
     previous_fingerprint="$(cat "$stamp_file" 2>/dev/null || true)"
 
     if [ "$previous_fingerprint" != "$fingerprint" ]; then
-        rm -rf "$build_dir/obj" "$build_dir/hi"
+        rm -rf "$build_dir/obj" "$build_dir/hi" "$build_dir/hie"
     fi
 
     mkdir -p "$build_dir/obj" "$build_dir/hi"

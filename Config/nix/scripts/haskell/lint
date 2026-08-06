@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 if [ $# -gt 0 ]; then
-    exec hlint -XQuasiQuotes "$@"
+    exec hlint -j -XQuasiQuotes "$@"
 fi
-hlint -XQuasiQuotes Main.hs Web/ Application/Helper/ Config/
+hlint -j -XQuasiQuotes Main.hs Web/ Application/Helper/ Config/
