@@ -131,15 +131,21 @@ fi
 
 umask 077
 printf 'STRIPE_WEBHOOK_SECRET=%s\n' "$WEBHOOK_SECRET" > "$STRIPE_GENERATED_ENV"
+# stripe listen prints its local signing secret once during startup. The app
+# receives it through the private one-use env file below; do not retain it in
+# the listener log.
+printf '%s\n' '[dev-start-stripe] listener ready; secret-bearing startup output discarded' >"$STRIPE_LOG_FILE"
 
 echo "[dev-start-stripe] launching start with Stripe webhook forwarding" >>"$LOG_FILE"
 # The child shell expands its own positional parameters.
 # shellcheck disable=SC2016
 setsid nohup bash -c '
     set -euo pipefail
+    generated_env="$1"
     set -a
     . "$PWD/.env"
-    . "$1"
+    . "$generated_env"
+    rm -f "$generated_env"
     set +a
     . "$2"
     bepis_workspace_configure
@@ -154,7 +160,7 @@ for _ in $(seq 1 3); do
     if ! kill -0 "$PID" 2>/dev/null; then
         echo "devenv failed to start; recent log output:"
         tail -n 60 "$LOG_FILE" || true
-        rm -f "$PID_FILE"
+        rm -f "$PID_FILE" "$STRIPE_GENERATED_ENV"
         if [ -f "$STRIPE_PID_FILE" ]; then
             STRIPE_PID=$(cat "$STRIPE_PID_FILE")
             kill -TERM -"$STRIPE_PID" 2>/dev/null || kill -TERM "$STRIPE_PID" 2>/dev/null || true

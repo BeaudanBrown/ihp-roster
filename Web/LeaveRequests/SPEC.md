@@ -1,85 +1,46 @@
 # Leave And Availability Specification
 
-This file describes implemented leave/availability behavior.
+## Domain Contract
 
-## Current Contract
+- Records are venue- and staff-scoped. Backing status is `pending`, `approved`,
+  or `denied`; lifecycle transitions append event/audit provenance rather than
+  silently deleting reviewed history.
+- `end_date` is exclusive. A one-day unavailable period is `[day, day + 1)`.
+- Staff-facing copy uses **Unavailability**, **Unavailable period**, and **Add
+  unavailable time** while the backing schema retains leave terminology.
+- Staff self-service, manager review, and support behavior remain server-authorized.
+  During founder impersonation, authority uses the effective user and linked Staff;
+  event actors retain the founder plus effective-user/session provenance. Profile
+  and roster use the same self-service form/action/validation contract; Profile
+  additionally mounts history.
+- Approved-state changes are the roster-availability boundary. Pending creation
+  does not fan out to roster viewers. Staff removal denies pending requests
+  through the normal provenance path and retains approved/denied history.
 
-- Leave/unavailability records are venue-scoped and staff-scoped.
-- Status lifecycle is `pending`, `approved`, or `denied` where the backing
-  model uses leave status.
-- `end_date` is exclusive. A one-day period has `start_date = day` and
-  `end_date = day + 1`.
-- Staff can create self-service unavailable periods according to controller
-  checks. Profile and the roster quick tool mount the same
-  `SelfServiceLeaveSurface` form fragment, action schema, validation response,
-  venue-operational-day defaults, and success reset. Profile additionally mounts
-  the Surface's history fragment; roster mounts only the form.
-- Date controls submit ISO `yyyy-mm-dd` values and display `dd/mm/yyyy`,
-  including after validation and live fragment replacement.
-- Managers/admins can approve, deny, or manage requests according to role
-  checks. During founder support impersonation, self-service ownership and
-  reviewer authority use the effective user and linked Staff identity; leave
-  event actors remain the authenticated founder, and payload request context
-  records the effective user and impersonation session.
-- Approved-state leave changes invalidate affected roster scopes. Pending
-  create does not fan out to roster viewers unless a new product decision
-  changes that rule.
-- Removing a staff member denies that staff identity's pending requests through
-  the normal denied event and audit provenance lifecycle. Approved and
-  already-denied requests remain unchanged as retained history.
-- Venues can optionally configure an unavailable-staff warning threshold from
-  1–100. `NULL` disables warnings. Venue admins and owners edit it through
-  Venue Settings; managers see warnings on the Unavailability page only when
-  one or more dates meet the configured threshold. Disabled and below-threshold
-  states render no warning copy. Warnings never block submissions.
-- Venue admins, owners, and support-mode super admins manage venue-wide unavailability submission blackout
-  periods. Blackout first/last dates are inclusive, starts use the venue-local
-  calendar date, ranges are at most 366 inclusive days, and the normalized
-  3–160 character reason is visible to staff. Current/future periods are visible
-  from shared self-service forms; managers can also see them on the
-  Unavailability page but cannot manage them.
-- Blackout periods cannot overlap within a venue. New self-service and
-  manager- or support-entered unavailable ranges are rejected in full when any covered date
-  overlaps, with no role/support override and with the blackout reason shown.
-  Leave request `end_date` remains exclusive, so overlap checks compare through
-  `end_date - 1`. Existing pending/approved requests remain valid when a later
-  blackout is created and appear to admins as pre-existing exceptions.
-- Warning counts are per calendar date and count distinct active, unarchived
-  linked or trial staff with pending or approved requests. Deleted/denied
-  requests and inactive/archived staff do not count. Request `end_date` remains
-  exclusive. Consecutive dates with equal counts are grouped and expose the
-  affected staff names and statuses.
+## Venue Policies
 
-## History
+- Admins, owners, and founder support may manage venue-wide blackout periods;
+  managers may only view them. Blackout dates are inclusive, venue-local,
+  non-overlapping, and at most 366 days. Their normalized reason is visible to
+  staff.
+- Any new unavailable range overlapping a blackout is rejected in full, with no
+  role override. Existing requests remain valid when a later blackout is added.
+- The optional unavailable-staff warning threshold is 1–100; `NULL` disables it.
+  Warnings count distinct active, unarchived staff with pending or approved
+  requests per calendar date, never block submission, and are manager-visible
+  only when the threshold is met.
 
-- Leave lifecycle transitions append event/provenance rows.
-- Reviewed payroll-adjacent or roster-adjacent records should not be silently
-  hard-deleted once business use begins.
+Exact normalization, overlap, grouping, and projection behavior is authoritative
+in `Blackouts.hs`, `AvailabilityWarnings.hs`, the schema, and focused tests.
 
-## Live Updates
+## Live And Privacy Rules
 
-- Leave pages can use declarative live surfaces for manager/worker visibility.
-- Blackout management and visible-period fragments depend on a typed venue
-  blackout resource. Create, edit, and remove mutations invalidate it so open
-  manager, Profile, roster, and Staff Surface viewers refetch authoritative HTML
-  without replacing focused self-service form input.
-- The manager warning fragment depends on the typed venue warning resource.
-  Threshold configuration, request creation/review, and staff removal invalidate
-  that resource so open manager pages refetch authoritative server HTML.
-- Successful actor responses request a local shared-form refetch plus the
-  resource-planned history refetch and return only toast OOB HTML. Roster mounts
-  ignore the absent history key; validation failures still replace the form
-  directly with its annotated model.
-- The self-service form is `ResyncOnly`, so passive leave changes cannot erase
-  focused input. The history fragment alone depends on the staff leave-request
-  resource and refetches for passive viewers through its local mount descriptor.
-
-## Extension Rules
-
-- Keep staff-facing copy aligned with Unavailability / Unavailable period / Add
-  unavailable time unless a product decision reverts the language.
-- Do not introduce sensitive medical/reason data in free-text notes without a
-  dedicated product/compliance spec.
+- Server-rendered fragments remain authoritative. Typed blackout, warning, and
+  staff-request resources invalidate only dependent fragments.
+- The self-service form is resync-only for passive updates so remote changes do
+  not erase focused input; validation failures may replace the local form.
+- Do not add medical details or sensitive free-text reasons without dedicated
+  product/compliance review.
 
 ## Verification
 

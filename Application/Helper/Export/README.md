@@ -1,27 +1,24 @@
 # Export Helpers
 
-## Purpose
+## Ownership
 
-`Application/Helper/Export/` owns the fixed export catalog, read models,
-payload construction, rendering, persistence, download authorization, and
-controller-facing orchestration.
+`Application/Helper/Export/` owns the fixed export catalog, venue-scoped read
+models, payload construction, safe rendering, export-job persistence, expiry,
+download authorization, and controller-facing orchestration.
 
-## Modules
+## Start Here
 
-- `Types.hs` - fixed-export domain types and conversions.
-- `Render.hs` - CSV/ZIP rendering and pure formatting.
-- `Definitions.hs` - default date ranges and week slicing.
-- `ReadModel.hs` - export read queries.
-- `Payloads.hs` - fixed-export payload construction.
-- `Persistence.hs` - job persistence, expiry, download authorization, audit.
-- `Service.hs` - controller-facing orchestration.
-- `Application/Helper/Export.hs` - compatibility re-export facade.
+- `Service.hs` — controller-facing generation and download boundary.
+- `Types.hs` and `Definitions.hs` — fixed catalog and date/week rules.
+- `ReadModel.hs` and `Payloads.hs` — authoritative export inputs and payloads.
+- `Render.hs` — CSV/ZIP formatting and output safety.
+- `Persistence.hs` — job lifecycle, authorization, and audit.
+- `Application/Helper/Export.hs` — compatibility facade only.
 
 ## Related Docs
 
-- `SPEC.md`
-- `AGENTS.md`
-- `docs/workstreams/pay-config-versioning.md`
-- `docs/workstreams/xero-payroll.md`
-- `docs/workstreams/record-retention.md`
-- `docs/archive/plans/45-payroll-report-exports.md`
+- `SPEC.md` — durable authorization, payroll, and rendering contracts.
+- `AGENTS.md` — editing and verification rules.
+- `docs/workstreams/pay-config-versioning.md`,
+  `docs/workstreams/xero-payroll.md`, and
+  `docs/workstreams/record-retention.md` — unresolved cross-system work.

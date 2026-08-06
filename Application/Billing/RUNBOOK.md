@@ -1,131 +1,19 @@
 # Billing Runbook
 
-This runbook covers launch setup and operator verification for per-venue Stripe
-Billing. It is intentionally separate from normal CI because live Stripe
-sandbox checks require Dashboard configuration and sandbox credentials.
+Operator procedure for Stripe launch, rollback, reconciliation, and provider
+checks. Automated contract behavior belongs in `SPEC.md` and tests. Never put
+keys, signing secrets, connection URLs, raw provider responses, hosted-session
+URLs, or customer payment data in GitHub, chat, screenshots, or retained logs.
 
-## Stripe Dashboard Setup
+## 1. Dashboard And Public-Site Setup
 
-Create separate test-mode and live-mode Stripe objects.
+Create separate Stripe test and live objects.
 
-API contract version:
+### API and webhooks
 
-- The launch request and snapshot-webhook contract is
-  `2026-06-24.dahlia`, verified as Stripe's current GA version on 22 July
-  2026 from `https://docs.stripe.com/api/versioning` and the API changelog.
-- Configure the test and live Dashboard webhook endpoints to emit snapshot
-  events at exactly `2026-06-24.dahlia`. Do not use the account default.
-- Bepis sends this version on every API request and rejects signed events with
-  a missing or different `api_version` before persistence.
-- The offline wire-shape review is pinned to `stripe/openapi` commit
-  `86b6ae4db114ff06968dcc191ff4a898e9b5db7c`. Run
-  `scripts/check-stripe-openapi-contract` without network access during normal
-  verification.
-- Coordinate any future request-version change, both Dashboard endpoint
-  versions, the reviewed OpenAPI commit, offline fixtures, and the local
-  listener in one reviewed rollout. Follow the sanitize-and-diff-review fixture
-  refresh procedure in
-  `Test/Fixtures/stripe/2026-06-24.dahlia/README.md`; never copy unrestricted
-  provider responses into the repository.
-
-Public business website:
-
-- Before live account activation, publish a public Bepis page that loads
-  without authentication and does not appear under construction. The app ships
-  this at:
-
-  ```text
-  https://<app-base-url>/PublicBillingSupport
-  ```
-
-- Include the business/product name and a plain description of the service:
-  venue rostering, timesheets, leave/unavailability, payroll-ready exports, and
-  related support for hospitality operators.
-- Include customer support contact details: `support@bepis.lol`.
-- Link to or include customer terms, privacy policy, refund/dispute policy, and
-  subscription cancellation policy.
-- The app serves those public policies at:
-
-  ```text
-  https://<app-base-url>/LegalTerms
-  https://<app-base-url>/LegalPrivacy
-  https://<app-base-url>/LegalRefundsDisputes
-  https://<app-base-url>/LegalCancellation
-  ```
-
-- Keep the Stripe Dashboard business description, website URL, support email,
-  statement descriptor, Product/Price naming, and public page copy consistent.
-- Do not block Stripe review access by password protection, region blocking, or
-  a placeholder-only landing page.
-
-Public legal document configuration:
-
-- Set `services.ihpRoster.legalDocuments.businessName = "Bepis PTY LTD";`.
-- Set `services.ihpRoster.legalDocuments.supportEmail = "support@bepis.lol";`.
-- Populate the public policy pages using either file options:
-
-  ```nix
-  services.ihpRoster.legalDocuments = {
-    termsFile = /run/secrets-or-config/bepis-terms.txt;
-    privacyFile = /run/secrets-or-config/bepis-privacy.txt;
-    refundsDisputesFile = /run/secrets-or-config/bepis-refunds-disputes.txt;
-    cancellationFile = /run/secrets-or-config/bepis-cancellation.txt;
-  };
-  ```
-
-  or inline private deployment-layer text options:
-
-  ```nix
-  services.ihpRoster.legalDocuments.privacyText = ''
-    Bepis PTY LTD privacy policy
-    ...
-  '';
-  ```
-
-- Do not use legal drafts with placeholders for live payment activation.
-
-Product and Price:
-
-- Create one recurring Product for Bepis venue subscriptions.
-- Create one active recurring Price for AUD 100.00 per month.
-- Set the Price lookup key to `bepis_venue_monthly_aud_100` in both test and
-  live mode.
-- Keep quantity fixed at one venue per subscription.
-- Do not create Products or Prices from the app for v1.
-
-Tax and invoices:
-
-- The operator is not GST registered at launch.
-- Keep Stripe automatic tax disabled.
-- Keep tax ID collection disabled.
-- Do not describe Stripe invoices as tax invoices in customer materials.
-
-Checkout:
-
-- Use Stripe-hosted Checkout only.
-- Leave `payment_method_types` Dashboard-managed unless a later ticket requires
-  a forced list.
-- Do not add Stripe.js or embedded pricing tables to authenticated app pages.
-
-Customer Portal:
-
-- Configure Customer Portal separately in Stripe test and live mode.
-- Allow payment method updates and invoice history.
-- Configure cancellation behavior according to the customer terms before live
-  launch. Stripe may represent period-end Portal cancellation with
-  `cancel_at_period_end = true` or with `cancel_at` equal to the Subscription
-  Item period end; Bepis normalizes both representations.
-- Do not store Portal Session URLs; the app creates them on demand.
-
-Webhook endpoint:
-
-- Create a Stripe webhook endpoint for the app route:
-
-  ```text
-  https://<app-base-url>/StripeWebhook
-  ```
-
-- Subscribe to these launch events:
+- Pin requests and both Dashboard snapshot-webhook endpoints to
+  `2026-06-24.dahlia`; do not use the account default.
+- Subscribe `/StripeWebhook` to:
   - `checkout.session.completed`
   - `checkout.session.async_payment_succeeded`
   - `checkout.session.async_payment_failed`
@@ -133,63 +21,61 @@ Webhook endpoint:
   - `customer.subscription.updated`
   - `customer.subscription.deleted`
   - `invoice.payment_failed`
-- Set the endpoint API version to `2026-06-24.dahlia` in both test and live
-  mode.
-- Copy the endpoint signing secret into the production webhook secret file.
-- Never commit the signing secret.
+- Store each endpoint's `whsec_` value only in its environment's secret file.
+- Run `scripts/check-stripe-openapi-contract` offline. Provider-version changes
+  require one coordinated rollout of request version, both endpoint versions,
+  reviewed OpenAPI source, and sanitized fixtures. Follow
+  `Test/Fixtures/stripe/2026-06-24.dahlia/README.md`.
 
-## Credential Policy And Mode Isolation
+### Product, tax, and Portal
 
-Development and CI:
+- Create one recurring Bepis Product and active AUD 100.00 monthly Price per
+  mode, quantity one, lookup key `bepis_venue_monthly_aud_100`.
+- Keep automatic tax and tax-ID collection disabled while Bepis is not GST
+  registered; do not call Stripe invoices tax invoices.
+- Use hosted Checkout. Leave payment methods Dashboard-managed.
+- Configure Portal separately per mode for payment-method updates, invoice
+  history, and cancellation behavior matching customer terms.
 
-- Set `STRIPE_MODE=test` and use only `sk_test_` or `rk_test_` credentials.
-- `dev-start-stripe` and `stripe-listen` reject `sk_live_` and `rk_live_`
-  credentials before launching Stripe CLI or the app.
-- Keep test Products, Prices, Customers, Subscriptions, Portal configuration,
-  and webhook endpoints separate from live objects.
+### Stripe-review public pages
 
-Production:
+Verify these unauthenticated live URLs:
 
-- Set `mode = "live"` through NixOS and use an HTTPS app base URL.
-- Prefer a file-backed `rk_live_` restricted key granting only the permissions
-  this integration needs: Price read, Customer read/write, Checkout Session
-  read/write, Billing Portal Session write, and Subscription read.
-- Use a file-backed `sk_live_` secret key only when Stripe cannot express a
-  required permission on a restricted key. Record the specific missing
-  permission and operator approval in private deployment notes, set a review
-  date, and return to a restricted key when possible.
-- Never place either key class in Nix strings, `.env`, shell history, issue
-  text, application logs, or generated documentation.
-- The app rejects API objects and signed events whose `livemode` does not match
-  configured mode. Do not work around a mismatch by copying test IDs into live
-  configuration or vice versa.
+```text
+https://<app-base-url>/PublicBillingSupport
+https://<app-base-url>/LegalTerms
+https://<app-base-url>/LegalPrivacy
+https://<app-base-url>/LegalRefundsDisputes
+https://<app-base-url>/LegalCancellation
+```
 
-## Persistence Migration
+The support page must identify Bepis, describe the service, show
+`support@bepis.lol`, link all four policies, and not appear unfinished or be
+access-restricted. Keep Dashboard business identity, website, support email,
+statement descriptor, and Product/Price naming consistent.
 
-Migration `Application/Migration/1784761930.sql` is additive: it creates durable
-Checkout attempts and adds provider-mode/event-order metadata without deleting
-or rewriting billing identifiers. Before applying it, inventory
-`venue_billing_customers`, `venue_subscriptions`, and `billing_events` read-only.
-The approved backfill marks existing Customer and Subscription rows as test mode
-because Bepis had no live production billing activity before this migration. If
-that inventory finds a genuine live row, stop and reconcile its mode before
-running the migration.
+Configure final, non-placeholder legal text in the private deployment layer:
 
-Legacy Customer creator references and provider event-order timestamps remain
-null because the migration must not invent audit provenance. The first ordered
-validated event establishes a Subscription cursor in the later webhook
-lifecycle rollout.
+```nix
+services.ihpRoster.legalDocuments = {
+  businessName = "Bepis PTY LTD";
+  supportEmail = "support@bepis.lol";
+  termsFile = /run/secrets-or-config/bepis-terms.txt;
+  privacyFile = /run/secrets-or-config/bepis-privacy.txt;
+  refundsDisputesFile = /run/secrets-or-config/bepis-refunds-disputes.txt;
+  cancellationFile = /run/secrets-or-config/bepis-cancellation.txt;
+};
+```
 
-## NixOS Secret Injection
+## 2. Credentials And Production Configuration
 
-Production uses file-backed Stripe secrets through systemd credentials. The app
-receives file paths, not secret values. The Stripe module deliberately has no
-Stripe-specific `environmentFile` escape hatch. It loads a generated non-secret
-Stripe environment file last for each service, so general/Xero environment
-files and `additionalEnvVars` cannot override mode, rollout controls, Price
-selection, credential paths, or `APP_BASE_URL` during an incident rollback.
+Test/dev accepts only `sk_test_` or `rk_test_`. Production prefers a file-backed
+least-privilege `rk_live_` key with Price read, Customer read/write, Checkout
+Session read/write, Portal Session write, and Subscription read. Use
+`sk_live_` only when Stripe cannot express a required permission; record private
+approval and review date.
 
-Expected placeholders:
+Production baseline:
 
 ```nix
 services.ihpRoster.billing.stripe = {
@@ -212,142 +98,13 @@ services.ihpRoster.billing.stripe = {
 };
 ```
 
-The sweep service only reads Bepis subscription rows and enqueues AppJobs. The
-worker owns Stripe credentials and performs provider retrieval. The module does
-not pass Stripe credentials to the sweep process.
+Production must use HTTPS and systemd credential files. Exactly one Price lookup
+key or direct Price ID is configured when enabled. The Stripe-generated
+non-secret environment file loads last so generic/Xero environment settings
+cannot override billing mode, controls, Price, secret paths, or base URL.
+Credentials belong only in the app/worker; the sweep merely enqueues AppJobs.
 
-The module exposes these environment variables to `app` and `worker`:
-
-- `STRIPE_MODE`
-- `STRIPE_BILLING_ENABLED`
-- `STRIPE_CHECKOUT_ENABLED`
-- `STRIPE_OWNER_NAVIGATION_VISIBLE`
-- `STRIPE_SECRET_KEY_FILE`
-- `STRIPE_WEBHOOK_SECRET_FILE`
-- `STRIPE_PRICE_LOOKUP_KEY`, or `STRIPE_PRICE_ID` if using the fallback
-- `STRIPE_EXPECTED_CURRENCY`
-- `STRIPE_EXPECTED_AMOUNT_CENTS`
-- `STRIPE_EXPECTED_INTERVAL`
-- `STRIPE_EXPECTED_INTERVAL_COUNT`
-- `STRIPE_GST_REGISTERED`
-- `STRIPE_AUTOMATIC_TAX`
-- `STRIPE_TAX_ID_COLLECTION`
-
-Do not put live keys in Nix strings, generated docs, shell history, or
-application logs.
-
-The NixOS module rejects Checkout/navigation controls when overall billing is
-disabled and rejects live mode with a non-HTTPS `baseUrl`.
-
-## Rollout And Incident Controls
-
-The three controls require a service restart and have separate purposes. Deploy
-billing webhook changes as a single-version restart: stop the old Bepis web
-process before the replacement accepts traffic, and verify no old webhook writer
-remains. Do not use a mixed-version rolling deployment for billing ingress;
-Stripe retries non-success responses after the replacement starts.
-
-1. `enable` controls the overall Stripe integration, including credentials,
-   webhook processing, Portal access, and reconciliation.
-2. `checkoutEnabled` controls only creation of new Checkout Sessions and is
-   enforced by the POST action before any Stripe or local Customer creation.
-3. `ownerNavigationVisible` controls discovery of the ordinary-owner Billing
-   link after Xero and before Admin; it does not expose a founder link or change
-   direct-route authorization.
-
-Hidden-navigation canary: an authorized selected venue owner opens `/Billing`
-directly while the global link remains absent. Status inspection itself does not
-require fresh passkey step-up; Checkout and Customer Portal actions still do.
-
-```nix
-services.ihpRoster.billing.stripe = {
-  enable = true;
-  mode = "live";
-  checkoutEnabled = true;
-  ownerNavigationVisible = false;
-};
-```
-
-Incident rollback for new sales:
-
-```nix
-services.ihpRoster.billing.stripe = {
-  enable = true;
-  mode = "live";
-  checkoutEnabled = false;
-  ownerNavigationVisible = false;
-};
-```
-
-Keep overall billing enabled during this rollback so existing-customer Portal
-recovery, signed webhooks, and reconciliation remain available. Disable overall
-billing only when continued Stripe ingress/API use is itself unsafe; expect the
-webhook endpoint to return non-success while it is disabled, and re-enable it
-promptly so Stripe retries can succeed.
-
-## Reconciliation Operations
-
-Normal recovery does not require database edits or raw webhook replay.
-
-- An exactly correlated Checkout success return queues reconciliation for that
-  persisted attempt. It retrieves the current Session and, only when the
-  Customer, mode, venue metadata, and Subscription all match, repairs the local
-  mirror.
-- Founder support can select the venue in support mode, complete fresh passkey
-  step-up, open Billing, and choose **Synchronize with Stripe**. This queues the
-  venue's known local Subscription, or its latest known Checkout Session when no
-  local Subscription exists.
-- `billing-reconciliation-sweep.timer` runs daily with randomized delay and
-  queues all known non-terminal Subscriptions. Active per-target jobs deduplicate.
-
-Useful operator checks:
-
-```bash
-systemctl status billing-reconciliation-sweep.timer
-systemctl list-timers billing-reconciliation-sweep.timer
-systemctl start billing-reconciliation-sweep.service
-journalctl -u billing-reconciliation-sweep.service
-```
-
-The step-up-protected Billing diagnostics show bounded provider, Checkout,
-event, and local AppJob identifiers; last synchronization; and sanitized failure
-summaries. The founder view has no Checkout, Customer Portal, or manual read-only
-controls. Do not paste Stripe response bodies into job errors or attempt to
-repair a mismatch by changing venue IDs manually. A missing/mismatched provider
-object retries through the worker; after the final attempt, the shared
-support-only billing alert is sent. Reconciliation never changes manual read-only
-state.
-
-Withheld-webhook recovery check in Stripe test mode:
-
-1. Start from a known Checkout attempt or local non-terminal Subscription.
-2. Deliberately withhold the matching lifecycle webhook in the controlled test
-   environment.
-3. Change or complete the object in Stripe.
-4. Use the exact Checkout return, founder action, or run the sweep service.
-5. Wait for the `billing_reconciliation` AppJob to succeed.
-6. Confirm status, Price, Customer association, venue metadata correlation,
-   Subscription Item period, cancellation flag, ordering cursor, and last-sync
-   time reflect the current Stripe object.
-7. Confirm venue writability did not change and no provider create request was
-   made.
-
-## Local Deterministic Verification
-
-Normal CI and local test runs do not need live Stripe credentials.
-
-Run:
-
-```bash
-bash ./bin/in-env regen-types
-bash ./bin/in-env typecheck
-bash ./bin/in-env hspec-test --match "Billing"
-bash ./bin/in-env hspec-test
-bash ./bin/in-env lint
-bash ./bin/in-env format
-```
-
-Verify NixOS module assertions after module changes:
+Evaluate deployment assertions after module changes:
 
 ```bash
 nix eval .#nixosConfigurations.production.config.services.ihpRoster.billing.stripe.enable
@@ -356,173 +113,16 @@ nix eval .#nixosConfigurations.production.config.services.ihpRoster.billing.stri
 nix eval .#nixosConfigurations.production.config.services.ihpRoster.billing.stripe.ownerNavigationVisible
 nix eval .#nixosConfigurations.production.config.services.ihpRoster.billing.stripe.priceLookupKey
 nix eval .#nixosConfigurations.production.config.services.ihpRoster.billing.stripe.reconciliationSweep.enable
-nix eval .#nixosConfigurations.production.config.services.ihpRoster.billing.stripe.reconciliationSweep.onCalendar
 ```
 
-## Stripe Sandbox Contract-Parity Probe
+## 3. Data And Migration Preflight
 
-The `stripe-sandbox-contract-parity` command is an explicit operator-only probe
-of Stripe's real test API. It is not part of `verify-full`, refuses CI, live
-credentials, the local E2E Stripe boundary, and any invocation without
-`STRIPE_SANDBOX_PARITY=1`. It requires the Nix-pinned `/nix/store` Stripe CLI
-at version `1.42.10`. It keeps raw CLI responses, hosted URLs, email, payment
-data, and credentials in memory only; its optional evidence file contains only
-the sanitized contract fields Bepis consumes.
-
-For #225, use the approved direct test Price fallback:
-
-```text
-price_1TUbsYFKD8mCPCJt7bXP0amT
-```
-
-Set `STRIPE_PRICE_ID` to that value and leave `STRIPE_PRICE_LOOKUP_KEY` unset.
-This #225 probe refuses any other Price or lookup-key configuration. The
-direct-Price production path retrieves that Price rather than listing a lookup
-key, so the probe deliberately exercises retrieve → Customer → Checkout
-create/retrieve → Portal → Subscription. Do not use this test Price in live
-mode.
-
-Run the prepare phase through the repository wrapper:
-
-```bash
-STRIPE_SANDBOX_PARITY=1 \
-STRIPE_SANDBOX_ACCOUNT_ID=acct_selected_test_sandbox \
-STRIPE_SANDBOX_WEBHOOK_ENDPOINT_ID=we_nonproduction_endpoint \
-bash ./bin/in-env stripe-sandbox-contract-parity \
-  --evidence-file output/stripe-sandbox/contract-parity.json
-```
-
-The command retrieves and matches `STRIPE_SANDBOX_ACCOUNT_ID` before any
-provider create call. Its output records the test Account reference, pinned
-`2026-06-24.dahlia` API version, reviewed Stripe OpenAPI commit, selected
-Price, sanitized Customer, Checkout, and Portal correlation fields, and the
-validated webhook version/event set. It deliberately does not retain the
-Checkout or Portal URL. Complete the
-recorded Checkout Session only in the selected Stripe test environment, then
-retrieve and validate its exact resulting Subscription:
-
-```bash
-STRIPE_SANDBOX_PARITY=1 \
-STRIPE_SANDBOX_ACCOUNT_ID=acct_selected_test_sandbox \
-STRIPE_SANDBOX_WEBHOOK_ENDPOINT_ID=we_nonproduction_endpoint \
-bash ./bin/in-env stripe-sandbox-contract-parity \
-  --verify --evidence-file output/stripe-sandbox/contract-parity.json
-```
-
-Set the nonsecret endpoint ID before both commands. The probe refuses to run
-without it and requires its snapshot version, event set, HTTPS host, and exact
-`/StripeWebhook` route to match the pinned contract. `stripe listen` remains
-necessary for local dev delivery, but it does not substitute for this configured
-non-production endpoint reference.
-
-Copy only the sanitized JSON summary or selected identifiers into #225. Do not
-attach raw CLI output, hosted URLs, browser state, screenshots containing hosted
-payment fields, keys, or webhook signing secrets. The command's offline
-sanitizer check runs as part of `billing-production-readiness`.
-
-## Stripe CLI Sandbox Checklist
-
-Use Stripe test mode and the local dev app. The CLI webhook signing secret is
-for local testing only; it is different from the Dashboard endpoint signing
-secret.
-
-1. Start the app and worker against the dev database with
-   `bash ./bin/in-env dev-start-stripe`; this launcher sets explicit test mode
-   and rejects live credentials.
-2. Export a test secret key through a local-only env var or secret file.
-3. Start webhook forwarding:
-
-   ```bash
-   stripe listen \
-     --latest \
-     --events checkout.session.completed,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,invoice.payment_failed \
-     --forward-to localhost:8000/StripeWebhook
-   ```
-
-4. Set `STRIPE_WEBHOOK_SECRET` or the local webhook secret file to the
-   `whsec_...` value printed by the CLI.
-5. As a venue owner, start Checkout from `/Billing`.
-6. Complete a successful subscription using Stripe's documented test payment
-   method.
-7. Confirm the app records:
-   - one `venue_billing_customers` row for the venue
-   - one `venue_subscriptions` row with the Stripe subscription ID
-   - processed `billing_events` rows without raw payload storage
-8. Open Customer Portal from `/Billing`, update payment details, and return to
-   the app.
-9. Trigger or replay a duplicate event and confirm it does not create duplicate
-   local events or notifications.
-10. Exercise a failed payment path and confirm venue owners and founder super
-    admins receive sanitized payment problem notifications.
-
-Stripe CLI `listen` can request the latest event shape but cannot select an
-arbitrary named snapshot version. `--latest` is aligned because
-`2026-06-24.dahlia` is the current GA version at launch. If Stripe releases a
-new GA version, the app's pinned-version check deliberately rejects that local
-event shape until the coordinated contract review is complete; do not weaken
-the check or silently follow the new version.
-
-## API Version Review Policy
-
-- Review Stripe's API changelog quarterly for security, deprecation, support,
-  and required-feature notices.
-- Plan a deliberate pinned-version review approximately annually. Upgrade
-  earlier only when Stripe requires it or a security/deprecation/required
-  feature justifies it.
-- For an upgrade, audit every Price, Customer, Checkout create/retrieve, Portal,
-  Subscription retrieve, and snapshot-webhook field used by Bepis; refresh the
-  offline fixtures; run focused and full verification; update the
-  `Stripe-Version` constant; then coordinate both Dashboard webhook endpoint
-  versions and local listener behavior.
-- Never change only the Dashboard endpoint or only the request header.
-
-## Billing Test-Clock Checklist
-
-Run these in Stripe test mode before live launch and record evidence in #225.
-Use a dedicated clock-attached Customer and fixed-price Subscription carrying
-`metadata[venue_id]`; do not retrofit the Customer created by the hosted
-Checkout smoke. Keep the selected Stripe listener forwarding only the seven
-billing events to the isolated dev app/database. Stripe CLI/API state is the
-provider oracle; Bepis database rows, owner/support rendering, live updates,
-and MailHog are the application oracle.
-
-For one dedicated test clock, verify in order:
-
-1. Initial successful subscription and its known local Customer/Subscription
-   correlation.
-2. A monthly renewal succeeds after advancing the clock; the local period,
-   ordering cursor, `last_synced_at`, and owner copy advance once.
-3. A renewal fails using Stripe's documented test payment behavior; Bepis
-   reaches the expected troubled state and sends one sanitized payment-problem
-   notification per recipient/period.
-4. A successful test payment method is supplied through the approved hosted
-   route; advancing the clock proves recovery, one recovery notification, and
-   no duplicate trouble mail.
-5. Customer Portal cancellation is scheduled at period end, then the clock is
-   advanced to cancellation completion; check both distinct notifications and
-   owner copy/actions.
-6. Resend one delivered Event to the configured non-production endpoint with
-   `stripe events resend <event> --webhook-endpoint <endpoint>` and prove one
-   durable event, transition, and notification.
-7. After a newer Subscription event applies, resend an older Event and prove
-   the local provider cursor does not regress.
-8. Withhold a known event, then use the exact Checkout return, founder
-   reconciliation, or sweep. Prove only the known provider object repairs the
-   local mirror, no provider create call occurs, and venue writability remains
-   unchanged.
-
-For each step record the timestamp, test Clock/Event/Customer/Subscription
-references, Bepis venue/attempt/job reference, expected and observed local
-state, MailHog recipient/result, and pass/fail. Never save raw provider
-responses or payment/browser artifacts. Before enabling AU BECS, PayTo, or any
-delayed-payment method, add new tests and repeat delayed-settlement failure and
-recovery scenarios.
-
-## Read-Only Billing Inventory And Human Approval
-
-Before any migration or live enablement, run the local inventory against the
-intended database and record only the resulting counts/modes plus any true
-manual read-only venue references in the operator evidence:
+Migration `Application/Migration/1784761930.sql` is additive and backfills existing billing rows as
+test mode because no live Bepis billing activity existed before it. Before
+applying, run the inventory below read-only. A genuine live row, unexpected
+mode/version, or manual read-only venue requires named review and correction
+before migration or enablement. Null legacy creator/cursor fields remain null;
+do not invent provenance.
 
 ```sql
 SELECT 'venue_billing_customers' AS source, livemode, count(*)
@@ -547,35 +147,176 @@ FROM venue_billing_controls
 WHERE manual_read_only = TRUE;
 ```
 
-Independently inspect the selected test and live Dashboards without mixing
-objects. Record their Account/Product/Price and endpoint references, never
-keys, webhook secrets, raw exports, or complete provider payloads. A true live
-row, unexpected mode, or a manual read-only row requires explicit operator
-review before migration or enablement.
+Record only aggregate counts/modes and reviewed venue references. Pair this with
+the normal verified database backup and restore evidence.
 
-A named human must approve, in #225 rather than in source code, the business
-identity/support contact; AUD 100/month non-GST posture; terms, privacy,
-refund/dispute, and cancellation text; Portal payment-method, invoice, and
-period-end cancellation behavior; test/live Dashboard separation; restricted
-key permissions; migration readiness; and rollback readiness. Draft policy
-content or an unchecked runbook line is not approval.
+## 4. Rollout And Incident Controls
 
-## Launch Evidence
+Deploy billing webhook changes with a single-version restart: stop the old web
+process before the replacement accepts ingress. Mixed-version billing writers
+are unsupported.
 
-Record the following before enabling billing for the first live venue:
+Controls require restart and are independent:
 
-| Item | Evidence |
-| --- | --- |
-| Stripe live Product/Price ID and lookup key checked | `[link or screenshot reference]` |
-| Public Bepis website satisfies Stripe activation requirements | `[URL/operator/date]` |
-| Public terms/privacy/refund/cancellation pages reviewed | `[URL/operator/date]` |
-| Customer Portal live-mode settings checked | `[link or screenshot reference]` |
-| Live webhook endpoint and event list checked | `[link or screenshot reference]` |
-| Production secret files provisioned | `[operator/date]` |
-| NixOS module assertions evaluated | `[command/date]` |
-| Local deterministic tests passed | `[command/date]` |
-| Sanitized Stripe Sandbox contract-parity probe passed | `[#225 evidence/operator/date]` |
-| Stripe CLI hosted Checkout/Portal flow passed | `[#225 evidence/operator/date]` |
-| Billing test-clock, duplicate/order, and withheld-webhook scenarios passed | `[#225 evidence/operator/date]` |
-| Local/Stripe mode inventory and manual read-only rows reviewed | `[#225 evidence/operator/date]` |
-| Named legal, Portal, migration, restricted-key, and rollback approvals recorded | `[#225 approver/date]` |
+1. `enable` — credentials, provider calls, webhook ingress, Portal, and
+   reconciliation.
+2. `checkoutEnabled` — new Checkout creation, enforced before local/provider
+   Customer creation.
+3. `ownerNavigationVisible` — link discovery only; never authorization.
+
+Canary with billing enabled, Checkout enabled, and navigation hidden. An
+authorized selected-venue owner opens `/Billing` directly; status needs no fresh
+step-up, while Checkout/Portal do.
+
+For a new-sales incident:
+
+```nix
+services.ihpRoster.billing.stripe = {
+  enable = true;
+  mode = "live";
+  checkoutEnabled = false;
+  ownerNavigationVisible = false;
+};
+```
+
+Keep overall billing enabled so webhooks, reconciliation, and Portal recovery
+continue. Disable it only when provider ingress itself is unsafe; expect webhook
+non-success and re-enable promptly so Stripe retries.
+
+## 5. Reconciliation Operations
+
+Normal repair uses no database edit or raw webhook replay.
+
+- An exactly correlated Checkout return queues its known attempt.
+- Founder support selects the venue, completes fresh step-up, opens Billing, and
+  chooses **Synchronize with Stripe**.
+- The daily sweep queues known non-terminal Subscriptions; active target jobs
+  deduplicate.
+
+```bash
+systemctl status billing-reconciliation-sweep.timer
+systemctl list-timers billing-reconciliation-sweep.timer
+systemctl start billing-reconciliation-sweep.service
+journalctl -u billing-reconciliation-sweep.service
+```
+
+Diagnostics contain bounded local/provider IDs and sanitized errors only. Never
+repair correlation by rewriting venue/provider IDs. A missing/mismatched object
+retries through the worker and then raises the shared support-only terminal
+alert. Reconciliation must not change writability or call create/update APIs.
+
+Controlled withheld-webhook check:
+
+1. Start with a known attempt or local non-terminal Subscription in test mode.
+2. Withhold its lifecycle webhook; change/complete the object in Stripe.
+3. Trigger exact return, founder synchronization, or sweep.
+4. Wait for the `billing_reconciliation` job.
+5. Verify exact Customer/mode/venue/Subscription correlation, Price, Item
+   period, cancellation, ordering cursor, and `last_synced_at`.
+6. Verify no provider create request and no writability change.
+
+## 6. Deterministic Verification
+
+No real Stripe credentials or network access are required:
+
+```bash
+bash ./bin/in-env billing-production-readiness
+bash ./bin/in-env hspec-test --match "Billing"
+bash ./bin/in-env e2e e2e/billing.spec.ts
+```
+
+Use the root verification gate for full release checks.
+
+## 7. Real Sandbox Contract Probe
+
+`stripe-sandbox-contract-parity` is operator-only. It requires
+`STRIPE_SANDBOX_PARITY=1`, refuses CI/live/local-mock ambiguity, verifies the
+selected non-production Account and endpoint before create calls, and retains
+only sanitized consumed fields. It uses pinned Stripe CLI `1.42.10`.
+
+For #225, use direct test Price
+`price_1TUbsYFKD8mCPCJt7bXP0amT`, set `STRIPE_PRICE_ID`, and leave lookup key
+unset. The probe refuses another Price/configuration; never use this ID live.
+
+Prepare:
+
+```bash
+STRIPE_SANDBOX_PARITY=1 \
+STRIPE_SANDBOX_ACCOUNT_ID=acct_selected_test_sandbox \
+STRIPE_SANDBOX_WEBHOOK_ENDPOINT_ID=we_nonproduction_endpoint \
+bash ./bin/in-env stripe-sandbox-contract-parity \
+  --evidence-file output/stripe-sandbox/contract-parity.json
+```
+
+Complete only the recorded hosted Checkout in that selected test environment,
+then verify:
+
+```bash
+STRIPE_SANDBOX_PARITY=1 \
+STRIPE_SANDBOX_ACCOUNT_ID=acct_selected_test_sandbox \
+STRIPE_SANDBOX_WEBHOOK_ENDPOINT_ID=we_nonproduction_endpoint \
+bash ./bin/in-env stripe-sandbox-contract-parity \
+  --verify --evidence-file output/stripe-sandbox/contract-parity.json
+```
+
+Retain only sanitized evidence: account reference, pinned API/OpenAPI versions,
+Price and correlation fields, endpoint version/event set, and pass/fail.
+
+## 8. Hosted Flow And Test-Clock Checks
+
+For local delivery, start the integrated launcher:
+
+```bash
+bash ./bin/in-env dev-start-stripe
+bash ./bin/in-env dev-wait
+```
+
+The launcher starts `stripe listen` with the repository event set, captures its
+local-only signing secret, injects that same secret into the app, and forwards
+to the worktree's `/StripeWebhook` route. Do not start a second listener: it
+would use a different signing secret. Complete hosted Checkout and Portal as an
+owner; verify one venue Customer/Subscription, sanitized event rows, duplicate
+idempotency, and payment-trouble notification behavior. Stop through
+`bash ./bin/in-env dev-stop`. If Stripe's latest version moves beyond the pin,
+do not weaken rejection—perform the coordinated version review first.
+
+Before live launch, use one dedicated clock-attached test Customer/Subscription
+with venue metadata and verify in order:
+
+1. Initial subscription correlation.
+2. Successful monthly renewal advances period/cursor once.
+3. Failed renewal produces one sanitized trouble notification per
+   recipient/period.
+4. Hosted payment recovery produces one recovery notification.
+5. Portal period-end cancellation and completed cancellation remain distinct.
+6. Event resend remains one durable event/transition/notification.
+7. Older event replay cannot regress the cursor.
+8. Withheld-event reconciliation repairs only the known object without create
+   calls or writability changes.
+
+Record timestamp, test Clock/Event/Customer/Subscription references, Bepis
+venue/attempt/job reference, expected/observed state, MailHog result, and
+pass/fail—never raw responses or payment/browser artifacts. Delayed payment
+methods require separate failure/recovery coverage before enablement.
+
+## 9. Human Approval And Launch Evidence
+
+A named human records approval in #225—not source code—for business identity and
+support contact; AUD 100/month non-GST posture; final legal policies; Portal
+payment/invoice/cancellation settings; test/live separation; restricted-key
+permissions; migration/backup readiness; and rollback controls.
+
+Before enabling the first live venue, record private/sanitized references for:
+
+- live Product/Price and lookup key;
+- public support/legal URLs;
+- live Portal and webhook configuration;
+- provisioned secret files and evaluated Nix assertions;
+- deterministic verification and sandbox probe;
+- hosted Checkout/Portal and test-clock/replay/reconciliation checks;
+- database/provider mode inventory and manual read-only review; and
+- named legal, migration, restricted-key, and rollback approvals.
+
+Review Stripe's changelog quarterly and the pinned API approximately annually,
+or earlier for security/deprecation/required features. Never change only the
+request header or only a webhook endpoint version.

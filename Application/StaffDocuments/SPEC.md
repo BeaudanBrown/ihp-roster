@@ -1,65 +1,35 @@
-# Staff Documents
+# Staff Documents Specification
 
-## RSA Effective Current State
+Start with `Application.StaffDocuments.Rsa` for RSA state and
+`Application.StaffDocuments.RsaExtraction` for PDF metadata candidates. Web
+workflow and authorization live in `Web/Controller/StaffDocuments.hs` and
+`Web/StaffDocuments/Mutations.hs`; exact behavior is covered by
+`Test/StaffDocumentsRsaSpec.hs` and controller tests.
 
-RSA document rows are append-only. Uploading an RSA document always creates a new
-`staff_documents` row with `status = pending_review`; existing rows are retained
-for audit/history and are not edited in place.
+## RSA History And Effective State
 
-The helper contract in `Application.StaffDocuments.Rsa` is the source of truth
-for current-vs-history presentation:
-
-- `effectiveRsaState today documents` accepts a newest-first list of RSA rows for
-  one staff member and returns the effective current document, initial pending
-  document, pending replacement, latest rejected replacement, and compliance
-  state.
-- A first upload with no reviewed history is `StaffRsaPendingReview`.
-- A later pending upload with an older reviewed document is
-  `StaffRsaPendingReplacement`; the pending row is reviewable, while the older
-  verified/expired row remains retained as the current reviewed document.
-- If a replacement is rejected and an older verified RSA still exists, the older
-  row remains the effective current document and the rejected row is exposed as
-  `rsaRejectedReplacement` for manager context.
-- If there is no older reviewed document, a rejected latest row leaves the staff
-  member in `StaffRsaRejected`.
-- Expiring and expired decisions are calculated against the effective current
-  reviewed document; reminder jobs target that effective current row, not a
+- RSA rows are append-only. Every upload creates a new `pending_review`
+  `staff_documents` row; prior rows remain audit history.
+- `effectiveRsaState` is the current/history authority for manager and staff
+  panels. A pending replacement never displaces the older reviewed document.
+  Rejecting a replacement likewise leaves an older verified document effective;
+  without older reviewed evidence, rejection leaves the staff member rejected.
+- Expiry state and reminder jobs use the effective reviewed document, not a
   pending replacement.
+- Upload, review, and live invalidation remain venue-scoped and role-authorized.
 
-Manager edit-staff and staff self-profile RSA panels use this read model so
-those surfaces can distinguish missing, pending review, pending replacement,
-verified, expiring, expired, and rejected states without a separate full history
-UI.
+## PDF Metadata Candidates
 
-## RSA PDF Metadata Prefill
-
-RSA upload supports a deterministic PDF scan step before saving a document. The
-scan uses local Poppler-compatible `pdftotext` extraction (`RSA_PDFTOTEXT_COMMAND`
-can override the binary) and the parser in `Application.StaffDocuments.RsaExtraction`.
-It does not use AI, LLMs, external document processors, or third-party document
-AI services.
-
-The scan result is only a candidate prefill for the existing upload fields:
-issue date, expiry date, issuing authority, and document number. The extracted
-recipient name is shown for confirmation and mismatch warnings against the
-selected staff member; when the confirmed upload is saved it is retained only as
-minimal extraction provenance (`extracted_subject_name`), not as authoritative
-staff identity. The user or manager must confirm or edit the metadata before
-`staff_documents` is written, and the saved row remains `pending_review` until
-the normal manager review flow verifies or rejects it.
-
-Confirmed scanned-prefill uploads persist minimal provenance on `staff_documents`:
-`extraction_method`, `extraction_confidence`, `extraction_warnings_json`, and
-`extracted_subject_name`. Fully manual uploads leave those columns `NULL`. The
-app does not persist full extracted certificate text or OCR output by default.
-
-Failure and low-confidence cases fall back to manual confirmation after the PDF
-has been uploaded for scanning instead of blocking upload. Empty/scanned PDFs,
-missing `pdftotext`, command failures, and uncertain parser output produce
-warnings and blank or partial fields for the user to complete.
-
-The profile and edit-staff RSA panels are scan-first and accept PDFs for the
-initial upload step. Confirmed upload limits, venue scoping, role checks, live
-invalidation, review status transitions, and reminder behavior remain unchanged.
-OCR for image-only PDFs is out of V1 scope and should be added only behind a
-future ticket with explicit privacy and dependency review.
+- PDF scanning is local and deterministic through Poppler-compatible
+  `pdftotext`; it does not use AI or an external document processor.
+- Extracted dates, authority, document number, and subject name are candidate
+  prefills only. A user or manager must confirm or correct them, and the saved
+  document remains pending until normal review.
+- Scanned uploads retain only minimal extraction provenance: method, confidence,
+  warnings, and confirmed extracted subject name. Full certificate text and OCR
+  output are not persisted. Manual uploads leave extraction provenance null.
+- Missing tools, image-only PDFs, command failure, and low confidence fall back
+  to manual confirmation rather than silently asserting metadata or blocking the
+  upload.
+- OCR or third-party extraction requires a separate privacy and dependency
+  review.

@@ -1,24 +1,19 @@
 # Leave And Availability
 
-## Purpose
+## Ownership
 
-`Web/LeaveRequests/` owns leave/availability projections and self-service
-integration across Profile and roster contexts. User-facing language is moving toward
-unavailability/unavailable periods for the pilot, while the backing model remains
-leave/unavailability history until renamed by a future migration.
+`Web/LeaveRequests/` owns venue-scoped leave/unavailability read models,
+blackouts, warning projections, mutations, and the shared self-service Surface
+used by Profile and roster contexts. Controllers retain request orchestration
+and authorization response choices; views live under `Web/View/LeaveRequests/`.
 
-## Entry Points
+## Start Here
 
-- `Web/Controller/LeaveRequests.hs` - controller actions.
-- `Web/LeaveRequests/ReadModel.hs` - list/read models.
-- `Web/LeaveRequests/SelfService.hs` - shared self-service form/history fragments and mounts.
-- `Web/LeaveRequests/FrontendSurface.hs` - manager and self-service Surface mounts.
-- `Web/View/LeaveRequests/` - HSX rendering.
+- `SelfService.hs` — shared form/history rendering and mounts.
+- `ReadModel.hs` — request projections.
+- `Blackouts.hs` and `AvailabilityWarnings.hs` — venue policy projections.
+- `Mutations.hs` — writes and typed invalidation.
+- `FrontendSurface.hs` — manager and self-service Surface contracts.
 
-## Related Docs
-
-- `SPEC.md`
-- `AGENTS.md`
-- `docs/workstreams/rooks-pilot.md`
-- `docs/workstreams/record-retention.md`
-- `docs/archive/plans/30-timesheets-and-leave.md`
+See `SPEC.md` for durable date, lifecycle, blackout, and privacy rules and
+`AGENTS.md` for local editing constraints.

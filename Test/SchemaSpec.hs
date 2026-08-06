@@ -442,6 +442,8 @@ tests = describe "Schema" do
 
     it "migrates roster-derived timesheet suggestions without deleting historical data" do
         migrationSqlText <- TextIO.readFile "Application/Migration/1784005193.sql"
+        runbookExists <- Directory.doesFileExist "Application/Migration/roster-timesheet-suggestion-cutover-runbook.md"
+        runbookExists `shouldBe` True
         migrationSqlText `shouldSatisfy` Text.isInfixOf "WHERE source_roster_slot_id IS NOT NULL\n      AND deleted_at IS NULL"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "SET auto_timesheet_creation_enabled = FALSE"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "WHERE job_kind = 'roster_timesheet_creation'"
