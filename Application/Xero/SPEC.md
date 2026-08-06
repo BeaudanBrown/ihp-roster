@@ -2,8 +2,8 @@
 
 This file records durable implemented contracts. Current symbols and request
 shapes are authoritative in `Application/Xero/`, `Web/Controller/Admin/Xero/`,
-the schema, and focused Xero tests. Future work belongs in
-`docs/workstreams/xero-payroll.md`.
+the schema, and focused Xero tests. Future behavior requires a current GitHub
+issue and, when cross-system design remains unresolved, a new workstream.
 
 ## Authorization And Boundaries
 
@@ -53,6 +53,10 @@ The exact paging, lease, retry, and trust implementation is authoritative in
   sealed earnings component is consumed exactly once; imported components retain
   their approval-pinned imported-item identity. Provider availability changes
   cannot reroute sealed components.
+- An effective staff-level imported Xero rate maps that staff member's imported
+  components to the one approval-pinned Xero earnings rate; an explicit shift
+  override still follows the shared pay-assignment precedence. Imported-rate
+  selectors present the human Xero name before account-code metadata.
 - Xero quantities preserve canonical sealed units and precision. Xero remains
   payroll, tax, and STP authority; Bepis does not calculate tax.
 - Submitted entries require explicit correction/reversal behavior. Stable

@@ -41,5 +41,5 @@ inventory here.
 - `AGENTS.md` — local editing rules and hazards.
 - `Application/Helper/Interaction.SPEC.md` and
   `Application/Helper/LiveUpdate.SPEC.md` — shared frontend/runtime contracts.
-- `docs/workstreams/roster-groups.md`, `docs/workstreams/rooks-pilot.md`, and
-  `docs/workstreams/roster-operations-and-support-ux.md` — unresolved work.
+- `docs/workstreams/roster-operations-and-support-ux.md` — unresolved roster
+  notification and shared SidePanel closeout.

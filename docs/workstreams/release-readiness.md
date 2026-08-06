@@ -1,43 +1,36 @@
 # Release Readiness
 
-Status: active
-
-Tickets:
-
-- `#60` - parent epic
-- `#45`, `#99`, `#116`, `#8`
-
-Living docs to update:
-
-- `specs/09-testing-and-acceptance.md`
-- `specs/10-au-saas-security-privacy-compliance/`
-- `specs/11-first-client-document-pack/`
-- `e2e/AGENTS.md`
-
-Archived context:
-
-- `docs/archive/plans/50-release-readiness.md`
-
-## Goal
-
-Close the first-client readiness gap with critical-path coverage, acceptance
-sweeps, security hardening, and customer-facing documentation.
-
-## Current State
-
-Release readiness trails foundational work such as retention, schema hardening,
-pay reproducibility, Rooks pilot gaps, and Xero integration.
+Epic: [#60](https://github.com/BeaudanBrown/ihp-roster/issues/60).
+Related unresolved work:
+[#45](https://github.com/BeaudanBrown/ihp-roster/issues/45),
+[#99](https://github.com/BeaudanBrown/ihp-roster/issues/99),
+[#116](https://github.com/BeaudanBrown/ihp-roster/issues/116), and
+[#8](https://github.com/BeaudanBrown/ihp-roster/issues/8).
+GitHub owns status and dependencies.
 
 ## Intended Contract
 
-- Acceptance criteria are explicit and testable.
-- Session/auth, security headers, and local assets are hardened before first
-  client use.
-- First-client policy and operational docs are reviewed and coherent with the
+- First-client acceptance criteria are explicit, testable, and aligned with the
   implemented product.
+- Critical role-specific journeys have deterministic Hspec/E2E evidence without
+  making browser tests the only safety boundary.
+- Session/auth behavior, security headers, and local asset delivery meet the
+  reviewed production posture.
+- Customer terms, privacy, operational, and support documents describe only
+  available behavior and have named human approval where required.
+- Release evidence distinguishes automated checks from operator/legal approval.
+
+## Integration Points
+
+- `specs/09-testing-and-acceptance.md`.
+- `specs/10-au-saas-security-privacy-compliance/` and
+  `specs/11-first-client-document-pack/`.
+- `e2e/AGENTS.md`, canonical verification commands, and deployment runbooks.
 
 ## Exit Criteria
 
-- First-client acceptance sweep is complete.
-- Critical user journeys have Hspec/E2E coverage.
-- Compliance/customer docs no longer describe unavailable behavior as current.
+- First-client acceptance and critical-path sweeps pass.
+- Production security/session/asset findings are resolved.
+- Customer/compliance documents are reviewed against current behavior.
+- Remaining product gaps have explicit successor issues rather than hidden
+  release-checklist prose.

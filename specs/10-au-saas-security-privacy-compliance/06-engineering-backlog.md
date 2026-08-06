@@ -17,14 +17,13 @@ workstream system. It is not a standalone implementation checklist.
 | Concern | Current route |
 | --- | --- |
 | Membership-scoped authority and venue boundary | implemented foundation; see `specs/03-access-control-and-auth.md` and root `AGENTS.md` |
-| Support access and audit distinction | `#95`, `#102` |
+| Support access and audit distinction | `#95`, `specs/03-access-control-and-auth.md` |
 | Record retention and protected deletion | `docs/workstreams/record-retention.md`, `#106` |
-| Pay/config historical reproducibility | `docs/workstreams/pay-config-versioning.md`, local export/timesheet/Xero specs |
+| Pay/config historical reproducibility | local export, Timesheet, Xero, and pay-engine specs |
 | Export governance | `Application/Helper/Export/SPEC.md`, `#60` for release acceptance |
-| Xero payroll integration controls | `docs/workstreams/xero-payroll.md`, `Application/Xero/SPEC.md` |
-| Subscription billing controls | `docs/workstreams/subscription-billing.md`, `Application/Billing/SPEC.md` |
+| Xero payroll integration controls | `Application/Xero/SPEC.md` |
+| Subscription billing controls | `Application/Billing/SPEC.md`, `Application/Billing/RUNBOOK.md` |
 | First-client readiness | `docs/workstreams/release-readiness.md`, `#60`, `#116` |
-| Rooks pilot compliance gaps | `docs/workstreams/rooks-pilot.md` and its linked GitHub issues |
 | Security/session/header hardening | `#8`, `docs/workstreams/release-readiness.md` |
 
 ## Compliance Invariants

@@ -33,5 +33,4 @@ reviewed fixtures.
 - `RUNBOOK.md` — Dashboard setup, deployment controls, recovery, and launch
   evidence.
 - `AGENTS.md` — local editing and secret-handling rules.
-- `docs/workstreams/subscription-billing.md` — unresolved rollout work.
 - `specs/10-au-saas-security-privacy-compliance/` — cross-cutting obligations.

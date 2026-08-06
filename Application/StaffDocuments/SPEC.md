@@ -18,6 +18,20 @@ workflow and authorization live in `Web/Controller/StaffDocuments.hs` and
   pending replacement.
 - Upload, review, and live invalidation remain venue-scoped and role-authorized.
 
+## Access And Expiry
+
+- Linked staff may upload and download their own RSA evidence. Managers may
+  upload, download, and review RSA evidence only for staff in their current
+  venue; cross-venue access fails closed.
+- Every RSA upload requires an expiry date and remains pending until manager
+  verification. Manager/staff panels distinguish missing, pending, replacement,
+  rejected, verified, expiring, and expired effective state.
+- A verified effective document becomes expiring within 30 days. Deduplicated
+  jobs email its linked user once for the expiring window and once after expiry,
+  rechecking that the same reminder remains due before delivery. Expiry delivery
+  marks the effective document expired. Pending replacements never redirect
+  reminders away from the older reviewed document.
+
 ## PDF Metadata Candidates
 
 - PDF scanning is local and deterministic through Poppler-compatible

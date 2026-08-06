@@ -23,6 +23,4 @@ Follow imports from those modules for narrower policy and persistence seams.
 
 - `SPEC.md` — durable authorization, synchronization, and payroll contracts.
 - `AGENTS.md` and `Web/Controller/Admin/Xero/AGENTS.md` — editing rules.
-- `docs/workstreams/xero-payroll.md` and `docs/workstreams/rooks-pilot.md` —
-  unresolved work.
 - `vendor/xero-openapi/README.md` — provider-contract provenance.

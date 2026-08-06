@@ -25,5 +25,6 @@ restate them.
 
 - `SPEC.md` — durable suggestion, materialization, approval, and time contracts.
 - `AGENTS.md` — local editing rules.
-- `docs/workstreams/rooks-pilot.md` and
-  `docs/workstreams/pay-config-versioning.md` — unresolved payroll/product work.
+- `docs/workstreams/roster-operations-and-support-ux.md` — unresolved shared
+  SidePanel closeout.
+- `docs/workstreams/record-retention.md` — unresolved protected-record work.

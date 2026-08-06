@@ -4,7 +4,7 @@ Read this before editing `Application/Billing/` or billing controllers.
 
 ## Local Rules
 
-- Read `SPEC.md` and `docs/workstreams/subscription-billing.md` first.
+- Read `SPEC.md` and `RUNBOOK.md` first.
 - Keep Stripe API, webhook verification, idempotency, and response parsing in
   application modules. Keep redirects, toasts, params, and permission response
   choices in controllers.

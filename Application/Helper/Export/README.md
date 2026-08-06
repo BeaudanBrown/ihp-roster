@@ -19,6 +19,4 @@ download authorization, and controller-facing orchestration.
 
 - `SPEC.md` — durable authorization, payroll, and rendering contracts.
 - `AGENTS.md` — editing and verification rules.
-- `docs/workstreams/pay-config-versioning.md`,
-  `docs/workstreams/xero-payroll.md`, and
-  `docs/workstreams/record-retention.md` — unresolved cross-system work.
+- `docs/workstreams/record-retention.md` — unresolved protected-record work.

@@ -69,5 +69,5 @@ Every capability slice requires layered evidence: Haskell contract/IR tests, ren
 
 ## Links
 
-- Workstreams: `docs/workstreams/typed-interaction-surfaces.md`
-- Living docs: `Application/Helper/Interaction.SPEC.md`, `Application/Helper/FrontendContract/Surface/README.md`
+- Living docs: `Application/Helper/Interaction.SPEC.md`,
+  `Application/Helper/FrontendContract/Surface/README.md`

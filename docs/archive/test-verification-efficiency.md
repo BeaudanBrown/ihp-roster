@@ -18,7 +18,6 @@ Living docs to update:
 - `Test/AGENTS.md`
 - `e2e/AGENTS.md`
 - `README.md`
-- `docs/workstreams/maintenance.md`
 
 ## Goal
 

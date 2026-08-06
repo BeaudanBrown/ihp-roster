@@ -31,8 +31,8 @@ callers. It validates persisted mode/reference shapes and distinguishes an
 effective Award rate, effective imported Xero rate, roster-only, and invalid
 configuration. Staff roster-only is absolute; otherwise shift roster-only wins,
 then a shift override, then staff default. Migration-only legacy-unresolved is
-always invalid and requires remediation. Wiring all roster/Timesheet/wage callers
-to this contract remains tracked by the active explicit-disposition workstream.
+always invalid and requires remediation. Current caller coverage is authoritative
+in `Application.PayAssignment`, subsystem specs, and focused pay/roster tests.
 
 ## Effective facts and reproducibility
 

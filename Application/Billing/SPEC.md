@@ -3,8 +3,8 @@
 This file records durable implemented financial, authorization, and transition
 contracts. Exact provider fields, persistence columns, UI copy, and cases are
 authoritative in `Application/Billing/`, the schema, reviewed Stripe fixtures,
-and focused tests. Future behavior belongs in
-`docs/workstreams/subscription-billing.md`.
+and focused tests. Future behavior requires a current GitHub issue and, when
+cross-system design remains unresolved, a new workstream.
 
 ## Product And Authority
 

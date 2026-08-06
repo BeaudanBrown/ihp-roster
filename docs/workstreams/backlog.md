@@ -1,122 +1,71 @@
-# Backlog And Smaller Feature Streams
+# Smaller Feature Streams
 
-Status: active
-
-This file routes open epics that do not yet need a dedicated workstream file.
-Promote any section here into its own workstream when design detail grows beyond
-a few paragraphs.
+This file holds unresolved design that is too small for a dedicated workstream.
+GitHub owns priority, status, and dependencies.
 
 ## Staff Profiles And Preferences
 
-GitHub issues:
+Issues: [#19](https://github.com/BeaudanBrown/ihp-roster/issues/19),
+[#7](https://github.com/BeaudanBrown/ihp-roster/issues/7),
+[#88](https://github.com/BeaudanBrown/ihp-roster/issues/88),
+[#68](https://github.com/BeaudanBrown/ihp-roster/issues/68), and
+[#120](https://github.com/BeaudanBrown/ihp-roster/issues/120).
 
-- `#19`
-- `#7`
-- `#88`
-- `#68`
-- `#120`
+- Staff profile data remains venue-scoped.
+- Recurring scheduling preferences need typed, queryable domain fields rather
+  than a generic JSON store.
+- Sensitive onboarding data requires separate product/compliance review before
+  collection.
 
-Living docs to update:
+Affected living docs: `Web/RosterWeeks/SPEC.md`, `Web/LeaveRequests/SPEC.md`,
+and future profile/staff local docs.
 
-- `Web/RosterWeeks/SPEC.md`
-- `Web/LeaveRequests/SPEC.md`
-- future profile/staff local docs when added
+## Support And Account Access
 
-Direction:
+Issues: [#95](https://github.com/BeaudanBrown/ihp-roster/issues/95),
+[#22](https://github.com/BeaudanBrown/ihp-roster/issues/22),
+[#1](https://github.com/BeaudanBrown/ihp-roster/issues/1),
+[#26](https://github.com/BeaudanBrown/ihp-roster/issues/26), and
+[#87](https://github.com/BeaudanBrown/ihp-roster/issues/87).
 
-- Keep staff profile data venue-scoped.
-- Keep roster preferences typed and queryable; do not use generic JSON dumping
-  grounds for core scheduling facts.
-- Do not add sensitive onboarding data without a separate product/compliance
-  spec.
+- Founder support authority remains platform-level and distinct from venue
+  membership; the UI and audit trail must expose support mode truthfully.
+- Tailnet-only reachability may add defense in depth but must not replace
+  application authorization.
+- Ordinary multi-venue switching is a separate account feature and must not
+  inherit founder support semantics.
 
-## Support Access
+Affected living docs: `specs/03-access-control-and-auth.md`, root `AGENTS.md`,
+and Support-local docs.
 
-GitHub issues:
+## Regional Public Holidays
 
-- `#95`
-- `#22`
-- `#102`
-- `#1`
-- `#26`
+Issues: [#23](https://github.com/BeaudanBrown/ihp-roster/issues/23) and
+[#82](https://github.com/BeaudanBrown/ihp-roster/issues/82).
 
-Living docs to update:
+- Regional Victorian applicability must be explicit and historically
+  reproducible for the payroll period.
+- Recurring refresh should use the shared app-job/timer pattern.
+- Pay calculation consumes accepted applicability; ingestion must not silently
+  rewrite sealed payroll facts.
 
-- `specs/03-access-control-and-auth.md`
-- root `AGENTS.md`
-- support controller/view docs if the surface grows
+Affected living docs: `specs/02-domain-model.md`, `specs/06-pay-engine.md`, and
+future `Application/PublicHolidays/` local docs.
 
-Direction:
+## Multi-Group Payroll Exports
 
-- Founder support access is platform-level and distinct from venue membership.
-- Support-mode UI and audit should make the access mode explicit.
-- Consider defense-in-depth that makes the super-admin login/support surface
-  reachable only from a trusted host or founder tailnet before credentials can
-  even be submitted.
-- Ordinary multi-venue switching remains separate from support access.
+Issue: [#111](https://github.com/BeaudanBrown/ihp-roster/issues/111).
 
-## Public Holidays
+Payroll/export behavior must not assume that a venue has one roster group.
+Group selection, authorization, aggregation, and historical provenance need an
+explicit contract before implementation. Existing single-group behavior remains
+stable until that issue lands.
 
-GitHub issues:
+Affected living docs: `Web/RosterWeeks/SPEC.md`,
+`Application/Helper/Export/SPEC.md`, and Xero/payroll specs.
 
-- `#23`
-- `#82`
+## Exit Criteria
 
-Living docs to update:
-
-- `specs/02-domain-model.md`
-- `specs/06-pay-engine.md`
-- application docs near `Application/PublicHolidays/` if the subsystem grows
-
-Direction:
-
-- Regional Victorian public holiday applicability must be explicit.
-- Recurring refreshes should use the app job/timer pattern.
-- Pay calculations must use the accepted holiday applicability that matches the
-  payroll period.
-
-## Demo And Profile Seeding
-
-GitHub issues:
-
-- `#298`
-- `#300`
-
-Living docs to update:
-
-- `Application/Script/` docs if added
-- `Test/AGENTS.md`
-- `e2e/AGENTS.md`
-
-Direction:
-
-- Keep exact parity fixtures deterministic and small.
-- Keep manual dev/profile seeds richer but generated through named scenarios.
-- Keep `Application.Fixture.DevFixtures` as the thin interpreter; domain projections live in its `Staff`, `Roster`, `Leave`, and `Payroll` modules.
-- Do not weaken test fixture determinism to make manual exploration easier.
-
-## Week Controls
-
-Living docs to update:
-
-- `Web/RosterWeeks/SPEC.md`
-- `Web/Timesheets/SPEC.md`
-- shared week/path helper docs if extracted
-
-Direction:
-
-- Keep week navigation URL-driven.
-- Promote shared controls only where roster and timesheets genuinely share
-  behavior.
-
-## Later Backlog
-
-GitHub issues:
-
-- `#87` - ordinary account multi-venue switching
-- `#111` - multi-group payroll exports
-
-Direction:
-
-- Treat these as later product lanes. Do not let first-client or Rooks pilot
-  work accidentally depend on them.
+Delete a section when its issues close and implemented behavior reaches living
+docs. Promote it to a dedicated workstream only when unresolved cross-system
+design can no longer be stated concisely here.

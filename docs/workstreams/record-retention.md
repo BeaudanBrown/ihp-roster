@@ -1,45 +1,39 @@
 # Record Retention And Soft Deletion
 
-Status: active
-
-Tickets:
-
-- `#106` - parent epic
-- `#66`, `#115`, `#85`, `#17`
-
-Living docs to update:
-
-- `specs/02-domain-model.md`
-- `specs/10-au-saas-security-privacy-compliance/`
-- `Web/Timesheets/SPEC.md`
-- `Web/LeaveRequests/SPEC.md`
-- `Application/Helper/Export/SPEC.md`
-
-Archived context:
-
-- `docs/archive/plans/55-record-retention-soft-deletion.md`
-
-## Goal
-
-Make soft deletion or deactivation the default for protected business records
-before paid venue data is treated as production.
-
-## Current State
-
-Timesheet, leave, role, export, and audit history already have some
-provenance-focused paths. Remaining work is to inventory destructive paths,
-add schema guardrails, and migrate controller/admin behavior.
+Epic: [#106](https://github.com/BeaudanBrown/ihp-roster/issues/106).
+Related unresolved work:
+[#66](https://github.com/BeaudanBrown/ihp-roster/issues/66),
+[#115](https://github.com/BeaudanBrown/ihp-roster/issues/115),
+[#85](https://github.com/BeaudanBrown/ihp-roster/issues/85), and
+[#17](https://github.com/BeaudanBrown/ihp-roster/issues/17).
+GitHub owns status and dependencies.
 
 ## Intended Contract
 
-- Payroll-adjacent records are corrected through additive history or explicit
-  reset flows, not silent hard deletion.
-- Protected roster, timesheet, leave, export, audit, and configuration records
-  have clear deletion semantics.
-- Operations notes describe any allowed retention/destruction path.
+- Soft deletion, deactivation, additive correction, or explicit reset is the
+  default for payroll, roster, Timesheet, leave, export, audit, and protected
+  configuration history.
+- Every protected record class needs an explicit deletion/correction policy;
+  controllers must not infer permission to hard-delete from generic CRUD.
+- Schema guardrails should preserve lineage where database constraints can
+  enforce it.
+- Permitted destruction requires a documented operator path, retention basis,
+  authorization, and audit evidence.
+- Customer-data migrations remain data-preserving unless an explicitly approved
+  destructive runbook says otherwise.
+
+## Integration Points
+
+- `specs/02-domain-model.md` and compliance/retention specs.
+- `Web/Timesheets/SPEC.md`, `Web/LeaveRequests/SPEC.md`, and
+  `Application/Helper/Export/SPEC.md`.
+- `Application/Schema.sql`, deployment migrations, database-protection tests,
+  and operator runbooks.
 
 ## Exit Criteria
 
-- Destructive paths are inventoried and covered by tests.
-- Protected-record constraints exist where the schema can enforce them.
-- Subsystem specs describe deletion/correction behavior.
+- Destructive paths are inventoried and assigned an explicit policy.
+- Protected-record constraints and migrations land with recovery evidence.
+- Subsystem living docs describe externally relevant correction/deletion
+  behavior.
+- Operations notes cover every permitted destructive path.
