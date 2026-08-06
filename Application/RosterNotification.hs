@@ -265,12 +265,8 @@ createRosterNotificationRunUnlessActive actor rosterWeek =
         if activeDeliveryExists
             then pure RosterNotificationRunAlreadyActive
             else do
-                venue <- fetch (Id rosterWeek.venueId :: Id Venue)
-                rosterGroup <- fetch (Id rosterWeek.rosterGroupId :: Id RosterGroup)
-                audience <- fetchRosterNotificationAudience venue rosterGroup
-                if null audience.audienceRecipients
-                    then pure RosterNotificationRunHasNoEligibleRecipients
-                    else RosterNotificationRunCreated <$> createRosterNotificationRunInCurrentTransaction actor rosterWeek
+                createdRun <- createRosterNotificationRunInCurrentTransaction actor rosterWeek
+                pure $ maybe RosterNotificationRunHasNoEligibleRecipients RosterNotificationRunCreated createdRun
 
 createRosterNotificationRun ::
     (?modelContext :: ModelContext) =>
@@ -278,13 +274,15 @@ createRosterNotificationRun ::
     RosterWeek ->
     IO RosterNotificationRun
 createRosterNotificationRun actor suppliedRosterWeek =
-    withTransaction (createRosterNotificationRunInCurrentTransaction actor suppliedRosterWeek)
+    withTransaction do
+        createdRun <- createRosterNotificationRunInCurrentTransaction actor suppliedRosterWeek
+        maybe (fail "Roster notification runs require at least one eligible recipient") pure createdRun
 
 createRosterNotificationRunInCurrentTransaction ::
     (?modelContext :: ModelContext) =>
     User ->
     RosterWeek ->
-    IO RosterNotificationRun
+    IO (Maybe RosterNotificationRun)
 createRosterNotificationRunInCurrentTransaction actor suppliedRosterWeek = do
     persistedActor <- fetch actor.id
     rosterWeek <- fetch suppliedRosterWeek.id
@@ -298,21 +296,24 @@ createRosterNotificationRunInCurrentTransaction actor suppliedRosterWeek = do
     audience <- fetchRosterNotificationAudience venue rosterGroup
     let recipients = audience.audienceRecipients
     let skippedRecipients = audience.audienceSkippedRecipients
-    run <-
-        newRecord @RosterNotificationRun
-            |> set #venueId (unpackId venue.id)
-            |> set #rosterGroupId (unpackId rosterGroup.id)
-            |> set #rosterWeekId (unpackId rosterWeek.id)
-            |> set #weekOffset rosterWeek.weekOffset
-            |> set #weekStart weekStart
-            |> set #snapshotSchemaVersion rosterNotificationSnapshotSchemaVersion
-            |> set #rosterSnapshot (Aeson.toJSON snapshot)
-            |> set #recipientSnapshot (Aeson.toJSON recipients)
-            |> set #skippedRecipientSnapshot (Aeson.toJSON skippedRecipients)
-            |> set #requestedByUserId (unpackId persistedActor.id)
-            |> createRecord
-    forM_ recipients (enqueueRosterNotificationDelivery run persistedActor venue)
-    pure run
+    if null recipients
+        then pure Nothing
+        else do
+            run <-
+                newRecord @RosterNotificationRun
+                    |> set #venueId (unpackId venue.id)
+                    |> set #rosterGroupId (unpackId rosterGroup.id)
+                    |> set #rosterWeekId (unpackId rosterWeek.id)
+                    |> set #weekOffset rosterWeek.weekOffset
+                    |> set #weekStart weekStart
+                    |> set #snapshotSchemaVersion rosterNotificationSnapshotSchemaVersion
+                    |> set #rosterSnapshot (Aeson.toJSON snapshot)
+                    |> set #recipientSnapshot (Aeson.toJSON recipients)
+                    |> set #skippedRecipientSnapshot (Aeson.toJSON skippedRecipients)
+                    |> set #requestedByUserId (unpackId persistedActor.id)
+                    |> createRecord
+            forM_ recipients (enqueueRosterNotificationDelivery run persistedActor venue)
+            pure (Just run)
 
 buildRosterSnapshot ::
     (?modelContext :: ModelContext) =>

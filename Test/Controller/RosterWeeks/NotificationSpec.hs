@@ -255,9 +255,15 @@ tests = aroundAll withDatabaseTestContext do
                     callActionWithParams (ShowRosterNotificationConfirmationAction rosterWeek.id) [("notificationRosterWeekId", "not-a-uuid")]
                 sendResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (CreateRosterNotificationRunAction rosterWeek.id) [("notificationRosterWeekId", "not-a-uuid")]
+                missingConfirmationResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterNotificationConfirmationAction rosterWeek.id)
+                missingSendResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction (CreateRosterNotificationRunAction rosterWeek.id)
 
                 confirmationResponse `responseStatusShouldBe` status400
                 sendResponse `responseStatusShouldBe` status400
+                missingConfirmationResponse `responseStatusShouldBe` status400
+                missingSendResponse `responseStatusShouldBe` status400
                 runs <- query @RosterNotificationRun |> fetch
                 length runs `shouldBe` 0
 
