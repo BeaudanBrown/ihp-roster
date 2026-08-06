@@ -280,6 +280,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-control=\"shifts\""
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-row=\"{&quot;assignedShifts&quot;:0,&quot;idealShifts&quot;:0,&quot;staffName&quot;:&quot;Alpha&quot;,&quot;staffRole&quot;:&quot;TRIAL&quot;,&quot;staffRowKey&quot;:&quot;staff:"
                 response `responseBodyShouldNotContain` "data-roster-staff-"
+                response `responseBodyShouldContain` "roster-grid-header app-side-panel-header"
                 response `responseBodyShouldContain` "data-bepis-roster-side-panel-root=\"true\""
                 response `responseBodyShouldContain` "data-bepis-roster-side-panel=\"collapsed\""
                 response `responseBodyShouldContain` "data-bepis-roster-side-panel-main=\"true\""

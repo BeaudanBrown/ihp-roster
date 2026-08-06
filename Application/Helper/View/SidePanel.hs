@@ -10,6 +10,7 @@ module Application.Helper.View.SidePanel
     , renderSidePanelLayout
     , renderSidePanelMainRegion
     , renderSidePanelPanelRegion
+    , renderSidePanelHeaderToggle
     , renderSidePanelToggle
     ) where
 
@@ -74,6 +75,13 @@ renderSidePanelPanelRegion attrs config body = [hsx|
            {...config.sidePanelRegionExtraAttrs}>
         {body}
     </aside>
+|]
+
+renderSidePanelHeaderToggle :: SidePanelRenderAttrs -> Html
+renderSidePanelHeaderToggle attrs = [hsx|
+    <div class="app-panel-header app-side-panel-header">
+        {renderSidePanelToggle attrs}
+    </div>
 |]
 
 renderSidePanelToggle :: SidePanelRenderAttrs -> Html

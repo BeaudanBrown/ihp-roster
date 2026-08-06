@@ -119,7 +119,7 @@ renderLeaveRequestsShell IndexView { .. } =
                 , appPanelHasActions = False
                 , appPanelActions = mempty
                 , appPanelHasCustomHeader = True
-                , appPanelCustomHeader = [hsx|<div class="d-flex justify-content-end">{renderSidePanelToggle leaveSidePanelRenderAttrs}</div>|]
+                , appPanelCustomHeader = renderSidePanelHeaderToggle leaveSidePanelRenderAttrs
                 , appPanelClass = "overflow-hidden"
                 , appPanelBodyClass = ""
                 , appPanelBody = renderleaveRequestsContentLiveFragment leaveRequests staffMembers currentViewerStaffId today archivePage archiveIsOpen warningThreshold warningPeriods

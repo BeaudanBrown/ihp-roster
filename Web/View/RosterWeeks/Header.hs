@@ -40,7 +40,7 @@ renderRosterGridHeader maybeRosterWeek weekOffset currentRosterGroup weekStartDa
     let toolbarHtml = renderWeekToolbar WeekToolbarConfig
             { weekToolbarVariant = WeekToolbarRoster
             , weekToolbarAriaLabel = "Roster week controls"
-            , weekToolbarExtraClass = "roster-grid-header"
+            , weekToolbarExtraClass = "roster-grid-header app-side-panel-header"
             , weekToolbarPrimary = renderLiveToggle maybeRosterWeek viewCapabilities
             , weekToolbarReset = renderThisWeekButton gridViewMode currentRosterGroup timelineTodayUrl
             , weekToolbarNavigation = renderRosterWeekControls weekOffset currentRosterGroup weekStartDate gridViewMode

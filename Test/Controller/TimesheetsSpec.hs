@@ -1893,6 +1893,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "timesheet-side-panel"
+                response `responseBodyShouldContain` "timesheet-week-header app-side-panel-header"
                 response `responseBodyShouldContain` "timesheet-staff-panel-entry"
                 response `responseBodyShouldContain` "data-bepis-timesheets-timesheet-side-panel-root=\"true\""
                 response `responseBodyShouldContain` "data-bepis-timesheets-timesheet-side-panel-toggle=\"true\""

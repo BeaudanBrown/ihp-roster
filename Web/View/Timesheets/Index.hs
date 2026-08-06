@@ -211,7 +211,7 @@ renderTimesheetWeekHeader weekOffset weekStartDate hideApproved showTimesheetSug
     renderWeekToolbar WeekToolbarConfig
         { weekToolbarVariant = WeekToolbarTimesheets
         , weekToolbarAriaLabel = "Timesheet week controls"
-        , weekToolbarExtraClass = "timesheet-week-header"
+        , weekToolbarExtraClass = "timesheet-week-header app-side-panel-header"
         , weekToolbarPrimary = mempty
         , weekToolbarReset = renderTimesheetWeekNavigationLink "This week" (timesheetWeekResetUrl selectedStaffFilterId) 0 selectedStaffFilterId
         , weekToolbarNavigation = renderWeekNavigationGroup WeekNavigationConfig
@@ -222,8 +222,8 @@ renderTimesheetWeekHeader weekOffset weekStartDate hideApproved showTimesheetSug
             , weekNavigationLabelClass = ""
             , weekNavigationNext = renderTimesheetWeekNavigationLink ">" (timesheetWeekUrl (weekOffset + 1) selectedStaffFilterId) (weekOffset + 1) selectedStaffFilterId
             }
-        , weekToolbarSettings = mempty
-        , weekToolbarAuxiliary = renderSidePanelToggle timesheetSidePanelRenderAttrs
+        , weekToolbarSettings = renderSidePanelToggle timesheetSidePanelRenderAttrs
+        , weekToolbarAuxiliary = mempty
         }
 
 renderTimesheetSidePanel :: (?context :: ControllerContext) => IndexView -> Html

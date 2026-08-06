@@ -632,6 +632,7 @@ tests = aroundAll withDatabaseTestContext do
                     callAction LeaveRequestsAction
 
                 response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "class=\"app-panel-header app-side-panel-header\""
                 response `responseBodyShouldContain` "data-bepis-leave-requests-leave-side-panel-root=\"true\""
                 response `responseBodyShouldContain` "data-bepis-leave-requests-leave-side-panel-toggle=\"true\""
                 response `responseBodyShouldContain` "data-bepis-leave-requests-leave-side-panel-tab=\"staff\""

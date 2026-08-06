@@ -1,5 +1,10 @@
 /* Shared generated SidePanel layout and mechanical presentation. */
 
+.app-side-panel-header {
+    display: flex;
+    justify-content: flex-end;
+}
+
 .app-side-panel-toggle {
     min-width: 2.35rem;
     min-height: 2.35rem;
