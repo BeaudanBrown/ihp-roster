@@ -1,217 +1,49 @@
 # Static Asset Agent Notes
 
-Read this before editing `static/` assets.
+## Generated And Vendor Assets
 
-## Local Rules
+Runtime assets are local and loaded through `assetPath`. PWA manifest icons
+cannot use `assetPath`; keep content-versioned filenames and update the manifest
+when icon bytes change. Do not edit third-party files under `static/vendor/`.
 
-- Runtime assets are app-owned and loaded through `assetPath`.
-- Manifest-declared PWA icons cannot call `assetPath`; keep their filenames
-  content-versioned and update the manifest whenever icon bytes change.
-- App JavaScript source lives in `frontend/ts/`. Do not edit generated browser
-  output: `static/app*.js` is checked in and must not be hand-edited.
-- Use `bash ./bin/in-env frontend-build` to regenerate JS, and
-  `bash ./bin/in-env frontend-check` before committing frontend changes.
-- Generated TypeScript contracts live in `frontend/ts/generated/`, are owned by
-  Haskell declarations plus the type-level FrontendSurface registry, and must
-  not be hand-edited. Browser reachability is explicit: server-only roots emit
-  nothing, inbound roots generate guards/parsers, outbound roots generate
-  encoders, and type-only roots generate neither codec. Use generated contracts for backend-emitted JSON/data-* boundaries;
-  do not restore server-only action/DTO/topology manifests or an omnibus Surface
-  registry.
-- Dialog/toast bundles consume the generated Overlay ids, role/event attributes,
-  and exact configuration parsers. Emit the semantic generated dismissal event
-  before close-control, backdrop, or Escape removal. Bootstrap modal vocabulary
-  and transient toast classes stay adapter-owned; do not restore legacy overlay
-  data attributes or DOM-backed initialization/original-markup state.
-- `app-passkeys.js` consumes generated passkey roles, closed prompt modes,
-  exact flow/begin/finish/error parsers, and credential request encoders. Every
-  control/status/recovery lookup is local to one validated flow root; malformed
-  configuration remains untouched and malformed server envelopes fail before a
-  credential API or redirect. Haskell owns routes and all displayed
-  workflow/error copy; do not surface native exception or untyped response
-  messages. Keep native WebAuthn objects, extension-result semantics, capability
-  detection, base64url conversion, and local-storage hints in the handwritten
-  adapter. Prompt dismissal also bears the generated
-  Overlay close role and consumes its generated dismissal event, while passkey
-  code must not duplicate dialog removal, focus, or body-lock behavior.
-- `app-time-picker.js` consumes generated picker ids/roles and exact config and
-  option parsers. Its mechanical modal adapter rearranges validated
-  server-rendered option nodes; it does not generate fallback values/labels,
-  discover controls through CSS classes, or duplicate Toggle break-region
-  behavior.
-- `app-preferences.js` is the generic ordered-range adapter. It consumes
-  generated exact config/state parsers, roles, policy values, and position
-  properties; it discovers only native controls/outputs inside the generated
-  root and supplies no feature fallback bounds, labels, defaults, or policy.
-  Availability styling follows native disabled state, while Toggle separately
-  owns the submitted availability field.
-- `app-pwa.js` consumes generated install page/button/result/installed roles and
-  the closed result-state guard. Haskell owns all workflow messages. Browser
-  install events, prompt objects, and standalone/platform detection stay in the
-  adapter, while visibility and accessibility use native `hidden`/ARIA state.
-- `app-roster.js` consumes Surface-generated fullscreen/column-edit roles and
-  closed-state attributes, values, and guards. CSS uses those generated
-  selectors; raw `data-roster-fullscreen*`/`data-roster-column-*` contracts and
-  behavior discovery through presentation classes must stay absent.
-- Roster image export consumes generated trigger/config/projection/row/cell
-  roles, the closed JPG format, and exact payload parsers. Haskell owns filename,
-  copy, dimensions, quality, errors, and cell text; the bundle owns only browser
-  measurement, computed styles, SVG/Canvas encoding, and download mechanics.
-- The dormant roster week overview consumes generated panel/day/detail-slot
-  roles, exact payloads, native `aria-pressed`, and generated status attrs. Keep
-  raw week-overview datasets, browser fallback copy, semantic `is-*` classes,
-  and active-header mounting absent.
-- `app-xero.js` consumes generated candidate-filter root/search/candidate/
-  config/empty roles and the exact config parser. Haskell owns the opaque
-  normalized projection and all import identity/copy; the adapter validates and
-  diagnoses the complete local boundary before fuzzy matching and native
-  `hidden` changes. Xero feature CSS must keep `[hidden]` authoritative over
-  Bootstrap flex utilities without introducing a second browser state class.
-- Keep app JavaScript split by concern:
-  - `app-bootstrap.js`
-  - `app-date-pickers.js`
-  - `app-dialog-overlays.js`
-  - `app-horizontal-scroll.js`
-  - `app-interactions.js`
-  - `app-live-updates.js`
-  - `app-passkeys.js`
-  - `app-preferences.js`
-  - `app-pwa.js`
-  - `app-roster.js`
-  - `app-scrollbars.js`
-  - `app-time-picker.js`
-  - `app-timesheets.js`
-  - `app-toasts.js`
-  - `app-xero.js`
-- Keep CSS split by concern under `static/css/`; read `static/css/README.md`
-  before adding or moving app-owned CSS.
-- Choose the narrowest owner: semantic tokens in `static/css/tokens.css`,
-  persisted palette key values in `static/css/palette.css`, Bootstrap
-  bridges in `static/css/bootstrap-bridge.css`, shell/header layout in
-  `static/css/layout.css`, shared UI primitives in focused
-  `static/css/components/*.css` modules, overlays in `static/css/overlays.css`, and
-  feature-only rules in `static/css/features/*` or focused feature modules.
-- Add feature CSS to the narrowest matching file under `static/css/`; do not
-  recreate a catch-all `static/app.css` unless a compatibility ticket requires
-  it.
-- Before adding selectors, search for existing modules/classes, prefer shared
-  component primitives such as `app-horizontal-*`, `app-dense-*`,
-  `app-icon-button`, and `app-compact-action-button`, add semantic tokens
-  before raw colours, and scope feature CSS by feature root/prefix.
-- Avoid global `.app-*`, `.btn`, `.form-*`, `.nav-*`, `.breadcrumb`, or
-  Bootstrap overrides in feature stylesheets unless the exception is explicitly
-  documented in the CSS README or local feature docs.
-- Link split CSS from `Web/View/Layout.hs` with `assetPath`; mirror each linked
-  app-owned stylesheet in `Makefile` `CSS_FILES` so style-audit can keep direct
-  Layout assets complete and in cascade order. IHP `prod.js`/`prod.css`
-  concatenation is disabled for this app.
-- Do not use production CSS `@import` for app-owned files because imported URLs
-  do not receive IHP's cache-busting query string.
-- Do not edit third-party CSS (`static/vendor/**`) as part of app stylesheet
-  refactors.
-- Run `bash ./bin/in-env ./bin/style-audit` after stylesheet link, token, or
-  architecture changes. It is a hard gate for Layout/Makefile sync, missing
-  app-owned stylesheet links, `@import`, line budget, raw colour, and unexpected
-  global-selector regressions. Use `bash ./bin/in-env ./bin/css-inventory` for
-  the warning-only CSS architecture report (line budgets, raw colours, global
-  feature selectors, and stale-selector candidates).
-- The supported browser-code bundler is the existing Nix/devenv esbuild
-  pipeline that emits split `static/app*.js` files. Do not add ad hoc bundlers,
-  re-enable IHP `prod.js` concatenation, Vite dev servers, true-HMR
-  requirements, or npm/npx project workflows as part of ordinary runtime
-  refactors.
+App JavaScript is authored in `frontend/ts/`. Do not edit generated
+`static/app*.js`; regenerate it with `bash ./bin/in-env frontend-build`.
+Generated contracts under `frontend/ts/generated/` are also backend-owned and
+must not be edited.
 
-## Live Runtime
+Browser runtime consumes exact generated contracts for backend JSON, Surface
+mounts, interaction roles/intents, overlays, and shared DOM vocabulary. Do not
+restore handwritten validators, raw canonical data attributes, broad server
+models, alternate mount protocols, fallback business values/copy, or
+feature-specific live transport/focus behavior. Read `frontend/AGENTS.md` and
+the referenced interaction/Surface contracts before runtime work.
 
-- Generic live-update behavior belongs in `app-live-updates.js`; its TypeScript
-  entrypoint remains orchestration-only and delegates mount, subscription,
-  connection, invalidation, refresh, request-decoration, focus, and diagnostic
-  concerns to focused modules under `frontend/ts/live-updates/`.
-- Do not add feature-specific adapters for normal live-surface discovery,
-  subscription, request decoration, version-gap resync, fragment fetching,
-  swapping, or focused-field protection.
-- Treat `data-bepis-surface-config` JSON as server-owned surface output and parse
-  it only through the generated exact per-surface mount parser. Static JS should
-  not infer feature scopes, target ids, or URLs that belong in Haskell surface
-  definitions. FrontendSurface subscriptions, websocket invalidations, and actor
-  events carry semantic fragment keys only; the browser resolves them against
-  each matching local mount's URL, target, and protection policy. DOM/config
-  mismatches must be reported and skipped. Live code imports only the generated
-  fragment registry; interaction code imports only the generated interaction
-  registry. Do not add browser mount state/load policy/duplicated resync fields,
-  raw live endpoint/header/DOM strings, alternate mount protocol support,
-  feature-specific live transport switches, or a client-id DOM readiness
-  attribute. Observe subscription diagnostics when E2E needs readiness.
-- Focused-field protection is owned only by the live-update runtime and consumes
-  the exact generated descriptor policy. Do not add another DOM-diff owner,
-  feature-local blur queues, or fallback field-key attributes. `replace`
-  fragments must not be delayed merely because a control
-  inside them has focus.
-- Feature scripts may handle genuinely feature-specific UI behavior.
+## CSS
 
-## Typed Interaction Runtime
+Keep CSS split by concern under `static/css/`; read its README before changes.
+Use the narrowest owner: tokens/palette, Bootstrap bridge, layout, shared
+components, overlays, or feature modules. Prefer existing semantic components
+and tokens; avoid broad global selectors, raw colours, and presentation classes
+as browser contracts.
 
-- Read `Application/Helper/Interaction.SPEC.md` and
-  `Application/Helper/FrontendContract/Surface/README.md` before adding
-  `data-bepis-*` interaction markup or runtime behavior.
-- Interaction surfaces, server layers, disposable layers, item/slot/handle
-  markers, intent names, intent fields, HTMX triggers, targets, and swaps should
-  be rendered by Haskell helpers from typed Haskell contracts. Do not handwrite
-  raw `data-bepis-*` attrs or interaction HTMX forms in feature views except in
-  tests/fixtures that explicitly exercise guardrails.
-- Static/TypeScript runtime code consumes generated live-update,
-  registered-surface, FrontendSurface, and interaction contracts and stays
-  generic: it may manage disposable sessions and disposable UI inside declared
-  layers, but must not mutate server-owned business DOM, infer live-fragment
-  URLs/target ids, or construct mutation URLs. Do not handwrite
-  validators/parsers/encoders for generated contract names; import generated
-  `isX`/`parseX`/`encodeX` instead.
-- Use standard HTMX primitives first: generated forms, custom event triggers,
-  lifecycle events, `hx-sync`/`hx-disabled-elt` where useful, and OOB swaps.
-  Do not introduce HTMX extensions or custom elements until a later ticket proves
-  that repeated stable lifecycle behavior belongs there.
+Link app CSS directly from `Web/View/Layout.hs` with `assetPath` and mirror the
+same ordered paths in `Makefile` `CSS_FILES`. Production app CSS must not use
+`@import`; IHP `prod.js`/`prod.css` concatenation remains disabled. Do not
+recreate catch-all app CSS or add external CDNs/bundlers without an explicit
+compatibility decision.
 
-## Horizontal Scroll Components
-
-- Use `app-horizontal-frame`, `app-horizontal-grid`, and
-  `app-horizontal-panel` for reusable horizontal strip layout.
-- Render drag/snap roles and exact configuration through
-  `Application.Helper.FrontendContract.HorizontalScroll.Runtime`; browser code
-  consumes only the generated attributes and parsers.
-- Pointer thresholds, scheduling, click suppression, and the transient
-  `is-horizontal-dragging`/`is-horizontal-snap-dragging` classes remain private
-  to the generic adapter. Do not add feature-specific aliases or DOM state.
-- Interactive descendants are ignored by default; Haskell may add one narrow
-  ignore selector through `HorizontalDragConfig` for extra feature controls.
-- The newest user scroll or drag must cancel stale snap intent. Initialization
-  and cleanup are local to each mounted scroller and HTMX replacement subtree.
-
-## UI Rules
-
-- Keep page-level horizontal overflow off the viewport.
-- Dense tables should own overflow in local wrappers such as `.table-responsive`.
-- Dialogs and overlays must fit phone-sized viewports without clipped primary
-  actions.
-- Do not rely on hover-only affordances for important actions.
+Keep page overflow contained, dialogs usable on phone viewports, and important
+actions available without hover.
 
 ## Verification
-
-Use focused Playwright and screenshots for runtime or responsive changes:
-
-```bash
-bash ./bin/in-env e2e e2e/mobile-experience.spec.ts
-bash ./bin/in-env e2e e2e/live-update-declarative-adapter.spec.ts
-bash ./bin/in-env screenshot-page /RosterWeeks output/check.png --selector '#roster-week-shell'
-```
-
-Use frontend unit/DOM tests for importable TypeScript behavior that does not
-need the IHP server or a real browser:
 
 ```bash
 bash ./bin/in-env frontend-test
 bash ./bin/in-env frontend-check
+bash ./bin/in-env ./bin/style-audit
+bash ./bin/in-env e2e e2e/mobile-experience.spec.ts
 ```
 
-Do not add frontend unit tests or Playwright E2E to pre-commit hooks. The
-tracked pre-commit hook is only for generated JS drift via
-`bash ./bin/in-env frontend-drift-check`.
+Run `style-audit` after stylesheet ownership/link/token changes. Use focused
+Playwright and screenshots for runtime/responsive behavior. Pre-commit owns only
+generated JS drift through `frontend-drift-check`.

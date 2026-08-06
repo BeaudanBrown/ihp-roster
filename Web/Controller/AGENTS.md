@@ -1,145 +1,62 @@
 # Controller Guidelines
 
-## Reference
-Read `/home/beau/documents/projects/ihp/Guide/controller.markdown` before implementing any controller logic.
+Read the IHP controller, validation, and QueryBuilder guides referenced by root
+`AGENTS.md` before controller work.
 
-## Creating a New Controller
+## Wiring And Boundaries
 
-Every controller requires changes in **four files** (missing any will cause compile errors):
+A new controller needs all four owners:
 
-1. **`Web/Types.hs`** — Define the controller type:
-   ```haskell
-   data PostsController
-       = PostsAction
-       | NewPostAction
-       | ShowPostAction { postId :: !(Id Post) }
-       | CreatePostAction
-       | EditPostAction { postId :: !(Id Post) }
-       | UpdatePostAction { postId :: !(Id Post) }
-       | DeletePostAction { postId :: !(Id Post) }
-       deriving (Eq, Show, Data)
-   ```
+1. action type in `Web/Types.hs`
+2. `AutoRoute` in `Web/Routes.hs`
+3. import and `parseRoute` in `Web/FrontController.hs`
+4. implementation under `Web/Controller/`
 
-2. **`Web/Routes.hs`** — Add AutoRoute:
-   ```haskell
-   instance AutoRoute PostsController
-   ```
+Import `Web.Controller.Prelude`. Keep IHP as the lifecycle/router boundary;
+Bepis action semantics enter through `runBepis` in normal `beforeAction` and
+`action` definitions.
 
-3. **`Web/FrontController.hs`** — Mount the controller (add import + parseRoute):
-   ```haskell
-   import Web.Controller.Posts
-   -- ...
-   instance FrontController WebApplication where
-       controllers =
-           [ startPage WelcomeAction
-           , parseRoute @PostsController
-           ]
-   ```
+Use QueryBuilder, not raw SQL. Parse request IDs with total helpers, then query
+through the current venue/tenant before mutation. Malformed or cross-scope input
+must produce controlled validation/4xx/redirect behavior, never a 500.
 
-4. **`Web/Controller/Posts.hs`** — Implement actions:
-   ```haskell
-   module Web.Controller.Posts where
-   import Web.Controller.Prelude
+`fill` records parse errors but ignores missing parameters. Pair it with
+`requireParam` for required values, normalize user text, enforce schema-aligned
+lengths, and rerender through `ifValid`. Browser `required`, hidden fields, and
+select options are not server validation. Build URLs with `appendQueryParams`.
 
-   instance Controller PostsController where
-       action PostsAction = do
-           posts <- query @Post |> fetch
-           render IndexView { .. }
-       action NewPostAction = do
-           let post = newRecord
-           render NewView { .. }
-       action CreatePostAction = do
-           let post = newRecord @Post
-           post
-               |> buildPost
-               |> ifValid \case
-                   Left post -> render NewView { .. }
-                   Right post -> do
-                       post <- post |> createRecord
-                       redirectTo PostsAction
-   ```
+Wrap state changes and required side effects in one transaction. Emit audit,
+live-update, response, and other architecture facts from the helpers performing
+the real effects; do not add descriptive metadata beside helper calls or hide
+business effects in broad typeclass instances.
 
-## Common Patterns
+## HTMX And Live Surfaces
 
-- Always import `Web.Controller.Prelude` — it re-exports everything needed
-- Keep IHP as the controller framework boundary. Bepis-specific action
-  semantics are introduced through `runBepis` inside normal IHP `beforeAction`
-  and `action` definitions, not through a custom router or parallel controller
-  lifecycle. Delegate action bodies near the top with the bound action value and
-  operation kind, e.g. `action currentAction@ShowThingAction { thingId } = runBepis currentAction BepisPageAction do`.
-- Use `param @Type "name"` only when a missing or malformed value should abort the action. For form fields, prefer record builders with `fill`, explicit `requireParam` checks for required fields, and `ifValid` rerender branches.
-- `fill` attaches parser errors to fields, but missing params are ignored. Required dates, ids, numbers, and text fields must be checked server-side; do not rely on HTML `required`, hidden fields, or select options.
-- Normalize user text in builders (`normalizeTextField`, `normalizeMaybeTextField`, `requiredBoundedTextField`) before saving. Trim required text, convert blank optional text to `Nothing`, and apply max lengths that match schema constraints.
-- Parse user-controlled ids with total parsers such as `parseUUIDText` plus model-specific wrappers. After parsing, query by current venue/tenant before using the id; malformed and cross-venue ids should rerender validation or produce controlled 4xx/redirect responses, never 500s.
-- Use `fetch`, `fetchOne`, `fetchOneOrNothing` to run queries
-- Use `redirectTo SomeAction` after mutations
-- Use `render ViewName { .. }` with RecordWildCards to pass data to views
-- Use `buildPost` pattern for form validation (see `/home/beau/documents/projects/ihp/Guide/validation.markdown`)
-- Access current user with `currentUser` (requires auth setup)
+Read `Application/Helper/Interaction.SPEC.md`,
+`Application/Helper/LiveUpdate.SPEC.md`, and
+`Application/Helper/FrontendContract/Surface/README.md` before interaction or
+live-surface work.
 
-## Navigation Controller Pattern
-- Keep `RosterWeeksAction` as the canonical "this week" redirect endpoint.
-- Week navigation should remain URL-driven via `ShowRosterWeekAction { weekOffset }`.
-- When a page supports HTMX week-shell swaps, keep the same canonical routes and branch inside the action: full `render` for normal requests, `respondHtml` fragment for HTMX requests.
-- If an HTMX request hits a redirect-style reset action such as `RosterWeeksAction`, prefer returning the target fragment and set `HX-Push-Url` to the canonical `Show...Action` path instead of relying on an AJAX redirect.
-- For planned modules (e.g. timesheets/admin), scaffold lightweight placeholder controllers/views/routes early so header links are always valid.
+Validation failures return the submitted form/dialog fragment directly. For a
+migrated `FrontendSurface`, successful actor responses emit semantic
+invalidation plus requester-only extras; passive viewers receive post-commit
+resource invalidation and refetch the same authorized plain fragment GETs. Do
+not return authoritative business OOB fragments or broadcast scopes directly
+from feature controllers.
 
-## State Transition Pattern
-- For status transitions with side effects (e.g. leave approval triggering roster conflict refresh), wrap the update + side-effect hook in `withTransaction` so both commit atomically.
+Keep scopes authorized logical data slices, fragment mappings in `SurfaceImpl`,
+and fan-out expansion bounded to active scopes. Fragment actions require the
+same authorization as full pages. Use generated AppShell/Surface action and
+intent helpers rather than ad hoc JSON/fetch endpoints or handwritten HTMX
+contracts.
 
-## Overlay Controller Pattern
-- Prefer dedicated HTMX dialog-fragment actions for in-place workflows instead of `setModal` + page jump.
-- Recommended shape:
-  - GET dialog action reads `weekOffset` or other context params and `respondHtml` with dialog fragment only
-  - POST/PATCH dialog submit action re-renders the dialog fragment on validation failure
-  - successful submit returns only the updated page fragment(s) needed by the current screen plus any out-of-band dialog or toast updates
-- Keep `setModal` only as an explicit fallback when a workflow truly needs non-HTMX behavior.
-- Reuse the same form/view helper for initial dialog render and validation rerender so field errors stay localized to the shared dialog mount.
-- If a workflow mutates migrated roster or timesheet FrontendSurface data, return actor-local semantic invalidation for the smallest affected fragment set plus overlay/toast extras, not a full page redirect or authoritative business OOB. Legacy/non-migrated workflows should still prefer the smallest updated fragment possible until migrated.
-- Only one workflow dialog should be active at a time. Utility pickers are a separate overlay lane and must not reuse the workflow dialog mount.
+Workflow dialogs use dedicated fragment actions and the shared dialog mount;
+pickers and toasts are separate lanes. Preserve URL context such as
+`weekOffset`; `RosterWeeksAction` remains the canonical current-week reset.
 
-## HTMX Mutation Response Pattern
-- Use the same decision tree for form and workflow POST/PATCH/DELETE actions:
-  1. Parse and authorize request params with total helpers before mutating.
-  2. On validation failure, return the submitted form/dialog fragment directly to its HTMX target with field errors. Do not route validation failures through live invalidation.
-  3. On success for migrated `FrontendSurface` UI, commit the data, emit touched `SurfaceResourceValue`s, return actor-local semantic invalidation through the shared helper, and append requester-only extras such as toasts or dialog clears.
-  4. Let actor and passive viewers refetch the same plain fragment GET endpoints. Do not include authoritative business OOB HTML for the invalidated fragments in a success response.
-- If a success path still returns business fragments because the UI is not yet surface-owned, call it out in the ticket as a temporary legacy seam and prefer migrating the UI to a real `FrontendSurface` before expanding the behavior.
-- Keep section-specific validation, authorization, and domain mutation logic in feature modules/controllers; shared response helpers should only own mechanical response plumbing.
+## Verification
 
-## Live Fragment Pattern
-- For collaborative pages, split delivery paths:
-  - migrated `FrontendSurface` actor success responses return actor-local semantic invalidation plus requester-only extras, not authoritative business HTML/OOB
-  - cross-viewer updates flow from mutation-emitted `SurfaceResourceValue` touches through `Web.SurfaceInvalidation`; feature-local FrontendSurface fragments still point to dedicated GET fragment actions
-- Declare production live surfaces from Haskell with type-level `FrontendSurface` specs and `SurfaceImpl` handlers; render them with `renderFrontendSurfaceMount`. The browser runtime parses the generated exact per-surface config from the generated DOM attrs and owns subscription, request decoration, resync, refetch queueing, nested lifecycle reconciliation, swapping, and reusable protection policies. Browser config carries local descriptors and scope only—not server mount state, load policy, or duplicate resync lists.
-- Fragment GET actions for FrontendSurface surfaces should return the authoritative plain target node through the feature's fragment renderer/handler. Keep one fragment path rather than adding compatibility handlers.
-- Treat scopes as authorized logical data slices, not pages. A mutation may invalidate multiple scopes, and only a subset of fragments within each scope.
-- Prefer one websocket connection per browser tab/client with many active scope subscriptions instead of one socket per page.
-- Keep fragment mappings explicit (`targetId`, `url`, protection/swap metadata) in each local `SurfaceImpl` mount. Subscription, websocket, and actor transport carries semantic fragment keys only; controllers do not know mounted DOM state.
-- A fragment may contain nested child surface mounts when its type-level spec declares that topology. Controllers should keep child fragment GET actions independently authorized; parent refreshes over child mounts rely on generic recursive runtime reconciliation, not feature-specific cleanup.
-- Keep reconnect semantics explicit in the transport: each scope should expose a monotonic version, subscribe commands may include the client's `lastSeenVersion`, and the server should tell the client when a full scope resync is required instead of assuming no invalidations were missed.
-- Keep fragment GET actions authorized with the same venue/visibility rules as the full page; do not expose restricted fragments just because the websocket payload names them.
-- Use `invalidateTouchedResources` after the business transaction commits so the acting tab's `X-Live-Update-Client-Id` is carried by the passive invalidation broadcast and the client can suppress its own invalidation echo.
-- Do not broadcast affected scopes directly from controllers or feature modules. For fan-out mutations that could touch many roster weeks or other cold surfaces, add active-scope-bounded expansion in `Web.SurfaceInvalidation`. Closed pages should rely on fresh HTTP rendering unless the feature explicitly needs durable missed-update semantics.
-- When a migrated roster slot mutation can change conflict state across multiple rows, prefer actor-local semantic invalidation of the coarse content fragment over actor-side row patches or business OOB. Legacy/non-migrated responses that still return OOB must be called out in the owning ticket.
-- Keep the roster week shell subscribed even when the week is empty or hidden so create/copy/publish transitions can invalidate passive viewers already sitting on that offset.
-- For server-mutating UI that can leave another mounted copy stale, use the FrontendSurface live-fragment path by default while keeping the actor path immediate. Add the controller surface in this order: type-level surface/fragment spec, `SurfaceImpl` handlers, explicit dependency/resync intent, fragment GET action returning plain target HTML, rendered surface metadata, mutation touched resources plus post-commit invalidation, actor-path HTMX response, Hspec contract coverage for config/target/auth/dependency drift, then Playwright coverage when browser behavior such as resync, focus protection, nested reconciliation, or no-full-page navigation is part of the feature.
-- Successful actor HTMX responses for migrated FrontendSurface surfaces should use the shared actor-local invalidation helper so actor and passive refreshes share the same semantic fragment enum, dependency planning, containment normalization, and mounted-surface resolution. Actor success responses may include extras-only OOB such as toasts or dialog clears, but not authoritative business fragments. Keep validation failures as direct form/dialog rerenders, and keep fragment GET actions plain target-node responses rather than OOB wrappers.
-
-## Bepis Runtime Fact Pattern
-- Do not add descriptive mutation metadata at controller call sites. Facts come
-  from helpers that perform real effects: authorization helpers emit scope
-  facts, audit/version helpers emit audit facts, live invalidation helpers emit
-  live facts, and response helpers emit response facts.
-- Controller code should stay boring: `runBepis currentAction BepisMutationAction do`,
-  then call the normal Bepis-owned helper/mutation/response functions. If a new
-  effect matters for architecture, telemetry, or tests, make the helper emit a
-  typed `BepisFact`; do not add a parallel label beside the helper call.
-- Do not hide business semantics in broad typeclass instances. Keep real effect
-  helpers visible at the call site unless the behavior is purely mechanical and
-  intrinsic to the data type.
-
-## Typed Interaction Controller Pattern
-- Read `Application/Helper/Interaction.SPEC.md` and `Application/Helper/FrontendContract/Surface/README.md` first. Controllers should not add ad hoc JSON/fetch mutation endpoints for interaction UI when a Haskell-rendered HTMX intent form can own the route, method, target, swap, and validation boundary.
-- Interaction intent actions should parse opaque string tokens from generated hidden form fields with total helpers, authorize venue/scope, validate business rules server-side, then return validation-local fragments or successful actor-local invalidation plus extras for migrated FrontendSurface state. TypeScript is only the generic bridge from committed intent to generated form submission.
-- Keep actor responses and passive invalidation aligned with typed live fragments when the interaction mutates collaborative state. For migrated FrontendSurface success paths, the actor response triggers local semantic refetch while passive invalidation still flows from touched resources for other mounted surfaces.
+Run `bash ./bin/in-env typecheck` and focused Hspec for changed actions,
+including missing/malformed/cross-venue inputs and authorization. Run focused
+E2E when browser navigation, HTMX, websocket, dialog, or interaction behavior
+changes.

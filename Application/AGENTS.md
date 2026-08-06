@@ -1,132 +1,64 @@
 # Application Agent Guidelines
 
-Read this before editing `Application/`.
+Read the relevant IHP database/query guide referenced by root `AGENTS.md` before
+schema or query work.
 
-## Schema
+## Schema And Migrations
 
-`Application/Schema.sql` is the source of truth for database models. Read
-`/home/beau/documents/projects/ihp/Guide/database.markdown` before schema work.
+`Application/Schema.sql` is the canonical fresh-database schema and generated
+model source. Follow IHP naming conventions and keep constraints parser-safe.
+Generated PostgreSQL enum constructors are the application identity for
+schema-backed states: use constructors for trusted values, total parsers for
+external text, and exhaustive centralized projections. Avoid enum names that
+start with SQL type tokens and constructor collisions with models.
 
-Conventions:
+Apply the live-data safety requirements in root `AGENTS.md`. For Application
+work, pair every schema-affecting change with a customer-data-preserving
+migration under `Application/Migration/`; read its README. Prefer additive
+changes, backfill, verify, then tighten. When no deployed migration is needed,
+record the rationale in the ticket or commit notes.
 
-- Use `snake_case` for table/column names; IHP converts to camelCase in
-  Haskell.
-- Table names are plural.
-- Put `id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL` first.
-- Use `created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL` and
-  `updated_at` where appropriate.
-- Prefer PostgreSQL enums for finite states when generated constructor names
-  will not collide.
-- Generated PostgreSQL enum constructors are the application identity for
-  schema-backed states. Use constructors directly for compile-time-known values;
-  parse only untrusted external text through total helpers. Keep rank,
-  capability, and presentation projections centralized and exhaustive so new
-  schema cases become compiler-visible. Do not add shadow enum ADTs or partial
-  text-to-enum helpers.
-- Avoid enum type names starting with built-in SQL type tokens such as `time`,
-  `timestamp`, or `interval`.
-- If enum values would collide with model constructors, keep the column as
-  `TEXT` and use parser-safe explicit `OR` checks instead of `IN (...)`.
-- Prefer simple parser-safe `CHECK` constraints using `char_length`, `btrim`,
-  and explicit `OR` expressions.
+`make db` resets local development data and never replaces a migration. For
+enum/constraint changes, verify dev-server startup because some parser failures
+appear only there. IHP `RunDevServer` alone owns live schema-derived
+`build/Generated/` regeneration.
 
-After schema edits:
+## Authority And Queries
 
-```bash
-bash ./bin/in-env regen-types
-bash ./bin/in-env typecheck
-```
+Apply the root venue/support authority model. Validate venue scope before using
+request-derived IDs; global user identity never substitutes for membership in
+an Application query.
 
-During development, IHP's `RunDevServer` is the sole live owner of schema-derived
-`build/Generated/` regeneration. Do not add a competing project schema watcher;
-the cache-aware frontend generation watcher owns only Haskell Surface adapters
-and TypeScript contracts.
+Use IHP QueryBuilder for application queries. Isolate only an unavoidable,
+minimal locking/serialization primitive in a focused mutation module; keep
+business reads/writes in QueryBuilder and advisory-lock keys bounded and
+normalized.
 
-Bepis is live and production data must be preserved. Pair every schema-affecting
-change with a migration path in `Application/Migration/`; see
-`Application/Migration/README.md`. `Application/Schema.sql` is the canonical full
-schema for fresh databases and generated types, while migrations upgrade existing
-live/staging/production databases.
+Payroll-adjacent data must preserve provenance. Audit event names/source
+channels are the closed typed contract in
+`Application.Helper.Audit.Vocabulary`; effect helpers emit typed facts and only
+boundary renderers produce persisted/telemetry text.
 
-Apply the schema to the local dev database with `make db` while the dev server is
-running. This resets local dev data and does not replace a migration. For
-enum/constraint changes, restart and wait for the dev server to catch
-startup-only schema-parser failures.
+## Fixtures And Module Ownership
 
-Prefer additive live-safe migration order: add nullable/defaulted structures,
-backfill existing rows, verify shape, then tighten constraints or remove old
-compatibility paths later when needed. Do not drop columns, tables, enum values,
-or customer data without an explicit ticket, operator-approved runbook,
-backup/restore plan, and rollback/recovery notes. If a schema edit intentionally
-needs no deployed database migration, record the rationale in the ticket or
-commit notes.
+`Application.Fixture.Reset` is the closed application-table reset manifest; do
+not discover tables dynamically or duplicate reset SQL. Keep founder bootstrap
+fixtures deterministic and venue-membership-authorized. Run
+`fixture-reset-manifest-test` after schema/reset changes.
 
-`Application/Fixtures.sql` must keep a deterministic founder/bootstrap account
-usable after `make db`. Venue business authority still comes from
-`venue_memberships`; do not rely on `users.user_role = 'admin'`.
+Use focused modules; top-level `Application/Helper/View.hs` and
+`Application/Helper/Export.hs` remain compatibility re-export facades. Follow
+nearby README/SPEC/AGENTS files, especially:
 
-Reusable Haskell fixture builders and development seeds live under
-`Application.Fixture`; founder-facing Support runtime lives under
-`Application.Support`. `Application.Fixture.Reset` is the only application-table
-reset manifest. Keep it static and run `fixture-reset-manifest-test` after schema
-or reset changes; never discover framework or migration tables dynamically.
-
-## Current Data Direction
-
-- Venue is the current customer/data boundary.
-- `users` is global identity.
-- `venue_memberships` owns venue business roles.
-- Founder support access is platform-level `users.platform_role =
-  'super_admin'`, not synthetic venue membership.
-- Venue-linked operational accounts should have one linked `staff` row per
-  `(venue_id, user_id)` pair.
-- Payroll-adjacent records must preserve provenance.
-- Audit event names and source channels are closed application contracts owned by
-  `Application.Helper.Audit.Vocabulary`. Emitters choose typed constructors;
-  only the exhaustive renderers at the recording boundary produce persisted and
-  telemetry text. Preserve exact wire values when extending the vocabulary.
-- Pay/config reproducibility is moving to append-only relational version ids;
-  see `docs/workstreams/pay-config-versioning.md`.
-
-## Development Fixtures
-
-- `Application.Support.DevFixtures` keeps linked generated users backed by active
-  venue memberships.
-- The realistic dev roster must retain all 12 supported staff/shift pay-mode
-  pairings (`award_rate`, `xero_rate`, `roster_only` × `staff_default`,
-  `award_rate`, `xero_rate`, `roster_only`) on actual slots. Trials remain
-  roster-only, and one unassigned linked profile remains `legacy_unresolved` for
-  remediation testing.
-
-## Helper Ownership
-
-- Generic controller helper notes: `Application/Helper/Controller/AGENTS.md`.
-- Shared view helper notes: `Application/Helper/View/AGENTS.md`.
-- Export helper contract: `Application/Helper/Export/README.md`,
-  `Application/Helper/Export/SPEC.md`, and
-  `Application/Helper/Export/AGENTS.md`.
-- Xero application contract: `Application/Xero/README.md`,
-  `Application/Xero/SPEC.md`, and `Application/Xero/AGENTS.md`.
-- Live-update contract: `Application/Helper/LiveUpdate.SPEC.md`.
-
-Top-level compatibility modules such as `Application/Helper/View.hs` and
-`Application/Helper/Export.hs` should stay re-export facades. Add new
-implementation to focused submodules first.
-
-## Queries
-
-Read `/home/beau/documents/projects/ihp/Guide/querybuilder.markdown`.
-
-Use IHP QueryBuilder for application/database queries. Avoid raw SQL in
-controllers. Validate venue/tenant scope before mutating user-requested ids.
-When QueryBuilder cannot express required PostgreSQL serialization, isolate
-only the minimal `FOR UPDATE` or transaction-scoped advisory-lock primitive in
-a focused `Application/*/Mutations.hs` module; keep business reads and writes
-on QueryBuilder. Advisory locks must use a bounded, normalized domain key.
+- `Application/Helper/Controller/AGENTS.md`
+- `Application/Helper/View/AGENTS.md`
+- `Application/Helper/Export/README.md`
+- `Application/Xero/README.md`
+- `Application/Helper/LiveUpdate.SPEC.md`
 
 ## Verification
 
-Run `bash ./bin/in-env typecheck` after code changes. Add focused Hspec when
-changing helper behavior or schema constraints. Schema changes also need
-`regen-types`, matching `Application/Migration/*.sql` files for deployed
-databases, and local dev DB/startup verification.
+After code changes, run focused Hspec and `bash ./bin/in-env typecheck`. Schema
+changes also require `regen-types`, migration/schema checks,
+`fixture-reset-manifest-test` when applicable, and local dev DB/startup
+verification.
