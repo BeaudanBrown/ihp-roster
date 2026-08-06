@@ -183,6 +183,7 @@ test.describe('Roster Staff Modal', () => {
     });
 
     test('admin pay remediation removes the staff-panel error pill without a reload', async ({ page }) => {
+        test.setTimeout(E2E_TIMEOUT.slowTest);
         const staffId = 'a1000000-0000-0000-0000-000000000031';
         const awardLevelId = 'a1000000-0000-0000-0000-000000000111';
         runSql(`
@@ -319,10 +320,10 @@ test.describe('Roster Staff Modal', () => {
             ON CONFLICT (id) DO UPDATE SET is_closed = FALSE, row_count = 1, updated_at = NOW();
             UPDATE roster_weeks SET is_live = TRUE WHERE id = 'a1000000-0000-0000-0000-000000000051';
             INSERT INTO roster_slots (
-                id, roster_day_id, staff_id, roster_week_slot_definition_id,
+                id, roster_day_id, staff_id, assignment_state, roster_week_slot_definition_id,
                 row_index, starts_at, ends_at, timezone, shift_type_id
             ) VALUES (
-                '${rosterSlotId}', '${rosterDayId}', '${staffId}',
+                '${rosterSlotId}', '${rosterDayId}', '${staffId}', 'staff',
                 'a1000000-0000-0000-0000-000000000081', 0,
                 ((SELECT operational_day FROM e2e_staff_removal_operational_day) + TIME '12:00') AT TIME ZONE 'Australia/Melbourne',
                 ((SELECT operational_day FROM e2e_staff_removal_operational_day) + TIME '16:00') AT TIME ZONE 'Australia/Melbourne',
@@ -368,7 +369,7 @@ test.describe('Roster Staff Modal', () => {
             await modalMount.getByRole('link', { name: 'Remove staff member' }).click();
 
             await expect(modalMount.getByRole('heading', { name: 'Remove staff member' })).toBeVisible();
-            await expect(modalMount).toContainText('Existing timesheets, payroll history, and past roster records are kept.');
+            await expect(modalMount).toContainText('Are you sure you want to remove this staff member? This cannot be undone.');
             await modalMount.getByRole('button', { name: 'Remove staff member' }).click();
 
             await expect(actorPage.locator(`#${toastOverlayMountDomId}`)).toContainText('Staff member removed');

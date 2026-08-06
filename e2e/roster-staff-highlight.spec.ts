@@ -175,11 +175,18 @@ test.describe('Roster staff shift highlight', () => {
                 VALUES ('a0000000-0000-0000-0000-000000000003', TRUE)
                 ON CONFLICT (user_id) DO UPDATE SET show_wage_estimates = TRUE, updated_at = NOW();
 
-                INSERT INTO roster_slots (id, roster_day_id, staff_id, roster_week_slot_definition_id, row_index, starts_at, ends_at, timezone, shift_type_id)
+                UPDATE staff_pay_versions
+                SET locked_at = NOW(),
+                    locked_by_user_id = 'a0000000-0000-0000-0000-000000000003',
+                    updated_at = NOW()
+                WHERE id = 'a1000000-0000-0000-0000-000000000303';
+
+                INSERT INTO roster_slots (id, roster_day_id, staff_id, assignment_state, roster_week_slot_definition_id, row_index, starts_at, ends_at, timezone, shift_type_id)
                 VALUES (
                     '${fixtureSlotId}',
                     'a1000000-0000-0000-0000-000000000061',
                     'a1000000-0000-0000-0000-000000000033',
+                    'staff',
                     'a1000000-0000-0000-0000-000000000081',
                     1,
                     ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '12:00') AT TIME ZONE 'Australia/Melbourne',
@@ -190,6 +197,7 @@ test.describe('Roster staff shift highlight', () => {
                 ON CONFLICT (id) DO UPDATE SET
                     roster_day_id = EXCLUDED.roster_day_id,
                     staff_id = EXCLUDED.staff_id,
+                    assignment_state = EXCLUDED.assignment_state,
                     roster_week_slot_definition_id = EXCLUDED.roster_week_slot_definition_id,
                     row_index = EXCLUDED.row_index,
                     starts_at = EXCLUDED.starts_at,
@@ -327,6 +335,11 @@ test.describe('Roster staff shift highlight', () => {
                     delete_reason = 'E2E pinned wage filter cleanup',
                     updated_at = NOW()
                 WHERE id = '${fixtureSlotId}';
+                UPDATE staff_pay_versions
+                SET locked_at = NULL,
+                    locked_by_user_id = NULL,
+                    updated_at = NOW()
+                WHERE id = 'a1000000-0000-0000-0000-000000000303';
                 DELETE FROM user_preferences WHERE user_id = 'a0000000-0000-0000-0000-000000000003';
             `);
         }

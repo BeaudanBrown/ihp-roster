@@ -97,7 +97,7 @@ test.describe('Roster mobile baseline', () => {
                 railRightAfter: Math.round(railAfter.right),
                 scrollerLeftBefore: Math.round(scrollerBefore.left),
                 scrollerLeftAfter: Math.round(scrollerAfter.left),
-                cellWidths: Array.from(grid.querySelectorAll('.day-row:first-child > [role="gridcell"]')).map((cell) =>
+                cellWidths: Array.from(grid.querySelector('.day-row')?.querySelectorAll(':scope > [role="gridcell"]') ?? []).map((cell) =>
                     Math.round(cell.getBoundingClientRect().width)
                 ),
             };

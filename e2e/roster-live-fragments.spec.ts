@@ -6,7 +6,7 @@ import {
     toggleRootDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
-import { ensureRosterLayout, fillRosterShiftDialogDefaults, openRoster, openRosterSettings, openRosterShiftDialog, saveRosterShiftDialog } from './test-helpers';
+import { ensureRosterLayout, fillRosterShiftDialogDefaults, openRoster, openRosterSettings, openRosterShiftDialog, runSql, saveRosterShiftDialog } from './test-helpers';
 
 type OpenShiftLiveWindow = Window & { __openShiftRosterSubscriptions?: string[] };
 
@@ -220,8 +220,8 @@ test.describe('Roster live fragments', () => {
             installOpenShiftLiveObserver(workerViewerPage),
         ]);
         await Promise.all([
-            openRoster(managerViewerPage, { weekOffset }),
-            openRoster(workerViewerPage, { email: 'e2e-worker@example.com', weekOffset }),
+            openRoster(managerViewerPage, { weekOffset, ensureDraft: false, ensureEditable: false }),
+            openRoster(workerViewerPage, { email: 'e2e-worker@example.com', weekOffset, ensureDraft: false, ensureEditable: false }),
         ]);
         await Promise.all([
             waitForOpenShiftRosterSubscription(managerViewerPage),
@@ -235,7 +235,10 @@ test.describe('Roster live fragments', () => {
 
         await openRosterShiftDialog(actorPage, actorOpenLauncher);
         await expect(actorPage.locator('[data-roster-live-open-fill="true"]')).toBeVisible();
-        await expect(actorPage.locator('[data-roster-live-open-fields="true"]').first()).toBeDisabled();
+        const protectedFields = actorPage.locator('[data-roster-live-open-fields="true"]');
+        await expect(protectedFields).toHaveCount(2);
+        await expect(protectedFields.first()).toHaveAttribute('disabled', /.*/);
+        await expect(actorPage.locator('#roster-shift-type-id')).toBeDisabled();
         const staffSelect = actorPage.locator('#roster-shift-staff-id');
         const fillOption = await staffSelect.locator('option').evaluateAll((options) =>
             options
@@ -298,6 +301,35 @@ test.describe('Roster live fragments', () => {
     });
 
     test('updates another manager live after copying the previous week into an auto-created draft week', async ({ browser }) => {
+        runSql(`
+            UPDATE roster_slots
+            SET deleted_at = NOW(),
+                deleted_by_user_id = 'a0000000-0000-0000-0000-000000000003',
+                delete_reason = 'E2E copy-previous reset',
+                updated_at = NOW()
+            WHERE roster_day_id IN (
+                SELECT roster_days.id
+                FROM roster_days
+                JOIN roster_weeks ON roster_weeks.id = roster_days.roster_week_id
+                WHERE roster_weeks.venue_id = 'a1000000-0000-0000-0000-000000000001'
+                  AND roster_weeks.roster_group_id = 'a1000000-0000-0000-0000-000000000211'
+                  AND roster_weeks.week_offset = 2
+            ) AND deleted_at IS NULL;
+            UPDATE roster_week_slot_definitions
+            SET deleted_at = NULL, updated_at = NOW()
+            WHERE id = 'a1000000-0000-0000-0000-000000000083';
+            UPDATE roster_slots
+            SET assignment_state = 'staff',
+                staff_id = 'a1000000-0000-0000-0000-000000000031',
+                deleted_at = NULL,
+                deleted_by_user_id = NULL,
+                delete_reason = NULL,
+                updated_at = NOW()
+            WHERE id IN (
+                'a1000000-0000-0000-0000-000000000073',
+                'a1000000-0000-0000-0000-000000000074'
+            );
+        `);
         const actorContext = await browser.newContext();
         const viewerContext = await browser.newContext();
         const actorPage = await actorContext.newPage();

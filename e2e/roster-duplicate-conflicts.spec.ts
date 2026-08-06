@@ -69,7 +69,7 @@ async function normalizeRosterForDuplicateConflict(actorPage: Page) {
     const alphaCrewStaffId = 'a1000000-0000-0000-0000-000000000031';
 
     await ensureTwoEditableRosterRows(actorPage);
-    const alternateStaffId = (await staffOptionsForRow(actorPage, 1)).find((value) => value !== alphaCrewStaffId);
+    const alternateStaffId = (await staffOptionsForRow(actorPage, 1)).find((value) => value !== alphaCrewStaffId && value !== 'open');
     expect(alternateStaffId).toBeTruthy();
 
     await assignStaffToRow(actorPage, 0, alphaCrewStaffId);

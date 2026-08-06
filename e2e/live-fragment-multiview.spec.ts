@@ -263,6 +263,7 @@ test.describe('Live fragment multi-view coverage', () => {
                 id,
                 roster_day_id,
                 staff_id,
+                assignment_state,
                 roster_week_slot_definition_id,
                 slot_sort_order,
                 row_index,
@@ -277,6 +278,7 @@ test.describe('Live fragment multi-view coverage', () => {
                 '${rosterSlotId}',
                 roster_days.id,
                 staff.id,
+                'staff',
                 roster_week_slot_definitions.id,
                 0,
                 10,
@@ -312,6 +314,7 @@ test.describe('Live fragment multi-view coverage', () => {
             ON CONFLICT (id) DO UPDATE SET
                 roster_day_id = EXCLUDED.roster_day_id,
                 staff_id = EXCLUDED.staff_id,
+                assignment_state = EXCLUDED.assignment_state,
                 roster_week_slot_definition_id = EXCLUDED.roster_week_slot_definition_id,
                 row_index = EXCLUDED.row_index,
                 starts_at = EXCLUDED.starts_at,

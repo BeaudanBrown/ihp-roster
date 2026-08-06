@@ -37,7 +37,7 @@ async function waitForLeaveSubscription(page: Page) {
 
 async function loginManagerAndOpenLeave(page: Page) {
     await loginAs(page, managerCredentials.email, managerCredentials.password);
-    await gotoWhenReady(page, '/LeaveRequests', '#leave-availability-warnings');
+    await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
     await waitForLeaveSubscription(page);
 }
 

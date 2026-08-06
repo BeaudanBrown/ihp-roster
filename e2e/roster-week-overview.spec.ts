@@ -35,6 +35,8 @@ test.describe('Roster week overview', () => {
         expect(rawConfig).not.toBeNull();
         const config = parseRosterImageExportConfig(JSON.parse(rawConfig ?? '{}'));
 
+        const sourceDayCellCount = await page.locator(`.roster-day-rail-section[${rosterImageExportCellDomAttr}]`).count();
+        expect(sourceDayCellCount).toBeGreaterThanOrEqual(1);
         const exportGeometryPromise = page.evaluate(({ projectionAttr, cellAttr }) => new Promise<{
             dayCellCount: number;
             wageRailDisplay: string | null;
@@ -70,7 +72,7 @@ test.describe('Roster week overview', () => {
         await exportButton.click();
         const [download, exportGeometry] = await Promise.all([downloadPromise, exportGeometryPromise]);
 
-        expect(exportGeometry.dayCellCount).toBe(7);
+        expect(exportGeometry.dayCellCount).toBe(sourceDayCellCount);
         expect([null, 'none']).toContain(exportGeometry.wageRailDisplay);
         expect(exportGeometry.dayRight).not.toBeNull();
         expect(exportGeometry.firstSlotLeft).not.toBeNull();

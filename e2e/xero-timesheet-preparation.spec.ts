@@ -240,7 +240,7 @@ test.describe('Xero timesheet preparation', () => {
         await page.locator('[data-xero-timesheet-preparation-form="true"]').getByRole('button', { name: 'Upload timesheets' }).click();
         const waitingDialog = page.locator('[data-xero-reference-sync-waiting="true"]');
         await expect(waitingDialog).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
-        await expect(waitingDialog).toContainText('Fetching Xero pay items');
+        await expect(waitingDialog).toContainText('Fetching Xero earnings rates');
         await expect(waitingDialog).toContainText('Completed page 4');
 
         await waitingDialog.locator('input[name="referenceWaitStartedAt"]').evaluate((input) => {

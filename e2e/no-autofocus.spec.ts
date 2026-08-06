@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { dialogOverlayMountDomId } from '../frontend/ts/generated/contracts';
+import { dialogOverlayMountDomId, timePickerTriggerDomAttr } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import {
     gotoWhenReady,
@@ -52,13 +52,14 @@ test.describe('No automatic focus', () => {
         await expectNoFocusedControl(page);
     });
 
-    test('timesheet dialog does not focus controls when opened', async ({ page }) => {
+    test('timesheet dialog initially focuses Shift Start', async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
 
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await page.locator('[data-timesheet-day-add="true"]').first().click();
-        await expect(page.locator('#timesheet-entry-create-form')).toBeVisible();
-        await expectNoFocusedControl(page, `#${dialogOverlayMountDomId}`);
+        const form = page.locator('#timesheet-entry-create-form');
+        await expect(form).toBeVisible();
+        await expect(form.locator(`[${timePickerTriggerDomAttr}]`).first()).toBeFocused();
     });
 
     test('timesheet cards reserve their focus outline for keyboard focus', async ({ page }) => {

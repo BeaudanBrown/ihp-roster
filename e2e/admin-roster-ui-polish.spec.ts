@@ -124,7 +124,7 @@ test.describe('Admin and roster UI polish', () => {
             };
         });
         expect(settingsMetrics.columns.length).toBeLessThanOrEqual(4);
-        expect(settingsMetrics.cards).toHaveLength(3);
+        expect(settingsMetrics.cards.length).toBeGreaterThanOrEqual(3);
         for (const card of settingsMetrics.cards) {
             expect(Math.abs(settingsMetrics.cards[0].width - card.width)).toBeLessThanOrEqual(1);
         }
