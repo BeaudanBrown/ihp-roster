@@ -29,6 +29,7 @@ data RosterNotificationDeliveryRuntime = RosterNotificationDeliveryRuntime
     { deliveryBaseUrl               :: !Text
     , deliveryMailSettings          :: !AppMailSettings
     , deliverRosterNotificationMail :: RosterNotificationMail -> IO ()
+    , invalidateRosterNotificationStatus :: Text -> RosterNotificationRun -> IO ()
     }
 
 performRosterNotificationDeliveryJob ::
@@ -41,6 +42,7 @@ performRosterNotificationDeliveryJob appJob = do
     emailDeliveryDisabled <- isEmailDeliveryDisabled
     let deliverRosterNotificationMail mail =
             unless emailDeliveryDisabled (sendMail mail)
+    let invalidateRosterNotificationStatus = invalidateRosterNotificationStatusResource
     performRosterNotificationDeliveryJobWith RosterNotificationDeliveryRuntime { .. } appJob
 
 performRosterNotificationDeliveryJobWith ::
@@ -67,17 +69,18 @@ performRosterNotificationDeliveryJobWith runtime appJob = do
     deliveryResult <- Exception.try @Exception.SomeException (runtime.deliverRosterNotificationMail mail)
     case deliveryResult of
         Left exception -> do
-            recordRosterNotificationDeliveryFailure appJob run exception
+            recordRosterNotificationDeliveryFailure runtime appJob run exception
             Exception.throwIO exception
-        Right () -> completeRosterNotificationDelivery appJob run payload
+        Right () -> completeRosterNotificationDelivery runtime appJob run payload
 
 completeRosterNotificationDelivery ::
     (?modelContext :: ModelContext) =>
+    RosterNotificationDeliveryRuntime ->
     AppJob ->
     RosterNotificationRun ->
     RosterNotificationDeliveryPayload ->
     IO ()
-completeRosterNotificationDelivery appJob run payload = do
+completeRosterNotificationDelivery runtime appJob run payload = do
     void $
         appJob
             |> set #result
@@ -93,15 +96,16 @@ completeRosterNotificationDelivery appJob run payload = do
             |> set #lockedAt Nothing
             |> set #lockedBy Nothing
             |> updateRecord
-    invalidateRosterNotificationStatus "roster.notification.delivery.complete" run
+    runtime.invalidateRosterNotificationStatus "roster.notification.delivery.complete" run
 
 recordRosterNotificationDeliveryFailure ::
     (?modelContext :: ModelContext) =>
+    RosterNotificationDeliveryRuntime ->
     AppJob ->
     RosterNotificationRun ->
     Exception.SomeException ->
     IO ()
-recordRosterNotificationDeliveryFailure appJob run exception = do
+recordRosterNotificationDeliveryFailure runtime appJob run exception = do
     let nextStatus =
             if appJob.attemptsCount < appJobMaxAttempts
                 then JobStatusRetry
@@ -113,14 +117,14 @@ recordRosterNotificationDeliveryFailure appJob run exception = do
             |> set #lockedAt Nothing
             |> set #lockedBy Nothing
             |> updateRecord
-    invalidateRosterNotificationStatus "roster.notification.delivery.failed" run
+    runtime.invalidateRosterNotificationStatus "roster.notification.delivery.failed" run
 
-invalidateRosterNotificationStatus ::
+invalidateRosterNotificationStatusResource ::
     (?modelContext :: ModelContext) =>
     Text ->
     RosterNotificationRun ->
     IO ()
-invalidateRosterNotificationStatus label run =
+invalidateRosterNotificationStatusResource label run =
     void $
         invalidateTouchedResourcesWithoutContext label $
             liveMutationResult () [rosterNotificationStatusResource run.rosterGroupId run.weekOffset]

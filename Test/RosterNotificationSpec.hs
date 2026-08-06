@@ -1,10 +1,13 @@
 module Test.RosterNotificationSpec where
 
+import Application.Async.Queue (appJobMaxAttempts)
 import Application.Async.Registry (dispatchAppJob)
 import Application.Helper.Mail (AppMailSettings (..))
 import Application.RosterNotification
 import Application.RosterNotification.Delivery
 import Config (config)
+import Control.Concurrent (newEmptyMVar, putMVar, readMVar)
+import Control.Concurrent.Async (async, wait)
 import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
@@ -147,21 +150,30 @@ tests = aroundAll withDatabaseTestContext do
                     >>= updateRecord
                         . set #shiftTypeId actorShift.shiftTypeId
                         . setTestRosterSlotBoundaries defaultWeekEpoch (TimeOfDay 12 0 0) (TimeOfDay 16 0 0)
-                run <- createRosterNotificationRun actor rosterWeek
+                startGate <- newEmptyMVar
+                createRunTask <- async do
+                    readMVar startGate
+                    createRosterNotificationRun actor rosterWeek
+                assignOpenShiftTask <- async do
+                    readMVar startGate
+                    openShift
+                        |> set #assignmentState "staff"
+                        |> set #staffId (Just (unpackId otherStaff.id))
+                        |> updateRecord
+                putMVar startGate ()
+                run <- wait createRunTask
+                _ <- wait assignOpenShiftTask
                 immutableSnapshot <- decodeRosterNotificationSnapshot run
                 appJobs <- query @AppJob
                     |> filterWhere (#relatedTable, Just "roster_notification_runs")
                     |> filterWhere (#relatedId, Just (unpackId run.id))
                     |> fetch
-                _ <- openShift
-                    |> set #assignmentState "staff"
-                    |> set #staffId (Just (unpackId otherStaff.id))
-                    |> updateRecord
                 delivered <- newIORef []
                 let runtime = RosterNotificationDeliveryRuntime
                         { deliveryBaseUrl = "https://app.example"
                         , deliveryMailSettings = AppMailSettings "rosters@example.com" "support@example.com" "support@example.com"
                         , deliverRosterNotificationMail = \mail -> modifyIORef' delivered (mail :)
+                        , invalidateRosterNotificationStatus = \_ _ -> pure ()
                         }
 
                 forM_ appJobs (performRosterNotificationDeliveryJobWith runtime)
@@ -174,16 +186,25 @@ tests = aroundAll withDatabaseTestContext do
                     actorMail <- mailFor "concurrent-snapshot-manager@example.com" deliveredMails
                     otherMail <- mailFor "concurrent-snapshot-other@example.com" deliveredMails
                     noShiftMail <- mailFor "concurrent-snapshot-empty@example.com" deliveredMails
+                    let concurrentShiftStayedOpen =
+                            immutableSnapshot.snapshotShifts
+                                |> find ((== "Snapshot open lane") . (.shiftLaneName))
+                                |> maybe False (isNothing . (.shiftStaffId))
                     mailText actorMail `shouldSatisfy` isInfixOf "Manager only lane"
-                    mailText actorMail `shouldSatisfy` isInfixOf "Snapshot open lane"
                     mailText actorMail `shouldSatisfy` (not . isInfixOf "Other staff private lane")
                     mailText otherMail `shouldSatisfy` isInfixOf "Other staff private lane"
                     mailText otherMail `shouldSatisfy` isInfixOf "Snapshot open lane"
                     mailText otherMail `shouldSatisfy` (not . isInfixOf "Manager only lane")
                     mailText noShiftMail `shouldSatisfy` isInfixOf "You have no assigned shifts in this roster."
-                    mailText noShiftMail `shouldSatisfy` isInfixOf "Snapshot open lane"
                     mailText noShiftMail `shouldSatisfy` (not . isInfixOf "Manager only lane")
                     mailText noShiftMail `shouldSatisfy` (not . isInfixOf "Other staff private lane")
+                    if concurrentShiftStayedOpen
+                        then do
+                            mailText actorMail `shouldSatisfy` isInfixOf "Snapshot open lane"
+                            mailText noShiftMail `shouldSatisfy` isInfixOf "Snapshot open lane"
+                        else do
+                            mailText actorMail `shouldSatisfy` (not . isInfixOf "Snapshot open lane")
+                            mailText noShiftMail `shouldSatisfy` (not . isInfixOf "Snapshot open lane")
 
         it "delivers from the immutable run after the roster returns to draft" $ withContext do
             withCleanDb do
@@ -207,6 +228,7 @@ tests = aroundAll withDatabaseTestContext do
                             , mailSupportEmail = "support@example.com"
                             }
                         , deliverRosterNotificationMail = \mail -> modifyIORef' delivered (mail :)
+                        , invalidateRosterNotificationStatus = \_ _ -> pure ()
                         }
 
                 performRosterNotificationDeliveryJobWith runtime appJob
@@ -258,6 +280,7 @@ tests = aroundAll withDatabaseTestContext do
                         { deliveryBaseUrl = "https://app.example"
                         , deliveryMailSettings = AppMailSettings "rosters@example.com" "support@example.com" "support@example.com"
                         , deliverRosterNotificationMail = \_ -> modifyIORef' delivered (+ 1)
+                        , invalidateRosterNotificationStatus = \_ _ -> pure ()
                         }
                 let invalidJobs =
                         [ appJob |> set #payloadSchemaVersion 999
@@ -279,10 +302,12 @@ tests = aroundAll withDatabaseTestContext do
                 run <- createRosterNotificationRun actor rosterWeek
                 appJob <- query @AppJob |> filterWhere (#relatedId, Just (unpackId run.id)) |> fetchOne
                 attempts <- newIORef (0 :: Int)
+                invalidations <- newIORef []
                 let failingRuntime = RosterNotificationDeliveryRuntime
                         { deliveryBaseUrl = "https://app.example"
                         , deliveryMailSettings = AppMailSettings "rosters@example.com" "support@example.com" "support@example.com"
                         , deliverRosterNotificationMail = \_ -> modifyIORef' attempts (+ 1) >> fail "temporary SMTP failure"
+                        , invalidateRosterNotificationStatus = \label _ -> modifyIORef' invalidations (label :)
                         }
                 firstAttempt <- Exception.try (performRosterNotificationDeliveryJobWith failingRuntime appJob) :: IO (Either Exception.SomeException ())
                 let succeedingRuntime = failingRuntime
@@ -292,11 +317,43 @@ tests = aroundAll withDatabaseTestContext do
                 firstAttempt `shouldSatisfy` isLeft
                 retryingJob <- fetch appJob.id
                 retryingJob.status `shouldBe` JobStatusRetry
+                readIORef invalidations >>= (`shouldBe` ["roster.notification.delivery.failed"])
                 performRosterNotificationDeliveryJobWith succeedingRuntime appJob
 
                 readIORef attempts >>= (`shouldBe` 2)
+                readIORef invalidations >>= (`shouldBe` ["roster.notification.delivery.complete", "roster.notification.delivery.failed"])
                 updatedJob <- fetch appJob.id
                 updatedJob.status `shouldBe` JobStatusSucceeded
+
+        it "marks the final provider failure terminal, invalidates status, and allows another deliberate run" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Terminal Delivery Venue"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                actor <- createUserRecord "terminal-delivery@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue actor Manager
+                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 True
+                run <- createRosterNotificationRun actor rosterWeek
+                appJob <- query @AppJob |> filterWhere (#relatedId, Just (unpackId run.id)) |> fetchOne
+                finalAttemptJob <- appJob |> set #attemptsCount appJobMaxAttempts |> updateRecord
+                invalidations <- newIORef []
+                let failingRuntime = RosterNotificationDeliveryRuntime
+                        { deliveryBaseUrl = "https://app.example"
+                        , deliveryMailSettings = AppMailSettings "rosters@example.com" "support@example.com" "support@example.com"
+                        , deliverRosterNotificationMail = \_ -> fail "terminal SMTP failure"
+                        , invalidateRosterNotificationStatus = \label _ -> modifyIORef' invalidations (label :)
+                        }
+
+                deliveryResult <- Exception.try (performRosterNotificationDeliveryJobWith failingRuntime finalAttemptJob) :: IO (Either Exception.SomeException ())
+
+                deliveryResult `shouldSatisfy` isLeft
+                failedJob <- fetch appJob.id
+                failedJob.status `shouldBe` JobStatusFailed
+                failedJob.lastError `shouldSatisfy` maybe False (isInfixOf "terminal SMTP failure")
+                readIORef invalidations >>= (`shouldBe` ["roster.notification.delivery.failed"])
+                repeatResult <- createRosterNotificationRunUnlessActive actor rosterWeek
+                case repeatResult of
+                    RosterNotificationRunCreated repeatedRun -> repeatedRun.id `shouldNotBe` run.id
+                    _ -> expectationFailure "expected terminal delivery to permit another notification run"
 
   where
     mailFor :: Text -> [RosterNotificationMail] -> IO RosterNotificationMail

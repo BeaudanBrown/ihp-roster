@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import {
     defaultE2ERosterGroupId,
@@ -56,6 +57,8 @@ test.describe('Roster notification workflow', () => {
         test.skip(testInfo.project.name !== 'desktop-chromium', 'Mail delivery acceptance is covered once on desktop.');
         testInfo.setTimeout(E2E_TIMEOUT.slowTest);
         const recipientEmail = `${uniqueE2EValue('e2e-roster-notification')}-retry-${testInfo.retry}@example.com`;
+        const rosterGroupId = randomUUID();
+        const rosterWeekId = randomUUID();
         runSql(`
             DELETE FROM staff_roster_groups
             WHERE staff_id IN (
@@ -68,6 +71,19 @@ test.describe('Roster notification workflow', () => {
             DELETE FROM venue_memberships
             WHERE user_id IN (SELECT id FROM users WHERE email LIKE 'e2e-roster-notification-%@example.com');
             DELETE FROM users WHERE email LIKE 'e2e-roster-notification-%@example.com';
+
+            INSERT INTO roster_groups (id, venue_id, name, sort_order, is_active, is_default)
+            VALUES ('${rosterGroupId}', 'a1000000-0000-0000-0000-000000000001', 'Notification Acceptance', 99, TRUE, FALSE);
+            INSERT INTO roster_weeks (id, venue_id, roster_group_id, week_offset, is_live)
+            VALUES ('${rosterWeekId}', 'a1000000-0000-0000-0000-000000000001', '${rosterGroupId}', 0, TRUE);
+            INSERT INTO roster_days (roster_week_id, day_offset, is_closed, row_count)
+            SELECT '${rosterWeekId}', day_offset, FALSE, 2 FROM generate_series(0, 6) AS day_offset;
+            INSERT INTO roster_week_slot_definitions (roster_week_id, name, sort_order)
+            VALUES ('${rosterWeekId}', 'Acceptance lane', 0);
+            INSERT INTO staff_roster_groups (staff_id, roster_group_id)
+            SELECT staff_id, '${rosterGroupId}'
+            FROM staff_roster_groups
+            WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND deleted_at IS NULL;
 
             WITH new_user AS (
                 INSERT INTO users (email, password_hash, is_profile_completed, email_verified_at)
@@ -92,24 +108,15 @@ test.describe('Roster notification workflow', () => {
                 RETURNING id
             )
             INSERT INTO staff_roster_groups (staff_id, roster_group_id)
-            SELECT id, '${defaultE2ERosterGroupId}' FROM new_staff;
+            SELECT id, '${rosterGroupId}' FROM new_staff;
         `);
 
-        await openRoster(page);
+        await openRoster(page, {
+            rosterGroupId,
+            ensureDraft: false,
+            ensureEditable: false,
+        });
         const weekOffset = Number.parseInt(new URL(page.url()).searchParams.get('weekOffset') ?? '0', 10);
-        runSql(`
-            UPDATE app_jobs
-            SET status = 'job_status_succeeded'
-            WHERE status IN ('job_status_not_started', 'job_status_running', 'job_status_retry')
-              AND related_id IN (
-                  SELECT id FROM roster_notification_runs
-                  WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND week_offset = ${weekOffset}
-              );
-            UPDATE roster_weeks
-            SET is_live = TRUE
-            WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND week_offset = ${weekOffset};
-        `);
-
         try {
             await page.reload();
             await expect(page.locator('#roster-week-shell')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
@@ -124,10 +131,10 @@ test.describe('Roster notification workflow', () => {
             runSql(`
                 UPDATE roster_weeks
                 SET is_live = FALSE
-                WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND week_offset = ${weekOffset};
+                WHERE id = '${rosterWeekId}';
             `);
             const firstMessages = await waitForMailhogMessages(request, recipientEmail, 1, E2E_TIMEOUT.mailhog);
-            expect(mailhogMessageSubject(firstMessages[0])).toContain('Your Main roster');
+            expect(mailhogMessageSubject(firstMessages[0])).toContain('Your Notification Acceptance roster');
             expect(mailhogMessageText(firstMessages[0])).toContain('You have no assigned shifts in this roster.');
 
             await expect.poll(() => Number.parseInt(querySql(`
@@ -135,7 +142,7 @@ test.describe('Roster notification workflow', () => {
                 FROM app_jobs
                 WHERE related_id IN (
                     SELECT id FROM roster_notification_runs
-                    WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND week_offset = ${weekOffset}
+                    WHERE roster_group_id = '${rosterGroupId}' AND week_offset = ${weekOffset}
                 )
                   AND status IN ('job_status_not_started', 'job_status_running', 'job_status_retry');
             `), 10), { timeout: E2E_TIMEOUT.mailhog }).toBe(0);
@@ -143,7 +150,7 @@ test.describe('Roster notification workflow', () => {
             runSql(`
                 UPDATE roster_weeks
                 SET is_live = TRUE
-                WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND week_offset = ${weekOffset};
+                WHERE id = '${rosterWeekId}';
                 UPDATE app_jobs
                 SET status = 'job_status_retry', run_at = NOW() + INTERVAL '1 hour'
                 WHERE payload ->> 'recipientEmail' = '${recipientEmail}';
@@ -162,7 +169,7 @@ test.describe('Roster notification workflow', () => {
                     run_at = NOW()
                 WHERE related_id = (
                     SELECT id FROM roster_notification_runs
-                    WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND week_offset = ${weekOffset}
+                    WHERE roster_group_id = '${rosterGroupId}' AND week_offset = ${weekOffset}
                     ORDER BY created_at DESC LIMIT 1
                 );
             `);
@@ -179,7 +186,7 @@ test.describe('Roster notification workflow', () => {
             runSql(`
                 UPDATE roster_weeks
                 SET is_live = FALSE
-                WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND week_offset = ${weekOffset};
+                WHERE id = '${rosterWeekId}';
             `);
         }
     });
