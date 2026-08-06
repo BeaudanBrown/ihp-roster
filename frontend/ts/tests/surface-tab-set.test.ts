@@ -1,6 +1,8 @@
 import {
+    FrontendSurfaceTabSetRegistry,
     rosterStaffPanelTabDomAttr,
     surfaceDomAttr,
+    type FrontendSurfaceName,
 } from "../generated/contracts";
 import {
     createSurfaceTabSetController,
@@ -119,6 +121,49 @@ test("surface tab sets restore remembered generated keys within one mount", () =
     assertDeepEqual(shown, ["settings-tab"]);
     assertEqual(replacementSettings.getAttribute("aria-selected"), "true");
     assertEqual(duplicate.staff.getAttribute("aria-selected"), "true");
+});
+
+test("Roster, Timesheets, and Unavailability restore generated tabs independently after replacement", () => {
+    const surfaces: FrontendSurfaceName[] = ["roster", "timesheets", "leave-requests"];
+    const fixtures = surfaces.map((surface) => {
+        const definition = FrontendSurfaceTabSetRegistry[surface][0];
+        if (!definition) throw new Error(`missing TabSet definition for ${surface}`);
+        const mount = new MiniElement({ [surfaceDomAttr]: surface });
+        const defaultTab = mount.append(new MiniElement({
+            [definition.tabRoleAttribute]: definition.defaultKey,
+            "aria-selected": "true",
+        }, `${surface}-default`));
+        const alternateKey = definition.keys.find((key) => key !== definition.defaultKey);
+        if (!alternateKey) throw new Error(`missing alternate tab for ${surface}`);
+        const alternateTab = mount.append(new MiniElement({
+            [definition.tabRoleAttribute]: alternateKey,
+            "aria-selected": "false",
+        }, `${surface}-alternate`));
+        return { alternateKey, alternateTab, definition, mount, defaultTab };
+    });
+    const shown: string[] = [];
+    const controller = createSurfaceTabSetController((element) => {
+        const selected = element as unknown as MiniElement;
+        selected.parentElement?.children.forEach((sibling) => sibling.setAttribute("aria-selected", sibling === selected ? "true" : "false"));
+        shown.push(selected.id);
+    });
+
+    fixtures.forEach((fixture) => assertEqual(controller.remember(fixture.alternateTab as unknown as Element), true));
+    fixtures.forEach((fixture, index) => {
+        const replacementDefault = new MiniElement({
+            [fixture.definition.tabRoleAttribute]: fixture.definition.defaultKey,
+            "aria-selected": "true",
+        }, `${surfaces[index]}-replacement-default`);
+        const replacementAlternate = new MiniElement({
+            [fixture.definition.tabRoleAttribute]: fixture.alternateKey,
+            "aria-selected": "false",
+        }, `${surfaces[index]}-replacement-alternate`);
+        fixture.mount.replaceChildren(replacementDefault, replacementAlternate);
+        controller.reconcile(fixture.mount as unknown as Element);
+        assertEqual(replacementAlternate.getAttribute("aria-selected"), "true", `${surfaces[index]} restored tab`);
+    });
+
+    assertDeepEqual(shown, surfaces.map((surface) => `${surface}-replacement-alternate`));
 });
 
 test("surface tab sets fall back to the generated default when a remembered tab disappears", () => {

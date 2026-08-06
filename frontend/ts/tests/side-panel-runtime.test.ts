@@ -1,4 +1,5 @@
 import {
+    FrontendSurfaceSidePanelRegistry,
     rosterSidePanelDomAttr,
     rosterSidePanelLabelDomAttr,
     rosterSidePanelMainDomAttr,
@@ -7,6 +8,7 @@ import {
     rosterSidePanelStates,
     rosterSidePanelToggleDomAttr,
     surfaceDomAttr,
+    type FrontendSurfaceName,
 } from "../generated/contracts";
 import {
     createSidePanelController,
@@ -90,6 +92,23 @@ class MiniEventSource {
     }
 }
 
+function registeredSidePanelMount(surface: FrontendSurfaceName, id: string) {
+    const definition = FrontendSurfaceSidePanelRegistry[surface][0];
+    if (!definition) throw new Error(`missing SidePanel definition for ${surface}`);
+    const mount = new MiniElement({ [surfaceDomAttr]: surface }, `${id}-mount`);
+    const root = mount.append(new MiniElement({
+        [definition.rootRoleAttribute]: "true",
+        [definition.stateAttribute]: definition.collapsedValue,
+    }, `${id}-root`));
+    const main = root.append(new MiniElement({ [definition.mainRoleAttribute]: "true" }, `${id}-main`));
+    const panel = root.append(new MiniElement({ [definition.panelRoleAttribute]: "true" }, `${id}-panel`));
+    const toggle = main.append(new MiniElement({ [definition.toggleRoleAttribute]: "true" }, `${id}-toggle`));
+    toggle.append(new MiniElement({}, `${id}-icon`, ["bi", "bi-fullscreen"]));
+    const label = toggle.append(new MiniElement({ [definition.labelRoleAttribute]: "true" }, `${id}-label`));
+    label.textContent = "Expand main content";
+    return { definition, mount, root, main, panel, toggle };
+}
+
 function sidePanelMount(id: string) {
     const mount = new MiniElement({ [surfaceDomAttr]: "roster" }, `${id}-mount`);
     const root = mount.append(new MiniElement({
@@ -147,6 +166,30 @@ test("multiple sibling side-panel mounts keep state, controls, icons, and focus 
     assertEqual(second.icon.classList.contains("bi-fullscreen"), true);
     assertEqual(first.toggle.focusCount, 1);
     assertEqual(second.toggle.focusCount, 0);
+});
+
+test("Roster, Timesheets, and Unavailability share transient generated SidePanel behavior", () => {
+    const surfaces: FrontendSurfaceName[] = ["roster", "timesheets", "leave-requests"];
+    const fixtures = surfaces.map((surface) => registeredSidePanelMount(surface, surface));
+    const controller = createSidePanelController();
+
+    fixtures.forEach((fixture) => controller.reconcile(fixture.mount as unknown as Element));
+    assertEqual(controller.toggle(fixtures[1]!.toggle as unknown as Element), true);
+
+    fixtures.forEach((fixture, index) => {
+        assertEqual(
+            fixture.root.getAttribute(fixture.definition.stateAttribute),
+            index === 1 ? fixture.definition.expandedValue : fixture.definition.collapsedValue,
+            `${surfaces[index]} transient state`,
+        );
+    });
+
+    controller.dispose(fixtures[1]!.root as unknown as Element);
+    assertEqual(
+        fixtures[1]!.root.getAttribute(fixtures[1]!.definition.stateAttribute),
+        fixtures[1]!.definition.collapsedValue,
+        "Timesheets state after mount disposal",
+    );
 });
 
 test("side-panel reconciliation restores replacement controls and rejects malformed boundaries", () => {
