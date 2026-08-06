@@ -27,7 +27,6 @@ CSS_FILES += static/css/components/admin.css
 CSS_FILES += static/css/components/week-toolbar.css
 CSS_FILES += static/css/components/admin-responsive.css
 CSS_FILES += static/css/overlays.css
-CSS_FILES += static/css/features/staff-documents.css
 CSS_FILES += static/css/features/leave.css
 CSS_FILES += static/css/features/preferences.css
 CSS_FILES += static/css/features/roster/toolbar.css

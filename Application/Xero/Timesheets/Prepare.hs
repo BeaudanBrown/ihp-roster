@@ -375,42 +375,6 @@ selectXeroTimesheetPreparationPeriod runId selectedPeriodKey =
                             |> updateRecord
                     refreshXeroTimesheetPreparation updatedRun.id
 
-saveXeroPreparationPayrollCalendar ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Id XeroTimesheetPreparationRun ->
-    Text ->
-    IO (Either Text XeroTimesheetPreparationView)
-saveXeroPreparationPayrollCalendar runId payrollCalendarId =
-    fetchPreparationRunForCurrentVenue runId >>= \case
-        Nothing -> pure (Left "Xero preparation run was not found for this venue.")
-        Just run -> do
-            connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
-            case Text.strip payrollCalendarId of
-                "" -> pure (Left "Choose a synced Xero payroll calendar.")
-                selectedCalendarId -> do
-                    maybePayrollCalendar <-
-                        query @XeroPayrollCalendar
-                            |> filterWhere (#venueId, unpackId currentVenueId)
-                            |> filterWhere (#xeroConnectionId, unpackId connection.id)
-                            |> filterWhere (#xeroPayrollCalendarId, selectedCalendarId)
-                            |> filterWhere (#providerAvailable, True)
-                            |> fetchOneOrNothing
-                    case maybePayrollCalendar of
-                        Nothing -> pure (Left "Choose a synced Xero payroll calendar from this venue.")
-                        Just payrollCalendar ->
-                            case (run.payPeriodStart, run.payPeriodEnd) of
-                                (Just periodStart, Just periodEnd) -> do
-                                    _ <-
-                                        run
-                                            |> set #selectedPayrollCalendarId (Just payrollCalendar.xeroPayrollCalendarId)
-                                            |> set #selectedPayrollCalendarName (Just payrollCalendar.name)
-                                            |> set #selectedPeriodKey (Just (preparationPeriodKey payrollCalendar.xeroPayrollCalendarId periodStart periodEnd))
-                                            |> set #paymentDate payrollCalendar.paymentDate
-                                            |> set #xeroPayRunId Nothing
-                                            |> set #xeroPayRunStatus Nothing
-                                            |> updateRecord
-                                    refreshXeroTimesheetPreparation run.id
-                                _ -> pure (Left "Choose a Xero pay period before choosing a payroll calendar.")
 
 approveXeroPreparationPayItemDecisions ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -913,4 +877,3 @@ persistRemotePreparationState connection run payRuns remoteTimesheets = do
             |> set #xeroPayRunId ((.xeroPayRunId) <$> selectedPayRun)
             |> set #xeroPayRunStatus (selectedPayRun >>= (.xeroPayRunStatus))
             |> updateRecord
-

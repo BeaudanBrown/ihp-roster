@@ -8,7 +8,6 @@ module Application.Helper.UserPreferences
     , fetchCurrentUserRosterPreferences
     , fetchCurrentUserShowRosterWarnings
     , fetchCurrentUserShowWageEstimates
-    , parseRosterLayoutMode
     , rosterLayoutModeIsDayColumns
     , rosterLayoutModeLabel
     , rosterLayoutModeValue
@@ -44,8 +43,6 @@ defaultRosterLayoutMode = DayRows
 rosterLayoutModes :: [RosterLayoutModeEnum]
 rosterLayoutModes = allEnumValues @RosterLayoutModeEnum
 
-parseRosterLayoutMode :: Text -> Maybe RosterLayoutModeEnum
-parseRosterLayoutMode = enumFromText @RosterLayoutModeEnum
 
 rosterLayoutModeValue :: RosterLayoutModeEnum -> Text
 rosterLayoutModeValue = inputValue

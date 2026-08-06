@@ -9,9 +9,6 @@ module Web.LeaveRequests.FrontendSurface
     , leaveRequestsCandidateMountedFragments
     , leaveRequestsSurfaceScope
     , leaveRequestsSurfaceImpl
-    , leaveRequestsSurfaceMountConfig
-    , leaveRequestsSurfaceScopeKey
-    , leaveRequestsSurfaceFragmentKeys
     , selfServiceLeaveFormMountedFragment
     , selfServiceLeaveHistoryMountedFragment
     , selfServiceLeaveSurfaceImpl
@@ -94,12 +91,7 @@ leaveRequestsSurfaceImpl scope =
         noSurfaceFields
         (leaveRequestsCandidateMountedFragments scope)
 
-leaveRequestsSurfaceMountConfig :: LeaveRequestsScopeValue -> FrontendSurfaceMountConfig
-leaveRequestsSurfaceMountConfig scope =
-    (leaveRequestsSurfaceImpl scope).surfaceImplMountConfig
 
-leaveRequestsSurfaceScopeKey :: LeaveRequestsScopeValue -> Text
-leaveRequestsSurfaceScopeKey = surfaceScopeKey . leaveRequestsSurfaceScope
 
 leaveRequestsSurfaceScope :: LeaveRequestsScopeValue -> SurfaceScope
 leaveRequestsSurfaceScope scope =
@@ -129,8 +121,6 @@ leaveAvailabilityWarningsMountedFragment =
             [("fragment", surfaceFragmentNameValue @Surface.LeaveRequestsSurface @Surface.LeaveAvailabilityWarnings)])
         FrontendSurfaceReplace
 
-leaveRequestsSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
-leaveRequestsSurfaceFragmentKeys = map (.mountedFragmentKey)
 
 leaveRequestsScopeFields :: LeaveRequestsScopeValue -> SurfaceFields (SurfaceScopeFieldSpecs Surface.LeaveRequestsSurface Surface.LeaveRequestsScope)
 leaveRequestsScopeFields scope =

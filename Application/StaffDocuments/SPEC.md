@@ -26,10 +26,10 @@ for current-vs-history presentation:
   reviewed document; reminder jobs target that effective current row, not a
   pending replacement.
 
-Manager edit-staff and staff self-profile RSA panels use this read model so
-those surfaces can distinguish missing, pending review, pending replacement,
-verified, expiring, expired, and rejected states without a separate full history
-UI.
+The read model remains the authority for reminders, review decisions, and
+focused staff-document tests. Manager edit-staff and staff self-profile RSA
+panels are intentionally not mounted; no FrontendSurface fragment or passive
+resource advertises that unavailable UI.
 
 ## RSA PDF Metadata Prefill
 
@@ -58,8 +58,11 @@ has been uploaded for scanning instead of blocking upload. Empty/scanned PDFs,
 missing `pdftotext`, command failures, and uncertain parser output produce
 warnings and blank or partial fields for the user to complete.
 
-The profile and edit-staff RSA panels are scan-first and accept PDFs for the
-initial upload step. Confirmed upload limits, venue scoping, role checks, live
-invalidation, review status transitions, and reminder behavior remain unchanged.
-OCR for image-only PDFs is out of V1 scope and should be added only behind a
-future ticket with explicit privacy and dependency review.
+The retained scan/upload/review controller flow remains scan-first and accepts
+PDFs for the initial upload step, but it is not currently linked from profile or
+edit-staff panels. Profile return paths resolve to the ordinary profile page,
+not a hidden RSA section. Confirmed upload limits, venue scoping, role checks,
+review status transitions, and reminder behavior remain unchanged. There is no
+RSA live fragment to invalidate. OCR for image-only PDFs is out of V1 scope and
+should be added only behind a future ticket with explicit privacy and dependency
+review.

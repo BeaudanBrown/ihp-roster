@@ -213,6 +213,11 @@ Exploration does not replace deterministic tests. Convert useful flows into norm
 
 ## Verification
 
+`weeder-check` compiles the complete application Haskell source inventory to fresh HIE
+and rejects candidates against `Config/nix/weeder-baseline.tsv`. Keep runtime
+roots category-narrow and reason-bearing; never blanket-root handwritten
+application modules or retain stale baseline entries.
+
 Use the repo wrapper unless you are already inside the devenv shell. Run
 `bin/in-env` commands serially: concurrent wrapper entries can race on generated
 `.devenv` shell files and produce false setup failures. Use cheap/focused checks

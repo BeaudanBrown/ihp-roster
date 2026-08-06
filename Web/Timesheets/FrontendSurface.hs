@@ -9,8 +9,6 @@ module Web.Timesheets.FrontendSurface
     , timesheetsSurfaceScope
     , timesheetsDaySurfaceImpl
     , timesheetsSurfaceImpl
-    , timesheetsSurfaceMountConfig
-    , timesheetsSurfaceScopeKey
     , timesheetsSurfaceFragmentKeys
     ) where
 
@@ -60,12 +58,7 @@ timesheetsSurfaceImplWithFragments scope mountState fragments =
         (timesheetsMountStateFields mountState)
         fragments
 
-timesheetsSurfaceMountConfig :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> FrontendSurfaceMountConfig
-timesheetsSurfaceMountConfig scope mountState =
-    (timesheetsSurfaceImpl scope mountState).surfaceImplMountConfig
 
-timesheetsSurfaceScopeKey :: TimesheetWeekScopeValue -> Text
-timesheetsSurfaceScopeKey = surfaceScopeKey . timesheetsSurfaceScope
 
 timesheetsSurfaceScope :: TimesheetWeekScopeValue -> SurfaceScope
 timesheetsSurfaceScope scope =

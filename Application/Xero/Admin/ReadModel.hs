@@ -1,6 +1,5 @@
 module Application.Xero.Admin.ReadModel
-    ( fetchActiveCurrentVenueXeroConnection
-    , fetchCurrentVenueXeroAdminSectionData
+    ( fetchCurrentVenueXeroAdminSectionData
     , fetchCurrentVenueXeroConnection
     , fetchCurrentVenueXeroEarningsRates
     , fetchCurrentVenueXeroEmployees
@@ -41,13 +40,6 @@ import Data.Time.Calendar (Day, addDays, diffDays)
 import Generated.Types
 import IHP.ControllerPrelude
 
-fetchActiveCurrentVenueXeroConnection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe XeroConnection)
-fetchActiveCurrentVenueXeroConnection =
-    query @XeroConnection
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#connectionStatus, "active" :: Text)
-        |> orderByDesc #connectedAt
-        |> fetchOneOrNothing
 
 fetchCurrentVenueXeroConnection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe XeroConnection)
 fetchCurrentVenueXeroConnection =
@@ -149,29 +141,6 @@ fetchCurrentVenueXeroPayItemRequirements maybeConnection xeroEarningsRates =
             let requirements = deriveXeroPayItemRequirements venueConfig.rosterWeekStartsOn today usedScopes awardLevels awardLevelBaseRates awardLevelPenaltyRates awardTimePenaltyAllowances xeroEarningsRates
             syncXeroPayItemRequirementRecords connection.id currentVenueId (Just currentUser.id) requirements
 
-currentVenueLocalXeroEarningsBuckets :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [XeroLocalEarningsBucket]
-currentVenueLocalXeroEarningsBuckets = do
-    today <- utctDay <$> getCurrentTime
-    venueConfig <- fetchVenueConfig
-    usedScopes <- fetchCurrentVenueXeroUsedAwardPayScopes
-    awardLevels <-
-        query @AwardLevel
-            |> filterWhere (#isActive, True)
-            |> orderBy #classification
-            |> fetch
-    awardLevelBaseRates <-
-        query @AwardLevelBaseRate
-            |> orderBy #createdAt
-            |> fetch
-    awardLevelPenaltyRates <-
-        query @AwardLevelPenaltyRate
-            |> orderBy #createdAt
-            |> fetch
-    awardTimePenaltyAllowances <-
-        query @AwardTimePenaltyAllowance
-            |> orderBy #createdAt
-            |> fetch
-    pure (deriveXeroLocalEarningsBuckets venueConfig.rosterWeekStartsOn today usedScopes awardLevels awardLevelBaseRates awardLevelPenaltyRates awardTimePenaltyAllowances)
 
 fetchCurrentVenueXeroUsedAwardPayScopes :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [XeroUsedAwardPayScope]
 fetchCurrentVenueXeroUsedAwardPayScopes = do
@@ -620,7 +589,3 @@ normalizedEmail :: Text -> Maybe Text
 normalizedEmail email =
     let normalized = Text.toLower (Text.strip email)
      in if Text.null normalized then Nothing else Just normalized
-
-staffFullNameText :: Staff -> Text
-staffFullNameText staff =
-    Text.strip (staff.firstName <> " " <> staff.lastName)

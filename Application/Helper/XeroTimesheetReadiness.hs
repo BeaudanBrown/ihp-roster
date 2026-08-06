@@ -242,22 +242,6 @@ fetchVerifiedPayItemAccountCodeSelection connection =
         |> filterWhere (#selectionStatus, XeroPayItemAccountCodeSelectionStatusEnumVerified)
         |> fetchOneOrNothing
 
-fetchVenueLocalBuckets :: (?modelContext :: ModelContext) => Id Venue -> Day -> IO [XeroLocalEarningsBucket]
-fetchVenueLocalBuckets venueId effectiveDay = do
-    venueConfig <-
-        query @VenueConfig
-            |> filterWhere (#venueId, unpackId venueId)
-            |> fetchOne
-    staffMembers <- fetchActiveVenueStaff venueId
-    shiftTypes <- fetchActiveVenueShiftTypes venueId
-    awardLevels <-
-        query @AwardLevel
-            |> filterWhere (#isActive, True)
-            |> fetch
-    baseRates <- query @AwardLevelBaseRate |> fetch
-    penaltyRates <- query @AwardLevelPenaltyRate |> fetch
-    timeAllowances <- query @AwardTimePenaltyAllowance |> fetch
-    pure (deriveXeroLocalEarningsBuckets venueConfig.rosterWeekStartsOn effectiveDay (deriveXeroUsedAwardPayScopes staffMembers shiftTypes) awardLevels baseRates penaltyRates timeAllowances)
 
 connectionBlockers :: Maybe XeroConnection -> [XeroReadinessBlocker]
 connectionBlockers Nothing = [blocker "no_active_xero_connection" "Connect Xero before preparing payroll timesheets."]

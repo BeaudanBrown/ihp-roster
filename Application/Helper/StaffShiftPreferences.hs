@@ -99,9 +99,6 @@ parseShiftPreferenceSelections weekdays rawKeys =
                 Just hour | hour >= preferenceMinimumHour && hour <= preferenceMaximumHour -> Right hour
                 _ -> Left "One or more submitted shift preferences used an invalid hour."
 
-encodeStaffShiftPreferenceKey :: StaffShiftPreference -> Text
-encodeStaffShiftPreferenceKey preference =
-    encodeShiftPreferenceKey preference.weekdayIndex
 
 staffShiftPreferenceSelection :: StaffShiftPreference -> ShiftPreferenceSelection
 staffShiftPreferenceSelection preference =

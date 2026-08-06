@@ -4,30 +4,6 @@
     position: relative;
 }
 
-.roster-week-overview-trigger {
-    min-width: 12.75rem;
-    gap: 0.5rem;
-    padding-inline: 1rem 1.1rem;
-}
-
-.roster-week-overview-trigger-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--app-link);
-}
-
-.roster-week-overview-menu {
-    width: min(42rem, calc(100vw - 1.5rem));
-    padding: 0;
-    overflow: hidden;
-    border: 1px solid var(--app-border-strong);
-    border-radius: 1rem;
-    background: linear-gradient(180deg, var(--app-overview-gradient-start), var(--app-overview-gradient-end));
-    box-shadow: 0 1.2rem 2.6rem var(--app-shadow-popover);
-    z-index: 1100;
-}
-
 .roster-week-overview-panel {
     padding: 1rem;
 }

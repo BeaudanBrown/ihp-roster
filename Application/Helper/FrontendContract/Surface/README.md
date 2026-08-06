@@ -806,8 +806,9 @@ import opaque internal constructors.
 Private production `.Generated.Resource` and `.Generated.Live` modules are
 registry-derived declaration-complete APIs: each checked declaration keeps its
 constructor and matcher even when the executable graph needs only one side.
-`weeder.toml` therefore roots exactly those two generated module categories.
-Typed-home completeness, all-kind generation, generated drift, and source
+Within Surface, `weeder.toml` therefore roots exactly those two generated
+module categories. IHP-generated Fetch statements and exact executable script
+entries have separate project-level roots. Typed-home completeness, all-kind generation, generated drift, and source
 import guardrails enforce that exception structurally. Generated Action/Intent,
 curated facades, and handwritten modules remain under normal Weeder
 reachability; symbol allowlists and blanket FrontendContract exclusions are not

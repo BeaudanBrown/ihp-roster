@@ -1,0 +1,6 @@
+# path<TAB>symbol<TAB>narrow runtime/reflection reason
+#
+# This baseline is intentionally empty after #336. Real IHP instance methods
+# are rooted by type-class-roots; executable scripts and declaration-complete
+# generated categories are rooted narrowly in weeder.toml. Any future entry
+# must name one exact declaration and explain its non-static runtime edge.

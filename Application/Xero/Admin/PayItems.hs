@@ -3,7 +3,6 @@ module Application.Xero.Admin.PayItems
     , XeroPayItemSubmissionFailure (..)
     , createProposedXeroPayItems
     , selectedXeroPayItemAccountCode
-    , xeroPayItemSubmissionFailurePayload
     , xeroPayItemVerificationFailureMessage
     ) where
 
@@ -130,16 +129,6 @@ createProposedXeroPayItems xeroClient connection accessToken now accountCode req
                         maybeExpenseAccountId
                         rest
 
-xeroPayItemSubmissionFailurePayload :: XeroPayItemSubmissionFailure -> Aeson.Value
-xeroPayItemSubmissionFailurePayload failure =
-    Aeson.object
-        [ "requirementKey" Aeson..= failure.failureRequirementKey
-        , "payItemName" Aeson..= failure.failurePayItemName
-        , "idempotencyKey" Aeson..= failure.failureIdempotencyKey
-        , "rateType" Aeson..= failure.failureRateType
-        , "ratePerUnit" Aeson..= failure.failureRatePerUnit
-        , "error" Aeson..= failure.failureError
-        ]
 
 xeroPayItemVerificationFailureMessage :: CreatePayItemsVerificationResult -> Text
 xeroPayItemVerificationFailureMessage verification =

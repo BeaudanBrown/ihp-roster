@@ -5,8 +5,6 @@
 
 module Web.Controller.RosterWeeks.Validation
     ( activeRosterWeekSlotDefinitionWithName
-    , ensureOptionalShiftTypeInCurrentVenue
-    , ensureRosterSlotTimingValidForSave
     , ensureRosterWeekIsDraftForEdit
     , firstAvailableDefaultName
     , invalidRosterSlotTimingMessage
@@ -27,33 +25,10 @@ import Web.RosterWeeks.Responses (respondWithRosterToast)
 import Web.RosterWeeks.Service (rosterSlotHasValidStartEnd)
 import Web.RosterWeeks.Types
 
-ensureRosterSlotTimingValidForSave :: (?context :: ControllerContext, ?request :: Request) => RosterWeek -> RosterSlot -> IO ()
-ensureRosterSlotTimingValidForSave rosterWeek slot =
-    case (slot.startsAt, slot.endsAt) of
-        (Just _, Just _)
-            | not (rosterSlotHasValidStartEnd slot) ->
-                let rosterGroupId = coerce rosterWeek.rosterGroupId
-                    errorMessage = invalidRosterSlotTimingMessage
-                 in if isHtmxRequest
-                        then respondWithRosterToast errorMessage "app-toast-error"
-                        else do
-                            setErrorMessage errorMessage
-                            redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
-        _ -> pure ()
 
 invalidRosterSlotTimingMessage :: Text
 invalidRosterSlotTimingMessage = "Choose an end time after the start time within the 6:00 AM to 5:45 AM roster day."
 
-ensureOptionalShiftTypeInCurrentVenue :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe UUID.UUID -> IO ()
-ensureOptionalShiftTypeInCurrentVenue Nothing = pure ()
-ensureOptionalShiftTypeInCurrentVenue (Just shiftTypeId) = do
-    exists <-
-        query @ShiftType
-            |> filterWhere (#id, Id shiftTypeId)
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> filterWhere (#archivedAt, Nothing)
-            |> fetchExists
-    accessDeniedUnless exists
 
 ensureRosterWeekIsDraftForEdit :: (?context :: ControllerContext, ?request :: Request) => RosterWeek -> IO ()
 ensureRosterWeekIsDraftForEdit rosterWeek =
@@ -106,4 +81,3 @@ activeRosterWeekSlotDefinitionWithName rosterWeek slotName =
         |> filterWhere (#name, slotName)
         |> filterWhere (#deletedAt, Nothing)
         |> fetchOneOrNothing
-

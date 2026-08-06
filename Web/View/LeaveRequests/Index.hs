@@ -47,10 +47,6 @@ leaveRequestsShellId = "leave-requests-shell"
 leaveRequestsContentFragmentId :: Text
 leaveRequestsContentFragmentId = "leave-requests-content"
 
-leaveSectionCountFragmentKind, leaveSectionListFragmentKind :: Text
-leaveSectionCountFragmentKind = "leave-section-count"
-leaveSectionListFragmentKind = "leave-section-list"
-
 leavePendingSection, leaveApprovedSection, leaveDeniedSection, leaveArchiveSection :: Text
 leavePendingSection = "pending"
 leaveApprovedSection = "approved"
@@ -389,16 +385,6 @@ renderLeaveSectionListLiveFragment section leaveRequests staffMembers currentVie
     | section == leaveArchiveSection = renderArchivePageContent Nothing archivePagination archivedPageRequests staffMembers currentViewerStaffId
     | otherwise = renderManagerSectionList (leaveSectionListFragmentId leavePendingSection) (pendingLeaveRequests leaveRequests today) staffMembers currentViewerStaffId True
 
-renderPendingCountLiveFragment, renderApprovedCountLiveFragment, renderDeniedCountLiveFragment :: [LeaveRequest] -> Day -> Html
-renderPendingCountLiveFragment = renderLeaveSectionCountLiveFragment leavePendingSection
-renderApprovedCountLiveFragment = renderLeaveSectionCountLiveFragment leaveApprovedSection
-renderDeniedCountLiveFragment = renderLeaveSectionCountLiveFragment leaveDeniedSection
-
-renderPendingListLiveFragment, renderApprovedListLiveFragment, renderDeniedListLiveFragment :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Html
-renderPendingListLiveFragment leaveRequests staffMembers currentViewerStaffId today = renderManagerSectionList leavePendingListFragmentId (pendingLeaveRequests leaveRequests today) staffMembers currentViewerStaffId True
-renderApprovedListLiveFragment leaveRequests staffMembers currentViewerStaffId today = renderManagerSectionList leaveApprovedListFragmentId (approvedLeaveRequests leaveRequests today) staffMembers currentViewerStaffId True
-renderDeniedListLiveFragment leaveRequests staffMembers currentViewerStaffId today = renderManagerSectionList leaveDeniedListFragmentId (deniedLeaveRequests leaveRequests today) staffMembers currentViewerStaffId True
-
 pendingLeaveRequests, approvedLeaveRequests, deniedLeaveRequests :: [LeaveRequest] -> Day -> [LeaveRequest]
 pendingLeaveRequests leaveRequests today = sortOn (Down . (.startDate)) (filter ((== LeaveRequestStatusEnumPending) . (.status)) (activeLeaveRequests leaveRequests today))
 approvedLeaveRequests leaveRequests today = sortOn (Down . (.startDate)) (filter ((== LeaveRequestStatusEnumApproved) . (.status)) (activeLeaveRequests leaveRequests today))
@@ -701,4 +687,3 @@ renderReviewActionForm action buttonClass label =
                     , actionRouteExtraAttrs = [("class", "d-inline")]
                     }
                 [hsx|<button type="submit" class={buttonClass}>{label}</button>|]
-

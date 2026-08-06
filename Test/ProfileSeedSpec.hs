@@ -155,7 +155,6 @@ tests = do
                     , "    \"editProfile\": \"/EditProfile\","
                     , "    \"profileSecurity\": \"/EditProfile?section=security\","
                     , "    \"profileLeave\": \"/EditProfile?section=leave\","
-                    , "    \"profileRsa\": \"/EditProfile?section=rsa\","
                     , "    \"admin\": \"/Admin\","
                     , "    \"adminExports\": \"/Admin#exports\","
                     , "    \"adminShiftTypesFragment\": \"/ShowadminShiftTypesLiveFragment\","

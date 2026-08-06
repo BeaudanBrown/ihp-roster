@@ -11,7 +11,6 @@ module Application.Xero.Timesheets.Prepare.Helpers
     , periodOptionFromPreparationRun
     , preparationInitialEventsJson
     , preparationPayItemRow
-    , preparationPeriodKey
     , preparationProposedActionsJson
     , preparationReadinessForRun
     , preparationReadinessRequest
@@ -27,7 +26,6 @@ module Application.Xero.Timesheets.Prepare.Helpers
     , staffMappingResolved
     , staffMappingVerified
     , staffNeedsXeroDecision
-    , staffRowHasApprovedEntry
     , staffStepApprovalApplied
     , xeroConnectionSnapshotJson
     , xeroPayRunRefJson
@@ -239,9 +237,6 @@ preparationPayItemRow decisions requirement =
                     )
         }
 
-staffRowHasApprovedEntry :: [UUID] -> XeroStaffMappingRow -> Bool
-staffRowHasApprovedEntry approvedStaffIds row =
-    unpackId row.mappingRowStaff.id `elem` approvedStaffIds
 
 staffNeedsXeroDecision :: XeroStaffMappingRow -> Bool
 staffNeedsXeroDecision row =
@@ -264,9 +259,6 @@ preparationRunPosted :: XeroTimesheetPreparationRun -> Bool
 preparationRunPosted run =
     maybe False ((== "posted") . Text.toCaseFold . Text.strip) run.xeroPayRunStatus
 
-preparationPeriodKey :: Text -> Day -> Day -> Text
-preparationPeriodKey calendarId periodStart periodEnd =
-    calendarId <> ":" <> tshow periodStart <> ":" <> tshow periodEnd
 
 periodOptionFromPreparationRun :: XeroTimesheetPreparationRun -> Maybe XeroTimesheetPeriodOption
 periodOptionFromPreparationRun run = do

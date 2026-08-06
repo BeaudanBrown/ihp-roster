@@ -34,7 +34,6 @@
     "profile": [
       { "kind": "visit", "name": "profile.full", "routeKey": "editProfile", "fallbackPath": "/EditProfile", "readySelector": "#profile-content-fragment" },
       { "kind": "visit", "name": "profile.security", "routeKey": "profileSecurity", "fallbackPath": "/EditProfile?section=security", "readySelector": "#profile-content-fragment" },
-      { "kind": "visit", "name": "profile.rsa", "routeKey": "profileRsa", "fallbackPath": "/EditProfile?section=rsa", "readySelector": "#profile-content-fragment" },
       { "kind": "visit", "name": "profile.leave.content_fragment", "routeKey": "profileLeaveSectionFragment", "fallbackPath": "/ShowprofileContentLiveFragment?section=leave", "readySelector": "#profile-leave" }
     ],
     "writes": [
@@ -94,7 +93,6 @@
     "profile": [
       { "name": "profile.full", "routeKey": "editProfile", "fallbackPath": "/EditProfile" },
       { "name": "profile.security", "routeKey": "profileSecurity", "fallbackPath": "/EditProfile?section=security" },
-      { "name": "profile.rsa", "routeKey": "profileRsa", "fallbackPath": "/EditProfile?section=rsa" },
       { "name": "profile.leave.content_fragment", "routeKey": "profileLeaveSectionFragment", "fallbackPath": "/ShowprofileContentLiveFragment?section=leave" }
     ],
     "mixed-app": [

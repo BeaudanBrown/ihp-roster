@@ -6,7 +6,6 @@
 
 module Web.RosterWeeks.RenderData
     ( fetchVisibleRosterReadModel
-    , fetchVisibleRosterStaffPanelEntries
     , fetchVisibleRosterStaffPanelRenderModel
     , renderRosterProjectionFragmentWithMode
     , renderVisibleRosterReadModelFragment
@@ -526,12 +525,6 @@ renderVisibleRosterFragment rosterGroupId weekOffset fragment = do
                             else pure Nothing
                     pure (renderRequestedDaySectionFragment (hasRole Manager && not rosterWeek.isLive) weekStartDate facts.baseOrderedSlotDefinitions assignmentFilters staffMembers facts.baseShiftTypes facts.baseAllSlots slotConflicts renderIndexes rosterLayoutMode venueConfig.rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings rosterPublicHolidays rosterDayUuid)
 
-fetchVisibleRosterStaffPanelEntries :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterStaffPanelScope -> Id RosterGroup -> Int -> IO (Maybe [RosterStaffPanelEntry])
-fetchVisibleRosterStaffPanelEntries panelScope rosterGroupId weekOffset = do
-    visibleRosterWeek <- fetchVisibleRosterWeek rosterGroupId weekOffset
-    case visibleRosterWeek of
-        Nothing -> pure (Just [])
-        Just rosterWeek -> Just <$> profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntriesDirect panelScope rosterGroupId rosterWeek)
 
 fetchVisibleRosterStaffPanelRenderModel :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterStaffPanelScope -> Id RosterGroup -> Int -> IO RosterStaffPanelRenderModel
 fetchVisibleRosterStaffPanelRenderModel panelScope rosterGroupId weekOffset = do

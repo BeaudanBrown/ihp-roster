@@ -47,7 +47,6 @@
     "editProfile": "/EditProfile",
     "profileSecurity": "/EditProfile?section=security",
     "profileLeave": "/EditProfile?section=leave",
-    "profileRsa": "/EditProfile?section=rsa",
     "profileLeaveSectionFragment": "/ShowprofileContentLiveFragment?section=leave",
     "admin": "/Admin",
     "adminExports": "/Admin#exports",

@@ -5,7 +5,6 @@ module Web.LeaveRequests.ReadModel
     , LeaveRequestsFragment (..)
     , LeaveRequestsSectionFragment (..)
     , affectedRosterWeekInvalidationTargetsForScopes
-    , buildLeaveRequestsScope
     , currentLeaveArchiveOpen
     , currentLeaveArchivePage
     , currentLeaveArchivePageResult
@@ -191,9 +190,6 @@ affectedRosterWeekInvalidationTargetsForScopes venueId venueConfig leaveRequest 
                     leaveRequest.startDate
                     leaveRequest.endDate
 
-buildLeaveRequestsScope :: Id Venue -> SurfaceScope
-buildLeaveRequestsScope venueId =
-    leaveRequestsLiveScope (unpackId venueId)
 
 currentLeaveRequestsSurface :: (?context :: ControllerContext) => SurfaceImpl Surface.LeaveRequestsSurface
 currentLeaveRequestsSurface =

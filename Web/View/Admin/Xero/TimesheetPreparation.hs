@@ -3,8 +3,6 @@
 
 module Web.View.Admin.Xero.TimesheetPreparation
     ( renderXeroTimesheetPreparationDialog
-    , renderXeroTimesheetPreparationErrorDialog
-    , renderXeroTimesheetPreparationLoadingDialog
     , renderXeroTimesheetPreparationReferenceSyncWaitingDialog
     , renderXeroTimesheetPreparationStaffMappingsFragment
     , renderXeroTimesheetPreparationSubmittingDialog
@@ -81,33 +79,7 @@ renderXeroTimesheetPreparationDialog view
     | view.preparationState == XeroPreparationFailed = renderXeroTimesheetPreparationFailureDialog view
     | otherwise = renderXeroTimesheetPreparationSummaryStep view
 
-renderXeroTimesheetPreparationErrorDialog :: Text -> Html
-renderXeroTimesheetPreparationErrorDialog message =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Prepare Xero draft timesheets"
-        , dialogOverlayBody = [hsx|<div class="alert alert-danger mb-0">{message}</div>|]
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons =
-            [ OverlayButton
-                { overlayButtonLabel = "Close"
-                , overlayButtonClass = "btn btn-outline-secondary"
-                , overlayButtonAction = OverlayCloseAction
-                }
-            ]
-        , dialogOverlayDialogClass = ""
-        }
 
-renderXeroTimesheetPreparationLoadingDialog :: Html
-renderXeroTimesheetPreparationLoadingDialog =
-    renderDialogOverlayBodyOnly "Prepare Xero draft timesheets" "" [hsx|
-        <div class="d-flex align-items-center gap-3" data-xero-timesheet-preparation-loading="true">
-            <div id="xero-timesheet-preparation-modal-loading-indicator" class="spinner-border text-primary" role="status" aria-hidden="true"></div>
-            <div>
-                <div class="fw-semibold">Prepare Xero draft timesheets</div>
-            </div>
-            {renderXeroPreparationReferenceWaitForm Nothing Nothing}
-        </div>
-    |]
 
 renderXeroTimesheetPreparationReferenceSyncWaitingDialog :: UTCTime -> UTCTime -> XeroMissingReferenceDemand -> XeroReferenceTrustState -> Html
 renderXeroTimesheetPreparationReferenceSyncWaitingDialog now waitStartedAt missingReferenceDemand trustState =
@@ -471,76 +443,15 @@ renderReviewRow row = [hsx|
     </tr>
 |]
 
-payPeriodDays :: XeroTimesheetPreparationView -> Int
-payPeriodDays view =
-    case view.preparationPeriodOption of
-        Nothing -> 0
-        Just option -> fromIntegral (diffDays option.periodOptionEnd option.periodOptionStart) + 1
 
 renderFinalSubmissionCopy :: Html
 renderFinalSubmissionCopy = mempty
 
-renderRunSummary :: XeroTimesheetPreparationView -> Html
-renderRunSummary view = [hsx|
-    <div>
-        <div class="fw-semibold">Pay Period</div>
-        <div class="small app-muted">
-            {renderRunPeriod view}
-            {renderPaymentDate view.preparationRun.paymentDate}
-        </div>
-    </div>
-|]
 
-renderRunPeriod :: XeroTimesheetPreparationView -> Html
-renderRunPeriod view =
-    case view.preparationPeriodOption of
-        Nothing -> [hsx|Not selected yet|]
-        Just option -> [hsx|{formatDateDisplay option.periodOptionStart} to {formatDateDisplay option.periodOptionEnd}|]
 
-renderPaymentDate :: Maybe Day -> Html
-renderPaymentDate Nothing = mempty
-renderPaymentDate (Just paymentDate) = [hsx|<span> · payment {formatDateDisplay paymentDate}</span>|]
 
-renderWorkflowProgress :: XeroTimesheetPreparationView -> Html
-renderWorkflowProgress view = [hsx|
-    <div class={appSurfaceClasses "p-3"}>
-        <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
-            <div>
-                <div class="fw-semibold">{workflowHeadline view}</div>
-                <div class="small app-muted">{workflowDetail view}</div>
-            </div>
-            <div class="d-flex flex-wrap gap-2 align-items-start">
-                <span class="badge app-status-badge app-status-neutral">{tshow view.preparationPendingDecisionCount} decisions</span>
-                <span class="badge app-status-badge app-status-neutral">{tshow view.preparationReadiness.timesheetReadinessEntryCount} entries</span>
-                <span class="badge app-status-badge app-status-neutral">{tshow view.preparationReadiness.timesheetReadinessStaffCount} staff</span>
-            </div>
-        </div>
-    </div>
-|]
 
-workflowHeadline :: XeroTimesheetPreparationView -> Text
-workflowHeadline view =
-    case view.preparationState of
-        XeroPreparationNeedsReconnect -> "Reconnect Xero to continue"
-        XeroPreparationPreparing -> "Checking Xero readiness"
-        XeroPreparationNeedsDecision -> "Resolve the next preparation decision"
-        XeroPreparationBlocked -> "Preparation is blocked"
-        XeroPreparationReadyForPreview -> "Ready to submit draft timesheets"
-        XeroPreparationPreviewed -> "Draft timesheet preview is ready"
-        XeroPreparationSubmitted -> "Draft timesheets submitted"
-        XeroPreparationFailed -> "Preparation needs attention"
 
-workflowDetail :: XeroTimesheetPreparationView -> Text
-workflowDetail view =
-    case view.preparationState of
-        XeroPreparationNeedsReconnect -> "OAuth reconnect opens as a normal Xero navigation, then return here to continue."
-        XeroPreparationPreparing -> "Connection, reference data, pay runs, duplicate timesheets, mappings, pay items, and readiness checks are run automatically."
-        XeroPreparationNeedsDecision -> "Choose Xero employees, mark staff as not paid through Xero, or choose the account code needed for automatic pay item creation."
-        XeroPreparationBlocked -> "Resolve the blockers shown in readiness validation before submitting."
-        XeroPreparationReadyForPreview -> "All required decisions are resolved. Submit will create any missing managed pay items, then create new Xero drafts or update existing Xero drafts."
-        XeroPreparationPreviewed -> "Review the preview rows, then submit only when you are ready to create or update Xero draft timesheets."
-        XeroPreparationSubmitted -> "The latest submission status is recorded below."
-        XeroPreparationFailed -> "Refresh checks or close the dialog and retry after fixing the reported issue."
 
 renderConnectionNotice :: XeroTimesheetPreparationView -> Html
 renderConnectionNotice view
@@ -745,59 +656,9 @@ xeroEmployeeLabel :: XeroEmployee -> Text
 xeroEmployeeLabel employee =
     employee.displayName
 
-renderStaffOutcomes :: XeroTimesheetPreparationView -> Html
-renderStaffOutcomes view
-    | null outcomeRows = mempty
-    | otherwise = [hsx|
-        <section>
-            <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-                <h6 class="mb-0">Staff outcomes</h6>
-                <span class="small app-muted">Who will be included or excluded</span>
-            </div>
-            <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead>
-                        <tr>
-                            <th>Staff</th>
-                            <th>Outcome</th>
-                            <th>Reason</th>
-                        </tr>
-                    </thead>
-                    <tbody>{forEach outcomeRows renderStaffOutcomeRow}</tbody>
-                </table>
-            </div>
-        </section>
-    |]
-    where
-        outcomeRows =
-            view.preparationStaffRows
-                |> filter (not . (.preparationStaffNeedsDecision))
 
-renderStaffOutcomeRow :: XeroPreparationStaffRow -> Html
-renderStaffOutcomeRow row = [hsx|
-    <tr>
-        <td>
-            <div class="fw-semibold">{staffName staff}</div>
-            <div class="small app-muted">{staffSecondaryLabel row}</div>
-        </td>
-        <td>{renderStatusBadge (staffOutcomeStatus row)}</td>
-        <td class="small">{staffOutcomeReason row}</td>
-    </tr>
-|]
-    where
-        staff = row.preparationStaffMappingRow.mappingRowStaff
 
-staffOutcomeStatus :: XeroPreparationStaffRow -> Text
-staffOutcomeStatus row
-    | staffMarkedNotPaidThroughXero row = "not paid"
-    | staffHasVerifiedXeroEmployee row = "included"
-    | otherwise = "excluded"
 
-staffOutcomeReason :: XeroPreparationStaffRow -> Text
-staffOutcomeReason row
-    | staffMarkedNotPaidThroughXero row = "Persistently marked as not paid through Xero."
-    | staffHasVerifiedXeroEmployee row = "Mapped to Xero employee " <> fromMaybe "" row.preparationStaffMappingRow.mappingRowMapping.xeroEmployeeName <> "."
-    | otherwise = "No Xero employee is selected for this staff member."
 
 renderStaffSelectionSubmitButton :: XeroPreparationStaffRow -> Text -> Html
 renderStaffSelectionSubmitButton row currentSelection
@@ -904,17 +765,6 @@ selectedAccountCode view = do
     guard (xeroAccountCodeSelectionIsVerified selection.selectionStatus)
     Text.strip <$> selection.accountCode
 
-renderReadiness :: XeroTimesheetReadinessView -> Html
-renderReadiness readiness = [hsx|
-    <section>
-        <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-            <h6 class="mb-0">Readiness validation</h6>
-            {renderStatusBadge (if readiness.timesheetReadinessReady then "ready" else "blocked")}
-        </div>
-        {renderIssues "Blockers" readiness.timesheetReadinessBlockers}
-        {renderIssues "Warnings" readiness.timesheetReadinessWarnings}
-    </section>
-|]
 
 renderReviewReadiness :: XeroTimesheetPreparationView -> Html
 renderReviewReadiness view
@@ -1001,40 +851,8 @@ lineSummary :: XeroTimesheetPreviewLineView -> Text
 lineSummary line =
     line.previewLineViewEarningsRateName <> " (" <> formatUnits line.previewLineViewTotalUnits <> ")"
 
-renderFooterActions :: XeroTimesheetPreparationView -> Html
-renderFooterActions view = [hsx|
-    <div class="d-flex flex-column flex-md-row justify-content-end gap-2 border-top pt-3">
-        {renderRefreshForm view}
-        {renderSubmitForm view}
-    </div>
-|]
 
-renderRefreshForm :: XeroTimesheetPreparationView -> Html
-renderRefreshForm view =
-    renderXeroPreparationOverlayForm
-        (noAppShellActionFields @RefreshXeroTimesheetPreparationOverlay)
-        (pathTo (RefreshXeroTimesheetPreparationAction view.preparationRun.id))
-        []
-        [hsx|<button type="submit" class="btn btn-outline-secondary">Refresh checks</button>|]
 
-renderSubmitForm :: XeroTimesheetPreparationView -> Html
-renderSubmitForm view =
-    renderXeroPreparationOverlayForm
-        fields
-        (pathTo (SubmitXeroTimesheetPreparationAction view.preparationRun.id))
-        [("id", "xero-preparation-submit-form")]
-        [hsx|
-            <button type="submit"
-                    class="btn btn-primary"
-                    disabled={not view.preparationCanSubmit}>
-                Submit to Xero
-            </button>
-        |]
-  where
-    fields =
-        appShellActionFields @SubmitXeroTimesheetPreparationOverlay
-            (surfaceOptionalField @AccountCodeField (selectedAccountCode view))
-            noSurfaceFields
 
 renderStatusBadge :: Text -> Html
 renderStatusBadge status = renderAppStatusBadge (statusTone status) (statusLabel status)

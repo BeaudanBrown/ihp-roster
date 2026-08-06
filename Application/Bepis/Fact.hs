@@ -20,7 +20,6 @@ module Application.Bepis.Fact
     , bepisFactKindText
     , bepisOperationKindText
     , bepisResponseKindText
-    , emptyBepisFactSet
     , emitBepisFact
     , summarizeBepisFacts
     , withBepisFactContext
@@ -151,8 +150,6 @@ newtype BepisFactContext = BepisFactContext
     }
     deriving (Eq)
 
-emptyBepisFactSet :: BepisFactSet
-emptyBepisFactSet = BepisFactSet { factSetFacts = [] }
 
 withBepisFactContext :: IO a -> IO (Either Exception.SomeException a, BepisFactSet)
 withBepisFactContext action = Exception.mask \restore -> do

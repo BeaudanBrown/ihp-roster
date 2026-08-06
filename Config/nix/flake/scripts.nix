@@ -141,6 +141,7 @@ in
         enum-authority-check = script ../scripts/haskell/enum-authority-check;
         frontend-contract-warnings = script ../scripts/haskell/frontend-contract-warnings;
         weeder-check = script ../scripts/haskell/weeder-check;
+        weeder-policy-test = script ../scripts/haskell/weeder-policy-test;
         regen-types = script ../scripts/haskell/regen-types;
         generated-code-sync = script ../scripts/haskell/generated-code-sync;
         hie-bios-test = script ../scripts/haskell/hie-bios-test;

@@ -3,10 +3,6 @@ module Web.Timesheets.Suggestion
     , newTimesheetEntryFromSuggestion
     , timesheetSuggestionWorkedOn
     , timesheetSuggestionStartTime
-    , timesheetSuggestionEndTime
-    , timesheetSuggestionHadBreak
-    , timesheetSuggestionBreakStartTime
-    , timesheetSuggestionBreakEndTime
     ) where
 
 import Application.VenueTime.Model
@@ -39,15 +35,3 @@ timesheetSuggestionWorkedOn = (.localDay) . authoritativeStartLocalTime . (.sugg
 
 timesheetSuggestionStartTime :: TimesheetSuggestion -> TimeOfDay
 timesheetSuggestionStartTime = (.localTimeOfDay) . authoritativeStartLocalTime . (.suggestionBoundaries)
-
-timesheetSuggestionEndTime :: TimesheetSuggestion -> TimeOfDay
-timesheetSuggestionEndTime = (.localTimeOfDay) . authoritativeEndLocalTime . (.suggestionBoundaries)
-
-timesheetSuggestionHadBreak :: TimesheetSuggestion -> Bool
-timesheetSuggestionHadBreak = isJust . authoritativeBreakStartsAt . (.suggestionBoundaries)
-
-timesheetSuggestionBreakStartTime :: TimesheetSuggestion -> Maybe TimeOfDay
-timesheetSuggestionBreakStartTime = fmap (.localTimeOfDay) . authoritativeBreakStartLocalTime . (.suggestionBoundaries)
-
-timesheetSuggestionBreakEndTime :: TimesheetSuggestion -> Maybe TimeOfDay
-timesheetSuggestionBreakEndTime = fmap (.localTimeOfDay) . authoritativeBreakEndLocalTime . (.suggestionBoundaries)

@@ -5,10 +5,8 @@
 module Application.Helper.FrontendContract.Surface.Profile.Generated.Resource
     ( matchStaffPreferencesResource
     , matchStaffProfileResource
-    , matchStaffRsaDocumentsResource
     , staffPreferencesResource
     , staffProfileResource
-    , staffRsaDocumentsResource
     ) where
 
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family (AdapterFamilySurface)
@@ -55,20 +53,3 @@ matchStaffProfileResource =
     matchFrontendSurfaceResource
         @(AdapterFamilySurface Types2.ProfileAdapterFamily)
         @Types1.StaffProfile
-
-staffRsaDocumentsResource ::
-    UUID.UUID ->
-    SurfaceResourceValue
-staffRsaDocumentsResource staffId =
-    frontendSurfaceResource
-        @(AdapterFamilySurface Types2.ProfileAdapterFamily)
-        @Types1.StaffRsaDocuments
-        ( surfaceField @Types1.StaffId staffId
-            &: noSurfaceFields
-        )
-
-matchStaffRsaDocumentsResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
-matchStaffRsaDocumentsResource =
-    matchFrontendSurfaceResource
-        @(AdapterFamilySurface Types2.ProfileAdapterFamily)
-        @Types1.StaffRsaDocuments

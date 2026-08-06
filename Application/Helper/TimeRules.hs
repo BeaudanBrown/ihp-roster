@@ -103,19 +103,12 @@ venueTimePickerStartTimeText = formatMinuteOfDayText . venueTimePickerStartMinut
 venueTimePickerFinalSelectableTimeText :: VenueConfig -> Text
 venueTimePickerFinalSelectableTimeText = formatMinuteOfDayText . venueTimePickerFinalSelectableMinuteOfDay
 
-venueTimePickerStartTime :: VenueConfig -> TimeOfDay
-venueTimePickerStartTime = minuteOfDayToTimeOfDay . venueTimePickerStartMinuteOfDay
 
-venueTimePickerFinalSelectableTime :: VenueConfig -> TimeOfDay
-venueTimePickerFinalSelectableTime = minuteOfDayToTimeOfDay . venueTimePickerFinalSelectableMinuteOfDay
 
 normalizeWindowEndMinute :: Int -> Int -> Int
 normalizeWindowEndMinute startMinute endMinute =
     if endMinute <= startMinute then endMinute + 24 * 60 else endMinute
 
-venueTimePickerWindowDurationMinutes :: Int -> Int -> Int
-venueTimePickerWindowDurationMinutes startMinute endMinute =
-    normalizeWindowEndMinute startMinute endMinute - startMinute
 
 isMinuteWithinTimePickerWindow :: Int -> Int -> Int -> Bool
 isMinuteWithinTimePickerWindow startMinute endMinute minuteOfDay =
@@ -151,12 +144,6 @@ automaticMealBreakForShift start end
          in Just (minuteOfDayToTimeOfDay breakStartMinute, minuteOfDayToTimeOfDay breakEndMinute, automaticMealBreakMinutes)
     | otherwise = Nothing
 
-automaticMealBreakWindowMinutes :: TimeOfDay -> TimeOfDay -> Maybe (Int, Int)
-automaticMealBreakWindowMinutes start end
-    | shiftDurationMinutes start end >= automaticMealBreakThresholdMinutes =
-        let breakStartMinute = normalizeShiftMinuteOfDay start + automaticMealBreakStartOffsetMinutes
-         in Just (breakStartMinute, breakStartMinute + automaticMealBreakMinutes)
-    | otherwise = Nothing
 
 validRosterShiftDurationMinutes :: TimeOfDay -> TimeOfDay -> Maybe Int
 validRosterShiftDurationMinutes start end =

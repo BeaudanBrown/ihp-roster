@@ -8,10 +8,6 @@ module Web.Billing.FrontendSurface
     , billingCandidateMountedFragments
     , billingSurfaceScope
     , billingSurfaceImpl
-    , billingSurfaceMountConfig
-    , billingSurfaceScopeKey
-    , billingSurfaceFragmentKeys
-    , currentBillingCheckoutReturnState
     , currentBillingScopeValue
     ) where
 
@@ -39,13 +35,6 @@ data BillingCheckoutReturnState = BillingCheckoutReturnState
     }
     deriving (Eq, Show)
 
-currentBillingCheckoutReturnState :: BillingCheckoutReturnState
-currentBillingCheckoutReturnState =
-    BillingCheckoutReturnState
-        { billingCheckoutReturned = False
-        , billingCheckoutAttemptId = Nothing
-        , billingCheckoutSessionId = Nothing
-        }
 
 currentBillingScopeValue :: (?context :: ControllerContext) => BillingScopeValue
 currentBillingScopeValue =
@@ -59,12 +48,7 @@ billingSurfaceImpl scope checkoutReturnState =
         (billingMountStateFields checkoutReturnState)
         (billingCandidateMountedFragments checkoutReturnState)
 
-billingSurfaceMountConfig :: BillingScopeValue -> BillingCheckoutReturnState -> FrontendSurfaceMountConfig
-billingSurfaceMountConfig scope checkoutReturnState =
-    (billingSurfaceImpl scope checkoutReturnState).surfaceImplMountConfig
 
-billingSurfaceScopeKey :: BillingScopeValue -> Text
-billingSurfaceScopeKey = surfaceScopeKey . billingSurfaceScope
 
 billingSurfaceScope :: BillingScopeValue -> SurfaceScope
 billingSurfaceScope scope =
@@ -74,8 +58,6 @@ billingCandidateMountedFragments :: BillingCheckoutReturnState -> [FrontendSurfa
 billingCandidateMountedFragments checkoutReturnState =
     [billingStatusMountedFragment (billingStatusFragmentUrl checkoutReturnState)]
 
-billingSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
-billingSurfaceFragmentKeys = map (.mountedFragmentKey)
 
 billingScopeFields :: BillingScopeValue -> SurfaceFields (SurfaceScopeFieldSpecs Surface.BillingSurface Surface.BillingVenue)
 billingScopeFields scope =

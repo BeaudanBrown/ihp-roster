@@ -255,10 +255,6 @@ ensureFreshPasskeyVerified = do
             setErrorMessage "Verify with your passkey to continue."
             redirectTo PasskeyStepUpAction
 
-ensurePrivilegedPasskeyVerified :: (?context :: ControllerContext) => IO ()
-ensurePrivilegedPasskeyVerified = do
-    strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
-    when strongAuthenticationRequired ensureFreshPasskeyVerified
 
 currentRequestPath :: (?request :: Request) => Text
 currentRequestPath =
@@ -311,18 +307,7 @@ fetchCurrentUserStaff =
         |> filterWhere (#userId, Just (coerce (get #id authenticatedCurrentUser)))
         |> fetchOneOrNothing
 
-staffInCurrentVenueOrNothing :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID -> IO (Maybe Staff)
-staffInCurrentVenueOrNothing staffId =
-    query @Staff
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#id, Id staffId)
-        |> fetchOneOrNothing
 
-ensureOptionalStaffInCurrentVenue :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe UUID -> IO ()
-ensureOptionalStaffInCurrentVenue maybeStaffId =
-    forM_ maybeStaffId \staffId -> do
-        maybeStaff <- staffInCurrentVenueOrNothing staffId
-        accessDeniedUnless (isJust maybeStaff)
 
 ensureRecordInCurrentVenue :: (?context :: ControllerContext) => UUID -> IO ()
 ensureRecordInCurrentVenue venueId = do

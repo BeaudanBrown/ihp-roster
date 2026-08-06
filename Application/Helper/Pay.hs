@@ -28,10 +28,6 @@ rateEffectiveOn weekStartsOn referenceDate record =
     maybe True ((<= referenceDate) . venueEffectiveRateDate weekStartsOn) record.operativeFrom
         && maybe True (>= referenceDate) (venueEffectiveRateEndDate weekStartsOn record.operativeTo)
 
-latestVenueEffectiveRate :: (HasField "operativeFrom" record (Maybe Day), HasField "operativeTo" record (Maybe Day), HasField "createdAt" record UTCTime) => WeekdayIndex -> Day -> [record] -> Maybe record
-latestVenueEffectiveRate weekStartsOn referenceDate =
-    List.find (rateEffectiveOn weekStartsOn referenceDate)
-        . List.sortOn (\record -> (Down (venueEffectiveRateDate weekStartsOn <$> record.operativeFrom), Down record.createdAt))
 
 payVersionManifestForEntry :: TimesheetEntry -> Maybe Text
 payVersionManifestForEntry entry = do
@@ -39,9 +35,6 @@ payVersionManifestForEntry entry = do
     shiftVersionId <- entry.shiftTypePayVersionId
     pure ("staff:" <> tshow staffVersionId <> ";shift:" <> tshow shiftVersionId)
 
-payVersionManifestForEntries :: [TimesheetEntry] -> [Text]
-payVersionManifestForEntries =
-    List.sort . List.nub . mapMaybe payVersionManifestForEntry
 
 collapsePayVersionManifests :: [Text] -> Maybe Text
 collapsePayVersionManifests []        = Nothing

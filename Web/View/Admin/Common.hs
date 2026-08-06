@@ -31,81 +31,16 @@ renderAccordionItem sectionId title isOpen content =
         , appAccordionItemBody = content
         }
 
-renderRowCountSummary :: HasField "isActive" record Bool => [record] -> Html
-renderRowCountSummary rows = [hsx|
-    <p class="small app-muted mb-3">
-        {tshow (length rows)} rows total, {tshow (countActiveRows rows)} active, {tshow (length rows - countActiveRows rows)} inactive.
-    </p>
-|]
 
-renderInactiveToggleSummary :: HasField "isActive" record Bool => Text -> Text -> Text -> [record] -> Bool -> Html
-renderInactiveToggleSummary paramName fragmentPath targetId rows showInactive = [hsx|
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-        <p class="small app-muted mb-0">
-            {tshow (length rows)} rows total, {tshow activeCount} active, {tshow inactiveCount} inactive.
-        </p>
-        <div>
-            {renderShowInactiveToggle (targetId <> "-show-inactive-toggle") targetId toggleHref showInactive}
-        </div>
-    </div>
-|]
-    where
-        activeCount = countActiveRows rows
-        inactiveCount = length rows - activeCount
-        toggleHref = appendQueryParams fragmentPath [(paramName, if showInactive then "false" else "true")]
 
-renderShowInactiveToggle :: Text -> Text -> Text -> Bool -> Html
-renderShowInactiveToggle inputId _targetId toggleHref showInactive = [hsx|
-    <a href={toggleHref} class={toggleClass} role="switch" aria-checked={if showInactive then ("true" :: Text) else "false"}>
-        <span class="small">Show disabled</span>
-    </a>
-|]
-    where
-        toggleClass = classes
-            [ ("btn app-toggle-button btn-sm", True)
-            , ("btn-success", showInactive)
-            , ("btn-outline-success", not showInactive)
-            ]
 
-renderRosterGroupDefaultBadge :: RosterGroup -> Html
-renderRosterGroupDefaultBadge rosterGroup
-    | rosterGroup.isDefault = renderAppStatusBadge AppStatusInfo "Default"
-    | otherwise = mempty
 
-renderShiftTypeRuleOption :: ShiftType -> Html
-renderShiftTypeRuleOption shiftType = [hsx|
-    <option value={tshow (unpackId (get #id shiftType))}>{renderShiftTypeLabel shiftType}</option>
-|]
 
-renderSelectedShiftTypeRuleOption :: UUID -> ShiftType -> Html
-renderSelectedShiftTypeRuleOption selectedShiftTypeId shiftType = [hsx|
-    <option value={tshow (unpackId (get #id shiftType))} selected={unpackId (get #id shiftType) == selectedShiftTypeId}>{renderShiftTypeLabel shiftType}</option>
-|]
 
-renderDayNameOption :: DayName -> Html
-renderDayNameOption dayName = [hsx|
-    <option value={tshow (unpackId (get #id dayName))}>{renderDayNameLabel dayName}</option>
-|]
 
-renderRosterWeekStartOption :: Int -> Int -> Html
-renderRosterWeekStartOption selectedWeekdayIndex weekdayIndex = [hsx|
-    <option value={tshow weekdayIndex} selected={weekdayIndex == selectedWeekdayIndex}>{renderWeekdayName weekdayIndex}</option>
-|]
 
-renderSelectedDayNameOption :: UUID -> DayName -> Html
-renderSelectedDayNameOption selectedDayNameId dayName = [hsx|
-    <option value={tshow (unpackId (get #id dayName))} selected={unpackId (get #id dayName) == selectedDayNameId}>{renderDayNameLabel dayName}</option>
-|]
 
-renderDayNameLabel :: DayName -> Text
-renderDayNameLabel dayName =
-    renderWeekdayName dayName.weekdayIndex
 
-renderShiftTypeLabel :: ShiftType -> Text
-renderShiftTypeLabel shiftType =
-    if shiftType.isActive
-        then shiftType.name
-        else shiftType.name <> " (inactive)"
 
 renderActiveBadge :: Bool -> Html
 renderActiveBadge isActive =
@@ -148,18 +83,3 @@ visibleRosterGroupsForAdmin rosterGroups showInactive =
 
 countActiveRows :: HasField "isActive" record Bool => [record] -> Int
 countActiveRows = length . filter (.isActive)
-
-weekdayOptions :: [(Int, Text)]
-weekdayOptions =
-    [ (0, "Sunday")
-    , (1, "Monday")
-    , (2, "Tuesday")
-    , (3, "Wednesday")
-    , (4, "Thursday")
-    , (5, "Friday")
-    , (6, "Saturday")
-    ]
-
-renderWeekdayName :: Int -> Text
-renderWeekdayName weekdayIndex =
-    fromMaybe ("Weekday " <> tshow weekdayIndex) (lookup weekdayIndex weekdayOptions)

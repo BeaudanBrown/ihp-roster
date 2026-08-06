@@ -180,31 +180,7 @@ fetchStaffInIdOrder orderedIds = do
     let recordsById = Map.fromList [(unpackId record.id, record) | record <- records]
     pure (mapMaybe (\(PG.Only recordId) -> Map.lookup recordId recordsById) orderedIds)
 
-fetchAssignedShiftCountsDirect :: (?modelContext :: ModelContext) => RosterWeek -> IO [(UUID.UUID, Int)]
-fetchAssignedShiftCountsDirect rosterWeek =
-    sqlQuery
-        "SELECT roster_slots.staff_id, COUNT(*)::int \
-        \FROM roster_slots \
-        \JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
-        \WHERE roster_days.roster_week_id = ? \
-        \AND roster_days.is_closed = FALSE \
-        \AND roster_slots.deleted_at IS NULL \
-        \AND roster_slots.assignment_state = 'staff' \
-        \AND roster_slots.staff_id IS NOT NULL \
-        \GROUP BY roster_slots.staff_id"
-        (PG.Only (unpackId rosterWeek.id))
 
-fetchLinkedVenueMembershipsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => [Staff] -> IO [VenueMembership]
-fetchLinkedVenueMembershipsDirect staffMembers = do
-    let linkedUserIds = mapMaybe (.userId) staffMembers
-    if null linkedUserIds
-        then pure []
-        else
-            query @VenueMembership
-                |> filterWhere (#venueId, unpackId currentVenueId)
-                |> filterWhereIn (#userId, linkedUserIds)
-                |> filterWhere (#isActive, True)
-                |> fetch
 
 fetchRosterGroupStaffForPanelDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> IO [Staff]
 fetchRosterGroupStaffForPanelDirect rosterGroupId = do

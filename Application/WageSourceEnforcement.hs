@@ -5,7 +5,6 @@ module Application.WageSourceEnforcement
     , WageEntryOutcome (..)
     , enforceFinalWageEntries
     , enforceFinalWageEntriesAt
-    , evaluateDraftWageEntries
     , evaluateDraftWageEntriesAt
     , renderWageEntryFailure
     , renderWageEntryFailures
@@ -43,10 +42,6 @@ data WageEntryOutcome = WageEntryOutcome
     }
     deriving (Eq, Show)
 
-evaluateDraftWageEntries :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO [WageEntryOutcome]
-evaluateDraftWageEntries entries = do
-    now <- getCurrentTime
-    evaluateDraftWageEntriesAt (PolicyClock now) entries
 
 evaluateDraftWageEntriesAt :: (?modelContext :: ModelContext) => PolicyClock -> [TimesheetEntry] -> IO [WageEntryOutcome]
 evaluateDraftWageEntriesAt clock entries = do

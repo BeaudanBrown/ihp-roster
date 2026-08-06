@@ -27,7 +27,6 @@ import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 errorToast, renderDialogOverlay, renderToastOob,
                                 successToast)
 import Application.PayAssignment (selectableStaffAssignmentMode)
-import Application.StaffDocuments.Rsa (latestRsaDocumentForStaff)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
@@ -39,9 +38,9 @@ import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
                                      parseSubmittedPayRateSelectionValue)
 import Web.Controller.Prelude
 import Web.RosterWeeks.Projection (rosterGridInnerAndStaffPanelFragments)
-import Web.RosterWeeks.StaffOptions (fetchStaffPayConfigurationRequiredIds)
 import Web.RosterWeeks.Responses (respondWithRosterContentOob,
                                   respondWithRosterResourceInvalidation)
+import Web.RosterWeeks.StaffOptions (fetchStaffPayConfigurationRequiredIds)
 import Web.Staff.Mutations
 import Web.Staff.ProfileSurfaceRequest (StaffProfileDetailsSubmission (..),
                                         StaffProfileSurfaceSubmission (..),
@@ -125,12 +124,10 @@ instance Controller StaffController where
         selectedRosterGroupIds <- fetchStaffRosterGroupIds staff
         let preferenceWeekdays = allPreferenceWeekdays venueConfig
         selectedShiftPreferences <- fetchStaffShiftPreferenceSelections staff
-        staffRsaDocument <- latestRsaDocumentForStaff staff
         leaveRequest <- buildDefaultLeaveRequest
         leaveRequests <- fetchStaffLeaveRequests staff
-        today <- utctDay <$> getCurrentTime
         if isHtmxRequest
-            then respondHtml (renderStaffEditModalFragment staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
+            then respondHtml (renderStaffEditModalFragment staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests weekOffset maybeRosterGroupId openSection)
             else render EditView { .. }
 
     action currentAction@ShowStaffContentLiveFragmentAction { staffId } = runBepis currentAction BepisFragmentAction do
@@ -183,10 +180,8 @@ instance Controller StaffController where
                     _ -> currentSelectedRosterGroupIds
         let canManageStaffPay = hasRole VenueAdmin
         let preferenceWeekdays = allPreferenceWeekdays venueConfig
-        staffRsaDocument <- latestRsaDocumentForStaff staff
         leaveRequest <- buildDefaultLeaveRequest
         leaveRequests <- fetchStaffLeaveRequests staff
-        today <- utctDay <$> getCurrentTime
         selectedShiftPreferences <-
             case submissionResult of
                 Right (SubmittedStaffShiftPreferences submitted) ->
@@ -197,7 +192,7 @@ instance Controller StaffController where
                 _ -> fetchStaffShiftPreferenceSelections staff
         let renderStaffEditResponse renderedStaff renderedRosterGroupIds renderedPreferences =
                 if isHtmxRequest
-                    then respondHtml (renderStaffEditModalFragment renderedStaff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems renderedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays renderedPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
+                    then respondHtml (renderStaffEditModalFragment renderedStaff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems renderedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays renderedPreferences leaveRequest leaveRequests weekOffset maybeRosterGroupId openSection)
                     else do
                         let selectedRosterGroupIds = renderedRosterGroupIds
                         let selectedShiftPreferences = renderedPreferences
@@ -641,27 +636,6 @@ requireSubmittedPayRateSelection paramName =
             pure Nothing
         Just value -> parseSubmittedPayRateSelectionValue value
 
-parseSubmittedDefaultAwardLevelId ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Bool ->
-    IO (Maybe (Maybe (Id AwardLevel)))
-parseSubmittedDefaultAwardLevelId canManageStaffPay
-    | not canManageStaffPay = pure (Just Nothing)
-    | otherwise = do
-        let maybeAwardLevelId = paramOrNothing @(Id AwardLevel) "defaultAwardLevelId"
-        case maybeAwardLevelId of
-            Nothing -> pure (Just Nothing)
-            Just awardLevelId -> do
-                maybeAwardLevel <-
-                    query @AwardLevel
-                        |> filterWhere (#id, awardLevelId)
-                        |> filterWhere (#isActive, True)
-                        |> fetchOneOrNothing
-                case maybeAwardLevel of
-                    Just _ -> pure (Just (Just awardLevelId))
-                    Nothing -> do
-                        setErrorMessage "Choose a synced award level."
-                        pure Nothing
 
 fetchStaffLinkedUserEmail :: (?modelContext :: ModelContext) => Staff -> IO (Maybe Text)
 fetchStaffLinkedUserEmail staff =

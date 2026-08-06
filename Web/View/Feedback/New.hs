@@ -105,10 +105,3 @@ renderFeedbackFieldError feedbackItem fieldName =
 
 feedbackHasErrorFor :: UserFeedbackItem -> Text -> Bool
 feedbackHasErrorFor feedbackItem fieldName = isJust (lookup fieldName feedbackItem.meta.annotations)
-
-feedbackContentPreview :: Text -> Text
-feedbackContentPreview content =
-    let stripped = Text.strip content
-     in if Text.length stripped > 160
-            then Text.take 157 stripped <> "..."
-            else stripped

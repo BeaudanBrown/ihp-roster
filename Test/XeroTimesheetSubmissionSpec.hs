@@ -280,26 +280,6 @@ overwriteFixtureEmployeeRawCalendar fixture employeeId payrollCalendarId = do
     forM_ employees \employee ->
         void (employee |> set #rawPayload (Aeson.object ["EmployeeID" Aeson..= employeeId, "PayrollCalendarID" Aeson..= payrollCalendarId]) |> updateRecord)
 
-failIfCreateTimesheetClient :: XeroClient
-failIfCreateTimesheetClient =
-    XeroClient
-        { exchangeCodeForToken = \_ _ -> pure (Right (XeroTokenResponse "access-token" "refresh-token" 1800 (Just requiredXeroScopesText)))
-        , fetchConnectedTenants = \_ -> pure (Right [])
-        , deleteXeroConnection = \_ _ -> pure (Right ())
-        , refreshXeroToken = \_ _ -> pure (Right (XeroTokenResponse "access-token" "refresh-token" 1800 (Just requiredXeroScopesText)))
-        , fetchPayrollEmployees = \_ _ -> pure (Right [])
-        , fetchEarningsRates = \_ _ -> pure (Right [])
-        , fetchEarningsRatesPage = \_ _ _ -> pure (Right [])
-        , fetchPayrollCalendars = \_ _ -> pure (Right [])
-        , fetchAccounts = \_ _ -> pure (Right [])
-        , fetchPayrollSettingsAccounts = \_ _ -> pure (Right [])
-        , fetchPayRuns = \_ _ _ -> pure (Right [])
-        , createPayItem = \_ _ _ _ -> pure (Right [])
-        , fetchTimesheets = \_ _ _ -> pure (Right [])
-        , fetchTimesheet = \_ _ _ -> pure (Left (XeroHttpError "unexpected fetchTimesheet call"))
-        , createTimesheet = \_ _ _ _ -> expectationFailure "createTimesheet should not be reached when readiness is blocked" >> pure (Left (XeroHttpError "unexpected createTimesheet call"))
-        , updateTimesheet = \_ _ _ _ _ -> pure (Left (XeroHttpError "unexpected updateTimesheet call"))
-        }
 
 isSingletonArray :: Maybe Aeson.Value -> Bool
 isSingletonArray (Just (Aeson.Array values)) = Vector.length values == 1

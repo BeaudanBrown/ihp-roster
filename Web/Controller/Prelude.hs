@@ -12,9 +12,7 @@ module Web.Controller.Prelude
 , redirectToPathSeeOther
 , redirectToSeeOther
 , redirectToUrl
-, redirectToUrlSeeOther
 , render
-, renderFile
 , renderJson
 , renderJsonWithStatusCode
 , respondHtml
@@ -72,8 +70,6 @@ renderJson json = bepisJsonResponse (IHP.renderJson json)
 renderJsonWithStatusCode :: (?request :: Request, Aeson.ToJSON json) => Status -> json -> IO ()
 renderJsonWithStatusCode status json = bepisJsonResponse (IHP.renderJsonWithStatusCode status json)
 
-renderFile :: (?request :: Request) => String -> ByteString -> IO ()
-renderFile path contentType = bepisFileResponse (IHP.renderFile path contentType)
 
 redirectTo :: (?request :: Request, HasPath action) => action -> IO ()
 redirectTo action = bepisRedirectResponse (IHP.redirectTo action)
@@ -89,6 +85,3 @@ redirectToSeeOther action = bepisRedirectResponse (IHP.redirectToSeeOther action
 
 redirectToPathSeeOther :: (?request :: Request) => Text -> IO ()
 redirectToPathSeeOther path = bepisRedirectResponse (IHP.redirectToPathSeeOther path)
-
-redirectToUrlSeeOther :: Text -> IO ()
-redirectToUrlSeeOther url = bepisRedirectResponse (IHP.redirectToUrlSeeOther url)

@@ -6,7 +6,6 @@ module Application.Helper.View.Chrome
     , AppPageConfig (..)
     , AppPanelConfig (..)
     , PartialNavigationLink (..)
-    , appPanelWithActions
     , appSurfaceClasses
     , defaultAppPanelConfig
     , renderAppAccordionItem
@@ -98,14 +97,6 @@ simpleAppPanel title description body =
         , appPanelDescription = description
         }
 
-appPanelWithActions :: Text -> Maybe Text -> Html -> Html -> Html
-appPanelWithActions title description actions body =
-    renderAppPanel (defaultAppPanelConfig body)
-        { appPanelTitle = Just title
-        , appPanelDescription = description
-        , appPanelHasActions = True
-        , appPanelActions = actions
-        }
 
 renderAppPage :: AppPageConfig -> Html
 renderAppPage AppPageConfig { appPageTitle, appPageDescription, appPageActions, appPageHelpTopic, appPageWidthClass, appPageBody } = [hsx|

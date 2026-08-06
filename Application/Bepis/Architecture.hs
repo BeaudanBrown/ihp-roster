@@ -1,6 +1,5 @@
 module Application.Bepis.Architecture
     ( BepisArchitectureFactSource (..)
-    , bepisArchitectureContractsJson
     , bepisArchitectureContractsValue
     , bepisArchitectureFactSourceText
     ) where
@@ -35,8 +34,6 @@ bepisArchitectureFactSourceText = \case
     BepisStaticScanFact -> "heuristic-static-scan"
     BepisNamingFallbackFact -> "naming-fallback"
 
-bepisArchitectureContractsJson :: LBS.ByteString
-bepisArchitectureContractsJson = Aeson.encode bepisArchitectureContractsValue
 
 bepisArchitectureContractsValue :: Aeson.Value
 bepisArchitectureContractsValue = Aeson.object

@@ -122,7 +122,6 @@ type RegisteredSurfaceFragmentAdapterHomes =
      , SurfaceFragmentAdapterHome ProfileAdapterFamily Profile.ProfilePreferencesSection
      , SurfaceFragmentAdapterHome ProfileAdapterFamily Profile.ProfileSecuritySection
      , SurfaceFragmentAdapterHome ProfileAdapterFamily Profile.ProfileLeaveSection
-     , SurfaceFragmentAdapterHome ProfileAdapterFamily Profile.ProfileRsaSection
      , SurfaceFragmentAdapterHome StaffAdapterFamily Profile.StaffDetailsSection
      , SurfaceFragmentAdapterHome StaffAdapterFamily Profile.StaffPreferencesSection
      , SurfaceFragmentAdapterHome StaffAdapterFamily Profile.StaffVisibleUnavailabilityBlackouts
@@ -161,7 +160,6 @@ type RegisteredSurfaceResourceAdapterHomes =
      , SurfaceResourceAdapterHome ProfileAdapterFamily Profile.StaffProfile
      , SurfaceResourceAdapterHome ProfileAdapterFamily Profile.StaffPreferences
      , SurfaceResourceAdapterHome SelfServiceLeaveAdapterFamily SelfServiceLeave.StaffLeaveRequests
-     , SurfaceResourceAdapterHome ProfileAdapterFamily Profile.StaffRsaDocuments
      , SurfaceResourceAdapterHome AdminVenueSettingsAdapterFamily Admin.AdminVenueSettings
      , SurfaceResourceAdapterHome AdminInvitesAdapterFamily Admin.AdminInvites
      , SurfaceResourceAdapterHome AdminExportsAdapterFamily Admin.AdminExports

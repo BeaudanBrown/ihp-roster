@@ -1232,10 +1232,6 @@ currentRosterGridViewMode =
         (Just "timeline", Just dayOffset) -> RosterDayTimelineGridView (max 0 (min 6 dayOffset))
         _ -> RosterWeekGridView
 
-currentRosterTimelineDayOffset :: (?request :: Request) => Maybe Int
-currentRosterTimelineDayOffset = case currentRosterGridViewMode of
-    RosterDayTimelineGridView dayOffset -> Just dayOffset
-    RosterWeekGridView                  -> Nothing
 
 buildRosterTimelineTodayUrl :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> IO Text
 buildRosterTimelineTodayUrl rosterGroupId = do

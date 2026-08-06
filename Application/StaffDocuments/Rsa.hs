@@ -10,7 +10,6 @@ module Application.StaffDocuments.Rsa
     , effectiveRsaComplianceStatus
     , effectiveRsaState
     , enqueueDueRsaReminderJobs
-    , latestRsaDocumentForStaff
     , performRsaReminderJob
     , reviewRsaDocument
     , rsaDocumentMaxBytes
@@ -105,23 +104,6 @@ rsaDocumentMaxBytes = 10 * 1024 * 1024
 rsaDocumentReminderDedupeKey :: Id StaffDocument -> Text -> Text
 rsaDocumentReminderDedupeKey staffDocumentId reminderKind =
     "staff-document-rsa-reminder:" <> tshow staffDocumentId <> ":" <> reminderKind
-
-latestRsaDocumentForStaff :: (?modelContext :: ModelContext) => Staff -> IO (Maybe StaffDocument)
-latestRsaDocumentForStaff staff = do
-    state <- rsaEffectiveStateForStaff staff
-    pure (rsaDisplayDocument state)
-
-rsaEffectiveStateForStaff :: (?modelContext :: ModelContext) => Staff -> IO StaffRsaEffectiveState
-rsaEffectiveStateForStaff staff = do
-    today <- utctDay <$> getCurrentTime
-    documents <-
-        query @StaffDocument
-            |> filterWhere (#venueId, staff.venueId)
-            |> filterWhere (#staffId, unpackId staff.id)
-            |> filterWhere (#documentType, RsaStatementOfAttainment)
-            |> orderByDesc #createdAt
-            |> fetch
-    pure (effectiveRsaState today documents)
 
 staffRsaComplianceRowsForVenue :: (?modelContext :: ModelContext) => Id Venue -> IO [StaffRsaComplianceRow]
 staffRsaComplianceRowsForVenue venueId = do

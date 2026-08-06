@@ -8,12 +8,10 @@ module Web.RosterWeeks.Service
     , ensureRosterDayHasMinimumRows
     , ensureRosterWeekExists
     , fetchRosterWeekSlotTemplate
-    , fetchRosterWeekSlotTemplateFromSlots
     , fetchCurrentRosterWeekOffset
     , fetchActiveRosterWeekSlotDefinitions
     , fetchActiveStaffForCurrentVenue
     , fetchRosterWeekOrderedSlotNames
-    , fetchRosterWeekOrderedSlotNamesFromSlots
     , previewRemoveRosterRowPacking
     , replaceRosterWeekFromSource
     , removeRosterRowWithPacking
@@ -23,7 +21,6 @@ module Web.RosterWeeks.Service
     , resolveRosterTimelineTargetBoundaries
     , rosterSlotTimesheetSourceChanged
     , rosterWeekCopyAmbiguousEndpoints
-    , rosterWeekSlotDefinitionHasData
     , RemoveRosterRowPackingPreview (..)
     , RosterWeekCopyError (..)
     , publishRequiredFieldsMessage
@@ -96,37 +93,11 @@ fetchRosterWeekSlotTemplate rosterWeek = do
     slotDefinitions <- fetchActiveRosterWeekSlotDefinitions rosterWeek
     pure (map (\slotDefinition -> (slotDefinition, slotDefinition.sortOrder)) slotDefinitions)
 
-fetchRosterWeekSlotTemplateFromSlots :: (?modelContext :: ModelContext) => [RosterSlot] -> IO [RosterWeekSlotTemplate]
-fetchRosterWeekSlotTemplateFromSlots allSlots = do
-    let orderedSlotPairs =
-            allSlots
-                |> map (\slot -> (slot.rosterWeekSlotDefinitionId, slot.slotSortOrder))
-                |> Map.fromListWith min
-                |> Map.toList
-                |> sortOn snd
-    let orderedSlotIds = map fst orderedSlotPairs
-    if null orderedSlotIds
-        then pure []
-        else do
-            slotDefinitions <-
-                query @RosterWeekSlotDefinition
-                    |> filterWhereIn (#id, map Id orderedSlotIds)
-                    |> filterWhere (#deletedAt, Nothing)
-                    |> fetch
-            let slotDefinitionById = Map.fromList (map (\slotDefinition -> (unpackId slotDefinition.id, slotDefinition)) slotDefinitions)
-            pure
-                [ (slotDefinition, slotSortOrder)
-                | (slotNameId, slotSortOrder) <- orderedSlotPairs
-                , Just slotDefinition <- [Map.lookup slotNameId slotDefinitionById]
-                ]
 
 fetchRosterWeekOrderedSlotNames :: (?modelContext :: ModelContext) => RosterWeek -> IO [RosterWeekSlotDefinition]
 fetchRosterWeekOrderedSlotNames rosterWeek =
     map fst <$> fetchRosterWeekSlotTemplate rosterWeek
 
-fetchRosterWeekOrderedSlotNamesFromSlots :: (?modelContext :: ModelContext) => [RosterSlot] -> IO [RosterWeekSlotDefinition]
-fetchRosterWeekOrderedSlotNamesFromSlots allSlots =
-    map fst <$> fetchRosterWeekSlotTemplateFromSlots allSlots
 
 fetchActiveStaffForCurrentVenue :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id Staff -> IO (Maybe Staff)
 fetchActiveStaffForCurrentVenue staffId =
@@ -626,13 +597,6 @@ appendRosterWeekSlotDefinition rosterWeek slotName = do
         |> set #sortOrder nextSortOrder
         |> createRecord
 
-rosterWeekSlotDefinitionHasData :: (?modelContext :: ModelContext) => RosterWeekSlotDefinition -> IO Bool
-rosterWeekSlotDefinitionHasData slotDefinition = do
-    slots <- query @RosterSlot
-        |> filterWhere (#rosterWeekSlotDefinitionId, unpackId slotDefinition.id)
-        |> filterWhere (#deletedAt, Nothing)
-        |> fetch
-    pure (any rosterSlotHasData slots)
 
 rosterSlotHasData :: RosterSlot -> Bool
 rosterSlotHasData slot =

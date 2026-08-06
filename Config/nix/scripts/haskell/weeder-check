@@ -9,17 +9,47 @@ ghc_opts="$(ihp_roster_ghc_opts) -iTest -fwrite-ide-info -fwrite-interface"
 
 # Keep a dedicated incremental graph: changed modules refresh through GHC's
 # recompilation checker, while this sweep removes HIE files for deleted modules.
-# This preserves reachability authority without rebuilding ~1,100 modules on
-# every agent iteration.
+# Compile the complete app/test/script source inventory, not only one main's
+# transitive closure. Compile-failure fixtures are intentionally invalid and
+# have their own complete gate. Root-level Setup.hs is Cabal's packaging
+# bootstrap (an implicit Main module), not an application runtime module; adding
+# it here would collide with the real Main.hs HIE identity.
 ihp_roster_prepare_ghc_build_dir "$weeder_build_dir" "$ghc_opts"
 mkdir -p "$hie_dir"
+source_inventory="$weeder_build_dir/weeder-sources.txt"
+{
+    printf '%s\n' Main.hs
+    find Application Web Test Config build/Generated \
+        -type f -name '*.hs' \
+        ! -path 'Test/CompileFail/*' \
+        -print \
+        | LC_ALL=C sort
+} > "$source_inventory"
+mapfile -t source_files < "$source_inventory"
+for required_source in \
+    Main.hs \
+    Web/FrontController.hs \
+    Test/HspecMain.hs \
+    Application/Script/SeedProfile.hs \
+    Application/Script/XeroPayItemProbe.hs \
+    build/Generated/Statements/FetchAppJob.hs
+do
+    grep -Fxq "$required_source" "$source_inventory" || {
+        echo "weeder-check: complete source inventory is missing $required_source" >&2
+        exit 1
+    }
+done
+if grep -Fq 'Test/CompileFail/' "$source_inventory"; then
+    echo "weeder-check: intentionally invalid compile-failure fixture entered the source inventory" >&2
+    exit 1
+fi
+
 declare -A current_modules=()
 while IFS= read -r module_name; do
     [ -z "$module_name" ] || current_modules["$module_name"]=1
 done < <(
-    find Application Web Test Config build/Generated -type f -name '*.hs' -print0 \
-        | xargs -0 -r awk '/^module [A-Z]/ { print $2; nextfile }'
-    awk '/^module [A-Z]/ { print $2; exit }' Main.hs
+    # shellcheck disable=SC2016 # This is an awk program, not shell interpolation.
+    xargs -r awk '/^module [A-Z]/ { print $2; nextfile }' < "$source_inventory"
 )
 while IFS= read -r -d '' hie_file; do
     module_name="${hie_file#"$hie_dir"/}"
@@ -30,37 +60,30 @@ while IFS= read -r -d '' hie_file; do
     fi
 done < <(find "$hie_dir" -type f -name '*.hie' -print0)
 # shellcheck disable=SC2086 # ghc_opts is an intentional argument vector.
-ghc -fno-code $ghc_opts -main-is Test.HspecMain Test/HspecMain.hs \
+ghc -fno-code $ghc_opts "${source_files[@]}" \
     -hidir "$weeder_build_dir/hi" \
     -hiedir "$hie_dir"
 
+output_file="$weeder_build_dir/weeder-output.txt"
 set +e
-output="$(weeder \
+weeder \
     --config weeder.toml \
     --hie-directory "$hie_dir" \
     --require-hs-files \
-    -N 2>&1)"
+    >"$output_file" 2>&1
 status=$?
 set -e
 
 if [[ "$status" -ne 0 && "$status" -ne 228 ]]; then
-    printf '%s\n' "$output" >&2
+    cat "$output_file" >&2
     exit "$status"
 fi
 
-# IHP controllers, views, scripts, and shared helpers expose framework/test entry
-# points that are intentionally broader than Main's static call graph. The
-# closeout gate is deliberately scoped to the deep FrontendContract module,
-# whose public runtime interface should contain no unreachable value helpers.
-curated="$(printf '%s\n' "$output" | grep '^main: \./Application/Helper/FrontendContract/' || true)"
-if [[ -n "$curated" ]]; then
-    echo "weeder-check: unreachable FrontendContract declarations" >&2
-    printf '%s\n' "$curated" >&2
-    exit 1
+if [[ "${WEEDER_PRINT_CANDIDATES:-0}" == "1" ]]; then
+    grep '^main: ' "$output_file" || true
 fi
 
-ignored_count="$(printf '%s\n' "$output" | grep -c '^main: \./' || true)"
-if [[ "${WEEDER_PRINT_CANDIDATES:-0}" == "1" ]]; then
-    printf '%s\n' "$output" | grep '^main: \./' || true
-fi
-echo "weeder-check: ok (FrontendContract clean; $ignored_count framework/application candidates outside the curated gate)"
+"@scriptsRoot@/haskell/weeder-policy" \
+    "$output_file" \
+    "Config/nix/weeder-baseline.tsv"
+echo "weeder-check: ok (fresh HIE graph; evidence: $output_file)"

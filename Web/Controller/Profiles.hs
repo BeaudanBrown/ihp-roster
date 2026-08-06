@@ -12,8 +12,7 @@ import Application.Helper.StaffShiftPreferences
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
                                 renderToastOob, successToast)
-import Application.StaffDocuments.Rsa (latestRsaDocumentForStaff)
-import Data.Time.Clock (getCurrentTime, utctDay)
+import Data.Time.Clock (getCurrentTime)
 import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
                                      fetchActiveImportedXeroPayItems,
                                      parseSubmittedPayRateSelectionValue)
@@ -52,10 +51,8 @@ instance Controller ProfilesController where
             passkeys <- profileActionSpan "profile.page.fetch_passkeys" fetchCurrentUserPasskeys
             leaveRequests <- profileActionSpan "profile.page.fetch_leave_requests" fetchCurrentUserLeaveRequests
             leaveRequestForm <- profileActionSpan "profile.page.build_leave_form" buildDefaultLeaveRequest
-            staffRsaDocument <- profileActionSpan "profile.page.fetch_rsa_document" (maybe (pure Nothing) latestRsaDocumentForStaff maybeExistingStaff)
             staffManagementFields <- profileActionSpan "profile.page.fetch_management_fields" (fetchProfileStaffManagementFields maybeExistingStaff Nothing)
             now <- getCurrentTime
-            let today = utctDay now
             profileActionSpan "profile.page.render_response" (render EditView { .. })
 
     action currentAction@ShowprofileContentLiveFragmentAction = runBepis currentAction BepisFragmentAction $
@@ -69,11 +66,9 @@ instance Controller ProfilesController where
                     passkeys <- profileActionSpan "profile.content_fragment.fetch_passkeys" fetchCurrentUserPasskeys
                     leaveRequests <- profileActionSpan "profile.content_fragment.fetch_leave_requests" fetchCurrentUserLeaveRequests
                     leaveRequestForm <- profileActionSpan "profile.content_fragment.build_leave_form" buildDefaultLeaveRequest
-                    staffRsaDocument <- profileActionSpan "profile.content_fragment.fetch_rsa_document" (latestRsaDocumentForStaff staff)
                     staffManagementFields <- profileActionSpan "profile.content_fragment.fetch_management_fields" (fetchProfileStaffManagementFields (Just staff) Nothing)
                     now <- getCurrentTime
-                    let today = utctDay now
-                    profileActionSpan "profile.content_fragment.render_response" (respondHtml (renderProfileSectionFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection))
+                    profileActionSpan "profile.content_fragment.render_response" (respondHtml (renderProfileSectionFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffManagementFields now openSection))
 
     action currentAction@UpdateProfileAction = runBepis currentAction BepisMutationAction do
         maybeExistingStaff <- fetchCurrentUserStaff
@@ -86,14 +81,12 @@ instance Controller ProfilesController where
                     Right (SubmittedStaffProfileDetails submitted) -> normalizeProfileOpenSection submitted.submittedProfileSection
                     Left _ -> "profile"
         passkeys <- fetchCurrentUserPasskeys
-        staffRsaDocument <- maybe (pure Nothing) latestRsaDocumentForStaff maybeExistingStaff
         let submittedRosterGroupIds =
                 case submissionResult of
                     Right (SubmittedStaffProfileDetails submitted) -> map Id (fromMaybe [] submitted.submittedRosterGroupIds)
                     _ -> []
         staffManagementFields <- fetchProfileStaffManagementFields maybeExistingStaff (case submissionResult of Right SubmittedStaffProfileDetails {} -> Just submittedRosterGroupIds; _ -> Nothing)
         now <- getCurrentTime
-        let today = utctDay now
         (preferenceWeekdays, selectedShiftPreferences) <-
             case submissionResult of
                 Right (SubmittedStaffShiftPreferences submitted) -> profilePreferenceViewDataWithSubmitted maybeExistingStaff submitted.submittedShiftPreferenceKeys
@@ -102,7 +95,7 @@ instance Controller ProfilesController where
         leaveRequestForm <- buildDefaultLeaveRequest
         let renderProfileResponse renderedStaff renderedPreferences =
                 if isHtmxRequest
-                    then respondHtml (renderProfileSectionFragmentWithManagement renderedStaff currentUserEmail preferenceWeekdays renderedPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection)
+                    then respondHtml (renderProfileSectionFragmentWithManagement renderedStaff currentUserEmail preferenceWeekdays renderedPreferences passkeys leaveRequests leaveRequestForm staffManagementFields now openSection)
                     else do
                         let staff = renderedStaff
                         let selectedShiftPreferences = renderedPreferences

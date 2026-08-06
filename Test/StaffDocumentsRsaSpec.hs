@@ -120,6 +120,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 rendered `shouldSatisfy` Text.isInfixOf "does not exactly match selected staff member"
                 rendered `shouldSatisfy` Text.isInfixOf "Confirm RSA metadata"
+                rendered `shouldSatisfy` Text.isInfixOf "href=\"/EditProfile\""
+                rendered `shouldNotSatisfy` Text.isInfixOf "section=rsa"
 
     describe "RSA staff documents" do
         it "calculates compliance status from the latest document state" $ withContext do

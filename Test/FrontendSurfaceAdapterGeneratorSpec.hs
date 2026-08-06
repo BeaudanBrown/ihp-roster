@@ -408,7 +408,6 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
                         , ("profile", "profile-preferences-section")
                         , ("profile", "profile-security-section")
                         , ("profile", "profile-leave-section")
-                        , ("profile", "profile-rsa-section")
                         , ("staff", "staff-details-section")
                         , ("staff", "staff-preferences-section")
                         , ("staff", "staff-visible-unavailability-blackouts")

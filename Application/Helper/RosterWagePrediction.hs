@@ -7,9 +7,7 @@ module Application.Helper.RosterWagePrediction
     ( RosterWagePrediction (..)
     , RosterWagePredictionDay (..)
     , fetchRosterWagePrediction
-    , lookupRosterWagePredictionDay
     , lookupRosterWagePredictionDayByDate
-    , rosterSlotPredictedAutomaticBreakWindow
     , formatMoneyAmount
     ) where
 
@@ -145,9 +143,6 @@ rosterSlotIsRosterOnly staffById shiftTypeById slot =
     staffAssignment staff = StaffPayAssignment staff.payAssignmentMode staff.defaultAwardLevelId staff.importedXeroPayItemId
     shiftAssignment shiftType = ShiftPayAssignment shiftType.payAssignmentMode shiftType.overrideAwardLevelId shiftType.importedXeroPayItemId
 
-lookupRosterWagePredictionDay :: RosterWagePrediction -> RosterDay -> Maybe RosterWagePredictionDay
-lookupRosterWagePredictionDay prediction rosterDay =
-    List.find (\day -> day.predictionDayOffset == rosterDay.dayOffset) prediction.predictionDays
 
 lookupRosterWagePredictionDayByDate :: RosterWagePrediction -> Day -> Maybe RosterWagePredictionDay
 lookupRosterWagePredictionDayByDate prediction date =
@@ -169,12 +164,6 @@ calculationAmount :: WageEvaluationOutcome -> Scientific
 calculationAmount outcome =
     fst (Scientific.fromRationalRepetendUnlimited outcome.evaluatedFinalEarnings.finalEarningsTotalAmount)
 
-rosterSlotPredictedAutomaticBreakWindow :: RosterSlot -> Maybe (UTCTime, UTCTime)
-rosterSlotPredictedAutomaticBreakWindow slot = do
-    boundaries <- either (const Nothing) Just (projectRosterSlotTimesheetBoundaries slot)
-    breakStart <- authoritativeBreakStartsAt boundaries
-    breakEnd <- authoritativeBreakEndsAt boundaries
-    pure (breakStart, breakEnd)
 
 weekStartDate :: VenueConfig -> RosterWeek -> Day
 weekStartDate venueConfig rosterWeek =

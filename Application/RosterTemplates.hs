@@ -26,7 +26,6 @@ module Application.RosterTemplates
     , rosterTemplateContentRevision
     , rosterTemplateDraftRevision
     , rosterTemplateActorVenueId
-    , rosterTemplateContentIsValid
     , saveRosterTemplateDraft
     , reloadLatestRosterTemplateDraft
     , saveRosterTemplateDraftAsNew
@@ -876,8 +875,6 @@ persistRosterTemplateDraftContent design content = do
     let columnsBySortOrder = Map.fromList [(column.sortOrder, column) | column <- columns]
     forM_ content.contentShifts (createTemplateShift design daysByIndex columnsBySortOrder)
 
-rosterTemplateContentIsValid :: RosterTemplateScaleEnum -> RosterTemplateContent -> Bool
-rosterTemplateContentIsValid = validTemplateContentForScale
 
 validTemplateContent :: RosterTemplateDesign -> RosterTemplateContent -> Bool
 validTemplateContent design = validTemplateContentForScale design.scale

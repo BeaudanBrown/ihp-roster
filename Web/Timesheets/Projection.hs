@@ -19,10 +19,7 @@ module Web.Timesheets.Projection
     , renderTimesheetWeekProjectionFragment
     , timesheetDayOffset
     , timesheetDayRenderModelFromProjection
-    , timesheetDayColumnsFragment
-    , timesheetDaySectionFragment
     , timesheetIndexView
-    , timesheetToolbarFragment
     , parseApproveTimesheetEntryState
     , parseCreateTimesheetEntryFromSuggestionState
     , parseNavigateTimesheetWeekState
@@ -545,17 +542,8 @@ currentTimesheetWeekOffset = do
 timesheetDayOffset :: Day -> Day -> Int
 timesheetDayOffset weekStartDate workedOn = fromInteger (diffDays workedOn weekStartDate)
 
-timesheetToolbarFragment :: TimesheetProjectionFragment
-timesheetToolbarFragment =
-    TimesheetProjectionToolbar
 
-timesheetDayColumnsFragment :: TimesheetProjectionFragment
-timesheetDayColumnsFragment =
-    TimesheetProjectionDayColumns
 
-timesheetDaySectionFragment :: Int -> TimesheetProjectionFragment
-timesheetDaySectionFragment =
-    TimesheetProjectionDaySection
 
 timesheetViewFiltersFromRequest :: (?request :: Request) => (Bool, Bool, Bool, Maybe UUID.UUID)
 timesheetViewFiltersFromRequest =

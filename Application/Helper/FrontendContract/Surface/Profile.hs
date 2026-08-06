@@ -5,12 +5,10 @@ module Application.Helper.FrontendContract.Surface.Profile
     ( ProfileDetailsSection
     , ProfileLeaveSection
     , ProfilePreferencesSection
-    , ProfileRsaSection
     , ProfileSecuritySection
     , StaffLeaveRequests
     , StaffPreferences
     , StaffProfile
-    , StaffRsaDocuments
     , ProfileScope
     , ProfileSurface
     , StaffDetailsSection
@@ -69,18 +67,15 @@ data ProfileDetails
 data ProfilePreferences
 data ProfileSecurity
 data ProfileLeave
-data ProfileRsa
 data StaffProfileDetails
 data StaffProfilePreferences
 data StaffProfileLeave
 data ProfileSecuritySection
 data ProfileLeaveSection
-data ProfileRsaSection
 
 data StaffProfile
 data StaffPreferences
 type StaffLeaveRequests = SelfServiceLeave.StaffLeaveRequests
-data StaffRsaDocuments
 
 data UpdateProfileDetails
 data UpdateProfileShiftPreferences
@@ -114,7 +109,6 @@ data OuterHTML
 type StaffProfileResource = Resource StaffProfile '[ Field StaffId 'WireUUID ]
 type StaffPreferencesResource = Resource StaffPreferences '[ Field StaffId 'WireUUID ]
 type StaffLeaveRequestsResource = SelfServiceLeave.StaffLeaveRequestsResource
-type StaffRsaDocumentsResource = Resource StaffRsaDocuments '[ Field StaffId 'WireUUID ]
 
 type StaffProfileFields =
     '[ Field FirstNameField 'WireText
@@ -169,7 +163,6 @@ type ProfileSurface =
              , 'ResyncOnly
              , ContainsSurface SelfServiceLeave.SelfServiceLeave
              ]
-         , Fragment ProfileRsaSection '[] '[ 'MountTarget ProfileRsa '[], 'Eager, 'Live, 'DependsOn StaffRsaDocumentsResource '[ 'FromScope StaffId ] ]
          ]
 
 type StaffSurface =

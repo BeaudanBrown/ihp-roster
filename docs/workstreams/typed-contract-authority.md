@@ -319,6 +319,42 @@ contract tests preserve unknown future provider values unchanged. The narrow
 `enum-authority-check` tombstones raw literal writes, filters, and comparisons
 only for migrated app-owned fields.
 
+## Application Reachability Checkpoint
+
+[#336](https://github.com/BeaudanBrown/ihp-roster/issues/336) replaces the
+FrontendContract-only Weeder gate with an application-wide policy over a fresh,
+complete source graph. The first complete run compiled 1,249 application, web,
+test, script, config, and generated modules to HIE; after deleting two obsolete
+suite aggregators the same inventory contains 1,247 modules. It excludes
+intentionally invalid compile-failure fixtures and root `Setup.hs`, which is
+Cabal's packaging bootstrap and shares the real app's implicit `Main` module
+identity. It then compares canonical
+file/symbol candidates with the reason-bearing
+`Config/nix/weeder-baseline.tsv`; a new candidate or stale baseline entry fails
+with file/line evidence. `weeder-policy-test` pins matching, new-candidate,
+stale-entry, required-reason, and wrapped-output behavior.
+
+Real runtime edges are rooted by category and reason rather than blanket
+application modules: IHP instances use type-class roots; conventional script
+`run`/`main` values plus the two explicit SeedDev modes are executable roots;
+IHP-generated model Fetch statement modules and private declaration-complete
+FrontendContract Resource/Live modules are generated roots. Handwritten
+controllers, views, helpers, facades, tests, and generated Action/Intent APIs
+remain subject to ordinary reachability.
+
+The initial complete policy identified 215 app-owned unreachable declarations
+across 73 files after framework/generated roots. All were deleted, including
+compatibility aliases, unused fixture/test helpers, two obsolete test-suite
+aggregators, disconnected Xero preparation operational-summary render code,
+and orphaned CSS selectors. Profile RSA was already explicitly hidden by its
+controller contract; its disconnected render tree, passive fragment/resource,
+seed/load-scenario route, inert invalidation evidence, generated/browser
+adapters, unused document fetches, hidden-section return paths, and orphaned
+stylesheet were removed together rather than leaving a nominal live surface for
+unavailable UI. The checked baseline is now empty and the fresh
+graph reports zero candidates; future exceptions must name one exact
+declaration and its non-static runtime reason.
+
 ## Baseline Metrics
 
 Captured on the #329 baseline:

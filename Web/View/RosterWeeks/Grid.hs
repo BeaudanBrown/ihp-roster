@@ -20,7 +20,6 @@ module Web.View.RosterWeeks.Grid
     , renderrosterGridToolbarLiveFragmentWithSwap
     , renderRosterLayout
     , renderRosterDaySectionFragment
-    , renderRosterDaySectionFragmentOob
     , renderRowFragment
     , renderRowOob
     , compactDayColumnSlots
@@ -542,9 +541,6 @@ renderRosterDaySectionFragment :: (?context :: ControllerContext) => RosterDayRe
 renderRosterDaySectionFragment =
     renderRosterDaySectionFragmentWithSwap Nothing
 
-renderRosterDaySectionFragmentOob :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterDay -> Html
-renderRosterDaySectionFragmentOob dayModel rosterDay =
-    [hsx|<template>{renderRosterDaySectionFragmentWithSwap (Just "outerHTML") dayModel rosterDay}</template>|]
 
 renderRosterDaySectionFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterDayRenderModel -> RosterDay -> Html
 renderRosterDaySectionFragmentWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayRosterLayoutMode } rosterDay
@@ -934,4 +930,3 @@ renderRosterDayActionForm action actionUrl body =
             { actionRouteExtraAttrs = [("class", "d-inline")]
             }
         body
-

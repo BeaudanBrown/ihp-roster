@@ -211,7 +211,6 @@ renderProfileSeedManifest plan =
         , "    \"editProfile\": " <> jsonString (pathTo EditProfileAction) <> ","
         , "    \"profileSecurity\": " <> jsonString (profileSectionPath "security") <> ","
         , "    \"profileLeave\": " <> jsonString (profileSectionPath "leave") <> ","
-        , "    \"profileRsa\": " <> jsonString (profileSectionPath "rsa") <> ","
         , "    \"profileLeaveSectionFragment\": " <> jsonString profileLeaveSectionFragmentPath <> ","
         , "    \"admin\": " <> jsonString (pathTo AdminAction) <> ","
         , "    \"adminExports\": " <> jsonString (pathTo AdminAction <> "#exports") <> ","
@@ -570,12 +569,6 @@ staffRows plan =
             | staffIndex <- staffIndexes plan
             ]
 
-payLevelRows :: ProfileSeedPlan -> [[Maybe Text]]
-payLevelRows plan =
-    [ row [payLevelId venueIndex levelIndex, venueId venueIndex, levelName, baseRate, "1.00", "2.00", "1.000", "1.250", "1.500", "true"]
-    | venueIndex <- venueIndexes plan
-    , (levelIndex, levelName, baseRate) <- payLevelTemplates
-    ]
 
 shiftTypeRows :: ProfileSeedPlan -> [[Maybe Text]]
 shiftTypeRows plan =
@@ -591,13 +584,6 @@ dayNameRows plan =
     , (weekdayIndex, dayName) <- dayNameTemplates
     ]
 
-payLevelDayRuleRows :: ProfileSeedPlan -> [[Maybe Text]]
-payLevelDayRuleRows plan =
-    [ row [uuidText 9 venueIndex shiftIndex weekdayIndex, shiftTypeId venueIndex shiftIndex, dayNameId venueIndex weekdayIndex, payLevelId venueIndex overrideLevel]
-    | venueIndex <- venueIndexes plan
-    , (shiftIndex, _, _) <- shiftTypeTemplates
-    , (weekdayIndex, overrideLevel) <- [(6, 2), (0, 3)]
-    ]
 
 staffPayVersionRows :: ProfileSeedPlan -> [[Maybe Text]]
 staffPayVersionRows plan =
@@ -956,8 +942,6 @@ staffId venueIndex staffIndex = uuidText 5 venueIndex staffIndex 0
 adminStaffId :: Int -> Text
 adminStaffId venueIndex = uuidText 5 venueIndex 0 0
 
-payLevelId :: Int -> Int -> Text
-payLevelId venueIndex levelIndex = uuidText 6 venueIndex levelIndex 0
 
 shiftTypeId :: Int -> Int -> Text
 shiftTypeId venueIndex shiftIndex = uuidText 7 venueIndex shiftIndex 0
@@ -1018,9 +1002,6 @@ xeroEmployeeEmail :: Int -> Text
 xeroEmployeeEmail employeeIndex =
     "profile-xero-employee-" <> padded employeeIndex <> "@example.com"
 
-staffDisplayName :: Int -> Int -> Text
-staffDisplayName venueIndex staffIndex =
-    "Staff" <> padded staffIndex <> " Venue" <> padded venueIndex
 
 adminEmail :: Int -> Text
 adminEmail venueIndex = "profile-manager-" <> padded venueIndex <> "@example.com"
@@ -1044,12 +1025,6 @@ passwordHash = "sha256|17|tZ8jkd+zwREDUkZy1w3iQA==|e9Gf+M+KF5EZCsAZYhmxd2cKy6WJp
 timestampText :: Text
 timestampText = "2026-04-24 00:00:00+00"
 
-payLevelTemplates :: [(Int, Text, Text)]
-payLevelTemplates =
-    [ (1, "Level 1", "29.50")
-    , (2, "Level 2", "33.00")
-    , (3, "Level 3", "38.00")
-    ]
 
 shiftTypeTemplates :: [(Int, Text, Int)]
 shiftTypeTemplates =

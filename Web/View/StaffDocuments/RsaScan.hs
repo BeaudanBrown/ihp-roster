@@ -145,5 +145,5 @@ rsaReturnPathFor RsaReturnContext { .. } =
         case rsaReturnTo of
             "staff" -> maybe [] (\rosterGroupId -> [("rosterGroupId", tshow rosterGroupId)]) rsaReturnRosterGroupId
             "admin" -> []
-            _ -> [("section", "rsa")]
+            _ -> []
 

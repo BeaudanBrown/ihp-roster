@@ -17,7 +17,6 @@ module Web.RosterWeeks.FrontendSurface
     , rosterDayTemplateDropzoneRef
     , rosterWeekTemplateDropzoneRef
     , rosterDragDropzoneRef
-    , rosterDragSessionKindName
     , rosterDragSourceRef
     , rosterExistingShiftDropzoneRef
     , rosterStaffCreateDropzoneRef
@@ -25,27 +24,22 @@ module Web.RosterWeeks.FrontendSurface
     , rosterStaffDragSourceRef
     , rosterInteractionMountKey
     , rosterLayoutModeActivationRef
-    , rosterLayoutModeIntentName
     , rosterStaffLinkedHighlight
     , rosterShiftGroupLinkedHighlight
     , rosterDayTimelineShiftGroupLinkedHighlight
     , rosterSurfaceScope
     , rosterMountedFragmentPlanFromRenderData
-    , rosterMoveShiftIntentName
     , rosterMoveShiftIntentForm
     , rosterDuplicateShiftIntentForm
     , rosterFrontendSurfaceIR
     , rosterDayTimelineDropzoneRef
     , rosterDayTimelineFrontendSurfaceIR
-    , rosterDayTimelineMoveShiftIntentName
     , rosterTimelineMoveShiftIntentForm
     , rosterDayTimelineSourceRef
     , rosterDayTimelineIntentForms
     , rosterDayTimelineSurfaceImpl
     , rosterIntentForms
     , rosterSurfaceImpl
-    , rosterSurfaceMountConfig
-    , rosterSurfaceScopeKey
     , rosterSurfaceFragmentKeys
     ) where
 
@@ -71,7 +65,6 @@ import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Paths (rosterDayTimelineContentFragmentUrl,
                               rosterDropStaffUrl, rosterDuplicateShiftUrl,
                               rosterLayoutPreferenceUrl, rosterMoveShiftUrl,
-                              rosterOverviewFragmentUrl,
                               rosterTimelineMoveShiftUrl,
                               rosterWeekContentFragmentUrl,
                               rosterWeekDayColumnsFragmentUrl,
@@ -140,40 +133,16 @@ rosterDayTimelineSurfaceImpl scope =
         noSurfaceFields
         (rosterDayTimelineCandidateMountedFragments scope)
 
-rosterSurfaceMountConfig :: RosterWeekScopeValue -> RosterMountedFragmentPlan -> FrontendSurfaceMountConfig
-rosterSurfaceMountConfig scope plan =
-    (rosterSurfaceImpl scope plan).surfaceImplMountConfig
 
-rosterSurfaceScopeKey :: RosterWeekScopeValue -> Text
-rosterSurfaceScopeKey = surfaceScopeKey . rosterSurfaceScope
 
-rosterDayTimelineSurfaceScopeKey :: RosterDayTimelineScopeValue -> Text
-rosterDayTimelineSurfaceScopeKey scope =
-    surfaceScopeKey
-        ( SurfaceLive.rosterDayTimelineLiveScope
-            scope.rosterDayTimelineVenueId
-            (unpackId scope.rosterDayTimelineGroupId)
-            scope.rosterDayTimelineWeekOffset
-            (unpackId scope.rosterDayTimelineDayId)
-        )
 
 rosterInteractionMountKey :: Text
 rosterInteractionMountKey = "primary"
 
-rosterDragSessionKindName :: Text
-rosterDragSessionKindName = "drag"
 
-rosterLayoutModeIntentName :: Text
-rosterLayoutModeIntentName = surfaceIntentNameValue @Surface.RosterSurface @Surface.SetRosterLayoutMode
 
-rosterMoveShiftIntentName :: Text
-rosterMoveShiftIntentName = surfaceIntentNameValue @Surface.RosterSurface @Surface.MoveRosterShiftToSlot
 
-rosterDayTimelineMoveShiftIntentName :: Text
-rosterDayTimelineMoveShiftIntentName = surfaceIntentNameValue @Surface.RosterDayTimelineSurface @Surface.MoveRosterTimelineShift
 
-rosterDuplicateShiftIntentName :: Text
-rosterDuplicateShiftIntentName = surfaceIntentNameValue @Surface.RosterSurface @Surface.DuplicateRosterShiftToDay
 
 rosterDragSourceRef :: SurfaceIR.InteractionSourceRefIR
 rosterDragSourceRef = rosterShiftDragSourceRef
@@ -467,16 +436,6 @@ rosterTemplateLibraryMountedFragment scope userId =
         (pathTo ShowRosterTemplateLibraryFragmentAction { rosterGroupId = scope.rosterWeekGroupId, weekOffset = scope.rosterWeekWeekOffset })
         FrontendSurfaceReplace
 
-rosterWeekOverviewMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
-rosterWeekOverviewMountedFragment scope =
-    frontendSurfaceMountedFragmentFor @Surface.RosterSurface @Surface.RosterWeekOverview
-        noSurfaceFields
-        ( surfaceField @Surface.RosterGroupId (unpackId scope.rosterWeekGroupId)
-            &: surfaceField @Surface.WeekOffset scope.rosterWeekWeekOffset
-            &: noSurfaceFields
-        )
-        (rosterOverviewFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
-        FrontendSurfaceReplace
 
 rosterDaySectionMountedFragment :: RosterWeekScopeValue -> Id RosterDay -> FrontendSurfaceMountedFragment
 rosterDaySectionMountedFragment scope rosterDayId =

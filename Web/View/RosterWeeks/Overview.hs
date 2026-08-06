@@ -2,7 +2,6 @@
 
 module Web.View.RosterWeeks.Overview
     ( renderRosterWeekLabel
-    , renderWeekOverviewDropdown
     , renderWeekOverviewPanelFragment
     ) where
 
@@ -23,69 +22,12 @@ import Data.Time.Calendar (Day)
 import qualified Data.Time.Calendar as Calendar
 import Data.Time.Clock (NominalDiffTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import Web.RosterWeeks.Paths (rosterOverviewFragmentUrl, rosterWeekWithDateUrl)
+import Web.RosterWeeks.Paths (rosterWeekWithDateUrl)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
 
-renderWeekOverviewDropdown :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Day -> Html
-renderWeekOverviewDropdown weekOffset rosterGroupId weekStartDate =
-    let
-        triggerId = "roster-week-overview-trigger-" <> tshow rosterGroupId <> "-" <> tshow weekOffset
-        fragmentUrl = rosterOverviewFragmentUrl weekOffset rosterGroupId
-     in
-        [hsx|
-            <div class="dropdown roster-week-overview">
-                <button class="btn btn-outline-secondary app-week-nav-button roster-week-nav-button roster-week-overview-trigger"
-                        type="button"
-                        id={triggerId}
-                        data-bs-toggle="dropdown"
-                        data-bs-auto-close="outside"
-                        aria-expanded="false"
-                        aria-label="Open roster week overview">
-                    <span class="roster-week-overview-trigger-icon" aria-hidden="true">
-                        <i class="bi bi-calendar3"></i>
-                    </span>
-                    <span>{renderRosterWeekLabel weekStartDate}</span>
-                </button>
-                <div class="dropdown-menu dropdown-menu-end roster-week-overview-menu" aria-labelledby={triggerId}>
-                    {renderWeekOverviewLazyMount rosterGroupId weekOffset fragmentUrl}
-                </div>
-            </div>
-        |]
 
-renderWeekOverviewLazyMount :: Id RosterGroup -> Int -> Text -> Html
-renderWeekOverviewLazyMount rosterGroupId weekOffset fragmentUrl =
-    renderFrontendSurfaceLazyFragmentWithConfig
-        defaultFrontendSurfaceLazyFragmentConfig
-            { lazyFragmentRootClasses = []
-            , lazyFragmentPlaceholderClasses = []
-            , lazyFragmentAriaLabel = Just "Loading roster week overview"
-            , lazyFragmentRetryEnabled = True
-            , lazyFragmentTriggerOverride = Just "load"
-            }
-        ( frontendSurfaceMountedFragmentFor @Surface.RosterSurface @Surface.RosterWeekOverview
-            noSurfaceFields
-            ( surfaceField @Surface.RosterGroupId (unpackId rosterGroupId)
-                &: surfaceField @Surface.WeekOffset weekOffset
-                &: noSurfaceFields
-            )
-            fragmentUrl
-            FrontendSurfaceReplace
-        )
-        renderWeekOverviewDropdownLoading
 
-renderWeekOverviewDropdownLoading :: Html
-renderWeekOverviewDropdownLoading = [hsx|
-    <div class="roster-week-overview-panel roster-week-overview-panel-loading">
-        <div class="roster-week-overview-header">
-            <div>
-                <div class="roster-week-overview-eyebrow">Month overview</div>
-                <div class="roster-week-overview-month">Loading...</div>
-            </div>
-        </div>
-        <div class="app-muted small">Loading month overview...</div>
-    </div>
-|]
 
 renderWeekOverviewPanelFragment :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Day -> Day -> [RosterWeekOverviewDay] -> RosterViewCapabilities -> Html
 renderWeekOverviewPanelFragment weekOffset rosterGroupId currentWeekStartDate todayDate weekOverviewDays viewCapabilities =
@@ -275,8 +217,6 @@ weekOverviewMetricSummary daySummary includeLeaveMetrics
             <> tshow (overviewAssignedShiftCount daySummary) <> " shifts assigned, "
             <> formatElapsedSecondsAsHours (scheduledElapsedSeconds daySummary) <> " rostered."
 
-formatDayParam :: Day -> Text
-formatDayParam date = Text.pack (formatTime defaultTimeLocale "%Y-%m-%d" date)
 
 formatElapsedSecondsAsHours :: NominalDiffTime -> Text
 formatElapsedSecondsAsHours elapsedSeconds =
