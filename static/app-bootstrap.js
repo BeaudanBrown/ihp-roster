@@ -174,14 +174,19 @@
         preservedScrollPositions.set(token, { left: window.scrollX, top: window.scrollY });
       }
     });
-    document.addEventListener("htmx:afterSettle", function(event) {
+    function restorePreservedScroll(event, cleanup) {
       const token = requestToken(event);
       if (token === null) return;
       const position = preservedScrollPositions.get(token);
       if (position !== void 0) window.scrollTo(position.left, position.top);
-      preservedScrollPositions.delete(token);
-      scrollPreservingRequests.delete(token);
-    });
+      if (cleanup) {
+        preservedScrollPositions.delete(token);
+        scrollPreservingRequests.delete(token);
+      }
+    }
+    document.addEventListener("htmx:afterSwap", (event) => restorePreservedScroll(event, false));
+    document.addEventListener("htmx:oobAfterSwap", (event) => restorePreservedScroll(event, false));
+    document.addEventListener("htmx:afterSettle", (event) => restorePreservedScroll(event, true));
     for (const eventName of ["htmx:responseError", "htmx:sendError", "htmx:timeout"]) {
       document.addEventListener(eventName, function(event) {
         const token = requestToken(event);

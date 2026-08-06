@@ -114,14 +114,22 @@ export function pageReadyDetailFrom(detail: PageReadyDetailInput): PageReadyDeta
         }
     });
 
-    document.addEventListener("htmx:afterSettle", function (event) {
+    function restorePreservedScroll(event: Event, cleanup: boolean): void {
         const token = requestToken(event);
         if (token === null) return;
         const position = preservedScrollPositions.get(token);
         if (position !== undefined) window.scrollTo(position.left, position.top);
-        preservedScrollPositions.delete(token);
-        scrollPreservingRequests.delete(token);
-    });
+        if (cleanup) {
+            preservedScrollPositions.delete(token);
+            scrollPreservingRequests.delete(token);
+        }
+    }
+
+    // OOB-only responses do not reliably emit afterSettle. Restore after every
+    // completed swap, then repeat/clean up after settle when HTMX emits it.
+    document.addEventListener("htmx:afterSwap", (event) => restorePreservedScroll(event, false));
+    document.addEventListener("htmx:oobAfterSwap", (event) => restorePreservedScroll(event, false));
+    document.addEventListener("htmx:afterSettle", (event) => restorePreservedScroll(event, true));
 
     for (const eventName of ["htmx:responseError", "htmx:sendError", "htmx:timeout"]) {
         document.addEventListener(eventName, function (event) {

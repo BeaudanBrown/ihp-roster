@@ -414,12 +414,19 @@ test.describe('Styling regression contracts', () => {
         await expect(endInput).toBeEnabled();
 
         await page.evaluate(() => window.scrollTo(0, 240));
-        const beforeScrollY = await page.evaluate(() => window.scrollY);
+        const requestScrollYPromise = page.evaluate(() => new Promise<number>((resolve) => {
+            document.addEventListener('htmx:beforeRequest', () => resolve(window.scrollY), { once: true });
+        }));
+        const swappedScrollYPromise = page.evaluate(() => new Promise<number>((resolve) => {
+            document.addEventListener('htmx:afterSwap', () => resolve(window.scrollY), { once: true });
+        }));
         const saveButton = page.locator('#profile-shift-preferences-form button[type="submit"]');
-        const [request] = await Promise.all([
+        const [request, , , requestScrollY, swappedScrollY] = await Promise.all([
             page.waitForRequest((candidate) => candidate.url().includes('/UpdateProfile') && candidate.method() === 'POST'),
             page.waitForResponse((response) => response.url().includes('/UpdateProfile') && response.request().method() === 'POST'),
             saveButton.click(),
+            requestScrollYPromise,
+            swappedScrollYPromise,
         ]);
         const submitted = new URLSearchParams(request.postData() ?? '');
         expect(submitted.get(startName)).toBe(String(config.defaultStartValue));
@@ -453,8 +460,7 @@ test.describe('Styling regression contracts', () => {
             expect(endCss).not.toBe('');
         }
 
-        const scrollY = await page.evaluate(() => window.scrollY);
-        expect(scrollY).toBeGreaterThan(Math.max(0, beforeScrollY - 120));
+        expect(swappedScrollY).toBeGreaterThan(Math.max(0, requestScrollY - 120));
     });
 
     test('flattens nested app panels inside accordion bodies', async ({ page }) => {
