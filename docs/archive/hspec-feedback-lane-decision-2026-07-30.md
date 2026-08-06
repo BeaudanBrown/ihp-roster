@@ -1,7 +1,7 @@
 # Hspec Feedback Lane Decision — 2026-07-30
 
 This is point-in-time evidence for GitHub issue #207. Living commands and rules
-remain in `README.md`, `Test/AGENTS.md`, and `specs/09-testing-and-acceptance.md`.
+remain in `README.md`, `Test/AGENTS.md`, and ADR 0004.
 
 ## Decision
 

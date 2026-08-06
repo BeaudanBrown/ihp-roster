@@ -1,6 +1,8 @@
-# Performance Profiling Tooling
+# Performance Profiling Runbook
 
-This repo has deterministic profiling tooling for agents to measure app performance before and after changes. Run all commands through the project wrapper:
+Use this runbook to collect comparable browser and request-load profiles. The
+scripts and `--help` output own current options and scenario inventories. Run
+commands through the project wrapper:
 
 ```bash
 bash ./bin/in-env <command>
@@ -221,12 +223,6 @@ Useful fields:
 - Dropped iterations: arrival-rate pressure, often useful as regression signal.
 - VU saturation: whether k6 had to use most of the configured virtual-user ceiling.
 - Status counts and failed checks: correctness under load.
-
-Current baseline from the first full suite run showed:
-
-- timesheets and leave are inexpensive under the current read-only profile.
-- roster overview is the dominant hot path.
-- `roster_build_month_overview` is the main span to watch.
 
 ## Before And After Workflow
 

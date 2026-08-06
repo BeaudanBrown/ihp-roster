@@ -1,42 +1,41 @@
-# IHP Application Specifications
+# Cross-Cutting Specifications
 
-This folder contains product, domain, compliance, and acceptance specifications
-that span more than one code subsystem.
+This directory owns product, domain, legal, compliance, and acceptance intent
+that spans multiple code subsystems. Implemented behavior belongs in local
+`SPEC.md` files beside code; unresolved design belongs in `docs/workstreams/`;
+commands and operating procedures belong in runbooks; GitHub owns status.
 
-Implemented subsystem behavior belongs in local `SPEC.md` files beside code.
-Future feature-stream design belongs in `docs/workstreams/`. Historical plans
-live in `docs/archive/plans/`.
+Executable code, schema, types, tests, and generated contracts remain the
+implementation authority. These specifications constrain what those sources
+must achieve rather than narrating how they do it.
 
-Technical baseline:
+## Product Decisions
 
-- IHP (Haskell MVC)
-- PostgreSQL
-- HSX views
-- Bootstrap 5.3.8
+- Bepis is a managed Australian hospitality SaaS product. Venue is the current
+  customer, data-ownership, and permission boundary.
+- Identity lives on `users`; venue business authority lives on
+  `venue_memberships`. Platform support authority is separate.
+- The main operational surface is the roster. Bootstrap 5 is the UI baseline.
+- The canonical Haskell wage engine owns pay calculation. Approved/final pay
+  facts are sealed and historically reproducible.
+- Late-to-Early uses start-to-start gap against venue configuration.
+- MA000009 calculation pays the highest applicable penalty under clause 29.3;
+  legacy weekend multiplier stacking is not product intent.
+- Payroll-adjacent records use correction-safe history, not silent destructive
+  overwrite.
+- Founder-managed onboarding is intentional; public self-service venue creation
+  and first-user auto-administration are not.
 
-## Canonical decisions
+## Cross-Cutting Acceptance
 
-1. UI requirements target **Bootstrap 5**.
-2. `Application.WageEngine` is the **sole canonical wage calculator**. Drafts use
-   the pure Haskell engine; approved/final workflows use its immutable sealed ledger.
-3. Late-to-Early conflict is based on **start-to-start gap**.
-4. Late-to-Early threshold is a **global venue config** value.
-5. `week_offset_epoch` is a **global fixed epoch**.
-6. MA000009 calculations pay the **highest applicable penalty** under clause 29.3;
-   legacy weekend multiplier stacking is retired characterization.
-7. Kitchen flag is out of scope.
-8. Dialog time choices use venue-selected 15-minute or whole-minute entry while roster timeline dragging remains quarter-hour aligned; the canonical calculator is
-   generic and quarter-hour alignment is not a database invariant.
-9. Trial staff are placeholders only; no conversion flow.
-10. **Managers, Venue Admins and Venue Owners can publish** rosters.
-11. Initial commercial model is **local managed SaaS with venue as the current customer boundary**, not public self-serve SaaS.
-12. Venue business roles live on **`venue_memberships`**, not on `users`.
-13. Initial privileged access uses a **founder-managed venue bootstrap flow**, not first-user auto-admin.
-14. Payroll-adjacent records use **correction-safe history**, not silent destructive overwrite.
-15. Pay and configuration behavior must remain **historically reproducible** for past periods and exports.
-16. Venue admin bulk config save creates a new **immutable pay/config snapshot version**.
+A releasable workflow must preserve venue isolation, role authority, explicit
+validation, auditable sensitive actions, correction-safe payroll history, and
+explainable pay/export output. Browser evidence proves user workflows; it does
+not replace deterministic domain, persistence, migration, generated-contract,
+or operator evidence. Canonical verification commands and their protected scope
+live in `README.md`, `Test/AGENTS.md`, and ADR 0004.
 
-## Document Map
+## Product And Domain Map
 
 - `01-product-scope.md`
 - `02-domain-model.md`
@@ -44,22 +43,16 @@ Technical baseline:
 - `04-roster-and-conflict-rules.md`
 - `05-timesheets-and-leave.md`
 - `06-pay-engine.md`
-- `07-ui-bootstrap-spec.md`
-- `08-ihp-implementation-spec.md`
-- `09-testing-and-acceptance.md`
-- `10-au-saas-security-privacy-compliance/`
-- `11-first-client-document-pack/`
-- `12-performance-profiling.md`
 - `hospitality-award-pay-calculation-verification.md`
 - `hospitality-award-wage-compliance-matrix.md`
 
-## Local Living Specs
+## Compliance And Customer Deliverables
 
-High-churn subsystem contracts live near their code:
+- `10-au-saas-security-privacy-compliance/` — Australian regulatory baseline,
+  privacy/security design constraints, export governance, and launch acceptance.
+- `11-first-client-document-pack/` — customer/legal drafts and operator
+  checklists. They require business/legal review before production use.
 
-- `Web/RosterWeeks/SPEC.md`
-- `Web/Timesheets/SPEC.md`
-- `Web/LeaveRequests/SPEC.md`
-- `Application/Helper/Export/SPEC.md`
-- `Application/Xero/SPEC.md`
-- `Application/Helper/LiveUpdate.SPEC.md`
+High-churn subsystem contracts live with their owners, including roster,
+Timesheets, leave, exports, Billing, Xero, StaffDocuments, interactions, and
+live updates.

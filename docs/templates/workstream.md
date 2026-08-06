@@ -13,7 +13,7 @@ Living docs to update:
 
 Archived context:
 
-- `docs/archive/plans/example.md`
+- Git commit or ADR carrying any necessary historical rationale
 
 ## Goal
 

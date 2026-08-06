@@ -1,6 +1,9 @@
 # MA000009 wage compliance matrix
 
-Status: target contract for [epic #227](https://github.com/BeaudanBrown/ihp-roster/issues/227). Matrix and source fixtures are established by [#228](https://github.com/BeaudanBrown/ihp-roster/issues/228); later tickets make each target row executable.
+Status: living verification contract established under closed epic
+[#227](https://github.com/BeaudanBrown/ihp-roster/issues/227). Executable source
+fixtures, stable scenario IDs, and named tests own current implementation
+evidence.
 
 Checked on **24 July 2026** against the current Hospitality Industry (General)
 Award 2020. This is an engineering verification contract, not legal advice.
@@ -32,9 +35,7 @@ Award 2020. This is an engineering verification contract, not legal advice.
   preserve the exact aggregated hourly quantity; a published line recomputes
   amount from that quantity and rate before cent rounding. Fixed commenced-hour units remain whole.
 - In the coverage columns, **SH** means the Staff Hours CSV, **DE** means the
-  Detailed Payroll Earnings CSV, and **XR** means Xero Payroll. “Target” names
-  the evidence required from the owning ticket; it does not claim that the
-  target Haskell engine already exists.
+  Detailed Payroll Earnings CSV, and **XR** means Xero Payroll.
 
 ## Immediate supported-rule matrix
 

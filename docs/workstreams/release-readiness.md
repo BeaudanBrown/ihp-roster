@@ -22,7 +22,7 @@ GitHub owns status and dependencies.
 
 ## Integration Points
 
-- `specs/09-testing-and-acceptance.md`.
+- `specs/00-readme.md`, `README.md`, and `Test/AGENTS.md`.
 - `specs/10-au-saas-security-privacy-compliance/` and
   `specs/11-first-client-document-pack/`.
 - `e2e/AGENTS.md`, canonical verification commands, and deployment runbooks.

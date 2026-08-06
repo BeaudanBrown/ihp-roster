@@ -49,7 +49,7 @@ Bepis app
 - Collector/Tempo/Loki services on the production host.
 - Grafana provisioning in the separate nix-dotfiles host.
 - `docs/architecture/observability.md` and
-  `specs/12-performance-profiling.md` after behavior lands.
+  `docs/runbooks/performance-profiling.md` after behavior lands.
 - Operator procedures for enable/disable, storage, retention, incident access,
   and data disclosure.
 

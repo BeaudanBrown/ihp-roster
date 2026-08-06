@@ -14,8 +14,7 @@ Read this before editing fixed export helpers or export tests.
 
 ## Gotchas
 
-- Managers are denied export generation/download despite older archived plan
-  text.
+- Managers are denied export generation/download despite superseded proposals.
 - ZIP contents are base64 in `export_jobs.file_contents`.
 - `day_names.weekday_index` is real SQL weekday numbering; report columns must
   still follow the selected week order.

@@ -14,7 +14,7 @@ Read this before editing `Application/Xero/` or Xero application helpers.
 
 ## Gotchas
 
-- Older archived plans mention venue-admin access; current behavior is
+- Superseded proposals mentioned venue-admin access; current behavior is
   owner/super-admin only.
 - Real Xero API behavior can differ from the OpenAPI shape. Preserve contract
   probes as diagnostics, but harden local request construction with tests.

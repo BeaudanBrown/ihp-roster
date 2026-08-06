@@ -55,5 +55,5 @@ example-count proxies or permanent performance assertions.
 ## Links
 
 - Tickets: #197, #203, #207, #208, #209
-- Living docs: `Test/AGENTS.md`, `specs/09-testing-and-acceptance.md`, `README.md`
+- Living docs: `Test/AGENTS.md`, `specs/00-readme.md`, `README.md`
 - Evidence: `docs/archive/hspec-feedback-lane-decision-2026-07-30.md`, `docs/archive/hspec-final-performance-evidence-2026-07-30.md`

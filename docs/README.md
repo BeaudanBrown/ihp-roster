@@ -17,7 +17,8 @@ It must not mirror discoverable implementation details.
 - `docs/adr/`: why a consequential decision was made and what it constrains.
 - `docs/workstreams/`: unresolved design and integration intent for work not
   fully implemented; each workstream links to its GitHub issues.
-- Runbooks: exact operator procedures, diagnostics, recovery, and rollback.
+- `docs/runbooks/` and subsystem runbooks: exact operator procedures,
+  diagnostics, recovery, and rollback.
 - GitHub Issues: live scope, status, dependencies, findings, and next actions.
 - `docs/archive/`: evidence or historical context with an identified continuing
   use. Git history is the default archive for superseded repository prose.

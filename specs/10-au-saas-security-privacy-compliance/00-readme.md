@@ -1,87 +1,53 @@
-# Australian SaaS Security, Privacy and Compliance
+# Australian SaaS Security, Privacy And Compliance
 
 ## Purpose
 
-This spec set defines the minimum architectural and governance direction required to turn this project into a local, high-touch SaaS product for small Australian hospitality businesses, with venue as the current customer boundary.
+This set records product and governance constraints for a managed Australian
+hospitality SaaS handling worker identity, rosters, leave, Timesheets,
+payroll-adjacent records, and employer exports. It is risk-reduction guidance,
+not legal advice; customer-facing drafts require qualified review.
 
-It is written from the assumption that the product will handle:
+## Product Posture
 
-- employee identity and contact data
-- roster data
-- leave data
-- availability data
-- timesheets and payroll-adjacent records
-- exports used by employers, bookkeepers and accountants
+- Design to Australian Privacy Principles standards even when a particular
+  customer may claim a small-business exemption.
+- Do not treat the employee-records exemption available to an employer as a
+  safe assumption for a SaaS provider.
+- Venue is the current customer and data boundary. A later multi-venue account
+  layer must be additive.
+- Early operation is local, low-volume, founder-onboarded managed SaaS, not
+  public self-service.
+- Manual operations are acceptable at this stage; weak tenancy, access,
+  auditability, record integrity, or breach readiness are not.
 
-This is a product and architecture guide, not legal advice. It is intended to reduce the risk of building the wrong foundations before legal review.
+## Non-Negotiable Constraints
 
-## Why this matters now
+- Collect only purpose-bound data. Health, TFN, bank, superannuation,
+  biometrics, government identifiers, and other sensitive categories require a
+  dedicated product/compliance decision before storage.
+- Separate global identity, venue membership, worker records, platform support,
+  and future third-party access.
+- Preserve correction history and reproducibility for payroll-adjacent records,
+  pay configuration, and exports.
+- Keep exports attributable, scoped, expiring, and reviewable as disclosures.
+- Maintain collection notices, access/correction handling, retention rules,
+  subprocessor visibility, and an executable incident/breach process.
+- Prefer Australian hosting and Australian-default subprocessors; assess and
+  disclose cross-border handling before adopting alternatives.
+- Hosted billing surfaces keep payment details outside Bepis. Logs and retained
+  provider metadata remain minimized.
 
-The current codebase already behaves like an employment records system. The product is still early, which means the highest-value work is not feature breadth. It is getting the data boundaries, venue model, auditability, retention model, access control model and export model right before more personal information is added.
+## Documents
 
-The most expensive mistakes to fix later are:
+- `01-regulatory-baseline.md` — legal-risk baseline and primary sources.
+- `02-target-architecture.md` — durable privacy, security, record-integrity, and
+  integration design constraints; despite its historical filename, it is not an
+  implementation roadmap.
+- `04-accountant-exports.md` — product and disclosure constraints for exports.
+- `05-first-client-readiness.md` — non-code launch acceptance.
+- `../11-first-client-document-pack/` — customer/legal drafts and operational
+  templates.
 
-1. Building as if this were a single-company internal tool instead of a SaaS platform.
-2. Treating employment records like ordinary mutable CRUD rows.
-3. Allowing sensitive information to leak into generic free-text fields.
-4. Adding richer profile data before a privacy notice, retention model and access model exist.
-5. Relying on customer assumptions about small business exemptions instead of designing to the APP standard.
-6. Letting third-party access and accountant exports evolve ad hoc.
-7. Confusing a founder-managed local service model with an excuse to skip SaaS-grade venue and record boundaries.
-
-## Current project gap summary
-
-The current repository is missing or under-specified in the following areas:
-
-- venue ownership exists in schema, but role resolution, bootstrap rules and business authority remain under-specified
-- no immutable audit/event history for timesheet, leave or role changes
-- no retention and archival model for employment records
-- no structured privacy governance layer
-- no formal subprocessor or cross-border data handling position
-- no subject access / correction workflow
-- no breach response playbook
-- no structured data classification model
-- no strict boundary between ordinary profile data and future sensitive data
-- no architected accountant/export model
-
-## Strategic policy
-
-This project should be designed as if it will be regulated and scrutinised, even where a particular customer may currently fall within a small business exemption.
-
-Reasons:
-
-- the platform operator may itself be regulated under the Privacy Act
-- the employee records exemption does not protect a SaaS vendor acting for employers
-- some customers will be covered entities even if others are not
-- the product will be materially harder to re-architect once real customer data exists
-- customer due diligence will expect a privacy and security posture well above the legal minimum
-
-## Operating model
-
-The intended near-term model is:
-
-- local venues only
-- low venue count
-- founder-managed onboarding and support
-- standardised product, not bespoke one-off deployments
-- no public self-serve venue creation
-
-This is best understood as a managed SaaS service, not an internal staff tool and not a broad self-serve SaaS launch.
-
-## Document map
-
-- `01-regulatory-baseline.md`
-- `02-target-architecture.md`
-- `03-roadmap-and-priorities.md`
-- `04-accountant-exports.md`
-- `05-first-client-readiness.md`
-- `06-engineering-backlog.md`
-
-## Operating assumptions
-
-1. The product will use venue as the current customer boundary, with any higher-level account model deferred until needed.
-2. The product will eventually store more detailed worker profile information.
-3. The product may later support payroll, accountant exports, award interpretation and decision support.
-4. The product should prefer Australian hosting and Australian-default subprocessors unless there is a strong reason not to.
-5. Privacy-by-design, least privilege and record integrity are first-order product requirements, not later hardening tasks.
-6. For the first few venues, manual operations are acceptable; weak data boundaries are not.
+Live work belongs in GitHub Issues and `docs/workstreams/`; implemented controls
+belong in subsystem specs and executable checks. This directory does not track
+engineering progress.

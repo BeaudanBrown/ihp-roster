@@ -25,7 +25,8 @@ explicit workstreams.
   GitHub Issues.
 - `docs/adr/` records durable architecture decisions.
 - GitHub Issues is the live implementation graph.
-- Old numbered plans move to `docs/archive/plans/` as historical context.
+- Old numbered plans move to the historical archive (later removed under the
+  superseding retention policy).
 
 ## Consequences
 

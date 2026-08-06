@@ -4,8 +4,8 @@ Status: final reconciliation evidence, measured 2026-07-30
 
 Related issues: #197, #198, #200, #201, and #203–#209
 
-Living contracts: `Test/AGENTS.md`, `specs/09-testing-and-acceptance.md`,
-`README.md`, and ADR 0004
+Living contracts: `Test/AGENTS.md`, `specs/00-readme.md`, `README.md`, and
+ADR 0004
 
 ## Outcome
 
@@ -85,8 +85,7 @@ were deliberately not promoted to stable gates.
 
 ## Evidence
 
-- `docs/archive/hspec-critical-path-baseline-2026-07-19.md`
-- `docs/archive/hspec-postgresql-runtime-2026-07-20.md`
-- `docs/archive/hspec-shard-retuning-2026-07-20.md`
-- `docs/archive/hspec-feedback-lane-decision-2026-07-30.md`
-- `docs/archive/hspec-final-performance-evidence-2026-07-30.md`
+The retained measured decision and final benchmark are
+`hspec-feedback-lane-decision-2026-07-30.md` and
+`hspec-final-performance-evidence-2026-07-30.md`. Intermediate plans,
+inventories, and generated snapshots remain available in Git history.
