@@ -118,6 +118,21 @@ test.describe('Roster notification workflow', () => {
             ensureEditable: false,
         });
         const weekOffset = Number.parseInt(new URL(page.url()).searchParams.get('weekOffset') ?? '0', 10);
+        runSql(`
+            CREATE OR REPLACE FUNCTION e2e_defer_roster_notification_jobs()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                NEW.run_at := NOW() + INTERVAL '1 hour';
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+            DROP TRIGGER IF EXISTS e2e_defer_roster_notification_jobs ON app_jobs;
+            CREATE TRIGGER e2e_defer_roster_notification_jobs
+                BEFORE INSERT ON app_jobs
+                FOR EACH ROW
+                WHEN (NEW.job_kind = 'roster_notification_delivery')
+                EXECUTE FUNCTION e2e_defer_roster_notification_jobs();
+        `);
         try {
             await page.reload();
             await expect(page.locator('#roster-week-shell')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
@@ -133,6 +148,15 @@ test.describe('Roster notification workflow', () => {
                 UPDATE roster_weeks
                 SET is_live = FALSE
                 WHERE id = '${rosterWeekId}';
+                DROP TRIGGER e2e_defer_roster_notification_jobs ON app_jobs;
+                UPDATE app_jobs
+                SET status = 'job_status_retry', run_at = NOW()
+                WHERE related_id = (
+                    SELECT id FROM roster_notification_runs
+                    WHERE roster_group_id = '${rosterGroupId}' AND week_offset = ${weekOffset}
+                    ORDER BY created_at DESC LIMIT 1
+                );
+                DROP FUNCTION e2e_defer_roster_notification_jobs();
             `);
             const firstMessages = await waitForMailhogMessages(request, recipientEmail, 1, E2E_TIMEOUT.mailhog);
             expect(mailhogMessageSubject(firstMessages[0])).toContain(`Your ${rosterGroupName} roster`);
@@ -191,6 +215,8 @@ test.describe('Roster notification workflow', () => {
                 UPDATE roster_groups
                 SET is_active = FALSE
                 WHERE id = '${rosterGroupId}';
+                DROP TRIGGER IF EXISTS e2e_defer_roster_notification_jobs ON app_jobs;
+                DROP FUNCTION IF EXISTS e2e_defer_roster_notification_jobs();
             `);
         }
     });
