@@ -650,11 +650,12 @@ tests = aroundAll withDatabaseTestContext do
 
                 beforeFill <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "true"), ("showSuggestions", "true")]
+                        [("weekOffset", "0")]
                 beforeFill `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow openSlot.id <> "\"")
 
                 dialogResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (EditRosterSlotDialogAction openSlot.id)
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (EditRosterSlotDialogAction openSlot.id)
                 dialogResponse `responseStatusShouldBe` status200
                 dialogResponse `responseBodyShouldContain` "data-roster-live-open-fill=\"true\""
                 dialogResponse `responseBodyShouldContain` "disabled=\"disabled\" data-roster-live-open-fields=\"true\""
@@ -678,7 +679,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 afterFill <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
-                        [("weekOffset", "0"), ("showApproved", "false"), ("showAllStaff", "true"), ("showSuggestions", "true")]
+                        [("weekOffset", "0")]
                 afterFill `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow openSlot.id <> "\"")
 
         it "rejects live Open-shift tampering, deletion, ordinary staff writes, and Assigned transitions" $ withContext do
@@ -1285,7 +1286,7 @@ tests = aroundAll withDatabaseTestContext do
                 inactiveStaffResponse `responseBodyShouldNotContain` "data-bepis-roster-staff-highlight-default"
 
                 _ <- updateRecord (staffMember |> set #isActive True)
-                _ <- updateRecord (slot |> set #staffId Nothing)
+                _ <- updateRecord (slot |> set #assignmentState "open" |> set #staffId Nothing)
                 unassignedResponse <- withUser user do
                     callAction (ShowRosterWeekAction 0)
                 unassignedResponse `responseBodyShouldNotContain` "data-bepis-roster-staff-highlight-default"
@@ -2132,7 +2133,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"staff\""
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"templates\""
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"settings\""
-                response `responseBodyShouldContain` "id=\"roster-template-panel-mount\""
+                response `responseBodyShouldContain` "id=\"roster-template-library-mount-"
                 response `responseBodyShouldContain` "Own shifts highlighted"
 
         it "manager roster staff panel fragment only shows staff applicable to the selected roster group" $ withContext do
