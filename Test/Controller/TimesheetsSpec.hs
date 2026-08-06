@@ -139,6 +139,27 @@ tests = aroundAll withDatabaseTestContext do
                 lookup "Location" (responseHeaders unauthorizedFilterResponse)
                     `shouldBe` Just "http://localhost/ShowTimesheetWeek?weekOffset=4"
 
+        it "ignores additional query fields instead of treating them as Timesheets state" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Query Authority Venue"
+                user <- createUserRecord "timesheet-query-authority@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user Worker
+                _ <- createStaffRecord venue (Just user) "Query" "Authority"
+
+                pageResponse <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
+                        [("unrecognizedDisplayState", "true")]
+                pageResponse `responseStatusShouldBe` status200
+                lookup "Location" (responseHeaders pageResponse) `shouldBe` Nothing
+                pageResponse `responseBodyShouldContain` "id=\"timesheet-week-shell\""
+
+                fragmentResponse <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams ShowTimesheetDaySectionFragmentAction { weekOffset = 0, dayOffset = 0 }
+                        [("unrecognizedDisplayState", "true")]
+                fragmentResponse `responseStatusShouldBe` status200
+                lookup "Location" (responseHeaders fragmentResponse) `shouldBe` Nothing
+                fragmentResponse `responseBodyShouldContain` "id=\"timesheet-day-section-0\""
+
         it "persists display preferences globally and returns authoritative clean-url fragments" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Preference Venue"
