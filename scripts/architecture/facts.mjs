@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileHash, listFiles, outputDir, readText, repoRoot, writeJson } from "./shared.mjs";
+import { parseLayoutPolicy } from "./layout-policy.mjs";
 import { wiringRegistryPolicy } from "./wiring-policy.mjs";
 import { parseControllerMounts, parseControllerRoutes, parseFrontendLayoutScripts } from "./wiring-source.mjs";
 
@@ -346,8 +347,10 @@ function parseFrontendWiring() {
     source: { path: relPath, line: 1 },
   }));
   const layoutPath = "Web/View/Layout.hs";
-  const layoutScripts = parseFrontendLayoutScripts(readText(layoutPath), layoutPath);
-  return { entrypoints, layoutScripts };
+  const layoutSource = readText(layoutPath);
+  const layoutScripts = parseFrontendLayoutScripts(layoutSource, layoutPath);
+  const layoutPolicy = parseLayoutPolicy(layoutSource, layoutPath);
+  return { entrypoints, layoutScripts, layoutPolicy };
 }
 
 function parseFrontendContracts() {

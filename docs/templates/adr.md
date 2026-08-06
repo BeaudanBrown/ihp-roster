@@ -1,7 +1,5 @@
 # ADR NNNN: Title
 
-Status: proposed
-
 Date: YYYY-MM-DD
 
 ## Context
@@ -10,7 +8,8 @@ What forced this decision?
 
 ## Decision
 
-What did we choose?
+What consequential choice and durable constraint did we adopt? Describe the
+boundary or policy, not an implementation inventory or delivery plan.
 
 ## Consequences
 

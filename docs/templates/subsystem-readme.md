@@ -1,19 +1,19 @@
 # Subsystem Name
 
-## Purpose
+## Ownership
 
-Describe what this subsystem owns.
+What this subsystem owns and deliberately does not.
 
-## Entry Points
+## Start Here
 
-- `Module/File.hs`
+Link only the authoritative entry points needed for navigation. Point to
+architecture facts or queries instead of listing helpers, actions, assets,
+fields, or consumers.
 
-## Data Ownership
+## Boundaries
 
-Describe primary tables, records, scopes, and external systems.
+Record durable dependency or external-system boundaries.
 
-## Related Docs
+## Related Contracts
 
-- `SPEC.md`
-- `AGENTS.md`
-- relevant workstreams or ADRs
+- `SPEC.md`, local `AGENTS.md`, and only relevant workstream/ADR links.

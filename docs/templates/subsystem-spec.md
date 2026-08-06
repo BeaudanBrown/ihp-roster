@@ -1,16 +1,23 @@
 # Subsystem Name Specification
 
-This file describes implemented behavior only. Future behavior belongs in
-`docs/workstreams/` until it lands.
+Code, schema, generated contracts, and tests own implemented detail. Record only
+durable cross-module or externally observable contracts that are hard to infer.
+Future intent belongs in a linked workstream.
 
-## Current Contract
+## Invariants
 
-## State And Transitions
+State authority, history, transition, or fail-closed rules that must survive
+implementation refactors.
 
-## Authorization
+## Observable Contract
 
-## Live Updates Or Async Behavior
+State behavior relied on outside one module.
 
-## Extension Rules
+## Extension Constraints
 
-## Verification
+State what future changes must preserve or explicitly supersede.
+
+## Authority
+
+Link owning production modules and focused tests; do not list every action,
+field, helper, asset, or test.

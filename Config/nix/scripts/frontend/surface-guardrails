@@ -82,6 +82,19 @@ expect_no_match \
     "legacy overlay protocol is forbidden" \
     'data-(dialog-overlay|dialog-overlay-close|dialog-overlay-backdrop|dialog-overlay-submit-button|overlay-toast|toast-close|loading-label|auto-hide-ms)' \
     Application Web frontend/ts e2e
+
+# Dialog markup is owned by the typed overlay and dedicated time-picker helpers.
+# This is a production source boundary, not a documentation wording rule.
+raw_modal_matches="$(
+    rg -n 'class="modal|class="[^"]+ modal|modal-backdrop' Web Application -g'*.hs' \
+        | grep -v '^Application/Helper/View/Overlay.hs:' \
+        | grep -v '^Application/Helper/View/TimePicker.hs:' \
+        || true
+)"
+if [ -n "$raw_modal_matches" ]; then
+    fail $'raw dialog modal markup outside approved overlay/picker helpers:\n'"$raw_modal_matches"
+fi
+
 expect_no_match \
     "legacy toggle and time-picker protocol is forbidden" \
     'data-app-toggle|data-break-(toggle|target)|quarter-hour-time-picker-modal|js-time-picker-(input|trigger|step)|data-time-picker-(field|start|end|step|empty)|data-default-(start|end)-time|data-time-value|time-picker:sync' \

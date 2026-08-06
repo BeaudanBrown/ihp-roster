@@ -3,6 +3,7 @@ set -euo pipefail
 bash ./Config/nix/scripts/architecture/wiring-registry-test >/dev/null
 bash ./Config/nix/scripts/architecture/fixture-reset-manifest-test >/dev/null
 node --test scripts/architecture/enum-authority.test.mjs >/dev/null
+node --test scripts/architecture/layout-policy.test.mjs >/dev/null
 bash ./Config/nix/scripts/architecture/facts >/dev/null
 node --test scripts/architecture/query.test.mjs >/dev/null
 node scripts/architecture/surface-request-closure.mjs >/dev/null

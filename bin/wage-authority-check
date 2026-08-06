@@ -31,4 +31,25 @@ if [[ -n "$retired_sql_calls" ]]; then
     fail $'retired SQL wage calculator call found:\n'"$retired_sql_calls"
 fi
 
+# Compliance fixtures are executable test inputs. Their existence and exact
+# provenance belong to this wage authority gate, not to prose wording checks.
+wage_fixture_root="Test/Fixtures/wage-sources/2026-07-24"
+for fixture_path in \
+    "$wage_fixture_root/fwc-mapd/award.json" \
+    "$wage_fixture_root/fwc-mapd/classifications.json" \
+    "$wage_fixture_root/fwc-mapd/pay-rates.json" \
+    "$wage_fixture_root/fwc-mapd/penalties.json" \
+    "$wage_fixture_root/fwc-mapd/wage-allowances.json" \
+    "$wage_fixture_root/datavic/public-holidays.json"
+do
+    [[ -f "$fixture_path" ]] || fail "missing deterministic wage-source fixture: $fixture_path"
+done
+(
+    cd "$wage_fixture_root"
+    sha256sum --check --status SHA256SUMS || fail "deterministic wage-source fixture hash mismatch"
+)
+
+# Supported wage behavior is executed by the complete registered Hspec suite;
+# this source gate deliberately does not infer execution from description text.
+
 echo "wage-authority-check: ok"

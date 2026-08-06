@@ -1,11 +1,17 @@
 # Subsystem Agent Notes
 
-Read this before editing files in this directory.
+Keep only rules that differ from parent guidance or prevent a non-obvious local
+failure.
 
-## Local Rules
+## Ownership And Boundaries
 
-## Common Changes
+Name authoritative owners and forbidden dependency edges; do not inventory
+files or common changes.
 
-## Gotchas
+## Hazards
 
-## Verification
+Record local safety, tenancy, data, concurrency, or framework traps.
+
+## Focused Verification
+
+Give the narrowest deterministic command or test selector.

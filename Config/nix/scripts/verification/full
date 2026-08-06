@@ -23,9 +23,12 @@ frontend-check
 echo "verify-full: CSS ownership and stale-selector checks"
 bash ./bin/style-audit
 
-echo "verify-full: architecture and documentation drift"
+echo "verify-full: architecture and documentation structure"
 architecture-check-fresh
 bash ./bin/doc-drift-check
+
+echo "verify-full: canonical wage authority and fixtures"
+bash ./bin/wage-authority-check
 
 echo "verify-full: billing production-readiness"
 billing-production-readiness

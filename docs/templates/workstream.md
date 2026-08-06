@@ -1,44 +1,25 @@
 # Workstream Title
 
-Status: proposed
+GitHub issues: `#123`
 
-GitHub issues:
+Affected living contracts: `path/to/SPEC.md`
 
-- `#123`
+## Unresolved Intent
 
-Living docs to update:
+Describe product or integration design not represented by implemented sources.
+Do not copy completed implementation, issue status, or tasks.
 
-- `path/to/SPEC.md`
-- `path/to/AGENTS.md`
+## Boundaries And Constraints
 
-Archived context:
+State scope and durable safety, compliance, provider, or migration constraints.
 
-- Git commit or ADR carrying any necessary historical rationale
+## Integration Seams
 
-## Goal
+Name owning subsystems and externally meaningful seams. Prefer architecture
+facts or queries over module/action/helper inventories.
 
-Describe the future behavior or system change in product terms.
+## Reconciliation
 
-## Current State
-
-Summarize what is implemented today and where that contract is documented.
-
-## Intended Contract
-
-Describe the target behavior. Avoid task checklists here; put task status in
-GitHub Issues.
-
-## Boundaries
-
-List what is in scope, out of scope, and deferred.
-
-## Integration Points
-
-List affected modules, docs, specs, tests, jobs, scripts, and external systems.
-
-## Exit Criteria
-
-- Tickets are closed or moved.
-- Implemented behavior is in subsystem `SPEC.md`.
-- Agent rules are in local `AGENTS.md`.
-- Durable decisions are in `docs/adr/` where needed.
+Delete when no unresolved design remains. Move implemented contracts to the
+owning `SPEC.md`, editing hazards to `AGENTS.md`, and consequential rationale to
+an ADR. GitHub owns closure and dependencies.

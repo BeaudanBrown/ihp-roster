@@ -85,7 +85,7 @@ The rule matrix was checked on the same date against:
 | `datavic/public-holidays.json` | `dbe509f523b640f1b23fe46d7279a9f0a42e833b838a057851af9697fcfec194` |
 
 `SHA256SUMS` is the machine-checked copy of this committed-fixture manifest;
-`doc-drift-check` verifies it offline.
+`wage-authority-check` verifies it offline.
 
 ## Refresh contract
 
