@@ -19,37 +19,83 @@ trap cleanup EXIT
 
 mkdir -p "$tmp_dir/obj" "$tmp_dir/hi"
 GHC_OPTS="$(ihp_roster_ghc_opts)"
+fixtures=()
+expected_diagnostics=()
+rejected_diagnostics=()
 
 expect_compile_failure() {
     local fixture="$1"
     shift
-    local log="$tmp_dir/$(basename "$fixture").log"
     local mode="expected"
+    local expected=""
+    local rejected=""
     local diagnostic
-
-    if ghc $GHC_OPTS -fno-code "$fixture" \
-        -odir "$tmp_dir/obj" \
-        -hidir "$tmp_dir/hi" \
-        >"$log" 2>&1; then
-        echo "surface-compile-fail-check: expected $fixture to fail, but it compiled" >&2
-        exit 1
-    fi
 
     for diagnostic in "$@"; do
         if [ "$diagnostic" = "--reject" ]; then
             mode="rejected"
-        elif [ "$mode" = "expected" ] && ! grep -Fq "$diagnostic" "$log"; then
-            echo "surface-compile-fail-check: $fixture missing expected diagnostic substring: $diagnostic" >&2
-            cat "$log" >&2
-            exit 1
-        elif [ "$mode" = "rejected" ] && grep -Fq "$diagnostic" "$log"; then
-            echo "surface-compile-fail-check: $fixture contains rejected diagnostic substring: $diagnostic" >&2
-            cat "$log" >&2
-            exit 1
+        elif [ "$mode" = "expected" ]; then
+            expected+="$diagnostic"$'\n'
+        else
+            rejected+="$diagnostic"$'\n'
         fi
     done
 
-    echo "surface-compile-fail-check: $fixture failed as expected"
+    fixtures+=("$fixture")
+    expected_diagnostics+=("$expected")
+    rejected_diagnostics+=("$rejected")
+}
+
+run_compile_failure_checks() {
+    local combined_log="$tmp_dir/combined.log"
+    local fixture_log fixture diagnostic
+    local index
+
+    # One --make session amortizes GHC startup and dependency analysis across all
+    # negative fixtures. -fkeep-going still asks GHC to diagnose every target.
+    # shellcheck disable=SC2086 # GHC_OPTS is an intentional argument vector.
+    if ghc $GHC_OPTS -fno-code -fkeep-going "${fixtures[@]}" \
+        -odir "$tmp_dir/obj" \
+        -hidir "$tmp_dir/hi" \
+        >"$combined_log" 2>&1; then
+        echo "surface-compile-fail-check: expected fixtures to fail, but the batch compiled" >&2
+        exit 1
+    fi
+
+    for index in "${!fixtures[@]}"; do
+        fixture="${fixtures[$index]}"
+        fixture_log="$tmp_dir/$(basename "$fixture").log"
+        awk -v fixture="$fixture" '
+            /^\[[[:space:]]*[0-9]+ of [0-9]+\] Compiling / {
+                active = index($0, "( " fixture ",") > 0
+            }
+            active { print }
+        ' "$combined_log" >"$fixture_log"
+
+        if ! grep -Fq ': error:' "$fixture_log"; then
+            echo "surface-compile-fail-check: expected $fixture to fail, but no attributed error was reported" >&2
+            cat "$fixture_log" >&2
+            exit 1
+        fi
+
+        while IFS= read -r diagnostic; do
+            [ -z "$diagnostic" ] || if ! grep -Fq "$diagnostic" "$fixture_log"; then
+                echo "surface-compile-fail-check: $fixture missing expected diagnostic substring: $diagnostic" >&2
+                cat "$fixture_log" >&2
+                exit 1
+            fi
+        done <<<"${expected_diagnostics[$index]}"
+
+        while IFS= read -r diagnostic; do
+            [ -z "$diagnostic" ] || if grep -Fq "$diagnostic" "$fixture_log"; then
+                echo "surface-compile-fail-check: $fixture contains rejected diagnostic substring: $diagnostic" >&2
+                cat "$fixture_log" >&2
+                exit 1
+            fi
+        done <<<"${rejected_diagnostics[$index]}"
+
+        echo "surface-compile-fail-check: $fixture failed as expected"
+    done
 }
 
 expect_compile_failure \
@@ -297,3 +343,5 @@ expect_compile_failure \
     "Test/CompileFail/FrontendXeroCandidateRawProjection.hs" \
     "Illegal term-level use of the type constructor" \
     "XeroCandidateSearchProjection"
+
+run_compile_failure_checks
