@@ -1,51 +1,45 @@
-# Documentation System
+# Documentation Retention Model
 
-This repository uses living, code-adjacent documentation. The goal is to make
-the implemented system easy for agents and humans to discover without losing
-space for future feature streams.
+Code, `Application/Schema.sql`, types, tests, generated contracts, and
+deterministic checks are authoritative for implemented behavior. Prose should
+help a reader navigate those sources or preserve information they cannot show.
+It must not mirror discoverable implementation details.
 
-## Document Types
+## Document Roles
 
-- `README.md` near code: what the subsystem owns, where to start, and how it
-  connects to the rest of the app.
-- `SPEC.md` near code: current behavior, invariants, state transitions, and
-  extension rules for implemented behavior.
-- `AGENTS.md` near code: local editing rules, gotchas, and verification.
-- `specs/`: product, domain, compliance, and acceptance intent that crosses
-  subsystem boundaries.
-- `docs/workstreams/`: proposed, active, or blocked feature streams that are
-  not fully implemented yet.
-- `docs/adr/`: durable architectural decision records.
-- GitHub Issues: live implementation status, dependencies, and next actions.
-- `docs/archive/`: historical plans, audits, and superseded notes.
+- `AGENTS.md`: actionable local editing constraints, non-obvious hazards,
+  source pointers, and verification commands.
+- `README.md`: subsystem ownership, boundaries, and entry points.
+- `SPEC.md`: durable cross-module invariants and externally observable
+  contracts that code alone does not make clear.
+- `specs/`: cross-cutting product, domain, legal, compliance, and acceptance
+  intent, including intent not yet implemented.
+- `docs/adr/`: why a consequential decision was made and what it constrains.
+- `docs/workstreams/`: unresolved design and integration intent for work not
+  fully implemented; each workstream links to its GitHub issues.
+- Runbooks: exact operator procedures, diagnostics, recovery, and rollback.
+- GitHub Issues: live scope, status, dependencies, findings, and next actions.
+- `docs/archive/`: evidence or historical context with an identified continuing
+  use. Git history is the default archive for superseded repository prose.
 
-## Update Rules
+## Retention Rubric
 
-When implementing a feature stream:
+Retain prose only when it provides durable navigation, ownership, a non-obvious
+invariant, consequential rationale, product/compliance intent, or an operating
+procedure. Prefer a link to an authoritative source over a field, action,
+helper, file, or test inventory.
 
-1. Keep live task status and relationships in GitHub Issues.
-2. Keep future or partial design in `docs/workstreams/`.
-3. Move implemented behavior into the nearest subsystem `SPEC.md`.
-4. Move reusable editing rules into the nearest `AGENTS.md`.
-5. Record architectural rationale in `docs/adr/` when the choice will matter
-   later.
-6. Archive or close the workstream when no active future behavior remains.
+Remove prose that narrates implementation, duplicates parent instructions,
+tracks work or completion, records generated counts, or preserves history
+already available in Git. Do not move removed narration into another document.
 
-Do not leave the only description of implemented behavior in a workstream or
-archived plan.
+Update documentation only when a retained navigation path, invariant,
+rationale, or operating procedure changes. An implementation change by itself
+does not require a prose mirror.
 
-## Navigation
+Legal, compliance, security, tenancy, migration, financial, and externally
+sourced evidence must not be weakened or deleted without issue-specific review
+and evidence that its obligation or retention value has ended.
 
-- Start at `README.md` and root `AGENTS.md`.
-- Use `IMPLEMENTATION_PLAN.md` for global priority and ticket routing.
-- Use `docs/workstreams/README.md` for future feature streams.
-- Use `docs/architecture/README.md` for subsystem boundaries.
-- Use `docs/adr/README.md` for decision history.
-- Use `docs/archive/plans/README.md` when an old plan is referenced.
-
-## Drift Policy
-
-If code and docs disagree, trust code/tests first, then update docs or create an
-issue to close the gap. If a product spec describes behavior that is still
-desired but not implemented, keep it in `specs/` or `docs/workstreams/` and
-make sure a GitHub issue exists.
+Keep inventories, audit findings, and other disposable analysis under
+`.pi/tmp/`; do not commit them as reports or parallel trackers.

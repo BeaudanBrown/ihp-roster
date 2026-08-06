@@ -1,8 +1,10 @@
 # ADR 0001: Documentation Operating Model
 
-Status: accepted
+Status: superseded
 
 Date: 2026-05-02
+
+Superseded: 2026-08-06 by the `docs/README.md` retention model in issue #278.
 
 ## Context
 
