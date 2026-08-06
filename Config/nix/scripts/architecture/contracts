@@ -13,19 +13,14 @@ fi
 
 output_path="${1:-output/architecture/bepis-contracts.json}"
 
-if [ -n "${ARCHITECTURE_CONTRACTS_BUILD_DIR:-}" ]; then
-    build_dir="$ARCHITECTURE_CONTRACTS_BUILD_DIR"
-    cleanup() { :; }
-else
-    build_dir="$(mktemp -d)"
-    cleanup() {
-        rm -rf "$build_dir"
-    }
-fi
-trap cleanup EXIT
+build_dir="${ARCHITECTURE_CONTRACTS_BUILD_DIR:-$(ihp_roster_verification_build_dir)}"
 
-mkdir -p "$build_dir/obj" "$build_dir/hi" "$(dirname "$output_path")"
-GHC_OPTS="$(ihp_roster_ghc_opts)"
+# Match typecheck/Hspec options so this generator reuses their application
+# artifacts instead of recompiling the graph into a disposable directory.
+GHC_OPTS="$(ihp_roster_ghc_opts) -iTest"
+ihp_roster_prepare_ghc_build_dir "$build_dir" "$GHC_OPTS"
+mkdir -p "$(dirname "$output_path")"
+# shellcheck disable=SC2086 # GHC_OPTS is an intentional argument vector.
 ghc $GHC_OPTS Application/Script/GenerateBepisArchitectureContracts.hs \
     -main-is Application.Script.GenerateBepisArchitectureContracts \
     -odir "$build_dir/obj" \

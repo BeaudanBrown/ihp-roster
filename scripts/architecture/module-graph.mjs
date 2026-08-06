@@ -1,5 +1,6 @@
+import { rmSync } from "node:fs";
 import { dotId, dotQuote, maybeReadJsonFile, renderDot, writeText } from "./shared.mjs";
-import "./facts.mjs";
+if (process.env.ARCHITECTURE_FACTS_CURRENT !== "1") await import("./facts.mjs");
 
 const facts = maybeReadJsonFile("output/architecture/facts.json");
 if (!facts) throw new Error("Missing output/architecture/facts.json");
@@ -27,5 +28,10 @@ for (const module of facts.modules) {
 
 lines.push("}");
 writeText("output/architecture/module-graph.dot", `${lines.join("\n")}\n`);
-renderDot("output/architecture/module-graph.dot", "output/architecture/module-graph.svg");
-console.log("Generated output/architecture/module-graph.dot and output/architecture/module-graph.svg");
+if (process.env.ARCHITECTURE_SKIP_MODULE_GRAPH_SVG === "1") {
+  rmSync("output/architecture/module-graph.svg", { force: true });
+  console.log("Generated output/architecture/module-graph.dot (whole-graph SVG skipped; use a focused module query for iteration)");
+} else {
+  renderDot("output/architecture/module-graph.dot", "output/architecture/module-graph.svg");
+  console.log("Generated output/architecture/module-graph.dot and output/architecture/module-graph.svg");
+}

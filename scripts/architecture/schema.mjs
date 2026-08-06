@@ -1,5 +1,5 @@
 import { dotId, dotQuote, maybeReadJsonFile, renderDot, writeText } from "./shared.mjs";
-import "./facts.mjs";
+if (process.env.ARCHITECTURE_FACTS_CURRENT !== "1") await import("./facts.mjs");
 
 const facts = maybeReadJsonFile("output/architecture/facts.json");
 if (!facts) throw new Error("Missing output/architecture/facts.json");

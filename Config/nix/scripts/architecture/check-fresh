@@ -5,9 +5,11 @@ bash ./Config/nix/scripts/architecture/fixture-reset-manifest-test >/dev/null
 node --test scripts/architecture/enum-authority.test.mjs >/dev/null
 bash ./Config/nix/scripts/architecture/facts >/dev/null
 node scripts/architecture/surface-request-closure.mjs >/dev/null
-node scripts/architecture/schema.mjs >/dev/null
-node scripts/architecture/web-map.mjs >/dev/null
-node scripts/architecture/module-graph.mjs >/dev/null
+ARCHITECTURE_FACTS_CURRENT=1 node scripts/architecture/schema.mjs >/dev/null
+ARCHITECTURE_FACTS_CURRENT=1 node scripts/architecture/web-map.mjs >/dev/null
+# The 650-module whole-graph DOT remains deterministic evidence; rendering its
+# hairball SVG costs ~45s and focused module queries produce more useful views.
+ARCHITECTURE_FACTS_CURRENT=1 ARCHITECTURE_SKIP_MODULE_GRAPH_SVG=1 node scripts/architecture/module-graph.mjs >/dev/null
 node scripts/architecture/gate.mjs >/dev/null
 printf '%s\n' '{"name":"conventions","args":{"failOnViolations":true,"requireAllControllers":true}}' | node scripts/architecture/query.mjs >/dev/null
 echo "Architecture generation, wiring registry parity, fixture reset coverage, and strict Bepis convention checks succeeded. Outputs are under output/architecture/."

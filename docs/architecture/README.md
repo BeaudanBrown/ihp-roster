@@ -39,8 +39,10 @@ tools. The current project queries are:
 Do not treat generated diagrams as durable source until a future change promotes
 a specific output set into version control.
 
-`architecture-check-fresh` also enforces closed wiring parity: controller
-records in `Web/Types.hs` must be routed and mounted exactly once, and every
+`architecture-check-fresh` regenerates the whole-module DOT evidence but skips
+its expensive, unreadable whole-graph SVG layout; run `architecture-module-graph`
+explicitly when that SVG is required, or prefer a focused `module` query.
+It also enforces closed wiring parity: controller records in `Web/Types.hs` must be routed and mounted exactly once, and every
 top-level `frontend/ts/app*.ts` bundle must be loaded exactly once by
 `Web/View/Layout.hs`. Each exception's accountable subsystem owner and rationale
 live in `scripts/architecture/wiring-policy.mjs`; generated JavaScript byte drift stays
