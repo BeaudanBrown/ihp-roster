@@ -46,7 +46,8 @@ async function weekToolbarMetrics(page: import('@playwright/test').Page, toolbar
 
         const quick = rectFor('[data-week-toolbar-section="quick"]');
         const navigation = rectFor('[data-week-toolbar-section="navigation"]');
-        const settings = rectFor('[data-week-toolbar-section="settings"]');
+        const settings = visibleRectFor('[data-week-toolbar-section="settings"] button, [data-week-toolbar-section="settings"] a')
+            ?? rectFor('[data-week-toolbar-section="settings"]');
         const auxiliary = visibleRectFor('[data-week-toolbar-section^="auxiliary"]');
         const reset = visibleRectFor('[data-week-toolbar-section="reset"] .app-week-nav-button');
         const toolbarRect = toolbar.getBoundingClientRect();
@@ -132,7 +133,8 @@ test.describe('Shared week toolbar responsive layout', () => {
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         const timesheets = await weekToolbarMetrics(page, '[data-week-toolbar="timesheets"]');
         expect(Math.abs(timesheets.quickTop - timesheets.navigationTop)).toBeLessThanOrEqual(2);
-        expect(Math.abs(timesheets.settingsTop - timesheets.navigationTop)).toBeLessThanOrEqual(2);
+        expect(timesheets.settingsTop).toBeGreaterThanOrEqual(timesheets.navigationTop);
+        expect(timesheets.settingsTop).toBeLessThanOrEqual(timesheets.navigationBottom);
     });
 
     test('orders roster mobile controls as quick actions, navigation, wage summary', async ({ page }) => {

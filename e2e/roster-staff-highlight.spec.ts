@@ -87,6 +87,19 @@ async function gridSlotMetrics(page: Page, staffKey: string): Promise<GridSlotMe
 
 test.describe('Roster staff shift highlight', () => {
     test.use({ viewport: { width: 1440, height: 900 } });
+    test.afterEach(() => {
+        runSql(`
+            UPDATE roster_weeks
+            SET is_live = FALSE, updated_at = NOW()
+            WHERE id = 'a1000000-0000-0000-0000-000000000051';
+            UPDATE roster_slots
+            SET assignment_state = 'staff',
+                staff_id = 'a1000000-0000-0000-0000-000000000031',
+                deleted_at = NULL,
+                updated_at = NOW()
+            WHERE id = 'a1000000-0000-0000-0000-000000000071';
+        `);
+    });
 
     test('highlights the assigned slot outline in the row grid without changing cell borders', async ({ page }) => {
         await openRoster(page, { email: 'e2e-test@example.com' });
@@ -111,6 +124,14 @@ test.describe('Roster staff shift highlight', () => {
     });
 
     test('keeps staff-linked row highlights on a live read-only roster', async ({ page }) => {
+        runSql(`
+            UPDATE roster_slots
+            SET assignment_state = 'staff',
+                staff_id = 'a0000000-0000-0000-0000-000000000101',
+                deleted_at = NULL,
+                updated_at = NOW()
+            WHERE id = 'a1000000-0000-0000-0000-000000000071';
+        `);
         await openRoster(page, { email: 'e2e-test@example.com', ensureEditable: true });
         await chooseRosterLayout(page, 'day_rows');
 

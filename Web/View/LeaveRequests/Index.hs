@@ -740,9 +740,9 @@ renderManagerSectionList listFragmentId requests staffMembers currentViewerStaff
                 |]
 
 renderManagerLeaveRequestRow :: (?context :: ControllerContext) => [Staff] -> Maybe UUID -> Bool -> LeaveRequest -> Html
-renderManagerLeaveRequestRow staffMembers currentViewerStaffId showActions leaveRequest =
-    SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightMember leaveStaffPeriodsLinkedHighlight ("staff:" <> tshow leaveRequest.staffId) Nothing [hsx|
-    <article class="leave-request-row">
+renderManagerLeaveRequestRow staffMembers currentViewerStaffId showActions leaveRequest = [hsx|
+    <article class="leave-request-row"
+             {...SurfaceLinkedHighlight.frontendSurfaceLinkedHighlightMemberAttrs leaveStaffPeriodsLinkedHighlight ("staff:" <> tshow leaveRequest.staffId) Nothing}>
         <div class="leave-request-row-staff">
             <div class="leave-request-row-name">{resolveStaffName leaveRequest.staffId staffMembers}</div>
             <div class="leave-request-row-status">{renderStatusBadge leaveRequest.status}</div>

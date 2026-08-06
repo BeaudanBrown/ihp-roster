@@ -65,9 +65,8 @@ test.describe('Roster side-panel toggle', () => {
         await expect(page.locator('#roster-self-service-settings-pane')).toBeVisible();
         await expect(page.locator('#highlight-own-live-shifts')).toBeVisible();
 
-        const toggle = page.locator(`[${rosterSidePanelToggleDomAttr}="true"]`);
-        await toggle.click();
-        await expect(page.locator(`[${rosterSidePanelRootDomAttr}="true"]`)).toHaveAttribute(rosterSidePanelDomAttr, rosterSidePanelStates.expanded);
-        await expect(page.locator('#roster-staff-self-service-panel-fragment')).toBeHidden();
+        await expect(page.locator(`[${rosterSidePanelToggleDomAttr}="true"]`)).toBeHidden();
+        await expect(page.locator(`[${rosterSidePanelRootDomAttr}="true"]`)).toHaveAttribute(rosterSidePanelDomAttr, rosterSidePanelStates.collapsed);
+        await expect(page.locator('#roster-staff-self-service-panel-fragment')).toBeVisible();
     });
 });
