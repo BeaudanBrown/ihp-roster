@@ -995,6 +995,8 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "toggle-roster-wage-estimates"
                        , "sort-roster-week"
                        , "toggle-roster-week-live-status"
+                       , "show-roster-notification-confirmation"
+                       , "create-roster-notification-run"
                        , "toggle-roster-assignment-filters"
                        , "copy-roster-week"
                        , "create-roster-week-slot-definition"
