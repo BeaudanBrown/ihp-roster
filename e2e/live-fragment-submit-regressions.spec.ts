@@ -242,7 +242,6 @@ test.describe('HTMX submit regressions', () => {
         await page.getByRole('button', { name: 'Save' }).click();
 
         await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
-        await expect(page).not.toHaveURL(/showApproved|showAllStaff|showSuggestions/);
         await expect(page.locator('#timesheet-day-section-0')).toContainText('10:30 AM');
         await expect(page.locator('#timesheet-day-section-0')).toContainText('2:30 PM');
         await expect(page.locator('.timesheet-entry-card[data-timesheet-entry-approved="true"]')).toHaveCount(0);

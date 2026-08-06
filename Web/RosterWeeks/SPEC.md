@@ -119,8 +119,8 @@ server confirmation.
 ## Presentation And Interaction
 
 Registered `RosterSurface` contracts own fragments, resources, roles, action
-fields, drag/drop compatibility, overlays, tabs, sorting, fullscreen, column
-editing, image export, week overview, and typed request context. Haskell owns
+fields, drag/drop compatibility, overlays, tabs, sorting, SidePanel visibility,
+column editing, image export, week overview, and typed request context. Haskell owns
 payloads, exact copy/business decisions, and opaque correlation keys. Generic
 TypeScript owns only mechanics. Raw IDs, classes, or feature-specific browser
 parsers must not become parallel authority.

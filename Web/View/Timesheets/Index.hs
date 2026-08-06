@@ -336,7 +336,7 @@ renderTimesheetHideApprovedPreferenceForm weekOffset selectedStaffFilterId hideA
         [hsx|
             <input type="hidden" name={surfaceFieldNameFrom @Surface.WeekOffset fields} value={tshow weekOffset} />
             {renderOptionalStaffFilterField (surfaceFieldNameFrom @Surface.StaffFilterId fields) selectedStaffFilterId}
-            {renderTimesheetMenuToggle "timesheet-hide-approved-toggle" (surfaceToggleScalarField @Surface.HideApproved fields True False) hideApproved "Hide approved"}
+            {renderTimesheetPreferenceToggle "timesheet-hide-approved-toggle" (surfaceToggleScalarField @Surface.HideApproved fields True False) hideApproved "Hide approved"}
         |]
   where
     fields = TimesheetsAction.toggleTimesheetHideApprovedActionFields weekOffset hideApproved selectedStaffFilterId
@@ -352,7 +352,7 @@ renderTimesheetShowSuggestionsPreferenceForm weekOffset selectedStaffFilterId sh
         [hsx|
             <input type="hidden" name={surfaceFieldNameFrom @Surface.WeekOffset fields} value={tshow weekOffset} />
             {renderOptionalStaffFilterField (surfaceFieldNameFrom @Surface.StaffFilterId fields) selectedStaffFilterId}
-            {renderTimesheetMenuToggle "timesheet-show-suggestions-toggle" (surfaceToggleScalarField @Surface.ShowTimesheetSuggestions fields True False) showTimesheetSuggestions "Show suggestions"}
+            {renderTimesheetPreferenceToggle "timesheet-show-suggestions-toggle" (surfaceToggleScalarField @Surface.ShowTimesheetSuggestions fields True False) showTimesheetSuggestions "Show suggestions"}
         |]
   where
     fields = TimesheetsAction.toggleTimesheetShowSuggestionsActionFields weekOffset showTimesheetSuggestions selectedStaffFilterId
@@ -404,8 +404,8 @@ renderTimesheetStaffFilter fields selectedStaffFilterId staffMembers = [hsx|
                 </option>
             |]
 
-renderTimesheetMenuToggle :: Text -> ToggleFieldBinding -> Bool -> Text -> Html
-renderTimesheetMenuToggle inputId binding isChecked label = [hsx|
+renderTimesheetPreferenceToggle :: Text -> ToggleFieldBinding -> Bool -> Text -> Html
+renderTimesheetPreferenceToggle inputId binding isChecked label = [hsx|
     <div class="timesheet-settings-toggle">
         {renderTimesheetToggleButton inputId binding isChecked label}
     </div>

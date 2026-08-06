@@ -116,7 +116,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "Pay preview"
                 response `responseBodyShouldNotContain` "timesheet-wage-preview"
 
-        it "resets This week navigation canonically and ignores retired display params" $ withContext do
+        it "resets This week navigation canonically" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Current Week Venue"
                 user <- createUserRecord "timesheet-current-week@example.com" "staff" True
@@ -127,55 +127,17 @@ tests = aroundAll withDatabaseTestContext do
                 let expectedOffset = venueWeekOffsetForDay venueConfig today
 
                 response <- withUserAndCurrentVenue user venue.id do
-                    callActionWithParams TimesheetsAction
-                        [ ("weekOffset", "0")
-                        , ("showApproved", "true")
-                        , ("showAllStaff", "false")
-                        , ("showTimesheetSuggestions", "false")
-                        ]
+                    callActionWithParams TimesheetsAction [("weekOffset", "0")]
 
                 response `responseStatusShouldBe` status302
                 let location = cs <$> lookup "Location" (responseHeaders response)
                 location `shouldSatisfy` maybe False (Text.isInfixOf ("weekOffset=" <> tshow expectedOffset))
-                location `shouldSatisfy` maybe False (not . Text.isInfixOf "showApproved")
-                location `shouldSatisfy` maybe False (not . Text.isInfixOf "showAllStaff")
-                location `shouldSatisfy` maybe False (not . Text.isInfixOf "showSuggestions")
-
-                legacyWeekResponse <- withUserAndCurrentVenue user venue.id do
-                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 4 }
-                        [ ("showApproved", "true")
-                        , ("showAllStaff", "false")
-                        , ("showSuggestions", "false")
-                        , ("hideApproved", "false")
-                        , ("showTimesheetSuggestions", "false")
-                        ]
-                legacyWeekResponse `responseStatusShouldBe` status302
-                lookup "Location" (responseHeaders legacyWeekResponse)
-                    `shouldBe` Just "http://localhost/ShowTimesheetWeek?weekOffset=4"
-
                 unauthorizedFilterResponse <- withUserAndCurrentVenue user venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 4 }
                         [("staffFilterId", idToParam staff.id)]
                 unauthorizedFilterResponse `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders unauthorizedFilterResponse)
                     `shouldBe` Just "http://localhost/ShowTimesheetWeek?weekOffset=4"
-
-        it "ignores retired direct-route display params" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Timesheet Partial Route Venue"
-                user <- createUserRecord "timesheet-partial-route@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user Worker
-                _ <- createStaffRecord venue (Just user) "Partial" "Route"
-
-                response <- withUserAndCurrentVenue user venue.id do
-                    callActionWithParams TimesheetsAction [("showApproved", "true")]
-
-                response `responseStatusShouldBe` status302
-                let location = cs <$> lookup "Location" (responseHeaders response)
-                location `shouldSatisfy` maybe False (Text.isInfixOf "weekOffset=")
-                location `shouldSatisfy` maybe False (not . Text.isInfixOf "showApproved")
-                location `shouldSatisfy` maybe False (not . Text.isInfixOf "showAllStaff")
-                location `shouldSatisfy` maybe False (not . Text.isInfixOf "showSuggestions")
 
         it "persists display preferences globally and returns authoritative clean-url fragments" $ withContext do
             withCleanDb do
@@ -218,8 +180,6 @@ tests = aroundAll withDatabaseTestContext do
                 reloaded `responseStatusShouldBe` status200
                 reloaded `responseBodyShouldContain` "name=\"hideApproved\" value=\"false\""
                 reloaded `responseBodyShouldContain` "name=\"showTimesheetSuggestions\" value=\"false\""
-                reloaded `responseBodyShouldNotContain` "showApproved="
-                reloaded `responseBodyShouldNotContain` "showAllStaff="
 
         it "builds typed FrontendSurface mount metadata for the current timesheet query state" $ withContext do
             withCurrentControllerContext do
@@ -245,9 +205,6 @@ tests = aroundAll withDatabaseTestContext do
                         <> map TimesheetsLive.timesheetDaySectionLiveFragment [0 .. 6]
                 fragmentTargets `shouldBe` ["timesheet-week-toolbar", "timesheet-day-columns", "timesheet-side-panel-content"] <> map (\dayOffset -> "timesheet-day-section-" <> tshow dayOffset) [0 .. 6]
                 fragmentUrls `shouldSatisfy` all (Text.isInfixOf "weekOffset=2")
-                fragmentUrls `shouldSatisfy` all (not . Text.isInfixOf "showApproved")
-                fragmentUrls `shouldSatisfy` all (not . Text.isInfixOf "showAllStaff")
-                fragmentUrls `shouldSatisfy` all (not . Text.isInfixOf "showSuggestions")
 
         it "records touched resources for timesheet entry mutations" $ withContext do
             withCleanDb do
@@ -289,13 +246,6 @@ tests = aroundAll withDatabaseTestContext do
                         pure (response, daySectionRef)
 
                 liveFragmentResponseShouldRenderTarget response fragmentRef
-
-                legacyFragmentResponse <- withUserAndCurrentVenue user venue.id do
-                    callActionWithParams ShowTimesheetDaySectionFragmentAction { weekOffset = 0, dayOffset = 0 }
-                        [("hideApproved", "false"), ("showTimesheetSuggestions", "false")]
-                legacyFragmentResponse `responseStatusShouldBe` status302
-                lookup "Location" (responseHeaders legacyFragmentResponse)
-                    `shouldBe` Just "http://localhost/ShowTimesheetDaySectionFragment?dayOffset=0&weekOffset=0"
 
         it "renders unified toolbar and day-columns fragments for HTMX week navigation" $ withContext do
             withCleanDb do
@@ -1106,8 +1056,6 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
                 response `responseBodyShouldContain` "name=\"showTimesheetSuggestions\" value=\"false\""
                 response `responseBodyShouldContain` "href=\"/ShowTimesheetWeek?weekOffset=1\""
-                response `responseBodyShouldNotContain` "showApproved="
-                response `responseBodyShouldNotContain` "showAllStaff="
 
         it "quick-creates one unapproved snapshot from an authorized roster suggestion" $ withContext do
             withCleanDb do
@@ -1833,7 +1781,6 @@ tests = aroundAll withDatabaseTestContext do
                         ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldNotContain` "name=\"showAllStaff\""
                 response `responseBodyShouldContain` "Hide approved"
                 response `responseBodyShouldContain` "Show suggestions"
                 response `responseBodyShouldContain` "timesheet-side-panel"
@@ -1929,9 +1876,6 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-surface-config=\""
                 response `responseBodyShouldNotContain` "data-live-update-url="
                 response `responseBodyShouldContain` cs ("staffFilterId=" <> tshow staff.id)
-                response `responseBodyShouldNotContain` "showApproved="
-                response `responseBodyShouldNotContain` "showAllStaff="
-                response `responseBodyShouldNotContain` "showSuggestions="
 
         it "filters manager timesheet views to a selected staff member" $ withContext do
             withCleanDb do
@@ -1992,10 +1936,10 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "timesheet-shape-bar"
                 response `responseBodyShouldContain` "timesheet-shape-segment-shift"
 
-        it "renders the timesheet filter menu form against the canonical week path" $ withContext do
+        it "renders Timesheets Settings forms against the canonical week path" $ withContext do
             withCleanDb do
-                venue <- createVenueWithConfig "Timesheet Menu Venue"
-                manager <- createUserRecord "timesheet-menu-manager@example.com" "staff" True
+                venue <- createVenueWithConfig "Timesheet Settings Venue"
+                manager <- createUserRecord "timesheet-settings-manager@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager Manager
                 _ <- createStaffRecord venue (Just manager) "Mia" "Manager"
 
@@ -2313,11 +2257,7 @@ tests = aroundAll withDatabaseTestContext do
                         StartSupportImpersonationAction
                         [("userId", cs (inputValue manager.id))]
                     callActionWithParams ApproveTimesheetEntryAction { timesheetEntryId = entry.id }
-                        [ ("weekOffset", "0")
-                        , ("showApproved", "false")
-                        , ("showAllStaff", "true")
-                        , ("showSuggestions", "true")
-                        ]
+                        [("weekOffset", "0")]
 
                 response `responseStatusShouldBe` status302
                 updatedEntry <- fetch entry.id

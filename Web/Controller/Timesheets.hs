@@ -38,17 +38,13 @@ reportTimesheetSurfaceRequestErrors ::
 reportTimesheetSurfaceRequestErrors errors =
     setErrorMessage ("Check the timesheet controls: " <> surfaceRequestFieldErrorsMessage errors)
 
-retiredTimesheetDisplayParamsPresent :: (?request :: Request) => Bool
-retiredTimesheetDisplayParamsPresent =
-    any hasParam ["showApproved", "showAllStaff", "showSuggestions", "hideApproved", "showTimesheetSuggestions"]
-
 staffFilterParamNeedsCanonicalRedirect :: (?request :: Request) => Maybe UUID -> Maybe UUID -> Bool
 staffFilterParamNeedsCanonicalRedirect requested canonical =
     hasParam "staffFilterId" && (isNothing requested || requested /= canonical)
 
 timesheetRequestNeedsCanonicalRedirect :: (?request :: Request) => Maybe UUID -> Maybe UUID -> Bool
 timesheetRequestNeedsCanonicalRedirect requested canonical =
-    retiredTimesheetDisplayParamsPresent || staffFilterParamNeedsCanonicalRedirect requested canonical
+    staffFilterParamNeedsCanonicalRedirect requested canonical
 
 requireTimesheetSurfaceState ::
     (?context :: ControllerContext, ?request :: Request) =>

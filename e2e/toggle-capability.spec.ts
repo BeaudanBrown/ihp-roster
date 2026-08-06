@@ -174,7 +174,6 @@ test.describe('Generated toggle capability', () => {
         );
         await hideApprovedRoot.click();
         await requestPromise;
-        await expect(page).not.toHaveURL(/showApproved|showAllStaff|showSuggestions/, { timeout: E2E_TIMEOUT.navigation });
         await page.reload();
         await openTimesheetSettings(page);
         hideApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Hide approved' });
@@ -187,30 +186,7 @@ test.describe('Generated toggle capability', () => {
         );
         await hideApprovedRoot.click();
         await requestPromise;
-        await expect(page).not.toHaveURL(/showApproved|showAllStaff|showSuggestions/, { timeout: E2E_TIMEOUT.navigation });
         resetTimesheetDisplayPreferences('e2e-test@example.com');
-    });
-
-    test('omits retired staff-scope state when a worker changes Timesheet preferences', async ({ page }) => {
-        resetTimesheetDisplayPreferences('e2e-worker@example.com');
-        await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
-        await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
-        await openTimesheetSettings(page);
-
-        const hiddenStaffScope = page.locator('input[type="hidden"][name="showAllStaff"]');
-        await expect(hiddenStaffScope).toHaveCount(0);
-        await expect(page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Show all staff' })).toHaveCount(0);
-
-        const hideApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Hide approved' });
-        const requestPromise = page.waitForRequest((request) =>
-            request.method() === 'POST'
-            && new URL(request.url()).pathname.includes('ToggleTimesheetHideApproved'),
-        );
-        await hideApprovedRoot.click();
-        const request = await requestPromise;
-        expect((await request.response())?.ok()).toBe(true);
-        await expect(page).not.toHaveURL(/showApproved|showAllStaff|showSuggestions/, { timeout: E2E_TIMEOUT.navigation });
-        resetTimesheetDisplayPreferences('e2e-worker@example.com');
     });
 
     test('controls break fields by keyboard after HTMX insertion and rejects malformed config without mutation', async ({ page }) => {

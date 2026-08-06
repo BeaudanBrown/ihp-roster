@@ -291,7 +291,6 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-roster-column-editing=\"inactive\""
                 response `responseBodyShouldContain` "data-bepis-roster-column-edit-start=\"true\""
                 response `responseBodyShouldContain` "data-bepis-roster-column-edit-done=\"true\""
-                response `responseBodyShouldNotContain` "data-roster-fullscreen"
                 response `responseBodyShouldNotContain` "data-roster-column-"
                 response `responseBodyShouldContain` "id=\"roster-staff-panel-settings-pane\""
                 response `responseBodyShouldContain` ("data-bepis-roster-staff-highlight-source=\"staff:" <> cs (tshow panelStaff.id) <> "\"")

@@ -494,7 +494,6 @@ test.describe('Mobile experience smoke', () => {
 
         await openTimesheetSettings(page);
         await page.locator('label', { hasText: 'Show suggestions' }).click();
-        await expect(page).not.toHaveURL(/showApproved|showAllStaff|showSuggestions/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#timesheet-day-columns')).toBeVisible();
         await expect(page.locator('#timesheet-week-toolbar')).toBeVisible();
         const afterFilterScroll = await readScroll();
