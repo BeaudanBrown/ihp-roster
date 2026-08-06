@@ -6,7 +6,9 @@ module Application.RosterNotification.Delivery
     ) where
 
 import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterNotificationStatusResource)
 import Application.Helper.Mail
+import Application.Helper.SurfaceResource (liveMutationResult)
 import Application.RosterNotification
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -18,6 +20,7 @@ import IHP.EnvVar (envOrDefault)
 import IHP.FrameworkConfig (ConfigProvider, FrameworkConfig)
 import IHP.Mail (sendMail)
 import Web.Mail.RosterNotification
+import Web.SurfaceInvalidation (invalidateTouchedResourcesWithoutContext)
 import Web.RosterWeeks.Paths (rosterWeekUrl)
 
 data RosterNotificationDeliveryRuntime = RosterNotificationDeliveryRuntime
@@ -75,6 +78,9 @@ performRosterNotificationDeliveryJobWith runtime appJob = do
             |> set #lockedAt Nothing
             |> set #lockedBy Nothing
             |> updateRecord
+    void $
+        invalidateTouchedResourcesWithoutContext "roster.notification.delivery.complete" $
+            liveMutationResult () [rosterNotificationStatusResource run.rosterGroupId run.weekOffset]
 
 decodeAndValidatePayload :: AppJob -> IO RosterNotificationDeliveryPayload
 decodeAndValidatePayload appJob = do

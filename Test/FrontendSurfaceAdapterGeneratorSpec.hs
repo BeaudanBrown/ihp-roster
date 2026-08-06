@@ -506,7 +506,7 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
         extraDiagnosticCodes `shouldContain` ["missing-adapter-scope-home"]
 
     it "publishes exactly one production home for every eligible Action declaration" do
-        length registeredSurfaceAdapterRegistry.surfaceActionAdapterHomes `shouldBe` 53
+        length registeredSurfaceAdapterRegistry.surfaceActionAdapterHomes `shouldBe` 55
         case generateSurfaceActionAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
             Left diagnostics -> expectationFailure (cs (show diagnostics))
             Right generatedModules ->

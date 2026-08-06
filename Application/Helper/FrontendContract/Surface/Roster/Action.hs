@@ -5,6 +5,8 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
     , addRosterRowActionFields
     , copyRosterWeekAction
     , copyRosterWeekActionFields
+    , createRosterNotificationRunAction
+    , createRosterNotificationRunActionFields
     , createRosterWeekSlotDefinitionAction
     , createRosterWeekSlotDefinitionActionFields
     , deleteRosterWeekSlotDefinitionAction
@@ -26,6 +28,8 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
     , removeRosterRowActionFields
     , sortRosterWeekAction
     , sortRosterWeekActionFields
+    , showRosterNotificationConfirmationAction
+    , showRosterNotificationConfirmationActionFields
     , toggleRosterAssignmentFiltersAction
     , toggleRosterAssignmentFiltersActionFields
     , toggleRosterDayClosedAction
@@ -46,6 +50,8 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (addR
                                                                             applyRosterTemplateApplicationActionFields,
                                                                             copyRosterWeekAction,
                                                                             copyRosterWeekActionFields,
+                                                                            createRosterNotificationRunAction,
+                                                                            createRosterNotificationRunActionFields,
                                                                             createRosterWeekSlotDefinitionAction,
                                                                             createRosterWeekSlotDefinitionActionFields,
                                                                             deleteRosterWeekSlotDefinitionAction,
@@ -67,6 +73,8 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (addR
                                                                             removeRosterRowActionFields,
                                                                             sortRosterWeekAction,
                                                                             sortRosterWeekActionFields,
+                                                                            showRosterNotificationConfirmationAction,
+                                                                            showRosterNotificationConfirmationActionFields,
                                                                             toggleRosterAssignmentFiltersAction,
                                                                             toggleRosterAssignmentFiltersActionFields,
                                                                             toggleRosterDayClosedAction,

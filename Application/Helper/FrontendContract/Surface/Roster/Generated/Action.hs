@@ -10,6 +10,8 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , applyRosterTemplateApplicationActionFields
     , copyRosterWeekAction
     , copyRosterWeekActionFields
+    , createRosterNotificationRunAction
+    , createRosterNotificationRunActionFields
     , createRosterWeekSlotDefinitionAction
     , createRosterWeekSlotDefinitionActionFields
     , deleteRosterWeekSlotDefinitionAction
@@ -29,6 +31,8 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , previewRosterTemplateApplicationActionFields
     , removeRosterRowAction
     , removeRosterRowActionFields
+    , showRosterNotificationConfirmationAction
+    , showRosterNotificationConfirmationActionFields
     , sortRosterWeekAction
     , sortRosterWeekActionFields
     , toggleRosterAssignmentFiltersAction
@@ -128,6 +132,16 @@ parseCopyRosterWeekActionParams =
         @(AdapterFamilySurface Types3.RosterAdapterFamily)
         @Types2.CopyRosterWeek
 
+createRosterNotificationRunActionFields :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.CreateRosterNotificationRun
+createRosterNotificationRunActionFields =
+    noSurfaceActionFields
+
+createRosterNotificationRunAction :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.CreateRosterNotificationRun -> FrontendSurfaceAction
+createRosterNotificationRunAction =
+    frontendSurfaceAction
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.CreateRosterNotificationRun
+
 createRosterWeekSlotDefinitionActionFields :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.CreateRosterWeekSlotDefinition
 createRosterWeekSlotDefinitionActionFields =
     noSurfaceActionFields
@@ -225,6 +239,16 @@ removeRosterRowAction =
     frontendSurfaceAction
         @(AdapterFamilySurface Types3.RosterAdapterFamily)
         @Types2.RemoveRosterRow
+
+showRosterNotificationConfirmationActionFields :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ShowRosterNotificationConfirmation
+showRosterNotificationConfirmationActionFields =
+    noSurfaceActionFields
+
+showRosterNotificationConfirmationAction :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ShowRosterNotificationConfirmation -> FrontendSurfaceAction
+showRosterNotificationConfirmationAction =
+    frontendSurfaceAction
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.ShowRosterNotificationConfirmation
 
 sortRosterWeekActionFields :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.SortRosterWeek
 sortRosterWeekActionFields =

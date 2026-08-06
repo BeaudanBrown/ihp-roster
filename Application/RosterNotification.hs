@@ -4,11 +4,16 @@ module Application.RosterNotification
     , RosterNotificationRecipient (..)
     , RosterNotificationSkippedRecipient (..)
     , RosterNotificationSkippedReason (..)
+    , RosterNotificationAudience (..)
+    , RosterNotificationRunSummary (..)
     , RosterNotificationDeliveryPayload (..)
     , rosterNotificationDeliveryJobKind
     , rosterNotificationPayloadSchemaVersion
     , rosterNotificationSnapshotSchemaVersion
     , createRosterNotificationRun
+    , createRosterNotificationRunInCurrentTransaction
+    , fetchRosterNotificationAudience
+    , fetchLatestRosterNotificationRunSummary
     , decodeRosterNotificationSnapshot
     , decodeRosterNotificationRecipients
     , decodeRosterNotificationSkippedRecipients
@@ -25,6 +30,7 @@ import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays)
 import Generated.Types hiding (createRosterNotificationRun)
 import IHP.ControllerPrelude
+import IHP.Job.Types (JobStatus (..))
 import IHP.ModelSupport (withTransaction)
 
 rosterNotificationDeliveryJobKind :: Text
@@ -80,6 +86,23 @@ data RosterNotificationSkippedRecipient = RosterNotificationSkippedRecipient
     { skippedStaffId :: !UUID
     , skippedName    :: !Text
     , skippedReason  :: !RosterNotificationSkippedReason
+    }
+    deriving (Eq, Show)
+
+data RosterNotificationAudience = RosterNotificationAudience
+    { audienceRecipients        :: ![RosterNotificationRecipient]
+    , audienceSkippedRecipients :: ![RosterNotificationSkippedRecipient]
+    }
+    deriving (Eq, Show)
+
+data RosterNotificationRunSummary = RosterNotificationRunSummary
+    { summaryRun             :: !RosterNotificationRun
+    , summaryRequesterEmail  :: !Text
+    , summaryRecipientCount  :: !Int
+    , summarySkippedCount    :: !Int
+    , summaryDeliveredCount  :: !Int
+    , summaryInProgressCount :: !Int
+    , summaryFailedCount     :: !Int
     }
     deriving (Eq, Show)
 
@@ -209,32 +232,41 @@ createRosterNotificationRun ::
     RosterWeek ->
     IO RosterNotificationRun
 createRosterNotificationRun actor suppliedRosterWeek =
-    withTransaction do
-        persistedActor <- fetch actor.id
-        rosterWeek <- fetch suppliedRosterWeek.id
-        unless rosterWeek.isLive (fail "Roster notification runs require a live roster")
-        venue <- fetch (Id rosterWeek.venueId :: Id Venue)
-        rosterGroup <- fetch (Id rosterWeek.rosterGroupId :: Id RosterGroup)
-        unless (rosterGroup.venueId == unpackId venue.id) (fail "Roster notification roster group is outside the venue")
-        venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-        let weekStart = venueWeekStartDate venueConfig rosterWeek.weekOffset
-        snapshot <- buildRosterSnapshot venue rosterGroup rosterWeek weekStart
-        (recipients, skippedRecipients) <- snapshotRosterRecipients venue rosterGroup
-        run <-
-            newRecord @RosterNotificationRun
-                |> set #venueId (unpackId venue.id)
-                |> set #rosterGroupId (unpackId rosterGroup.id)
-                |> set #rosterWeekId (unpackId rosterWeek.id)
-                |> set #weekOffset rosterWeek.weekOffset
-                |> set #weekStart weekStart
-                |> set #snapshotSchemaVersion rosterNotificationSnapshotSchemaVersion
-                |> set #rosterSnapshot (Aeson.toJSON snapshot)
-                |> set #recipientSnapshot (Aeson.toJSON recipients)
-                |> set #skippedRecipientSnapshot (Aeson.toJSON skippedRecipients)
-                |> set #requestedByUserId (unpackId persistedActor.id)
-                |> createRecord
-        forM_ recipients (enqueueRosterNotificationDelivery run persistedActor venue)
-        pure run
+    withTransaction (createRosterNotificationRunInCurrentTransaction actor suppliedRosterWeek)
+
+createRosterNotificationRunInCurrentTransaction ::
+    (?modelContext :: ModelContext) =>
+    User ->
+    RosterWeek ->
+    IO RosterNotificationRun
+createRosterNotificationRunInCurrentTransaction actor suppliedRosterWeek = do
+    persistedActor <- fetch actor.id
+    rosterWeek <- fetch suppliedRosterWeek.id
+    unless rosterWeek.isLive (fail "Roster notification runs require a live roster")
+    venue <- fetch (Id rosterWeek.venueId :: Id Venue)
+    rosterGroup <- fetch (Id rosterWeek.rosterGroupId :: Id RosterGroup)
+    unless (rosterGroup.venueId == unpackId venue.id) (fail "Roster notification roster group is outside the venue")
+    venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+    let weekStart = venueWeekStartDate venueConfig rosterWeek.weekOffset
+    snapshot <- buildRosterSnapshot venue rosterGroup rosterWeek weekStart
+    audience <- fetchRosterNotificationAudience venue rosterGroup
+    let recipients = audience.audienceRecipients
+    let skippedRecipients = audience.audienceSkippedRecipients
+    run <-
+        newRecord @RosterNotificationRun
+            |> set #venueId (unpackId venue.id)
+            |> set #rosterGroupId (unpackId rosterGroup.id)
+            |> set #rosterWeekId (unpackId rosterWeek.id)
+            |> set #weekOffset rosterWeek.weekOffset
+            |> set #weekStart weekStart
+            |> set #snapshotSchemaVersion rosterNotificationSnapshotSchemaVersion
+            |> set #rosterSnapshot (Aeson.toJSON snapshot)
+            |> set #recipientSnapshot (Aeson.toJSON recipients)
+            |> set #skippedRecipientSnapshot (Aeson.toJSON skippedRecipients)
+            |> set #requestedByUserId (unpackId persistedActor.id)
+            |> createRecord
+    forM_ recipients (enqueueRosterNotificationDelivery run persistedActor venue)
+    pure run
 
 buildRosterSnapshot ::
     (?modelContext :: ModelContext) =>
@@ -299,12 +331,12 @@ snapshotShift weekStart dayById definitionById shiftTypeById slot = do
         , shiftTypeName = (.name) <$> (slot.shiftTypeId >>= (`Map.lookup` shiftTypeById))
         }
 
-snapshotRosterRecipients ::
+fetchRosterNotificationAudience ::
     (?modelContext :: ModelContext) =>
     Venue ->
     RosterGroup ->
-    IO ([RosterNotificationRecipient], [RosterNotificationSkippedRecipient])
-snapshotRosterRecipients venue rosterGroup = do
+    IO RosterNotificationAudience
+fetchRosterNotificationAudience venue rosterGroup = do
     assignments <- query @StaffRosterGroup
         |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
         |> filterWhere (#deletedAt, Nothing)
@@ -327,10 +359,38 @@ snapshotRosterRecipients venue rosterGroup = do
             , isNothing membership.archivedAt
             ]
     let classified = map (classifyRecipient venue userById activeMembershipUserIds) staffMembers
-    pure
-        ( List.sortOn (.recipientEmail) [recipient | Right recipient <- classified]
-        , List.sortOn (.skippedName) [skipped | Left skipped <- classified]
-        )
+    pure RosterNotificationAudience
+        { audienceRecipients = List.sortOn (.recipientEmail) [recipient | Right recipient <- classified]
+        , audienceSkippedRecipients = List.sortOn (.skippedName) [skipped | Left skipped <- classified]
+        }
+
+fetchLatestRosterNotificationRunSummary ::
+    (?modelContext :: ModelContext) =>
+    RosterWeek ->
+    IO (Maybe RosterNotificationRunSummary)
+fetchLatestRosterNotificationRunSummary rosterWeek = do
+    latestRun <- query @RosterNotificationRun
+        |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+        |> orderByDesc #createdAt
+        |> fetchOneOrNothing
+    forM latestRun \run -> do
+        requester <- fetch (Id run.requestedByUserId :: Id User)
+        recipients <- decodeRosterNotificationRecipients run
+        skippedRecipients <- decodeRosterNotificationSkippedRecipients run
+        jobs <- query @AppJob
+            |> filterWhere (#relatedTable, Just "roster_notification_runs")
+            |> filterWhere (#relatedId, Just (unpackId run.id))
+            |> fetch
+        let statuses = map (.status) jobs
+        pure RosterNotificationRunSummary
+            { summaryRun = run
+            , summaryRequesterEmail = requester.email
+            , summaryRecipientCount = length recipients
+            , summarySkippedCount = length skippedRecipients
+            , summaryDeliveredCount = length (filter (== JobStatusSucceeded) statuses)
+            , summaryInProgressCount = length (filter (`elem` activeAppJobStatuses) statuses)
+            , summaryFailedCount = length (filter (`elem` [JobStatusFailed, JobStatusTimedOut]) statuses)
+            }
 
 classifyRecipient ::
     Venue ->

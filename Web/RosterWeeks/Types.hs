@@ -20,6 +20,8 @@ module Web.RosterWeeks.Types
 import Application.Helper.Conflict (RosterConflict)
 import Application.Helper.FrontendContract.Passkey.Runtime (PasskeySetupPromptMode)
 import Application.Helper.RosterWagePrediction (RosterWagePrediction)
+import Application.RosterNotification (RosterNotificationAudience,
+                                       RosterNotificationRunSummary)
 import Application.RosterTemplates (RosterTemplateLibrary)
 import Data.Map.Strict (Map)
 import Data.Time.Calendar (Day)
@@ -40,6 +42,8 @@ data ShowView = ShowView
     , staffMembers           :: [Staff]
     , panelStaff             :: [RosterStaffPanelEntry]
     , templateLibrary        :: Maybe RosterTemplateLibrary
+    , showNotificationAudience :: Maybe RosterNotificationAudience
+    , showLatestNotificationRun :: Maybe RosterNotificationRunSummary
     , templateLibraryUserId  :: Maybe (Id User)
     , staffSelfServicePanel  :: Maybe RosterStaffSelfServicePanel
     , slotNames              :: [RosterWeekSlotDefinition]
@@ -122,6 +126,8 @@ data RosterStaffPanelRenderModel = RosterStaffPanelRenderModel
     , staffPanelEntries            :: [RosterStaffPanelEntry]
     , staffPanelTemplateLibrary    :: Maybe RosterTemplateLibrary
     , staffPanelTemplateUserId     :: Maybe (Id User)
+    , staffPanelNotificationAudience :: Maybe RosterNotificationAudience
+    , staffPanelLatestNotificationRun :: Maybe RosterNotificationRunSummary
     }
 
 data RosterStaffSelfServicePanel = RosterStaffSelfServicePanel
@@ -165,6 +171,8 @@ data RosterRenderData = RosterRenderData
     , panelStaff            :: [RosterStaffPanelEntry]
     , templateLibrary       :: Maybe RosterTemplateLibrary
     , templateLibraryUserId :: Maybe (Id User)
+    , rosterNotificationAudience :: Maybe RosterNotificationAudience
+    , latestRosterNotificationRun :: Maybe RosterNotificationRunSummary
     , staffSelfServicePanel :: Maybe RosterStaffSelfServicePanel
     , orderedSlotNames      :: [RosterWeekSlotDefinition]
     , shiftTypes            :: [ShiftType]
@@ -192,6 +200,8 @@ data RosterGridRenderModel = RosterGridRenderModel
     , gridPanelStaff            :: [RosterStaffPanelEntry]
     , gridTemplateLibrary       :: Maybe RosterTemplateLibrary
     , gridTemplateLibraryUserId :: Maybe (Id User)
+    , gridNotificationAudience  :: Maybe RosterNotificationAudience
+    , gridLatestNotificationRun :: Maybe RosterNotificationRunSummary
     , gridStaffSelfServicePanel :: Maybe RosterStaffSelfServicePanel
     , gridSlotNames             :: [RosterWeekSlotDefinition]
     , gridShiftTypes            :: [ShiftType]

@@ -116,7 +116,7 @@ renderrosterContentLiveFragmentWithSwap maybeSwapOob gridModel =
     |]
 
 renderRosterLayout :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
-renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridPanelStaff, gridTemplateLibrary, gridTemplateLibraryUserId, gridStaffSelfServicePanel, gridRenderIndexes, gridViewMode } =
+renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridPanelStaff, gridTemplateLibrary, gridTemplateLibraryUserId, gridNotificationAudience, gridLatestNotificationRun, gridStaffSelfServicePanel, gridRenderIndexes, gridViewMode } =
     let rosterSurfaceScope = RosterWeekScopeValue
             { rosterWeekVenueId = gridCurrentRosterGroup.venueId
             , rosterWeekGroupId = gridCurrentRosterGroup.id
@@ -144,6 +144,8 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
                     , staffPanelEntries = gridPanelStaff
                     , staffPanelTemplateLibrary = gridModel.gridTemplateLibrary
                     , staffPanelTemplateUserId = gridModel.gridTemplateLibraryUserId
+                    , staffPanelNotificationAudience = gridNotificationAudience
+                    , staffPanelLatestNotificationRun = gridLatestNotificationRun
                     }
                 else mempty
      in profileHtmlComponent "render.roster.layout" do

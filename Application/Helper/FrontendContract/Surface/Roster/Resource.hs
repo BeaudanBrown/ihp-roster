@@ -6,6 +6,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Resource
     , matchRosterWeekBoundaryConfigResource
     , rosterDayResource
     , rosterEndTimesConfigResource
+    , rosterNotificationStatusResource
     , rosterSlotsContentResource
     , rosterSlotsStructureResource
     , rosterTemplateDraftResource
@@ -20,6 +21,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)
 import Application.Helper.FrontendContract.Surface.Roster.Generated.Resource (rosterDayResource,
                                                                               rosterEndTimesConfigResource,
+                                                                              rosterNotificationStatusResource,
                                                                               rosterSlotsContentResource,
                                                                               rosterSlotsStructureResource,
                                                                               rosterTemplateDraftResource,

@@ -24,6 +24,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterWageRail
     , RosterWeek
     , RosterWeekStructure
+    , RosterNotificationStatus
     , RosterTemplateLibrary
     , RosterTemplateLibraryFragment
     , RosterTemplate
@@ -183,6 +184,8 @@ module Application.Helper.FrontendContract.Surface.Roster
     , ToggleRosterWageEstimates
     , SortRosterWeek
     , ToggleRosterWeekLiveStatus
+    , ShowRosterNotificationConfirmation
+    , CreateRosterNotificationRun
     , ToggleRosterAssignmentFilters
     , CopyRosterWeek
     , CreateRosterWeekSlotDefinition
@@ -215,6 +218,7 @@ data RosterDayTimeline
 
 data RosterWeek
 data RosterWeekStructure
+data RosterNotificationStatus
 data RosterTemplateLibrary
 data RosterTemplate
 data RosterTemplateDraft
@@ -402,6 +406,8 @@ data ToggleRosterWarnings
 data ToggleRosterWageEstimates
 data SortRosterWeek
 data ToggleRosterWeekLiveStatus
+data ShowRosterNotificationConfirmation
+data CreateRosterNotificationRun
 data ToggleRosterAssignmentFilters
 data CopyRosterWeek
 data CreateRosterWeekSlotDefinition
@@ -442,6 +448,7 @@ data RosterTemplateDraftMount
 
 type RosterWeekResource = Resource RosterWeek '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
 type RosterWeekStructureResource = Resource RosterWeekStructure '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
+type RosterNotificationStatusResource = Resource RosterNotificationStatus '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
 type RosterSlotsStructureResource = Resource RosterSlotsStructure '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
 type RosterSlotsContentResource = Resource RosterSlotsContent '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
 type RosterTemplateLibraryResource = Resource RosterTemplateLibrary '[ Field RosterGroupId 'WireUUID ]
@@ -506,7 +513,7 @@ type RosterFragmentBundle =
      , Fragment RosterDayRail '[] '[ 'MountTarget RosterDayRail '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterWageRail '[] '[ 'MountTarget RosterWageRail '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterSlotsGrid '[] '[ 'MountTarget RosterSlotsGrid '[], 'Eager, 'Live, 'DependsOn RosterSlotsStructureResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterSlotsContentResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
-     , Fragment RosterStaffPanel '[] '[ 'MountTarget RosterStaffPanelFragment '[], 'Lazy '[ 'DependsOnFragment RosterContent, 'Contains RosterTemplateLibraryFragment ], 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ] ]
+     , Fragment RosterStaffPanel '[] '[ 'MountTarget RosterStaffPanelFragment '[], 'Lazy '[ 'DependsOnFragment RosterContent, 'Contains RosterTemplateLibraryFragment ], 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterNotificationStatusResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ] ]
      , Fragment RosterWeekOverview '[] '[ 'MountTarget RosterWeekOverviewMount '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ], 'Lazy '[ 'DependsOnFragment RosterContent ], 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ] ]
      , Fragment RosterTemplateLibraryFragment
         '[ Field UserId 'WireUUID ]
@@ -592,6 +599,18 @@ type RosterActionBundle =
          , 'HtmxSwap 'HtmxOuterHTML
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
+         ]
+     , Action ShowRosterNotificationConfirmation
+        '[]
+        '[ 'HtmxMethod 'HtmxGet
+         , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")
+         , 'HtmxSwap 'HtmxInnerHTML
+         ]
+     , Action CreateRosterNotificationRun
+        '[]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")
+         , 'HtmxSwap 'HtmxInnerHTML
          ]
      , Action ToggleRosterAssignmentFilters
         '[ Field HideStaffAtIdealShifts 'WireBool

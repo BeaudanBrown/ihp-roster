@@ -23,6 +23,7 @@ import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurf
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as RosterIntent
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterNotificationStatusResource)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
@@ -38,12 +39,16 @@ import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyV
                                      venueTimePickerFinalSelectableTimeText,
                                      venueTimePickerStartTimeText)
 import Application.Helper.UserPreferences
+import Application.Helper.WeekBoundaries (venueWeekStartDate)
 import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 OverlayButtonAction (..),
                                 ToastOverlayPosition (ToastBottomCenter),
                                 dialogOverlayMountId, errorToast,
                                 renderDialogOverlay, renderToastOob,
                                 successToast)
+import qualified Application.RosterNotification as Notification
+import Application.RosterNotification.Mutations (CreateRosterNotificationRunResult (..),
+                                                  createRosterNotificationRunUnlessActive)
 import Application.RosterShiftAssignment (RosterShiftAssignment (StaffAssignment),
                                           applyRosterShiftAssignment,
                                           copyRosterShiftAssignment,
@@ -84,6 +89,7 @@ import Web.RosterWeeks.Responses (respondWithRosterContent,
                                   respondWithRosterContentError,
                                   respondWithRosterContentUpdate,
                                   respondWithRosterDialogOverlay,
+                                  respondWithRosterFragments,
                                   respondWithRosterFragmentsUpdate,
                                   respondWithRosterResourceInvalidation,
                                   respondWithRosterToast)
@@ -94,6 +100,7 @@ import Web.RosterWeeks.StaffOptions (buildRosterStaffOptionStates,
                                      fetchRosterShiftDialogStaff,
                                      fetchStaffPayConfigurationRequiredIds)
 import Web.RosterWeeks.Types
+import Web.View.RosterWeeks.NotificationDialog (renderRosterNotificationConfirmation)
 import Web.View.RosterWeeks.OccurrenceDialog
 import Web.View.RosterWeeks.Overview (renderWeekOverviewPanelFragment)
 import Web.View.RosterWeeks.ShiftDialog
@@ -104,6 +111,10 @@ import Web.View.RosterWeeks.Timeline (renderRosterDayTimelineContent)
 rosterSurfaceRequestErrorMessage :: [SurfaceRequestFieldError] -> Text
 rosterSurfaceRequestErrorMessage errors =
     "Check the roster controls: " <> surfaceRequestFieldErrorsMessage errors
+
+notificationCountLabel :: Int -> Text -> Text
+notificationCountLabel count singular =
+    tshow count <> " " <> singular <> if count == 1 then "" else "s"
 
 copyOccurrenceSelectionsFromValues :: Maybe Text -> Maybe Text -> Either Text ShiftCopyOccurrenceSelections
 copyOccurrenceSelectionsFromValues startValue endValue = do
@@ -317,6 +328,83 @@ instance Controller RosterWeeksController where
             Right scope -> pure scope
         panelModel <- fetchVisibleRosterStaffPanelRenderModel panelScope rosterGroup.id weekOffset
         respondHtmlProfiled (renderrosterStaffPanelLiveFragment panelModel)
+
+    action currentAction@ShowRosterNotificationConfirmationAction { rosterWeekId } = runBepis currentAction BepisFragmentAction do
+        ensureManagerRole
+        rosterWeek <- fetch rosterWeekId
+        ensureRecordInCurrentVenue rosterWeek.venueId
+        accessDeniedUnless rosterWeek.isLive
+        rosterGroup <- query @RosterGroup
+            |> filterWhere (#id, Id rosterWeek.rosterGroupId)
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> fetchOne
+        venue <- fetch currentVenueId
+        venueConfig <- fetchVenueConfig
+        audience <- Notification.fetchRosterNotificationAudience venue rosterGroup
+        latestRun <- Notification.fetchLatestRosterNotificationRunSummary rosterWeek
+        let weekStart = venueWeekStartDate venueConfig rosterWeek.weekOffset
+        respondHtmlProfiled (renderRosterNotificationConfirmation venue rosterGroup rosterWeek weekStart audience latestRun)
+
+    action currentAction@CreateRosterNotificationRunAction { rosterWeekId } = runBepis currentAction BepisMutationAction do
+        ensureManagerRole
+        ensureVenueWritable
+        rosterWeek <- fetch rosterWeekId
+        ensureRecordInCurrentVenue rosterWeek.venueId
+        accessDeniedUnless rosterWeek.isLive
+        let rosterGroupId = Id rosterWeek.rosterGroupId
+        runResult <- createRosterNotificationRunUnlessActive currentUser rosterWeek
+        case runResult of
+            RosterNotificationRunAlreadyActive ->
+                if isHtmxRequest
+                    then respondWithRosterFragments
+                        rosterGroupId
+                        rosterWeek.weekOffset
+                        [RosterProjectionStaffPanel]
+                        [hsx|
+                            <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+                            {renderToastOob ToastBottomCenter (errorToast "Roster email delivery is already in progress.")}
+                        |]
+                    else do
+                        setErrorMessage "Roster email delivery is already in progress."
+                        redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+            RosterNotificationRunHasNoEligibleRecipients ->
+                if isHtmxRequest
+                    then respondWithRosterFragments
+                        rosterGroupId
+                        rosterWeek.weekOffset
+                        [RosterProjectionStaffPanel]
+                        [hsx|
+                            <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+                            {renderToastOob ToastBottomCenter (errorToast "No eligible recipients are available.")}
+                        |]
+                    else do
+                        setErrorMessage "No eligible recipients are available."
+                        redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+            RosterNotificationRunCreated run -> do
+                recipients <- Notification.decodeRosterNotificationRecipients run
+                skippedRecipients <- Notification.decodeRosterNotificationSkippedRecipients run
+                let queuedCount = length recipients
+                let skippedCount = length skippedRecipients
+                let successMessage =
+                        "Roster email queued for "
+                            <> notificationCountLabel queuedCount "recipient"
+                            <> ". "
+                            <> tshow skippedCount
+                            <> " skipped"
+                            <> "."
+                if isHtmxRequest
+                    then respondWithRosterResourceInvalidation
+                        rosterGroupId
+                        rosterWeek.weekOffset
+                        (Set.singleton (rosterNotificationStatusResource (unpackId rosterGroupId) rosterWeek.weekOffset))
+                        [RosterProjectionStaffPanel]
+                        [hsx|
+                            <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+                            {renderToastOob ToastBottomCenter (successToast successMessage)}
+                        |]
+                    else do
+                        setSuccessMessage successMessage
+                        redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
     action currentAction@ShowRosterWeekDaySectionFragmentAction { weekOffset, rosterDayId } = runBepis currentAction BepisFragmentAction do
         rosterGroupId <- resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId
@@ -1264,7 +1352,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
         timelineTodayUrl <- profileActionSpan "roster.page.timeline_today_url" (buildRosterTimelineTodayUrl currentRosterGroup.id)
 
         case rosterDataOrNothing of
-            Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } ->
+            Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationAudience, latestRosterNotificationRun, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } ->
                 let visibleRosterWeek =
                         if rosterWeek.isLive || hasRole Manager
                             then Just rosterWeek
@@ -1284,6 +1372,8 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
                                 , panelStaff
                                 , templateLibrary
                                 , templateLibraryUserId
+                                , showNotificationAudience = rosterNotificationAudience
+                                , showLatestNotificationRun = latestRosterNotificationRun
                                 , staffSelfServicePanel
                                 , slotNames = orderedSlotNames
                                 , shiftTypes

@@ -42,6 +42,8 @@ tests = aroundAll withDatabaseTestContext do
                 , ("row fragment", callAction (ShowRosterWeekRowFragmentAction 0 "11111111-1111-1111-1111-111111111111" 0))
                 , ("create week", callAction (CreateRosterWeekAction 0))
                 , ("copy week", callAction (CopyRosterWeekAction 0 1))
+                , ("notification confirmation", callAction (ShowRosterNotificationConfirmationAction "11111111-1111-1111-1111-111111111111"))
+                , ("create notification run", callAction (CreateRosterNotificationRunAction "11111111-1111-1111-1111-111111111111"))
                 , ("toggle day", callAction (ToggleRosterDayClosedAction "11111111-1111-1111-1111-111111111111"))
                 , ("add row", callAction (AddRosterRowAction "11111111-1111-1111-1111-111111111111"))
                 , ("remove row", callAction (RemoveRosterRowAction "11111111-1111-1111-1111-111111111111"))
