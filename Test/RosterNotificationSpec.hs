@@ -150,19 +150,27 @@ tests = aroundAll withDatabaseTestContext do
                     >>= updateRecord
                         . set #shiftTypeId actorShift.shiftTypeId
                         . setTestRosterSlotBoundaries defaultWeekEpoch (TimeOfDay 12 0 0) (TimeOfDay 16 0 0)
-                startGate <- newEmptyMVar
-                createRunTask <- async do
-                    readMVar startGate
-                    createRosterNotificationRun actor rosterWeek
-                assignOpenShiftTask <- async do
-                    readMVar startGate
-                    openShift
-                        |> set #assignmentState "staff"
-                        |> set #staffId (Just (unpackId otherStaff.id))
-                        |> updateRecord
-                putMVar startGate ()
-                run <- wait createRunTask
-                _ <- wait assignOpenShiftTask
+                run <- withDatabaseTestContext \notificationContext -> do
+                    startGate <- newEmptyMVar
+                    createRunTask <- async $
+                        withContext
+                            ( do
+                                readMVar startGate
+                                createRosterNotificationRunUnlessActive actor rosterWeek
+                            )
+                            notificationContext
+                    assignOpenShiftTask <- async do
+                        readMVar startGate
+                        openShift
+                            |> set #assignmentState "staff"
+                            |> set #staffId (Just (unpackId otherStaff.id))
+                            |> updateRecord
+                    putMVar startGate ()
+                    creationResult <- wait createRunTask
+                    _ <- wait assignOpenShiftTask
+                    case creationResult of
+                        RosterNotificationRunCreated createdRun -> pure createdRun
+                        _ -> fail "expected concurrent production run creation to succeed"
                 immutableSnapshot <- decodeRosterNotificationSnapshot run
                 appJobs <- query @AppJob
                     |> filterWhere (#relatedTable, Just "roster_notification_runs")

@@ -59,6 +59,7 @@ test.describe('Roster notification workflow', () => {
         const recipientEmail = `${uniqueE2EValue('e2e-roster-notification')}-retry-${testInfo.retry}@example.com`;
         const rosterGroupId = randomUUID();
         const rosterWeekId = randomUUID();
+        const rosterGroupName = uniqueE2EValue('e2e-notification-acceptance');
         runSql(`
             DELETE FROM staff_roster_groups
             WHERE staff_id IN (
@@ -73,7 +74,7 @@ test.describe('Roster notification workflow', () => {
             DELETE FROM users WHERE email LIKE 'e2e-roster-notification-%@example.com';
 
             INSERT INTO roster_groups (id, venue_id, name, sort_order, is_active, is_default)
-            VALUES ('${rosterGroupId}', 'a1000000-0000-0000-0000-000000000001', 'Notification Acceptance', 99, TRUE, FALSE);
+            VALUES ('${rosterGroupId}', 'a1000000-0000-0000-0000-000000000001', '${rosterGroupName}', 99, TRUE, FALSE);
             INSERT INTO roster_weeks (id, venue_id, roster_group_id, week_offset, is_live)
             VALUES ('${rosterWeekId}', 'a1000000-0000-0000-0000-000000000001', '${rosterGroupId}', 0, TRUE);
             INSERT INTO roster_days (roster_week_id, day_offset, is_closed, row_count)
@@ -134,7 +135,7 @@ test.describe('Roster notification workflow', () => {
                 WHERE id = '${rosterWeekId}';
             `);
             const firstMessages = await waitForMailhogMessages(request, recipientEmail, 1, E2E_TIMEOUT.mailhog);
-            expect(mailhogMessageSubject(firstMessages[0])).toContain('Your Notification Acceptance roster');
+            expect(mailhogMessageSubject(firstMessages[0])).toContain(`Your ${rosterGroupName} roster`);
             expect(mailhogMessageText(firstMessages[0])).toContain('You have no assigned shifts in this roster.');
 
             await expect.poll(() => Number.parseInt(querySql(`
@@ -187,6 +188,9 @@ test.describe('Roster notification workflow', () => {
                 UPDATE roster_weeks
                 SET is_live = FALSE
                 WHERE id = '${rosterWeekId}';
+                UPDATE roster_groups
+                SET is_active = FALSE
+                WHERE id = '${rosterGroupId}';
             `);
         }
     });
