@@ -33,8 +33,10 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
 ## Presentation Preferences And Side Panel
 
 - `Hide approved` and `Show suggestions` are global per-user preferences and do
-  not enter Timesheets URLs, fragment requests, or mutation envelopes. Manager
-  staff filtering remains URL-scoped and never grants authority.
+  not enter Bepis-generated Timesheets URLs, fragment requests, or mutation
+  envelopes. Only the viewed week and authorized manager staff filter are URL
+  state; additional query fields are ignored rather than interpreted as
+  compatibility state. Manager staff filtering never grants authority.
 - Timesheets uses the shared transient SidePanel and the same main-card header,
   desktop focus/Escape behavior, and phone stacking as Roster and manager
   Unavailability. Managers receive Staff and Settings; ordinary staff receive Settings only. The manager Staff inventory
