@@ -37,6 +37,7 @@ tests = do
             rendered `shouldSatisfy` any (Text.isInfixOf "Turn Live on")
             rendered `shouldSatisfy` any (Text.isInfixOf "hide the Staff/Templates/Settings panel temporarily")
             rendered `shouldSatisfy` any (Text.isInfixOf "press Escape")
+            rendered `shouldSatisfy` any (Text.isInfixOf "panel stays stacked below the roster")
             rendered `shouldSatisfy` any (Text.isInfixOf "Part-time shifts")
             rendered `shouldSatisfy` any (Text.isInfixOf "pay configuration warning")
 
