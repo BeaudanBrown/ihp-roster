@@ -23,12 +23,17 @@ import IHP.FrameworkConfig (FrameworkConfig, withFrameworkConfig)
 import IHP.Job.Types (JobStatus (JobStatusSucceeded))
 import IHP.Mail
 import qualified IHP.Mail as Mail
-import IHP.Test.Mocking (withContext)
+import IHP.Test.Mocking (callActionWithParams, idToParam,
+                         responseStatusShouldBe, withContext)
+import Network.HTTP.Types.Status (status200)
 import Network.Mail.Mime (Address (..))
 import Test.Hspec
 import Test.Support
 import qualified Text.Blaze.Html.Renderer.Text as Blaze
+import Web.Controller.RosterWeeks ()
+import Web.FrontController ()
 import Web.Mail.RosterNotification
+import Web.Types
 
 
 tests :: Spec
@@ -161,13 +166,14 @@ tests = aroundAll withDatabaseTestContext do
                             notificationContext
                     assignOpenShiftTask <- async do
                         readMVar startGate
-                        openShift
-                            |> set #assignmentState "staff"
-                            |> set #staffId (Just (unpackId otherStaff.id))
-                            |> updateRecord
+                        withUserAndCurrentVenue actor venue.id do
+                            callActionWithParams
+                                (UpdateRosterSlotAction openShift.id)
+                                [("staffId", idToParam otherStaff.id)]
                     putMVar startGate ()
                     creationResult <- wait createRunTask
-                    _ <- wait assignOpenShiftTask
+                    fillResponse <- wait assignOpenShiftTask
+                    fillResponse `responseStatusShouldBe` status200
                     case creationResult of
                         RosterNotificationRunCreated createdRun -> pure createdRun
                         _ -> fail "expected concurrent production run creation to succeed"
