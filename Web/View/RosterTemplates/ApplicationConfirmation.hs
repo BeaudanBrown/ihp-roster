@@ -1,11 +1,13 @@
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
+
 module Web.View.RosterTemplates.ApplicationConfirmation
     ( renderRosterTemplateApplicationConfirmation
     ) where
 
-import Application.Helper.View.Overlay
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             renderFrontendSurfaceActionFormWithHiddenFields)
+import Application.Helper.View.Overlay
 import Web.RosterWeeks.TemplateApplication
 import Web.View.Prelude
 
@@ -51,7 +53,7 @@ renderRosterTemplateApplicationConfirmation rosterTemplateId rosterGroupId targe
 
 replacementCopy :: RosterTemplateApplicationPreview -> Text
 replacementCopy preview = case preview.applicationPreviewScale of
-    Day -> "This will replace the selected day in the viewed draft week."
+    Day  -> "This will replace the selected day in the viewed draft week."
     Week -> "This will replace the complete viewed week."
 
 renderWarnings :: [RosterTemplateApplicationWarning] -> Html

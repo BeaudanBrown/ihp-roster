@@ -57,6 +57,7 @@ import qualified Test.Controller.UsersSpec
 import qualified Test.Controller.VenueAccessSpec
 import qualified Test.DatabaseProtectionSpec
 import qualified Test.DevSeedSpec
+import qualified Test.EnumAuthoritySpec
 import qualified Test.FrontendContractSpec
 import qualified Test.FrontendContractsSpec
 import qualified Test.FrontendSurfaceAdapterGeneratorSpec
@@ -464,6 +465,7 @@ allSuites =
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "VenueOnboardingInvitation", definitionEstimatedRuntimeSeconds = 0.5, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = AccessAndOnboarding, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [A1, A2], definitionPartialInvariants = []} Test.VenueOnboardingInvitationSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "DevSeed", definitionEstimatedRuntimeSeconds = 7.5, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = TestInfrastructure, definitionFixtureCost = LargeFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.DevSeedSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "Conflict", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = Rostering, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [R4, R5, T4], definitionPartialInvariants = []} Test.ConflictSpec.tests
+    , pureSuite SuiteDefinition{definitionLabel = "EnumAuthority", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = ProductSupport, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.EnumAuthoritySpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "FrontendContract", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = FrontendContractsAndLiveUpdate, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.FrontendContractSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "FrontendContracts", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = FrontendContractsAndLiveUpdate, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.FrontendContractsSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "FrontendSurfaceAdapterGenerator", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = FrontendContractsAndLiveUpdate, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.FrontendSurfaceAdapterGeneratorSpec.tests

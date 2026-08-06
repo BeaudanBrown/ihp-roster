@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
+
 module Application.RosterTemplates
     ( RosterTemplateActor
     , RosterTemplateColumnInput (..)
@@ -40,6 +42,7 @@ import Application.Helper.ControllerAccess (hasRole,
                                             isCurrentVenueManuallyReadOnly)
 import Application.Helper.ControllerContext (authenticatedCurrentUser,
                                              currentVenue)
+import Application.Helper.RosterTemplateScale (rosterTemplateScaleIsWeek)
 import Application.PayAssignment (EffectivePayAssignment (..),
                                   ShiftPayAssignment (..),
                                   StaffPayAssignment (..), resolvePayAssignment,
@@ -893,7 +896,7 @@ validTemplateContentForScale scale content =
     dayIndexes = map (.inputDayIndex) content.contentDays
     daysByIndex = Map.fromList [(day.inputDayIndex, day) | day <- content.contentDays]
     columnSortOrders = map (.inputColumnSortOrder) content.contentColumns
-    validDay day = day.inputDayIndex >= 0 && day.inputDayIndex <= 6 && day.inputDayRowCount >= 0 && (scale == Week || day.inputDayIndex == 0)
+    validDay day = day.inputDayIndex >= 0 && day.inputDayIndex <= 6 && day.inputDayRowCount >= 0 && (rosterTemplateScaleIsWeek scale || day.inputDayIndex == 0)
     validColumn column =
         let name = Text.strip column.inputColumnName
          in not (Text.null name) && Text.length name <= 120 && column.inputColumnSortOrder >= 0

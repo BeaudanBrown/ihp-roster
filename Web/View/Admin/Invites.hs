@@ -13,6 +13,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
+import Application.Helper.InvitationStatus (invitationStatusAllowsRenewal)
 import Application.Helper.UiRegion (UiRegionTransitionProfile (..))
 import Application.Helper.VenueInvitation (venueInvitationEffectiveExpiresAt)
 import qualified Text.Blaze.Html as Blaze
@@ -121,13 +122,13 @@ inviteRowId invitationId = "invite-row-" <> tshow invitationId
 
 renderInvitationStatusBadge :: UTCTime -> VenueInvitation -> Html
 renderInvitationStatusBadge now invitation
-    | invitation.status == InvitationStatusEnumPending
+    | invitationStatusAllowsRenewal invitation.status
         && venueInvitationEffectiveExpiresAt invitation <= now = renderAppStatusBadge AppStatusNeutral "Expired"
-    | otherwise = renderInvitationStatusOrDeliveryBadge (inputValue invitation.status) (inputValue invitation.deliveryStatus)
+    | otherwise = renderInvitationStatusOrDeliveryBadge invitation.status invitation.deliveryStatus
 
 renderInviteRowActions :: Id RosterGroup -> VenueInvitation -> Html
 renderInviteRowActions rosterGroupId invitation
-    | invitation.status /= InvitationStatusEnumPending = mempty
+    | not (invitationStatusAllowsRenewal invitation.status) = mempty
     | otherwise = [hsx|
         <div class="d-flex flex-column flex-lg-row justify-content-end gap-2">
             {renderRenewVenueInvitationForm rosterGroupId invitation}

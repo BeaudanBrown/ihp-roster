@@ -14,6 +14,7 @@ import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldE
 import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterWeekResource)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
 import Application.Helper.FrontendContract.Surface.Values
+import Application.Helper.InvitationStatus (invitationStatusAllowsRenewal)
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
 import Application.Helper.PasskeySetupTokens
 import Application.Helper.Profiling
@@ -441,7 +442,7 @@ instance Controller AdminController where
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
         invitation <- fetch venueInvitationId
         ensureRecordInCurrentVenue invitation.venueId
-        if invitation.status /= InvitationStatusEnumPending
+        if not (invitationStatusAllowsRenewal invitation.status)
             then respondToInvitesSectionMutation "Only pending invitations can be revoked." currentRosterGroup.id
             else do
                 _ <- revokeVenueInvitationMutation invitation

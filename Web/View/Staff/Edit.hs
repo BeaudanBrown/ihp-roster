@@ -543,7 +543,7 @@ renderPendingTrialInvitationRow now invitation = [hsx|
             <div class="small app-muted">{if venueInvitationEffectiveExpiresAt invitation <= now then "Expired" else "Expires " <> formatUtcTimestamp (venueInvitationEffectiveExpiresAt invitation)}</div>
         </div>
         <div class="d-flex align-items-center gap-2">
-            {renderInvitationStatusOrDeliveryBadge (inputValue invitation.status) (inputValue invitation.deliveryStatus)}
+            {renderInvitationStatusOrDeliveryBadge invitation.status invitation.deliveryStatus}
             {renderRenewTrialInvitationForm invitation}
         </div>
     </div>

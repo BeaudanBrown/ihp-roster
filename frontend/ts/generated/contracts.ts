@@ -343,6 +343,18 @@ export const interactionSessionEndEvent = "bepis:interaction-session-end" as con
 
 export const interactionSessionCancelRequestEvent = "bepis:interaction-session-cancel-request" as const;
 
+export type RosterTemplateScaleEnum =
+    "day"
+  | "week";
+export function isRosterTemplateScaleEnum(value: unknown): value is RosterTemplateScaleEnum {
+    return typeof value === "string" && ["day", "week"].includes(value);
+}
+
+export function parseRosterTemplateScaleEnum(value: unknown): RosterTemplateScaleEnum {
+    if (isRosterTemplateScaleEnum(value)) return value;
+    throw new Error("Invalid RosterTemplateScaleEnum");
+}
+
 export type DialogSubmitConfig = { loadingLabel: string };
 export function isDialogSubmitConfig(value: unknown): value is DialogSubmitConfig {
     return isRecord(value) && hasExactKeys(value, ["loadingLabel"], ["loadingLabel"]) && (typeof value["loadingLabel"] === "string");
@@ -993,9 +1005,9 @@ export function isTimesheetsTimesheetDaySectionFragmentParams(value: unknown): v
     return isRecord(value) && hasExactKeys(value, ["dayOffset"], ["dayOffset"]) && (typeof value["dayOffset"] === "number" && Number.isInteger(value["dayOffset"]));
 }
 
-export type TemplateApplicationCardConfig = { templateId: FrontendContractUuid; templateName: string; templateScale: string };
+export type TemplateApplicationCardConfig = { templateId: FrontendContractUuid; templateName: string; templateScale: RosterTemplateScaleEnum };
 export function isTemplateApplicationCardConfig(value: unknown): value is TemplateApplicationCardConfig {
-    return isRecord(value) && hasExactKeys(value, ["templateId", "templateName", "templateScale"], ["templateId", "templateName", "templateScale"]) && (typeof value["templateId"] === "string") && (typeof value["templateName"] === "string") && (typeof value["templateScale"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["templateId", "templateName", "templateScale"], ["templateId", "templateName", "templateScale"]) && (typeof value["templateId"] === "string") && (typeof value["templateName"] === "string") && (isRosterTemplateScaleEnum(value["templateScale"]));
 }
 
 export function parseTemplateApplicationCardConfig(value: unknown): TemplateApplicationCardConfig {

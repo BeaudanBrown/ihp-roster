@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
+
 module Web.Controller.Admin.Support where
 
 import Application.Helper.FrontendContract.Surface.Admin.Live (adminRosterGroupsLiveScope)

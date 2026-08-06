@@ -124,6 +124,9 @@
   }
   var pageReadyEvent = "bepis:page-ready";
   var liveFragmentsRefreshEvent = "bepis:live-fragments-refresh";
+  function isRosterTemplateScaleEnum(value) {
+    return typeof value === "string" && ["day", "week"].includes(value);
+  }
   var surfaceDomAttr = "data-bepis-surface";
   var surfaceFamilyDomAttr = "data-bepis-surface-family";
   var sessionDisabledDomAttr = "data-bepis-session-disabled";
@@ -163,7 +166,7 @@
     return isRecord(value) && hasExactKeys(value, ["venueId", "weekOffset"], ["venueId", "weekOffset"]) && typeof value["venueId"] === "string" && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
   }
   function isTemplateApplicationCardConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["templateId", "templateName", "templateScale"], ["templateId", "templateName", "templateScale"]) && typeof value["templateId"] === "string" && typeof value["templateName"] === "string" && typeof value["templateScale"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["templateId", "templateName", "templateScale"], ["templateId", "templateName", "templateScale"]) && typeof value["templateId"] === "string" && typeof value["templateName"] === "string" && isRosterTemplateScaleEnum(value["templateScale"]);
   }
   function parseTemplateApplicationCardConfig(value) {
     if (isTemplateApplicationCardConfig(value)) return value;
@@ -2076,10 +2079,14 @@
         return state.kind === "selecting-day" ? { kind: "commit", templateId: state.templateId, targetKey: event.targetKey } : state;
       case "activate-card":
         if (state.kind === "selecting-day" && state.templateId === event.templateId) return idle;
-        if (event.scale === "week") {
-          return { kind: "commit", templateId: event.templateId, targetKey: event.weekTargetKey };
+        switch (event.scale) {
+          case "day":
+            return { kind: "selecting-day", templateId: event.templateId };
+          case "week":
+            return event.weekTargetKey ? { kind: "commit", templateId: event.templateId, targetKey: event.weekTargetKey } : idle;
+          default:
+            return assertNever2(event.scale);
         }
-        return { kind: "selecting-day", templateId: event.templateId };
       default:
         return assertNever2(event);
     }
@@ -2176,14 +2183,19 @@
     }
     const session = sessionFor(mount);
     session.activeCard = card;
-    if (config.templateScale === "week") {
-      const weekTargetKey = mount.querySelector(weekTargetSelector)?.getAttribute(InteractionDom.attributes.dropzoneKey);
-      if (!weekTargetKey) return resetMount(mount);
-      transition(mount, { kind: "activate-card", templateId: config.templateId, scale: "week", weekTargetKey });
-      return;
+    switch (config.templateScale) {
+      case "day":
+        transition(mount, { kind: "activate-card", templateId: config.templateId, scale: config.templateScale });
+        return;
+      case "week": {
+        const weekTargetKey = mount.querySelector(weekTargetSelector)?.getAttribute(InteractionDom.attributes.dropzoneKey);
+        if (!weekTargetKey) return resetMount(mount);
+        transition(mount, { kind: "activate-card", templateId: config.templateId, scale: config.templateScale, weekTargetKey });
+        return;
+      }
+      default:
+        return assertNever3(config.templateScale);
     }
-    if (config.templateScale !== "day") return resetMount(mount);
-    transition(mount, { kind: "activate-card", templateId: config.templateId, scale: "day" });
   }
   function transition(mount, event) {
     const session = sessionFor(mount);
@@ -2238,6 +2250,9 @@
   }
   function dayTargetKey(target) {
     return target.closest(`[${InteractionDom.attributes.dropzoneKey}]`)?.getAttribute(InteractionDom.attributes.dropzoneKey) ?? null;
+  }
+  function assertNever3(value) {
+    throw new Error(`Unhandled roster template scale: ${String(value)}`);
   }
   function stopEvent(event) {
     if (event.cancelable) event.preventDefault();

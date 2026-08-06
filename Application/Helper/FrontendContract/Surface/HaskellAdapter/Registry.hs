@@ -170,9 +170,9 @@ type RegisteredSurfaceResourceAdapterHomes =
      , SurfaceResourceAdapterHome AdminXeroAdapterFamily Admin.XeroConnection
      ]
 
--- The inventory contains all 60 Actions: 55 generated registrations and five
--- typed declaration exclusions. Fifty-four emit builders/render metadata,
--- forty emit exact parsers, and 15 retain typed parser exclusions. The hidden
+-- The inventory contains all 62 Actions: 57 generated registrations and five
+-- typed declaration exclusions. Fifty-six emit builders/render metadata,
+-- forty-two emit exact parsers, and 15 retain typed parser exclusions. The hidden
 -- roster-week setting is parser-only.
 registeredSurfaceActionAdapterRegistrations :: [SurfaceRequestAdapterRegistration 'ActionAdapterKind]
 registeredSurfaceActionAdapterRegistrations =
@@ -256,7 +256,7 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceActionAdapter @AdminXeroAdapterFamily @Admin.ShowXeroTimesheetPreparationStaffMappings allRequestAdapterOperations
     ]
 
--- All five production intents emit the complete inventoried builder,
+-- All six production intents emit the complete inventoried builder,
 -- form-metadata, and exact parser operation set through the Roster facade.
 registeredSurfaceIntentAdapterRegistrations :: [SurfaceRequestAdapterRegistration 'IntentAdapterKind]
 registeredSurfaceIntentAdapterRegistrations =

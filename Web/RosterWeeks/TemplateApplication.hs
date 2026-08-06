@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
+
 module Web.RosterWeeks.TemplateApplication
     ( RosterTemplateApplicationAssignmentIssue (..)
     , RosterTemplateApplicationBoundary (..)
@@ -15,6 +17,7 @@ module Web.RosterWeeks.TemplateApplication
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)
 import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
+import Application.Helper.RosterTemplateScale (rosterTemplateScaleIsWeek)
 import Application.Helper.SurfaceResource (LiveMutationResult,
                                            liveMutationResult)
 import Application.Helper.WeekBoundaries (venueWeekStartDate)
@@ -115,8 +118,17 @@ prepareRosterTemplateApplication actor request
 
 requestMatchesScale :: RosterTemplateScaleEnum -> Maybe Int -> Bool
 requestMatchesScale Day (Just dayOffset) = dayOffset >= 0 && dayOffset <= 6
+requestMatchesScale Day Nothing          = False
+requestMatchesScale Week (Just _)        = False
 requestMatchesScale Week Nothing         = True
-requestMatchesScale _ _                  = False
+
+templateStructureError :: RosterTemplateScaleEnum -> [RosterTemplateDay] -> Maybe Text
+templateStructureError Day days
+    | map (.dayIndex) days /= [0] = Just "Day templates must contain day zero."
+    | otherwise = Nothing
+templateStructureError Week days
+    | map (.dayIndex) days /= [0 .. 6] = Just "Week templates must contain all seven days."
+    | otherwise = Nothing
 
 prepareContent ::
     (?modelContext :: ModelContext) =>
@@ -124,12 +136,18 @@ prepareContent ::
     RosterTemplateSaved ->
     RosterWeek ->
     IO (Either RosterTemplateApplicationError PreparedApplication)
-prepareContent request saved targetWeek
-    | saved.savedTemplate.scale == Day && map (.dayIndex) saved.savedDays /= [0] =
-        pure (Left (RosterTemplateApplicationInvalidStructure "Day templates must contain day zero."))
-    | saved.savedTemplate.scale == Week && map (.dayIndex) saved.savedDays /= [0 .. 6] =
-        pure (Left (RosterTemplateApplicationInvalidStructure "Week templates must contain all seven days."))
-    | otherwise = do
+prepareContent request saved targetWeek =
+    case templateStructureError saved.savedTemplate.scale saved.savedDays of
+        Just message -> pure (Left (RosterTemplateApplicationInvalidStructure message))
+        Nothing -> prepareStructurallyValidContent request saved targetWeek
+
+prepareStructurallyValidContent ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateApplicationRequest ->
+    RosterTemplateSaved ->
+    RosterWeek ->
+    IO (Either RosterTemplateApplicationError PreparedApplication)
+prepareStructurallyValidContent request saved targetWeek = do
         allTargetDays <-
             query @RosterDay
                 |> filterWhere (#rosterWeekId, unpackId targetWeek.id)
@@ -141,7 +159,7 @@ prepareContent request saved targetWeek
         case targetDays of
             [] -> pure (Left RosterTemplateApplicationInvalidTargetDay)
             firstTargetDay : _
-                | saved.savedTemplate.scale == Week && map (.dayOffset) targetDays /= [0 .. 6] ->
+                | rosterTemplateScaleIsWeek saved.savedTemplate.scale && map (.dayOffset) targetDays /= [0 .. 6] ->
                     pure (Left RosterTemplateApplicationInvalidTargetDay)
                 | otherwise -> do
                     let targetDayByTemplateIndex = case request.applicationTargetDayOffset of

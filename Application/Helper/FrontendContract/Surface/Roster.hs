@@ -209,7 +209,7 @@ module Application.Helper.FrontendContract.Surface.Roster
 import Application.Helper.FrontendContract.Surface.DSL
 import Application.Helper.FrontendContract.Surface.Interaction
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as SelfServiceLeave
-import Generated.Types (RosterLayoutModeEnum)
+import Generated.Types (RosterLayoutModeEnum, RosterTemplateScaleEnum)
 
 data Roster
 data RosterDayTimeline
@@ -738,7 +738,7 @@ type RosterTemplateApplicationBrowserBundle =
      , BrowserInboundDto TemplateApplicationCardConfig
         '[ Field TemplateId 'WireUUID
          , Field TemplateName 'WireText
-         , Field TemplateScale 'WireText
+         , Field TemplateScale ('WireClosed RosterTemplateScaleEnum)
          ]
      ]
 

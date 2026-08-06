@@ -14,7 +14,8 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             renderFrontendSurfaceActionForm)
 import Application.Helper.FrontendContract.Surface.Values
-import Application.Helper.UserPreferences (rosterLayoutModeLabel,
+import Application.Helper.UserPreferences (rosterLayoutModeIsDayColumns,
+                                           rosterLayoutModeLabel,
                                            rosterLayoutModeValue,
                                            rosterLayoutModes)
 import Web.RosterWeeks.Dom (rosterWeekShellId)
@@ -113,7 +114,7 @@ renderRosterLayoutModeOption selectedLayoutMode layoutMode =
                    name={surfaceFieldNameFrom @Surface.RosterLayoutMode fields}
                    id={inputId}
                    value={layoutValue}
-                   checked={rosterLayoutModeValue selectedLayoutMode == layoutValue} />
+                   checked={selectedLayoutMode == layoutMode} />
         |]
      in [hsx|
         {SurfaceInteraction.withFrontendSurfaceActivationRef rosterLayoutModeActivationRef inputHtml}
@@ -276,7 +277,7 @@ shouldShowRosterExport maybeRosterWeek viewCapabilities rosterLayoutMode viewMod
     viewCapabilities.canExportRosterImage
         && maybe False (.isLive) maybeRosterWeek
         && viewMode == RosterWeekGridView
-        && rosterLayoutModeValue rosterLayoutMode == "day_rows"
+        && not (rosterLayoutModeIsDayColumns rosterLayoutMode)
 
 renderRosterExportSection :: Text -> Day -> Html
 renderRosterExportSection rosterGroupName weekStartDate = [hsx|

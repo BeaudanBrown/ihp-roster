@@ -188,9 +188,9 @@ rosterDayMutationMountedProjections rosterDay = do
     layoutMode <- fetchCurrentRosterLayoutMode
     pure $
         rosterGridInnerAndStaffPanelFragments
-            <> case rosterLayoutModeValue layoutMode of
-                "day_columns" -> []
-                _ -> [rosterDaySectionFragment (unpackId rosterDay.id)]
+            <> if rosterLayoutModeIsDayColumns layoutMode
+                then []
+                else [rosterDaySectionFragment (unpackId rosterDay.id)]
 
 instance Controller RosterWeeksController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
@@ -1062,9 +1062,9 @@ respondToRosterSlotMutation rosterGroupId rosterWeek rosterDay rowIndex mutation
     layoutMode <- fetchCurrentRosterLayoutMode
     let mountedProjections =
             rosterGridInnerAndStaffPanelFragments
-                <> case rosterLayoutModeValue layoutMode of
-                    "day_columns" -> []
-                    _ -> actorRosterRowFragments [(unpackId rosterDay.id, rowIndex)]
+                <> if rosterLayoutModeIsDayColumns layoutMode
+                    then []
+                    else actorRosterRowFragments [(unpackId rosterDay.id, rowIndex)]
     if isHtmxRequest
         then
             respondWithRosterResourceInvalidation
@@ -1082,9 +1082,9 @@ respondToRosterSlotMove rosterGroupId rosterWeek mutationResult impactedRowKeys 
     layoutMode <- fetchCurrentRosterLayoutMode
     let mountedProjections =
             rosterGridInnerAndStaffPanelFragments
-                <> case rosterLayoutModeValue layoutMode of
-                    "day_columns" -> []
-                    _             -> actorRosterRowFragments impactedRowKeys
+                <> if rosterLayoutModeIsDayColumns layoutMode
+                    then []
+                    else actorRosterRowFragments impactedRowKeys
     respondWithRosterResourceInvalidation
         rosterGroupId
         rosterWeek.weekOffset
@@ -1109,9 +1109,9 @@ respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult impactedRowKey
     layoutMode <- fetchCurrentRosterLayoutMode
     let mountedProjections =
             rosterGridInnerAndStaffPanelFragments
-                <> case rosterLayoutModeValue layoutMode of
-                    "day_columns" -> []
-                    _             -> actorRosterRowFragments impactedRowKeys
+                <> if rosterLayoutModeIsDayColumns layoutMode
+                    then []
+                    else actorRosterRowFragments impactedRowKeys
     respondWithRosterResourceInvalidation
         rosterGroupId
         rosterWeek.weekOffset

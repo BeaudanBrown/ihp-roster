@@ -1,6 +1,12 @@
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
+
 module Application.Helper.View.Status where
 
+import Application.Helper.JobStatus (jobStatusLabel)
 import qualified Data.Text as Text
+import Generated.Types (InvitationDeliveryStatusEnum (..),
+                        InvitationStatusEnum (..))
+import IHP.Job.Types (JobStatus (..))
 import IHP.ViewPrelude
 
 data AppStatusTone
@@ -9,6 +15,7 @@ data AppStatusTone
     | AppStatusWarning
     | AppStatusDanger
     | AppStatusInfo
+    deriving (Eq, Show)
 
 appStatusBadgeClass :: AppStatusTone -> Text
 appStatusBadgeClass tone =
@@ -27,27 +34,35 @@ renderAppStatusBadge tone label = [hsx|
     <span class={appStatusBadgeClass tone}>{label}</span>
 |]
 
-renderInvitationLifecycleStatusBadge :: Text -> Html
+jobStatusBadgeClass :: JobStatus -> Text
+jobStatusBadgeClass JobStatusNotStarted = "badge text-bg-secondary"
+jobStatusBadgeClass JobStatusRunning    = "badge text-bg-secondary"
+jobStatusBadgeClass JobStatusRetry      = "badge text-bg-warning"
+jobStatusBadgeClass JobStatusSucceeded  = "badge text-bg-success"
+jobStatusBadgeClass JobStatusFailed     = "badge text-bg-danger"
+jobStatusBadgeClass JobStatusTimedOut   = "badge text-bg-danger"
+
+renderInvitationLifecycleStatusBadge :: InvitationStatusEnum -> Html
 renderInvitationLifecycleStatusBadge status =
     uncurry renderAppStatusBadge (invitationLifecycleStatus status)
 
-renderInvitationDeliveryStatusBadge :: Text -> Html
+renderInvitationDeliveryStatusBadge :: InvitationDeliveryStatusEnum -> Html
 renderInvitationDeliveryStatusBadge deliveryStatus =
     uncurry renderAppStatusBadge (invitationDeliveryStatus deliveryStatus)
 
-renderInvitationStatusOrDeliveryBadge :: Text -> Text -> Html
+renderInvitationStatusOrDeliveryBadge :: InvitationStatusEnum -> InvitationDeliveryStatusEnum -> Html
 renderInvitationStatusOrDeliveryBadge status deliveryStatus =
     case status of
-        "accepted" -> renderInvitationLifecycleStatusBadge status
-        "revoked"  -> renderInvitationLifecycleStatusBadge status
-        _          -> renderInvitationDeliveryStatusBadge deliveryStatus
+        InvitationStatusEnumPending -> renderInvitationDeliveryStatusBadge deliveryStatus
+        Accepted                    -> renderInvitationLifecycleStatusBadge status
+        Revoked                     -> renderInvitationLifecycleStatusBadge status
 
-invitationLifecycleStatus :: Text -> (AppStatusTone, Text)
-invitationLifecycleStatus "accepted" = (AppStatusSuccess, "Accepted")
-invitationLifecycleStatus "revoked"  = (AppStatusNeutral, "Revoked")
-invitationLifecycleStatus _          = (AppStatusWarning, "Pending")
+invitationLifecycleStatus :: InvitationStatusEnum -> (AppStatusTone, Text)
+invitationLifecycleStatus InvitationStatusEnumPending = (AppStatusWarning, "Pending")
+invitationLifecycleStatus Accepted                    = (AppStatusSuccess, "Accepted")
+invitationLifecycleStatus Revoked                     = (AppStatusNeutral, "Revoked")
 
-invitationDeliveryStatus :: Text -> (AppStatusTone, Text)
-invitationDeliveryStatus "sent"   = (AppStatusSuccess, "Sent")
-invitationDeliveryStatus "failed" = (AppStatusDanger, "Send Failed")
-invitationDeliveryStatus _        = (AppStatusWarning, "Queued")
+invitationDeliveryStatus :: InvitationDeliveryStatusEnum -> (AppStatusTone, Text)
+invitationDeliveryStatus Queued = (AppStatusWarning, "Queued")
+invitationDeliveryStatus Sent   = (AppStatusSuccess, "Sent")
+invitationDeliveryStatus Failed = (AppStatusDanger, "Send Failed")

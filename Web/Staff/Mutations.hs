@@ -25,6 +25,7 @@ import Application.Helper.FrontendContract.Surface.Profile.Resource
 import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
 import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWeekScopes)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
+import Application.Helper.InvitationStatus (invitationStatusAllowsRenewal)
 import Application.Helper.Pay (ensureStaffPayVersionForStaff)
 import Application.Helper.RosterGroups (fetchStaffRosterGroupIds,
                                         syncStaffRosterGroupAssignments)
@@ -115,7 +116,7 @@ renewTrialStaffInvitationMutation staff invitation correctedEmail
                 lockedStaff <- fetch staff.id
                 if lockedInvitation.staffId /= Just lockedStaff.id
                     then pure (Left "Choose a pending invitation for this trial staff member.")
-                    else if lockedInvitation.status /= InvitationStatusEnumPending
+                    else if not (invitationStatusAllowsRenewal lockedInvitation.status)
                         then pure (Left "Only pending invitations can be renewed.")
                     else if not (isAdoptableTrialStaff lockedStaff)
                         then pure (Left "Only active trial staff without a linked login can be invited.")

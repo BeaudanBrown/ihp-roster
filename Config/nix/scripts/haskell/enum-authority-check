@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Generated PostgreSQL enums stay nominal through application decisions.
+# Rendering with inputValue remains valid at persistence, telemetry, HTML, and
+# external wire seams; this gate rejects only rendered literals and rendered
+# values used as branch inputs for the migrated domains.
+set -euo pipefail
+
+repo_root="${ENUM_AUTHORITY_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+cd "$repo_root"
+
+failures=0
+reject() {
+    local reason="$1"
+    local pattern="$2"
+    local matches
+    matches="$(mktemp)"
+    if rg --line-number --glob '*.hs' --glob '!**/Generated/**' "$pattern" Application Web >"$matches" 2>/dev/null; then
+        echo "enum-authority-check: $reason" >&2
+        cat "$matches" >&2
+        failures=$((failures + 1))
+    fi
+    rm -f "$matches"
+}
+
+# These schema wire literals are forbidden only in branch-shaped expressions;
+# static HTML/wire rendering remains valid.
+reject \
+    "a roster-layout or app-job wire literal is used as a branch result" \
+    '"(day_rows|day_columns|job_status_(not_started|running|retry|succeeded|failed|timed_out))"[[:space:]]*(->|==|/=|`elem`)'
+reject \
+    "a roster-layout or app-job decision compares against a wire literal" \
+    '(==|/=|`elem`)[^\n]*"(day_rows|day_columns|job_status_(not_started|running|retry|succeeded|failed|timed_out))"'
+
+# Invitation literals are not globally unique, so constrain their guard to
+# branch-shaped expressions over status values. Boundary-only inputValue calls
+# (JSON, HTML, telemetry, persistence) do not match.
+reject \
+    "a rendered generated status is used in a semantic comparison" \
+    'inputValue[^\n]*(\.status|[[:space:]]+status)[^\n]*(==|/=|`elem`)'
+reject \
+    "a semantic case branches on a rendered generated status" \
+    'case[[:space:]]+inputValue[[:space:]]+[^[:space:]]*(status|Status)[[:space:]]+of'
+reject \
+    "a semantic decision branches on rendered roster-layout text" \
+    'rosterLayoutModeValue[^\n]*(==|/=|`elem`|[[:space:]]+of)'
+reject \
+    "a semantic decision branches on rendered roster-template scale text" \
+    '(rosterTemplateScaleValue|inputValue[^\n]*\.scale)[^\n]*(==|/=|`elem`|[[:space:]]+of)'
+
+if (( failures > 0 )); then
+    echo "enum-authority-check: ${failures} authority violation(s)" >&2
+    exit 1
+fi
+
+echo "enum-authority-check: typed enum decisions clean"

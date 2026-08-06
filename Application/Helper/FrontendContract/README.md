@@ -188,7 +188,10 @@ collapsing it to `Text`. Persisted domains use their generated PostgreSQL enum
 constructors directly; DSL-owned domains use their own `Bounded`/`Enum` ADT and
 canonical `InputValue` projection. Reflection enumerates that exact type—there
 is no registry scan or shadow ADT—and browser unions/guards/parsers are emitted
-only for the declaration's explicit reachability.
+only for the declaration's explicit reachability. Production registrations
+currently include server-carried `RosterLayoutModeEnum` and browser-inbound
+`RosterTemplateScaleEnum`; the latter drives the generated template-card DTO
+union and guard consumed by the roster TypeScript runtime.
 
 Outer field presence remains separate from recursive wire nullability. An absent
 `OptionalField` is omitted, a present optional nullable value can be explicit
@@ -292,15 +295,15 @@ catalog, mount/live/wire runtime, or Haskell adapter generator implementation.
 The compiler-observed baseline, candidate sets, deltas, and retained-dependency
 classification are recorded in `Surface/README.md`.
 
-The production operation inventory covers all 60 actions and five intents. It
-marks 55 actions as adapter-eligible, with builders/render metadata for 54 and
-exact parsers for 40. The hidden roster-week-start compatibility mutation is
+The production operation inventory covers all 62 actions and six intents. It
+marks 57 actions as adapter-eligible, with builders/render metadata for 56 and
+exact parsers for 42. The hidden roster-week-start compatibility mutation is
 parser-only with typed builder/metadata exclusions; five same-named
 intent-backed actions are excluded from adapter eligibility, while 15 parser
-operations retain typed reasons. Exactly one checked
-home is registered for every eligible Action and Intent. Seven private
+operations retain typed reasons. Exactly one inventory registration owns the
+home and operation decisions for every Action and Intent. Seven private
 feature-adjacent `.Generated.Action` modules sit behind seven curated
-`Surface.<Feature>.Action` facades, while the five Roster intents share one
+`Surface.<Feature>.Action` facades, while the six Roster intents share one
 private `Surface.Roster.Generated.Intent` module behind `Surface.Roster.Intent`.
 Production callers contain no generic Action or Intent parser/metadata calls.
 Raw `SurfaceFields` constructors are hidden behind construction-only builders.

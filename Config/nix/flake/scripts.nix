@@ -138,6 +138,7 @@ in
         architecture-check-fresh = script ../scripts/architecture/check-fresh;
         haskell-module-name-check = script ../scripts/haskell/module-name-check;
         typecheck = script ../scripts/haskell/typecheck;
+        enum-authority-check = script ../scripts/haskell/enum-authority-check;
         frontend-contract-warnings = script ../scripts/haskell/frontend-contract-warnings;
         weeder-check = script ../scripts/haskell/weeder-check;
         regen-types = script ../scripts/haskell/regen-types;

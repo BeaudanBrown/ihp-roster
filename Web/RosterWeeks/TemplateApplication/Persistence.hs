@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
+
 module Web.RosterWeeks.TemplateApplication.Persistence
     ( applyPreparedApplication
     ) where

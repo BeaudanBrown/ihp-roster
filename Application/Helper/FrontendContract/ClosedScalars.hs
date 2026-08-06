@@ -7,11 +7,12 @@ module Application.Helper.FrontendContract.ClosedScalars
     ) where
 
 import Application.Helper.FrontendContract.DSL
-import Generated.Types (RosterLayoutModeEnum)
+import Generated.Types (RosterLayoutModeEnum, RosterTemplateScaleEnum)
 
 data AppClosedScalars
 
 type ClosedScalarContract =
     Global AppClosedScalars
         '[ ServerSchema (ClosedScalar RosterLayoutModeEnum)
+         , BrowserInboundSchema (ClosedScalar RosterTemplateScaleEnum)
          ]

@@ -1,5 +1,6 @@
 module Web.View.RosterTemplates.New where
 
+import Application.Helper.RosterTemplateScale (rosterTemplateScaleLabel)
 import Application.RosterTemplates
 import Web.View.Prelude
 
@@ -96,7 +97,7 @@ renderSavedTemplate template = [hsx|
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 border rounded-3 p-3 mb-2" data-roster-template-id={tshow template.id}>
         <div>
             <h3 class="h6 mb-1">{template.name}</h3>
-            <span class="badge text-bg-secondary">{templateScaleLabel template.scale}</span>
+            <span class="badge text-bg-secondary">{rosterTemplateScaleLabel template.scale}</span>
             <span class="small text-muted ms-2">Version {template.currentVersion}</span>
         </div>
         <div class="d-flex gap-2">
@@ -111,9 +112,6 @@ renderSavedTemplate template = [hsx|
     </div>
 |]
 
-templateScaleLabel :: RosterTemplateScaleEnum -> Text
-templateScaleLabel Day  = "Day"
-templateScaleLabel Week = "Week"
 
 renderCreationError :: Text -> Html
 renderCreationError message = [hsx|

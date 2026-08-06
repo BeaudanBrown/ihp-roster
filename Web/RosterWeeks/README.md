@@ -20,6 +20,20 @@
 - `Web/RosterWeeks/ShiftWorkflow.hs` - shift-dialog create/edit context, render-data preparation, submitted field/DST validation, and authoritative slot application.
 - `Web/View/RosterWeeks/` - HSX rendering.
 
+## Roster Enum Authority
+
+`RosterLayoutModeEnum` remains nominal through roster decisions. Use the
+exhaustive `rosterLayoutModeIsDayColumns` and `rosterLayoutModeLabel`
+projections from `Application.Helper.UserPreferences`; use
+`rosterLayoutModeValue` only when rendering the PostgreSQL wire value into HTML,
+telemetry, persistence, or another external boundary. Do not branch on that
+rendered text.
+
+Persisted `RosterTemplateScaleEnum` follows the same rule through
+`Application.Helper.RosterTemplateScale`. Template-card browser DTOs carry it as
+a registered `WireClosed` scalar; generated TypeScript owns the `"day" |
+"week"` union and guard.
+
 ## Template Designer Contract
 
 Template creation and editing use dedicated `RosterTemplatesController` routes but retain the same main `roster-main-panel` card geometry and roster editing vocabulary. The registered `RosterTemplateDesignerSurface` is isolated from ordinary roster actions and subscriptions.

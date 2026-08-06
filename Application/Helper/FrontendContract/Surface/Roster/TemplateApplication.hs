@@ -14,9 +14,10 @@ import Application.Helper.FrontendContract.Surface.Dto (surfaceBrowserDtoRoleAtt
 import qualified Application.Helper.FrontendContract.Surface.Roster as Roster
 import Application.Helper.FrontendContract.Surface.Values
 import qualified Data.UUID as UUID
+import Generated.Types (RosterTemplateScaleEnum)
 import IHP.Prelude
 
-rosterTemplateCardAttrs :: UUID.UUID -> Text -> Text -> [(Text, Text)]
+rosterTemplateCardAttrs :: UUID.UUID -> Text -> RosterTemplateScaleEnum -> [(Text, Text)]
 rosterTemplateCardAttrs templateId templateName templateScale =
     roleAttrs (surfaceBrowserRoleValue @Roster.RosterSurface @Roster.TemplateCardRole)
         <> surfaceBrowserDtoRoleAttrs @Roster.RosterSurface @Roster.TemplateCardConfigRole @Roster.TemplateApplicationCardConfig

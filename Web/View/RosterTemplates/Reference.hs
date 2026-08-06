@@ -1,6 +1,10 @@
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
+
 module Web.View.RosterTemplates.Reference where
 
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
+import Application.Helper.RosterTemplateScale (rosterTemplateScaleIsWeek,
+                                               rosterTemplateScaleValue)
 import Application.Helper.Url (appendQueryParams)
 import Data.Time.Calendar (addDays)
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -32,7 +36,7 @@ instance View ReferenceView where
                             <header class="d-flex flex-wrap align-items-center justify-content-between gap-3 p-4 border-bottom">
                                 <div>
                                     <p class="text-uppercase small fw-semibold text-success mb-1">Reference selection · read only</p>
-                                    <h2 class="h4 mb-0">{if templateScale == Day then ("Select a reference day" :: Text) else "Select a reference week"}</h2>
+                                    <h2 class="h4 mb-0">{if rosterTemplateScaleIsWeek templateScale then ("Select a reference week" :: Text) else "Select a reference day"}</h2>
                                 </div>
                                 <nav class="d-flex align-items-center gap-2" aria-label="Reference week navigation">
                                     <a class="btn btn-outline-secondary" href={referenceUrl (weekOffset - 1)}>Previous week</a>
@@ -58,7 +62,7 @@ instance View ReferenceView where
         referenceUrl targetOffset =
             appendQueryParams
                 (pathTo ShowRosterTemplateReferenceAction { rosterGroupId = rosterGroup.id, weekOffset = targetOffset })
-                [("name", templateName), ("scale", scaleValue templateScale)]
+                [("name", templateName), ("scale", rosterTemplateScaleValue templateScale)]
 
 renderReferenceContent :: ReferenceView -> Html
 renderReferenceContent view@ReferenceView { referenceWeek = RosterTemplateReferenceWeek { referenceRosterWeek = Nothing } } = [hsx|
@@ -114,16 +118,13 @@ referenceHiddenFields ReferenceView { .. } maybeDayOffset = [hsx|
     <input type="hidden" name="rosterGroupId" value={tshow rosterGroup.id} />
     <input type="hidden" name="weekOffset" value={tshow weekOffset} />
     <input type="hidden" name="name" value={templateName} />
-    <input type="hidden" name="scale" value={scaleValue templateScale} />
+    <input type="hidden" name="scale" value={rosterTemplateScaleValue templateScale} />
     {forEach maybeDayOffset renderDayOffsetInput}
 |]
 
 renderDayOffsetInput :: Int -> Html
 renderDayOffsetInput dayOffset = [hsx|<input type="hidden" name="dayOffset" value={tshow dayOffset} />|]
 
-scaleValue :: RosterTemplateScaleEnum -> Text
-scaleValue Day  = "day"
-scaleValue Week = "week"
 
 visibilityLabel :: Maybe RosterWeek -> Text
 visibilityLabel Nothing = "Unavailable"

@@ -1,11 +1,12 @@
+import type { RosterTemplateScaleEnum } from "../generated/contracts";
+
 export type TemplateApplicationSelection =
     | { kind: "idle" }
     | { kind: "selecting-day"; templateId: string }
     | { kind: "commit"; templateId: string; targetKey: string };
 
 export type TemplateApplicationSelectionEvent =
-    | { kind: "activate-card"; templateId: string; scale: "day"; weekTargetKey?: string }
-    | { kind: "activate-card"; templateId: string; scale: "week"; weekTargetKey: string }
+    | { kind: "activate-card"; templateId: string; scale: RosterTemplateScaleEnum; weekTargetKey?: string }
     | { kind: "activate-day"; targetKey: string }
     | { kind: "invalid-area" }
     | { kind: "escape" }
@@ -31,10 +32,16 @@ export function reduceTemplateApplicationSelection(
                 : state;
         case "activate-card":
             if (state.kind === "selecting-day" && state.templateId === event.templateId) return idle;
-            if (event.scale === "week") {
-                return { kind: "commit", templateId: event.templateId, targetKey: event.weekTargetKey };
+            switch (event.scale) {
+                case "day":
+                    return { kind: "selecting-day", templateId: event.templateId };
+                case "week":
+                    return event.weekTargetKey
+                        ? { kind: "commit", templateId: event.templateId, targetKey: event.weekTargetKey }
+                        : idle;
+                default:
+                    return assertNever(event.scale);
             }
-            return { kind: "selecting-day", templateId: event.templateId };
         default:
             return assertNever(event);
     }

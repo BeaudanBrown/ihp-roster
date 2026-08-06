@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
+
 module Web.RosterWeeks.TemplateDesigner
     ( RosterTemplateDesignerMutation (..)
     , RosterTemplateReference (..)
@@ -12,6 +14,7 @@ module Web.RosterWeeks.TemplateDesigner
     , startRosterTemplateDraftFromReference
     ) where
 
+import Application.Helper.RosterTemplateScale (rosterTemplateScaleIsWeek)
 import Application.Helper.WeekBoundaries (venueWeekStartDate)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..))
 import Application.RosterTemplates
@@ -317,7 +320,7 @@ fetchReferenceSource rosterGroup reference = do
             let selectedDays = case selectedDayOffset of
                     Nothing        -> sourceDays
                     Just dayOffset -> filter ((== dayOffset) . (.dayOffset)) sourceDays
-            if null selectedDays || (scale == Week && map (.dayOffset) selectedDays /= [0 .. 6])
+            if null selectedDays || (rosterTemplateScaleIsWeek scale && map (.dayOffset) selectedDays /= [0 .. 6])
                 then pure Nothing
                 else do
                     definitions <- query @RosterWeekSlotDefinition

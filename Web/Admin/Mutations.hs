@@ -30,6 +30,7 @@ import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeek
 import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWeekScopes)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource
+import Application.Helper.InvitationStatus (invitationStatusAllowsRenewal)
 import Application.Helper.Pay (ensureShiftTypePayVersionForShiftType)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureDefaultRosterSlots,
@@ -165,7 +166,7 @@ renewVenueInvitationMutation invitation correctedEmail
             (Text.toCaseFold correctedEmail)
             do
                 lockedInvitation <- fetch invitation.id
-                if lockedInvitation.status /= InvitationStatusEnumPending
+                if not (invitationStatusAllowsRenewal lockedInvitation.status)
                     then pure (Left "Only pending invitations can be renewed.")
                     else Right <$> replaceVenueInvitation lockedInvitation correctedEmail
         case maybeRenewal of

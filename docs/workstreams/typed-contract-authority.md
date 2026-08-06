@@ -277,6 +277,26 @@ either closure. `Surface/README.md` records the selected interface and rejected
 one-module-per-family, separate-renderer, build-only-generation, and generated-
 facade alternatives.
 
+## Generated Enum Authority Checkpoint
+
+[#333](https://github.com/BeaudanBrown/ihp-roster/issues/333) removes semantic
+branching on rendered PostgreSQL enum text for roster layout, IHP app-job
+status, invitation lifecycle/delivery status, and persisted roster-template
+scale. Exhaustive constructor projections now own roster layout classification/labels, shared job labels and
+diagnostic capability, job badge tone, invitation renewal eligibility, and
+invitation presentation, and template-scale value/label/capability decisions.
+`RosterTemplateScaleEnum` also replaces the template-card DTO's `WireText`; the
+generated TypeScript union/guard now drives exhaustive browser switching. Each authority module enables
+`-Werror=incomplete-patterns`, so a new constructor breaks every affected
+projection instead of falling through a wildcard.
+
+`enum-authority-check` rejects branch-shaped use of the retired roster/job wire
+literals, rendered generated status comparisons, and rendered roster-layout
+branches while permitting `inputValue` at JSON, telemetry, persistence, HTML,
+and other external wire seams. `EnumAuthoritySpec` pins all current constructor
+projections at the public helper seam. `Web/RosterWeeks/README.md` records the
+living roster rule.
+
 ## Baseline Metrics
 
 Captured on the #329 baseline:
