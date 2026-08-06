@@ -4,6 +4,9 @@ module Web.RosterWeeks.Dom
     ( closedRosterDayRows
     , minimumOpenRosterRows
     , rosterContentFragmentId
+    , rosterEmailButtonId
+    , rosterNotificationLatestRunHeadingId
+    , rosterNotificationSendFormId
     , rosterLayoutFragmentId
     , rosterDayTimelineContentFragmentId
     , rosterGridFrameFragmentId
@@ -37,6 +40,11 @@ minimumOpenRosterRows = 2
 
 closedRosterDayRows :: Int
 closedRosterDayRows = 2
+
+rosterEmailButtonId, rosterNotificationLatestRunHeadingId, rosterNotificationSendFormId :: Text
+rosterEmailButtonId = "roster-email-button"
+rosterNotificationLatestRunHeadingId = "roster-notification-latest-run-heading"
+rosterNotificationSendFormId = "roster-notification-send-form"
 
 rosterWeekShellId :: Text
 rosterWeekShellId = surfaceDomTokenValue @Surface.RosterSurface @Surface.RosterWeekShell

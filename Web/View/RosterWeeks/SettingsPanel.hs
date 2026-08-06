@@ -21,7 +21,7 @@ import Application.Helper.UserPreferences (rosterLayoutModeLabel,
 import Application.RosterNotification (RosterNotificationAudience (..),
                                        RosterNotificationPanelData (..),
                                        RosterNotificationRunSummary (..))
-import Web.RosterWeeks.Dom (rosterWeekShellId)
+import Web.RosterWeeks.Dom (rosterEmailButtonId, rosterWeekShellId)
 import Web.RosterWeeks.FrontendSurface (rosterLayoutModeActivationRef)
 import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl, rosterCopyWeekUrl,
                               rosterWageEstimatePreferenceUrl,
@@ -293,14 +293,14 @@ renderRosterShareSection maybeRosterWeek rosterGroupName weekStartDate notificat
 renderRosterEmailAction :: (?context :: ControllerContext) => Maybe RosterWeek -> Maybe RosterNotificationPanelData -> Html
 renderRosterEmailAction (Just rosterWeek) (Just RosterNotificationPanelData { panelNotificationAudience = audience, panelLatestNotificationRun = latestRun })
     | maybe False ((> 0) . (.summaryInProgressCount)) latestRun = [hsx|
-        <button id="roster-email-button" type="button" class="btn btn-outline-primary btn-sm w-100" disabled="disabled" title="Roster email delivery is in progress">
+        <button id={rosterEmailButtonId} type="button" class="btn btn-outline-primary btn-sm w-100" disabled="disabled" title="Roster email delivery is in progress">
             <i class="bi bi-envelope me-1" aria-hidden="true"></i>
             Email roster
         </button>
         <p class="small app-muted mb-0">Roster email delivery is in progress.</p>
     |]
     | null audience.audienceRecipients = [hsx|
-        <button id="roster-email-button" type="button" class="btn btn-outline-primary btn-sm w-100" disabled="disabled" title="No eligible recipients">
+        <button id={rosterEmailButtonId} type="button" class="btn btn-outline-primary btn-sm w-100" disabled="disabled" title="No eligible recipients">
             <i class="bi bi-envelope me-1" aria-hidden="true"></i>
             Email roster
         </button>
@@ -312,7 +312,7 @@ renderRosterEmailAction (Just rosterWeek) (Just RosterNotificationPanelData { pa
             (rosterWeekShellSyncRoute actionUrl)
                 { actionRouteStandardUrl = Just actionUrl
                 , actionRouteExtraAttrs =
-                    [ ("id", "roster-email-button")
+                    [ ("id", rosterEmailButtonId)
                     , ("class", "btn btn-outline-primary btn-sm w-100")
                     ]
                 }

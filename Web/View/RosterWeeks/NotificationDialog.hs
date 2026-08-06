@@ -9,6 +9,8 @@ import Application.Helper.View.Overlay
 import Application.RosterNotification
 import Data.Time.Calendar (Day, addDays)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Web.RosterWeeks.Dom (rosterNotificationLatestRunHeadingId,
+                            rosterNotificationSendFormId)
 import Web.View.Prelude
 
 renderRosterNotificationConfirmation ::
@@ -54,7 +56,7 @@ renderRosterNotificationConfirmation venue rosterGroup rosterWeek weekStart audi
         , dialogOverlayDialogClass = ""
         }
   where
-    formId = "roster-notification-send-form"
+    formId = rosterNotificationSendFormId
     actionUrl = pathTo (CreateRosterNotificationRunAction rosterWeek.id)
     sendForm = renderFrontendSurfaceActionForm
         (RosterAction.createRosterNotificationRunAction (RosterAction.createRosterNotificationRunActionFields (unpackId rosterWeek.id)))
@@ -76,8 +78,8 @@ formatDay = cs . formatTime defaultTimeLocale "%d %b %Y"
 renderLatestRunSummary :: Maybe RosterNotificationRunSummary -> Html
 renderLatestRunSummary Nothing = mempty
 renderLatestRunSummary (Just summary) = [hsx|
-    <section aria-labelledby="roster-notification-latest-run-heading">
-        <h3 id="roster-notification-latest-run-heading" class="h6">Latest attempted run</h3>
+    <section aria-labelledby={rosterNotificationLatestRunHeadingId}>
+        <h3 id={rosterNotificationLatestRunHeadingId} class="h6">Latest attempted run</h3>
         <dl class="row mb-3">
             <dt class="col-6">Requester</dt><dd class="col-6">{summary.summaryRequesterEmail}</dd>
             <dt class="col-6">Requested</dt><dd class="col-6">{formatRequestedAt summary.summaryRun.createdAt}</dd>
