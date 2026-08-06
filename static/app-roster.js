@@ -159,13 +159,6 @@
     pointerFields: { sessionKind: sessionKindFieldName, pointerId: pointerIdFieldName, pointerType: pointerTypeFieldName, startClientX: startClientXFieldName, startClientY: startClientYFieldName, currentClientX: currentClientXFieldName, currentClientY: currentClientYFieldName, deltaX: deltaXFieldName, deltaY: deltaYFieldName }
   };
   var surfaceConfigDomAttr = "data-bepis-surface-config";
-  function isTimesheetStaffPanelSortRow(value) {
-    return isRecord(value) && hasExactKeys(value, ["staffRowKey", "staffName", "staffRole", "entryCount", "approvedCount"], ["staffRowKey", "staffName", "staffRole", "entryCount", "approvedCount"]) && typeof value["staffRowKey"] === "string" && typeof value["staffName"] === "string" && typeof value["staffRole"] === "string" && (typeof value["entryCount"] === "number" && Number.isInteger(value["entryCount"])) && (typeof value["approvedCount"] === "number" && Number.isInteger(value["approvedCount"]));
-  }
-  function parseTimesheetStaffPanelSortRow(value) {
-    if (isTimesheetStaffPanelSortRow(value)) return value;
-    throw new Error("Invalid TimesheetStaffPanelSortRow");
-  }
   function isTimesheetsTimesheetWeekScope(value) {
     return isRecord(value) && hasExactKeys(value, ["venueId", "weekOffset"], ["venueId", "weekOffset"]) && typeof value["venueId"] === "string" && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
   }
@@ -175,13 +168,6 @@
   function parseTemplateApplicationCardConfig(value) {
     if (isTemplateApplicationCardConfig(value)) return value;
     throw new Error("Invalid TemplateApplicationCardConfig");
-  }
-  function isRosterStaffPanelSortRow(value) {
-    return isRecord(value) && hasExactKeys(value, ["staffRowKey", "staffName", "staffRole", "assignedShifts", "idealShifts"], ["staffRowKey", "staffName", "staffRole", "assignedShifts", "idealShifts"]) && typeof value["staffRowKey"] === "string" && typeof value["staffName"] === "string" && typeof value["staffRole"] === "string" && (typeof value["assignedShifts"] === "number" && Number.isInteger(value["assignedShifts"])) && (typeof value["idealShifts"] === "number" && Number.isInteger(value["idealShifts"]));
-  }
-  function parseRosterStaffPanelSortRow(value) {
-    if (isRosterStaffPanelSortRow(value)) return value;
-    throw new Error("Invalid RosterStaffPanelSortRow");
   }
   function isRosterImageExportConfig(value) {
     return isRecord(value) && hasExactKeys(value, ["imageExportFilename", "imageExportMimeType", "imageExportQualityPercent", "imageExportPixelRatio", "imageExportMinimumWidth", "imageExportMaximumWidth", "imageExportIdleLabel", "imageExportPreparingLabel", "imageExportDownloadedLabel", "imageExportFailedLabel", "imageExportFailureMessage", "imageExportMissingProjectionMessage", "imageExportCloneFailureMessage", "imageExportRenderFailureMessage", "imageExportCanvasFailureMessage", "imageExportEncodingFailureMessage"], ["imageExportFilename", "imageExportMimeType", "imageExportQualityPercent", "imageExportPixelRatio", "imageExportMinimumWidth", "imageExportMaximumWidth", "imageExportIdleLabel", "imageExportPreparingLabel", "imageExportDownloadedLabel", "imageExportFailedLabel", "imageExportFailureMessage", "imageExportMissingProjectionMessage", "imageExportCloneFailureMessage", "imageExportRenderFailureMessage", "imageExportCanvasFailureMessage", "imageExportEncodingFailureMessage"]) && typeof value["imageExportFilename"] === "string" && typeof value["imageExportMimeType"] === "string" && (typeof value["imageExportQualityPercent"] === "number" && Number.isInteger(value["imageExportQualityPercent"])) && (typeof value["imageExportPixelRatio"] === "number" && Number.isInteger(value["imageExportPixelRatio"])) && (typeof value["imageExportMinimumWidth"] === "number" && Number.isInteger(value["imageExportMinimumWidth"])) && (typeof value["imageExportMaximumWidth"] === "number" && Number.isInteger(value["imageExportMaximumWidth"])) && typeof value["imageExportIdleLabel"] === "string" && typeof value["imageExportPreparingLabel"] === "string" && typeof value["imageExportDownloadedLabel"] === "string" && typeof value["imageExportFailedLabel"] === "string" && typeof value["imageExportFailureMessage"] === "string" && typeof value["imageExportMissingProjectionMessage"] === "string" && typeof value["imageExportCloneFailureMessage"] === "string" && typeof value["imageExportRenderFailureMessage"] === "string" && typeof value["imageExportCanvasFailureMessage"] === "string" && typeof value["imageExportEncodingFailureMessage"] === "string";
@@ -230,13 +216,6 @@
   function isRosterTemplateDesignerRosterTemplateDesignerScopeScope(value) {
     return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "userId"], ["venueId", "rosterGroupId", "userId"]) && typeof value["venueId"] === "string" && typeof value["rosterGroupId"] === "string" && typeof value["userId"] === "string";
   }
-  function isLeaveStaffPanelSortRow(value) {
-    return isRecord(value) && hasExactKeys(value, ["staffRowKey", "staffName", "staffRole", "periodCount", "pendingCount"], ["staffRowKey", "staffName", "staffRole", "periodCount", "pendingCount"]) && typeof value["staffRowKey"] === "string" && typeof value["staffName"] === "string" && typeof value["staffRole"] === "string" && (typeof value["periodCount"] === "number" && Number.isInteger(value["periodCount"])) && (typeof value["pendingCount"] === "number" && Number.isInteger(value["pendingCount"]));
-  }
-  function parseLeaveStaffPanelSortRow(value) {
-    if (isLeaveStaffPanelSortRow(value)) return value;
-    throw new Error("Invalid LeaveStaffPanelSortRow");
-  }
   function isLeaveRequestsLeaveRequestsScopeScope(value) {
     return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
   }
@@ -279,9 +258,6 @@
   function isAdminXeroAdminXeroScopeScope(value) {
     return isRecord(value) && hasExactKeys(value, ["venueId"], ["venueId"]) && typeof value["venueId"] === "string";
   }
-  var timesheetsTimesheetStaffPanelSortRootDomAttr = "data-bepis-timesheets-timesheet-staff-panel-sort-root";
-  var timesheetsTimesheetStaffPanelSortRowDomAttr = "data-bepis-timesheets-timesheet-staff-panel-sort-row";
-  var timesheetsTimesheetStaffPanelSortControlDomAttr = "data-bepis-timesheets-timesheet-staff-panel-sort-control";
   var timesheetsTimesheetStaffHighlightSourceDomAttr = "data-bepis-timesheets-timesheet-staff-highlight-source";
   var timesheetsTimesheetStaffHighlightMemberDomAttr = "data-bepis-timesheets-timesheet-staff-highlight-member";
   var timesheetsTimesheetStaffHighlightPinDomAttr = "data-bepis-timesheets-timesheet-staff-highlight-pin";
@@ -292,9 +268,6 @@
   var rosterTemplateCancelDomAttr = "data-bepis-roster-template-cancel";
   var rosterTemplateDayTargetDomAttr = "data-bepis-roster-template-day-target";
   var rosterTemplateWeekTargetDomAttr = "data-bepis-roster-template-week-target";
-  var rosterStaffPanelSortRootDomAttr = "data-bepis-roster-staff-panel-sort-root";
-  var rosterStaffPanelSortRowDomAttr = "data-bepis-roster-staff-panel-sort-row";
-  var rosterStaffPanelSortControlDomAttr = "data-bepis-roster-staff-panel-sort-control";
   var rosterColumnEditorDomAttr = "data-bepis-roster-column-editor";
   var rosterColumnEditStartDomAttr = "data-bepis-roster-column-edit-start";
   var rosterColumnEditDoneDomAttr = "data-bepis-roster-column-edit-done";
@@ -329,9 +302,6 @@
   var rosterStaffHighlightOrderDomAttr = "data-bepis-roster-staff-highlight-order";
   var rosterDayTimelineShiftGroupHighlightSourceDomAttr = "data-bepis-roster-day-timeline-shift-group-highlight-source";
   var rosterDayTimelineShiftGroupHighlightMemberDomAttr = "data-bepis-roster-day-timeline-shift-group-highlight-member";
-  var leaveRequestsLeaveStaffPanelSortRootDomAttr = "data-bepis-leave-requests-leave-staff-panel-sort-root";
-  var leaveRequestsLeaveStaffPanelSortRowDomAttr = "data-bepis-leave-requests-leave-staff-panel-sort-row";
-  var leaveRequestsLeaveStaffPanelSortControlDomAttr = "data-bepis-leave-requests-leave-staff-panel-sort-control";
   var leaveRequestsLeaveStaffHighlightSourceDomAttr = "data-bepis-leave-requests-leave-staff-highlight-source";
   var leaveRequestsLeaveStaffHighlightMemberDomAttr = "data-bepis-leave-requests-leave-staff-highlight-member";
   var leaveRequestsLeaveStaffHighlightPinDomAttr = "data-bepis-leave-requests-leave-staff-highlight-pin";
@@ -355,17 +325,7 @@
   function isRosterWeekOverviewCalendarDayState(value) {
     return typeof value === "string" && ["today", "other-day"].includes(value);
   }
-  function isTimesheetStaffPanelSortKey(value) {
-    return typeof value === "string" && ["name", "role", "count"].includes(value);
-  }
-  function isRosterStaffPanelSortKey(value) {
-    return typeof value === "string" && ["name", "role", "shifts"].includes(value);
-  }
-  function isLeaveStaffPanelSortKey(value) {
-    return typeof value === "string" && ["name", "role", "count"].includes(value);
-  }
   var FrontendSurfaceLinkedHighlightRegistry = { "timesheets": [{ "name": "timesheet-staff-cards-highlight", "sourceRoleAttribute": timesheetsTimesheetStaffHighlightSourceDomAttr, "memberRoleAttribute": timesheetsTimesheetStaffHighlightMemberDomAttr, "pinRoleAttribute": timesheetsTimesheetStaffHighlightPinDomAttr, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard", "pin"], "effects": ["matching-source", "matching-member"] }], "roster": [{ "name": "staff-shifts-highlight", "sourceRoleAttribute": rosterStaffHighlightSourceDomAttr, "memberRoleAttribute": rosterStaffHighlightMemberDomAttr, "pinRoleAttribute": rosterStaffHighlightPinDomAttr, "defaultRoleAttribute": rosterStaffHighlightDefaultDomAttr, "orderStateAttribute": rosterStaffHighlightOrderDomAttr, "activations": ["hover", "focus", "keyboard", "pin", "default"], "effects": ["matching-source", "matching-member", "ordered-member-bounds"] }, { "name": "shift-group-highlight", "sourceRoleAttribute": rosterShiftGroupHighlightSourceDomAttr, "memberRoleAttribute": rosterShiftGroupHighlightMemberDomAttr, "pinRoleAttribute": null, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard"], "effects": ["matching-member"] }], "roster-day-timeline": [{ "name": "shift-group-highlight", "sourceRoleAttribute": rosterDayTimelineShiftGroupHighlightSourceDomAttr, "memberRoleAttribute": rosterDayTimelineShiftGroupHighlightMemberDomAttr, "pinRoleAttribute": null, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard"], "effects": ["matching-member"] }], "roster-template-designer": [], "leave-requests": [{ "name": "leave-staff-periods-highlight", "sourceRoleAttribute": leaveRequestsLeaveStaffHighlightSourceDomAttr, "memberRoleAttribute": leaveRequestsLeaveStaffHighlightMemberDomAttr, "pinRoleAttribute": leaveRequestsLeaveStaffHighlightPinDomAttr, "defaultRoleAttribute": null, "orderStateAttribute": null, "activations": ["hover", "focus", "keyboard", "pin"], "effects": ["matching-source", "matching-member"] }], "self-service-leave": [], "billing": [], "support": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
-  var FrontendSurfaceCompleteSetSortRegistry = { "timesheets": [{ "name": "timesheet-staff-panel-sort", "rootRoleAttribute": timesheetsTimesheetStaffPanelSortRootDomAttr, "rowRoleAttribute": timesheetsTimesheetStaffPanelSortRowDomAttr, "controlRoleAttribute": timesheetsTimesheetStaffPanelSortControlDomAttr, "parseRow": parseTimesheetStaffPanelSortRow, "isKey": isTimesheetStaffPanelSortKey, "keys": [{ "key": "name", "comparators": [{ "field": "staffName", "valueType": "text", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRowKey }] }, { "key": "role", "comparators": [{ "field": "staffRole", "valueType": "text", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRole }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRowKey }] }, { "key": "count", "comparators": [{ "field": "entryCount", "valueType": "integer", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).entryCount }, { "field": "approvedCount", "valueType": "integer", "direction": "selected", "read": (row) => parseTimesheetStaffPanelSortRow(row).approvedCount }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseTimesheetStaffPanelSortRow(row).staffRowKey }] }], "defaultKey": "name", "defaultDirection": "ascending" }], "roster": [{ "name": "roster-staff-panel-sort", "rootRoleAttribute": rosterStaffPanelSortRootDomAttr, "rowRoleAttribute": rosterStaffPanelSortRowDomAttr, "controlRoleAttribute": rosterStaffPanelSortControlDomAttr, "parseRow": parseRosterStaffPanelSortRow, "isKey": isRosterStaffPanelSortKey, "keys": [{ "key": "name", "comparators": [{ "field": "staffName", "valueType": "text", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }, { "key": "role", "comparators": [{ "field": "staffRole", "valueType": "text", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).staffRole }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }, { "key": "shifts", "comparators": [{ "field": "assignedShifts", "valueType": "integer", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).assignedShifts }, { "field": "idealShifts", "valueType": "integer", "direction": "selected", "read": (row) => parseRosterStaffPanelSortRow(row).idealShifts }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseRosterStaffPanelSortRow(row).staffRowKey }] }], "defaultKey": "name", "defaultDirection": "ascending" }], "roster-day-timeline": [], "roster-template-designer": [], "leave-requests": [{ "name": "leave-staff-panel-sort", "rootRoleAttribute": leaveRequestsLeaveStaffPanelSortRootDomAttr, "rowRoleAttribute": leaveRequestsLeaveStaffPanelSortRowDomAttr, "controlRoleAttribute": leaveRequestsLeaveStaffPanelSortControlDomAttr, "parseRow": parseLeaveStaffPanelSortRow, "isKey": isLeaveStaffPanelSortKey, "keys": [{ "key": "name", "comparators": [{ "field": "staffName", "valueType": "text", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRowKey }] }, { "key": "role", "comparators": [{ "field": "staffRole", "valueType": "text", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRole }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRowKey }] }, { "key": "count", "comparators": [{ "field": "periodCount", "valueType": "integer", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).periodCount }, { "field": "pendingCount", "valueType": "integer", "direction": "selected", "read": (row) => parseLeaveStaffPanelSortRow(row).pendingCount }, { "field": "staffName", "valueType": "text", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffName }, { "field": "staffRowKey", "valueType": "opaque", "direction": "ascending", "read": (row) => parseLeaveStaffPanelSortRow(row).staffRowKey }] }], "defaultKey": "name", "defaultDirection": "ascending" }], "self-service-leave": [], "billing": [], "support": [], "profile": [], "staff": [], "admin-page": [], "admin-xero-page": [], "admin-venue-config": [], "admin-invites": [], "admin-exports": [], "admin-shift-types": [], "admin-roster-groups": [], "admin-xero": [] };
   var FrontendSurfaceFragmentRegistry = { "timesheets": ["timesheet-toolbar", "timesheet-day-columns", "timesheet-side-panel-content", "timesheet-day-section"], "roster": ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-template-library", "roster-day-section", "roster-row"], "roster-day-timeline": ["roster-day-timeline-content"], "roster-template-designer": [], "leave-requests": ["unavailability-blackouts", "leave-side-panel-content", "leave-availability-warnings", "leave-section-count", "leave-section-list"], "self-service-leave": ["self-service-leave-form", "visible-unavailability-blackouts", "self-service-leave-history"], "billing": ["billing-status"], "support": ["support-award-rates", "support-public-holidays"], "profile": ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"], "staff": ["staff-details-section", "staff-preferences-section", "staff-visible-unavailability-blackouts", "staff-leave-section"], "admin-page": [], "admin-xero-page": [], "admin-venue-config": ["admin-venue-settings"], "admin-invites": ["admin-invites"], "admin-exports": ["admin-exports"], "admin-shift-types": ["admin-shift-types"], "admin-roster-groups": ["admin-roster-groups"], "admin-xero": ["admin-xero-shell"] };
   function isFrontendSurfaceName(value) {
     return typeof value === "string" && Object.prototype.hasOwnProperty.call(FrontendSurfaceFragmentRegistry, value);
@@ -534,8 +494,8 @@
   var startSelector = `[${rosterColumnEditStartDomAttr}]`;
   var doneSelector = `[${rosterColumnEditDoneDomAttr}]`;
   var finishDelayMs = 350;
-  function defaultDiagnosticReporter(diagnostic5) {
-    console.error?.("Invalid generated roster column-edit boundary", diagnostic5);
+  function defaultDiagnosticReporter(diagnostic4) {
+    console.error?.("Invalid generated roster column-edit boundary", diagnostic4);
   }
   function defaultScheduler() {
     return {
@@ -994,8 +954,8 @@
   var rowSelector = `[${rosterImageExportRowDomAttr}]`;
   var cellSelector = `[${rosterImageExportCellDomAttr}]`;
   var surfaceSelector = `[${surfaceDomAttr}]`;
-  function defaultDiagnosticReporter2(diagnostic5) {
-    console.error?.("Invalid generated roster image-export boundary", diagnostic5);
+  function defaultDiagnosticReporter2(diagnostic4) {
+    console.error?.("Invalid generated roster image-export boundary", diagnostic4);
   }
   function diagnostic2(element, code, message) {
     return { code, elementId: element.id || null, message };
@@ -1295,232 +1255,6 @@
     });
   }
 
-  // frontend/ts/shared/surface-mount.ts
-  function surfaceMountsWithin(root) {
-    const queryRoot = root;
-    const mounts = Array.from(queryRoot.querySelectorAll(`[${surfaceDomAttr}]`)).filter(isSurfaceElementLike);
-    if (isSurfaceElementLike(root)) {
-      const ownerMount = closestSurfaceMount2(root);
-      if (ownerMount && !mounts.includes(ownerMount)) mounts.unshift(ownerMount);
-    }
-    return mounts;
-  }
-  function surfaceDefinitionsForMount(mount, registry) {
-    const surface = mount.getAttribute(surfaceDomAttr);
-    return isFrontendSurfaceName(surface) ? registry[surface] : [];
-  }
-  function ownedSurfaceRoleElements(owner, mount, attribute) {
-    return Array.from(owner.querySelectorAll(`[${attribute}]`)).filter(isSurfaceElementLike).filter((element) => closestSurfaceMount2(element) === mount);
-  }
-  function closestOwnedSurfaceRole(target, mount, attribute) {
-    const candidate = target.closest(`[${attribute}]`);
-    return isSurfaceElementLike(candidate) && closestSurfaceMount2(candidate) === mount ? candidate : null;
-  }
-  function closestSurfaceRole(target, attribute) {
-    const candidate = target.closest(`[${attribute}]`);
-    return isSurfaceElementLike(candidate) ? candidate : null;
-  }
-  function closestSurfaceMount2(target) {
-    const mount = target.closest(`[${surfaceDomAttr}]`);
-    return isSurfaceElementLike(mount) ? mount : null;
-  }
-  function isSurfaceElementLike(value) {
-    if (value === null || typeof value !== "object") return false;
-    const candidate = value;
-    return typeof candidate.appendChild === "function" && typeof candidate.getAttribute === "function" && typeof candidate.setAttribute === "function" && typeof candidate.closest === "function" && typeof candidate.querySelectorAll === "function";
-  }
-  function surfaceRootFromPageReadyEvent(event) {
-    const target = event.detail?.target;
-    return target instanceof Element || target instanceof Document ? target : document;
-  }
-
-  // frontend/ts/complete-set-sort/runtime.ts
-  function defaultDiagnosticReporter3(diagnostic5) {
-    console.error?.("Invalid generated complete-set sort boundary", diagnostic5);
-  }
-  function diagnostic3(element, code, message) {
-    return { code, elementId: element.id || null, message };
-  }
-  function createCompleteSetSortController(report = defaultDiagnosticReporter3) {
-    const statesByRoot = /* @__PURE__ */ new WeakMap();
-    function stateFor2(root, definition) {
-      let rootStates = statesByRoot.get(root);
-      if (!rootStates) {
-        rootStates = /* @__PURE__ */ new Map();
-        statesByRoot.set(root, rootStates);
-      }
-      let state = rootStates.get(definition.name);
-      if (!state) {
-        state = { key: definition.defaultKey, direction: definition.defaultDirection };
-        rootStates.set(definition.name, state);
-      }
-      return state;
-    }
-    function reconcile(root) {
-      for (const mount of surfaceMountsWithin(root)) {
-        for (const definition of definitionsForMount2(mount)) {
-          for (const sortRoot of ownedSurfaceRoleElements(mount, mount, definition.rootRoleAttribute)) {
-            if (sortRoot.getAttribute(definition.rootRoleAttribute) !== "true") {
-              report(diagnostic3(sortRoot, "invalid-root-role", "Complete-set sort root role must equal true"));
-              continue;
-            }
-            const state = stateFor2(sortRoot, definition);
-            applySort({ mount, root: sortRoot, definition }, state);
-          }
-        }
-      }
-    }
-    function activate(target) {
-      if (!isSurfaceElementLike(target)) return false;
-      const mount = closestSurfaceMount2(target);
-      if (!mount) return false;
-      for (const definition of definitionsForMount2(mount)) {
-        const control = closestOwnedSurfaceRole(target, mount, definition.controlRoleAttribute);
-        if (!control) continue;
-        const sortRoot = closestSurfaceRole(control, definition.rootRoleAttribute);
-        if (!sortRoot || closestSurfaceMount2(sortRoot) !== mount) continue;
-        const rawKey = control.getAttribute(definition.controlRoleAttribute);
-        const key = rawKey !== null && definition.isKey(rawKey) ? definition.keys.find((candidate) => candidate.key === rawKey) : void 0;
-        if (!key) {
-          report(diagnostic3(control, "invalid-control-key", "Complete-set sort control has an undeclared key"));
-          return false;
-        }
-        const current = stateFor2(sortRoot, definition);
-        const next = {
-          key: key.key,
-          direction: current.key === key.key ? oppositeDirection(current.direction) : definition.defaultDirection
-        };
-        if (!applySort({ mount, root: sortRoot, definition }, next)) return false;
-        const rootStates = statesByRoot.get(sortRoot);
-        rootStates?.set(definition.name, next);
-        return true;
-      }
-      return false;
-    }
-    function applySort(context, state) {
-      const key = context.definition.keys.find((candidate) => candidate.key === state.key);
-      if (!key) {
-        report(diagnostic3(context.root, "missing-default-key", "Complete-set sort definition has no matching active key"));
-        return false;
-      }
-      const rows = [];
-      for (const row of ownedSurfaceRoleElements(context.root, context.mount, context.definition.rowRoleAttribute)) {
-        const raw = row.getAttribute(context.definition.rowRoleAttribute);
-        try {
-          if (raw === null) throw new Error(`Missing ${context.definition.rowRoleAttribute}`);
-          rows.push({ element: row, value: context.definition.parseRow(JSON.parse(raw)) });
-        } catch (error) {
-          report(diagnostic3(
-            row,
-            "invalid-row-payload",
-            error instanceof Error ? error.message : String(error)
-          ));
-          return false;
-        }
-      }
-      const rowParent = rows[0]?.element.parentElement ?? null;
-      if (rows.some((row) => row.element.parentElement !== rowParent) || rows.length > 0 && rowParent === null) {
-        report(diagnostic3(context.root, "invalid-row-parent", "Complete-set sort rows must share one local parent"));
-        return false;
-      }
-      try {
-        rows.sort((left, right) => compareRows(left.value, right.value, key.comparators, state.direction));
-      } catch (error) {
-        report(diagnostic3(
-          context.root,
-          "invalid-comparator-value",
-          error instanceof Error ? error.message : String(error)
-        ));
-        return false;
-      }
-      if (rowParent) rows.forEach((row) => rowParent.appendChild(row.element));
-      syncControlStates(context, state);
-      return true;
-    }
-    return { activate, reconcile };
-  }
-  function compareRows(left, right, comparators, selectedDirection) {
-    for (const comparator of comparators) {
-      const result = compareValues(
-        comparator.read(left),
-        comparator.read(right),
-        comparator.valueType,
-        comparator.field
-      );
-      if (result === 0) continue;
-      return comparator.direction === "selected" ? result * directionMultiplier(selectedDirection) : result;
-    }
-    return 0;
-  }
-  function compareValues(left, right, valueType, field) {
-    switch (valueType) {
-      case "text":
-        if (typeof left !== "string" || typeof right !== "string") {
-          throw new Error(`Complete-set sort text comparator ${field} received a non-text value`);
-        }
-        return left.localeCompare(right, void 0, { sensitivity: "base" });
-      case "integer":
-        if (!Number.isInteger(left) || !Number.isInteger(right)) {
-          throw new Error(`Complete-set sort integer comparator ${field} received a non-integer value`);
-        }
-        return left - right;
-      case "opaque":
-        if (typeof left !== "string" || typeof right !== "string") {
-          throw new Error(`Complete-set sort opaque comparator ${field} received a non-text value`);
-        }
-        return left === right ? 0 : left < right ? -1 : 1;
-      default:
-        return assertNever(valueType);
-    }
-  }
-  function directionMultiplier(direction) {
-    switch (direction) {
-      case "ascending":
-        return 1;
-      case "descending":
-        return -1;
-      default:
-        return assertNever(direction);
-    }
-  }
-  function oppositeDirection(direction) {
-    switch (direction) {
-      case "ascending":
-        return "descending";
-      case "descending":
-        return "ascending";
-      default:
-        return assertNever(direction);
-    }
-  }
-  function syncControlStates(context, state) {
-    for (const control of ownedSurfaceRoleElements(context.root, context.mount, context.definition.controlRoleAttribute)) {
-      const rawKey = control.getAttribute(context.definition.controlRoleAttribute);
-      const isActive = context.definition.isKey(rawKey) && rawKey === state.key;
-      const ariaSort = isActive ? state.direction : "none";
-      control.setAttribute("aria-sort", ariaSort);
-      const header = control.closest("th");
-      if (isSurfaceElementLike(header) && closestSurfaceRole(header, context.definition.rootRoleAttribute) === context.root) {
-        header.setAttribute("aria-sort", ariaSort);
-      }
-    }
-  }
-  function definitionsForMount2(mount) {
-    return surfaceDefinitionsForMount(mount, FrontendSurfaceCompleteSetSortRegistry);
-  }
-  var browserRuntimeEnabled2 = false;
-  function enableFrontendSurfaceCompleteSetSort() {
-    if (browserRuntimeEnabled2 || typeof document === "undefined") return;
-    browserRuntimeEnabled2 = true;
-    const controller = createCompleteSetSortController();
-    document.addEventListener("click", (event) => {
-      if (!(event.target instanceof Element)) return;
-      controller.activate(event.target);
-    });
-    onAppPageReady((event) => controller.reconcile(surfaceRootFromPageReadyEvent(event)));
-    controller.reconcile(document);
-  }
-
   // frontend/ts/roster/week-overview-configuration.ts
   function parseRosterWeekOverviewPanelConfiguration(raw) {
     return parseRosterWeekOverviewPanelConfig(JSON.parse(raw));
@@ -1543,10 +1277,10 @@
   function roleSelector(attribute) {
     return `[${attribute}]`;
   }
-  function defaultDiagnosticReporter4(diagnostic5) {
-    console.error?.("Invalid generated roster week-overview boundary", diagnostic5);
+  function defaultDiagnosticReporter3(diagnostic4) {
+    console.error?.("Invalid generated roster week-overview boundary", diagnostic4);
   }
-  function diagnostic4(element, code, message) {
+  function diagnostic3(element, code, message) {
     return { code, elementId: element.id || null, message };
   }
   function ownedElements2(panel, attribute) {
@@ -1558,7 +1292,7 @@
       if (raw === null) throw new Error(`Missing ${rosterWeekOverviewPanelDomAttr}`);
       return parseRosterWeekOverviewPanelConfiguration(raw);
     } catch (error) {
-      report(diagnostic4(
+      report(diagnostic3(
         panel,
         "invalid-panel-config",
         error instanceof Error ? error.message : String(error)
@@ -1574,12 +1308,12 @@
       const calendarDay = day.getAttribute(rosterWeekOverviewCalendarDayDomAttr);
       const calendarDayIsDeclared = isRosterWeekOverviewCalendarDayState(calendarDay) && (calendarDay === rosterWeekOverviewCalendarDayStates.today || calendarDay === rosterWeekOverviewCalendarDayStates["other-day"]);
       if (day.getAttribute(rosterWeekOverviewAvailabilityDomAttr) !== config.weekOverviewAvailability || day.getAttribute(rosterWeekOverviewClosureDomAttr) !== config.weekOverviewClosure || !calendarDayIsDeclared) {
-        report(diagnostic4(day, "invalid-day-state", "Week-overview day states must agree with its exact payload"));
+        report(diagnostic3(day, "invalid-day-state", "Week-overview day states must agree with its exact payload"));
         return null;
       }
       return config;
     } catch (error) {
-      report(diagnostic4(
+      report(diagnostic3(
         day,
         "invalid-day-config",
         error instanceof Error ? error.message : String(error)
@@ -1590,12 +1324,12 @@
   function readSingleSlot(panel, attribute, report) {
     const slots = ownedElements2(panel, attribute);
     if (slots.length !== 1) {
-      report(diagnostic4(panel, "invalid-slot-count", `Week-overview panel requires exactly one ${attribute} slot`));
+      report(diagnostic3(panel, "invalid-slot-count", `Week-overview panel requires exactly one ${attribute} slot`));
       return null;
     }
     const slot = slots[0];
     if (slot.getAttribute(attribute) !== "true") {
-      report(diagnostic4(slot, "invalid-slot-role", `Week-overview slot ${attribute} must equal true`));
+      report(diagnostic3(slot, "invalid-slot-role", `Week-overview slot ${attribute} must equal true`));
       return null;
     }
     return slot;
@@ -1603,12 +1337,12 @@
   function readOptionalSlot(panel, attribute, report) {
     const slots = ownedElements2(panel, attribute);
     if (slots.length > 1) {
-      report(diagnostic4(panel, "invalid-slot-count", `Week-overview panel permits at most one ${attribute} slot`));
+      report(diagnostic3(panel, "invalid-slot-count", `Week-overview panel permits at most one ${attribute} slot`));
       return false;
     }
     const slot = slots[0] ?? null;
     if (slot !== null && slot.getAttribute(attribute) !== "true") {
-      report(diagnostic4(slot, "invalid-slot-role", `Week-overview slot ${attribute} must equal true`));
+      report(diagnostic3(slot, "invalid-slot-role", `Week-overview slot ${attribute} must equal true`));
       return false;
     }
     return slot;
@@ -1624,11 +1358,11 @@
     const details = readSingleSlot(panel, rosterWeekOverviewDetailsDomAttr, report);
     if (selectedLabel === null || leaveValue === false || assignedValue === null || hoursValue === null || summary === null || weekLabel === null || goLinkElement === null || details === null) return null;
     if (goLinkElement.tagName !== "A") {
-      report(diagnostic4(goLinkElement, "invalid-go-link", "Week-overview go-link slot must be an anchor"));
+      report(diagnostic3(goLinkElement, "invalid-go-link", "Week-overview go-link slot must be an anchor"));
       return null;
     }
     if (!isRosterWeekOverviewAvailabilityState(details.getAttribute(rosterWeekOverviewAvailabilityDomAttr)) || !isRosterWeekOverviewClosureState(details.getAttribute(rosterWeekOverviewClosureDomAttr))) {
-      report(diagnostic4(details, "invalid-details-state", "Week-overview details states must be generated values"));
+      report(diagnostic3(details, "invalid-details-state", "Week-overview details states must be generated values"));
       return null;
     }
     return {
@@ -1642,9 +1376,9 @@
       details
     };
   }
-  function updateRosterWeekOverviewSelection(panel, selectedDay, report = defaultDiagnosticReporter4) {
+  function updateRosterWeekOverviewSelection(panel, selectedDay, report = defaultDiagnosticReporter3) {
     if (selectedDay.closest(panelSelector) !== panel) {
-      report(diagnostic4(selectedDay, "day-outside-panel", "Week-overview day is not owned by this panel"));
+      report(diagnostic3(selectedDay, "day-outside-panel", "Week-overview day is not owned by this panel"));
       return false;
     }
     if (readPanel(panel, report) === null) return false;
@@ -1680,14 +1414,14 @@
         return updateRosterWeekOverviewSelection(panel, day, report);
       }
     }
-    report(diagnostic4(panel, "missing-today-day", "Week-overview panel has no valid day for its Haskell-provided current date"));
+    report(diagnostic3(panel, "missing-today-day", "Week-overview panel has no valid day for its Haskell-provided current date"));
     return false;
   }
   function panelForControl(control) {
     const panel = control.closest(panelSelector);
     return panel instanceof HTMLElement ? panel : null;
   }
-  function enableRosterWeekOverview(report = defaultDiagnosticReporter4) {
+  function enableRosterWeekOverview(report = defaultDiagnosticReporter3) {
     if (typeof window === "undefined") return;
     document.addEventListener("click", (event) => {
       if (!(event.target instanceof Element)) return;
@@ -1700,7 +1434,7 @@
       const today = event.target.closest(todaySelector);
       if (today instanceof HTMLElement) {
         if (today.getAttribute(rosterWeekOverviewTodayDomAttr) !== "true") {
-          report(diagnostic4(today, "invalid-today-role", "Week-overview today role must equal true"));
+          report(diagnostic3(today, "invalid-today-role", "Week-overview today role must equal true"));
           return;
         }
         const panel = panelForControl(today);
@@ -2029,7 +1763,6 @@
   enableRosterWeekOverview();
   enableRosterColumnEditMode();
   enableRosterImageExport();
-  enableFrontendSurfaceCompleteSetSort();
   enableRosterTemplateApplication();
   var rosterWageFilter = enableRosterWageFilter();
   enableFrontendSurfaceLinkedHighlight({ onPinChange: rosterWageFilter.pinChanged });
