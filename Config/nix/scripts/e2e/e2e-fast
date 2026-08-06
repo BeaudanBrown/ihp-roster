@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 export E2E_TIER=fast
+# Fast feedback should report the first deterministic failure immediately;
+# the complete gate retains Playwright's retry evidence for flake diagnosis.
+export PLAYWRIGHT_RETRIES="${PLAYWRIGHT_RETRIES:-0}"
 exec e2e "$@"

@@ -35,6 +35,7 @@ export default defineConfig({
     fullyParallel,
     workers,
     retries,
+    maxFailures: e2eTier === 'fast' ? 1 : 0,
     timeout: E2E_TIMEOUT.test,
     expect: {
         timeout: E2E_TIMEOUT.assertion,

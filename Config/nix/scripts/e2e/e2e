@@ -218,7 +218,8 @@ if [ "${E2E_RUNTIME_AUTO_CLEANUP:-1}" = 1 ]; then
 fi
 # Holding the shared lifecycle lock before ensure prevents a concurrently
 # finishing last run from stopping the cluster after this run observed it.
-export TEST_DB_SOCKET="$(e2e-postgres ensure 7>&- 9>&-)"
+TEST_DB_SOCKET="$(e2e-postgres ensure 7>&- 9>&-)"
+export TEST_DB_SOCKET
 
 PORT_SLOT=""
 for candidate in $(seq 0 99); do
@@ -272,23 +273,19 @@ detect_e2e_base_url() {
 
 shard_statuses=()
 
-E2E_SERVER_MODE="${E2E_SERVER_MODE:-}"
-if [ -z "$E2E_SERVER_MODE" ]; then
-    if [ "$E2E_SHARDS" -gt 1 ]; then
-        E2E_SERVER_MODE="compiled"
-    else
-        E2E_SERVER_MODE="dev"
-    fi
-fi
+# Canonical E2E runs use the shared compiled verification graph even when a
+# focused invocation selects one shard. GHCi startup made tiny agent checks as
+# expensive as the full suite; dev mode remains an explicit debugging option.
+E2E_SERVER_MODE="${E2E_SERVER_MODE:-compiled}"
 
 E2E_SERVER_BIN=""
+E2E_BUILD_DIR="$(ihp_roster_verification_build_dir)"
+GHC_OPTS="$(ihp_roster_ghc_opts) -iTest"
+ihp_roster_prepare_ghc_build_dir "$E2E_BUILD_DIR" "$GHC_OPTS"
 if [ "$E2E_SERVER_MODE" = "compiled" ]; then
-    E2E_BUILD_DIR="$(ihp_roster_verification_build_dir)"
     E2E_RUN_BUILD_DIR="$STATE_DIR/build"
     E2E_SERVER_BIN="$E2E_RUN_BUILD_DIR/RunE2EApp"
     mkdir -p "$E2E_RUN_BUILD_DIR"
-    GHC_OPTS="$(ihp_roster_ghc_opts) -iTest"
-    ihp_roster_prepare_ghc_build_dir "$E2E_BUILD_DIR" "$GHC_OPTS"
     ghc $GHC_OPTS Main.hs -o "$E2E_SERVER_BIN" -odir "$E2E_BUILD_DIR/obj" -hidir "$E2E_BUILD_DIR/hi" \
         7>&- 9>&- {PORT_LOCK_FD}>&- 2>&1 | tee "$STATE_DIR/app-build.log"
 elif [ "$E2E_SERVER_MODE" != "dev" ]; then
@@ -298,14 +295,15 @@ fi
 
 E2E_STRIPE_MOCK_BUILD_DIR="$STATE_DIR/stripe-mock-build"
 E2E_STRIPE_MOCK_BIN="$E2E_STRIPE_MOCK_BUILD_DIR/StripeProcessMock"
-mkdir -p "$E2E_STRIPE_MOCK_BUILD_DIR/obj" "$E2E_STRIPE_MOCK_BUILD_DIR/hi"
-STRIPE_MOCK_GHC_OPTS="$(ihp_roster_ghc_opts) -iTest"
-ghc $STRIPE_MOCK_GHC_OPTS \
+mkdir -p "$E2E_STRIPE_MOCK_BUILD_DIR"
+# Reuse the typecheck/Hspec object graph; only the mock entrypoint is E2E-specific.
+# shellcheck disable=SC2086 # GHC_OPTS is an intentional argument vector.
+ghc $GHC_OPTS \
     -main-is Test.StripeProcessMockMain \
     Test/StripeProcessMockMain.hs \
     -o "$E2E_STRIPE_MOCK_BIN" \
-    -odir "$E2E_STRIPE_MOCK_BUILD_DIR/obj" \
-    -hidir "$E2E_STRIPE_MOCK_BUILD_DIR/hi" \
+    -odir "$E2E_BUILD_DIR/obj" \
+    -hidir "$E2E_BUILD_DIR/hi" \
     7>&- 9>&- {PORT_LOCK_FD}>&- 2>&1 | tee "$STATE_DIR/stripe-mock-build.log"
 
 find_e2e_port() {
