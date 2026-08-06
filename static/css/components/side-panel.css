@@ -5,6 +5,63 @@
     justify-content: flex-end;
 }
 
+.app-side-panel-card,
+.app-side-panel-table {
+    width: 100%;
+}
+
+.app-side-panel-tabs {
+    gap: 0.35rem;
+    margin-bottom: 0.85rem;
+}
+
+.app-side-panel-tab {
+    flex: 1 1 0;
+}
+
+.app-side-panel-table {
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+}
+
+.app-side-panel-table th,
+.app-side-panel-table td {
+    padding: 0.5rem 0.35rem;
+    border-bottom: 1px solid var(--app-border);
+    vertical-align: middle;
+}
+
+.app-side-panel-sort-button {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: 700;
+}
+
+.app-side-panel-entry {
+    cursor: pointer;
+    transition: background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.app-side-panel-entry:hover,
+.app-side-panel-entry:focus-visible,
+.app-side-panel-entry.is-linked-highlight-source {
+    background: var(--app-accent-softer);
+    box-shadow: inset 3px 0 0 var(--app-accent);
+    outline: none;
+}
+
+.app-side-panel-count {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.app-side-panel-count-secondary {
+    color: var(--app-muted);
+}
+
 .app-side-panel-toggle {
     min-width: 2.35rem;
     min-height: 2.35rem;

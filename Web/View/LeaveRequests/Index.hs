@@ -166,13 +166,13 @@ renderLeaveSidePanelWithSwap maybeSwapOob venueToday blackouts leaveRequests sta
         , sidePanelRegionExtraAttrs = maybe [] (\swap -> [("hx-swap-oob", swap)]) maybeSwapOob
         }
         [hsx|
-            <div class="app-panel app-side-panel-scroll leave-side-panel-card">
+            <div class="app-panel app-side-panel-card app-side-panel-scroll leave-side-panel-card">
                 <div class="app-panel-body app-side-panel-scroll-body">
-                    <div class="nav nav-pills leave-side-panel-tabs" role="tablist" aria-label="Unavailability side panel">
-                        <button class="nav-link active leave-side-panel-tab" id="leave-staff-tab" type="button" role="tab"
+                    <div class="nav nav-pills app-side-panel-tabs leave-side-panel-tabs" role="tablist" aria-label="Unavailability side panel">
+                        <button class="nav-link active app-side-panel-tab leave-side-panel-tab" id="leave-staff-tab" type="button" role="tab"
                                 data-bs-toggle="tab" data-bs-target="#leave-staff-pane" aria-controls="leave-staff-pane"
                                 aria-selected="true" {...leaveSidePanelTabAttrs LeaveStaffTab}>Staff</button>
-                        <button class="nav-link leave-side-panel-tab" id="leave-settings-tab" type="button" role="tab"
+                        <button class="nav-link app-side-panel-tab leave-side-panel-tab" id="leave-settings-tab" type="button" role="tab"
                                 data-bs-toggle="tab" data-bs-target="#leave-settings-pane" aria-controls="leave-settings-pane"
                                 aria-selected="false" {...leaveSidePanelTabAttrs LeaveSettingsTab}>Settings</button>
                     </div>
@@ -190,11 +190,11 @@ renderLeaveSidePanelWithSwap maybeSwapOob venueToday blackouts leaveRequests sta
 
 renderLeaveStaffPanel :: (?context :: ControllerContext) => [LeaveStaffPanelEntry] -> Html
 renderLeaveStaffPanel entries = [hsx|
-    <table class="leave-staff-table" {...leaveStaffPanelSortRootAttrs}>
+    <table class="app-side-panel-table leave-staff-table" {...leaveStaffPanelSortRootAttrs}>
         <thead><tr>
-            <th scope="col" aria-sort="none"><button type="button" class="leave-staff-sort-button" {...leaveStaffPanelSortControlAttrs LeaveStaffSortByName}>Name</button></th>
-            <th scope="col" aria-sort="none"><button type="button" class="leave-staff-sort-button" {...leaveStaffPanelSortControlAttrs LeaveStaffSortByRole}>Role</button></th>
-            <th scope="col" aria-sort="none"><button type="button" class="leave-staff-sort-button" {...leaveStaffPanelSortControlAttrs LeaveStaffSortByCount}>Periods</button></th>
+            <th scope="col" aria-sort="none"><button type="button" class="app-side-panel-sort-button leave-staff-sort-button" {...leaveStaffPanelSortControlAttrs LeaveStaffSortByName}>Name</button></th>
+            <th scope="col" aria-sort="none"><button type="button" class="app-side-panel-sort-button leave-staff-sort-button" {...leaveStaffPanelSortControlAttrs LeaveStaffSortByRole}>Role</button></th>
+            <th scope="col" aria-sort="none"><button type="button" class="app-side-panel-sort-button leave-staff-sort-button" {...leaveStaffPanelSortControlAttrs LeaveStaffSortByCount}>Periods</button></th>
             <th scope="col"><span class="visually-hidden">Locate unavailable periods</span></th>
         </tr></thead>
         <tbody>{forEach (sortOn (Text.toCaseFold . leaveStaffName . (.panelStaff)) entries) renderLeaveStaffPanelEntry}</tbody>
@@ -214,11 +214,11 @@ renderLeaveStaffPanelEntry entry =
                 , appShellActionRouteExtraAttrs = []
                 }
             [hsx|
-                <tr class="leave-staff-panel-entry" role="button" tabindex="0"
+                <tr class="app-side-panel-entry leave-staff-panel-entry" role="button" tabindex="0"
                     {...leaveStaffPanelSortRowAttrs staffKey staffName roleLabel entry.panelPeriodCount entry.panelPendingCount}>
                     <th scope="row">{staffName}</th>
                     <td>{roleLabel}</td>
-                    <td><span class="leave-staff-count-total">{entry.panelPeriodCount}</span> <span class="leave-staff-count-pending">({entry.panelPendingCount})</span></td>
+                    <td><span class="app-side-panel-count leave-staff-count-total">{entry.panelPeriodCount}</span> <span class="app-side-panel-count app-side-panel-count-secondary leave-staff-count-pending">({entry.panelPendingCount})</span></td>
                     <td>{locateButton}</td>
                 </tr>
             |]

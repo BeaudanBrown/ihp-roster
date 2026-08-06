@@ -237,7 +237,7 @@ renderTimesheetSidePanelWithSwap maybeSwapOob view =
         , sidePanelRegionExtraAttrs = maybe [] (\swap -> [("hx-swap-oob", swap)]) maybeSwapOob
         }
         [hsx|
-            <div class="app-panel app-side-panel-scroll timesheet-side-panel-card">
+            <div class="app-panel app-side-panel-card app-side-panel-scroll timesheet-side-panel-card">
                 <div class="app-panel-body app-side-panel-scroll-body">
                     {if currentUserIsManager then renderManagerTimesheetSidePanel view else renderWorkerTimesheetSettings view}
                 </div>
@@ -246,11 +246,11 @@ renderTimesheetSidePanelWithSwap maybeSwapOob view =
 
 renderManagerTimesheetSidePanel :: (?context :: ControllerContext) => IndexView -> Html
 renderManagerTimesheetSidePanel view = [hsx|
-    <div class="nav nav-pills timesheet-side-panel-tabs" role="tablist" aria-label="Timesheet side panel">
-        <button class="nav-link active timesheet-side-panel-tab" id="timesheet-staff-tab" type="button" role="tab"
+    <div class="nav nav-pills app-side-panel-tabs timesheet-side-panel-tabs" role="tablist" aria-label="Timesheet side panel">
+        <button class="nav-link active app-side-panel-tab timesheet-side-panel-tab" id="timesheet-staff-tab" type="button" role="tab"
                 data-bs-toggle="tab" data-bs-target="#timesheet-staff-pane" aria-controls="timesheet-staff-pane"
                 aria-selected="true" {...timesheetSidePanelTabAttrs TimesheetStaffTab}>Staff</button>
-        <button class="nav-link timesheet-side-panel-tab" id="timesheet-settings-tab" type="button" role="tab"
+        <button class="nav-link app-side-panel-tab timesheet-side-panel-tab" id="timesheet-settings-tab" type="button" role="tab"
                 data-bs-toggle="tab" data-bs-target="#timesheet-settings-pane" aria-controls="timesheet-settings-pane"
                 aria-selected="false" {...timesheetSidePanelTabAttrs TimesheetSettingsTab}>Settings</button>
     </div>
@@ -281,11 +281,11 @@ renderTimesheetSettings IndexView { weekOffset, hideApproved, showTimesheetSugge
 
 renderTimesheetStaffPanel :: (?context :: ControllerContext) => Int -> [Staff] -> [TimesheetStaffPanelEntry] -> Html
 renderTimesheetStaffPanel weekOffset staffMembers entries = [hsx|
-    <table class="timesheet-staff-table" {...timesheetStaffPanelSortRootAttrs}>
+    <table class="app-side-panel-table timesheet-staff-table" {...timesheetStaffPanelSortRootAttrs}>
         <thead><tr>
-            <th scope="col" aria-sort="none"><button type="button" class="timesheet-staff-sort-button" {...timesheetStaffPanelSortControlAttrs TimesheetStaffSortByName}>Name</button></th>
-            <th scope="col" aria-sort="none"><button type="button" class="timesheet-staff-sort-button" {...timesheetStaffPanelSortControlAttrs TimesheetStaffSortByRole}>Role</button></th>
-            <th scope="col" aria-sort="none"><button type="button" class="timesheet-staff-sort-button" {...timesheetStaffPanelSortControlAttrs TimesheetStaffSortByCount}>Entries</button></th>
+            <th scope="col" aria-sort="none"><button type="button" class="app-side-panel-sort-button timesheet-staff-sort-button" {...timesheetStaffPanelSortControlAttrs TimesheetStaffSortByName}>Name</button></th>
+            <th scope="col" aria-sort="none"><button type="button" class="app-side-panel-sort-button timesheet-staff-sort-button" {...timesheetStaffPanelSortControlAttrs TimesheetStaffSortByRole}>Role</button></th>
+            <th scope="col" aria-sort="none"><button type="button" class="app-side-panel-sort-button timesheet-staff-sort-button" {...timesheetStaffPanelSortControlAttrs TimesheetStaffSortByCount}>Entries</button></th>
             <th scope="col"><span class="visually-hidden">Locate entries</span></th>
         </tr></thead>
         <tbody>{forEach (sortOn (Text.toCaseFold . staffDisplayName staffMembers . (.panelStaff)) entries) (renderTimesheetStaffPanelEntry weekOffset staffMembers)}</tbody>
@@ -305,11 +305,11 @@ renderTimesheetStaffPanelEntry weekOffset staffMembers entry =
                 , appShellActionRouteExtraAttrs = []
                 }
             [hsx|
-                <tr class="timesheet-staff-panel-entry" role="button" tabindex="0"
+                <tr class="app-side-panel-entry timesheet-staff-panel-entry" role="button" tabindex="0"
                     {...timesheetStaffPanelSortRowAttrs staffKey staffName roleLabel entry.panelEntryCount entry.panelApprovedCount}>
                     <th scope="row">{staffName}</th>
                     <td>{roleLabel}</td>
-                    <td><span class="timesheet-staff-count-total">{entry.panelEntryCount}</span> <span class="timesheet-staff-count-approved">({entry.panelApprovedCount})</span></td>
+                    <td><span class="app-side-panel-count timesheet-staff-count-total">{entry.panelEntryCount}</span> <span class="app-side-panel-count app-side-panel-count-secondary timesheet-staff-count-approved">({entry.panelApprovedCount})</span></td>
                     <td>{locateButton}</td>
                 </tr>
             |]
