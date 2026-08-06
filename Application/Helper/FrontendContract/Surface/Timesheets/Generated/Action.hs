@@ -12,11 +12,9 @@ module Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action
     , navigateTimesheetWeekActionFields
     , parseApproveTimesheetEntryActionParams
     , parseCreateTimesheetEntryFromSuggestionActionParams
-    , parseNavigateTimesheetWeekActionParams
     , parseToggleTimesheetHideApprovedActionParams
     , parseToggleTimesheetShowSuggestionsActionParams
     , parseUnapproveTimesheetEntryActionParams
-    , parseUpdateTimesheetFiltersActionParams
     , toggleTimesheetHideApprovedAction
     , toggleTimesheetHideApprovedActionFields
     , toggleTimesheetShowSuggestionsAction
@@ -108,14 +106,6 @@ navigateTimesheetWeekActionFields weekOffset staffFilterId =
 navigateTimesheetWeekAction :: SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.NavigateTimesheetWeek -> FrontendSurfaceAction
 navigateTimesheetWeekAction =
     frontendSurfaceAction
-        @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
-        @Types1.NavigateTimesheetWeek
-
-parseNavigateTimesheetWeekActionParams ::
-    (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.NavigateTimesheetWeek)
-parseNavigateTimesheetWeekActionParams =
-    parseSurfaceActionParams
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
         @Types1.NavigateTimesheetWeek
 
@@ -212,13 +202,5 @@ updateTimesheetFiltersActionFields weekOffset staffFilterId =
 updateTimesheetFiltersAction :: SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.UpdateTimesheetFilters -> FrontendSurfaceAction
 updateTimesheetFiltersAction =
     frontendSurfaceAction
-        @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
-        @Types1.UpdateTimesheetFilters
-
-parseUpdateTimesheetFiltersActionParams ::
-    (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types2.TimesheetsAdapterFamily) Types1.UpdateTimesheetFilters)
-parseUpdateTimesheetFiltersActionParams =
-    parseSurfaceActionParams
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
         @Types1.UpdateTimesheetFilters

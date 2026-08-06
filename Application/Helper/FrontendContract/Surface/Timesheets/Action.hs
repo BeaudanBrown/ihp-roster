@@ -7,11 +7,9 @@ module Application.Helper.FrontendContract.Surface.Timesheets.Action
     , navigateTimesheetWeekActionFields
     , parseApproveTimesheetEntryActionParams
     , parseCreateTimesheetEntryFromSuggestionActionParams
-    , parseNavigateTimesheetWeekActionParams
     , parseToggleTimesheetHideApprovedActionParams
     , parseToggleTimesheetShowSuggestionsActionParams
     , parseUnapproveTimesheetEntryActionParams
-    , parseUpdateTimesheetFiltersActionParams
     , toggleTimesheetHideApprovedAction
     , toggleTimesheetHideApprovedActionFields
     , toggleTimesheetShowSuggestionsAction
@@ -30,11 +28,9 @@ import Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action (
                                                                                 navigateTimesheetWeekActionFields,
                                                                                 parseApproveTimesheetEntryActionParams,
                                                                                 parseCreateTimesheetEntryFromSuggestionActionParams,
-                                                                                parseNavigateTimesheetWeekActionParams,
                                                                                 parseToggleTimesheetHideApprovedActionParams,
                                                                                 parseToggleTimesheetShowSuggestionsActionParams,
                                                                                 parseUnapproveTimesheetEntryActionParams,
-                                                                                parseUpdateTimesheetFiltersActionParams,
                                                                                 toggleTimesheetHideApprovedAction,
                                                                                 toggleTimesheetHideApprovedActionFields,
                                                                                 toggleTimesheetShowSuggestionsAction,

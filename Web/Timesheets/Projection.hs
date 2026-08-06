@@ -25,10 +25,8 @@ module Web.Timesheets.Projection
     , timesheetToolbarFragment
     , parseApproveTimesheetEntryState
     , parseCreateTimesheetEntryFromSuggestionState
-    , parseNavigateTimesheetWeekState
     , parseUnapproveTimesheetEntryState
     , canonicalTimesheetStaffFilter
-    , parseUpdateTimesheetFiltersState
     , timesheetStaffFilterFromRequest
     , viewerHasTimesheetSuggestionOnDay
     , weekOffsetFromParamOrCurrent
@@ -506,16 +504,6 @@ data TimesheetSurfaceRequestState = TimesheetSurfaceRequestState
     { surfaceRequestWeekOffset    :: !Int
     , surfaceRequestStaffFilterId :: !(Maybe UUID.UUID)
     }
-
-parseNavigateTimesheetWeekState :: (?request :: Request) => Either [SurfaceRequestFieldError] TimesheetSurfaceRequestState
-parseNavigateTimesheetWeekState =
-    timesheetSurfaceRequestState
-        <$> TimesheetsAction.parseNavigateTimesheetWeekActionParams
-
-parseUpdateTimesheetFiltersState :: (?request :: Request) => Either [SurfaceRequestFieldError] TimesheetSurfaceRequestState
-parseUpdateTimesheetFiltersState =
-    timesheetSurfaceRequestState
-        <$> TimesheetsAction.parseUpdateTimesheetFiltersActionParams
 
 parseCreateTimesheetEntryFromSuggestionState :: (?request :: Request) => Either [SurfaceRequestFieldError] TimesheetSurfaceRequestState
 parseCreateTimesheetEntryFromSuggestionState =

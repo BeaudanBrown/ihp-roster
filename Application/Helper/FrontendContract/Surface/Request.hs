@@ -20,7 +20,6 @@ module Application.Helper.FrontendContract.Surface.Request
     , SurfaceRequestFieldErrorKind (..)
     , attachSurfaceRequestFieldErrors
     , surfaceRequestFieldErrorsMessage
-    , surfaceActionParamsComplete
     , surfaceActionParamsPresent
     , parseSurfaceActionParamPairs
     , parseSurfaceActionParams
@@ -109,18 +108,6 @@ surfaceActionParamsPresent ::
     Bool
 surfaceActionParamsPresent =
     surfaceRequestParamsPresent @(SurfaceActionFieldSpecs spec action) allParams
-
--- | Whether every required/nullable field selected by the action is present.
--- This is useful for routes that also accept legacy or unrelated query context;
--- actual action parsing must still use 'parseSurfaceActionParams'.
-surfaceActionParamsComplete ::
-    forall spec action.
-    ( ?request :: Request
-    , KnownSurfaceRequestFields (SurfaceActionFieldSpecs spec action)
-    ) =>
-    Bool
-surfaceActionParamsComplete =
-    surfaceRequestParamsComplete @(SurfaceActionFieldSpecs spec action) allParams
 
 -- | Pure pair-based form of 'parseSurfaceActionParams', used at adapter and
 -- contract-test boundaries.
@@ -233,14 +220,12 @@ parsedSurfaceFieldsValue = \case
 
 class KnownSurfaceRequestFields (fields :: [FieldSpec]) where
     surfaceRequestFieldNames :: [ByteString]
-    surfaceRequestRequiredFieldNames :: [ByteString]
     parseSurfaceRequestFields ::
         [(ByteString, Maybe ByteString)] ->
         Either [SurfaceRequestFieldError] (ParsedSurfaceFields fields)
 
 instance KnownSurfaceRequestFields '[] where
     surfaceRequestFieldNames = []
-    surfaceRequestRequiredFieldNames = []
     parseSurfaceRequestFields _ = Right ParsedNoSurfaceFields
 
 instance
@@ -251,7 +236,6 @@ instance
     , AssertSurfaceFieldValue 'SurfaceRequired marker wire (SurfaceWireValue wire)
     ) => KnownSurfaceRequestFields (('Field marker wire) ': rest) where
     surfaceRequestFieldNames = cs (surfaceMarkerFieldName @marker) : surfaceRequestFieldNames @rest
-    surfaceRequestRequiredFieldNames = cs (surfaceMarkerFieldName @marker) : surfaceRequestRequiredFieldNames @rest
     parseSurfaceRequestFields params =
         combineFieldResult requiredValue (parseSurfaceRequestFields @rest params) $ \value rest ->
             ParsedRequiredSurfaceField @marker @wire value rest
@@ -270,7 +254,6 @@ instance
     , AssertSurfaceFieldValue 'SurfaceOptional marker wire (Maybe (SurfaceWireValue wire))
     ) => KnownSurfaceRequestFields (('OptionalField marker wire) ': rest) where
     surfaceRequestFieldNames = cs (surfaceMarkerFieldName @marker) : surfaceRequestFieldNames @rest
-    surfaceRequestRequiredFieldNames = surfaceRequestRequiredFieldNames @rest
     parseSurfaceRequestFields params =
         combineFieldResult optionalValue (parseSurfaceRequestFields @rest params) $ \value rest ->
             ParsedOptionalSurfaceField @marker @wire value rest
@@ -291,7 +274,6 @@ instance
     , AssertSurfaceFieldValue 'SurfaceNullable marker wire (Maybe (SurfaceWireValue wire))
     ) => KnownSurfaceRequestFields (('NullableField marker wire) ': rest) where
     surfaceRequestFieldNames = cs (surfaceMarkerFieldName @marker) : surfaceRequestFieldNames @rest
-    surfaceRequestRequiredFieldNames = cs (surfaceMarkerFieldName @marker) : surfaceRequestRequiredFieldNames @rest
     parseSurfaceRequestFields params =
         combineFieldResult nullableValue (parseSurfaceRequestFields @rest params) $ \value rest ->
             ParsedNullableSurfaceField @marker @wire value rest
@@ -311,16 +293,6 @@ surfaceRequestParamsPresent ::
     Bool
 surfaceRequestParamsPresent params =
     any (\(name, _) -> name `elem` surfaceRequestFieldNames @fields) params
-
-surfaceRequestParamsComplete ::
-    forall fields.
-    KnownSurfaceRequestFields fields =>
-    [(ByteString, Maybe ByteString)] ->
-    Bool
-surfaceRequestParamsComplete params =
-    all (`elem` presentNames) (surfaceRequestRequiredFieldNames @fields)
-  where
-    presentNames = fmap fst params
 
 combineFieldResult ::
     Either [SurfaceRequestFieldError] field ->

@@ -237,12 +237,14 @@ type RegisteredSurfaceActionAdapterHomes =
      ]
 
 -- Every eligible Action emits builders and render metadata. The exact parser
--- inventory contains 39 generated operations and 15 typed exclusions for
+-- inventory contains 39 generated operations and 17 typed exclusions for
 -- declarations whose current endpoint consumes no complete Surface envelope.
 registeredSurfaceActionAdapterRegistrations :: [SurfaceRequestAdapterRegistration 'ActionAdapterKind]
 registeredSurfaceActionAdapterRegistrations =
-    [ surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.NavigateTimesheetWeek allRequestAdapterOperations
-    , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.UpdateTimesheetFilters allRequestAdapterOperations
+    [ surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.NavigateTimesheetWeek
+        (requestAdapterOperationsWithoutParser "The endpoint consumes the routed week offset and canonical optional staff filter rather than a complete Surface request envelope")
+    , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.UpdateTimesheetFilters
+        (requestAdapterOperationsWithoutParser "The shared navigation endpoint cannot distinguish this filter form from week navigation at the request boundary")
     , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.ToggleTimesheetHideApproved allRequestAdapterOperations
     , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.ToggleTimesheetShowSuggestions allRequestAdapterOperations
     , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.CreateTimesheetEntryFromSuggestion allRequestAdapterOperations
