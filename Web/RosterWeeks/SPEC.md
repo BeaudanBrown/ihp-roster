@@ -133,7 +133,9 @@ neither totals nor errors. Wage visibility and staff filtering remain
 server-authorized and transient.
 
 Managers receive Staff, Templates, and Settings in the shared transient
-SidePanel; feature content and authorization remain roster-owned. Live rosters
+SidePanel; feature content and authorization remain roster-owned. Its toggle uses
+the shared main-card header location, desktop focus/Escape contract, transient
+visibility, and phone stacking used by Timesheets and manager Unavailability. Live rosters
 may highlight the effective viewer's own assigned shifts from a global user
 preference. A manager's transient hover or pinned staff highlight takes
 precedence; draft rosters never apply the own-shift default. Highlight and panel

@@ -27,7 +27,6 @@ Open shifts are intentional domain records and can safely appear on draft or liv
 ## Links
 
 - Tickets: `#303`, `#304`, `#305`, `#306`
-- Workstream: `docs/workstreams/roster-operations-and-support-ux.md`
 - Living docs: `CONTEXT.md`, `Web/RosterWeeks/SPEC.md`
 - Persistence implementation: `Application/RosterShiftAssignment.hs`,
   `Application/Migration/1785813000.sql`

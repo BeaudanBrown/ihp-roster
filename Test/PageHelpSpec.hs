@@ -57,6 +57,7 @@ tests = do
             rendered `shouldSatisfy` any (Text.isInfixOf "saved to your account")
             rendered `shouldSatisfy` any (Text.isInfixOf "every active Timesheet-eligible staff member")
             rendered `shouldSatisfy` any (Text.isInfixOf "eye to pin")
+            rendered `shouldSatisfy` any (Text.isInfixOf "panel stays stacked below the week")
             rendered `shouldSatisfy` any (Text.isInfixOf "never filters the week")
             rendered `shouldSatisfy` all (not . Text.isInfixOf "Each saved entry shows its own pay preview")
 
@@ -65,6 +66,7 @@ tests = do
             leave <- maybe (expectationFailure "missing leave topic" >> error "missing leave topic") pure (lookupPageHelpTopic (PageHelpTopicId "leave"))
             let managerHelp = flattenHelpText (filterPageHelpTopic managerContext leave)
             let adminHelp = flattenHelpText (filterPageHelpTopic ownerContext leave)
+            managerHelp `shouldSatisfy` any (Text.isInfixOf "panel stays stacked below the requests")
             managerHelp `shouldSatisfy` any (Text.isInfixOf "including trial profiles")
             managerHelp `shouldSatisfy` any (Text.isInfixOf "eye to pin")
             adminHelp `shouldSatisfy` any (Text.isInfixOf "Open Settings")

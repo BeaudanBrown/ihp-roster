@@ -26,6 +26,4 @@ global user preferences; staff filtering remains canonical URL state.
 
 - `SPEC.md` — durable suggestion, materialization, approval, and time contracts.
 - `AGENTS.md` — local editing rules.
-- `docs/workstreams/roster-operations-and-support-ux.md` — unresolved shared
-  SidePanel closeout.
 - `docs/workstreams/record-retention.md` — unresolved protected-record work.

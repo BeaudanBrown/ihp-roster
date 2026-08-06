@@ -35,8 +35,9 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
 - `Hide approved` and `Show suggestions` are global per-user preferences and do
   not enter Timesheets URLs, fragment requests, or mutation envelopes. Manager
   staff filtering remains URL-scoped and never grants authority.
-- Timesheets uses the shared transient SidePanel. Managers receive Staff and
-  Settings; ordinary staff receive Settings only. The manager Staff inventory
+- Timesheets uses the shared transient SidePanel and the same main-card header,
+  desktop focus/Escape behavior, and phone stacking as Roster and manager
+  Unavailability. Managers receive Staff and Settings; ordinary staff receive Settings only. The manager Staff inventory
   contains every active Timesheet-eligible staff member independently of card
   filters, and its counts exclude transient suggestions.
 - Manager row hover/focus highlights matching persisted and suggestion cards;

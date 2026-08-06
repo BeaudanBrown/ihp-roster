@@ -16,7 +16,9 @@
 - Approved-state changes are the roster-availability boundary. Pending creation
   does not fan out to roster viewers. Staff removal denies pending requests
   through the normal provenance path and retains approved/denied history.
-- The manager page uses the shared transient Staff/Settings SidePanel. Its Staff
+- The manager page uses the shared transient Staff/Settings SidePanel with the
+  same main-card header, desktop focus/Escape behavior, and phone stacking as
+  Roster and Timesheets. Its Staff
   inventory remains complete regardless of main-list filters; hover/focus and
   pinning only highlight matching server-rendered requests and never alter query
   authority. Ordinary staff continue through the shared self-service Surface.

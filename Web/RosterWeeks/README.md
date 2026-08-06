@@ -52,5 +52,3 @@ inventory here.
   worker contract.
 - `Application/Helper/Interaction.SPEC.md` and
   `Application/Helper/LiveUpdate.SPEC.md` — shared frontend/runtime contracts.
-- `docs/workstreams/roster-operations-and-support-ux.md` — unresolved shared
-  SidePanel closeout.
