@@ -1,0 +1,85 @@
+import { expect, test } from '@playwright/test';
+import {
+    FrontendSurfaceSidePanelRegistry,
+    FrontendSurfaceTabSetRegistry,
+    type FrontendSurfaceName,
+} from '../frontend/ts/generated/contracts';
+import { E2E_TIMEOUT, gotoWhenReady, loginAs } from './test-helpers';
+
+type SidePanelPage = {
+    surface: Extract<FrontendSurfaceName, 'roster' | 'timesheets' | 'leave-requests'>;
+    path: string;
+    shell: string;
+};
+
+const managerPages: SidePanelPage[] = [
+    { surface: 'roster', path: '/RosterWeeks', shell: '#roster-week-shell' },
+    { surface: 'timesheets', path: '/Timesheets', shell: '#timesheet-week-shell' },
+    { surface: 'leave-requests', path: '/LeaveRequests', shell: '#leave-requests-content' },
+];
+
+async function openPage(page: Parameters<typeof gotoWhenReady>[0], target: SidePanelPage) {
+    await gotoWhenReady(page, target.path, target.shell);
+    const sidePanel = FrontendSurfaceSidePanelRegistry[target.surface][0];
+    if (!sidePanel) throw new Error(`Missing SidePanel contract for ${target.surface}`);
+    const root = page.locator(`[${sidePanel.rootRoleAttribute}="true"]`);
+    await expect(root).toHaveCount(1);
+    return { root, sidePanel };
+}
+
+test.describe('cross-page SidePanel consistency', () => {
+    test.describe.configure({ timeout: E2E_TIMEOUT.slowTest });
+
+    test('keeps one desktop header location, default tab, transient visibility, focus, and Escape contract', async ({ page }) => {
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+
+        for (const target of managerPages) {
+            const { root, sidePanel } = await openPage(page, target);
+            const main = root.locator(`[${sidePanel.mainRoleAttribute}="true"]`);
+            const panel = root.locator(`[${sidePanel.panelRoleAttribute}="true"]`);
+            const header = main.locator('.app-side-panel-header').first();
+            const toggle = header.locator(`[${sidePanel.toggleRoleAttribute}="true"]`);
+            const tabSet = FrontendSurfaceTabSetRegistry[target.surface][0];
+            if (!tabSet) throw new Error(`Missing TabSet contract for ${target.surface}`);
+
+            await expect(header).toBeVisible();
+            await expect(toggle).toBeVisible();
+            await expect(panel).toBeVisible();
+            await expect(root).toHaveAttribute(sidePanel.stateAttribute, sidePanel.collapsedValue);
+            await expect(root.locator(`[${tabSet.tabRoleAttribute}="${tabSet.defaultKey}"]`)).toHaveAttribute('aria-selected', 'true');
+
+            const [headerBox, toggleBox] = await Promise.all([header.boundingBox(), toggle.boundingBox()]);
+            expect(headerBox).not.toBeNull();
+            expect(toggleBox).not.toBeNull();
+            expect((toggleBox?.x ?? 0) + (toggleBox?.width ?? 0)).toBeLessThanOrEqual((headerBox?.x ?? 0) + (headerBox?.width ?? 0) + 1);
+
+            await toggle.click();
+            await expect(toggle).toBeFocused();
+            await expect(root).toHaveAttribute(sidePanel.stateAttribute, sidePanel.expandedValue);
+            await expect(panel).toBeHidden();
+            await page.keyboard.press('Escape');
+            await expect(root).toHaveAttribute(sidePanel.stateAttribute, sidePanel.collapsedValue);
+            await expect(panel).toBeVisible();
+        }
+
+        const roster = managerPages[0]!;
+        const { root, sidePanel } = await openPage(page, roster);
+        await root.locator(`[${sidePanel.toggleRoleAttribute}="true"]`).click();
+        await expect(root).toHaveAttribute(sidePanel.stateAttribute, sidePanel.expandedValue);
+        await page.reload();
+        await expect(page.locator(`[${sidePanel.rootRoleAttribute}="true"]`)).toHaveAttribute(sidePanel.stateAttribute, sidePanel.collapsedValue);
+    });
+
+    test('stacks every panel without page-level horizontal overflow on phone widths', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+
+        for (const target of managerPages) {
+            const { root, sidePanel } = await openPage(page, target);
+            await expect(root.locator(`[${sidePanel.toggleRoleAttribute}="true"]`)).toBeHidden();
+            await expect(root.locator(`[${sidePanel.panelRoleAttribute}="true"]`)).toBeVisible();
+            expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+        }
+    });
+});

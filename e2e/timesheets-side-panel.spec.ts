@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import {
     dialogOverlayMountDomId,
     timesheetsTimesheetSidePanelPanelDomAttr,
+    timesheetsTimesheetSidePanelTabDomAttr,
     timesheetsTimesheetSidePanelToggleDomAttr,
     timesheetsTimesheetStaffHighlightMemberDomAttr,
     timesheetsTimesheetStaffHighlightPinDomAttr,
@@ -56,6 +57,7 @@ test.describe('Timesheets shared SidePanel', () => {
         await filter.selectOption(selectedValue ?? '');
         await expect(page).toHaveURL(/staffFilterId=/, { timeout: E2E_TIMEOUT.navigation });
         await expect(panel.locator(`[${timesheetsTimesheetStaffHighlightSourceDomAttr}]`)).toHaveCount(initialRowCount);
+        await expect(panel.locator(`[${timesheetsTimesheetSidePanelTabDomAttr}="settings"]`)).toHaveAttribute('aria-selected', 'true');
 
         await page.getByRole('tab', { name: 'Staff' }).click();
         await panel.locator(`[${timesheetsTimesheetStaffHighlightSourceDomAttr}]`).first().click();
