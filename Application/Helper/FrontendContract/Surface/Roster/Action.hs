@@ -15,7 +15,9 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
     , navigateRosterWeekActionFields
     , parseApplyRosterTemplateApplicationActionParams
     , parseCopyRosterWeekActionParams
+    , parseCreateRosterNotificationRunActionParams
     , parseNavigateRosterWeekActionParams
+    , parseShowRosterNotificationConfirmationActionParams
     , parsePreviewRosterTemplateApplicationActionParams
     , previewRosterTemplateApplicationAction
     , previewRosterTemplateApplicationActionFields
@@ -60,8 +62,10 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (addR
                                                                             navigateRosterWeekActionFields,
                                                                             parseApplyRosterTemplateApplicationActionParams,
                                                                             parseCopyRosterWeekActionParams,
+                                                                            parseCreateRosterNotificationRunActionParams,
                                                                             parseNavigateRosterWeekActionParams,
                                                                             parsePreviewRosterTemplateApplicationActionParams,
+                                                                            parseShowRosterNotificationConfirmationActionParams,
                                                                             parseToggleRosterAssignmentFiltersActionParams,
                                                                             parseToggleRosterStaffScopeActionParams,
                                                                             parseToggleRosterWageEstimatesActionParams,
@@ -71,10 +75,10 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (addR
                                                                             previewRosterTemplateApplicationActionFields,
                                                                             removeRosterRowAction,
                                                                             removeRosterRowActionFields,
-                                                                            sortRosterWeekAction,
-                                                                            sortRosterWeekActionFields,
                                                                             showRosterNotificationConfirmationAction,
                                                                             showRosterNotificationConfirmationActionFields,
+                                                                            sortRosterWeekAction,
+                                                                            sortRosterWeekActionFields,
                                                                             toggleRosterAssignmentFiltersAction,
                                                                             toggleRosterAssignmentFiltersActionFields,
                                                                             toggleRosterDayClosedAction,

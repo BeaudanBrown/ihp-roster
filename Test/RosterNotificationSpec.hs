@@ -229,6 +229,8 @@ tests = aroundAll withDatabaseTestContext do
                         }
 
                 firstAttempt `shouldSatisfy` isLeft
+                retryingJob <- fetch appJob.id
+                retryingJob.status `shouldBe` JobStatusRetry
                 performRosterNotificationDeliveryJobWith succeedingRuntime appJob
 
                 readIORef attempts >>= (`shouldBe` 2)

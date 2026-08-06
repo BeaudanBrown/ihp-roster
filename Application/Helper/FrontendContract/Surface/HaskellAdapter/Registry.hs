@@ -232,7 +232,7 @@ type RegisteredSurfaceActionAdapterHomes =
      ]
 
 -- Every eligible Action emits builders and render metadata. The exact parser
--- inventory contains 36 generated operations and 17 typed exclusions for
+-- inventory contains 38 generated operations and 15 typed exclusions for
 -- declarations whose current endpoint consumes no complete Surface envelope.
 registeredSurfaceActionAdapterRegistrations :: [SurfaceRequestAdapterRegistration 'ActionAdapterKind]
 registeredSurfaceActionAdapterRegistrations =
@@ -247,10 +247,8 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceActionAdapter @RosterAdapterFamily @Roster.SortRosterWeek
         (requestAdapterOperationsWithoutParser "The zero-field sort endpoint consumes route context and has no Surface request parser")
     , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWeekLiveStatus allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.ShowRosterNotificationConfirmation
-        (requestAdapterOperationsWithoutParser "The zero-field notification confirmation endpoint consumes its route id and has no Surface request parser")
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.CreateRosterNotificationRun
-        (requestAdapterOperationsWithoutParser "The zero-field notification creation endpoint consumes its route id and has no Surface request parser")
+    , surfaceActionAdapter @RosterAdapterFamily @Roster.ShowRosterNotificationConfirmation allRequestAdapterOperations
+    , surfaceActionAdapter @RosterAdapterFamily @Roster.CreateRosterNotificationRun allRequestAdapterOperations
     , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterAssignmentFilters allRequestAdapterOperations
     , surfaceActionAdapter @RosterAdapterFamily @Roster.CopyRosterWeek allRequestAdapterOperations
     , surfaceActionAdapter @RosterAdapterFamily @Roster.CreateRosterWeekSlotDefinition

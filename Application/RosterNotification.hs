@@ -6,14 +6,17 @@ module Application.RosterNotification
     , RosterNotificationSkippedReason (..)
     , RosterNotificationAudience (..)
     , RosterNotificationRunSummary (..)
+    , RosterNotificationPanelData (..)
     , RosterNotificationDeliveryPayload (..)
+    , CreateRosterNotificationRunResult (..)
     , rosterNotificationDeliveryJobKind
     , rosterNotificationPayloadSchemaVersion
     , rosterNotificationSnapshotSchemaVersion
     , createRosterNotificationRun
-    , createRosterNotificationRunInCurrentTransaction
+    , createRosterNotificationRunUnlessActive
     , fetchRosterNotificationAudience
     , fetchLatestRosterNotificationRunSummary
+    , rosterNotificationRecipientCountLabel
     , decodeRosterNotificationSnapshot
     , decodeRosterNotificationRecipients
     , decodeRosterNotificationSkippedRecipients
@@ -21,6 +24,7 @@ module Application.RosterNotification
 
 import Application.Async.Queue
 import Application.Helper.WeekBoundaries (venueWeekStartDate)
+import qualified Application.RosterNotification.Mutations as Mutations
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.List as List
@@ -104,6 +108,18 @@ data RosterNotificationRunSummary = RosterNotificationRunSummary
     , summaryInProgressCount :: !Int
     , summaryFailedCount     :: !Int
     }
+    deriving (Eq, Show)
+
+data RosterNotificationPanelData = RosterNotificationPanelData
+    { panelNotificationAudience  :: !RosterNotificationAudience
+    , panelLatestNotificationRun :: !(Maybe RosterNotificationRunSummary)
+    }
+    deriving (Eq, Show)
+
+data CreateRosterNotificationRunResult
+    = RosterNotificationRunCreated !RosterNotificationRun
+    | RosterNotificationRunAlreadyActive
+    | RosterNotificationRunHasNoEligibleRecipients
     deriving (Eq, Show)
 
 data RosterNotificationDeliveryPayload = RosterNotificationDeliveryPayload
@@ -225,6 +241,36 @@ instance Aeson.FromJSON RosterNotificationDeliveryPayload where
             <*> object Aeson..: "recipientStaffId"
             <*> object Aeson..: "recipientUserId"
             <*> object Aeson..: "recipientEmail"
+
+createRosterNotificationRunUnlessActive ::
+    (?modelContext :: ModelContext) =>
+    User ->
+    RosterWeek ->
+    IO CreateRosterNotificationRunResult
+createRosterNotificationRunUnlessActive actor rosterWeek =
+    withTransaction do
+        Mutations.lockRosterNotificationWeek rosterWeek.id
+        runs <- query @RosterNotificationRun
+            |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+            |> fetch
+        let runIds = map (Just . unpackId . (.id)) runs
+        activeDeliveryExists <-
+            if null runIds
+                then pure False
+                else query @AppJob
+                    |> filterWhere (#relatedTable, Just "roster_notification_runs")
+                    |> filterWhereIn (#relatedId, runIds)
+                    |> filterWhereIn (#status, activeAppJobStatuses)
+                    |> fetchExists
+        if activeDeliveryExists
+            then pure RosterNotificationRunAlreadyActive
+            else do
+                venue <- fetch (Id rosterWeek.venueId :: Id Venue)
+                rosterGroup <- fetch (Id rosterWeek.rosterGroupId :: Id RosterGroup)
+                audience <- fetchRosterNotificationAudience venue rosterGroup
+                if null audience.audienceRecipients
+                    then pure RosterNotificationRunHasNoEligibleRecipients
+                    else RosterNotificationRunCreated <$> createRosterNotificationRunInCurrentTransaction actor rosterWeek
 
 createRosterNotificationRun ::
     (?modelContext :: ModelContext) =>
@@ -457,6 +503,10 @@ enqueueRosterNotificationDelivery run actor venue recipient = do
         , dedupeKey = Just ("roster-notification-delivery:" <> tshow run.id <> ":" <> tshow recipient.recipientUserId)
         , runAt = Nothing
         }
+
+rosterNotificationRecipientCountLabel :: Int -> Text
+rosterNotificationRecipientCountLabel count =
+    tshow count <> if count == 1 then " recipient" else " recipients"
 
 decodeRosterNotificationSnapshot :: RosterNotificationRun -> IO RosterNotificationSnapshot
 decodeRosterNotificationSnapshot run = decodeSnapshotValue "roster snapshot" run.rosterSnapshot

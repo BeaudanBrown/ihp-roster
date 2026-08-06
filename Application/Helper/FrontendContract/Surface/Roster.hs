@@ -199,6 +199,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , SetRosterLayoutMode
     , VenueId
     , WeekOffset
+    , NotificationRosterWeekId
     , ShowRosterWarnings
     , IsLive
     , ShowWageEstimates
@@ -235,6 +236,7 @@ data RosterSlotsContent
 data VenueId
 data RosterGroupId
 data WeekOffset
+data NotificationRosterWeekId
 
 data RosterLayout
 data RosterContent
@@ -601,13 +603,13 @@ type RosterActionBundle =
          , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
          ]
      , Action ShowRosterNotificationConfirmation
-        '[]
+        '[ Field NotificationRosterWeekId 'WireUUID ]
         '[ 'HtmxMethod 'HtmxGet
          , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")
          , 'HtmxSwap 'HtmxInnerHTML
          ]
      , Action CreateRosterNotificationRun
-        '[]
+        '[ Field NotificationRosterWeekId 'WireUUID ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")
          , 'HtmxSwap 'HtmxInnerHTML

@@ -39,16 +39,14 @@ import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyV
                                      venueTimePickerFinalSelectableTimeText,
                                      venueTimePickerStartTimeText)
 import Application.Helper.UserPreferences
-import Application.Helper.WeekBoundaries (venueWeekStartDate)
 import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 OverlayButtonAction (..),
                                 ToastOverlayPosition (ToastBottomCenter),
                                 dialogOverlayMountId, errorToast,
                                 renderDialogOverlay, renderToastOob,
                                 successToast)
+import Application.Helper.WeekBoundaries (venueWeekStartDate)
 import qualified Application.RosterNotification as Notification
-import Application.RosterNotification.Mutations (CreateRosterNotificationRunResult (..),
-                                                  createRosterNotificationRunUnlessActive)
 import Application.RosterShiftAssignment (RosterShiftAssignment (StaffAssignment),
                                           applyRosterShiftAssignment,
                                           copyRosterShiftAssignment,
@@ -67,6 +65,8 @@ import Data.Time (getCurrentTime, utctDay)
 import qualified Data.Time.Calendar as Calendar
 import Data.Time.LocalTime (TimeOfDay)
 import qualified Data.UUID as UUID
+import Network.HTTP.Types.Status (status400)
+import qualified Network.Wai as Wai
 import qualified Text.Blaze.Html as Blaze
 import qualified Text.Read as TextRead
 import Web.Controller.Prelude
@@ -112,9 +112,10 @@ rosterSurfaceRequestErrorMessage :: [SurfaceRequestFieldError] -> Text
 rosterSurfaceRequestErrorMessage errors =
     "Check the roster controls: " <> surfaceRequestFieldErrorsMessage errors
 
-notificationCountLabel :: Int -> Text -> Text
-notificationCountLabel count singular =
-    tshow count <> " " <> singular <> if count == 1 then "" else "s"
+respondRosterNotificationBadRequest :: (?request :: Request) => Text -> IO value
+respondRosterNotificationBadRequest message = do
+    respondAndExit (Wai.responseLBS status400 [("Content-Type", "text/plain")] (cs message))
+    error "unreachable"
 
 copyOccurrenceSelectionsFromValues :: Maybe Text -> Maybe Text -> Either Text ShiftCopyOccurrenceSelections
 copyOccurrenceSelectionsFromValues startValue endValue = do
@@ -331,6 +332,10 @@ instance Controller RosterWeeksController where
 
     action currentAction@ShowRosterNotificationConfirmationAction { rosterWeekId } = runBepis currentAction BepisFragmentAction do
         ensureManagerRole
+        notificationFields <- case RosterAction.parseShowRosterNotificationConfirmationActionParams of
+            Left errors -> respondRosterNotificationBadRequest (rosterSurfaceRequestErrorMessage errors)
+            Right fields -> pure fields
+        accessDeniedUnless (surfaceFieldValue @Surface.NotificationRosterWeekId notificationFields == unpackId rosterWeekId)
         rosterWeek <- fetch rosterWeekId
         ensureRecordInCurrentVenue rosterWeek.venueId
         accessDeniedUnless rosterWeek.isLive
@@ -348,13 +353,17 @@ instance Controller RosterWeeksController where
     action currentAction@CreateRosterNotificationRunAction { rosterWeekId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
+        notificationFields <- case RosterAction.parseCreateRosterNotificationRunActionParams of
+            Left errors -> respondRosterNotificationBadRequest (rosterSurfaceRequestErrorMessage errors)
+            Right fields -> pure fields
+        accessDeniedUnless (surfaceFieldValue @Surface.NotificationRosterWeekId notificationFields == unpackId rosterWeekId)
         rosterWeek <- fetch rosterWeekId
         ensureRecordInCurrentVenue rosterWeek.venueId
         accessDeniedUnless rosterWeek.isLive
         let rosterGroupId = Id rosterWeek.rosterGroupId
-        runResult <- createRosterNotificationRunUnlessActive currentUser rosterWeek
+        runResult <- Notification.createRosterNotificationRunUnlessActive currentUser rosterWeek
         case runResult of
-            RosterNotificationRunAlreadyActive ->
+            Notification.RosterNotificationRunAlreadyActive ->
                 if isHtmxRequest
                     then respondWithRosterFragments
                         rosterGroupId
@@ -367,7 +376,7 @@ instance Controller RosterWeeksController where
                     else do
                         setErrorMessage "Roster email delivery is already in progress."
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
-            RosterNotificationRunHasNoEligibleRecipients ->
+            Notification.RosterNotificationRunHasNoEligibleRecipients ->
                 if isHtmxRequest
                     then respondWithRosterFragments
                         rosterGroupId
@@ -380,14 +389,14 @@ instance Controller RosterWeeksController where
                     else do
                         setErrorMessage "No eligible recipients are available."
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
-            RosterNotificationRunCreated run -> do
+            Notification.RosterNotificationRunCreated run -> do
                 recipients <- Notification.decodeRosterNotificationRecipients run
                 skippedRecipients <- Notification.decodeRosterNotificationSkippedRecipients run
                 let queuedCount = length recipients
                 let skippedCount = length skippedRecipients
                 let successMessage =
                         "Roster email queued for "
-                            <> notificationCountLabel queuedCount "recipient"
+                            <> Notification.rosterNotificationRecipientCountLabel queuedCount
                             <> ". "
                             <> tshow skippedCount
                             <> " skipped"
@@ -1352,7 +1361,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
         timelineTodayUrl <- profileActionSpan "roster.page.timeline_today_url" (buildRosterTimelineTodayUrl currentRosterGroup.id)
 
         case rosterDataOrNothing of
-            Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationAudience, latestRosterNotificationRun, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } ->
+            Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } ->
                 let visibleRosterWeek =
                         if rosterWeek.isLive || hasRole Manager
                             then Just rosterWeek
@@ -1372,8 +1381,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
                                 , panelStaff
                                 , templateLibrary
                                 , templateLibraryUserId
-                                , showNotificationAudience = rosterNotificationAudience
-                                , showLatestNotificationRun = latestRosterNotificationRun
+                                , showNotificationPanelData = rosterNotificationPanelData
                                 , staffSelfServicePanel
                                 , slotNames = orderedSlotNames
                                 , shiftTypes

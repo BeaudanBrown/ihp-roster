@@ -355,7 +355,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRenderMetadataOperation)) generatedActionOperations)
             `shouldBe` 55
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRequestParserOperation)) generatedActionOperations)
-            `shouldBe` 38
+            `shouldBe` 40
         let actionIdentity registration =
                 let declaration = registration.checkedSurfaceRequestAdapterDeclaration
                  in (declaration.checkedAdapterSurfaceName, declaration.checkedAdapterDeclarationName)
@@ -379,8 +379,6 @@ tests = describe "FrontendSurfaceRequestAdapter" do
             ]
             `shouldBe` List.sort
                 [ ("roster", "sort-roster-week")
-                , ("roster", "show-roster-notification-confirmation")
-                , ("roster", "create-roster-notification-run")
                 , ("roster", "create-roster-week-slot-definition")
                 , ("roster", "delete-roster-week-slot-definition")
                 , ("roster", "toggle-roster-day-closed")

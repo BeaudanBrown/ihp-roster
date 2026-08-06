@@ -20,8 +20,10 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , navigateRosterWeekActionFields
     , parseApplyRosterTemplateApplicationActionParams
     , parseCopyRosterWeekActionParams
+    , parseCreateRosterNotificationRunActionParams
     , parseNavigateRosterWeekActionParams
     , parsePreviewRosterTemplateApplicationActionParams
+    , parseShowRosterNotificationConfirmationActionParams
     , parseToggleRosterAssignmentFiltersActionParams
     , parseToggleRosterStaffScopeActionParams
     , parseToggleRosterWageEstimatesActionParams
@@ -132,13 +134,25 @@ parseCopyRosterWeekActionParams =
         @(AdapterFamilySurface Types3.RosterAdapterFamily)
         @Types2.CopyRosterWeek
 
-createRosterNotificationRunActionFields :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.CreateRosterNotificationRun
-createRosterNotificationRunActionFields =
-    noSurfaceActionFields
+createRosterNotificationRunActionFields ::
+    UUID.UUID ->
+    SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.CreateRosterNotificationRun
+createRosterNotificationRunActionFields notificationRosterWeekId =
+    surfaceActionFields
+        (surfaceField @Types2.NotificationRosterWeekId notificationRosterWeekId)
+        noSurfaceFields
 
 createRosterNotificationRunAction :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.CreateRosterNotificationRun -> FrontendSurfaceAction
 createRosterNotificationRunAction =
     frontendSurfaceAction
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.CreateRosterNotificationRun
+
+parseCreateRosterNotificationRunActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.CreateRosterNotificationRun)
+parseCreateRosterNotificationRunActionParams =
+    parseSurfaceActionParams
         @(AdapterFamilySurface Types3.RosterAdapterFamily)
         @Types2.CreateRosterNotificationRun
 
@@ -240,13 +254,25 @@ removeRosterRowAction =
         @(AdapterFamilySurface Types3.RosterAdapterFamily)
         @Types2.RemoveRosterRow
 
-showRosterNotificationConfirmationActionFields :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ShowRosterNotificationConfirmation
-showRosterNotificationConfirmationActionFields =
-    noSurfaceActionFields
+showRosterNotificationConfirmationActionFields ::
+    UUID.UUID ->
+    SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ShowRosterNotificationConfirmation
+showRosterNotificationConfirmationActionFields notificationRosterWeekId =
+    surfaceActionFields
+        (surfaceField @Types2.NotificationRosterWeekId notificationRosterWeekId)
+        noSurfaceFields
 
 showRosterNotificationConfirmationAction :: SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ShowRosterNotificationConfirmation -> FrontendSurfaceAction
 showRosterNotificationConfirmationAction =
     frontendSurfaceAction
+        @(AdapterFamilySurface Types3.RosterAdapterFamily)
+        @Types2.ShowRosterNotificationConfirmation
+
+parseShowRosterNotificationConfirmationActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ShowRosterNotificationConfirmation)
+parseShowRosterNotificationConfirmationActionParams =
+    parseSurfaceActionParams
         @(AdapterFamilySurface Types3.RosterAdapterFamily)
         @Types2.ShowRosterNotificationConfirmation
 

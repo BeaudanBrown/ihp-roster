@@ -28,8 +28,8 @@ renderRosterNotificationConfirmation venue rosterGroup rosterWeek weekStart audi
                 <dt class="col-4">Venue</dt><dd class="col-8">{venue.name}</dd>
                 <dt class="col-4">Roster group</dt><dd class="col-8">{rosterGroup.name}</dd>
                 <dt class="col-4">Week</dt><dd class="col-8">{weekLabel}</dd>
-                <dt class="col-4">Recipients</dt><dd class="col-8">{countLabel recipientCount "recipient"}</dd>
-                <dt class="col-4">Skipped</dt><dd class="col-8">{countLabel skippedCount "skipped"}</dd>
+                <dt class="col-4">Recipients</dt><dd class="col-8">{rosterNotificationRecipientCountLabel recipientCount}</dd>
+                <dt class="col-4">Skipped</dt><dd class="col-8">{tshow skippedCount <> " skipped"}</dd>
             </dl>
             {zeroRecipientCopy recipientCount}
             {renderLatestRunSummary latestRun}
@@ -57,7 +57,7 @@ renderRosterNotificationConfirmation venue rosterGroup rosterWeek weekStart audi
     formId = "roster-notification-send-form"
     actionUrl = pathTo (CreateRosterNotificationRunAction rosterWeek.id)
     sendForm = renderFrontendSurfaceActionForm
-        (RosterAction.createRosterNotificationRunAction RosterAction.createRosterNotificationRunActionFields)
+        (RosterAction.createRosterNotificationRunAction (RosterAction.createRosterNotificationRunActionFields (unpackId rosterWeek.id)))
         FrontendSurfaceActionRoute
             { actionRouteUrl = actionUrl
             , actionRouteCustomHtmx = []
@@ -96,6 +96,3 @@ formatRequestedAt = cs . formatTime defaultTimeLocale "%d %b %Y %H:%M UTC"
 zeroRecipientCopy :: Int -> Html
 zeroRecipientCopy 0 = [hsx|<p class="alert alert-info mb-3" role="status">No eligible recipients are available for this roster group.</p>|]
 zeroRecipientCopy _ = mempty
-
-countLabel :: Int -> Text -> Text
-countLabel count singular = tshow count <> " " <> singular <> if count == 1 then "" else "s"

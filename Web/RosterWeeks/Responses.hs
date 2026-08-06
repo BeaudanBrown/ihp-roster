@@ -121,7 +121,7 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
         Nothing -> do
             TextIO.putStrLn ("roster_read_model_miss_oob: rosterGroupId=" <> tshow rosterGroupId <> " weekOffset=" <> tshow weekOffset)
             respondHtmlProfiled [hsx|<div id="roster-content" hx-swap-oob="outerHTML"></div>|]
-        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationAudience, latestRosterNotificationRun, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } -> do
+        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } -> do
             let viewCapabilities = buildRosterViewCapabilities (Just rosterWeek)
             respondHtmlProfiled $
                     renderrosterContentLiveFragmentOob
@@ -136,8 +136,7 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
                             , gridPanelStaff = panelStaff
                             , gridTemplateLibrary = templateLibrary
                             , gridTemplateLibraryUserId = templateLibraryUserId
-                            , gridNotificationAudience = rosterNotificationAudience
-                            , gridLatestNotificationRun = latestRosterNotificationRun
+                            , gridNotificationPanelData = rosterNotificationPanelData
                             , gridStaffSelfServicePanel = staffSelfServicePanel
                             , gridSlotNames = orderedSlotNames
                             , gridShiftTypes = shiftTypes
@@ -181,7 +180,7 @@ respondWithRosterContentToast rosterGroupId weekOffset publishAttempted toast = 
         mconcat
             [ case rosterData of
                 Nothing -> [hsx|<div id="roster-content"></div>|]
-                Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationAudience, latestRosterNotificationRun, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } ->
+                Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } ->
                     let viewCapabilities = buildRosterViewCapabilities (Just rosterWeek)
                      in renderrosterContentLiveFragment
                             RosterGridRenderModel
@@ -195,8 +194,7 @@ respondWithRosterContentToast rosterGroupId weekOffset publishAttempted toast = 
                                 , gridPanelStaff = panelStaff
                                 , gridTemplateLibrary = templateLibrary
                                 , gridTemplateLibraryUserId = templateLibraryUserId
-                                , gridNotificationAudience = rosterNotificationAudience
-                                , gridLatestNotificationRun = latestRosterNotificationRun
+                                , gridNotificationPanelData = rosterNotificationPanelData
                                 , gridStaffSelfServicePanel = staffSelfServicePanel
                                 , gridSlotNames = orderedSlotNames
                                 , gridShiftTypes = shiftTypes

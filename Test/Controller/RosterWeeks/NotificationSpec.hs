@@ -35,7 +35,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 True
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterNotificationConfirmationAction rosterWeek.id)
+                    callActionWithParams (ShowRosterNotificationConfirmationAction rosterWeek.id) [("notificationRosterWeekId", idToParam rosterWeek.id)]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Email roster"
@@ -63,7 +63,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callAction (CreateRosterNotificationRunAction rosterWeek.id)
+                        callActionWithParams (CreateRosterNotificationRunAction rosterWeek.id) [("notificationRosterWeekId", idToParam rosterWeek.id)]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Roster email queued for 1 recipient. 1 skipped."
@@ -94,10 +94,10 @@ tests = aroundAll withDatabaseTestContext do
 
                 firstResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callAction (CreateRosterNotificationRunAction rosterWeek.id)
+                        callActionWithParams (CreateRosterNotificationRunAction rosterWeek.id) [("notificationRosterWeekId", idToParam rosterWeek.id)]
                 secondResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callAction (CreateRosterNotificationRunAction rosterWeek.id)
+                        callActionWithParams (CreateRosterNotificationRunAction rosterWeek.id) [("notificationRosterWeekId", idToParam rosterWeek.id)]
 
                 firstResponse `responseStatusShouldBe` status200
                 secondResponse `responseStatusShouldBe` status200
@@ -143,7 +143,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callAction (CreateRosterNotificationRunAction rosterWeek.id)
+                        callActionWithParams (CreateRosterNotificationRunAction rosterWeek.id) [("notificationRosterWeekId", idToParam rosterWeek.id)]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "No eligible recipients are available."
@@ -169,7 +169,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 True
                 _ <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callAction (CreateRosterNotificationRunAction rosterWeek.id)
+                        callActionWithParams (CreateRosterNotificationRunAction rosterWeek.id) [("notificationRosterWeekId", idToParam rosterWeek.id)]
                 jobs <- query @AppJob |> orderByAsc #createdAt |> fetch
                 case jobs of
                     [firstJob, secondJob] -> do
@@ -179,7 +179,7 @@ tests = aroundAll withDatabaseTestContext do
                     _ -> expectationFailure "expected two notification delivery jobs"
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterNotificationConfirmationAction rosterWeek.id)
+                    callActionWithParams (ShowRosterNotificationConfirmationAction rosterWeek.id) [("notificationRosterWeekId", idToParam rosterWeek.id)]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "latest-run-manager@example.com"
@@ -193,7 +193,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 repeatResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callAction (CreateRosterNotificationRunAction rosterWeek.id)
+                        callActionWithParams (CreateRosterNotificationRunAction rosterWeek.id) [("notificationRosterWeekId", idToParam rosterWeek.id)]
                 repeatResponse `responseStatusShouldBe` status200
                 repeatResponse `responseBodyShouldContain` "Roster email queued for 2 recipients. 1 skipped."
                 runs <- query @RosterNotificationRun |> fetch
@@ -234,12 +234,30 @@ tests = aroundAll withDatabaseTestContext do
                 foreignWeek <- createRosterWeekRecordForRosterGroup foreignVenue foreignGroup 0 True
 
                 workerResponse <- withUserAndCurrentVenue worker venue.id do
-                    callAction (CreateRosterNotificationRunAction localWeek.id)
+                    callActionWithParams (CreateRosterNotificationRunAction localWeek.id) [("notificationRosterWeekId", idToParam localWeek.id)]
                 crossVenueResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (CreateRosterNotificationRunAction foreignWeek.id)
+                    callActionWithParams (CreateRosterNotificationRunAction foreignWeek.id) [("notificationRosterWeekId", idToParam foreignWeek.id)]
 
                 workerResponse `responseStatusShouldBe` status302
                 crossVenueResponse `responseStatusShouldBe` status403
+                runs <- query @RosterNotificationRun |> fetch
+                length runs `shouldBe` 0
+
+        it "rejects malformed notification week ids without creating a run" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Malformed Notification Venue"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                manager <- createUserRecord "malformed-notification-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 True
+
+                confirmationResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (ShowRosterNotificationConfirmationAction rosterWeek.id) [("notificationRosterWeekId", "not-a-uuid")]
+                sendResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (CreateRosterNotificationRunAction rosterWeek.id) [("notificationRosterWeekId", "not-a-uuid")]
+
+                confirmationResponse `responseStatusShouldBe` status400
+                sendResponse `responseStatusShouldBe` status400
                 runs <- query @RosterNotificationRun |> fetch
                 length runs `shouldBe` 0
 
@@ -256,7 +274,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue founder venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callAction (CreateRosterNotificationRunAction rosterWeek.id)
+                        callActionWithParams (CreateRosterNotificationRunAction rosterWeek.id) [("notificationRosterWeekId", idToParam rosterWeek.id)]
 
                 response `responseStatusShouldBe` status200
                 run <- query @RosterNotificationRun |> fetchOne
