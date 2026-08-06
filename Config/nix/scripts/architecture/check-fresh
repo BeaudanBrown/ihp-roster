@@ -4,6 +4,7 @@ bash ./Config/nix/scripts/architecture/wiring-registry-test >/dev/null
 bash ./Config/nix/scripts/architecture/fixture-reset-manifest-test >/dev/null
 node --test scripts/architecture/enum-authority.test.mjs >/dev/null
 bash ./Config/nix/scripts/architecture/facts >/dev/null
+node --test scripts/architecture/query.test.mjs >/dev/null
 node scripts/architecture/surface-request-closure.mjs >/dev/null
 ARCHITECTURE_FACTS_CURRENT=1 node scripts/architecture/schema.mjs >/dev/null
 ARCHITECTURE_FACTS_CURRENT=1 node scripts/architecture/web-map.mjs >/dev/null

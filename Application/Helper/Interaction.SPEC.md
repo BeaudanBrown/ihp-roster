@@ -1,531 +1,116 @@
 # Typed Interaction Surface Specification
 
-This living spec defines the implementation contract for typed disposable
-interaction surfaces. This is the durable contract for the seam shared by
-`Application.Helper.FrontendContract.Surface`, `Application.Helper.LiveUpdate`, Haskell
-view helpers, generated TypeScript contracts, and the generic browser runtime.
-
-## Scope And Source Of Truth
-
-Server-rendered HTML remains authoritative. Interaction capability is optional
-metadata attached to the same typed surface origin. Migrated surfaces declare it
-in the type-level `FrontendSurface` spec and implement runtime form/fragment
-metadata through `SurfaceImpl`. Existing surfaces should be representable with
-empty disposable-layer, intent, field-schema, and conflict-policy definitions.
-
-Haskell owns the canonical definitions for:
-
-- surface family, surface scope, and concrete mount metadata;
-- live fragment types, refs, target ids, refetch URLs, protection policy, and
-  containment paths;
-- server layers, disposable layer types, generated role-specific interaction
-  refs, dynamic opaque key fields, and DOM ids;
-- intent types, intent field schemas, and strict form contracts;
-- HTMX method/route/trigger/target/swap attributes, including concurrency aids
-  such as `hx-sync` or `hx-disabled-elt` where needed;
-- live-fragment/disposable-session conflict policy.
-
-TypeScript consumes generated browser-boundary contracts and stays generic. It
-must not invent canonical `data-bepis-*` names, UI region capability values,
-fragment keys, layer names, intent names, field names, target ids, mutation
-URLs, or business rules.
-
-## Vocabulary And Hierarchy
-
-| Level | Term | Owner | Meaning |
-| ---: | --- | --- | --- |
-| 1 | Surface family | Haskell | Reusable UI surface type independent of a page, e.g. a roster timeline. |
-| 2 | Surface scope | Haskell | Authorized logical data slice, e.g. one venue/week. A scope is not a route name. |
-| 3 | Concrete mount | Haskell render helper | One occurrence of a family/scope on a page. It has a mount key used in derived ids, targets, and form ids. |
-| 4 | Server layer | Haskell render helper | Authoritative server-rendered DOM inside the mount. Generic TypeScript must not mutate business DOM here. |
-| 5 | Live fragment type | Haskell | Closed feature-local enum for one refreshable server DOM fragment. |
-| 6 | Live fragment ref | Haskell | Target id, GET URL, protection policy, and containment path derived from the fragment contract. |
-| 7 | Containment path | Haskell/server-only | DOM ownership path used to normalize overlapping fragment swaps. |
-| 8 | Disposable layer | Haskell | Declared client-owned region for temporary UI, such as previews, selection rectangles, menus, or overlays. |
-| 9 | Disposable session | Generic TypeScript constrained by generated contracts | Temporary local interaction state such as click-select, drag, resize, menu, or command mode. |
-| 10 | Intent type | Haskell | Typed committed user action that may submit to the server. |
-| 11 | Intent field schema | Haskell | Allowed string fields for a committed intent, including required/optional/default behavior. |
-| 12 | Intent form contract | Haskell render helper | Generated HTMX form metadata and hidden inputs for one intent. |
-| 13 | Conflict policy | Haskell, consumed by TypeScript | Whether a live fragment update during an active disposable session applies, defers, or cancels. |
-| 14 | Generated TypeScript contract | Haskell-generated | Narrow DTOs/unions for the browser boundary. |
-| 15 | Generic runtime | TypeScript | Surface discovery, disposable session management, intent dispatch, form filling, and live coordination. |
-
-Conceptual structure:
-
-```text
-SurfaceFamily
-└── SurfaceScope
-    └── ConcreteMount(mountKey)
-        ├── ServerLayer
-        │   └── LiveFragments(type -> ref -> target/url/protection/path)
-        ├── DisposableLayers
-        │   └── DisposableSessions(local state + anchors + conflict policy)
-        └── IntentForms(intent type + field schema + generated HTMX contract)
-```
-
-## DOM Ownership Boundaries
-
-- **Server-owned DOM** is rendered by Haskell and swapped through HTMX/live
-  fragments. TypeScript may read generated interaction refs from it but must not
-  persistently mutate business structure, ids, field names, or server data.
-- **Live fragments** are server-owned DOM targets with typed refetch URLs and
-  containment metadata. Fragment GET endpoints return exactly the target node.
-- **Disposable UI** is temporary client-owned DOM inside declared disposable
-  layers. It must be safe to clear on cancel, timeout, page cleanup,
-  conflicting live swap, or actor HTMX response.
-- **Local widget DOM** such as a drag ghost, resize guide, selection rectangle,
-  menu, command overlay, or measurement tooltip is disposable UI unless it is
-  rendered back by the server as an authoritative fragment.
-- **Intent forms** are hidden or visible Haskell-rendered HTMX forms for
-  committed intents. They are server-owned contracts; TypeScript only fills
-  validated generated inputs and dispatches the generated trigger. Mount JSON is
-  not a mutation transport contract and must not replace DOM-owned HTMX forms.
-- **Form toggle widgets** are server-rendered controls governed by the global
-  generated Toggle contract. The checkbox owns presentation only; a form-local
-  hidden transport owns the explicit submitted value or omission. The generic
-  adapter synchronizes that transport before submission and may control one
-  related native fieldset. Feature JavaScript must not translate toggle meaning,
-  resolve transport by global id, or duplicate break-control behavior.
-- **Workflow dialog and toast lanes** are governed by the focused global Overlay
-  contract for mount ids, browser roles, auto-submit state, and exact mechanical
-  configuration. Overlay rendering does not replace AppShell/Surface Action
-  authority for HTMX forms, and the picker lane remains independent. Bootstrap
-  vocabulary stays adapter-local while disabled and accessibility state use
-  native/ARIA semantics. The generated semantic dismissal event is emitted
-  before every close-control, backdrop, or Escape removal so composed
-  capabilities can react without taking over dialog lifecycle. Full-page
-  provider-navigation forms may use the generated navigation-loading role and
-  exact Haskell-owned title/message config; the adapter synchronously mounts a
-  blocking dialog on valid submit without taking ownership of provider URLs or
-  request authority.
-- **Quarter-hour picker fields** are governed by the focused global TimePicker
-  contract for modal/internal roles plus exact range/step/empty-label and
-  value/label option records. Haskell owns semantic options and copy; the generic
-  adapter rearranges validated server-rendered option nodes and leaves malformed
-  elements intact. It does not own Toggle form transport or break-fieldset
-  activation.
-- **Two-endpoint ordered ranges** are governed by the focused global
-  OrderedRange contract for root/endpoint/availability roles, exact
-  range/step/default/label and initial-state records, generated presentation
-  properties, and a closed crossing policy. The adapter validates one local
-  native checkbox/range/output subtree before mutation, applies
-  `clamp-other-endpoint` mechanically, and leaves request fields plus endpoint
-  validation server-owned. Toggle remains the availability transport owner.
-- **Horizontal drag/snap scrollers** are governed by the focused global
-  HorizontalScroll contract for snap/drag roles and exact mode, item, group,
-  scope, and ignore relationships. Each adapter instance owns one mounted
-  scroller and is disposed with its HTMX replacement subtree. Pointer
-  thresholds, debounce scheduling, click suppression, and transient classes are
-  browser-module state rather than server configuration or DOM authority.
-- **PWA installation pages** are governed by the focused global
-  `PwaInstallContract` for page/button/result/installed roles and the closed
-  result state.
-  Haskell renders all workflow copy; the adapter keeps native install events,
-  prompt objects, and platform detection local. Visibility uses native `hidden`,
-  and status announcements keep ordinary status/live-region semantics rather
-  than duplicating availability or installed state in app attributes.
-- **Passkey workflows** are governed by the focused global `PasskeyContract` for
-  login, registration, setup-prompt, action, device-name, status, recovery, and
-  dismissal roles plus exact tagged local configuration, begin-option,
-  serialized-credential, finish-outcome, and structured-error wire DTOs. Haskell
-  owns routes, redirects, status relationships, closed prompt mode,
-  workflow/recovery copy, and schema-indexed server carriers. The adapter
-  validates each generated root and every server envelope before mutation,
-  credential API invocation, or redirect; generated encoders own outbound
-  credential request shape. WebAuthn platform objects, extension-result
-  semantics, capability detection, base64url conversion, and local-storage
-  hints remain private to the TypeScript adapter. Prompt dismissal composes with
-  the generated Overlay close role and semantic dismissal event, recording the
-  UX hint for close-control, backdrop, and Escape paths; passkey code must not
-  remove dialog DOM or manage focus or body locking itself.
-- **Xero imported-pay-item candidate filters** are governed by the focused global
-  `XeroCandidateFilterContract` for root, search, candidate, and empty-state
-  roles plus exact configuration carrying one opaque normalized projection. The
-  Xero view selects projection fields and renders workflow identity/copy; the
-  adapter parses and diagnoses the exact boundary before generic matching and
-  native visibility changes inside one generated root. Import validation and
-  mutation authority remain server-owned.
-- **Roster fullscreen and column-edit controls** use Surface-owned generated
-  root/control roles and closed collapsed/expanded or inactive/active state.
-  Toggle pressed state remains native `aria-pressed`; icon classes, Escape,
-  focus, and delayed autosave blur are browser mechanics. Each adapter resolves
-  the nearest generated root, reconciles replaced controls locally, and clears
-  pending editor timers when HTMX removes the owning root.
-- **Roster image export** uses Surface-owned trigger, exact configuration,
-  closed JPG format, and projection/row/cell annotations. Haskell resolves the
-  filename, format policy, user copy, and export text. The trigger is rendered
-  only with the supported row-grid projection. TypeScript keeps only measurement,
-  computed-style projection, SVG/Canvas encoding, and download mechanics; it
-  does not infer roster semantics from classes or cell order.
-- **The retained roster week overview** uses generated panel/day/detail-slot
-  roles, exact Haskell-built payloads, native `aria-pressed` selection, and
-  generated availability/closure/calendar state. Malformed day payloads are
-  diagnosed and skipped locally. The capability remains absent from the active
-  roster header and therefore performs no normal-page fetch or navigation.
-
-The isolated roster Template Designer uses generated Surface browser role/state attributes for compatible reference targets. Selection remains native GET form activation, so keyboard and touch need no feature-specific TypeScript session or mutation transport; confirmation and source isolation remain server-owned.
-
-Roster template application stays inside the ordinary Roster Surface. Saved Day and Week cards carry exact generated config roles and generated drag source refs; editable day and complete-week targets carry distinct generated roles/dropzone refs. The focused roster adapter owns only cancellable Day target-mode mechanics and fills the Haskell-rendered typed preview form. Week activation and generic pointer drag converge on that same server confirmation. Edit/Delete descendants are isolated controls, live rosters omit forms/sources/targets, and all committed application authority remains server-side.
-
-Views should not handwrite raw interaction `data-bepis-*` attributes, ref names,
-disposable layer mounts, intent forms, HTMX intent attributes, or target ids once
-helpers exist. Feature views should call typed Haskell helpers derived from
-closed `FrontendSurface` contracts.
-
-## Generated Interaction Registry And DOM Refs
-
-The durable browser contract is a minimal generated interaction registry plus
-role-specific DOM refs. `FrontendSurface` declarations own all static semantics,
-but browser output retains only production-consumed source refs, dropzone refs,
-activation refs, session definitions/effects, compatible refs, and modifier
-variants. Intent forms, field presence, layers, conflict policies, and dynamic
-keys remain concrete mount-local HTML rendered by `SurfaceImpl` and view helpers.
-The interaction registry does not duplicate action catalogs, complete static
-schemas, or server-only Surface metadata. Separately, explicitly
-browser-reachable Surface DTOs and focused capability registries may be emitted
-when a generic adapter consumes them; plain server-only `Dto` declarations stay
-absent from TypeScript.
-
-Generated role-specific DOM refs are intentionally small and readable. The exact
-attribute names are backend-owned constants in generated/shared contracts, not
-feature-local string literals. The initial roles are:
-
-- `data-bepis-source-ref` with `data-bepis-source-key` for elements that can
-  start a pointer session;
-- `data-bepis-dropzone-ref` with `data-bepis-dropzone-key` for candidate pointer
-  targets;
-- `data-bepis-activation-ref` for controls that emit a committed activation
-  intent;
-- generated form/field refs for DOM-owned HTMX intent forms.
-
-`*-ref` values are generated static names derived from the surface type-level
-spec. `*-key` values are dynamic, server-rendered, opaque browser-boundary
-strings submitted back through generated intent fields. The browser may compare
-and forward keys but must not parse them for business meaning; controllers parse
-and validate all keys against venue/scope/domain state.
-
-Legacy semantic marker attributes such as `data-bepis-marker`,
-`data-bepis-item`, `data-bepis-dropzone`, `data-bepis-pointer-session`,
-`data-bepis-session-kind`, `data-bepis-session-intent`,
-`data-bepis-activation-intent`, and `data-bepis-activation-trigger` are deleted
-from the production interaction runtime and helpers. Current behavior derives
-from generated registry entries and role-specific refs only; guardrails prevent
-reintroducing the old semantic marker protocol.
-
-## Surface Portability And Duplicate Mounts
-
-A surface family/scope may move across pages or appear more than once on the
-same page. Every concrete mount has a stable mount key. The mount key must
-participate in generated DOM ids, live-fragment target ids, server layer ids,
-disposable layer ids, intent form ids, HTMX targets, and any runtime lookup key
-that could otherwise collide.
-
-Generic TypeScript must resolve markers, forms, disposable layers, fragment
-refs, generated sort roles, and generated tab roles inside the same concrete
-mount. It must not use global hardcoded target ids, presentation classes, or
-infer a singleton surface for a scope. A reconciliation callback may receive an
-inner HTMX replacement node; adapters must still recover its nearest owning
-mount without crossing into nested mounts.
-
-## Golden Path
-
-1. Feature code declares closed Haskell types for disposable layers, intents,
-   intent fields, and any interaction-specific markers.
-2. Haskell contracts derive a scope-free minimal interaction registry from the
-   same type-level `FrontendSurface` definition. It enumerates only source,
-   dropzone, activation, session/effect, compatibility, and modifier data used
-   by the generic runtime, without constructing a fake scope. `SurfaceImpl`
-   owns concrete layers, conflict policies, HTMX form actions, targets, sync
-   selectors, hidden values, and any fragment refs whose URLs depend on the
-   mounted scope. Existing surfaces can use empty interaction metadata.
-3. Haskell helpers render surface mounts, server layers, disposable layers,
-   generated source/dropzone/activation refs with dynamic opaque keys, and
-   generated HTMX intent forms. Helpers are the only production feature-facing
-   API for interaction attrs; raw semantic marker helpers are deleted.
-4. Haskell-generated TypeScript exposes explicit-reachability live payloads,
-   exact mounts, generated DOM vocabulary, a fragment registry for live code,
-   and an interaction registry for interaction code. Browser-facing contracts
-   come from the unified `Application.Helper.FrontendContract` DSL registry,
-   not external DTO codecs, hand-authored TypeScript, or `Aeson.Value`
-   declarations.
-5. Generic TypeScript discovers mounted contracts, manages disposable sessions,
-   emits normalized intents, validates fields against DOM-owned generated form metadata,
-   fills the matching generated form in the same mount, and dispatches the
-   generated custom event.
-6. IHP parses and validates params strictly, enforces authorization/scope,
-   mutates server state, and returns authoritative HTMX fragments/OOB swaps.
-
-## Modifier-Selected Intent Variants
-
-Pointer interactions may declare semantic modifier variants when the same source
-and target can commit different business intents. The modifier is semantic, such
-as `copy`, rather than a raw browser key. Haskell-owned surface metadata declares
-which semantic variants exist, which intent each variant submits, and which
-preview/effect styling applies while that variant is active.
-
-The generic runtime maps physical keys to semantic modifiers using platform-aware
-bindings. The initial semantic modifier is `copy`: Windows/Linux use Ctrl and
-macOS uses Option/Alt. Feature code should refer to the semantic `copy` variant,
-not to `ctrlKey` or `altKey` directly. This keeps platform conventions local to
-the generic runtime and generated contract while keeping server actions named by
-business meaning.
-
-Only one semantic modifier variant is active at a time. If no modifier is held,
-or if the held modifier state is unassigned/unsupported for the current source
-ref, the runtime falls back to the default intent. Multi-modifier chords are not
-part of the current contract; holding more than one recognized physical modifier
-also falls back to the default intent unless a future typed contract explicitly
-adds chords.
-
-Modifier variants should submit distinct semantic intents rather than sending raw
-modifier fields into one controller branch. For example, roster drag/drop uses
-`move-roster-shift-to-slot` as the default intent and a separate copy/duplicate
-intent for the `copy` variant. Controllers still validate all submitted fields
-and target tokens server-side; the modifier selection only chooses which
-server-owned HTMX intent form is submitted.
-
-Variant preview is also Haskell-owned metadata. A variant may override effect
-styling, such as using a duplicate drag shadow class for the `copy` variant while
-reusing the same drag session and compatible dropzone refs. Generic TypeScript
-may select the declared variant effects, but it must not invent feature-specific
-business rules or persistence URLs.
-
-## Intent Phases And Submission
-
-The default intent lifecycle is local until commit:
-
-- **start**: establish anchors and session metadata; no server mutation;
-- **preview/update**: move disposable UI or local widget DOM only;
-- **cancel**: clear disposable UI and abandon local state;
-- **commit**: submit exactly one typed intent through a generated HTMX form.
-
-Commit-only submission is the default. Start/preview server submissions require
-a future explicit typed form contract and should not be invented by runtime code.
-
-Where TypeScript must branch on a generated closed union such as live-fragment
-protection, session kind, or intent name, it must use an exhaustive switch with
-`assertNever` so adding a Haskell constructor fails `frontend-check` until the
-new case is handled. Prefer data-driven generic behavior when no branch is
-needed.
-
-Generic activation refs may promote ordinary click/change controls into the
-intent path without feature-specific TypeScript. A helper-rendered activation ref
-has a generated ref name, an activation trigger (`click`, `change`,
-`keydown-enter`, or `keydown-space`), and optionally one value field whose value
-is read from the event target/control. The browser runtime resolves the closest
-activation ref from the event target, looks up the generated registry entry for
-that ref in the current mounted surface instance, and emits a committed intent;
-server submission still happens only through the matching generated intent form.
-Activation keys should be unique within a concrete mount for the ref kind unless
-multiple rendered controls intentionally alias the same logical action.
-
-Generic pointer session refs may start local disposable sessions from mouse,
-pen, or touch pointer events. Surface specs should use shared aliases such as
-`DragSessionDefinition`, `DragSourceRefFor`, `DragDropzoneRefFor`, and
-`DragDropIntent` when declaring ordinary drag/drop behavior, so multi-source
-surfaces stay explicit without re-declaring pointer fields and session effects.
-Drag continuations that collect more server-rendered input use the
-`WithExtraFields` aliases so those fields remain part of the canonical Haskell
-intent rather than becoming ad hoc request parameters. A helper-rendered source
-ref declares only the static generated source ref plus
-an opaque source key; the generated registry maps that source ref to the session
-kind, compatible dropzone refs, eventual intent, submitted source/target field
-names, and effect metadata. Generated or
-helper-owned DOM attributes may disable/read-only a source, set a movement
-threshold, or set a timeout. The runtime keeps one active session at a time,
-captures the pointer when possible, emits `start`/`preview`/`commit`/`cancel`
-phases, hit-tests with `elementFromPoint`, and clears disposable layers in the
-same concrete mount on cancel, timeout, HTMX cleanup, explicit stop, or commit.
-Preview phases are local only; the server DOM remains authoritative until a
-committed intent submits through a generated intent form.
-
-Pointer-session effects are Haskell-owned interaction metadata, not
-frontend-only configuration. Surface declarations select a closed
-`InteractionEffect`; arbitrary marker effects, selectors, and callbacks are not
-an escape hatch. Reflection lowers each selection to closed semantic IR carrying
-its lifecycle, required layer, source, options, and canonical CSS-class markers.
-Unknown effects fail to compile, while missing declarations or incomplete IR fail
-checked validation. TypeScript rendering is structural over that IR and cannot
-silently omit an effect or invent a fallback layer. TypeScript resolves the
-mounted surface, looks up
-`FrontendSurfaceInteractionRegistry[surface].sessionKinds`, and constructs a
-generic effect runner for the active session kind. If no registry entry, session
-kind, or effects are present, the runner is a no-op and intent submission remains
-unchanged. Runtime code may switch only on the generated closed effect union and
-must use exhaustive `assertNever` handling for new variants.
-
-Effects have two lifecycles:
-
-- **Session-global effects** activate once when the movement threshold is met,
-  update on every pointer movement while the session is active, and perform
-  idempotent cleanup on every terminal path: commit, cancel, Escape,
-  `pointercancel`, timeout, external HTMX cleanup, or runtime stop. Global
-  effects may create or update disposable UI only inside a declared disposable
-  layer in the same concrete mount.
-- **Contextual target effects** are driven by generic hit-testing and the current
-  ref target. They enter/update/leave as the pointer moves across matching
-  dropzone ref elements, must clean the previous target before highlighting a new one,
-  and must clean any active target on session end. Targets provide only generated
-  ref data and configured CSS classes; targets do not inject arbitrary effect
-  behavior.
-
-The initial generated effect union is intentionally small. `clone-shadow` is a
-session-global effect that measures the configured source ref element, renders an
-inert same-size proxy shape in the configured disposable layer, disables pointer
-events, and preserves the original pointer grab offset while following the
-pointer. It deliberately does not try to screenshot or reconstruct arbitrary DOM;
-visual styling comes from the configured generic CSS class. `dropzone-highlight`
-is a contextual effect that uses the generic dropzone ref hit-test, applies
-the configured CSS class to the active dropzone, removes it from the previous
-target on switch/leave, and cleans up at session end. These effects are examples
-of the generic lifecycle; they do not authorize a runtime to mutate server-owned
-business DOM, construct persistence URLs, or invent new session/layer names.
-
-Live-fragment coordination uses the same generic session boundary. Pointer
-sessions publish mount/session start and end events. The live-update runtime
-tracks active sessions by concrete mount and consults helper-rendered conflict
-policies before refetching passive fragments. A matching policy may apply,
-defer, or cancel; without a narrower policy, a passive refresh targeting the
-same concrete mount defers and latest-per-target invalidation wins. Deferred
-fragments are refetched immediately after session end. A bounded timeout is only
-a fallback watchdog for lost terminal events or stuck sessions, so queued updates
-converge to the latest server state instead of applying stale stored HTML.
-
-On commit the generic bridge must:
-
-1. find the generated intent form for the intent type inside the same concrete
-   mount;
-2. verify that every emitted field has matching generated intent-field metadata
-   and a hidden/input field in the DOM-owned form;
-3. verify required fields are present and encoded as strings accepted by the
-   schema;
-4. refuse unknown fields or missing required fields before dispatch;
-5. fill only the generated fields; and
-6. dispatch the generated HTMX custom event, e.g. `bepis:intent-submit`, from
-   the form.
-
-The bridge must not construct mutation URLs, call `fetch` for persistence,
-change HTMX routes/targets/swaps, or mutate server-owned business DOM.
-
-The standard Haskell helper output is intentionally ordinary HTML/HTMX. For a
-mount key `primary`, a helper-rendered shell includes the live-update surface
-metadata plus interaction metadata on the same owner, e.g.
-`data-bepis-surface="..."` and `data-bepis-surface-config="..."`; the config
-contains the mount key. The `FrontendSurface` runtime renders the server-owned
-`action`, `hx-post`/`hx-patch`/etc., `hx-trigger`, `hx-target`, `hx-swap`,
-optional `hx-sync`/`hx-disabled-elt`, and declared form inputs marked through
-the generated intent, intent-field, and field-presence DOM vocabulary.
-
-Use standard HTMX first: generated forms, custom event `hx-trigger`, lifecycle
-events for cleanup, `hx-sync`/`hx-disabled-elt` for request concurrency where
-useful, and OOB swaps for authoritative actor responses, toasts, and dialog
-cleanup. Generic lifecycle adapters must initialize a connected replacement
-root; when HTMX leaves `detail.target` pointing at detached OOB content, use the
-connected event target rather than scanning stale DOM. Generic UI region
-lifecycle events (`bepis:region-*`) belong only on
-server-declared fragment roots and complement, but do not replace, typed
-interaction session events. Do not start with HTMX extensions or custom
-elements; revisit them only after repeated stable lifecycle behavior justifies
-consolidation.
-
-## Examples
-
-### Click/select
-
-A roster cell exposes a generated activation/source ref in the server layer. The surface
-capability declares a `SelectionOverlay` disposable layer and `SelectCell`
-intent with fields such as `cellId` and `mode`. TypeScript creates a selection
-highlight locally, supports keyboard/touch activation, and on commit fills the
-`SelectCell` form in the same mount. The server validates the cell id and venue
-scope, then returns authoritative selection state or next-step fragments.
-
-### Drop
-
-A draggable card and target slot are rendered with generated source/dropzone refs. The capability
-declares a `DragPreview` disposable layer and `MoveAssignment` intent with
-fields such as `assignmentId`, `targetSlotId`, and `position`. TypeScript may
-render a ghost and insertion guide in disposable layers while dragging. On drop,
-it submits the generated form. The server validates assignment ownership, target
-scope, ordering, conflicts, and permissions before returning OOB fragments.
-
-The roster drop implementation uses distinct generated refs for each semantic
-source/target pair. Existing shift launchers are `shift-drag-source` sources;
-staff-panel rows are `staff-drag-source` sources. Empty row-grid create
-launchers expose one full-span `shift-slot-dropzone` shared by shift-move and
-staff-create drags, while day-column `+ Add shift` cards retain explicit
-`staff-create-dropzone` targets. Whole open day columns are
-`day-column-dropzone` shift-move targets; the roster toolbar exposes
-`delete-shift-dropzone` for shift deletion confirmation; existing editable shift
-cards are `existing-shift-dropzone` staff-assignment targets. Compatible
-shift-modifying targets share one disposable green border/shading affordance;
-the class is applied to the semantic target owner rather than nested visual
-cells.
-The browser submits opaque `sourceItemKey` and `targetDropzoneKey` tokens through
-the generated move/copy/staff-drop forms. Controllers parse those tokens,
-validate venue/roster-week scope, draft/open-day status, empty target slots,
-active staff, and roster-group eligibility, then return authoritative roster
-fragments, dialogs, and toast feedback.
-
-### Resize
-
-A timeline item exposes generated source refs for typed edge handles. The capability declares a
-`ResizePreview` disposable layer and `ResizeAssignment` intent with fields such
-as `assignmentId`, `edge`, `newStart`, and `newEnd`. Pointer movement updates
-only a preview guide. Commit submits the form; server validation decides whether
-the new interval is allowed and responds with authoritative fragments.
-
-### Non-drag disposable UI
-
-Selection rectangles, context menus, command palettes, measurement overlays, and
-keyboard command hints use the same model. They live in declared disposable
-layers, may collect local state, and either cancel locally or commit by filling a
-generated intent form. A menu action must not construct its own URL; it submits a
-typed intent such as `OpenAssignmentMenuAction` or `ApplyBulkCommand` through the
-contracted form.
-
-## Live-Fragment Coordination
-
-Interactive surfaces should have a stable outer mount, a server layer for
-authoritative fragments, and sibling disposable layers for temporary UI.
-
-Conflict policy is typed and conservative:
-
-- non-conflicting fragment swaps may apply behind active disposable UI;
-- updates touching active anchors, active targets, intent forms, disposable
-  layer mounts, or the whole surface shell apply, defer, or cancel according to
-  the Haskell-owned policy;
-- actor HTMX responses for the committed intent win, clear disposable UI, and
-  replace authoritative DOM;
-- passive deferred swaps flush as soon as the active session ends;
-- fallback timeout should exist only to prevent stuck sessions from hiding
-  passive updates forever, and should cancel stale sessions then apply/refetch
-  server state;
-- if policy is missing or ambiguous, prefer cancel/refetch over preserving stale
-  local UI.
-
-The conflict policy should be expressed in generated contracts in terms of the
-surface mount, active session kind, active anchors/targets, disposable layer,
-and affected live fragment refs. TypeScript implements the generic decision but
-does not decide feature semantics.
-
-## Validation And Server Authority
-
-IHP remains responsible for all business validation. Intent fields are browser
-boundary strings, not trusted domain values. Controllers/actions must parse,
-require, authorize, and validate every submitted field, including venue/scope
-membership, live surface scope, record ownership, ordering, time intervals, and
-conflict checks. `fill` alone is not enough for required request-derived fields;
-use explicit required-param checks and total parsers where needed.
-
-## Verification Expectations
-
-Documentation-only changes in this area should run:
+This is the durable contract between typed `FrontendSurface` declarations,
+Haskell views/controllers, live updates, generated browser contracts, and the
+generic TypeScript interaction runtime.
+
+## Authority And Vocabulary
+
+Server-rendered HTML is authoritative. Haskell owns Surface/scope/mount identity,
+server layers, fragments and containment, disposable layers, generated refs,
+intents and exact fields, HTMX form metadata, and conflict policy. TypeScript
+consumes generated contracts and owns generic browser mechanics only.
+
+- **Mount**: one Surface/scope occurrence with a mount key.
+- **Server layer**: authoritative Haskell-rendered business DOM.
+- **Fragment**: replaceable server-owned target with an authorized GET route.
+- **Disposable layer/session**: temporary local UI/state safe to clear.
+- **Intent**: typed committed user action submitted through a server-rendered
+  form.
+- **Conflict policy**: typed decision to apply, defer, or cancel when a fragment
+  changes during a disposable session.
+
+See `Application/Helper/FrontendContract/Surface/README.md` for declaration and
+adapter seams. Generated contract IR, registries, helpers, and tests—not this
+file—own current inventories and implementation detail.
+
+## DOM And Meaning Ownership
+
+TypeScript may read generated refs from server DOM and mutate only declared
+disposable layers or adapter-local/native state. It must not persistently mutate
+business DOM, parse opaque keys into domain meaning, construct mutation URLs,
+invent `data-bepis-*` names, or infer behavior from text/classes/position.
+
+Intent forms are ordinary Haskell-rendered HTML/HTMX. Mount JSON is not mutation
+transport. The browser bridge finds the matching form inside the same mount,
+validates generated field metadata, fills only declared fields, refuses missing
+required/unknown fields, and dispatches the generated trigger. Controllers parse,
+authorize, and validate every field as untrusted input.
+
+Focused global capabilities (overlay, toggle, picker, ordered range, horizontal
+scroll, passkey, PWA install, filters) own reusable exact contracts only. Haskell
+owns values, routes, workflow/error copy, and server validation; adapters keep
+browser/platform mechanics local and leave malformed boundaries untouched.
+Capabilities compose through generated roles/native state rather than importing
+one another's feature meaning.
+
+Concrete mount keys participate in IDs, targets, layer/form IDs, and runtime
+lookup. All discovery stays within the nearest owning mount and must not cross a
+nested Surface. Reconciliation from an inner HTMX replacement still resolves its
+actual owner.
+
+## Sessions, Effects, And Commit
+
+The default lifecycle is local until commit:
+
+1. start establishes typed session/anchor state
+2. preview mutates disposable UI only
+3. cancel clears all local state
+4. commit submits exactly one generated intent form
+
+Pointer and activation refs carry generated static identities plus dynamic opaque
+keys. Shared DSL aliases define common drag/drop shapes. Modifier variants are
+semantic, Haskell-declared intents/effects; TypeScript maps platform keys to those
+variants but does not send raw modifier state as business authority.
+
+Effects come from the closed semantic interaction IR. Session-global and
+contextual-target effects must clean up on commit, cancel, Escape,
+`pointercancel`, timeout, HTMX cleanup, and runtime stop. Unknown effects fail at
+contract/check time; runtime switches over generated closed unions use
+`assertNever`.
+
+Use standard HTMX forms, triggers, sync/disabled controls, and lifecycle events.
+Do not add feature fetch persistence, custom mutation transports, extensions, or
+custom elements without a separate typed contract and demonstrated reusable
+need.
+
+## Live Coordination
+
+Disposable sessions publish mount/session lifecycle. Live updates consult the
+Haskell-owned conflict policy for the same concrete mount. Non-conflicting swaps
+may apply; conflicting swaps apply, defer latest-per-target, or cancel/refetch as
+declared. Deferred fragments refetch immediately after session end. A bounded
+timeout is only a watchdog; missing/ambiguous policy prefers cancel and fresh
+server state.
+
+Actor success and passive invalidation share typed semantic fragment keys.
+Successful migrated mutations refresh authoritative server fragments and clear
+local disposable state; validation failures rerender their submitted form/dialog
+directly. Interaction code does not become a second live-update or DOM-diff
+owner.
+
+## Server Validation
+
+Intent fields are browser strings, never trusted domain values. Controllers use
+required checks and total parsers, then validate venue/scope membership, record
+ownership, ordering/time constraints, conflicts, and permissions. `fill` alone
+is insufficient for required request-derived fields. Browser affordances and
+opaque keys do not authorize a mutation.
+
+## Extension And Verification
+
+Add interaction behavior at the Surface DSL/helper seam, generate contracts,
+consume only generated refs/registries in generic TypeScript, and add tests at
+the narrowest authority. Do not add raw feature attributes/forms or historical
+compatibility protocols.
 
 ```bash
+bash ./bin/in-env frontend-contracts-check
+bash ./bin/in-env frontend-surface-compile-fail-check
+bash ./bin/in-env frontend-surface-guardrails
+bash ./bin/in-env frontend-check
+bash ./bin/in-env hspec-test --match "FrontendSurface" --match "RosterInteractionWorkflow"
 bash ./bin/in-env ./bin/doc-drift-check
 ```
 
-Implementation tickets should add focused Hspec coverage for Haskell contracts,
-rendered attrs/forms, guardrails against raw interaction attrs/forms, and live
-fragment policy. Generic runtime tickets should add frontend unit/DOM tests and
-focused Playwright only when browser/HTMX/live behavior is part of the contract.
+Use focused Playwright only when real pointer/keyboard/HTMX/live behavior changes.

@@ -582,18 +582,30 @@ function generatedContractsQuery(facts, args) {
   const warnings = [];
   if (surfaces.length === 0) warnings.push("No reflected Surface facts were found; regenerate architecture contracts and facts.");
   if (target !== "all" && selectedSurfaces.length === 0) warnings.push(`No reflected Surface matched ${args.target}.`);
+
+  const consumerFileLimit = 20;
+  const reportedConsumerFiles = includeConsumers ? contracts.consumers.slice(0, consumerFileLimit) : [];
+  const omittedConsumerFiles = includeConsumers ? contracts.consumers.length - reportedConsumerFiles.length : 0;
+  if (omittedConsumerFiles > 0) warnings.push(`${omittedConsumerFiles} consumer files omitted from the bounded report; use source facts for the complete inventory.`);
+
+  const tables = [
+    { title: "reflected surfaces", rows: selectedSurfaces.map((surface) => ({ surface: surface.name, scope: (surface.scopes || []).map((scope) => scope.name).join(", "), fragments: surface.fragments?.length || 0, actions: surface.actions?.length || 0, intents: surface.intents?.length || 0, resources: surface.resources?.length || 0 })) },
+    { title: "generated files", rows: contracts.generated.map((file) => ({ path: file.path, exports: file.exports.length, dataAttributes: file.dataAttributes.length, majorExports: file.exports.slice(0, 12).join(", ") })) },
+  ];
+  if (includeConsumers) {
+    tables.push(
+      { title: "consumer groups", rows: [...consumerGroups.entries()].sort().map(([group, consumers]) => ({ group, files: consumers.length, imports: unique(consumers.flatMap((consumer) => consumer.imports)).slice(0, 16).join(", ") })) },
+      { title: "consumer files", rows: reportedConsumerFiles.map((consumer) => ({ group: contractConsumerGroup(consumer.path), path: consumer.path, imports: consumer.imports.join(", ") })) },
+    );
+  }
+
   architectureResult("Generated reflection-backed contract and Surface architecture report.", [
     { path: svgRel, kind: "diagram", language: "svg" },
     { path: dotRel, kind: "source", language: "dot" },
   ], { generatedFrom: "output/architecture/facts.json", sources: contracts.sources, evaluator: reflected.evaluator }, {
     warnings,
-    metrics: { sources: contracts.sources.length, reflectedSurfaces: surfaces.length, selectedSurfaces: selectedSurfaces.length, generatedFiles: contracts.generated.length, exports: contracts.generated.reduce((n, file) => n + file.exports.length, 0), dataAttributes: unique(contracts.generated.flatMap((file) => file.dataAttributes)).length, consumers: contracts.consumers.length, consumerGroups: consumerGroups.size },
-    tables: [
-      { title: "reflected surfaces", rows: surfaces.map((surface) => ({ surface: surface.name, scope: (surface.scopes || []).map((scope) => scope.name).join(", "), fragments: surface.fragments?.length || 0, actions: surface.actions?.length || 0, intents: surface.intents?.length || 0, resources: surface.resources?.length || 0 })) },
-      { title: "generated files", rows: contracts.generated.map((file) => ({ path: file.path, exports: file.exports.length, dataAttributes: file.dataAttributes.length, majorExports: file.exports.slice(0, 12).join(", ") })) },
-      { title: "consumer groups", rows: [...consumerGroups.entries()].sort().map(([group, consumers]) => ({ group, files: consumers.length, imports: unique(consumers.flatMap((consumer) => consumer.imports)).slice(0, 16).join(", ") })) },
-      { title: "consumer files", rows: contracts.consumers.map((consumer) => ({ group: contractConsumerGroup(consumer.path), path: consumer.path, imports: consumer.imports.join(", ") })) },
-    ],
+    metrics: { sources: contracts.sources.length, reflectedSurfaces: surfaces.length, selectedSurfaces: selectedSurfaces.length, generatedFiles: contracts.generated.length, exports: contracts.generated.reduce((n, file) => n + file.exports.length, 0), dataAttributes: unique(contracts.generated.flatMap((file) => file.dataAttributes)).length, consumers: contracts.consumers.length, reportedConsumerFiles: reportedConsumerFiles.length, omittedConsumerFiles, consumerGroups: consumerGroups.size },
+    tables,
   });
 }
 
