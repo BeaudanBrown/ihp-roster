@@ -9,7 +9,9 @@ import {
     expectNoHorizontalViewportOverflow,
     firstRosterDayAddButton,
     firstRosterDayRemoveButton,
+    defaultE2ERosterGroupId,
     openRoster,
+    openRosterSettings,
     runSql,
 } from './test-helpers';
 
@@ -49,6 +51,29 @@ test.describe('Roster mobile baseline', () => {
         await expect(page.locator('#roster-week-shell')).toBeVisible();
         await expect(page.locator('#roster-content')).toBeVisible();
         await expect(page.locator('.roster-grid')).toBeVisible();
+    });
+
+    test('fits the live roster email confirmation within the viewport', async ({ page }) => {
+        const weekOffset = Number.parseInt(new URL(page.url()).searchParams.get('weekOffset') ?? '0', 10);
+        runSql(`UPDATE roster_weeks SET is_live = TRUE WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND week_offset = ${weekOffset};`);
+        try {
+            await page.reload();
+            await expect(page.locator('#roster-week-shell')).toBeVisible();
+            await openRosterSettings(page);
+            const emailRoster = page.locator('#roster-email-button');
+            await expect(emailRoster).toBeVisible();
+            await expect(emailRoster).toBeEnabled();
+            await emailRoster.click();
+            const dialog = page.getByRole('dialog', { name: 'Email roster' });
+            await expect(dialog).toBeVisible();
+            await expect(dialog).toContainText('Recipients');
+            const dialogBox = await dialog.boundingBox();
+            expect(dialogBox).not.toBeNull();
+            expect(dialogBox!.x).toBeGreaterThanOrEqual(0);
+            expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+        } finally {
+            runSql(`UPDATE roster_weeks SET is_live = FALSE WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND week_offset = ${weekOffset};`);
+        }
     });
 
     test('keeps the roster shell within the viewport and contains any grid overflow locally', async ({ page }) => {
