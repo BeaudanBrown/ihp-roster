@@ -297,6 +297,28 @@ and other external wire seams. `EnumAuthoritySpec` pins all current constructor
 projections at the public helper seam. `Web/RosterWeeks/README.md` records the
 living roster rule.
 
+## Xero Workflow Enum Checkpoint
+
+[#334](https://github.com/BeaudanBrown/ihp-roster/issues/334) converts twelve
+selected app-owned Xero workflow columns from constrained `TEXT` to PostgreSQL
+enums: sync status/kind; staff and earnings-rate mapping status; pay-item
+account-code selection and requirement status; submission source/run status;
+preparation run status and decision kind/status; and per-staff submission
+status. Generated constructors now flow through reference sync, readiness,
+preparation, preview, and submission business logic. `WorkflowState` owns
+exhaustive capability and presentation projections with
+`-Werror=incomplete-patterns`.
+
+Migration `1786000000.sql` inventories every existing value before creating or
+converting any type. Unexpected values abort the transaction with the exact
+table, column, value, and count. The migration rebuilds the two affected partial
+indexes and preserves every row; rollback/recovery guidance is in
+`Application/Migration/xero-workflow-enums-334-runbook.md`. Employee, account,
+pay-run, and timesheet statuses owned by Xero remain open `TEXT`, and focused
+contract tests preserve unknown future provider values unchanged. The narrow
+`enum-authority-check` tombstones raw literal writes, filters, and comparisons
+only for migrated app-owned fields.
+
 ## Baseline Metrics
 
 Captured on the #329 baseline:

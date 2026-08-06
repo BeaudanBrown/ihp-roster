@@ -44,6 +44,10 @@ restart/wait for the dev server after applying locally so IHP sees the final
 
 ## Operator-Gated Retirements
 
+GitHub #334's data-preserving Xero workflow enum conversion, preflight failure
+policy, and schema-only recovery procedure are documented in
+`xero-workflow-enums-334-runbook.md`.
+
 GitHub #239's forward-only Haskell wage cutover is documented in
 `haskell-wage-cutover-239-runbook.md`. Migration `1785242000.sql` is the normal-runner
 marker; NixOS `wage-cutover.service` then runs the atomic Haskell backfill and guarded

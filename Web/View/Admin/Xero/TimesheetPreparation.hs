@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeApplications #-}
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
 module Web.View.Admin.Xero.TimesheetPreparation
     ( renderXeroTimesheetPreparationDialog
@@ -44,6 +45,7 @@ import Application.Xero.ReferenceTrust (XeroMissingReferenceDemand (..),
                                         XeroReferenceSyncProgressFacts (..))
 import Application.Xero.ReferenceTrust.Presentation
 import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..))
+import Application.Xero.WorkflowState
 import Control.Monad (guard)
 import Data.Scientific (FPFormat (Fixed), Scientific, formatScientific,
                         scientific)
@@ -369,13 +371,13 @@ needsPayItemStep view = isJust view.preparationPeriodOption && (any payItemRowNe
 
 payItemRowNeedsApproval :: XeroPreparationPayItemRow -> Bool
 payItemRowNeedsApproval row =
-    maybe True ((== "pending") . (.decisionStatus)) row.preparationPayItemDecision
+    maybe True (xeroPreparationDecisionIsPending . (.decisionStatus)) row.preparationPayItemDecision
 
 proposedPayItemRows :: XeroTimesheetPreparationView -> [XeroPreparationPayItemRow]
 proposedPayItemRows view =
     view.preparationPayItemRows
         |> filter \row ->
-            row.preparationPayItemRequirement.payItemRequirementStatus == "proposed"
+            xeroPayItemRequirementIsProposed row.preparationPayItemRequirement.payItemRequirementStatus
 
 renderPeriodSelection :: XeroTimesheetPreparationView -> Html
 renderPeriodSelection view
@@ -407,16 +409,8 @@ preparationPeriodOptionLabel option =
         <> preparationPeriodSubmissionStatusLabel option.periodOptionLatestSubmissionStatus
         <> maybe "" (" · blocked: " <>) option.periodOptionBlockReason
 
-preparationPeriodSubmissionStatusLabel :: Maybe Text -> Text
-preparationPeriodSubmissionStatusLabel status =
-    case Text.toCaseFold . Text.strip <$> status of
-        Just "submitted"        -> " · submitted already"
-        Just "partially_failed" -> " · partially submitted"
-        Just "failed"           -> " · failed previously"
-        Just "previewed"        -> " · previewed previously"
-        Just "pending"          -> " · submission pending"
-        Just "blocked"          -> " · blocked previously"
-        _                       -> ""
+preparationPeriodSubmissionStatusLabel :: Maybe XeroSubmissionRunStatusEnum -> Text
+preparationPeriodSubmissionStatusLabel = maybe "" xeroSubmissionRunPeriodLabel
 
 renderFinalSummaryCards :: XeroTimesheetPreparationView -> Html
 renderFinalSummaryCards view = [hsx|
@@ -710,13 +704,18 @@ currentStaffEmployeeSelection row =
         pendingDecisionSelection = do
             decision <- row.preparationStaffDecision
             case decision.decisionKind of
-                "staff_not_paid" -> Just "not_applicable"
-                _                -> decision.xeroEmployeeId
+                StaffNotPaid       -> Just "not_applicable"
+                StaffAutoMatch     -> decision.xeroEmployeeId
+                StaffManualMapping -> decision.xeroEmployeeId
+                StaffStepApproved  -> decision.xeroEmployeeId
+                PayItemCreate      -> decision.xeroEmployeeId
+                AccountCode        -> decision.xeroEmployeeId
+                CalendarSelection  -> decision.xeroEmployeeId
         verifiedMappingSelection = do
-            guard (mapping.mappingStatus == "verified")
+            guard (xeroStaffMappingIsVerified mapping.mappingStatus)
             mapping.xeroEmployeeId
         notApplicableSelection = do
-            guard (mapping.mappingStatus == "not_applicable" && isJust mapping.updatedByUserId)
+            guard (xeroStaffMappingIsNotApplicable mapping.mappingStatus && isJust mapping.updatedByUserId)
             Just "not_applicable"
 
 selectedStaffEmployeeId :: XeroPreparationStaffRow -> Maybe Text
@@ -815,12 +814,12 @@ staffRowHasPendingAutoMatch row =
     maybe False isPendingAutoMatch row.preparationStaffDecision
     where
         isPendingAutoMatch decision =
-            decision.decisionKind == "staff_auto_match" && decision.decisionStatus == "pending"
+            xeroPreparationKindIsStaffAutoMatch decision.decisionKind && xeroPreparationDecisionIsPending decision.decisionStatus
 
 staffRowNeedsAttention :: XeroPreparationStaffRow -> Bool
 staffRowNeedsAttention row =
     row.preparationStaffNeedsDecision
-        || maybe False ((== "pending") . (.decisionStatus)) row.preparationStaffDecision
+        || maybe False (xeroPreparationDecisionIsPending . (.decisionStatus)) row.preparationStaffDecision
         || Text.null (currentStaffEmployeeSelection row)
 
 staffMappingStatus :: XeroPreparationStaffRow -> Text
@@ -831,12 +830,12 @@ staffMappingStatus row
 
 staffHasVerifiedXeroEmployee :: XeroPreparationStaffRow -> Bool
 staffHasVerifiedXeroEmployee row =
-    row.preparationStaffMappingRow.mappingRowMapping.mappingStatus == "verified"
+    xeroStaffMappingIsVerified row.preparationStaffMappingRow.mappingRowMapping.mappingStatus
         && isJust row.preparationStaffMappingRow.mappingRowMapping.xeroEmployeeId
 
 staffMarkedNotPaidThroughXero :: XeroPreparationStaffRow -> Bool
 staffMarkedNotPaidThroughXero row =
-    row.preparationStaffMappingRow.mappingRowMapping.mappingStatus == "not_applicable"
+    xeroStaffMappingIsNotApplicable row.preparationStaffMappingRow.mappingRowMapping.mappingStatus
         && isJust row.preparationStaffMappingRow.mappingRowMapping.updatedByUserId
 
 renderPayItemDecisions :: XeroTimesheetPreparationView -> Html
@@ -881,7 +880,7 @@ renderPayItemDecisions view
         proposedRows =
             view.preparationPayItemRows
                 |> filter \row ->
-                    row.preparationPayItemRequirement.payItemRequirementStatus == "proposed"
+                    xeroPayItemRequirementIsProposed row.preparationPayItemRequirement.payItemRequirementStatus
 
 renderPayItemCreationRow :: XeroPreparationPayItemRow -> Html
 renderPayItemCreationRow row = [hsx|
@@ -902,7 +901,7 @@ renderAccountCodeOption currentSelection option = [hsx|
 selectedAccountCode :: XeroTimesheetPreparationView -> Maybe Text
 selectedAccountCode view = do
     selection <- view.preparationPayItemAccountCodeSelection
-    guard (selection.selectionStatus == "verified")
+    guard (xeroAccountCodeSelectionIsVerified selection.selectionStatus)
     Text.strip <$> selection.accountCode
 
 renderReadiness :: XeroTimesheetReadinessView -> Html

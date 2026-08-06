@@ -17,6 +17,8 @@ import Application.Helper.XeroAdminTypes
 import Application.WageEngine (ProjectionRateSource (..), RateSourceIdentity,
                                projectionRateSourceIdentity)
 import Application.Xero.PayrollSourceKey (sourceRateSuffix)
+import Application.Xero.WorkflowState (xeroPayItemRequirementIsIgnored,
+                                       xeroPayItemRequirementIsUsable)
 import Control.Monad (void, zipWithM_)
 import qualified Data.List as List
 import qualified Data.Scientific as Scientific
@@ -62,8 +64,8 @@ deriveXeroPayItemRequirements weekStartsOn today usedScopes awardLevels baseRate
                     , payItemRequirementRecord = Nothing
                     , payItemRequirementStatus =
                         case match of
-                            Just _  -> "matched"
-                            Nothing -> "proposed"
+                            Just _  -> Matched
+                            Nothing -> XeroPayItemRequirementStatusEnumProposed
                     }
 
         ordinaryRequirement row =
@@ -478,10 +480,10 @@ syncXeroPayItemRequirementRecords connectionId venueId maybeActorUserId requirem
                         |> createRecord
 
         markStaleIfMissing now activeKeys record =
-            when (record.requirementKey `notElem` activeKeys && record.requirementStatus /= "stale") do
+            when (record.requirementKey `notElem` activeKeys && record.requirementStatus /= XeroPayItemRequirementStatusEnumStale) do
                 void $
                     record
-                        |> set #requirementStatus "stale"
+                        |> set #requirementStatus XeroPayItemRequirementStatusEnumStale
                         |> set #updatedByUserId (unpackId <$> maybeActorUserId)
                         |> set #updatedAt now
                         |> updateRecord
@@ -495,7 +497,7 @@ syncXeroPayItemRequirementRecords connectionId venueId maybeActorUserId requirem
         upsertMatchedEarningsRateMapping now requirement record =
             case requirement.payItemRequirementMatch of
                 Just earningsRate
-                    | record.requirementStatus `elem` ["matched", "created"] -> do
+                    | xeroPayItemRequirementIsUsable record.requirementStatus -> do
                         existingMapping <-
                             query @XeroEarningsRateMapping
                                 |> filterWhere (#venueId, unpackId venueId)
@@ -511,7 +513,7 @@ syncXeroPayItemRequirementRecords connectionId venueId maybeActorUserId requirem
                                     |> set #localBucketLabel localBucketLabel
                                     |> set #xeroEarningsRateId (Just earningsRate.xeroEarningsRateId)
                                     |> set #xeroEarningsRateName (Just earningsRate.name)
-                                    |> set #mappingStatus ("verified" :: Text)
+                                    |> set #mappingStatus XeroEarningsRateMappingStatusEnumVerified
                                     |> set #lastVerifiedAt (Just now)
                                     |> set #updatedByUserId (unpackId <$> maybeActorUserId)
                         case existingMapping of
@@ -523,14 +525,14 @@ syncXeroPayItemRequirementRecords connectionId venueId maybeActorUserId requirem
                                     |> void
                 _ -> pure ()
 
-statusFor :: XeroPayItemRequirement -> Maybe XeroPayItemRequirementRecord -> Text
+statusFor :: XeroPayItemRequirement -> Maybe XeroPayItemRequirementRecord -> XeroPayItemRequirementStatusEnum
 statusFor requirement existing
-    | hasXeroMatch requirement && maybe False (existingExpectedValueChanged requirement) existing = "rate_changed"
-    | hasXeroMatch requirement && maybe False (xeroRateTypeChanged requirement) requirement.payItemRequirementMatch = "rate_changed"
-    | hasXeroMatch requirement && maybe False (\record -> record.requirementStatus == "created") existing = "created"
-    | hasXeroMatch requirement = "matched"
-    | maybe False (\record -> record.requirementStatus == "ignored") existing = "ignored"
-    | otherwise = "proposed"
+    | hasXeroMatch requirement && maybe False (existingExpectedValueChanged requirement) existing = RateChanged
+    | hasXeroMatch requirement && maybe False (xeroRateTypeChanged requirement) requirement.payItemRequirementMatch = RateChanged
+    | hasXeroMatch requirement && maybe False (\record -> record.requirementStatus == XeroPayItemRequirementStatusEnumCreated) existing = XeroPayItemRequirementStatusEnumCreated
+    | hasXeroMatch requirement = Matched
+    | maybe False (\record -> xeroPayItemRequirementIsIgnored record.requirementStatus) existing = Ignored
+    | otherwise = XeroPayItemRequirementStatusEnumProposed
 
 hasXeroMatch :: XeroPayItemRequirement -> Bool
 hasXeroMatch requirement =
@@ -538,7 +540,7 @@ hasXeroMatch requirement =
 
 existingExpectedValueChanged :: XeroPayItemRequirement -> XeroPayItemRequirementRecord -> Bool
 existingExpectedValueChanged requirement record =
-    record.requirementStatus `elem` ["matched", "created", "rate_changed"]
+    xeroPayItemRequirementIsUsable record.requirementStatus || record.requirementStatus == RateChanged
         && ( record.rateType /= requirement.payItemRequirementRateType
             || record.multiplier /= requirement.payItemRequirementMultiplier
             || record.ratePerUnit /= requirement.payItemRequirementRatePerUnit
@@ -567,7 +569,7 @@ requirement today effectiveFrom effectiveTo key name penaltyKind earningsType ra
                 && maybe True (>= today) effectiveTo
         , payItemRequirementMatch = Nothing
         , payItemRequirementRecord = Nothing
-        , payItemRequirementStatus = "proposed"
+        , payItemRequirementStatus = XeroPayItemRequirementStatusEnumProposed
         }
 
 findMatchingEarningsRate :: Text -> [XeroEarningsRate] -> Maybe XeroEarningsRate

@@ -39,6 +39,7 @@ import Application.Helper.XeroTimesheetReadiness
 import Application.Xero.Admin.ReadModel
 import Application.Xero.Connection (xeroClientErrorText)
 import Application.Xero.Timesheets.Preview (xeroReadinessSnapshotJson)
+import Application.Xero.WorkflowState
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.List as List
@@ -60,19 +61,19 @@ fetchPreparationDecisions run =
 
 pendingManualPreparationDecision :: XeroTimesheetPreparationDecision -> Bool
 pendingManualPreparationDecision decision =
-    decision.decisionStatus == "pending" && decision.decisionKind /= "pay_item_create"
+    xeroPreparationDecisionIsPending decision.decisionStatus && not (xeroPreparationKindIsPayItemCreate decision.decisionKind)
 
 pendingPayItemCreateDecision :: XeroTimesheetPreparationDecision -> Bool
 pendingPayItemCreateDecision decision =
-    decision.decisionStatus == "pending" && decision.decisionKind == "pay_item_create"
+    xeroPreparationDecisionIsPending decision.decisionStatus && xeroPreparationKindIsPayItemCreate decision.decisionKind
 
 isPendingStaffAutoMatch :: XeroTimesheetPreparationDecision -> Bool
 isPendingStaffAutoMatch decision =
-    decision.decisionStatus == "pending" && decision.decisionKind == "staff_auto_match"
+    xeroPreparationDecisionIsPending decision.decisionStatus && xeroPreparationKindIsStaffAutoMatch decision.decisionKind
 
 staffStepApprovalApplied :: XeroTimesheetPreparationDecision -> Bool
 staffStepApprovalApplied decision =
-    decision.decisionStatus == "applied" && decision.decisionKind == "staff_step_approved"
+    xeroPreparationDecisionIsApplied decision.decisionStatus && xeroPreparationKindIsStaffStepApproval decision.decisionKind
 
 readinessAllowsAutomaticPayItemSubmit :: XeroTimesheetReadiness -> Bool
 readinessAllowsAutomaticPayItemSubmit readiness =
@@ -101,14 +102,14 @@ refreshPreparationRunStatus run remoteTimesheets = do
         postedBlocked = preparationRunPosted run
         hasSelectedPeriod = preparationRunHasPeriod run
         (status, errorSummary)
-            | pendingDecisionCount > 0 || manualStaffCount > 0 = ("needs_approval", Nothing)
-            | not hasSelectedPeriod = ("started", Nothing)
-            | postedBlocked = ("blocked", Just "The selected Xero pay run is posted. Draft timesheet creation is blocked.")
-            | readinessHasMissingPayItemAccountCode readiness = ("needs_approval", Nothing)
-            | not (readinessAllowsAutomaticPayItemSubmit readiness) = ("blocked", Just (readinessErrorSummary readiness))
-            | otherwise = ("ready_for_preview", Nothing)
+            | pendingDecisionCount > 0 || manualStaffCount > 0 = (NeedsApproval, Nothing)
+            | not hasSelectedPeriod = (Started, Nothing)
+            | postedBlocked = (XeroTimesheetPreparationRunStatusEnumBlocked, Just "The selected Xero pay run is posted. Draft timesheet creation is blocked.")
+            | readinessHasMissingPayItemAccountCode readiness = (NeedsApproval, Nothing)
+            | not (readinessAllowsAutomaticPayItemSubmit readiness) = (XeroTimesheetPreparationRunStatusEnumBlocked, Just (readinessErrorSummary readiness))
+            | otherwise = (ReadyForPreview, Nothing)
     run
-        |> set #status (status :: Text)
+        |> set #status status
         |> set #readinessSnapshotJson (xeroReadinessSnapshotJson readiness)
         |> set #proposedActionsJson (preparationProposedActionsJson pendingDecisionCount manualStaffCount)
         |> set #errorSummary errorSummary
@@ -117,7 +118,7 @@ refreshPreparationRunStatus run remoteTimesheets = do
 markPreparationFailed :: (?modelContext :: ModelContext) => XeroTimesheetPreparationRun -> Text -> IO XeroTimesheetPreparationRun
 markPreparationFailed run message =
     run
-        |> set #status ("failed" :: Text)
+        |> set #status XeroTimesheetPreparationRunStatusEnumFailed
         |> set #errorSummary (Just message)
         |> updateRecord
 
@@ -214,8 +215,8 @@ preparationStaffRow decisions row =
                 |> List.find
                     ( \decision ->
                         decision.staffId == Just (unpackId row.mappingRowStaff.id)
-                            && decision.decisionStatus == "pending"
-                            && decision.decisionKind `elem` ["staff_auto_match", "staff_manual_mapping", "staff_not_paid"]
+                            && xeroPreparationDecisionIsPending decision.decisionStatus
+                            && xeroPreparationKindIsStaffMappingDecision decision.decisionKind
                     )
         needsDecision = staffNeedsXeroDecision row && isNothing maybeDecision
      in XeroPreparationStaffRow
@@ -233,8 +234,8 @@ preparationPayItemRow decisions requirement =
                 |> List.find
                     ( \decision ->
                         decision.localBucketKey == Just requirement.payItemRequirementKey
-                            && decision.decisionKind == "pay_item_create"
-                            && decision.decisionStatus `elem` ["pending", "applied"]
+                            && xeroPreparationKindIsPayItemCreate decision.decisionKind
+                            && (xeroPreparationDecisionIsPending decision.decisionStatus || xeroPreparationDecisionIsApplied decision.decisionStatus)
                     )
         }
 
@@ -249,15 +250,15 @@ staffNeedsXeroDecision row =
 staffMappingResolved :: XeroStaffMapping -> Bool
 staffMappingResolved mapping =
     staffMappingVerified mapping
-        || (mapping.mappingStatus == "not_applicable" && isJust mapping.updatedByUserId)
+        || (xeroStaffMappingIsNotApplicable mapping.mappingStatus && isJust mapping.updatedByUserId)
 
 staffMappingVerified :: XeroStaffMapping -> Bool
 staffMappingVerified mapping =
-    mapping.mappingStatus == "verified" && isJust mapping.xeroEmployeeId
+    xeroStaffMappingIsVerified mapping.mappingStatus && isJust mapping.xeroEmployeeId
 
 activePayItemRequirement :: XeroPayItemRequirement -> Bool
 activePayItemRequirement requirement =
-    requirement.payItemRequirementStatus /= "ignored"
+    not (xeroPayItemRequirementIsIgnored requirement.payItemRequirementStatus)
 
 preparationRunPosted :: XeroTimesheetPreparationRun -> Bool
 preparationRunPosted run =

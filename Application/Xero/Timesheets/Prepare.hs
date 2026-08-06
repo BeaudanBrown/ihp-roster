@@ -34,6 +34,8 @@ import Application.Xero.Timesheets.Buckets
 import Application.Xero.Timesheets.Prepare.Helpers
 import Application.Xero.Timesheets.Preview
 import Application.Xero.Timesheets.Submission
+import Application.Xero.WorkflowState (xeroPayItemRequirementIsProposed,
+                                       xeroStaffMappingIsVerified)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
@@ -68,7 +70,7 @@ startXeroTimesheetPreparation = do
                             |> set #venueId (unpackId currentVenueId)
                             |> set #xeroConnectionId (unpackId refreshedConnection.id)
                             |> set #createdByUserId (unpackId currentUser.id)
-                            |> set #status ("preparing" :: Text)
+                            |> set #status Preparing
                             |> set #connectionSnapshotJson (xeroConnectionSnapshotJson refreshedConnection)
                             |> set #eventsJson (preparationInitialEventsJson now "staff-first")
                             |> set #startedAt now
@@ -110,7 +112,7 @@ refreshXeroTimesheetPreparation runId = do
                 then do
                     _ <-
                         run
-                            |> set #status ("needs_reconnect" :: Text)
+                            |> set #status NeedsReconnect
                             |> set #errorSummary (Just "Reconnect Xero before preparing draft timesheets.")
                             |> set #connectionSnapshotJson (xeroConnectionSnapshotJson connection)
                             |> updateRecord
@@ -125,7 +127,7 @@ refreshXeroTimesheetPreparation runId = do
                                 Left message -> do
                                     _ <-
                                         run
-                                            |> set #status ("needs_reconnect" :: Text)
+                                            |> set #status NeedsReconnect
                                             |> set #errorSummary (Just message)
                                             |> updateRecord
                                     loadXeroTimesheetPreparationView runId
@@ -185,7 +187,7 @@ loadXeroTimesheetPreparationView runId = do
                 pendingDecisionCount = length (filter pendingManualPreparationDecision decisions)
                 manualStaffDecisionCount = length (filter (.preparationStaffNeedsDecision) staffDecisionRows)
                 postedBlocked = preparationRunPosted run
-                proposedPayItemCount = length (filter ((== "proposed") . (.payItemRequirementStatus) . (.preparationPayItemRequirement)) payItemRows)
+                proposedPayItemCount = length (filter ((== XeroPayItemRequirementStatusEnumProposed) . (.payItemRequirementStatus) . (.preparationPayItemRequirement)) payItemRows)
                 pendingPayItemDecisionCount = length (filter pendingPayItemCreateDecision decisions)
                 staffStepApproved = any staffStepApprovalApplied decisions
                 hasSelectedPeriod = preparationRunHasPeriod run
@@ -251,7 +253,7 @@ approveXeroPreparationStaffStep runId = do
                     if not (null unresolvedRows)
                         then pure (Left "Resolve staff matches before continuing.")
                         else do
-                            _ <- applyPreparationDecision run Nothing "staff_step_approved" Nothing Nothing Nothing
+                            _ <- applyPreparationDecision run Nothing StaffStepApproved Nothing Nothing Nothing
                             reloadAfterLocalDecision run remoteTimesheetsFromRun
 
 applyPendingAutoMatchDecision ::
@@ -264,7 +266,7 @@ applyPendingAutoMatchDecision run connection decision =
     case (decision.staffId, decision.xeroEmployeeId) of
         (Just staffUuid, Just employeeId) -> do
             staff <- fetch (Id staffUuid :: Id Staff)
-            applyEmployeeMappingDecisionWithoutReload run connection staff "staff_auto_match" employeeId
+            applyEmployeeMappingDecisionWithoutReload run connection staff StaffAutoMatch employeeId
         _ -> pure (Left "A proposed staff match is missing staff or Xero employee details.")
 
 applyXeroPreparationStaffDecision ::
@@ -289,16 +291,16 @@ applyXeroPreparationStaffDecision runId staffId decision = do
                 Just staff ->
                     case decision of
                         MarkStaffNotPaidThroughXero -> do
-                            _ <- persistPreparationStaffMapping connection staff "not_applicable" Nothing
-                            _ <- applyPreparationDecision run (Just staff) "staff_not_paid" Nothing Nothing Nothing
+                            _ <- persistPreparationStaffMapping connection staff NotApplicable Nothing
+                            _ <- applyPreparationDecision run (Just staff) StaffNotPaid Nothing Nothing Nothing
                             dismissPendingStaffAutoMatches run staff
                             reloadAfterLocalDecision run remoteTimesheetsFromCurrentRun
                         SelectXeroEmployee employeeId -> do
                             pendingSuggestion <- fetchPendingStaffAutoMatch run staff
                             let decisionKind =
                                     case pendingSuggestion >>= (.xeroEmployeeId) of
-                                        Just suggestedEmployeeId | suggestedEmployeeId == employeeId -> "staff_auto_match"
-                                        _ -> "staff_manual_mapping"
+                                        Just suggestedEmployeeId | suggestedEmployeeId == employeeId -> StaffAutoMatch
+                                        _ -> StaffManualMapping
                             applyEmployeeMappingDecision run connection staff decisionKind employeeId
     where
         remoteTimesheetsFromCurrentRun updatedRun = remoteTimesheetsFromRun updatedRun
@@ -319,7 +321,7 @@ ensurePreparationPayItemsReady run maybeAccountCode = do
             persistPreparationAccountCodeSelection connection accountCodeOptions accountCode
     latestSelection <- fetchCurrentVenueXeroPayItemAccountCodeSelection (Just connection)
     let selectedAccountCode = selectedXeroPayItemAccountCode accountCodeOptions latestSelection <|> selectedXeroPayItemAccountCode accountCodeOptions accountCodeSelection
-        proposedRequirements = filter (\requirement -> requirement.payItemRequirementStatus == "proposed" && requirement.payItemRequirementIsActive) requirements
+        proposedRequirements = filter (\requirement -> xeroPayItemRequirementIsProposed requirement.payItemRequirementStatus && requirement.payItemRequirementIsActive) requirements
     case selectedAccountCode of
         Nothing
             | null proposedRequirements -> pure (Right ())
@@ -368,7 +370,7 @@ selectXeroTimesheetPreparationPeriod runId selectedPeriodKey =
                             |> set #paymentDate option.periodOptionPaymentDate
                             |> set #xeroPayRunId option.periodOptionXeroPayRunId
                             |> set #xeroPayRunStatus option.periodOptionXeroPayRunStatus
-                            |> set #status ("preparing" :: Text)
+                            |> set #status Preparing
                             |> set #errorSummary Nothing
                             |> updateRecord
                     refreshXeroTimesheetPreparation updatedRun.id
@@ -463,7 +465,7 @@ previewXeroTimesheetPreparation runId =
                     Right submissionRun -> do
                         _ <-
                             run
-                                |> set #status ("previewed" :: Text)
+                                |> set #status XeroTimesheetPreparationRunStatusEnumPreviewed
                                 |> set #xeroSubmissionRunId (Just (unpackId submissionRun.id))
                                 |> set #readinessSnapshotJson (xeroReadinessSnapshotJson readiness)
                                 |> set #previewPayloadJson submissionRun.previewPayloadJson
@@ -500,7 +502,7 @@ submitXeroTimesheetPreparation runId maybeAccountCode =
                                         completedAt <- getCurrentTime
                                         _ <-
                                             refreshedRun
-                                                |> set #status (if submissionRun.status == "submitted" then "submitted" else "failed" :: Text)
+                                                |> set #status (if submissionRun.status == XeroSubmissionRunStatusEnumSubmitted then XeroTimesheetPreparationRunStatusEnumSubmitted else XeroTimesheetPreparationRunStatusEnumFailed)
                                                 |> set #xeroSubmissionRunId (Just (unpackId submissionRun.id))
                                                 |> set #previewPayloadJson submissionRun.previewPayloadJson
                                                 |> set #readinessSnapshotJson submissionRun.readinessSnapshotJson
@@ -601,7 +603,7 @@ fetchPreparationNotPaidStaffIds connection = do
     mappings <-
         query @XeroStaffMapping
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> filterWhere (#mappingStatus, "not_applicable" :: Text)
+            |> filterWhere (#mappingStatus, NotApplicable)
             |> fetch
     pure (map (.staffId) (filter (isJust . (.updatedByUserId)) mappings))
 
@@ -619,7 +621,7 @@ ensurePreparationDecisionProposals run = do
                     ensurePendingPreparationDecision
                         run
                         (Just row.mappingRowStaff)
-                        "staff_auto_match"
+                        StaffAutoMatch
                         (Just employee.xeroEmployeeId)
                         (Just employee.displayName)
                         Nothing
@@ -635,13 +637,13 @@ ensurePreparationPayItemDecisionProposals run = do
     connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
     xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
     requirements <- fetchPreparationPayItemRequirements run connection xeroEarningsRates
-    let proposedRequirements = filter (\requirement -> requirement.payItemRequirementStatus == "proposed" && requirement.payItemRequirementIsActive) requirements
+    let proposedRequirements = filter (\requirement -> xeroPayItemRequirementIsProposed requirement.payItemRequirementStatus && requirement.payItemRequirementIsActive) requirements
     forM_ proposedRequirements \requirement ->
         void $
             ensurePendingPreparationDecision
                 run
                 Nothing
-                "pay_item_create"
+                PayItemCreate
                 Nothing
                 Nothing
                 (Just requirement.payItemRequirementKey)
@@ -652,7 +654,7 @@ ensurePendingPreparationDecision ::
     (?modelContext :: ModelContext) =>
     XeroTimesheetPreparationRun ->
     Maybe Staff ->
-    Text ->
+    XeroTimesheetPreparationDecisionKindEnum ->
     Maybe Text ->
     Maybe Text ->
     Maybe Text ->
@@ -665,7 +667,7 @@ ensurePendingPreparationDecision run maybeStaff decisionKind maybeEmployeeId may
             |> filterWhere (#decisionKind, decisionKind)
             |> filterWhere (#staffId, unpackId . (.id) <$> maybeStaff)
             |> filterWhere (#localBucketKey, maybeLocalBucketKey)
-            |> filterWhereIn (#decisionStatus, ["pending" :: Text, "applied"])
+            |> filterWhereIn (#decisionStatus, [XeroTimesheetPreparationDecisionStatusEnumPending, Applied])
             |> fetchOneOrNothing
     case existing of
         Just decision -> pure decision
@@ -676,7 +678,7 @@ ensurePendingPreparationDecision run maybeStaff decisionKind maybeEmployeeId may
                 |> set #xeroConnectionId run.xeroConnectionId
                 |> set #staffId (unpackId . (.id) <$> maybeStaff)
                 |> set #decisionKind decisionKind
-                |> set #decisionStatus ("pending" :: Text)
+                |> set #decisionStatus XeroTimesheetPreparationDecisionStatusEnumPending
                 |> set #xeroEmployeeId maybeEmployeeId
                 |> set #xeroEmployeeName maybeEmployeeName
                 |> set #localBucketKey maybeLocalBucketKey
@@ -687,7 +689,7 @@ applyPreparationDecision ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroTimesheetPreparationRun ->
     Maybe Staff ->
-    Text ->
+    XeroTimesheetPreparationDecisionKindEnum ->
     Maybe Text ->
     Maybe Text ->
     Maybe Text ->
@@ -704,7 +706,7 @@ applyPreparationDecision run maybeStaff decisionKind maybeEmployeeId maybeEmploy
             Aeson.Null
     now <- getCurrentTime
     decision
-        |> set #decisionStatus ("applied" :: Text)
+        |> set #decisionStatus Applied
         |> set #xeroEmployeeId maybeEmployeeId
         |> set #xeroEmployeeName maybeEmployeeName
         |> set #decidedByUserId (Just (unpackId currentUser.id))
@@ -716,7 +718,7 @@ applyEmployeeMappingDecision ::
     XeroTimesheetPreparationRun ->
     XeroConnection ->
     Staff ->
-    Text ->
+    XeroTimesheetPreparationDecisionKindEnum ->
     Text ->
     IO (Either Text XeroTimesheetPreparationView)
 applyEmployeeMappingDecision run connection staff decisionKind employeeId = do
@@ -729,7 +731,7 @@ applyEmployeeMappingDecisionWithoutReload ::
     XeroTimesheetPreparationRun ->
     XeroConnection ->
     Staff ->
-    Text ->
+    XeroTimesheetPreparationDecisionKindEnum ->
     Text ->
     IO (Either Text ())
 applyEmployeeMappingDecisionWithoutReload run connection staff decisionKind employeeId = do
@@ -748,13 +750,13 @@ applyEmployeeMappingDecisionWithoutReload run connection staff decisionKind empl
                     |> filterWhere (#venueId, unpackId currentVenueId)
                     |> filterWhere (#xeroConnectionId, unpackId connection.id)
                     |> filterWhere (#xeroEmployeeId, Just employeeId)
-                    |> filterWhere (#mappingStatus, "verified" :: Text)
+                    |> filterWhere (#mappingStatus, XeroStaffMappingStatusEnumVerified)
                     |> filterWhereNot (#staffId, unpackId staff.id)
                     |> fetchOneOrNothing
             case duplicateMapping of
                 Just _ -> pure (Left "That Xero employee is already mapped to another staff member.")
                 Nothing -> do
-                    _ <- persistPreparationStaffMapping connection staff "verified" (Just employee)
+                    _ <- persistPreparationStaffMapping connection staff XeroStaffMappingStatusEnumVerified (Just employee)
                     _ <- applyPreparationDecision run (Just staff) decisionKind (Just employee.xeroEmployeeId) (Just employee.displayName) Nothing
                     dismissPendingStaffAutoMatches run staff
                     pure (Right ())
@@ -763,7 +765,7 @@ persistPreparationStaffMapping ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroConnection ->
     Staff ->
-    Text ->
+    XeroStaffMappingStatusEnum ->
     Maybe XeroEmployee ->
     IO XeroStaffMapping
 persistPreparationStaffMapping connection staff mappingStatus maybeEmployee = do
@@ -782,7 +784,7 @@ persistPreparationStaffMapping connection staff mappingStatus maybeEmployee = do
                 |> set #xeroEmployeeName ((.displayName) <$> maybeEmployee)
                 |> set #xeroEmployeeEmail (maybeEmployee >>= (.email))
                 |> set #mappingStatus mappingStatus
-                |> set #lastVerifiedAt (if mappingStatus == "verified" then Just now else Nothing)
+                |> set #lastVerifiedAt (if xeroStaffMappingIsVerified mappingStatus then Just now else Nothing)
                 |> set #updatedByUserId (Just (unpackId currentUser.id))
     case existingMapping of
         Just existing -> prepared existing |> updateRecord
@@ -801,13 +803,13 @@ dismissPendingStaffAutoMatches run staff = do
         query @XeroTimesheetPreparationDecision
             |> filterWhere (#xeroTimesheetPreparationRunId, unpackId run.id)
             |> filterWhere (#staffId, Just (unpackId staff.id))
-            |> filterWhere (#decisionKind, "staff_auto_match" :: Text)
-            |> filterWhere (#decisionStatus, "pending" :: Text)
+            |> filterWhere (#decisionKind, StaffAutoMatch)
+            |> filterWhere (#decisionStatus, XeroTimesheetPreparationDecisionStatusEnumPending)
             |> fetch
     now <- getCurrentTime
     forM_ pending \decision ->
         decision
-            |> set #decisionStatus ("dismissed" :: Text)
+            |> set #decisionStatus Dismissed
             |> set #decidedByUserId (Just (unpackId currentUser.id))
             |> set #decidedAt (Just now)
             |> updateRecord
@@ -822,8 +824,8 @@ fetchPendingStaffAutoMatch run staff =
     query @XeroTimesheetPreparationDecision
         |> filterWhere (#xeroTimesheetPreparationRunId, unpackId run.id)
         |> filterWhere (#staffId, Just (unpackId staff.id))
-        |> filterWhere (#decisionKind, "staff_auto_match" :: Text)
-        |> filterWhere (#decisionStatus, "pending" :: Text)
+        |> filterWhere (#decisionKind, StaffAutoMatch)
+        |> filterWhere (#decisionStatus, XeroTimesheetPreparationDecisionStatusEnumPending)
         |> fetchOneOrNothing
 
 reloadAfterLocalDecision ::
@@ -854,7 +856,7 @@ persistPreparationAccountCodeSelection connection accountCodeOptions accountCode
                     |> set #venueId (unpackId currentVenueId)
                     |> set #xeroConnectionId (unpackId connection.id)
                     |> set #accountCode (Just accountCode)
-                    |> set #selectionStatus ("verified" :: Text)
+                    |> set #selectionStatus XeroPayItemAccountCodeSelectionStatusEnumVerified
                     |> set #lastVerifiedAt (Just now)
                     |> set #updatedByUserId (Just (unpackId currentUser.id))
         case existingSelection of
@@ -876,8 +878,8 @@ markPayItemCreateDecisionsApplied run requirements = do
         pendingDecisions <-
             query @XeroTimesheetPreparationDecision
                 |> filterWhere (#xeroTimesheetPreparationRunId, unpackId run.id)
-                |> filterWhere (#decisionKind, "pay_item_create" :: Text)
-                |> filterWhere (#decisionStatus, "pending" :: Text)
+                |> filterWhere (#decisionKind, PayItemCreate)
+                |> filterWhere (#decisionStatus, XeroTimesheetPreparationDecisionStatusEnumPending)
                 |> fetch
         pure $ if null requirementKeys
             then pendingDecisions
@@ -885,7 +887,7 @@ markPayItemCreateDecisionsApplied run requirements = do
     now <- getCurrentTime
     forM_ decisions \decision ->
         decision
-            |> set #decisionStatus ("applied" :: Text)
+            |> set #decisionStatus Applied
             |> set #decidedByUserId (Just (unpackId currentUser.id))
             |> set #decidedAt (Just now)
             |> updateRecord

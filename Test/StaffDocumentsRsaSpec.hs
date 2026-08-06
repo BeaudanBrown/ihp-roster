@@ -128,13 +128,13 @@ tests = aroundAll withDatabaseTestContext do
             effectiveRsaComplianceStatus today (Just (rsaStatusFixture PendingReview (addDays 60 today))) `shouldBe` StaffRsaPendingReview
             effectiveRsaComplianceStatus today (Just (rsaStatusFixture Rejected (addDays 60 today))) `shouldBe` StaffRsaRejected
             effectiveRsaComplianceStatus today (Just (rsaStatusFixture Expired (addDays 60 today))) `shouldBe` StaffRsaExpired
-            effectiveRsaComplianceStatus today (Just (rsaStatusFixture Verified (addDays (-1) today))) `shouldBe` StaffRsaExpired
-            effectiveRsaComplianceStatus today (Just (rsaStatusFixture Verified (addDays 20 today))) `shouldBe` StaffRsaExpiringSoon 20
-            effectiveRsaComplianceStatus today (Just (rsaStatusFixture Verified (addDays 60 today))) `shouldBe` StaffRsaVerified
+            effectiveRsaComplianceStatus today (Just (rsaStatusFixture StaffDocumentStatusEnumVerified (addDays (-1) today))) `shouldBe` StaffRsaExpired
+            effectiveRsaComplianceStatus today (Just (rsaStatusFixture StaffDocumentStatusEnumVerified (addDays 20 today))) `shouldBe` StaffRsaExpiringSoon 20
+            effectiveRsaComplianceStatus today (Just (rsaStatusFixture StaffDocumentStatusEnumVerified (addDays 60 today))) `shouldBe` StaffRsaVerified
 
         it "models pending RSA uploads as replacements without discarding the older current row" $ withContext do
             let today = fromGregorian 2026 5 2
-                current = rsaStatusFixture Verified (addDays 60 today)
+                current = rsaStatusFixture StaffDocumentStatusEnumVerified (addDays 60 today)
                 pending = rsaStatusFixture PendingReview (addDays 365 today)
                 state = effectiveRsaState today [pending, current]
 
@@ -145,7 +145,7 @@ tests = aroundAll withDatabaseTestContext do
 
         it "keeps an older verified RSA current when a replacement is rejected" $ withContext do
             let today = fromGregorian 2026 5 2
-                current = rsaStatusFixture Verified (addDays 60 today)
+                current = rsaStatusFixture StaffDocumentStatusEnumVerified (addDays 60 today)
                 rejected = rsaStatusFixture Rejected (addDays 365 today)
                 state = effectiveRsaState today [rejected, current]
 
@@ -242,7 +242,7 @@ testRsaUpload expiryDate =
 createVerifiedRsaDocument :: (?modelContext :: ModelContext) => User -> Staff -> Day -> IO StaffDocument
 createVerifiedRsaDocument actor staff expiryDate =
     createRsaDocument actor.id staff (testRsaUpload expiryDate)
-        >>= updateRecord . set #status Verified
+        >>= updateRecord . set #status StaffDocumentStatusEnumVerified
 
 expiredReminderRequest :: StaffDocument -> AppJobRequest
 expiredReminderRequest staffDocument =

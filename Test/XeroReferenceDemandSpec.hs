@@ -23,7 +23,7 @@ tests = aroundAll withDatabaseTestContext do
                 entry <- maybe (error "Expected approved fixture entry") pure (listToMaybe fixture.entries)
                 mapping <- query @XeroStaffMapping |> filterWhere (#staffId, entry.staffId) |> fetchOne
                 _ <- mapping
-                    |> set #mappingStatus ("stale" :: Text)
+                    |> set #mappingStatus XeroStaffMappingStatusEnumStale
                     |> set #xeroEmployeeId Nothing
                     |> set #updatedByUserId Nothing
                     |> updateRecord

@@ -121,6 +121,7 @@ import qualified Test.XeroReferenceTrustSpec
 import qualified Test.XeroTimesheetPreviewSpec
 import qualified Test.XeroTimesheetReadinessSpec
 import qualified Test.XeroTimesheetSubmissionSpec
+import qualified Test.XeroWorkflowStateSpec
 
 data TestSuite = TestSuite
     { testSuiteMetadata :: SuiteMetadata
@@ -502,4 +503,5 @@ allSuites =
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "XeroTimesheetPreview", definitionEstimatedRuntimeSeconds = 2.0, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = MediumFixture, definitionExternalMocks = [], definitionOwnedInvariants = [P5, P6], definitionPartialInvariants = []} Test.XeroTimesheetPreviewSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "XeroTimesheetReadiness", definitionEstimatedRuntimeSeconds = 2.0, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = MediumFixture, definitionExternalMocks = [], definitionOwnedInvariants = [P5, P6], definitionPartialInvariants = []} Test.XeroTimesheetReadinessSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "XeroTimesheetSubmission", definitionEstimatedRuntimeSeconds = 1.0, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = LargeFixture, definitionExternalMocks = [XeroHttpMock], definitionOwnedInvariants = [P6], definitionPartialInvariants = []} Test.XeroTimesheetSubmissionSpec.tests
+    , pureSuite SuiteDefinition{definitionLabel = "XeroWorkflowState", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.XeroWorkflowStateSpec.tests
     ]

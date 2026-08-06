@@ -20,14 +20,14 @@ tests :: Spec
 tests = do
     describe "Xero preparation modal states" do
         it "maps persisted preparation statuses to typed modal states" do
-            xeroPreparationStateFromStatus "needs_reconnect" `shouldBe` XeroPreparationNeedsReconnect
-            xeroPreparationStateFromStatus "needs_approval" `shouldBe` XeroPreparationNeedsDecision
-            xeroPreparationStateFromStatus "blocked" `shouldBe` XeroPreparationBlocked
-            xeroPreparationStateFromStatus "ready_for_preview" `shouldBe` XeroPreparationReadyForPreview
-            xeroPreparationStateFromStatus "previewed" `shouldBe` XeroPreparationPreviewed
-            xeroPreparationStateFromStatus "submitted" `shouldBe` XeroPreparationSubmitted
-            xeroPreparationStateFromStatus "failed" `shouldBe` XeroPreparationFailed
-            xeroPreparationStateFromStatus "preparing" `shouldBe` XeroPreparationPreparing
+            xeroPreparationStateFromStatus NeedsReconnect `shouldBe` XeroPreparationNeedsReconnect
+            xeroPreparationStateFromStatus NeedsApproval `shouldBe` XeroPreparationNeedsDecision
+            xeroPreparationStateFromStatus XeroTimesheetPreparationRunStatusEnumBlocked `shouldBe` XeroPreparationBlocked
+            xeroPreparationStateFromStatus ReadyForPreview `shouldBe` XeroPreparationReadyForPreview
+            xeroPreparationStateFromStatus XeroTimesheetPreparationRunStatusEnumPreviewed `shouldBe` XeroPreparationPreviewed
+            xeroPreparationStateFromStatus XeroTimesheetPreparationRunStatusEnumSubmitted `shouldBe` XeroPreparationSubmitted
+            xeroPreparationStateFromStatus XeroTimesheetPreparationRunStatusEnumFailed `shouldBe` XeroPreparationFailed
+            xeroPreparationStateFromStatus Preparing `shouldBe` XeroPreparationPreparing
 
     describe "Xero timesheet API parsing" do
         it "parses Timesheets envelopes with Microsoft JSON dates and line units" do
@@ -48,6 +48,16 @@ tests = do
             let payload = "{\"Timesheet\":{\"TimesheetID\":\"ts-2\",\"EmployeeID\":\"employee-2\",\"StartDate\":\"2026-04-27\",\"EndDate\":\"2026-05-03\",\"Status\":\"DRAFT\",\"TimesheetLines\":[]}}"
             let decoded = Aeson.eitherDecode payload :: Either String XeroTimesheetObjectResponse
             fmap (xeroTimesheetId . unXeroTimesheetObjectResponse) decoded `shouldBe` Right (Just "ts-2")
+
+        it "preserves unknown provider-owned statuses for forward compatibility" do
+            let timesheetPayload = "{\"Timesheets\":[{\"TimesheetID\":\"ts-future\",\"EmployeeID\":\"employee-future\",\"StartDate\":\"2026-04-27\",\"EndDate\":\"2026-05-03\",\"Status\":\"FUTURE_TIMESHEET_STATUS\",\"TimesheetLines\":[]}]}"
+                payRunPayload = "{\"PayRuns\":[{\"PayRunID\":\"pr-future\",\"PayrollCalendarID\":\"calendar-future\",\"PayRunPeriodStartDate\":\"2026-04-27\",\"PayRunPeriodEndDate\":\"2026-05-03\",\"PayRunStatus\":\"FUTURE_PAY_RUN_STATUS\"}]}"
+                decodedTimesheets = Aeson.eitherDecode timesheetPayload :: Either String XeroTimesheetsResponse
+                decodedPayRuns = Aeson.eitherDecode payRunPayload :: Either String XeroPayRunsResponse
+            fmap (map (.xeroTimesheetStatus) . unXeroTimesheetsResponse) decodedTimesheets
+                `shouldBe` Right [Just "FUTURE_TIMESHEET_STATUS"]
+            fmap (map (.xeroPayRunStatus) . unXeroPayRunsResponse) decodedPayRuns
+                `shouldBe` Right [Just "FUTURE_PAY_RUN_STATUS"]
 
         it "parses PayRuns envelopes with period status" do
             let payload = "{\"PayRuns\":[{\"PayRunID\":\"pr-1\",\"PayrollCalendarID\":\"calendar-1\",\"PayRunPeriodStartDate\":\"/Date(1777852800000+0000)/\",\"PayRunPeriodEndDate\":\"/Date(1778371200000+0000)/\",\"PaymentDate\":\"2026-05-11\",\"PayRunStatus\":\"POSTED\"}]}"
@@ -98,8 +108,8 @@ tests = do
                     newRecord @XeroSyncRun
                         |> set #venueId (unpackId fixture.venue.id)
                         |> set #xeroConnectionId (unpackId fixture.connection.id)
-                        |> set #syncStatus ("failed" :: Text)
-                        |> set #syncKind ("payroll_reference_data" :: Text)
+                        |> set #syncStatus XeroSyncStatusEnumFailed
+                        |> set #syncKind PayrollReferenceData
                         |> set #startedAt (addUTCTime 1 now)
                         |> createRecord
 
@@ -214,7 +224,7 @@ tests = do
                 fixture <- createReadinessFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
                 requirements <- query @XeroPayItemRequirementRecord |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
                 forM_ requirements \requirement ->
-                    requirement |> set #requirementStatus ("ignored" :: Text) |> updateRecord >>= const (pure ())
+                    requirement |> set #requirementStatus Ignored |> updateRecord >>= const (pure ())
 
                 readiness <- validateXeroTimesheetReadiness fixture.request
 
@@ -238,7 +248,7 @@ tests = do
                 fixture <- createReadyMappedFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
                 mappings <- query @XeroEarningsRateMapping |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
                 forM_ mappings \mapping ->
-                    mapping |> set #mappingStatus ("stale" :: Text) |> updateRecord >>= const (pure ())
+                    mapping |> set #mappingStatus XeroEarningsRateMappingStatusEnumStale |> updateRecord >>= const (pure ())
 
                 readiness <- validateXeroTimesheetReadiness fixture.request
 
@@ -251,13 +261,13 @@ tests = do
                 requirements <- query @XeroPayItemRequirementRecord |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
                 forM_ requirements \requirement ->
                     requirement
-                        |> set #requirementStatus ("proposed" :: Text)
+                        |> set #requirementStatus XeroPayItemRequirementStatusEnumProposed
                         |> set #xeroEarningsRateId Nothing
                         |> updateRecord
                         >>= const (pure ())
                 selections <- query @XeroPayItemAccountCodeSelection |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
                 forM_ selections \selection ->
-                    selection |> set #selectionStatus ("stale" :: Text) |> updateRecord >>= const (pure ())
+                    selection |> set #selectionStatus XeroPayItemAccountCodeSelectionStatusEnumStale |> updateRecord >>= const (pure ())
 
                 readiness <- validateXeroTimesheetReadiness fixture.request
 
@@ -276,7 +286,7 @@ tests = do
                         |> set #xeroConnectionId (unpackId fixture.connection.id)
                         |> set #xeroEmployeeId (Just "employee-ready")
                         |> set #xeroEmployeeName (Just "Ada Lovelace")
-                        |> set #mappingStatus ("verified" :: Text)
+                        |> set #mappingStatus XeroStaffMappingStatusEnumVerified
                         |> createRecord
                 _ <- createReadinessXeroEmployee fixture "employee-ready" (Just "calendar-ready")
                 importedPayItem <-
@@ -303,7 +313,7 @@ tests = do
                         |> set #xeroConnectionId (unpackId fixture.connection.id)
                         |> set #xeroEmployeeId (Just "employee-imported")
                         |> set #xeroEmployeeName (Just "Imported Worker")
-                        |> set #mappingStatus ("verified" :: Text)
+                        |> set #mappingStatus XeroStaffMappingStatusEnumVerified
                         |> createRecord
                 _ <- createReadinessXeroEmployee fixture "employee-imported" (Just "calendar-ready")
                 now <- getCurrentTime
@@ -535,7 +545,7 @@ createReadinessFixture calendarType periodStart periodEnd = do
                 |> set #rateType ("RATEPERUNIT" :: Text)
                 |> set #ratePerUnit (Just 25)
                 |> set #sourceDescription ("test readiness requirement" :: Text)
-                |> set #requirementStatus ("proposed" :: Text)
+                |> set #requirementStatus XeroPayItemRequirementStatusEnumProposed
                 |> createRecord
         pure ()
     pure ReadinessFixture
@@ -569,7 +579,7 @@ createReadyMappedFixture calendarType periodStart periodEnd = do
             |> set #xeroConnectionId (unpackId fixture.connection.id)
             |> set #xeroEmployeeId (Just "employee-ready")
             |> set #xeroEmployeeName (Just "Ada Lovelace")
-            |> set #mappingStatus ("verified" :: Text)
+            |> set #mappingStatus XeroStaffMappingStatusEnumVerified
             |> createRecord
     _ <- createReadinessXeroEmployee fixture "employee-ready" (Just "calendar-ready")
     buckets <- currentFixtureBuckets fixture periodStart
@@ -586,12 +596,12 @@ createReadyMappedFixture calendarType periodStart periodEnd = do
                 |> set #localBucketLabel bucket.localBucketLabel
                 |> set #xeroEarningsRateId (Just ("earnings-" <> bucket.localBucketKey))
                 |> set #xeroEarningsRateName (Just bucket.localBucketLabel)
-                |> set #mappingStatus ("verified" :: Text)
+                |> set #mappingStatus XeroEarningsRateMappingStatusEnumVerified
                 |> createRecord
         case find (\record -> record.requirementKey == bucket.localBucketKey) existingRequirements of
             Just requirement ->
                 requirement
-                    |> set #requirementStatus ("matched" :: Text)
+                    |> set #requirementStatus Matched
                     |> set #xeroEarningsRateId (Just ("earnings-" <> bucket.localBucketKey))
                     |> updateRecord
                     >>= const (pure ())
@@ -604,7 +614,7 @@ createReadyMappedFixture calendarType periodStart periodEnd = do
                     |> set #rateType ("RATEPERUNIT" :: Text)
                     |> set #ratePerUnit (Just 25)
                     |> set #sourceDescription ("test readiness requirement" :: Text)
-                    |> set #requirementStatus ("matched" :: Text)
+                    |> set #requirementStatus Matched
                     |> set #xeroEarningsRateId (Just ("earnings-" <> bucket.localBucketKey))
                     |> createRecord
                     >>= const (pure ())
@@ -614,7 +624,7 @@ createReadyMappedFixture calendarType periodStart periodEnd = do
             |> set #venueId (unpackId fixture.venue.id)
             |> set #xeroConnectionId (unpackId fixture.connection.id)
             |> set #accountCode (Just "477")
-            |> set #selectionStatus ("verified" :: Text)
+            |> set #selectionStatus XeroPayItemAccountCodeSelectionStatusEnumVerified
             |> createRecord
     pure fixture
 
@@ -665,8 +675,8 @@ createSucceededXeroSyncRun venue connection = do
     newRecord @XeroSyncRun
         |> set #venueId (unpackId venue.id)
         |> set #xeroConnectionId (unpackId connection.id)
-        |> set #syncStatus ("succeeded" :: Text)
-        |> set #syncKind ("payroll_reference_data" :: Text)
+        |> set #syncStatus Succeeded
+        |> set #syncKind PayrollReferenceData
         |> createRecord
 
 createReadinessPayrollCalendar :: (?modelContext :: ModelContext) => Venue -> XeroConnection -> Text -> Day -> IO XeroPayrollCalendar

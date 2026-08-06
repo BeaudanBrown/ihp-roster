@@ -12,9 +12,14 @@ failures=0
 reject() {
     local reason="$1"
     local pattern="$2"
+    shift 2
     local matches
     matches="$(mktemp)"
-    if rg --line-number --glob '*.hs' --glob '!**/Generated/**' "$pattern" Application Web >"$matches" 2>/dev/null; then
+    local -a paths=("${@:-Application}" )
+    if (( $# == 0 )); then
+        paths=(Application Web)
+    fi
+    if rg --line-number --glob '*.hs' --glob '!**/Generated/**' "$pattern" "${paths[@]}" >"$matches" 2>/dev/null; then
         echo "enum-authority-check: $reason" >&2
         cat "$matches" >&2
         failures=$((failures + 1))
@@ -46,6 +51,17 @@ reject \
 reject \
     "a semantic decision branches on rendered roster-template scale text" \
     '(rosterTemplateScaleValue|inputValue[^\n]*\.scale)[^\n]*(==|/=|`elem`|[[:space:]]+of)'
+
+# #334 tombstones only the migrated app-owned Xero fields. Provider-owned
+# employee/account/pay-run/timesheet statuses deliberately remain open Text.
+reject \
+    "a migrated Xero workflow field uses a raw text literal" \
+    '(set[[:space:]]+#(syncStatus|syncKind|mappingStatus|selectionStatus|requirementStatus|decisionKind|decisionStatus)|filterWhere(In)?[^\n]*#(syncStatus|syncKind|mappingStatus|selectionStatus|requirementStatus|decisionKind|decisionStatus)|\.(syncStatus|syncKind|mappingStatus|selectionStatus|requirementStatus|decisionKind|decisionStatus)[[:space:]]*(==|/=|`elem`))[^\n]*"(running|succeeded|failed|payroll_reference_data|verified|not_applicable|stale|unmapped|none|proposed|matched|created|ignored|rate_changed|pending|applied|blocked|resolved|dismissed|staff_auto_match|staff_manual_mapping|staff_not_paid|staff_step_approved|pay_item_create|account_code|calendar_selection)"' \
+    Application/Xero Application/Helper/XeroAdminTypes.hs Application/Helper/XeroPayItems.hs Application/Helper/XeroTimesheetReadiness.hs Web/View/Admin/Xero Web/Controller/Admin/Xero
+reject \
+    "a migrated Xero preparation or submission status write uses raw text" \
+    'set[[:space:]]+#status[^\n]*"(started|preparing|needs_reconnect|needs_approval|blocked|resolved|ready_for_preview|previewed|pending|submitted|partially_failed|failed|cancelled|superseded|skipped)"' \
+    Application/Xero/Timesheets Web/Controller/Admin/Xero
 
 if (( failures > 0 )); then
     echo "enum-authority-check: ${failures} authority violation(s)" >&2

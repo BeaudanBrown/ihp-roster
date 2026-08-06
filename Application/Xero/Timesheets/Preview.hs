@@ -198,7 +198,8 @@ createPersistedXeroTimesheetPreviewWithPreparation submittedByUserId maybePrepar
                                     |> set #paymentDate request.readinessPaymentDate
                                     |> set #xeroPayRunId request.readinessXeroPayRunId
                                     |> set #xeroPayRunStatus request.readinessXeroPayRunStatus
-                                    |> set #status ("previewed" :: Text)
+                                    |> set #sourceKind ApprovedTimesheets
+                                    |> set #status XeroSubmissionRunStatusEnumPreviewed
                                     |> set #previewPayloadJson (xeroTimesheetPreviewRunJson previewRun)
                                     |> set #readinessSnapshotJson (xeroReadinessSnapshotJson readiness)
                                     |> set #xeroDuplicateCheckJson duplicateCheckJson
@@ -228,7 +229,7 @@ fetchPreviewInput request connection = do
         query @XeroStaffMapping
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
             |> filterWhereIn (#staffId, map (.staffId) includedEntries)
-            |> filterWhere (#mappingStatus, "verified" :: Text)
+            |> filterWhere (#mappingStatus, XeroStaffMappingStatusEnumVerified)
             |> fetch
     xeroEmployees <-
         query @XeroEmployee
@@ -262,12 +263,12 @@ fetchPreviewInput request connection = do
     earningsMappings <-
         query @XeroEarningsRateMapping
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> filterWhere (#mappingStatus, "verified" :: Text)
+            |> filterWhere (#mappingStatus, XeroEarningsRateMappingStatusEnumVerified)
             |> fetch
     payItemRequirements <-
         query @XeroPayItemRequirementRecord
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> filterWhereIn (#requirementStatus, ["matched" :: Text, "created"])
+            |> filterWhereIn (#requirementStatus, [Matched, XeroPayItemRequirementStatusEnumCreated])
             |> fetch
     venueConfig <-
         query @VenueConfig

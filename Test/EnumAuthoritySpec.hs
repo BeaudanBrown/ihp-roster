@@ -57,7 +57,7 @@ tests = describe "generated enum authority" do
                 , (AppStatusSuccess, "Accepted")
                 , (AppStatusNeutral, "Revoked")
                 ]
-        map invitationDeliveryStatus [Queued, Sent, Failed]
+        map invitationDeliveryStatus [Queued, Sent, InvitationDeliveryStatusEnumFailed]
             `shouldBe`
                 [ (AppStatusWarning, "Queued")
                 , (AppStatusSuccess, "Sent")

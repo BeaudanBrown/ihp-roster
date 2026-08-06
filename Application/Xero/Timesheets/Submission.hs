@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
+
 module Application.Xero.Timesheets.Submission
     ( duplicateCheckSnapshotJson
     , fetchRemoteTimesheetsForDuplicateCheck
@@ -14,6 +16,7 @@ import Application.WageSourceEnforcement (enforceFinalWageEntries,
                                           renderWageEntryFailures)
 import Application.Xero.Connection
 import Application.Xero.Timesheets.Preview
+import Application.Xero.WorkflowState (xeroSubmissionTerminalRunStatus)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
@@ -86,7 +89,7 @@ retryXeroDraftTimesheetSubmission submissionId = do
     case maybeSubmission of
         Nothing -> pure (Left "Xero timesheet submission was not found.")
         Just submission
-            | submission.status == "submitted" -> pure (Left "Xero timesheet submission has already been submitted.")
+            | submission.status == XeroTimesheetSubmissionStatusEnumSubmitted -> pure (Left "Xero timesheet submission has already been submitted.")
             | otherwise -> retryExistingSubmission submission
 
 retryExistingSubmission ::
@@ -202,7 +205,8 @@ persistAndSubmitPreview submittedByUserId maybePreparationRunId xeroClient acces
             |> set #paymentDate request.readinessPaymentDate
             |> set #xeroPayRunId request.readinessXeroPayRunId
             |> set #xeroPayRunStatus request.readinessXeroPayRunStatus
-            |> set #status (if readiness.xeroTimesheetReady then "pending" else "blocked" :: Text)
+            |> set #sourceKind ApprovedTimesheets
+            |> set #status (if readiness.xeroTimesheetReady then XeroSubmissionRunStatusEnumPending else XeroSubmissionRunStatusEnumBlocked)
             |> set #previewPayloadJson (xeroTimesheetPreviewRunJson previewRun)
             |> set #readinessSnapshotJson (xeroReadinessSnapshotJson readiness)
             |> set #xeroDuplicateCheckJson duplicateSnapshot
@@ -247,7 +251,7 @@ submitOnePreview xeroClient accessToken connection run preview = do
             |> set #xeroEmployeeId preview.previewXeroEmployeeId
             |> set #payPeriodStart preview.previewPayPeriodStart
             |> set #payPeriodEnd preview.previewPayPeriodEnd
-            |> set #status ("pending" :: Text)
+            |> set #status XeroTimesheetSubmissionStatusEnumPending
             |> set #idempotencyKey idempotencyKey
             |> set #requestPayloadJson requestJson
             |> createRecord
@@ -326,7 +330,7 @@ markSubmissionSubmitted :: (?modelContext :: ModelContext) => XeroTimesheetSubmi
 markSubmissionSubmitted submission now refs = do
     let maybeRef = List.find (\ref -> ref.xeroTimesheetEmployeeId == submission.xeroEmployeeId) refs <|> listToMaybe refs
     submission
-        |> set #status ("submitted" :: Text)
+        |> set #status XeroTimesheetSubmissionStatusEnumSubmitted
         |> set #responsePayloadJson (xeroTimesheetRefsResponseJson refs)
         |> set #xeroTimesheetId (maybeRef >>= (.xeroTimesheetId))
         |> set #xeroTimesheetStatus (maybeRef >>= (.xeroTimesheetStatus))
@@ -338,7 +342,7 @@ markSubmissionSubmitted submission now refs = do
 markSubmissionFailed :: (?modelContext :: ModelContext) => XeroTimesheetSubmission -> UTCTime -> Text -> IO XeroTimesheetSubmission
 markSubmissionFailed submission now message =
     submission
-        |> set #status ("failed" :: Text)
+        |> set #status XeroTimesheetSubmissionStatusEnumFailed
         |> set #responsePayloadJson (Aeson.object ["error" Aeson..= message])
         |> set #attemptCount (submission.attemptCount + 1)
         |> set #lastError (Just message)
@@ -348,7 +352,7 @@ markSubmissionFailed submission now message =
 markSubmissionBlocked :: (?modelContext :: ModelContext) => XeroTimesheetSubmission -> Text -> IO XeroTimesheetSubmission
 markSubmissionBlocked submission message =
     submission
-        |> set #status ("blocked" :: Text)
+        |> set #status XeroTimesheetSubmissionStatusEnumBlocked
         |> set #responsePayloadJson (Aeson.object ["error" Aeson..= message])
         |> set #lastError (Just message)
         |> updateRecord
@@ -367,13 +371,13 @@ refreshRunStatus run = do
         |> set #errorSummary (submissionErrorSummary submissions)
         |> updateRecord
 
-runStatusFromSubmissions :: [XeroTimesheetSubmission] -> Text
+runStatusFromSubmissions :: [XeroTimesheetSubmission] -> XeroSubmissionRunStatusEnum
 runStatusFromSubmissions submissions
-    | null submissions = "failed"
-    | all ((== "submitted") . (.status)) submissions = "submitted"
-    | all ((== "blocked") . (.status)) submissions = "blocked"
-    | all ((== "failed") . (.status)) submissions = "failed"
-    | otherwise = "partially_failed"
+    | null submissions = XeroSubmissionRunStatusEnumFailed
+    | all ((== Just XeroSubmissionRunStatusEnumSubmitted) . xeroSubmissionTerminalRunStatus . (.status)) submissions = XeroSubmissionRunStatusEnumSubmitted
+    | all ((== Just XeroSubmissionRunStatusEnumBlocked) . xeroSubmissionTerminalRunStatus . (.status)) submissions = XeroSubmissionRunStatusEnumBlocked
+    | all ((== Just XeroSubmissionRunStatusEnumFailed) . xeroSubmissionTerminalRunStatus . (.status)) submissions = XeroSubmissionRunStatusEnumFailed
+    | otherwise = PartiallyFailed
 
 submissionErrorSummary :: [XeroTimesheetSubmission] -> Maybe Text
 submissionErrorSummary submissions =

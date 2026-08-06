@@ -19,6 +19,10 @@ import Application.WageSourceEnforcement (WageEntryFailure (..),
                                           renderWageEntryFailure)
 import Application.Xero.ReferenceTrust (xeroReferenceSnapshotMaxAge)
 import Application.Xero.Timesheets.Buckets
+import Application.Xero.WorkflowState (xeroAccountCodeSelectionIsVerified,
+                                       xeroPayItemRequirementIsIgnored,
+                                       xeroPayItemRequirementIsProposed,
+                                       xeroPayItemRequirementIsUsable)
 import Control.Monad (guard)
 import qualified Data.Aeson.Types as AesonTypes
 import Data.Either (fromRight)
@@ -185,7 +189,7 @@ fetchVerifiedStaffMappings staffIds connection =
     query @XeroStaffMapping
         |> filterWhere (#xeroConnectionId, unpackId connection.id)
         |> filterWhereIn (#staffId, staffIds)
-        |> filterWhere (#mappingStatus, "verified" :: Text)
+        |> filterWhere (#mappingStatus, XeroStaffMappingStatusEnumVerified)
         |> fetch
 
 fetchMappedXeroEmployees :: (?modelContext :: ModelContext) => [XeroStaffMapping] -> XeroConnection -> IO [XeroEmployee]
@@ -201,7 +205,7 @@ fetchNotPaidStaffMappingIds connection = do
     mappings <-
         query @XeroStaffMapping
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> filterWhere (#mappingStatus, "not_applicable" :: Text)
+            |> filterWhere (#mappingStatus, NotApplicable)
             |> fetch
     pure (map (.staffId) (filter (isJust . (.updatedByUserId)) mappings))
 
@@ -210,7 +214,7 @@ fetchVerifiedEarningsMappings buckets connection =
     query @XeroEarningsRateMapping
         |> filterWhere (#xeroConnectionId, unpackId connection.id)
         |> filterWhereIn (#localBucketKey, map (.localBucketKey) buckets)
-        |> filterWhere (#mappingStatus, "verified" :: Text)
+        |> filterWhere (#mappingStatus, XeroEarningsRateMappingStatusEnumVerified)
         |> fetch
 
 fetchPayItemRequirements :: (?modelContext :: ModelContext) => XeroConnection -> IO [XeroPayItemRequirementRecord]
@@ -235,7 +239,7 @@ fetchVerifiedPayItemAccountCodeSelection :: (?modelContext :: ModelContext) => X
 fetchVerifiedPayItemAccountCodeSelection connection =
     query @XeroPayItemAccountCodeSelection
         |> filterWhere (#xeroConnectionId, unpackId connection.id)
-        |> filterWhere (#selectionStatus, "verified" :: Text)
+        |> filterWhere (#selectionStatus, XeroPayItemAccountCodeSelectionStatusEnumVerified)
         |> fetchOneOrNothing
 
 fetchVenueLocalBuckets :: (?modelContext :: ModelContext) => Id Venue -> Day -> IO [XeroLocalEarningsBucket]
@@ -414,7 +418,7 @@ earningsMappingBlockers buckets mappings requirements =
             any
                 (\record ->
                     record.requirementKey == bucket.localBucketKey
-                        && record.requirementStatus /= "ignored"
+                        && not (xeroPayItemRequirementIsIgnored record.requirementStatus)
                 )
                 requirements
 
@@ -422,10 +426,10 @@ payItemRequirementBlockers :: [XeroEarningsRateMapping] -> [XeroPayItemRequireme
 payItemRequirementBlockers earningsMappings requirements maybeAccountCodeSelection =
     accountCodeBlockers <> requirementBlockers
     where
-        activeRequirements = filter (\record -> record.requirementStatus /= "ignored" && not (requirementHasImportedMapping record)) requirements
-        proposedRequirements = filter (\record -> record.requirementStatus == "proposed") activeRequirements
+        activeRequirements = filter (\record -> not (xeroPayItemRequirementIsIgnored record.requirementStatus) && not (requirementHasImportedMapping record)) requirements
+        proposedRequirements = filter (\record -> xeroPayItemRequirementIsProposed record.requirementStatus) activeRequirements
         accountCodeReady =
-            maybe False (\selection -> selection.selectionStatus == "verified" && maybe False (not . Text.null . Text.strip) selection.accountCode) maybeAccountCodeSelection
+            maybe False (\selection -> xeroAccountCodeSelectionIsVerified selection.selectionStatus && maybe False (not . Text.null . Text.strip) selection.accountCode) maybeAccountCodeSelection
         accountCodeBlockers =
             [ blocker "missing_pay_item_account_code" "Select a Xero pay item account code before creating proposed managed pay items."
             | not (null proposedRequirements || accountCodeReady)
@@ -433,7 +437,7 @@ payItemRequirementBlockers earningsMappings requirements maybeAccountCodeSelecti
         requirementBlockers =
             activeRequirements
                 |> mapMaybe \record ->
-                    if record.requirementStatus `elem` ["matched", "created"]
+                    if xeroPayItemRequirementIsUsable record.requirementStatus
                         then Nothing
                         else
                             Just

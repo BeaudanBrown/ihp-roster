@@ -25,6 +25,14 @@ lands.
 - Staff decisions, managed pay items, readiness checks, preview, and submission
   belong to the guided preparation workflow. The pre-wizard preview, submit,
   and retry endpoints are retired.
+- App-owned Xero sync, staff/earnings mapping, account-code selection, managed
+  pay-item requirement, preparation run/decision, submission run/source, and
+  per-staff submission state persists as PostgreSQL enums. Production decisions
+  use generated constructors and exhaustive projections from
+  `Application.Xero.WorkflowState`; raw enum text appears only at database,
+  HTML, telemetry, or other external wire boundaries. Xero-owned employee,
+  account, pay-run, and timesheet status vocabulary remains open `Text` and is
+  preserved unchanged, including unknown future provider values.
 - Every reference-sync path uses the same background-safe persistence and
   reconciliation service. Complete bulk refresh can run as a durable `app_jobs`
   job, coalesced per connection and leased per Xero tenant. Provider requests

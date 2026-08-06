@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
+
 module Application.Xero.ReferenceDemand
     ( fetchXeroMissingReferenceDemand
     , fetchXeroPayrollEligibleApprovedStaffIds
@@ -5,6 +7,8 @@ module Application.Xero.ReferenceDemand
 
 import Application.PayAssignment
 import Application.Xero.ReferenceTrust
+import Application.Xero.WorkflowState (xeroStaffMappingIsNotApplicable,
+                                       xeroStaffMappingIsVerified)
 import qualified Data.Map.Strict as Map
 import Generated.Types
 import IHP.ControllerPrelude
@@ -157,10 +161,9 @@ needsReferenceRefresh connection mappings assignment =
                     max mapping.referenceRefreshedAt connection.lastSyncAt
 
 mappingResolvesStaff :: XeroStaffMapping -> Bool
-mappingResolvesStaff mapping
-    | mapping.mappingStatus == "verified" && isJust mapping.xeroEmployeeId = True
-    | mapping.mappingStatus == "not_applicable" && isJust mapping.updatedByUserId = True
-    | otherwise = False
+mappingResolvesStaff mapping =
+    (xeroStaffMappingIsVerified mapping.mappingStatus && isJust mapping.xeroEmployeeId)
+        || (xeroStaffMappingIsNotApplicable mapping.mappingStatus && isJust mapping.updatedByUserId)
 
 payrollEligible :: EffectivePayAssignment -> Bool
 payrollEligible = \case

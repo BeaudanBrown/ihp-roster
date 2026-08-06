@@ -221,7 +221,7 @@ tests =
                     fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                     mappings <- query @XeroEarningsRateMapping |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
                     forM_ mappings \mapping ->
-                        mapping |> set #mappingStatus ("stale" :: Text) |> updateRecord >>= const (pure ())
+                        mapping |> set #mappingStatus XeroEarningsRateMappingStatusEnumStale |> updateRecord >>= const (pure ())
 
                     previewRun <- buildFixturePreview fixture
 
@@ -252,7 +252,7 @@ tests =
                     case result of
                         Left err -> expectationFailure (cs err)
                         Right run -> do
-                            run.status `shouldBe` "previewed"
+                            run.status `shouldBe` XeroSubmissionRunStatusEnumPreviewed
                             run.readinessSnapshotJson `shouldSatisfy` jsonContainsKey "ready"
                             run.xeroDuplicateCheckJson `shouldBe` duplicateCheck
                             run.previewPayloadJson `shouldSatisfy` jsonContainsKey "requestPayload"
@@ -408,8 +408,8 @@ createPreviewSyncRun venue connection = do
     newRecord @XeroSyncRun
         |> set #venueId (unpackId venue.id)
         |> set #xeroConnectionId (unpackId connection.id)
-        |> set #syncStatus ("succeeded" :: Text)
-        |> set #syncKind ("payroll_reference_data" :: Text)
+        |> set #syncStatus Succeeded
+        |> set #syncKind PayrollReferenceData
         |> createRecord
 
 createPreviewPayrollCalendar :: (?modelContext :: ModelContext) => Venue -> XeroConnection -> Text -> Day -> IO XeroPayrollCalendar
@@ -455,7 +455,7 @@ createPreviewMappings venue connection periodStart staffA staffB buckets = do
                 |> set #localBucketLabel bucket.localBucketLabel
                 |> set #xeroEarningsRateId (Just earningsRateId)
                 |> set #xeroEarningsRateName (Just earningsRateName)
-                |> set #mappingStatus ("verified" :: Text)
+                |> set #mappingStatus XeroEarningsRateMappingStatusEnumVerified
                 |> createRecord
         pure ()
     xeroEarningsRates <-
@@ -491,7 +491,7 @@ createPreviewMappings venue connection periodStart staffA staffB buckets = do
             |> set #venueId (unpackId venue.id)
             |> set #xeroConnectionId (unpackId connection.id)
             |> set #accountCode (Just "477")
-            |> set #selectionStatus ("verified" :: Text)
+            |> set #selectionStatus XeroPayItemAccountCodeSelectionStatusEnumVerified
             |> createRecord
     pure ()
     where
@@ -502,7 +502,7 @@ createPreviewMappings venue connection periodStart staffA staffB buckets = do
                 |> set #xeroConnectionId (unpackId connection.id)
                 |> set #xeroEmployeeId (Just employeeId)
                 |> set #xeroEmployeeName (Just (staff.firstName <> " " <> staff.lastName))
-                |> set #mappingStatus ("verified" :: Text)
+                |> set #mappingStatus XeroStaffMappingStatusEnumVerified
                 |> createRecord
         createXeroEmployee staff employeeId = do
             now <- getCurrentTime

@@ -62,7 +62,7 @@ deliverVenueInvitationEmail invitation = do
             let errorMessage = cs (displayException exception)
             _ <-
                 invitation
-                    |> set #deliveryStatus (Failed)
+                    |> set #deliveryStatus (InvitationDeliveryStatusEnumFailed)
                     |> set #deliveryError (Just errorMessage)
                     |> updateRecord
             pure (Left errorMessage)

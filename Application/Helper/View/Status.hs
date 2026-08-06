@@ -65,4 +65,4 @@ invitationLifecycleStatus Revoked                     = (AppStatusNeutral, "Revo
 invitationDeliveryStatus :: InvitationDeliveryStatusEnum -> (AppStatusTone, Text)
 invitationDeliveryStatus Queued = (AppStatusWarning, "Queued")
 invitationDeliveryStatus Sent   = (AppStatusSuccess, "Sent")
-invitationDeliveryStatus Failed = (AppStatusDanger, "Send Failed")
+invitationDeliveryStatus InvitationDeliveryStatusEnumFailed = (AppStatusDanger, "Send Failed")

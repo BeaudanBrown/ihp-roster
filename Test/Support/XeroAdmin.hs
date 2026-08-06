@@ -447,7 +447,7 @@ markOtherFixtureStaffNotPaid fixture = do
         case existing of
             Just mapping ->
                 mapping
-                    |> set #mappingStatus ("not_applicable" :: Text)
+                    |> set #mappingStatus NotApplicable
                     |> set #xeroEmployeeId Nothing
                     |> set #xeroEmployeeName Nothing
                     |> set #xeroEmployeeEmail Nothing
@@ -459,7 +459,7 @@ markOtherFixtureStaffNotPaid fixture = do
                     |> set #venueId (unpackId fixture.venue.id)
                     |> set #xeroConnectionId (unpackId fixture.connection.id)
                     |> set #staffId (unpackId staffMember.id)
-                    |> set #mappingStatus ("not_applicable" :: Text)
+                    |> set #mappingStatus NotApplicable
                     |> set #updatedByUserId (Just (unpackId fixture.owner.id))
                     |> createRecord
                     >>= const (pure ())
@@ -467,7 +467,7 @@ markOtherFixtureStaffNotPaid fixture = do
 createSubmissionRunForFixture ::
     (?modelContext :: ModelContext) =>
     Preview.PreviewFixture ->
-    Text ->
+    XeroSubmissionRunStatusEnum ->
     IO XeroSubmissionRun
 createSubmissionRunForFixture fixture status =
     newRecord @XeroSubmissionRun
@@ -485,7 +485,7 @@ createSubmissionRunForFixture fixture status =
 createPreparationRunForFixture ::
     (?modelContext :: ModelContext) =>
     Preview.PreviewFixture ->
-    Text ->
+    XeroTimesheetPreparationRunStatusEnum ->
     IO XeroTimesheetPreparationRun
 createPreparationRunForFixture fixture status =
     newRecord @XeroTimesheetPreparationRun
@@ -547,7 +547,7 @@ resetXeroStaffMappingForPreparation staff = do
     mappings <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId staff.id) |> fetch
     forM_ mappings \mapping ->
         mapping
-            |> set #mappingStatus ("not_applicable" :: Text)
+            |> set #mappingStatus NotApplicable
             |> set #xeroEmployeeId Nothing
             |> set #xeroEmployeeName Nothing
             |> set #xeroEmployeeEmail Nothing
@@ -566,6 +566,6 @@ createXeroPayItemAccountCodeSelectionRecord connection accountCode = do
         |> set #venueId connection.venueId
         |> set #xeroConnectionId (unpackId connection.id)
         |> set #accountCode (Just accountCode)
-        |> set #selectionStatus "verified"
+        |> set #selectionStatus XeroPayItemAccountCodeSelectionStatusEnumVerified
         |> set #lastVerifiedAt (Just now)
         |> createRecord

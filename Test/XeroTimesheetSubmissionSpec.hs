@@ -43,12 +43,12 @@ tests =
                     case result of
                         Left message -> expectationFailure (cs message)
                         Right run -> do
-                            run.status `shouldBe` "submitted"
+                            run.status `shouldBe` XeroSubmissionRunStatusEnumSubmitted
                             submissions <- query @XeroTimesheetSubmission |> filterWhere (#xeroSubmissionRunId, unpackId run.id) |> fetch
                             submissions `shouldSatisfy` ((== 1) . length)
                             case submissions of
                                 [submission] -> do
-                                    submission.status `shouldBe` "submitted"
+                                    submission.status `shouldBe` XeroTimesheetSubmissionStatusEnumSubmitted
                                     run.selectedPayrollCalendarId `shouldBe` Just "calendar-preview"
                                     run.selectedPeriodKey `shouldBe` Just ("calendar-preview:" <> tshow fixture.periodStart <> ":" <> tshow fixture.periodEnd)
                                     submission.attemptCount `shouldBe` 1
@@ -77,7 +77,7 @@ tests =
                     case result of
                         Left message -> expectationFailure (cs message)
                         Right run -> do
-                            run.status `shouldBe` "submitted"
+                            run.status `shouldBe` XeroSubmissionRunStatusEnumSubmitted
                             run.payPeriodStart `shouldBe` historicalStart
                             run.payPeriodEnd `shouldBe` addDays 6 historicalStart
                             run.selectedPayrollCalendarId `shouldBe` Just "calendar-preview"
@@ -97,7 +97,7 @@ tests =
                     case result of
                         Left message -> expectationFailure (cs message)
                         Right run -> do
-                            run.status `shouldBe` "submitted"
+                            run.status `shouldBe` XeroSubmissionRunStatusEnumSubmitted
                             submissions <- query @XeroTimesheetSubmission |> filterWhere (#xeroSubmissionRunId, unpackId run.id) |> fetch
                             submissions `shouldSatisfy` ((== 1) . length)
                             case submissions of
@@ -127,7 +127,7 @@ tests =
                     case result of
                         Left message -> expectationFailure (cs message)
                         Right run -> do
-                            run.status `shouldBe` "submitted"
+                            run.status `shouldBe` XeroSubmissionRunStatusEnumSubmitted
                             submissions <- query @XeroTimesheetSubmission |> filterWhere (#xeroSubmissionRunId, unpackId run.id) |> fetch
                             submissions `shouldSatisfy` ((== 1) . length)
                             map (.xeroEmployeeId) submissions `shouldBe` ["employee-a"]
@@ -146,9 +146,9 @@ tests =
                     case result of
                         Left message -> expectationFailure (cs message)
                         Right run -> do
-                            run.status `shouldBe` "failed"
+                            run.status `shouldBe` XeroSubmissionRunStatusEnumFailed
                             submission <- onlySubmissionForRun run
-                            submission.status `shouldBe` "failed"
+                            submission.status `shouldBe` XeroTimesheetSubmissionStatusEnumFailed
                             submission.attemptCount `shouldBe` 1
                             submission.lastError `shouldSatisfy` maybe False ("ValidationException" `isInfixOf`)
                             submission.lastError `shouldSatisfy` maybe False ("Timesheet invalid" `isInfixOf`)
@@ -168,9 +168,9 @@ tests =
                     case result of
                         Left message -> expectationFailure (cs message)
                         Right run -> do
-                            run.status `shouldBe` "failed"
+                            run.status `shouldBe` XeroSubmissionRunStatusEnumFailed
                             submission <- onlySubmissionForRun run
-                            submission.status `shouldBe` "failed"
+                            submission.status `shouldBe` XeroTimesheetSubmissionStatusEnumFailed
                             submission.attemptCount `shouldBe` 1
                             submission.idempotencyKey `shouldSatisfy` (not . null)
                             submission.requestPayloadJson `shouldSatisfy` isSingletonArrayValue
@@ -195,9 +195,9 @@ tests =
                     case result of
                         Left message -> expectationFailure (cs message)
                         Right run -> do
-                            run.status `shouldBe` "partially_failed"
+                            run.status `shouldBe` PartiallyFailed
                             submissions <- submissionsForRun run
-                            sort (map (.status) submissions) `shouldBe` ["failed", "submitted"]
+                            sort (map (.status) submissions) `shouldBe` [XeroTimesheetSubmissionStatusEnumSubmitted, XeroTimesheetSubmissionStatusEnumFailed]
                             run.errorSummary `shouldSatisfy` maybe False ("ValidationException" `isInfixOf`)
 
             it "retries a failed submission with the persisted idempotency key and submission row" $ withContext do
@@ -228,13 +228,13 @@ tests =
                         Left message -> expectationFailure (cs message)
                         Right retriedSubmission -> do
                             retriedSubmission.id `shouldBe` originalSubmissionId
-                            retriedSubmission.status `shouldBe` "submitted"
+                            retriedSubmission.status `shouldBe` XeroTimesheetSubmissionStatusEnumSubmitted
                             retriedSubmission.attemptCount `shouldBe` 2
                             retriedSubmission.idempotencyKey `shouldBe` originalIdempotencyKey
                             submissions <- submissionsForRunId retriedSubmission.xeroSubmissionRunId
                             submissions `shouldSatisfy` ((== 1) . length)
                             run <- fetch (Id retriedSubmission.xeroSubmissionRunId :: Id XeroSubmissionRun)
-                            run.status `shouldBe` "submitted"
+                            run.status `shouldBe` XeroSubmissionRunStatusEnumSubmitted
 
 testXeroConfig :: XeroConfig
 testXeroConfig =

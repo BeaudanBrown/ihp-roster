@@ -26,6 +26,8 @@ import Application.Xero.ReferenceDemand (fetchXeroPayrollEligibleApprovedStaffId
 import Application.Xero.ReferenceTrust (XeroMissingReferenceDemand (NoMissingPayrollReferenceDemand))
 import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..),
                                                   fetchXeroReferenceTrustState)
+import Application.Xero.WorkflowState (xeroStaffMappingIsNotApplicable,
+                                       xeroStaffMappingIsVerified)
 import Control.Monad (guard)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
@@ -211,7 +213,7 @@ ensureDefaultXeroStaffMapping connection staff Nothing =
         |> set #venueId (unpackId currentVenueId)
         |> set #staffId (unpackId staff.id)
         |> set #xeroConnectionId (unpackId connection.id)
-        |> set #mappingStatus ("not_applicable" :: Text)
+        |> set #mappingStatus NotApplicable
         |> createRecord
 
 fetchStaffLinkedUser :: (?modelContext :: ModelContext) => Staff -> IO (Maybe User)
@@ -269,7 +271,7 @@ fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection) = do
     verifiedMappings <-
         query @XeroStaffMapping
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> filterWhere (#mappingStatus, "verified" :: Text)
+            |> filterWhere (#mappingStatus, XeroStaffMappingStatusEnumVerified)
             |> filterWhereIn (#staffId, List.nub (map (.staffId) approvedEntries))
             |> fetch
     mappedEmployees <-
@@ -525,7 +527,7 @@ attachXeroStaffMappingSuggestions employees rows =
     map attach rows
     where
         attach row
-            | row.mappingRowMapping.mappingStatus /= "not_applicable" = row { mappingRowSuggestedEmployee = Nothing }
+            | not (xeroStaffMappingIsNotApplicable row.mappingRowMapping.mappingStatus) = row { mappingRowSuggestedEmployee = Nothing }
             | otherwise =
                 let availableEmployees = filter (xeroEmployeeAvailableForStaff row.mappingRowStaff rows) employees
                  in case bestXeroEmployeeSuggestion row availableEmployees of
@@ -568,7 +570,7 @@ xeroEmployeeAvailableForStaff staff mappingRows employee =
 
         verifiedEmployeeForOtherStaff row =
             let mapping = row.mappingRowMapping
-             in if unpackId row.mappingRowStaff.id /= currentStaffId && mapping.mappingStatus == "verified"
+             in if unpackId row.mappingRowStaff.id /= currentStaffId && xeroStaffMappingIsVerified mapping.mappingStatus
                     then mapping.xeroEmployeeId
                     else Nothing
 

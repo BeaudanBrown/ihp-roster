@@ -26,13 +26,19 @@ preparation/submission workflow.
 - `Admin/PayItems.hs` - managed pay item behavior used by preparation.
 - `PayrollSourceKey.hs` - exact Xero source/rate key suffix policy over typed
   WageEngine source identities.
+- `WorkflowState.hs` - exhaustive capability and presentation projections over
+  generated app-owned Xero workflow enums.
 - `Admin/ReadModel.hs` - connection-shell and preparation read models.
 - `Timesheets/Prepare.hs` - the authoritative preparation workflow.
 - `Timesheets/Preview.hs` and `Timesheets/Submission.hs` - internal payload and
   API orchestration used through preparation.
 
-Web request/response behavior belongs under `Web/Controller/Admin/Xero/`. The
-ordinary Xero page loads connection state only; operational mapping, readiness,
+Web request/response behavior belongs under `Web/Controller/Admin/Xero/`. App-owned
+sync, mapping, account-selection, pay-item requirement, preparation, decision,
+and submission state persists as PostgreSQL enums and uses generated Haskell
+constructors. Provider-owned employee, account, pay-run, and timesheet statuses
+remain open `Text` at adapter/persistence seams. The ordinary Xero page loads
+connection state only; operational mapping, readiness,
 calendar, pay-item, and timesheet panels are not separate page surfaces. Synced
 payroll calendars remain reference data, while each guided preparation run owns
 its explicit selected calendar and period; there is no venue-global calendar

@@ -137,7 +137,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue manager Manager
                 _ <- createVenueMembershipRecord venue worker Worker
                 staff <- createStaffRecord venue (Just worker) "Mina" "Managed"
-                current <- createRsaDocument worker.id staff (testRsaUpload (fromGregorian 2027 5 2)) >>= updateRecord . set #status Verified
+                current <- createRsaDocument worker.id staff (testRsaUpload (fromGregorian 2027 5 2)) >>= updateRecord . set #status StaffDocumentStatusEnumVerified
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams CreateStaffDocumentAction
@@ -188,7 +188,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status302
                 updatedDocument <- fetch staffDocument.id
-                updatedDocument.status `shouldBe` Verified
+                updatedDocument.status `shouldBe` StaffDocumentStatusEnumVerified
                 updatedDocument.reviewedByUserId `shouldBe` Just (unpackId manager.id)
                 updatedDocument.reviewedAt `shouldSatisfy` isJust
                 [auditEvent] <-

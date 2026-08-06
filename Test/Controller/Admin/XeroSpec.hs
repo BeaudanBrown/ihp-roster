@@ -723,10 +723,10 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 payrollCalendarCount <- query @XeroPayrollCalendar |> fetchCount
                 payrollCalendarCount `shouldBe` 1
                 accountCodeSelection <- query @XeroPayItemAccountCodeSelection |> fetchOne
-                accountCodeSelection.selectionStatus `shouldBe` "verified"
+                accountCodeSelection.selectionStatus `shouldBe` XeroPayItemAccountCodeSelectionStatusEnumVerified
                 accountCodeSelection.accountCode `shouldBe` Just "477"
                 syncRun <- query @XeroSyncRun |> fetchOne
-                syncRun.syncStatus `shouldBe` "succeeded"
+                syncRun.syncStatus `shouldBe` Succeeded
                 syncRun.employeesCount `shouldBe` 1
                 syncRun.earningsRatesCount `shouldBe` 1
                 syncRun.payrollCalendarsCount `shouldBe` 1
@@ -790,7 +790,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         |> set #staffId (unpackId staff.id)
                         |> set #xeroConnectionId (unpackId connection.id)
                         |> set #xeroEmployeeId (Just employee.xeroEmployeeId)
-                        |> set #mappingStatus "verified"
+                        |> set #mappingStatus XeroStaffMappingStatusEnumVerified
                         |> set #lastVerifiedAt (Just now)
                         |> createRecord
                 _ <-
@@ -800,7 +800,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         |> set #localBucketKey "availability-bucket"
                         |> set #localBucketLabel "Availability bucket"
                         |> set #xeroEarningsRateId (Just rate.xeroEarningsRateId)
-                        |> set #mappingStatus "verified"
+                        |> set #mappingStatus XeroEarningsRateMappingStatusEnumVerified
                         |> set #lastVerifiedAt (Just now)
                         |> createRecord
                 _ <-
@@ -812,7 +812,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         |> set #earningsType "ORDINARYTIMEEARNINGS"
                         |> set #rateType "RATEPERUNIT"
                         |> set #sourceDescription "availability test"
-                        |> set #requirementStatus "matched"
+                        |> set #requirementStatus Matched
                         |> set #xeroEarningsRateId (Just rate.xeroEarningsRateId)
                         |> set #lastVerifiedAt (Just now)
                         |> createRecord
@@ -856,12 +856,12 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 unavailableImport.archivedByUserId `shouldBe` Nothing
                 fetch lockedVersion.id >>= (\version -> version.importedXeroPayItemId `shouldBe` Just importedItem.id)
                 staffMapping <- query @XeroStaffMapping |> fetchOne
-                staffMapping.mappingStatus `shouldBe` "stale"
+                staffMapping.mappingStatus `shouldBe` XeroStaffMappingStatusEnumStale
                 staffMapping.referenceRefreshedAt `shouldSatisfy` isJust
                 earningsMapping <- query @XeroEarningsRateMapping |> fetchOne
-                earningsMapping.mappingStatus `shouldBe` "stale"
+                earningsMapping.mappingStatus `shouldBe` XeroEarningsRateMappingStatusEnumStale
                 managedRequirement <- query @XeroPayItemRequirementRecord |> fetchOne
-                managedRequirement.requirementStatus `shouldBe` "stale"
+                managedRequirement.requirementStatus `shouldBe` XeroPayItemRequirementStatusEnumStale
                 managedRequirement.lastVerifiedAt `shouldBe` Nothing
                 staffEditResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                     callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
@@ -965,7 +965,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
 
                 response `responseStatusShouldBe` status302
                 accountCodeSelection <- query @XeroPayItemAccountCodeSelection |> fetchOne
-                accountCodeSelection.selectionStatus `shouldBe` "verified"
+                accountCodeSelection.selectionStatus `shouldBe` XeroPayItemAccountCodeSelectionStatusEnumVerified
                 accountCodeSelection.accountCode `shouldBe` Just "477"
                 payrollCalendarCount <- query @XeroPayrollCalendar |> fetchCount
                 payrollCalendarCount `shouldBe` 2
@@ -991,7 +991,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 payrollCalendarCount <- query @XeroPayrollCalendar |> fetchCount
                 payrollCalendarCount `shouldBe` 1
                 syncRun <- query @XeroSyncRun |> fetchOne
-                syncRun.syncStatus `shouldBe` "succeeded"
+                syncRun.syncStatus `shouldBe` Succeeded
                 syncRun.employeesCount `shouldBe` 1
                 syncRun.earningsRatesCount `shouldBe` 1
                 syncRun.payrollCalendarsCount `shouldBe` 1
@@ -1021,7 +1021,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
         it "marks Xero pay periods that already have a local submitted run" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
-                _ <- createSubmissionRunForFixture fixture "submitted"
+                _ <- createSubmissionRunForFixture fixture XeroSubmissionRunStatusEnumSubmitted
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                     callAction ShowadminXeroShellLiveFragmentAction
@@ -1033,8 +1033,8 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
         it "uses the latest local Xero submission run status for a pay period" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
-                older <- createSubmissionRunForFixture fixture "failed"
-                newer <- createSubmissionRunForFixture fixture "submitted"
+                older <- createSubmissionRunForFixture fixture XeroSubmissionRunStatusEnumFailed
+                newer <- createSubmissionRunForFixture fixture XeroSubmissionRunStatusEnumSubmitted
                 now <- getCurrentTime
                 _ <- older |> set #updatedAt (addUTCTime (-60) now) |> updateRecord
                 _ <- newer |> set #updatedAt now |> updateRecord
@@ -1059,7 +1059,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         |> set #selectedPayrollCalendarId (Just ("calendar-preview" :: Text))
                         |> set #selectedPayrollCalendarName (Just ("Preview Calendar" :: Text))
                         |> set #selectedPeriodKey (Just ("calendar-preview:" <> tshow (addDays 7 fixture.periodStart) <> ":" <> tshow (addDays 7 fixture.periodEnd) :: Text))
-                        |> set #status ("submitted" :: Text)
+                        |> set #status XeroSubmissionRunStatusEnumSubmitted
                         |> createRecord
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
@@ -1378,7 +1378,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 matchedResponse `responseBodyShouldNotContain` "Ada Lovelace"
                 matchedResponse `responseBodyShouldNotContain` "Show matched"
                 matchedResponse `responseBodyShouldNotContain` "app-toggle-button btn-success"
-                preparationRun.status `shouldBe` "ready_for_preview"
+                preparationRun.status `shouldBe` ReadyForPreview
                 preparationRun.payPeriodStart `shouldBe` Just fixture.periodStart
                 preparationRun.payPeriodEnd `shouldBe` Just fixture.periodEnd
                 (AesonTypes.parseMaybe AesonTypes.parseJSON preparationRun.eventsJson :: Maybe [Aeson.Value]) `shouldSatisfy` maybe False (not . null)
@@ -1421,10 +1421,10 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 response `responseBodyShouldContain` "Suggested match — click Approve to confirm"
                 response `responseBodyShouldContain` "Ada Lovelace"
                 response `responseBodyShouldContain` "Edit"
-                pendingStaffDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "staff_auto_match" :: Text) |> filterWhere (#decisionStatus, "pending" :: Text) |> fetchCount
+                pendingStaffDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, StaffAutoMatch) |> filterWhere (#decisionStatus, XeroTimesheetPreparationDecisionStatusEnumPending) |> fetchCount
                 pendingStaffDecisions `shouldBe` 2
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
-                preparationRun.status `shouldBe` "needs_approval"
+                preparationRun.status `shouldBe` NeedsApproval
 
                 matchedResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -1444,9 +1444,9 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                     withRequestHeaders [("HX-Request", "true")] do
                         callAction (ContinueXeroTimesheetPreparationStaffStepAction preparationRun.id)
                 continueResponse `responseStatusShouldBe` status200
-                appliedStaffDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "staff_auto_match" :: Text) |> filterWhere (#decisionStatus, "applied" :: Text) |> fetchCount
+                appliedStaffDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, StaffAutoMatch) |> filterWhere (#decisionStatus, Applied) |> fetchCount
                 appliedStaffDecisions `shouldBe` 2
-                staffStepApprovals <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "staff_step_approved" :: Text) |> filterWhere (#decisionStatus, "applied" :: Text) |> fetchCount
+                staffStepApprovals <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, StaffStepApproved) |> filterWhere (#decisionStatus, Applied) |> fetchCount
                 staffStepApprovals `shouldBe` 1
 
         it "applies the selected suggested employee through the unified preparation dropdown" $ withContext do
@@ -1484,10 +1484,10 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "Confirm match"
                 mapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId fixture.staffA.id) |> fetchOne
-                mapping.mappingStatus `shouldBe` "verified"
+                mapping.mappingStatus `shouldBe` XeroStaffMappingStatusEnumVerified
                 mapping.xeroEmployeeId `shouldBe` Just "employee-a"
-                decision <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "staff_auto_match" :: Text) |> fetchOne
-                decision.decisionStatus `shouldBe` "applied"
+                decision <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, StaffAutoMatch) |> fetchOne
+                decision.decisionStatus `shouldBe` Applied
                 decision.xeroEmployeeId `shouldBe` Just "employee-a"
 
         it "shows proposed managed pay item creation instead of manual earnings-rate mapping in the preparation modal" $ withContext do
@@ -1534,10 +1534,10 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 payItemResponse `responseBodyShouldNotContain` "Approve creation"
                 payItemResponse `responseBodyShouldNotContain` "Earnings-rate mappings"
                 payItemResponse `responseBodyShouldNotContain` "name=\"xeroEarningsRateSelection\""
-                pendingPayItemDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "pay_item_create" :: Text) |> filterWhere (#decisionStatus, "pending" :: Text) |> fetchCount
+                pendingPayItemDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, PayItemCreate) |> filterWhere (#decisionStatus, XeroTimesheetPreparationDecisionStatusEnumPending) |> fetchCount
                 pendingPayItemDecisions `shouldSatisfy` (> 0)
                 refreshedPreparationRun <- fetch preparationRun.id
-                refreshedPreparationRun.status `shouldBe` "ready_for_preview"
+                refreshedPreparationRun.status `shouldBe` ReadyForPreview
 
         it "creates proposed managed Xero pay items automatically when submitting from preparation" $ withContext do
             withCleanDb do
@@ -1582,11 +1582,11 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 payItemDecisions <-
                     query @XeroTimesheetPreparationDecision
                         |> filterWhere (#xeroTimesheetPreparationRunId, unpackId run.id)
-                        |> filterWhere (#decisionKind, "pay_item_create" :: Text)
+                        |> filterWhere (#decisionKind, PayItemCreate)
                         |> fetch
                 forM_ payItemDecisions \decision ->
                     decision
-                        |> set #decisionStatus ("dismissed" :: Text)
+                        |> set #decisionStatus Dismissed
                         |> updateRecord
                         >>= const (pure ())
 
@@ -1608,9 +1608,9 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 approvalResponse `responseBodyShouldNotContain` "Employee-level preview rows will be finalized"
                 approvalRequests <- liftIO $ IORef.readIORef requestsRef
                 approvalRequests `shouldBe` []
-                pendingAfterApproval <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "pay_item_create" :: Text) |> filterWhere (#decisionStatus, "pending" :: Text) |> fetchCount
+                pendingAfterApproval <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, PayItemCreate) |> filterWhere (#decisionStatus, XeroTimesheetPreparationDecisionStatusEnumPending) |> fetchCount
                 pendingAfterApproval `shouldBe` 0
-                appliedAfterApproval <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "pay_item_create" :: Text) |> filterWhere (#decisionStatus, "applied" :: Text) |> fetchCount
+                appliedAfterApproval <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, PayItemCreate) |> filterWhere (#decisionStatus, Applied) |> fetchCount
                 appliedAfterApproval `shouldSatisfy` (> 0)
 
                 response <- withXeroConfigForTest (Right testXeroConfig) do
@@ -1626,10 +1626,10 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 createRequests <- liftIO $ IORef.readIORef requestsRef
                 length createRequests `shouldSatisfy` (> 0)
                 refreshedRun <- fetch run.id
-                refreshedRun.status `shouldBe` "submitted"
-                submissionRun <- query @XeroSubmissionRun |> filterWhere (#status, "submitted" :: Text) |> fetchOne
-                submissionRun.status `shouldBe` "submitted"
-                pendingPayItemDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "pay_item_create" :: Text) |> filterWhere (#decisionStatus, "pending" :: Text) |> fetchCount
+                refreshedRun.status `shouldBe` XeroTimesheetPreparationRunStatusEnumSubmitted
+                submissionRun <- query @XeroSubmissionRun |> filterWhere (#status, XeroSubmissionRunStatusEnumSubmitted) |> fetchOne
+                submissionRun.status `shouldBe` XeroSubmissionRunStatusEnumSubmitted
+                pendingPayItemDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, PayItemCreate) |> filterWhere (#decisionStatus, XeroTimesheetPreparationDecisionStatusEnumPending) |> fetchCount
                 pendingPayItemDecisions `shouldBe` 0
 
         it "reports unverified managed pay item creation during preparation submit" $ withContext do
@@ -1692,7 +1692,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 createRequests <- liftIO $ IORef.readIORef requestsRef
                 length createRequests `shouldBe` 1
                 refreshedRun <- fetch run.id
-                refreshedRun.status `shouldNotBe` "submitted"
+                refreshedRun.status `shouldNotBe` XeroTimesheetPreparationRunStatusEnumSubmitted
 
         it "uses the preparation period without a global payroll-calendar selection" $ withContext do
             withCleanDb do
@@ -1731,7 +1731,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 response `responseBodyShouldNotContain` "name=\"xeroPayrollCalendarSelection\""
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
                 preparationRun.selectedPayrollCalendarId `shouldBe` Just "calendar-preview"
-                preparationRun.status `shouldBe` "ready_for_preview"
+                preparationRun.status `shouldBe` ReadyForPreview
 
         it "hard-blocks guided Xero preparation when the selected Xero pay run is posted" $ withContext do
             withCleanDb do
@@ -1776,7 +1776,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 response `responseBodyShouldContain` "posted"
                 response `responseBodyShouldContain` "Draft timesheet creation is blocked"
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
-                preparationRun.status `shouldBe` "blocked"
+                preparationRun.status `shouldBe` XeroTimesheetPreparationRunStatusEnumBlocked
                 preparationRun.xeroPayRunId `shouldBe` Just "payrun-posted"
                 preparationRun.remotePayRunsJson `shouldSatisfy` Preview.jsonContainsKey "remotePayRuns"
 
@@ -1825,14 +1825,14 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 response `responseBodyShouldContain` "Update or delete it in Xero before continuing"
                 response `responseBodyShouldNotContain` "Submit draft timesheets to Xero"
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
-                preparationRun.status `shouldBe` "blocked"
+                preparationRun.status `shouldBe` XeroTimesheetPreparationRunStatusEnumBlocked
                 preparationRun.remoteTimesheetsJson `shouldSatisfy` Preview.jsonContainsKey "remoteTimesheets"
                 preparationRun.readinessSnapshotJson `shouldSatisfy` Preview.jsonContainsKey "blockers"
 
         it "rejects missing, malformed, and repeated nominal preparation payloads without mutation" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
-                run <- createPreparationRunForFixture fixture "needs_approval"
+                run <- createPreparationRunForFixture fixture NeedsApproval
                 accountSelectionBefore <-
                     query @XeroPayItemAccountCodeSelection
                         |> filterWhere (#venueId, unpackId fixture.venue.id)
@@ -1894,10 +1894,10 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 mappings <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId fixture.staffA.id) |> fetch
                 forM_ mappings \mapping ->
                     mapping
-                        |> set #mappingStatus ("stale" :: Text)
+                        |> set #mappingStatus XeroStaffMappingStatusEnumStale
                         |> updateRecord
                         >>= const (pure ())
-                run <- createPreparationRunForFixture fixture "needs_approval"
+                run <- createPreparationRunForFixture fixture NeedsApproval
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -1922,10 +1922,10 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 matchedResponse `responseBodyShouldNotContain` "Choose Xero employee"
                 matchedResponse `responseBodyShouldNotContain` "Edit"
                 mapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId fixture.staffA.id) |> fetchOne
-                mapping.mappingStatus `shouldBe` "not_applicable"
+                mapping.mappingStatus `shouldBe` NotApplicable
                 mapping.xeroEmployeeId `shouldBe` Nothing
-                decision <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "staff_not_paid" :: Text) |> fetchOne
-                decision.decisionStatus `shouldBe` "applied"
+                decision <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, StaffNotPaid) |> fetchOne
+                decision.decisionStatus `shouldBe` Applied
                 decision.decidedByUserId `shouldBe` Just (unpackId fixture.owner.id)
 
         it "blocks non-owner venue roles from Xero preparation page and actions" $ withContext do
@@ -1967,7 +1967,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 employeeCount <- query @XeroEmployee |> fetchCount
                 employeeCount `shouldBe` 0
                 syncRun <- query @XeroSyncRun |> fetchOne
-                syncRun.syncStatus `shouldBe` "failed"
+                syncRun.syncStatus `shouldBe` XeroSyncStatusEnumFailed
                 syncRun.errorMessage `shouldBe` Just "Xero refresh_access sync failed: provider request could not be completed."
                 updatedConnection <- fetch connection.id
                 updatedConnection.lastError `shouldBe` Just "Xero refresh_access sync failed: provider request could not be completed."
@@ -2017,7 +2017,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 updatedConnection <- fetch connection.id
                 updatedConnection.connectionStatus `shouldBe` "reauthorization_required"
                 syncRun <- query @XeroSyncRun |> fetchOne
-                syncRun.syncStatus `shouldBe` "failed"
+                syncRun.syncStatus `shouldBe` XeroSyncStatusEnumFailed
                 [referenceJob] <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetch
                 referenceJob.status `shouldBe` JobStatusFailed
                 stateCount <- query @XeroOauthState |> fetchCount
@@ -2096,7 +2096,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                     |> set #staffId (unpackId staff.id)
                     |> set #xeroConnectionId (unpackId staleConnection.id)
                     |> set #xeroEmployeeId (Just "employee-existing")
-                    |> set #mappingStatus "verified"
+                    |> set #mappingStatus XeroStaffMappingStatusEnumVerified
                     |> createRecord
                 oauthState <- createTestXeroOauthState venue owner "repair-state" 600 Nothing
                 let tokenResponse = XeroTokenResponse "repair-access-token" "repair-refresh-token" 1800 (Just requiredXeroScopesText)
