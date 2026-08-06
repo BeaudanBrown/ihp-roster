@@ -4,7 +4,7 @@ module Web.View.RosterWeeks.NotificationDialog
 
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            renderFrontendSurfaceActionForm)
+                                                            renderFrontendSurfaceActionFormWithHiddenFields)
 import Application.Helper.View.Overlay
 import Application.RosterNotification
 import Data.Time.Calendar (Day, addDays)
@@ -58,7 +58,7 @@ renderRosterNotificationConfirmation venue rosterGroup rosterWeek weekStart audi
   where
     formId = rosterNotificationSendFormId
     actionUrl = pathTo (CreateRosterNotificationRunAction rosterWeek.id)
-    sendForm = renderFrontendSurfaceActionForm
+    sendForm = renderFrontendSurfaceActionFormWithHiddenFields
         (RosterAction.createRosterNotificationRunAction (RosterAction.createRosterNotificationRunActionFields (unpackId rosterWeek.id)))
         FrontendSurfaceActionRoute
             { actionRouteUrl = actionUrl

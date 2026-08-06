@@ -258,6 +258,13 @@ export function runSql(sql: string) {
     });
 }
 
+export function querySql(sql: string) {
+    const { dbSocket, dbName } = e2eDatabaseArgs();
+    return execFileSync('psql', ['-h', dbSocket, dbName, '-v', 'ON_ERROR_STOP=1', '-At', '-c', sql], {
+        encoding: 'utf8',
+    }).trim();
+}
+
 export async function enableVirtualPasskeyAuthenticator(page: Page) {
     const cdp = await page.context().newCDPSession(page);
     await cdp.send('WebAuthn.enable');

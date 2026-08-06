@@ -16,7 +16,7 @@ import qualified Data.Text.Lazy as LazyText
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types hiding (createRosterNotificationRun)
 import IHP.ControllerPrelude
-import IHP.FrameworkConfig (withFrameworkConfig)
+import IHP.FrameworkConfig (FrameworkConfig, withFrameworkConfig)
 import IHP.Job.Types (JobStatus (JobStatusSucceeded))
 import IHP.Mail
 import qualified IHP.Mail as Mail
@@ -123,6 +123,67 @@ tests = aroundAll withDatabaseTestContext do
                     text noShiftMail `shouldSatisfy` isInfixOf "You have no assigned shifts in this roster."
                     text noShiftMail `shouldSatisfy` (not . isInfixOf "Front counter")
                     text noShiftMail `shouldSatisfy` isInfixOf "Open coverage"
+
+        it "delivers every recipient from one immutable snapshot while an Open shift is concurrently assigned" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Concurrent Snapshot Venue"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                actor <- createUserRecord "concurrent-snapshot-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue actor Manager
+                actorStaff <- query @Staff |> filterWhere (#userId, Just (unpackId actor.id)) |> fetchOne
+                otherUser <- createUserRecord "concurrent-snapshot-other@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue otherUser Worker
+                otherStaff <- query @Staff |> filterWhere (#userId, Just (unpackId otherUser.id)) |> fetchOne
+                noShiftUser <- createUserRecord "concurrent-snapshot-empty@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue noShiftUser Worker
+                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                actorLane <- createSlotNameRecordForRosterGroup venue rosterGroup "Manager only lane"
+                otherLane <- createSlotNameRecordForRosterGroup venue rosterGroup "Other staff private lane"
+                openLane <- createSlotNameRecordForRosterGroup venue rosterGroup "Snapshot open lane"
+                actorShift <- createCompleteRosterSlotRecord rosterDay actorLane actorStaff 0
+                _ <- createCompleteRosterSlotRecord rosterDay otherLane otherStaff 1
+                openShift <- createRosterSlotRecord rosterDay openLane Nothing 2
+                    >>= updateRecord
+                        . set #shiftTypeId actorShift.shiftTypeId
+                        . setTestRosterSlotBoundaries defaultWeekEpoch (TimeOfDay 12 0 0) (TimeOfDay 16 0 0)
+                run <- createRosterNotificationRun actor rosterWeek
+                immutableSnapshot <- decodeRosterNotificationSnapshot run
+                appJobs <- query @AppJob
+                    |> filterWhere (#relatedTable, Just "roster_notification_runs")
+                    |> filterWhere (#relatedId, Just (unpackId run.id))
+                    |> fetch
+                _ <- openShift
+                    |> set #assignmentState "staff"
+                    |> set #staffId (Just (unpackId otherStaff.id))
+                    |> updateRecord
+                delivered <- newIORef []
+                let runtime = RosterNotificationDeliveryRuntime
+                        { deliveryBaseUrl = "https://app.example"
+                        , deliveryMailSettings = AppMailSettings "rosters@example.com" "support@example.com" "support@example.com"
+                        , deliverRosterNotificationMail = \mail -> modifyIORef' delivered (mail :)
+                        }
+
+                forM_ appJobs (performRosterNotificationDeliveryJobWith runtime)
+
+                deliveredMails <- readIORef delivered
+                length deliveredMails `shouldBe` 3
+                map (.notificationSnapshot) deliveredMails `shouldSatisfy` all (== immutableSnapshot)
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    actorMail <- mailFor "concurrent-snapshot-manager@example.com" deliveredMails
+                    otherMail <- mailFor "concurrent-snapshot-other@example.com" deliveredMails
+                    noShiftMail <- mailFor "concurrent-snapshot-empty@example.com" deliveredMails
+                    mailText actorMail `shouldSatisfy` isInfixOf "Manager only lane"
+                    mailText actorMail `shouldSatisfy` isInfixOf "Snapshot open lane"
+                    mailText actorMail `shouldSatisfy` (not . isInfixOf "Other staff private lane")
+                    mailText otherMail `shouldSatisfy` isInfixOf "Other staff private lane"
+                    mailText otherMail `shouldSatisfy` isInfixOf "Snapshot open lane"
+                    mailText otherMail `shouldSatisfy` (not . isInfixOf "Manager only lane")
+                    mailText noShiftMail `shouldSatisfy` isInfixOf "You have no assigned shifts in this roster."
+                    mailText noShiftMail `shouldSatisfy` isInfixOf "Snapshot open lane"
+                    mailText noShiftMail `shouldSatisfy` (not . isInfixOf "Manager only lane")
+                    mailText noShiftMail `shouldSatisfy` (not . isInfixOf "Other staff private lane")
 
         it "delivers from the immutable run after the roster returns to draft" $ withContext do
             withCleanDb do
@@ -238,6 +299,16 @@ tests = aroundAll withDatabaseTestContext do
                 updatedJob.status `shouldBe` JobStatusSucceeded
 
   where
+    mailFor :: Text -> [RosterNotificationMail] -> IO RosterNotificationMail
+    mailFor emailAddress mails =
+        maybe (fail ("expected delivered mail for " <> cs emailAddress)) pure $
+            find ((== emailAddress) . (.recipientEmail) . (.notificationRecipient)) mails
+
+    mailText :: (?context :: FrameworkConfig) => RosterNotificationMail -> Text
+    mailText mail =
+        let ?mail = mail
+         in text mail
+
     payloadRecipientEmail :: AppJob -> Maybe Text
     payloadRecipientEmail appJob =
         AesonTypes.parseMaybe (Aeson.withObject "payload" (Aeson..: "recipientEmail")) appJob.payload
