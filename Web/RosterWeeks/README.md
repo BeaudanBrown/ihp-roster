@@ -22,6 +22,8 @@ mutation invocation, and response selection; HSX lives in
   stable DOM identity.
 - `Capabilities.hs`, `Filters.hs`, `WageFilter.hs`, and `Overview.hs` —
   authorization/presentation projections.
+- `Application/RosterNotification/` — immutable notification snapshots and
+  durable per-recipient delivery.
 
 Follow imports from these seams rather than maintaining a module or feature
 inventory here.
@@ -34,12 +36,19 @@ inventory here.
   behavior belongs in the shared interaction runtime.
 - Roster writes validate venue/group scope and current Staff/Open/pay state at
   the server boundary, regardless of rendered controls.
+- Emailing a live roster is an explicit editor action. One immutable run
+  snapshots its audience and roster; each recipient sees only their own assigned
+  shifts and the snapshot's Open shifts. Durable jobs continue if the roster
+  later changes or returns to draft.
 
 ## Related Docs
 
-- `SPEC.md` — durable scheduling, publication, template, and Timesheet contracts.
+- `SPEC.md` — durable scheduling, publication, template, notification, and
+  Timesheet contracts.
 - `AGENTS.md` — local editing rules and hazards.
+- `Application/RosterNotification/README.md` — notification persistence and
+  worker contract.
 - `Application/Helper/Interaction.SPEC.md` and
   `Application/Helper/LiveUpdate.SPEC.md` — shared frontend/runtime contracts.
-- `docs/workstreams/roster-operations-and-support-ux.md` — unresolved roster
-  notification and shared SidePanel closeout.
+- `docs/workstreams/roster-operations-and-support-ux.md` — unresolved shared
+  SidePanel closeout.

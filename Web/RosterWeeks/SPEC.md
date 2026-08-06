@@ -56,6 +56,24 @@ becomes a transient Timesheet suggestion; trial staff and Open shifts do not.
 Materialized entries are immutable snapshots of their roster source. Later
 roster edits expose warnings but never rewrite or delete those entries.
 
+## Roster Notifications
+
+- Only roster editors may deliberately email a live roster-group week. Draft
+  weeks and ordinary staff expose no action. Active runs prevent another send;
+  terminal runs may be deliberately repeated without roster-change inference or
+  a distinct Resend workflow.
+- One immutable run snapshots roster content, eligible recipients, skipped
+  recipients, and actual requester provenance. Trial, unlinked, inactive, and
+  email-less staff are skipped. One durable job per eligible recipient renders
+  only that recipient's assigned shifts, all snapshot Open shifts, and the
+  authenticated roster link.
+- Delivery continues from the snapshot if the roster changes or returns to
+  draft. Provider failures retain retry/terminal state and invalidate aggregate
+  status without blocking publication or exposing provider details.
+
+Implementation authority is `Application/RosterNotification/` and the focused
+controller, mail, and delivery tests.
+
 ## Templates
 
 - Day/Week templates are roster-group-scoped immutable versions with
