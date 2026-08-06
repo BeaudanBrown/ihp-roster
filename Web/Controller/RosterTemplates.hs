@@ -267,11 +267,8 @@ instance Controller RosterTemplatesController where
                 redirectTo RosterWeeksAction
 
     action currentAction@PreviewRosterTemplateDropAction { rosterGroupId, weekOffset } = runBepis currentAction BepisMutationAction do
-        case RosterIntent.parsePreviewRosterTemplateApplicationIntentParams of
-            Left _ -> do
-                rosterGroup <- fetchScopedRosterGroup rosterGroupId
-                invalidTemplateApplication rosterGroup weekOffset "Choose a compatible template target."
-            Right fields -> do
+        case (RosterAction.parsePreviewRosterTemplateApplicationActionParams, RosterIntent.parsePreviewRosterTemplateApplicationIntentParams) of
+            (Right fields, Right _) -> do
                 let sourceKey = surfaceFieldValue @SurfaceInteraction.SourceItemKey fields
                 let targetDropzoneKey = surfaceFieldValue @SurfaceInteraction.TargetDropzoneKey fields
                 case Id <$> UUID.fromText sourceKey of
@@ -289,6 +286,9 @@ instance Controller RosterTemplatesController where
                                 case preview of
                                     Left applicationError -> invalidTemplateApplication rosterGroup weekOffset (templateApplicationErrorMessage applicationError)
                                     Right applicationPreview -> respondHtml (renderRosterTemplateApplicationConfirmation rosterTemplateId rosterGroupId targetDropzoneKey applicationPreview)
+            _ -> do
+                rosterGroup <- fetchScopedRosterGroup rosterGroupId
+                invalidTemplateApplication rosterGroup weekOffset "Choose a compatible template target."
 
     action currentAction@ShowRosterTemplateApplicationConfirmationAction { rosterTemplateId, rosterGroupId, weekOffset } = runBepis currentAction BepisPageAction do
         actor <- authorizedDesignerActor
