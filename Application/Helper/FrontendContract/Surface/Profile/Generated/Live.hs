@@ -7,7 +7,6 @@ module Application.Helper.FrontendContract.Surface.Profile.Generated.Live
     , matchProfileLeaveSectionLiveFragment
     , matchProfileLiveScope
     , matchProfilePreferencesSectionLiveFragment
-    , matchProfileRsaSectionLiveFragment
     , matchProfileSecuritySectionLiveFragment
     , matchStaffDetailsSectionLiveFragment
     , matchStaffLeaveSectionLiveFragment
@@ -18,7 +17,6 @@ module Application.Helper.FrontendContract.Surface.Profile.Generated.Live
     , profileLeaveSectionLiveFragment
     , profileLiveScope
     , profilePreferencesSectionLiveFragment
-    , profileRsaSectionLiveFragment
     , profileSecuritySectionLiveFragment
     , staffDetailsSectionLiveFragment
     , staffLeaveSectionLiveFragment
@@ -98,19 +96,6 @@ matchProfilePreferencesSectionLiveFragment =
     matchFrontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.ProfileAdapterFamily)
         @Types1.ProfilePreferencesSection
-
-profileRsaSectionLiveFragment :: SurfaceFragmentKey
-profileRsaSectionLiveFragment =
-    frontendSurfaceFragmentKey
-        @(AdapterFamilySurface Types2.ProfileAdapterFamily)
-        @Types1.ProfileRsaSection
-        noSurfaceFields
-
-matchProfileRsaSectionLiveFragment :: SurfaceFragmentKey -> Maybe ()
-matchProfileRsaSectionLiveFragment =
-    matchFrontendSurfaceFragmentKey
-        @(AdapterFamilySurface Types2.ProfileAdapterFamily)
-        @Types1.ProfileRsaSection
 
 profileSecuritySectionLiveFragment :: SurfaceFragmentKey
 profileSecuritySectionLiveFragment =

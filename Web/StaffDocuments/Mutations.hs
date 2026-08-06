@@ -1,10 +1,8 @@
 module Web.StaffDocuments.Mutations
     ( reviewStaffDocument
-    , rsaStaffDocumentTouchedResources
     , uploadRsaDocument
     ) where
 
-import Application.Helper.FrontendContract.Surface.Profile.Resource (staffRsaDocumentsResource)
 import Application.Helper.SurfaceResource
 import Application.StaffDocuments.Rsa
 import Control.Monad (void)
@@ -28,7 +26,7 @@ uploadRsaDocument actorUserId staff upload = do
                 ]
             )
     invalidateTouchedResources "staff_document.rsa.upload" $
-        liveMutationResult staffDocument (rsaStaffDocumentTouchedResources staffDocument)
+        liveMutationResult staffDocument []
 
 reviewStaffDocument :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id User -> StaffDocument -> StaffDocumentStatusEnum -> Maybe Text -> IO (LiveMutationResult StaffDocument)
 reviewStaffDocument reviewerUserId staffDocument newStatus maybeRejectionReason = do
@@ -47,9 +45,4 @@ reviewStaffDocument reviewerUserId staffDocument newStatus maybeRejectionReason 
                 ]
             )
     invalidateTouchedResources "staff_document.rsa.review" $
-        liveMutationResult updatedDocument (rsaStaffDocumentTouchedResources updatedDocument)
-
-rsaStaffDocumentTouchedResources :: StaffDocument -> [SurfaceResourceValue]
-rsaStaffDocumentTouchedResources staffDocument =
-    [ staffRsaDocumentsResource staffDocument.staffId
-    ]
+        liveMutationResult updatedDocument []

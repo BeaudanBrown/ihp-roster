@@ -15,6 +15,7 @@ import qualified Data.Text.IO as TextIO
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import qualified Data.UUID as UUID
 import qualified Data.Vector as Vector
+import IHP.ModelSupport (inputValue)
 import Network.HTTP.Simple
 import System.Environment (lookupEnv)
 import System.Exit (exitFailure, exitSuccess)
@@ -196,7 +197,7 @@ listRequirements connection = do
         TextIO.putStrLn "Local Xero pay item requirements:"
         forM_ requirements \requirement ->
             TextIO.putStrLn $
-                requirement.requirementStatus
+                inputValue requirement.requirementStatus
                     <> " | "
                     <> requirement.requirementKey
                     <> " | "
@@ -214,7 +215,7 @@ fetchVerifiedAccountCode connection = do
     selection <-
         query @XeroPayItemAccountCodeSelection
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> filterWhere (#selectionStatus, "verified" :: Text)
+            |> filterWhere (#selectionStatus, XeroPayItemAccountCodeSelectionStatusEnumVerified)
             |> fetchOne
     case Text.strip <$> selection.accountCode of
         Just accountCode | not (Text.null accountCode) -> pure accountCode

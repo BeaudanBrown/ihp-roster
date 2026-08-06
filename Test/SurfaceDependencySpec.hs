@@ -3,6 +3,7 @@ module Test.SurfaceDependencySpec where
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.FrontendContract.Surface.Billing.Resource
+import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveSectionValue (..))
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource
 import Application.Helper.FrontendContract.Surface.Profile.Resource
 import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
@@ -123,8 +124,8 @@ tests = do
             let candidates = leaveRequestsCandidateMountedFragments scopeValue
             let blackoutResources = Set.fromList [unavailabilityBlackoutsResource venueId]
             let warningResources = Set.fromList [leaveAvailabilityWarningsResource venueId]
-            let pendingResources = Set.fromList [leaveRequestsSectionResource venueId "pending"]
-            let approvedResources = Set.fromList [leaveRequestsSectionResource venueId "approved"]
+            let pendingResources = Set.fromList [leaveRequestsSectionResource venueId LeavePendingSection]
+            let approvedResources = Set.fromList [leaveRequestsSectionResource venueId LeaveApprovedSection]
             let sidePanelAndBlackoutResources = Set.fromList [unavailabilityBlackoutsResource venueId, leaveAvailabilityWarningsResource venueId]
             let affectedByBlackouts = planMountedFragments blackoutResources (leaveRequestsSurfaceScope scopeValue) candidates
             let affectedByWarnings = planMountedFragments warningResources (leaveRequestsSurfaceScope scopeValue) candidates
@@ -368,7 +369,6 @@ tests = do
             let scopeValue = ProfileScopeValue venueId staffId
             let candidates = profileCandidateMountedFragments scopeValue
             let affectedByProfile = planMountedFragments (Set.fromList [staffProfileResource staffId]) (profileSurfaceScope scopeValue) candidates
-            let affectedByRsa = planMountedFragments (Set.fromList [staffRsaDocumentsResource staffId]) (profileSurfaceScope scopeValue) candidates
             let affectedStaffBlackoutFragments = planMountedFragments (Set.fromList [unavailabilityBlackoutsResource venueId]) (staffSurfaceScope scopeValue) (staffCandidateMountedFragments scopeValue)
             let leaveResources = Set.fromList [staffLeaveRequestsResource staffId]
             let blackoutResources = Set.fromList [unavailabilityBlackoutsResource venueId]
@@ -379,7 +379,6 @@ tests = do
             let affectedSelfServiceBlackoutFragments = planMountedFragments blackoutResources (selfServiceLeaveSurfaceScope selfServiceScope) selfServiceMount.mountFragments
 
             map (.mountedFragmentTargetId) affectedByProfile `shouldBe` ["profile-details"]
-            map (.mountedFragmentTargetId) affectedByRsa `shouldBe` ["profile-rsa"]
             map (.mountedFragmentTargetId) affectedStaffBlackoutFragments `shouldBe` ["staff-visible-unavailability-blackouts"]
             affectedProfileFragments `shouldBe` []
             map (.mountedFragmentTargetId) affectedSelfServiceFragments

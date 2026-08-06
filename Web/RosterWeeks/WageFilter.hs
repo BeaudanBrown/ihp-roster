@@ -10,7 +10,7 @@ module Web.RosterWeeks.WageFilter
 import Application.Helper.FrontendContract.Surface.Dto (surfaceBrowserDtoRoleAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import Application.Helper.FrontendContract.Surface.Values
-import Application.Helper.UserPreferences (rosterLayoutModeValue)
+import Application.Helper.UserPreferences (rosterLayoutModeIsDayColumns)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import Generated.Types
@@ -30,7 +30,7 @@ rosterWageFilterConfigAttrs enabled rosterDays layoutMode viewMode =
     refreshTargetIds = rosterGridToolbarFragmentId : case viewMode of
         RosterDayTimelineGridView _ -> [rosterGridFrameFragmentId]
         RosterWeekGridView
-            | rosterLayoutModeValue layoutMode == "day_columns" -> [rosterDayColumnsFragmentId]
+            | rosterLayoutModeIsDayColumns layoutMode -> [rosterDayColumnsFragmentId]
             | otherwise -> [rosterWageRailFragmentId]
     requestTargetIds =
         [ rosterContentFragmentId

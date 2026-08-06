@@ -145,20 +145,6 @@
     margin-top: 0.05rem;
 }
 
-.roster-staff-panel-placeholder-title {
-    width: min(12rem, 70%);
-}
-
-.roster-staff-panel-placeholder-title-bar {
-    width: 100%;
-    min-height: 1em;
-}
-
-.roster-staff-locate-button-placeholder {
-    width: var(--app-control-height-sm);
-    min-height: var(--app-control-height-sm);
-}
-
 .roster-staff-panel-summary {
     color: var(--app-muted);
     font-size: var(--roster-text-xs);

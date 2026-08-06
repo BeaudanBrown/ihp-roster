@@ -2,11 +2,20 @@
 
 module Web.View.Feedback.New where
 
-import Application.Helper.FrontendContract.AppShell (SubmitFeedback)
+import Application.Helper.FrontendContract.AppShell (ContentField,
+                                                     FeedbackDevicePixelRatioField,
+                                                     FeedbackDisplayModeField,
+                                                     FeedbackTypeField,
+                                                     FeedbackViewportHeightField,
+                                                     FeedbackViewportWidthField,
+                                                     SubmitFeedback)
+import Application.Helper.FrontendContract.AppShell.Request (AppShellActionFields,
+                                                             appShellActionFields,
+                                                             appShellActionFor)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
-                                                             appShellActionByMarker,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.FeedbackDiagnostics.Runtime (renderFeedbackDiagnosticInputs)
+import Application.Helper.FrontendContract.Surface.Values
 import qualified Data.Text as Text
 import Web.View.Prelude
 
@@ -42,7 +51,7 @@ renderFeedbackForm formMode feedbackItem =
     case formMode of
         HtmxOverlayForm ->
             renderAppShellActionForm
-                (appShellActionByMarker @SubmitFeedback)
+                (appShellActionFor fields)
                 AppShellActionRoute
                     { appShellActionRouteUrl = pathTo CreateFeedbackAction
                     , appShellActionRouteFields = []
@@ -53,25 +62,36 @@ renderFeedbackForm formMode feedbackItem =
 
                         ]
                     }
-                (renderFeedbackFormFields feedbackItem)
+                (renderFeedbackFormFields fields feedbackItem)
         PageOverlayForm -> [hsx|
             <form id={feedbackFormId}
                   method="POST"
                   action={CreateFeedbackAction}>
-                {renderFeedbackFormFields feedbackItem}
+                {renderFeedbackFormFields fields feedbackItem}
             </form>
         |]
+  where
+    fields =
+        appShellActionFields @SubmitFeedback
+            (surfaceField @FeedbackTypeField feedbackItem.feedbackType)
+            ( surfaceField @ContentField feedbackItem.content
+                &: surfaceOptionalField @FeedbackViewportWidthField Nothing
+                &: surfaceOptionalField @FeedbackViewportHeightField Nothing
+                &: surfaceOptionalField @FeedbackDevicePixelRatioField Nothing
+                &: surfaceOptionalField @FeedbackDisplayModeField Nothing
+                &: noSurfaceFields
+            )
 
-renderFeedbackFormFields :: UserFeedbackItem -> Html
-renderFeedbackFormFields feedbackItem = [hsx|
-    {renderFeedbackDiagnosticInputs}
+renderFeedbackFormFields :: AppShellActionFields SubmitFeedback -> UserFeedbackItem -> Html
+renderFeedbackFormFields fields feedbackItem = [hsx|
+    {renderFeedbackDiagnosticInputs fields}
     <div class="app-form-width">
         <div class="mb-3">
             <label class="form-label" for="feedback-type">Type</label>
-            <select id="feedback-type" name="feedbackType" class={classes [("form-select", True), ("is-invalid", feedbackHasErrorFor feedbackItem "feedbackType")]}>
-                {renderFeedbackTypeOption feedbackItem "bug" "Bug"}
-                {renderFeedbackTypeOption feedbackItem "suggestion" "Suggestion"}
-                {renderFeedbackTypeOption feedbackItem "other" "Other"}
+            <select id="feedback-type" name={surfaceFieldNameFrom @FeedbackTypeField fields} class={classes [("form-select", True), ("is-invalid", feedbackHasErrorFor feedbackItem "feedbackType")]}>
+                {renderFeedbackTypeOption feedbackItem Bug "Bug"}
+                {renderFeedbackTypeOption feedbackItem Suggestion "Suggestion"}
+                {renderFeedbackTypeOption feedbackItem Other "Other"}
             </select>
             {renderFeedbackFieldError feedbackItem "feedbackType"}
         </div>
@@ -80,7 +100,7 @@ renderFeedbackFormFields feedbackItem = [hsx|
             <label class="form-label" for="feedback-content">Feedback</label>
             <textarea
                 id="feedback-content"
-                name="content"
+                name={surfaceFieldNameFrom @ContentField fields}
                 rows="6"
                 class={classes [("form-control", True), ("is-invalid", feedbackHasErrorFor feedbackItem "content")]}
                 required="required"
@@ -91,10 +111,12 @@ renderFeedbackFormFields feedbackItem = [hsx|
     </div>
 |]
 
-renderFeedbackTypeOption :: UserFeedbackItem -> Text -> Text -> Html
+renderFeedbackTypeOption :: UserFeedbackItem -> FeedbackTypeEnum -> Text -> Html
 renderFeedbackTypeOption feedbackItem value label = [hsx|
-    <option value={value} selected={feedbackItem.feedbackType == value}>{label}</option>
+    <option value={wireValue} selected={feedbackItem.feedbackType == value}>{label}</option>
 |]
+  where
+    wireValue = inputValue value
 
 renderFeedbackFieldError :: UserFeedbackItem -> Text -> Html
 renderFeedbackFieldError feedbackItem fieldName =
@@ -105,10 +127,3 @@ renderFeedbackFieldError feedbackItem fieldName =
 
 feedbackHasErrorFor :: UserFeedbackItem -> Text -> Bool
 feedbackHasErrorFor feedbackItem fieldName = isJust (lookup fieldName feedbackItem.meta.annotations)
-
-feedbackContentPreview :: Text -> Text
-feedbackContentPreview content =
-    let stripped = Text.strip content
-     in if Text.length stripped > 160
-            then Text.take 157 stripped <> "..."
-            else stripped

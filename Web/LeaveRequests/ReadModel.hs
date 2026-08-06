@@ -5,7 +5,6 @@ module Web.LeaveRequests.ReadModel
     , LeaveRequestsFragment (..)
     , LeaveRequestsSectionFragment (..)
     , affectedRosterWeekInvalidationTargetsForScopes
-    , buildLeaveRequestsScope
     , currentLeaveArchiveOpen
     , currentLeaveArchivePage
     , currentLeaveArchivePageResult
@@ -17,6 +16,7 @@ module Web.LeaveRequests.ReadModel
 
 import Application.Helper.Controller (venueRoleToText)
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
+import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveSectionValue)
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Action as LeaveRequestsAction
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Live (leaveRequestsLiveScope)
@@ -57,8 +57,8 @@ data LeaveRequestsFragment
     | LeaveSidePanelContent
     | UnavailabilityBlackouts
     | LeaveAvailabilityWarnings
-    | LeaveRequestsSectionCount !Text
-    | LeaveRequestsSectionList !Text
+    | LeaveRequestsSectionCount !LeaveSectionValue
+    | LeaveRequestsSectionList !LeaveSectionValue
     deriving (Eq, Show)
 
 data LeaveRequestsSectionFragment
@@ -238,9 +238,6 @@ affectedRosterWeekInvalidationTargetsForScopes venueId venueConfig leaveRequest 
                     leaveRequest.startDate
                     leaveRequest.endDate
 
-buildLeaveRequestsScope :: Id Venue -> SurfaceScope
-buildLeaveRequestsScope venueId =
-    leaveRequestsLiveScope (unpackId venueId)
 
 currentLeaveRequestsSurface :: (?context :: ControllerContext) => SurfaceImpl Surface.LeaveRequestsSurface
 currentLeaveRequestsSurface =

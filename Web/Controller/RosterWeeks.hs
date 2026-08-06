@@ -20,6 +20,7 @@ import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldE
                                                             surfaceActionParamsPresent,
                                                             surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceIntentForm)
+import Application.Helper.FrontendContract.Surface.Roster (RosterStaffScopeValue (..))
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as RosterIntent
@@ -145,10 +146,9 @@ parseRosterStaffPanelScope
         case RosterAction.parseToggleRosterStaffScopeActionParams of
             Left errors -> Left (rosterSurfaceRequestErrorMessage errors)
             Right fields ->
-                case Text.toLower (surfaceFieldValue @Surface.StaffScope fields) of
-                    "all"   -> Right RosterStaffPanelAllVenue
-                    "group" -> Right RosterStaffPanelCurrentGroup
-                    _       -> Left "Choose a valid roster staff scope."
+                case surfaceFieldValue @Surface.StaffScope fields of
+                    RosterStaffAllVenue     -> Right RosterStaffPanelAllVenue
+                    RosterStaffCurrentGroup -> Right RosterStaffPanelCurrentGroup
 
 respondWithRosterCopyFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
 respondWithRosterCopyFailure rosterGroupId targetWeekOffset message =
@@ -196,14 +196,9 @@ rosterCopyBoundaryErrorMessage (BoundaryUnsupportedTimezone _) = "This venue tim
 rosterCopyBoundaryErrorMessage BoundaryBreakNotContained = "The copied break would fall outside its shift."
 rosterCopyBoundaryErrorMessage BoundaryBreakShapeInvalid = "The copied break boundaries are incomplete."
 
-rosterDayMutationMountedProjections :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterDay -> IO [RosterProjectionFragment]
-rosterDayMutationMountedProjections rosterDay = do
-    layoutMode <- fetchCurrentRosterLayoutMode
-    pure $
-        rosterGridInnerAndStaffPanelFragments
-            <> case rosterLayoutModeValue layoutMode of
-                "day_columns" -> []
-                _ -> [rosterDaySectionFragment (unpackId rosterDay.id)]
+rosterMutationMountedProjections :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterMutationProjection -> IO [RosterProjectionFragment]
+rosterMutationMountedProjections mutationProjection =
+    flip rosterMutationProjectionFragments mutationProjection <$> fetchCurrentRosterLayoutMode
 
 instance Controller RosterWeeksController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
@@ -639,7 +634,7 @@ instance Controller RosterWeeksController where
         let targetPath = rosterWeekUrl rosterWeek.weekOffset rosterGroupId
         if isHtmxRequest
             then do
-                mountedProjections <- rosterDayMutationMountedProjections rosterDay
+                mountedProjections <- rosterMutationMountedProjections (RosterDayMutation (unpackId rosterDay.id))
                 setHtmxPushUrl targetPath
                 respondWithRosterResourceInvalidation
                     rosterGroupId
@@ -686,7 +681,7 @@ instance Controller RosterWeeksController where
 
                 if isHtmxRequest
                     then do
-                        mountedProjections <- rosterDayMutationMountedProjections rosterDay
+                        mountedProjections <- rosterMutationMountedProjections (RosterDayMutation (unpackId rosterDay.id))
                         respondWithRosterResourceInvalidation
                             rosterGroupId
                             rosterWeek.weekOffset
@@ -738,7 +733,7 @@ instance Controller RosterWeeksController where
 
                 if isHtmxRequest
                     then do
-                        mountedProjections <- rosterDayMutationMountedProjections rosterDay
+                        mountedProjections <- rosterMutationMountedProjections (RosterDayMutation (unpackId rosterDay.id))
                         respondWithRosterResourceInvalidation
                             rosterGroupId
                             rosterWeek.weekOffset
@@ -755,10 +750,7 @@ instance Controller RosterWeeksController where
                 case RosterIntent.parseSetRosterLayoutModeIntentParams of
                     Left errors -> Left (rosterSurfaceRequestErrorMessage errors)
                     Right fields ->
-                        maybe
-                            (Left "Choose a valid roster layout.")
-                            Right
-                            (parseRosterLayoutMode (surfaceFieldValue @Surface.RosterLayoutMode fields))
+                        Right (surfaceFieldValue @Surface.RosterLayoutMode fields)
         case requestedLayoutMode of
             Left requestError -> do
                 let errorMessage = requestError
@@ -1176,12 +1168,7 @@ renderRosterShiftDialogForEdit rosterSlot _rosterDay rosterWeek values =
 
 respondToRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> Int -> LiveMutationResult RosterSlotMutationResult -> Text -> IO ()
 respondToRosterSlotMutation rosterGroupId rosterWeek rosterDay rowIndex mutationResult successMessage = do
-    layoutMode <- fetchCurrentRosterLayoutMode
-    let mountedProjections =
-            rosterGridInnerAndStaffPanelFragments
-                <> case rosterLayoutModeValue layoutMode of
-                    "day_columns" -> []
-                    _ -> actorRosterRowFragments [(unpackId rosterDay.id, rowIndex)]
+    mountedProjections <- rosterMutationMountedProjections (RosterRowsMutation [(unpackId rosterDay.id, rowIndex)])
     if isHtmxRequest
         then
             respondWithRosterResourceInvalidation
@@ -1196,12 +1183,7 @@ respondToRosterSlotMutation rosterGroupId rosterWeek rosterDay rowIndex mutation
 
 respondToRosterSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> LiveMutationResult RosterSlotMutationResult -> [(UUID.UUID, Int)] -> Bool -> IO ()
 respondToRosterSlotMove rosterGroupId rosterWeek mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
-    layoutMode <- fetchCurrentRosterLayoutMode
-    let mountedProjections =
-            rosterGridInnerAndStaffPanelFragments
-                <> case rosterLayoutModeValue layoutMode of
-                    "day_columns" -> []
-                    _             -> actorRosterRowFragments impactedRowKeys
+    mountedProjections <- rosterMutationMountedProjections (RosterRowsMutation impactedRowKeys)
     respondWithRosterResourceInvalidation
         rosterGroupId
         rosterWeek.weekOffset
@@ -1210,25 +1192,18 @@ respondToRosterSlotMove rosterGroupId rosterWeek mutationResult impactedRowKeys 
         (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
 
 respondToRosterTimelineSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> LiveMutationResult RosterSlotMutationResult -> Bool -> IO ()
-respondToRosterTimelineSlotMove rosterGroupId rosterWeek mutationResult shouldWarnSourceTimesheetUnchanged =
+respondToRosterTimelineSlotMove rosterGroupId rosterWeek mutationResult shouldWarnSourceTimesheetUnchanged = do
+    mountedProjections <- rosterMutationMountedProjections RosterTimelineMutation
     respondWithRosterResourceInvalidation
         rosterGroupId
         rosterWeek.weekOffset
         mutationResult.liveMutationTouchedResources
-        [ RosterProjectionGridToolbar
-        , RosterProjectionGridFrame
-        , RosterProjectionStaffPanel
-        ]
+        mountedProjections
         (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
 
 respondToRosterSlotUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> LiveMutationResult RosterSlotMutationResult -> [(UUID.UUID, Int)] -> Bool -> IO ()
 respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
-    layoutMode <- fetchCurrentRosterLayoutMode
-    let mountedProjections =
-            rosterGridInnerAndStaffPanelFragments
-                <> case rosterLayoutModeValue layoutMode of
-                    "day_columns" -> []
-                    _             -> actorRosterRowFragments impactedRowKeys
+    mountedProjections <- rosterMutationMountedProjections (RosterRowsMutation impactedRowKeys)
     respondWithRosterResourceInvalidation
         rosterGroupId
         rosterWeek.weekOffset
@@ -1349,10 +1324,6 @@ currentRosterGridViewMode =
         (Just "timeline", Just dayOffset) -> RosterDayTimelineGridView (max 0 (min 6 dayOffset))
         _ -> RosterWeekGridView
 
-currentRosterTimelineDayOffset :: (?request :: Request) => Maybe Int
-currentRosterTimelineDayOffset = case currentRosterGridViewMode of
-    RosterDayTimelineGridView dayOffset -> Just dayOffset
-    RosterWeekGridView                  -> Nothing
 
 buildRosterTimelineTodayUrl :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> IO Text
 buildRosterTimelineTodayUrl rosterGroupId = do

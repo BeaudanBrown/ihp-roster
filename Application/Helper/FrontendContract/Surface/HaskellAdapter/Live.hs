@@ -197,10 +197,10 @@ renderLiveAdapter ::
     RenderableAdapter LiveAdapterDeclaration ->
     [Text]
 renderLiveAdapter aliases adapter =
-    renderLiveConstructorSignature resultType adapter
+    renderLiveConstructorSignature resultType aliases adapter
         <> renderLiveConstructorBody builder aliases adapter
         <> [""]
-        <> renderLiveMatcherSignature resultType adapter
+        <> renderLiveMatcherSignature resultType aliases adapter
         <> renderLiveMatcherBody matcher aliases adapter
   where
     (resultType, builder, matcher) = case adapter.renderableAdapterPayload of
@@ -215,14 +215,14 @@ renderLiveAdapter aliases adapter =
             , "matchFrontendSurfaceFragmentKey"
             )
 
-renderLiveConstructorSignature :: Text -> RenderableAdapter LiveAdapterDeclaration -> [Text]
-renderLiveConstructorSignature resultType adapter =
+renderLiveConstructorSignature :: Text -> Map.Map Text Text -> RenderableAdapter LiveAdapterDeclaration -> [Text]
+renderLiveConstructorSignature resultType aliases adapter =
     case adapter.renderableAdapterFields of
         [] -> [resolvedConstructor adapter <> " :: " <> resultType]
         fields ->
             [resolvedConstructor adapter <> " ::"]
                 <> map ("    " <>)
-                    ( map ((<> " ->") . renderHaskellSourceType . (.resolvedAdapterFieldType)) fields
+                    ( map ((<> " ->") . renderHaskellSourceType aliases . (.resolvedAdapterFieldType)) fields
                         <> [resultType]
                     )
 
@@ -239,10 +239,10 @@ renderLiveConstructorBody builder aliases adapter =
     ]
         <> renderAdapterFieldsExpression aliases adapter.renderableAdapterFields
 
-renderLiveMatcherSignature :: Text -> RenderableAdapter LiveAdapterDeclaration -> [Text]
-renderLiveMatcherSignature resultType adapter =
+renderLiveMatcherSignature :: Text -> Map.Map Text Text -> RenderableAdapter LiveAdapterDeclaration -> [Text]
+renderLiveMatcherSignature resultType aliases adapter =
     [ resolvedMatcher adapter <> " :: " <> resultType <> " -> Maybe "
-        <> renderAdapterFieldValueTuple (map (.resolvedAdapterFieldType) adapter.renderableAdapterFields)
+        <> renderAdapterFieldValueTuple aliases (map (.resolvedAdapterFieldType) adapter.renderableAdapterFields)
     ]
 
 renderLiveMatcherBody ::

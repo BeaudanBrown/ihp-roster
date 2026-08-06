@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
+
 module Web.Controller.Admin.Support where
 
 import Application.Helper.FrontendContract.Surface.Admin.Live (adminRosterGroupsLiveScope)
@@ -239,14 +241,6 @@ moveListItem sourceIndex targetIndex items
                  in insertBefore <> [item] <> insertAfter
             _ -> items
 
-fetchCurrentVenueDayNames :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [DayName]
-fetchCurrentVenueDayNames = do
-    venueConfig <- fetchVenueConfig
-    dayNames <-
-        query @DayName
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> fetch
-    pure (sortDayNamesForVenueWeek venueConfig dayNames)
 
 fetchCurrentVenueInvitations :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [VenueInvitation]
 fetchCurrentVenueInvitations = do
@@ -346,12 +340,6 @@ data SubmittedPayRateSelection = SubmittedPayRateSelection
 emptySubmittedPayRateSelection :: SubmittedPayRateSelection
 emptySubmittedPayRateSelection = SubmittedPayRateSelection Nothing Nothing False
 
-parseSubmittedPayRateSelection ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    ByteString ->
-    IO (Maybe SubmittedPayRateSelection)
-parseSubmittedPayRateSelection paramName =
-    maybe parseLegacySubmittedPayRateSelection parseSubmittedPayRateSelectionValue (paramOrNothing @Text paramName)
 
 parseSubmittedPayRateSelectionValue ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -368,27 +356,7 @@ parseSubmittedPayRateSelectionValue value
         setErrorMessage "Choose a pay rate from the list, or leave the default selected."
         pure Nothing
 
-parseLegacySubmittedPayRateSelection ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    IO (Maybe SubmittedPayRateSelection)
-parseLegacySubmittedPayRateSelection = do
-    let maybeAwardLevelText =
-            case paramOrNothing @Text "overrideAwardLevelId" of
-                Just value -> Just value
-                Nothing    -> paramOrNothing @Text "defaultAwardLevelId"
-    case maybeAwardLevelText of
-        Just ""             -> parseLegacyImportedPayItemSelection
-        Just awardLevelText -> validateSubmittedAwardLevelId awardLevelText
-        Nothing             -> parseLegacyImportedPayItemSelection
 
-parseLegacyImportedPayItemSelection ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    IO (Maybe SubmittedPayRateSelection)
-parseLegacyImportedPayItemSelection =
-    case paramOrNothing @Text "importedXeroPayItemId" of
-        Just "" -> pure (Just emptySubmittedPayRateSelection)
-        Just importedPayItemText -> validateSubmittedImportedPayItemId importedPayItemText
-        Nothing -> pure (Just emptySubmittedPayRateSelection)
 
 validateSubmittedAwardLevelId ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -434,102 +402,19 @@ validateSubmittedImportedPayItemId rawImportedPayItemId =
             setErrorMessage "Choose an active imported Xero pay item, or leave the default selected."
             pure Nothing
 
-parseSubmittedImportedXeroPayItemId ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    IO (Maybe (Maybe (Id XeroImportedPayItem)))
-parseSubmittedImportedXeroPayItemId =
-    case paramOrNothing @(Id XeroImportedPayItem) "importedXeroPayItemId" of
-        Nothing -> pure (Just Nothing)
-        Just importedPayItemId -> do
-            maybeImportedPayItem <-
-                query @XeroImportedPayItem
-                    |> filterWhere (#id, importedPayItemId)
-                    |> filterWhere (#venueId, unpackId currentVenueId)
-                    |> filterWhere (#archivedAt, Nothing :: Maybe UTCTime)
-                    |> filterWhere (#providerAvailable, True)
-                    |> fetchOneOrNothing
-            case maybeImportedPayItem of
-                Just _ -> pure (Just (Just importedPayItemId))
-                Nothing -> do
-                    setErrorMessage "Choose an active imported Xero pay item, or leave Bepis award pay selected."
-                    pure Nothing
 
-parseSubmittedOverrideAwardLevelId ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    IO (Maybe (Maybe (Id AwardLevel)))
-parseSubmittedOverrideAwardLevelId =
-    case paramOrNothing @(Id AwardLevel) "overrideAwardLevelId" of
-        Nothing -> pure (Just Nothing)
-        Just awardLevelId -> do
-            maybeAwardLevel <-
-                query @AwardLevel
-                    |> filterWhere (#id, awardLevelId)
-                    |> filterWhere (#isActive, True)
-                    |> fetchOneOrNothing
-            case maybeAwardLevel of
-                Just _ -> pure (Just (Just awardLevelId))
-                Nothing -> do
-                    setErrorMessage "Choose a synced award level, or leave the shift type using the staff default."
-                    pure Nothing
 
 validateRosterWeekStartsOn ::
     (?context :: ControllerContext, ?request :: Request) =>
-    Maybe Text ->
+    Int ->
     IO (Maybe Int)
-validateRosterWeekStartsOn maybeValue =
-    case maybeValue >>= readMaybe . cs of
-        Nothing -> do
-            setErrorMessage "Choose the first day of the roster week."
-            pure Nothing
-        Just weekdayIndex
-            | weekdayIndex `elem` validRosterWeekStartDays -> pure (Just weekdayIndex)
-            | otherwise -> do
-                setErrorMessage "Choose a valid first day of the roster week."
-                pure Nothing
+validateRosterWeekStartsOn weekdayIndex
+    | weekdayIndex `elem` validRosterWeekStartDays = pure (Just weekdayIndex)
+    | otherwise = do
+        setErrorMessage "Choose a valid first day of the roster week."
+        pure Nothing
 
-parseShiftTypeId ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Text ->
-    IO (Maybe (Id ShiftType))
-parseShiftTypeId errorMessage =
-    case paramOrNothing @(Id ShiftType) "shiftTypeId" of
-        Nothing -> do
-            setErrorMessage errorMessage
-            pure Nothing
-        Just shiftTypeId -> do
-            maybeShiftType <-
-                query @ShiftType
-                    |> filterWhere (#venueId, unpackId currentVenueId)
-                    |> filterWhere (#id, shiftTypeId)
-                    |> fetchOneOrNothing
-            case maybeShiftType of
-                Nothing -> do
-                    setErrorMessage errorMessage
-                    pure Nothing
-                Just _ ->
-                    pure (Just shiftTypeId)
 
-parseDayNameId ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Text ->
-    IO (Maybe (Id DayName))
-parseDayNameId errorMessage =
-    case paramOrNothing @(Id DayName) "dayNameId" of
-        Nothing -> do
-            setErrorMessage errorMessage
-            pure Nothing
-        Just dayNameId -> do
-            maybeDayName <-
-                query @DayName
-                    |> filterWhere (#venueId, unpackId currentVenueId)
-                    |> filterWhere (#id, dayNameId)
-                    |> fetchOneOrNothing
-            case maybeDayName of
-                Nothing -> do
-                    setErrorMessage errorMessage
-                    pure Nothing
-                Just _ ->
-                    pure (Just dayNameId)
 
 redirectToAdminFor :: (?context :: ControllerContext, ?request :: Request) => Maybe (Id RosterGroup) -> IO ()
 redirectToAdminFor maybeRosterGroupId =

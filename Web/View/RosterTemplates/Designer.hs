@@ -1,6 +1,9 @@
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
+
 module Web.View.RosterTemplates.Designer where
 
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
+import Application.Helper.RosterTemplateScale (rosterTemplateScaleLabel)
 import Application.RosterTemplates
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
@@ -31,7 +34,7 @@ instance View DesignerView where
                                 <div>
                                     <p class="text-uppercase small fw-semibold text-success mb-1">Template design</p>
                                     <h2 class="h4 mb-1">{draft.draftName}</h2>
-                                    <p class="text-muted mb-0">{scaleLabel draft.draftDesign.scale} template · Private draft · Autosaved</p>
+                                    <p class="text-muted mb-0">{rosterTemplateScaleLabel draft.draftDesign.scale} template · Private draft · Autosaved</p>
                                 </div>
                                 <div class="d-flex flex-wrap justify-content-end gap-2">
                                     {when (isJust draft.draftDesign.sourceTemplateId) (renderEditRecoveryActions draft)}
@@ -212,9 +215,6 @@ renderShiftForm DesignerView { .. } day maybeShift = [hsx|
         <option value={tshow shiftType.id} selected={selectedShiftTypeId == Just (unpackId shiftType.id)}>{shiftType.name}</option>
     |]
 
-scaleLabel :: RosterTemplateScaleEnum -> Text
-scaleLabel Day  = "Day"
-scaleLabel Week = "Week"
 
 dayLabel :: RosterTemplateScaleEnum -> Int -> Text
 dayLabel Day _ = "Template day"

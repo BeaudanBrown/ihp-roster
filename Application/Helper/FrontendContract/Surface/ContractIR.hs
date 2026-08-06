@@ -573,6 +573,7 @@ validateBrowserDtoReferences surface =
         WireNullableIR inner -> wireReferences inner
         WireRefIR name
             | not (Text.isPrefixOf "\"" name) -> [name]
+        WireClosedIR name _ _ -> [name]
         _ -> []
 
 validateCompleteSetSorts :: SurfaceIR -> [ContractDiagnostic]
@@ -933,6 +934,7 @@ validateWireReferences surface =
             WireRefIR name
                 | name `elem` dtoNames -> []
                 | otherwise -> [diagnostic "invalid-wire-ref" ("field " <> fieldName <> " references missing dto " <> name <> " on surface " <> surface.surfaceName)]
+            WireClosedIR {} -> []
             WireListIR inner -> validateWire fieldName inner
             WireMapIR key value -> validateWire fieldName key <> validateWire fieldName value
             WireOptionalIR inner -> validateWire fieldName inner

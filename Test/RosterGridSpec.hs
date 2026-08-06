@@ -7,7 +7,10 @@ import IHP.ControllerPrelude (newRecord, unpackId)
 import IHP.Prelude
 import Test.Hspec
 import Test.Support (setTestEndTime, setTestStartTime)
+import Web.RosterWeeks.Projection (RosterMutationProjection (..),
+                                   rosterMutationProjectionFragments)
 import Web.RosterWeeks.Rows (impactedRowKeysForSlotUpdate)
+import Web.RosterWeeks.Types (RosterProjectionFragment (..))
 import Web.View.RosterWeeks.Grid (compactDayColumnSlots, lastRowIndexForRows,
                                   rowsForDay)
 
@@ -101,3 +104,28 @@ tests = describe "Roster grid row grouping" do
 
         impactedRowKeysForSlotUpdate (Just staffA) editedSlot relatedSlots
             `shouldMatchList` [(day1, 0), (day2, 1), (day3, 2)]
+
+    it "projects roster mutations through the mounted layout" do
+        let dayId = UUID.nil
+        let gridAndStaff =
+                [ RosterProjectionDayColumns
+                , RosterProjectionDayRail
+                , RosterProjectionWageRail
+                , RosterProjectionSlotsGrid
+                , RosterProjectionStaffPanel
+                ]
+
+        rosterMutationProjectionFragments DayRows (RosterDayMutation dayId)
+            `shouldBe` gridAndStaff <> [RosterProjectionDaySection dayId]
+        rosterMutationProjectionFragments DayColumns (RosterDayMutation dayId)
+            `shouldBe` gridAndStaff
+        rosterMutationProjectionFragments DayRows (RosterRowsMutation [(dayId, 2), (dayId, 2)])
+            `shouldBe` gridAndStaff <> [RosterProjectionRow dayId 2]
+        rosterMutationProjectionFragments DayColumns (RosterRowsMutation [(dayId, 2)])
+            `shouldBe` gridAndStaff
+        rosterMutationProjectionFragments DayColumns RosterTimelineMutation
+            `shouldBe`
+                [ RosterProjectionGridToolbar
+                , RosterProjectionGridFrame
+                , RosterProjectionStaffPanel
+                ]

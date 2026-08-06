@@ -1,5 +1,6 @@
 module Web.View.RosterTemplates.ConfirmReference where
 
+import Application.Helper.RosterTemplateScale (rosterTemplateScaleValue)
 import Application.Helper.Url (appendQueryParams)
 import Data.Time.Calendar (addDays)
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -36,7 +37,7 @@ instance View ConfirmReferenceView where
                                 <a class="btn btn-outline-secondary" href={backPath}>Back</a>
                                 <form method="POST" action={CreateRosterTemplateFromReferenceAction rosterGroup.id weekOffset}>
                                     <input type="hidden" name="name" value={templateName} />
-                                    <input type="hidden" name="scale" value={scaleValue templateScale} />
+                                    <input type="hidden" name="scale" value={rosterTemplateScaleValue templateScale} />
                                     <input type="hidden" name="confirmationToken" value={confirmationToken} />
                                     {forEach selectedDayOffset renderDayOffsetInput}
                                     <button class="btn btn-primary" type="submit">Open prefilled designer</button>
@@ -55,14 +56,11 @@ instance View ConfirmReferenceView where
                  in cs (formatTime defaultTimeLocale "%A %d %b %Y" date)
         backPath = appendQueryParams
             (pathTo ShowRosterTemplateReferenceAction { rosterGroupId = rosterGroup.id, weekOffset })
-            [("name", templateName), ("scale", scaleValue templateScale)]
+            [("name", templateName), ("scale", rosterTemplateScaleValue templateScale)]
 
 renderDayOffsetInput :: Int -> Html
 renderDayOffsetInput dayOffset = [hsx|<input type="hidden" name="dayOffset" value={tshow dayOffset} />|]
 
-scaleValue :: RosterTemplateScaleEnum -> Text
-scaleValue Day  = "day"
-scaleValue Week = "week"
 
 formatDate :: Day -> Text
 formatDate = cs . formatTime defaultTimeLocale "%d %b %Y"

@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "$#" -ne 2 ]]; then
+    echo "usage: weeder-policy <weeder-output> <baseline.tsv>" >&2
+    exit 64
+fi
+
+output_file="$1"
+baseline_file="$2"
+for required_file in "$output_file" "$baseline_file"; do
+    if [[ ! -f "$required_file" ]]; then
+        echo "weeder-policy: missing input $required_file" >&2
+        exit 66
+    fi
+done
+
+declare -A candidate_evidence=()
+declare -A baseline_reason=()
+
+pending_candidate=""
+while IFS= read -r line; do
+    if [[ -n "$pending_candidate" ]]; then
+        if [[ "$line" == "main: "* ]]; then
+            echo "weeder-policy: malformed candidate evidence: $pending_candidate" >&2
+            exit 65
+        fi
+        line="$pending_candidate$line"
+        pending_candidate=""
+    fi
+    if [[ "$line" == "main: "* ]]; then
+        if [[ "$line" =~ ^main:\ (\./)?(.+):([0-9]+):([0-9]+):\ (.+)$ ]]; then
+            path="${BASH_REMATCH[2]}"
+            source_line="${BASH_REMATCH[3]}"
+            source_column="${BASH_REMATCH[4]}"
+            symbol="${BASH_REMATCH[5]}"
+            key="$path"$'\t'"$symbol"
+            if [[ -n "${candidate_evidence[$key]:-}" ]]; then
+                echo "weeder-policy: duplicate candidate $path:$symbol" >&2
+                exit 65
+            fi
+            candidate_evidence["$key"]="main: ./$path:$source_line:$source_column: $symbol"
+        else
+            # Weeder 2.10 can wrap a long evidence row across two physical
+            # lines. Reassemble it before policy comparison so CI still emits
+            # canonical file:line:symbol evidence.
+            pending_candidate="$line"
+        fi
+    elif [[ -n "$line" ]]; then
+        echo "weeder-policy: unrecognised Weeder output: $line" >&2
+        exit 65
+    fi
+done < "$output_file"
+if [[ -n "$pending_candidate" ]]; then
+    echo "weeder-policy: malformed candidate evidence: $pending_candidate" >&2
+    exit 65
+fi
+
+line_number=0
+while IFS=$'\t' read -r path symbol reason || [[ -n "${path:-}${symbol:-}${reason:-}" ]]; do
+    ((line_number += 1))
+    [[ -z "${path:-}" ]] && continue
+    [[ "$path" == \#* ]] && continue
+    if [[ -z "${symbol:-}" ]]; then
+        echo "weeder-policy: malformed baseline entry at $baseline_file:$line_number" >&2
+        exit 65
+    fi
+    if [[ -z "${reason:-}" ]]; then
+        echo "weeder-policy: baseline entry requires a narrow reason at $baseline_file:$line_number ($path:$symbol)" >&2
+        exit 65
+    fi
+    key="$path"$'\t'"$symbol"
+    if [[ -n "${baseline_reason[$key]:-}" ]]; then
+        echo "weeder-policy: duplicate baseline entry at $baseline_file:$line_number ($path:$symbol)" >&2
+        exit 65
+    fi
+    baseline_reason["$key"]="$reason"
+done < "$baseline_file"
+
+failed=0
+for key in "${!candidate_evidence[@]}"; do
+    if [[ -z "${baseline_reason[$key]:-}" ]]; then
+        echo "weeder-policy: new unexplained app-owned unreachable declaration" >&2
+        echo "${candidate_evidence[$key]}" >&2
+        failed=1
+    fi
+done
+for key in "${!baseline_reason[@]}"; do
+    if [[ -z "${candidate_evidence[$key]:-}" ]]; then
+        path="${key%%$'\t'*}"
+        symbol="${key#*$'\t'}"
+        echo "weeder-policy: stale reachability baseline entry; ratchet it away: $path:$symbol" >&2
+        failed=1
+    fi
+done
+if [[ "$failed" -ne 0 ]]; then
+    exit 1
+fi
+
+count="${#candidate_evidence[@]}"
+label="candidates"
+[[ "$count" -eq 1 ]] && label="candidate"
+echo "weeder-policy: ok ($count classified $label)"

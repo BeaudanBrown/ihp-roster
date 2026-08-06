@@ -20,7 +20,6 @@ module Web.View.RosterWeeks.Grid
     , renderrosterGridToolbarLiveFragmentWithSwap
     , renderRosterLayout
     , renderRosterDaySectionFragment
-    , renderRosterDaySectionFragmentOob
     , renderRowFragment
     , renderRowOob
     , compactDayColumnSlots
@@ -54,10 +53,10 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceInteractionShell)
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.RosterWagePrediction
-import Application.Helper.ShiftTypeColours (shiftTypeColourPaletteKeys)
 import Application.Helper.TimeRules (rosterOperationalFinalSelectableTimeText,
                                      rosterOperationalStartTimeText)
-import Application.Helper.UserPreferences (rosterLayoutModeValue)
+import Application.Helper.UserPreferences (rosterLayoutModeIsDayColumns,
+                                           rosterLayoutModeValue)
 import Application.Helper.View (staffDisplayName)
 import Application.VenueTime.Model (rosterSlotStartTime)
 import Data.Coerce (coerce)
@@ -237,7 +236,7 @@ renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRende
         isTimelineLayout = case gridViewMode of
             RosterDayTimelineGridView _ -> True
             RosterWeekGridView          -> False
-        isDayColumnsLayout = not rosterIsHiddenDraft && not isTimelineLayout && rosterLayoutModeValue gridRosterLayoutMode == "day_columns"
+        isDayColumnsLayout = not rosterIsHiddenDraft && not isTimelineLayout && rosterLayoutModeIsDayColumns gridRosterLayoutMode
         weekTemplateTargetAvailable = rosterWeekIsEditable gridRosterWeek && length gridRosterDays == 7
         frameLayoutValue = case gridViewMode of
             RosterDayTimelineGridView _ -> "timeline"
@@ -300,7 +299,7 @@ renderRosterGridInnerFragments gridModel@RosterGridRenderModel { gridRosterWeek,
         slotColumnsAreEditable = gridViewCapabilities.canManageRosterColumns
      in if isNothing gridRosterWeek
             then renderHiddenDraftRosterGrid dayModel gridRosterDays
-            else if rosterLayoutModeValue gridRosterLayoutMode == "day_columns"
+            else if rosterLayoutModeIsDayColumns gridRosterLayoutMode
                 then renderrosterDayColumnsLiveFragment dayModel gridRosterDays
                 else renderRosterDayRowsGrid gridRosterEndTimesEnabled slotColumnsAreEditable gridRosterWeek gridSlotNames dayModel gridRosterDays
 
@@ -574,13 +573,10 @@ renderRosterDaySectionFragment :: (?context :: ControllerContext) => RosterDayRe
 renderRosterDaySectionFragment =
     renderRosterDaySectionFragmentWithSwap Nothing
 
-renderRosterDaySectionFragmentOob :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterDay -> Html
-renderRosterDaySectionFragmentOob dayModel rosterDay =
-    [hsx|<template>{renderRosterDaySectionFragmentWithSwap (Just "outerHTML") dayModel rosterDay}</template>|]
 
 renderRosterDaySectionFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterDayRenderModel -> RosterDay -> Html
 renderRosterDaySectionFragmentWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayRosterLayoutMode } rosterDay
-    | rosterLayoutModeValue dayRosterLayoutMode == "day_columns" =
+    | rosterLayoutModeIsDayColumns dayRosterLayoutMode =
         renderRosterDayColumnWithSwap maybeSwapOob dayModel rosterDay
 renderRosterDaySectionFragmentWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIsEditable, dayWeekStartDate, dayAllSlots, dayRenderIndexes } rosterDay =
     (if dayIsEditable && not rosterDay.isClosed
@@ -838,7 +834,7 @@ renderRowOob rowModel rowData =
 
 renderRowWithAttrs :: (?context :: ControllerContext) => RosterRowRenderModel -> (Int, (Int, [RosterSlot])) -> Maybe Text -> Html
 renderRowWithAttrs rowModel@RosterRowRenderModel { rowRosterLayoutMode } rowData maybeSwapOob
-    | rosterLayoutModeValue rowRosterLayoutMode == "day_columns" =
+    | rosterLayoutModeIsDayColumns rowRosterLayoutMode =
         renderDayColumnRow rowModel rowData maybeSwapOob
 renderRowWithAttrs RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssignmentFilters, rowStaffMembers, rowShiftTypes, rowRosterDay, rowRenderIndexes, rowRosterEndTimesEnabled, rowPublishAttempted } (_, (rowIndex, rowSlots)) maybeSwapOob =
     profileHtmlComponent "render.roster.row_component" [hsx|
@@ -966,4 +962,3 @@ renderRosterDayActionForm action actionUrl body =
             { actionRouteExtraAttrs = [("class", "d-inline")]
             }
         body
-

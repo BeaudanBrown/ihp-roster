@@ -10,7 +10,6 @@ module Application.StaffDocuments.Rsa
     , effectiveRsaComplianceStatus
     , effectiveRsaState
     , enqueueDueRsaReminderJobs
-    , latestRsaDocumentForStaff
     , performRsaReminderJob
     , reviewRsaDocument
     , rsaDocumentMaxBytes
@@ -106,23 +105,6 @@ rsaDocumentReminderDedupeKey :: Id StaffDocument -> Text -> Text
 rsaDocumentReminderDedupeKey staffDocumentId reminderKind =
     "staff-document-rsa-reminder:" <> tshow staffDocumentId <> ":" <> reminderKind
 
-latestRsaDocumentForStaff :: (?modelContext :: ModelContext) => Staff -> IO (Maybe StaffDocument)
-latestRsaDocumentForStaff staff = do
-    state <- rsaEffectiveStateForStaff staff
-    pure (rsaDisplayDocument state)
-
-rsaEffectiveStateForStaff :: (?modelContext :: ModelContext) => Staff -> IO StaffRsaEffectiveState
-rsaEffectiveStateForStaff staff = do
-    today <- utctDay <$> getCurrentTime
-    documents <-
-        query @StaffDocument
-            |> filterWhere (#venueId, staff.venueId)
-            |> filterWhere (#staffId, unpackId staff.id)
-            |> filterWhere (#documentType, RsaStatementOfAttainment)
-            |> orderByDesc #createdAt
-            |> fetch
-    pure (effectiveRsaState today documents)
-
 staffRsaComplianceRowsForVenue :: (?modelContext :: ModelContext) => Id Venue -> IO [StaffRsaComplianceRow]
 staffRsaComplianceRowsForVenue venueId = do
     staffMembers <-
@@ -216,9 +198,9 @@ effectiveRsaComplianceStatus today (Just staffDocument)
     | staffDocument.status == Rejected = StaffRsaRejected
     | staffDocument.status == PendingReview = StaffRsaPendingReview
     | staffDocument.status == Expired || staffDocument.expiryDate < today = StaffRsaExpired
-    | staffDocument.status == Verified && staffDocument.expiryDate <= addDays rsaReminderWindowDays today =
+    | staffDocument.status == StaffDocumentStatusEnumVerified && staffDocument.expiryDate <= addDays rsaReminderWindowDays today =
         StaffRsaExpiringSoon (diffDays staffDocument.expiryDate today)
-    | staffDocument.status == Verified = StaffRsaVerified
+    | staffDocument.status == StaffDocumentStatusEnumVerified = StaffRsaVerified
     | otherwise = StaffRsaPendingReview
 
 -- Expects RSA documents in newest-first order. Uploads stay append-only: a new
@@ -236,7 +218,7 @@ effectiveRsaState today documents =
         latestDocument = listToMaybe documents
         latestPending = find ((== PendingReview) . (.status)) documents
         latestRejected = find ((== Rejected) . (.status)) documents
-        currentDocument = find (\row -> row.status == Verified || row.status == Expired) documents
+        currentDocument = find (\row -> row.status == StaffDocumentStatusEnumVerified || row.status == Expired) documents
         hasReviewedHistory = isJust currentDocument || isJust latestRejected
         pendingDocument = latestPending >>= \pending -> if hasReviewedHistory then Nothing else Just pending
         pendingReplacement = latestPending >>= \pending -> if hasReviewedHistory then Just pending else Nothing
@@ -362,7 +344,7 @@ dueRsaReminder today staffDocument
     | staffDocument.status == PendingReview = Nothing
     | staffDocument.expiryDate < today && isNothing staffDocument.expiredReminderSentAt =
         Just (staffDocument, RsaReminderExpired)
-    | staffDocument.status == Verified
+    | staffDocument.status == StaffDocumentStatusEnumVerified
         && staffDocument.expiryDate >= today
         && staffDocument.expiryDate <= addDays rsaReminderWindowDays today
         && isNothing staffDocument.expiryReminderSentAt =

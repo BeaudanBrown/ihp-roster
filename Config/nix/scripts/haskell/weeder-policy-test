@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+policy="$repo_root/Config/nix/scripts/haskell/weeder-policy"
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
+
+cat > "$tmp_dir/current.txt" <<'EOF'
+main: ./Application/Helper/Dead.hs:14:1: retiredHelper
+EOF
+printf '%s\t%s\t%s\n' \
+    'Application/Helper/Dead.hs' \
+    'retiredHelper' \
+    'IHP reflection invokes this exact helper by name' \
+    > "$tmp_dir/baseline.tsv"
+
+"$policy" "$tmp_dir/current.txt" "$tmp_dir/baseline.tsv" > "$tmp_dir/matched.out"
+grep -F 'weeder-policy: ok (1 classified candidate)' "$tmp_dir/matched.out" >/dev/null
+
+cat > "$tmp_dir/wrapped.txt" <<'EOF'
+main: ./Application/Helper/De
+ad.hs:14:1: retiredHelper
+EOF
+"$policy" "$tmp_dir/wrapped.txt" "$tmp_dir/baseline.tsv" > "$tmp_dir/wrapped.out"
+grep -F 'weeder-policy: ok (1 classified candidate)' "$tmp_dir/wrapped.out" >/dev/null
+
+cat > "$tmp_dir/new.txt" <<'EOF'
+main: ./Application/Helper/Dead.hs:14:1: retiredHelper
+main: Application/Helper/NewDead.hs:27:1: newlyUnreachable
+EOF
+if "$policy" "$tmp_dir/new.txt" "$tmp_dir/baseline.tsv" > "$tmp_dir/new.out" 2> "$tmp_dir/new.err"; then
+    echo 'weeder-policy-test: expected a new candidate to fail' >&2
+    exit 1
+fi
+grep -F 'new unexplained app-owned unreachable declaration' "$tmp_dir/new.err" >/dev/null
+grep -F 'Application/Helper/NewDead.hs:27:1: newlyUnreachable' "$tmp_dir/new.err" >/dev/null
+
+: > "$tmp_dir/empty.txt"
+if "$policy" "$tmp_dir/empty.txt" "$tmp_dir/baseline.tsv" > "$tmp_dir/stale.out" 2> "$tmp_dir/stale.err"; then
+    echo 'weeder-policy-test: expected a stale baseline entry to fail' >&2
+    exit 1
+fi
+grep -F 'stale reachability baseline entry; ratchet it away' "$tmp_dir/stale.err" >/dev/null
+grep -F 'Application/Helper/Dead.hs' "$tmp_dir/stale.err" >/dev/null
+
+printf '%s\t%s\t%s\n' 'Application/Helper/Dead.hs' 'retiredHelper' '' > "$tmp_dir/reasonless.tsv"
+if "$policy" "$tmp_dir/current.txt" "$tmp_dir/reasonless.tsv" > "$tmp_dir/reason.out" 2> "$tmp_dir/reason.err"; then
+    echo 'weeder-policy-test: expected a reasonless exception to fail' >&2
+    exit 1
+fi
+grep -F 'baseline entry requires a narrow reason' "$tmp_dir/reason.err" >/dev/null
+
+cat > "$tmp_dir/malformed.txt" <<'EOF'
+main:./Application/Helper/Dead.hs:14:1: retiredHelper
+EOF
+if "$policy" "$tmp_dir/malformed.txt" "$tmp_dir/baseline.tsv" > "$tmp_dir/malformed.out" 2> "$tmp_dir/malformed.err"; then
+    echo 'weeder-policy-test: expected unrecognised candidate evidence to fail' >&2
+    exit 1
+fi
+grep -F 'unrecognised Weeder output' "$tmp_dir/malformed.err" >/dev/null
+grep -F 'main:./Application/Helper/Dead.hs:14:1: retiredHelper' "$tmp_dir/malformed.err" >/dev/null
+
+echo 'weeder-policy-test: ok'

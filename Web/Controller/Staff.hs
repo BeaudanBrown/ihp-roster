@@ -4,6 +4,7 @@ import Application.Helper.Controller (parseVenueRole)
 import Application.Helper.FrontendContract.AppShell (RemoveStaffOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker)
+import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue (..))
 import Application.Helper.FrontendContract.Surface.Request (attachSurfaceRequestFieldErrors,
                                                             surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsContentResource,
@@ -27,7 +28,6 @@ import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 errorToast, renderDialogOverlay, renderToastOob,
                                 successToast)
 import Application.PayAssignment (selectableStaffAssignmentMode)
-import Application.StaffDocuments.Rsa (latestRsaDocumentForStaff)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
@@ -125,12 +125,10 @@ instance Controller StaffController where
         selectedRosterGroupIds <- fetchStaffRosterGroupIds staff
         let preferenceWeekdays = allPreferenceWeekdays venueConfig
         selectedShiftPreferences <- fetchStaffShiftPreferenceSelections staff
-        staffRsaDocument <- latestRsaDocumentForStaff staff
         leaveRequest <- buildDefaultLeaveRequest
         leaveRequests <- fetchStaffLeaveRequests staff
-        today <- utctDay <$> getCurrentTime
         if isHtmxRequest
-            then respondHtml (renderStaffEditModalFragment staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
+            then respondHtml (renderStaffEditModalFragment staff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests weekOffset maybeRosterGroupId openSection)
             else render EditView { .. }
 
     action currentAction@ShowStaffContentLiveFragmentAction { staffId } = runBepis currentAction BepisFragmentAction do
@@ -169,7 +167,7 @@ instance Controller StaffController where
         let openSection =
                 case submissionResult of
                     Right (SubmittedStaffShiftPreferences _) -> "preferences"
-                    Right (SubmittedStaffProfileDetails submitted) -> normalizeStaffOpenSection submitted.submittedProfileSection
+                    Right (SubmittedStaffProfileDetails submitted) -> normalizeStaffOpenSection (inputValue submitted.submittedProfileSection)
                     Left _ -> "profile"
         venueConfig <- fetchVenueConfig
         rosterGroups <- fetchCurrentVenueRosterGroups
@@ -183,10 +181,8 @@ instance Controller StaffController where
                     _ -> currentSelectedRosterGroupIds
         let canManageStaffPay = hasRole VenueAdmin
         let preferenceWeekdays = allPreferenceWeekdays venueConfig
-        staffRsaDocument <- latestRsaDocumentForStaff staff
         leaveRequest <- buildDefaultLeaveRequest
         leaveRequests <- fetchStaffLeaveRequests staff
-        today <- utctDay <$> getCurrentTime
         selectedShiftPreferences <-
             case submissionResult of
                 Right (SubmittedStaffShiftPreferences submitted) ->
@@ -197,7 +193,7 @@ instance Controller StaffController where
                 _ -> fetchStaffShiftPreferenceSelections staff
         let renderStaffEditResponse renderedStaff renderedRosterGroupIds renderedPreferences =
                 if isHtmxRequest
-                    then respondHtml (renderStaffEditModalFragment renderedStaff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems renderedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays renderedPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
+                    then respondHtml (renderStaffEditModalFragment renderedStaff staffPayConfigurationRequired maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems renderedRosterGroupIds maybeVenueMembership staffRemovalAllowed preferenceWeekdays renderedPreferences leaveRequest leaveRequests weekOffset maybeRosterGroupId openSection)
                     else do
                         let selectedRosterGroupIds = renderedRosterGroupIds
                         let selectedShiftPreferences = renderedPreferences
@@ -241,7 +237,7 @@ instance Controller StaffController where
                                 renderStaffEditResponse originalStaff currentSelectedRosterGroupIds selectedShiftPreferences
                             Just mutationResult -> respondStaffUpdateSuccess mutationResult "Shift preferences updated"
             Right (SubmittedStaffProfileDetails submitted)
-                | submitted.submittedProfileSection /= "profile" -> do
+                | submitted.submittedProfileSection /= StaffProfileDetailsSection -> do
                     setErrorMessage "Choose a valid staff profile section."
                     renderStaffEditResponse staff submittedRosterGroupIds selectedShiftPreferences
                 | otherwise -> do
@@ -518,11 +514,7 @@ buildStaffFromSurfaceSubmission canManageStaffPay maybeSubmittedDefaultAwardLeve
              in applySelectableStaffPayMode withImportedPayItem
 
     applyEmploymentBasis currentStaff =
-        case Text.toLower <$> submitted.submittedEmploymentBasis of
-            Just "permanent" -> currentStaff |> set #employmentBasis Permanent
-            Just "casual" -> currentStaff |> set #employmentBasis Casual
-            Just _ -> currentStaff |> attachFailure #employmentBasis "Choose a valid employment basis."
-            Nothing -> currentStaff
+        maybe currentStaff (\employmentBasis -> currentStaff |> set #employmentBasis employmentBasis) submitted.submittedEmploymentBasis
 
 validateSubmittedRosterGroupIds ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -541,10 +533,10 @@ validateSubmittedRosterGroupIds maybeSubmittedIds = do
                 setErrorMessage "Choose roster groups from the current venue."
                 pure Nothing
 
-validateSubmittedStaffVenueRole :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> Maybe VenueMembership -> Maybe Text -> IO (Maybe (Maybe VenueRoleEnum))
+validateSubmittedStaffVenueRole :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> Maybe VenueMembership -> Maybe VenueRoleEnum -> IO (Maybe (Maybe VenueRoleEnum))
 validateSubmittedStaffVenueRole _ Nothing _ = pure (Just Nothing)
-validateSubmittedStaffVenueRole staff (Just membership) maybeSubmittedRoleText =
-    case maybeSubmittedRoleText >>= parseVenueRole of
+validateSubmittedStaffVenueRole staff (Just membership) maybeSubmittedRole =
+    case maybeSubmittedRole of
         Nothing -> do
             setErrorMessage "Choose a valid staff role."
             pure Nothing
@@ -641,27 +633,6 @@ requireSubmittedPayRateSelection paramName =
             pure Nothing
         Just value -> parseSubmittedPayRateSelectionValue value
 
-parseSubmittedDefaultAwardLevelId ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Bool ->
-    IO (Maybe (Maybe (Id AwardLevel)))
-parseSubmittedDefaultAwardLevelId canManageStaffPay
-    | not canManageStaffPay = pure (Just Nothing)
-    | otherwise = do
-        let maybeAwardLevelId = paramOrNothing @(Id AwardLevel) "defaultAwardLevelId"
-        case maybeAwardLevelId of
-            Nothing -> pure (Just Nothing)
-            Just awardLevelId -> do
-                maybeAwardLevel <-
-                    query @AwardLevel
-                        |> filterWhere (#id, awardLevelId)
-                        |> filterWhere (#isActive, True)
-                        |> fetchOneOrNothing
-                case maybeAwardLevel of
-                    Just _ -> pure (Just (Just awardLevelId))
-                    Nothing -> do
-                        setErrorMessage "Choose a synced award level."
-                        pure Nothing
 
 fetchStaffLinkedUserEmail :: (?modelContext :: ModelContext) => Staff -> IO (Maybe Text)
 fetchStaffLinkedUserEmail staff =

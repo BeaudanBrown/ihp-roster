@@ -11,10 +11,14 @@ typecheck
 echo "verify-full: complete Hspec"
 hspec-test
 
+echo "verify-full: zero-bypass typed contract authority"
+typed-contract-authority-check
+
 echo "verify-full: curated FrontendContract warnings"
 frontend-contract-warnings
 
-echo "verify-full: curated Haskell reachability"
+echo "verify-full: application reachability policy"
+weeder-policy-test
 weeder-check
 
 echo "verify-full: generated frontend, TypeScript, and browser unit checks"

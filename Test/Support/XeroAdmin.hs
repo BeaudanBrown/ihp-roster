@@ -138,21 +138,6 @@ payItemCreateXeroClientWithVerifiedLimit tokenResponse requestsRef maybeVerified
             pure (Right [])
         }
 
-payItemCreateXeroClientFailingRequest :: XeroTokenResponse -> IORef.IORef [(Text, Aeson.Value)] -> Int -> Text -> XeroClient
-payItemCreateXeroClientFailingRequest tokenResponse requestsRef failingRequestNumber errorMessage =
-    (payItemCreateXeroClient tokenResponse requestsRef)
-        { fetchEarningsRates = \_ _ -> do
-            requests <- IORef.readIORef requestsRef
-            let successfulBodies = map (snd . snd) (filter (\(index, _) -> index /= failingRequestNumber) (zip [1 :: Int ..] requests))
-            let successfulRates = concatMap xeroPayItemRequestEarningsRateRefs successfulBodies
-            pure (Right successfulRates)
-        , createPayItem = \_ _ idempotencyKey body -> do
-            IORef.modifyIORef' requestsRef (<> [(idempotencyKey, body)])
-            requests <- IORef.readIORef requestsRef
-            if length requests == failingRequestNumber
-                then pure (Left (XeroHttpError errorMessage))
-                else pure (Right [])
-        }
 
 xeroPayItemRequestEarningsRateRefs :: Aeson.Value -> [XeroEarningsRateRef]
 xeroPayItemRequestEarningsRateRefs body =
@@ -179,47 +164,14 @@ earningsRateRefFromValue value@(Aeson.Object earningsRate) = do
             value
 earningsRateRefFromValue _ = fail "Expected earnings rate"
 
-xeroPayItemRequestName :: Aeson.Value -> Maybe Text
-xeroPayItemRequestName =
-    AesonTypes.parseMaybe \body ->
-        Aeson.withObject "EarningsRate" (Aeson..: "Name") body
 
-xeroPayItemRequestAccountCode :: Aeson.Value -> Maybe Text
-xeroPayItemRequestAccountCode =
-    AesonTypes.parseMaybe \body ->
-        Aeson.withObject "EarningsRate" (Aeson..: "AccountCode") body
 
-xeroPayItemRequestHasName :: Text -> Aeson.Value -> Bool
-xeroPayItemRequestHasName expectedName body =
-    xeroPayItemRequestName body == Just expectedName
 
-xeroPayItemRequestHas :: Text -> Scientific -> Aeson.Value -> Bool
-xeroPayItemRequestHas expectedName expectedRate =
-    fromMaybe False . AesonTypes.parseMaybe \body ->
-        Aeson.withObject "EarningsRate" (\earningsRate -> do
-            name <- earningsRate Aeson..: "Name"
-            rate <- earningsRate Aeson..: "RatePerUnit"
-            rateType <- earningsRate Aeson..: "RateType"
-            typeOfUnits <- earningsRate Aeson..: "TypeOfUnits"
-            accountCode <- earningsRate Aeson..:? "AccountCode"
-            expenseAccountId <- earningsRate Aeson..:? "ExpenseAccountID"
-            let hasExpectedAccount = accountCode == Just ("477" :: Text) || expenseAccountId == Just ("account-477" :: Text)
-            pure (name == expectedName && rate == expectedRate && rateType == ("RATEPERUNIT" :: Text) && typeOfUnits == ("Hours" :: Text) && hasExpectedAccount)
-        ) body
 
 xeroTestAccountCodeFromExpenseAccountId :: Maybe Text -> Maybe Text
 xeroTestAccountCodeFromExpenseAccountId (Just "account-477") = Just "477"
 xeroTestAccountCodeFromExpenseAccountId _                    = Nothing
 
-xeroPayItemRequestIsSingleEarningsRate :: Aeson.Value -> Bool
-xeroPayItemRequestIsSingleEarningsRate (Aeson.Object object) =
-    AesonKeyMap.member (AesonKey.fromText "Name") object
-        && AesonKeyMap.member (AesonKey.fromText "EarningsType") object
-        && AesonKeyMap.member (AesonKey.fromText "RateType") object
-        && all
-            (not . (`AesonKeyMap.member` object) . AesonKey.fromText)
-            ["EarningsRates", "DeductionTypes", "LeaveTypes", "ReimbursementTypes"]
-xeroPayItemRequestIsSingleEarningsRate _ = False
 
 failingRefreshXeroClient :: Text -> XeroClient
 failingRefreshXeroClient message =
@@ -300,25 +252,6 @@ createSyncableXeroConnection venue user = do
         |> set #connectedByUserId (Just (unpackId user.id))
         |> createRecord
 
-createXeroEmployeeRecord ::
-    (?modelContext :: ModelContext) =>
-    XeroConnection ->
-    Text ->
-    Maybe Text ->
-    Text ->
-    IO XeroEmployee
-createXeroEmployeeRecord connection displayName maybeEmail employeeId = do
-    now <- getCurrentTime
-    newRecord @XeroEmployee
-        |> set #venueId connection.venueId
-        |> set #xeroConnectionId (unpackId connection.id)
-        |> set #xeroEmployeeId employeeId
-        |> set #displayName displayName
-        |> set #email maybeEmail
-        |> set #status (Just "ACTIVE")
-        |> set #rawPayload (Aeson.object ["EmployeeID" Aeson..= employeeId])
-        |> set #syncedAt now
-        |> createRecord
 
 ensureXeroAccountRecord ::
     (?modelContext :: ModelContext) =>
@@ -370,68 +303,7 @@ createXeroEarningsRateRecord connection name earningsRateId = do
         |> set #syncedAt now
         |> createRecord
 
-createStaffUsingAwardLevel ::
-    (?modelContext :: ModelContext) =>
-    Venue ->
-    Text ->
-    Text ->
-    AwardLevel ->
-    StaffEmploymentBasisEnum ->
-    IO Staff
-createStaffUsingAwardLevel venue firstName lastName awardLevel employmentBasis = do
-    user <- createUserRecord ("xero-award-staff-" <> Text.toLower firstName <> "-" <> Text.toLower lastName <> "@example.com") "staff" True
-    _ <- createVenueMembershipRecord venue user Worker
-    staff <- createStaffRecord venue (Just user) firstName lastName
-    staff
-        |> set #employmentBasis employmentBasis
-        |> set #payAssignmentMode AwardRate
-        |> set #defaultAwardLevelId (Just awardLevel.id)
-        |> updateRecord
 
-addCasualBaseAndSaturdayPenalty ::
-    (?modelContext :: ModelContext) =>
-    AwardLevel ->
-    Scientific ->
-    Scientific ->
-    IO ()
-addCasualBaseAndSaturdayPenalty awardLevel baseRate saturdayRate = do
-    payRate <-
-        newRecord @FwcMapdPayRate
-            |> set #awardFixedId awardLevel.awardFixedId
-            |> set #classificationFixedId (Just awardLevel.classificationFixedId)
-            |> set #classification awardLevel.classification
-            |> set #employeeRateTypeCode (Just "AD")
-            |> set #calculatedRate (Just baseRate)
-            |> set #calculatedRateType (Just "Hourly")
-            |> createRecord
-    _ <-
-        newRecord @AwardLevelBaseRate
-            |> set #awardLevelId (unpackId awardLevel.id)
-            |> set #employmentBasis Casual
-            |> set #fwcMapdPayRateId (unpackId payRate.id)
-            |> set #hourlyRate baseRate
-            |> set #rateLabel ("Hourly" :: Text)
-            |> createRecord
-
-    penaltyRate <-
-        newRecord @FwcMapdPenaltyRate
-            |> set #awardFixedId awardLevel.awardFixedId
-            |> set #classificationFixedId (Just awardLevel.classificationFixedId)
-            |> set #classification awardLevel.classification
-            |> set #employeeRateTypeCode (Just "AD")
-            |> set #basePayRateId payRate.basePayRateId
-            |> set #penaltyDescription (Just (inputValue SaturdayPenalty))
-            |> set #penaltyCalculatedValue (Just saturdayRate)
-            |> createRecord
-    _ <-
-        newRecord @AwardLevelPenaltyRate
-            |> set #awardLevelId (unpackId awardLevel.id)
-            |> set #employmentBasis Casual
-            |> set #penaltyKind SaturdayPenalty
-            |> set #fwcMapdPenaltyRateId (unpackId penaltyRate.id)
-            |> set #hourlyRate saturdayRate
-            |> createRecord
-    pure ()
 
 fixturePeriodKey fixture =
     cs ("calendar-preview:" <> tshow fixture.periodStart <> ":" <> tshow fixture.periodEnd :: Text)
@@ -447,7 +319,7 @@ markOtherFixtureStaffNotPaid fixture = do
         case existing of
             Just mapping ->
                 mapping
-                    |> set #mappingStatus ("not_applicable" :: Text)
+                    |> set #mappingStatus NotApplicable
                     |> set #xeroEmployeeId Nothing
                     |> set #xeroEmployeeName Nothing
                     |> set #xeroEmployeeEmail Nothing
@@ -459,7 +331,7 @@ markOtherFixtureStaffNotPaid fixture = do
                     |> set #venueId (unpackId fixture.venue.id)
                     |> set #xeroConnectionId (unpackId fixture.connection.id)
                     |> set #staffId (unpackId staffMember.id)
-                    |> set #mappingStatus ("not_applicable" :: Text)
+                    |> set #mappingStatus NotApplicable
                     |> set #updatedByUserId (Just (unpackId fixture.owner.id))
                     |> createRecord
                     >>= const (pure ())
@@ -467,7 +339,7 @@ markOtherFixtureStaffNotPaid fixture = do
 createSubmissionRunForFixture ::
     (?modelContext :: ModelContext) =>
     Preview.PreviewFixture ->
-    Text ->
+    XeroSubmissionRunStatusEnum ->
     IO XeroSubmissionRun
 createSubmissionRunForFixture fixture status =
     newRecord @XeroSubmissionRun
@@ -485,7 +357,7 @@ createSubmissionRunForFixture fixture status =
 createPreparationRunForFixture ::
     (?modelContext :: ModelContext) =>
     Preview.PreviewFixture ->
-    Text ->
+    XeroTimesheetPreparationRunStatusEnum ->
     IO XeroTimesheetPreparationRun
 createPreparationRunForFixture fixture status =
     newRecord @XeroTimesheetPreparationRun
@@ -547,25 +419,10 @@ resetXeroStaffMappingForPreparation staff = do
     mappings <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId staff.id) |> fetch
     forM_ mappings \mapping ->
         mapping
-            |> set #mappingStatus ("not_applicable" :: Text)
+            |> set #mappingStatus NotApplicable
             |> set #xeroEmployeeId Nothing
             |> set #xeroEmployeeName Nothing
             |> set #xeroEmployeeEmail Nothing
             |> set #updatedByUserId Nothing
             |> updateRecord
             >>= const (pure ())
-
-createXeroPayItemAccountCodeSelectionRecord ::
-    (?modelContext :: ModelContext) =>
-    XeroConnection ->
-    Text ->
-    IO XeroPayItemAccountCodeSelection
-createXeroPayItemAccountCodeSelectionRecord connection accountCode = do
-    now <- getCurrentTime
-    newRecord @XeroPayItemAccountCodeSelection
-        |> set #venueId connection.venueId
-        |> set #xeroConnectionId (unpackId connection.id)
-        |> set #accountCode (Just accountCode)
-        |> set #selectionStatus "verified"
-        |> set #lastVerifiedAt (Just now)
-        |> createRecord

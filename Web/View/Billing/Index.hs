@@ -8,6 +8,7 @@ import qualified Application.Helper.FrontendContract.Surface.Billing as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
                                                            surfaceFragmentTargetId)
+import Application.Helper.JobStatus (jobStatusHasDiagnostic, jobStatusLabel)
 import qualified Data.Text as Text
 import Data.Time.Clock (utctDay)
 import Web.Billing.FrontendSurface (BillingCheckoutReturnState (..),
@@ -515,42 +516,18 @@ renderBillingReconciliationJobs jobs = [hsx|
 |]
 
 renderBillingReconciliationJobRow :: AppJob -> Html
-renderBillingReconciliationJobRow appJob =
-    let presentation = reconciliationJobStatusPresentation appJob.status
-     in [hsx|
-        <tr>
-            <td class="small">{formatUtcTimestamp appJob.createdAt}</td>
-            <td><span class={presentation.statusBadgeClass}>{presentation.statusLabel}</span></td>
-            <td class="small app-muted">{boundedIdentifier (inputValue appJob.id)}</td>
-            <td class="small text-danger">{reconciliationDiagnostic appJob}</td>
-        </tr>
-    |]
-
-data ReconciliationJobStatusPresentation = ReconciliationJobStatusPresentation
-    { statusLabel      :: !Text
-    , statusBadgeClass :: !Text
-    }
-
-reconciliationJobStatusPresentation :: JobStatus -> ReconciliationJobStatusPresentation
-reconciliationJobStatusPresentation status =
-    case inputValue status of
-        "job_status_not_started" -> presentation "queued" "text-bg-secondary"
-        "job_status_running"     -> presentation "running" "text-bg-secondary"
-        "job_status_retry"       -> presentation "retrying" "text-bg-warning"
-        "job_status_succeeded"   -> presentation "succeeded" "text-bg-success"
-        "job_status_failed"      -> presentation "failed" "text-bg-danger"
-        "job_status_timed_out"   -> presentation "timed out" "text-bg-danger"
-        other                    -> presentation other "text-bg-secondary"
-  where
-    presentation statusLabel badgeClass =
-        ReconciliationJobStatusPresentation
-            { statusLabel
-            , statusBadgeClass = "badge " <> badgeClass
-            }
+renderBillingReconciliationJobRow appJob = [hsx|
+    <tr>
+        <td class="small">{formatUtcTimestamp appJob.createdAt}</td>
+        <td><span class={jobStatusBadgeClass appJob.status}>{jobStatusLabel appJob.status}</span></td>
+        <td class="small app-muted">{boundedIdentifier (inputValue appJob.id)}</td>
+        <td class="small text-danger">{reconciliationDiagnostic appJob}</td>
+    </tr>
+|]
 
 reconciliationDiagnostic :: AppJob -> Text
 reconciliationDiagnostic appJob
-    | inputValue appJob.status `elem` ["job_status_retry", "job_status_failed", "job_status_timed_out"] =
+    | jobStatusHasDiagnostic appJob.status =
         maybe "No diagnostic recorded." boundedDiagnostic appJob.lastError
     | otherwise = ""
 

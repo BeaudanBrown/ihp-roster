@@ -6,7 +6,6 @@ module Web.RosterWeeks.StaffOptions
     , fetchRosterStaffPanelEntriesForScope
     , fetchStaffPayConfigurationRequiredIds
     , hasNoPreferredShiftsOnDay
-    , isApprovedLeaveOn
     , rosterAssignmentOptionStateFor
     ) where
 
@@ -191,12 +190,6 @@ rosterAssignmentOptionStateFor assignmentFilters weekStartDate dayById assignedS
         , optionHiddenByAssignedToday = hiddenByAssignedToday
         }
 
-isApprovedLeaveOn :: Calendar.Day -> UUID.UUID -> LeaveRequest -> Bool
-isApprovedLeaveOn rosterDayDate staffId leaveRequest =
-    leaveRequest.staffId == staffId
-        && leaveRequest.status == LeaveRequestStatusEnumApproved
-        && rosterDayDate >= leaveRequest.startDate
-        && rosterDayDate < leaveRequest.endDate
 
 hasNoPreferredShiftsOnDay :: UUID.UUID -> Set.Set (UUID.UUID, Int) -> Calendar.Day -> Bool
 hasNoPreferredShiftsOnDay staffId preferredVisibleDays rosterDayDate =

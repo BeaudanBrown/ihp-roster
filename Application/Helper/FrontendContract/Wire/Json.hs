@@ -77,6 +77,7 @@ schemaName :: Contract.SchemaIR -> Text
 schemaName = \case
     Contract.RecordIR _ name _ -> name
     Contract.EnumIR _ name _ -> name
+    Contract.ClosedScalarIR _ name _ -> name
     Contract.LiteralEnumIR _ name _ -> name
     Contract.TaggedUnionIR _ name _ _ -> name
 
@@ -84,6 +85,7 @@ validateSchema :: Contract.FrontendContractIR -> Text -> Contract.SchemaIR -> Ae
 validateSchema contract label = \case
     Contract.RecordIR _ _ fields -> validateFieldObject contract label fields
     Contract.EnumIR _ _ values -> validateStringMember label values
+    Contract.ClosedScalarIR _ _ values -> validateStringMember label values
     Contract.LiteralEnumIR _ _ values -> validateStringMember label (fmap snd values)
     Contract.TaggedUnionIR _ _ discriminator cases -> validateTaggedUnion contract label discriminator cases
 
@@ -179,6 +181,7 @@ validateWireValueWith contract fieldName wire value =
         Contract.WireBoolIR -> expectBool
         Contract.WireUuidIR -> expectString
         Contract.WireDayIR -> expectString
+        Contract.WireClosedIR refName _ _ -> validateContractValueWithName contract refName value
         Contract.WireUnknownIR -> pure ()
         Contract.WireListIR inner -> case value of
             Aeson.Array items -> mapM_ (validateWireValueWith contract fieldName inner) items

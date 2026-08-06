@@ -5,12 +5,10 @@ module Application.Helper.FrontendContract.Surface.Profile
     ( ProfileDetailsSection
     , ProfileLeaveSection
     , ProfilePreferencesSection
-    , ProfileRsaSection
     , ProfileSecuritySection
     , StaffLeaveRequests
     , StaffPreferences
     , StaffProfile
-    , StaffRsaDocuments
     , ProfileScope
     , ProfileSurface
     , StaffDetailsSection
@@ -46,10 +44,23 @@ module Application.Helper.FrontendContract.Surface.Profile
     , Notes
     , StaffProfileFields
     , StaffShiftPreferenceFields
+    , StaffProfileSectionValue (..)
     ) where
 
-import Application.Helper.FrontendContract.Surface.DSL
+import Application.Helper.FrontendContract.Surface.DSL hiding (Enum)
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as SelfServiceLeave
+import Generated.Types (StaffEmploymentBasisEnum, VenueRoleEnum)
+import IHP.ModelSupport (InputValue (..))
+import IHP.Prelude
+
+data StaffProfileSectionValue
+    = StaffProfileDetailsSection
+    | StaffProfilePreferencesSection
+    deriving (Eq, Show, Enum, Bounded)
+
+instance InputValue StaffProfileSectionValue where
+    inputValue StaffProfileDetailsSection     = "profile"
+    inputValue StaffProfilePreferencesSection = "preferences"
 
 data Profile
 data Staff
@@ -69,18 +80,15 @@ data ProfileDetails
 data ProfilePreferences
 data ProfileSecurity
 data ProfileLeave
-data ProfileRsa
 data StaffProfileDetails
 data StaffProfilePreferences
 data StaffProfileLeave
 data ProfileSecuritySection
 data ProfileLeaveSection
-data ProfileRsaSection
 
 data StaffProfile
 data StaffPreferences
 type StaffLeaveRequests = SelfServiceLeave.StaffLeaveRequests
-data StaffRsaDocuments
 
 data UpdateProfileDetails
 data UpdateProfileShiftPreferences
@@ -114,7 +122,6 @@ data OuterHTML
 type StaffProfileResource = Resource StaffProfile '[ Field StaffId 'WireUUID ]
 type StaffPreferencesResource = Resource StaffPreferences '[ Field StaffId 'WireUUID ]
 type StaffLeaveRequestsResource = SelfServiceLeave.StaffLeaveRequestsResource
-type StaffRsaDocumentsResource = Resource StaffRsaDocuments '[ Field StaffId 'WireUUID ]
 
 type StaffProfileFields =
     '[ Field FirstNameField 'WireText
@@ -124,15 +131,15 @@ type StaffProfileFields =
      , Field IdealShiftsPerWeekField 'WireInt
      , Field EmergencyContactNameField 'WireText
      , Field EmergencyContactPhoneField 'WireText
-     , Field SectionField 'WireText
-     , OptionalField VenueRoleField 'WireText
-     , OptionalField EmploymentBasisField 'WireText
+     , Field SectionField ('WireClosed StaffProfileSectionValue)
+     , OptionalField VenueRoleField ('WireClosed VenueRoleEnum)
+     , OptionalField EmploymentBasisField ('WireClosed StaffEmploymentBasisEnum)
      , OptionalField PayRateSelectionField 'WireText
      , OptionalField RosterGroupIdsField ('WireList 'WireUUID)
      ]
 
 type StaffShiftPreferenceFields =
-    '[ Field SectionField 'WireText
+    '[ Field SectionField ('WireClosed StaffProfileSectionValue)
      , OptionalField ShiftPreferenceKeysField ('WireList 'WireText)
      ]
 
@@ -169,7 +176,6 @@ type ProfileSurface =
              , 'ResyncOnly
              , ContainsSurface SelfServiceLeave.SelfServiceLeave
              ]
-         , Fragment ProfileRsaSection '[] '[ 'MountTarget ProfileRsa '[], 'Eager, 'Live, 'DependsOn StaffRsaDocumentsResource '[ 'FromScope StaffId ] ]
          ]
 
 type StaffSurface =

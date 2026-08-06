@@ -65,6 +65,9 @@ expect_absent frontend/ts/roster/staff-panel-tabs.ts
 expect_absent frontend/ts/roster/staff-sort.ts
 expect_absent frontend/ts/roster/overview.ts
 expect_absent Application/Helper/FrontendContract/RosterValues.hs
+expect_absent Application/Helper/FrontendContract/Surface/HaskellAdapter/Action.hs
+expect_absent Application/Helper/FrontendContract/Surface/HaskellAdapter/Intent.hs
+expect_absent Application/Helper/FrontendContract/Surface/HaskellAdapter/RequestRenderer.hs
 
 expect_no_match \
     "legacy Frontend Haskell authority is forbidden" \
@@ -115,6 +118,22 @@ expect_no_match \
     "legacy LiveResource alias is forbidden" \
     '\b(type|data|newtype)[[:space:]]+LiveResource\b' \
     Application Web Test
+expect_no_match \
+    "catch-all venue configuration discriminator is forbidden" \
+    '\b(UpdateVenueConfig(Action)?|ConfigFieldField)\b|name="configField"' \
+    Application/Helper/FrontendContract/Surface/Admin.hs \
+    Web/Controller/Admin.hs \
+    Web/Types.hs \
+    Web/View/Admin/VenueSettings.hs
+expect_no_match \
+    "duplicate Action/Intent home registries are forbidden" \
+    'surface(Action|Intent)AdapterHomes|RegisteredSurface(Action|Intent)AdapterHomes' \
+    Application Test
+expect_no_match \
+    "raw Xero preparation AppShell request field names are forbidden" \
+    'name="(periodKey|staffId|decision|xeroEmployeeSelection|accountCode|referenceWaitStartedAt|referenceDemand)"|"(periodKey|staffId|decision|xeroEmployeeSelection|accountCode|referenceWaitStartedAt|referenceDemand)"[[:space:]]*[,)]' \
+    Web/Controller/Admin/Xero/Timesheets.hs \
+    Web/View/Admin/Xero/TimesheetPreparation.hs
 
 # Generated app-owned attributes must be consumed through reflected helpers or
 # generated TypeScript constants; these exact names prevent hand-authored

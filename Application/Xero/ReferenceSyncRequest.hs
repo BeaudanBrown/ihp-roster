@@ -83,7 +83,7 @@ referenceSyncResultFromJob appJob connection = do
             maybeSyncRun <-
                 query @XeroSyncRun
                     |> filterWhere (#xeroConnectionId, unpackId connection.id)
-                    |> filterWhere (#syncStatus, "succeeded" :: Text)
+                    |> filterWhere (#syncStatus, Succeeded)
                     |> orderByDesc #createdAt
                     |> fetchOneOrNothing
             case maybeSyncRun of

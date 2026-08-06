@@ -62,10 +62,9 @@ renderVenueSettingsSection venueConfig =
 renderRosterTimePickerWindowForm :: VenueConfig -> Html
 renderRosterTimePickerWindowForm venueConfig =
     renderFrontendSurfaceActionForm
-        (AdminAction.updateVenueConfigAction fields)
-        venueTimePickerSettingRoute
+        (AdminAction.updateRosterTimePickerWindowAction fields)
+        rosterTimePickerWindowSettingRoute
         [hsx|
-        <input type="hidden" name={surfaceFieldNameFrom @Surface.ConfigFieldField fields} value="timePickerWindow" />
         <div class="admin-setting-row-copy">
             <div class="fw-semibold">Valid shift window</div>
             <p class="small app-muted mb-0">Controls the selectable roster and timesheet shift times. Existing saved times outside this window remain allowed.</p>
@@ -91,23 +90,16 @@ renderRosterTimePickerWindowForm venueConfig =
     |]
   where
     fields =
-        AdminAction.updateVenueConfigActionFields
-            "timePickerWindow"
-            Nothing
-            Nothing
-            Nothing
-            (Just (venueTimePickerStartTimeText venueConfig))
-            (Just (venueTimePickerFinalSelectableTimeText venueConfig))
-            Nothing
-            Nothing
+        AdminAction.updateRosterTimePickerWindowActionFields
+            (venueTimePickerStartTimeText venueConfig)
+            (venueTimePickerFinalSelectableTimeText venueConfig)
 
 renderMinutePrecisionShiftTimesForm :: VenueConfig -> Html
 renderMinutePrecisionShiftTimesForm venueConfig =
     renderFrontendSurfaceActionForm
-        (AdminAction.updateVenueConfigAction fields)
-        venueToggleSettingRoute
+        (AdminAction.updateMinutePrecisionShiftTimesEnabledAction fields)
+        minutePrecisionSettingRoute
         [hsx|
-        <input type="hidden" name={surfaceFieldNameFrom @Surface.ConfigFieldField fields} value="minutePrecisionShiftTimesEnabled" />
         <div class="admin-setting-row-copy">
             <div class="fw-semibold">Minute-precision shift times</div>
             <p class="small app-muted mb-0">Use native minute entry for roster shifts and timesheets, including breaks. Timeline dragging remains on 15-minute intervals.</p>
@@ -117,24 +109,14 @@ renderMinutePrecisionShiftTimesForm venueConfig =
         </div>
     |]
   where
-    fields =
-        AdminAction.updateVenueConfigActionFields
-            "minutePrecisionShiftTimesEnabled"
-            Nothing
-            Nothing
-            (Just venueConfig.minutePrecisionShiftTimesEnabled)
-            Nothing
-            Nothing
-            Nothing
-            Nothing
+    fields = AdminAction.updateMinutePrecisionShiftTimesEnabledActionFields venueConfig.minutePrecisionShiftTimesEnabled
 
 renderUnavailableStaffWarningThresholdForm :: VenueConfig -> Html
 renderUnavailableStaffWarningThresholdForm venueConfig =
     renderFrontendSurfaceActionForm
-        (AdminAction.updateVenueConfigAction fields)
-        venueTimePickerSettingRoute
+        (AdminAction.updateUnavailableStaffWarningThresholdAction fields)
+        unavailableStaffWarningThresholdSettingRoute
         [hsx|
-        <input type="hidden" name={surfaceFieldNameFrom @Surface.ConfigFieldField fields} value="unavailableStaffWarningThreshold" />
         <div class="admin-setting-row-copy">
             <label class="fw-semibold" for="venue-unavailable-staff-warning-threshold">Unavailable-staff warning threshold</label>
             <p class="small app-muted mb-0">Warn managers when this many active staff are unavailable on the same date. Leave blank to keep warnings Disabled.</p>
@@ -151,24 +133,14 @@ renderUnavailableStaffWarningThresholdForm venueConfig =
         </div>
     |]
   where
-    fields =
-        AdminAction.updateVenueConfigActionFields
-            "unavailableStaffWarningThreshold"
-            Nothing
-            Nothing
-            Nothing
-            Nothing
-            Nothing
-            Nothing
-            venueConfig.unavailableStaffWarningThreshold
+    fields = AdminAction.updateUnavailableStaffWarningThresholdActionFields venueConfig.unavailableStaffWarningThreshold
 
 renderRosterEndTimesForm :: VenueConfig -> Html
 renderRosterEndTimesForm venueConfig =
     renderFrontendSurfaceActionForm
-        (AdminAction.updateVenueConfigAction fields)
-        venueToggleSettingRoute
+        (AdminAction.updateRosterEndTimesEnabledAction fields)
+        rosterEndTimesSettingRoute
         [hsx|
-        <input type="hidden" name={surfaceFieldNameFrom @Surface.ConfigFieldField fields} value="rosterEndTimesEnabled" />
         <div class="admin-setting-row-copy">
             <div class="fw-semibold">Show shift end times in roster</div>
             <p class="small app-muted mb-0">Shift end times are always collected; this controls whether they appear in the roster.</p>
@@ -178,18 +150,9 @@ renderRosterEndTimesForm venueConfig =
         </div>
     |]
   where
-    fields =
-        AdminAction.updateVenueConfigActionFields
-            "rosterEndTimesEnabled"
-            (Just venueConfig.rosterEndTimesEnabled)
-            Nothing
-            Nothing
-            Nothing
-            Nothing
-            Nothing
-            Nothing
+    fields = AdminAction.updateRosterEndTimesEnabledActionFields venueConfig.rosterEndTimesEnabled
 
-renderMinutePrecisionSettingToggle :: SurfaceActionFields Surface.AdminVenueSettingsSurface Surface.UpdateVenueConfig -> Text -> Bool -> Html
+renderMinutePrecisionSettingToggle :: SurfaceActionFields Surface.AdminVenueSettingsSurface Surface.UpdateMinutePrecisionShiftTimesEnabled -> Text -> Bool -> Html
 renderMinutePrecisionSettingToggle fields inputId isEnabled =
     renderAppToggleButton $
         ( defaultAppToggleStateButtonConfig
@@ -204,7 +167,7 @@ renderMinutePrecisionSettingToggle fields inputId isEnabled =
             , appToggleSubmitPolicy = ToggleSubmitImmediate
             }
 
-renderVenueSettingToggle :: SurfaceActionFields Surface.AdminVenueSettingsSurface Surface.UpdateVenueConfig -> Text -> Bool -> Html
+renderVenueSettingToggle :: SurfaceActionFields Surface.AdminVenueSettingsSurface Surface.UpdateRosterEndTimesEnabled -> Text -> Bool -> Html
 renderVenueSettingToggle fields inputId isEnabled =
     renderAppToggleButton $
         ( defaultAppToggleStateButtonConfig
@@ -219,19 +182,35 @@ renderVenueSettingToggle fields inputId isEnabled =
             , appToggleSubmitPolicy = ToggleSubmitImmediate
             }
 
-venueTimePickerSettingRoute :: FrontendSurfaceActionRoute
-venueTimePickerSettingRoute = FrontendSurfaceActionRoute
-    { actionRouteUrl = pathTo UpdateVenueConfigAction
+rosterTimePickerWindowSettingRoute :: FrontendSurfaceActionRoute
+rosterTimePickerWindowSettingRoute = FrontendSurfaceActionRoute
+    { actionRouteUrl = pathTo UpdateRosterTimePickerWindowAction
     , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "change-autosave-custom-htmx" [("hx-trigger", "change")]]
-    , actionRouteStandardUrl = Just (pathTo UpdateVenueConfigAction)
+    , actionRouteStandardUrl = Just (pathTo UpdateRosterTimePickerWindowAction)
     , actionRouteExtraAttrs = [("class", "admin-setting-row")]
     }
 
-venueToggleSettingRoute :: FrontendSurfaceActionRoute
-venueToggleSettingRoute = FrontendSurfaceActionRoute
-    { actionRouteUrl = pathTo UpdateVenueConfigAction
+unavailableStaffWarningThresholdSettingRoute :: FrontendSurfaceActionRoute
+unavailableStaffWarningThresholdSettingRoute = FrontendSurfaceActionRoute
+    { actionRouteUrl = pathTo UpdateUnavailableStaffWarningThresholdAction
+    , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "change-autosave-custom-htmx" [("hx-trigger", "change")]]
+    , actionRouteStandardUrl = Just (pathTo UpdateUnavailableStaffWarningThresholdAction)
+    , actionRouteExtraAttrs = [("class", "admin-setting-row")]
+    }
+
+minutePrecisionSettingRoute :: FrontendSurfaceActionRoute
+minutePrecisionSettingRoute = FrontendSurfaceActionRoute
+    { actionRouteUrl = pathTo UpdateMinutePrecisionShiftTimesEnabledAction
     , actionRouteCustomHtmx = []
-    , actionRouteStandardUrl = Just (pathTo UpdateVenueConfigAction)
+    , actionRouteStandardUrl = Just (pathTo UpdateMinutePrecisionShiftTimesEnabledAction)
+    , actionRouteExtraAttrs = [("class", "admin-setting-row")]
+    }
+
+rosterEndTimesSettingRoute :: FrontendSurfaceActionRoute
+rosterEndTimesSettingRoute = FrontendSurfaceActionRoute
+    { actionRouteUrl = pathTo UpdateRosterEndTimesEnabledAction
+    , actionRouteCustomHtmx = []
+    , actionRouteStandardUrl = Just (pathTo UpdateRosterEndTimesEnabledAction)
     , actionRouteExtraAttrs = [("class", "admin-setting-row")]
     }
 

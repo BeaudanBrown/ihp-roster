@@ -42,9 +42,6 @@ createUserRecord :: (?modelContext :: ModelContext) => Text -> Text -> Bool -> I
 createUserRecord emailAddress globalRole isProfileCompleted =
     createUserRecordWithPlatformRole emailAddress globalRole Nothing isProfileCompleted
 
-createUserRecordWithPassword :: (?modelContext :: ModelContext) => Text -> Text -> Text -> Bool -> IO User
-createUserRecordWithPassword emailAddress password globalRole isProfileCompleted =
-    createUserRecordWithPasswordAndPlatformRole emailAddress password globalRole Nothing isProfileCompleted
 
 createUserRecordWithPlatformRole :: (?modelContext :: ModelContext) => Text -> Text -> Maybe PlatformRoleEnum -> Bool -> IO User
 createUserRecordWithPlatformRole emailAddress globalRole platformRole isProfileCompleted = do
@@ -101,20 +98,6 @@ createVenueMembershipRecordWithStaffFixture staffFixture venue user venueRole = 
         void (createIdempotentStaffRecordWithDefaults venue (Just user) "Profile" "Complete")
     pure membership
 
-ensureVenueMembershipRecord :: (?modelContext :: ModelContext) => Venue -> User -> VenueRoleEnum -> IO VenueMembership
-ensureVenueMembershipRecord venue user venueRole =
-    query @VenueMembership
-        |> filterWhere (#venueId, unpackId (get #id venue))
-        |> filterWhere (#userId, unpackId (get #id user))
-        |> fetchOneOrNothing
-        >>= \case
-            Just membership ->
-                membership
-                    |> set #venueRole venueRole
-                    |> set #isActive True
-                    |> updateRecord
-            Nothing ->
-                createVenueMembershipRecord venue user venueRole
 
 createVenueInvitationRecord :: (?modelContext :: ModelContext) => Venue -> Maybe User -> Text -> VenueRoleEnum -> IO VenueInvitation
 createVenueInvitationRecord venue maybeInviter emailAddress inviteRole =
@@ -421,8 +404,6 @@ awardLevelClassificationFixedId levelName
     normalized = Text.toCaseFold levelName
     awardLevelNameHash = abs (Text.foldl' (\acc ch -> acc * 31 + Char.ord ch) 7 normalized)
 
-createSyntheticPenalty :: (?modelContext :: ModelContext) => AwardLevel -> AwardPenaltyKindEnum -> FwcMapdPayRate -> Scientific -> IO ()
-createSyntheticPenalty = createSyntheticPenaltyFor Permanent
 
 createSyntheticPenaltyFor :: (?modelContext :: ModelContext) => StaffEmploymentBasisEnum -> AwardLevel -> AwardPenaltyKindEnum -> FwcMapdPayRate -> Scientific -> IO ()
 createSyntheticPenaltyFor employmentBasis awardLevel penaltyKind payRate hourlyRate = do

@@ -217,11 +217,24 @@ module Application.Helper.FrontendContract.Surface.Roster
     , HideStaffOnApprovedLeave
     , HideStaffAlreadyAssignedToday
     , StaffScope
+    , RosterStaffScopeValue (..)
     ) where
 
-import Application.Helper.FrontendContract.Surface.DSL
+import Application.Helper.FrontendContract.Surface.DSL hiding (Enum)
 import Application.Helper.FrontendContract.Surface.Interaction
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as SelfServiceLeave
+import Generated.Types (RosterLayoutModeEnum, RosterTemplateScaleEnum)
+import IHP.ModelSupport (InputValue (..))
+import IHP.Prelude
+
+data RosterStaffScopeValue
+    = RosterStaffCurrentGroup
+    | RosterStaffAllVenue
+    deriving (Eq, Show, Enum, Bounded)
+
+instance InputValue RosterStaffScopeValue where
+    inputValue RosterStaffCurrentGroup = "group"
+    inputValue RosterStaffAllVenue     = "all"
 
 data Roster
 data RosterDayTimeline
@@ -707,7 +720,7 @@ type RosterActionBundle =
          , 'HtmxSwap 'HtmxInnerHTML
          ]
      , Action ToggleRosterStaffScope
-        '[ Field StaffScope 'WireText ]
+        '[ Field StaffScope ('WireClosed RosterStaffScopeValue) ]
         '[ 'HtmxMethod 'HtmxGet
          , 'HtmxTarget ('HtmxId RosterStaffPanelFragment)
          , 'HtmxSwap 'HtmxOuterHTML
@@ -720,7 +733,7 @@ type RosterActionBundle =
 
 type RosterInteractionBundle =
     Concat
-        '[ LayoutModeInteraction SetRosterLayoutMode RosterContent RosterLayoutMode
+        '[ LayoutModeInteraction SetRosterLayoutMode RosterContent RosterLayoutMode ('WireClosed RosterLayoutModeEnum)
          , '[ DragSessionDefinition
             , SourceRef ShiftDragSource
                 '[ 'SessionOption DragSession
@@ -783,7 +796,7 @@ type RosterTemplateApplicationBrowserBundle =
      , BrowserInboundDto TemplateApplicationCardConfig
         '[ Field TemplateId 'WireUUID
          , Field TemplateName 'WireText
-         , Field TemplateScale 'WireText
+         , Field TemplateScale ('WireClosed RosterTemplateScaleEnum)
          ]
      ]
 

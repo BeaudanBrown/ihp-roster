@@ -2,9 +2,7 @@
 
 module Web.View.RosterWeeks.StaffPanel
     ( renderrosterStaffPanelLiveFragment
-    , renderrosterStaffPanelLiveFragmentOob
     , renderrosterStaffPanelLiveFragmentWithSwap
-    , renderRosterStaffPanelPlaceholder
     ) where
 
 import Application.Helper.FrontendContract.AppShell (OpenRosterStaffCreateDialog,
@@ -16,6 +14,7 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              renderAppShellActionHtmxControl)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
+import Application.Helper.FrontendContract.Surface.Roster (RosterStaffScopeValue (..))
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Roster.SidePanel (rosterSidePanelRenderAttrs)
@@ -55,9 +54,6 @@ renderrosterStaffPanelLiveFragment :: (?context :: ControllerContext) => RosterS
 renderrosterStaffPanelLiveFragment =
     renderrosterStaffPanelLiveFragmentWithSwap Nothing
 
-renderrosterStaffPanelLiveFragmentOob :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> Html
-renderrosterStaffPanelLiveFragmentOob =
-    renderrosterStaffPanelLiveFragmentWithSwap (Just "outerHTML")
 
 renderrosterStaffPanelLiveFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterStaffPanelRenderModel -> Html
 renderrosterStaffPanelLiveFragmentWithSwap maybeSwapOob panelModel =
@@ -92,15 +88,6 @@ renderRosterStaffPanel panelModel@RosterStaffPanelRenderModel { staffPanelWeekOf
             pure (renderRosterTemplateLibraryFragment templateUserId staffPanelWeekOffset staffPanelCurrentRosterGroup panelModel.staffPanelRosterWeek templateLibrary)
         settingsPanelContent = renderRosterSettingsPanel panelModel
 
-renderRosterStaffPanelPlaceholder :: Bool -> Html
-renderRosterStaffPanelPlaceholder hasMultipleRosterGroups =
-    renderRosterStaffPanelShell $ renderRosterStaffPanelTabs True
-        [hsx|
-            {renderRosterStaffPanelPlaceholderHeader hasMultipleRosterGroups}
-            {renderRosterStaffPanelPlaceholderTable}
-        |]
-        mempty
-        mempty
 
 renderRosterStaffPanelShell :: Html -> Html
 renderRosterStaffPanelShell body = [hsx|
@@ -217,25 +204,7 @@ renderOpenRosterStaffCreateDialogButton weekOffset currentRosterGroupId =
         (rosterStaffOverlayRoute (appendQueryParams (pathTo NewStaffAction) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]))
         [hsx|<button type="button" class="btn btn-sm btn-outline-primary">Add trial staff</button>|]
 
-renderRosterStaffPanelPlaceholderHeader :: Bool -> Html
-renderRosterStaffPanelPlaceholderHeader hasMultipleRosterGroups = [hsx|
-    <div class="roster-staff-panel-header" aria-hidden="true">
-        <div>
-            <h2 class="h5 mb-0 roster-staff-panel-placeholder-title">
-                <span class="app-lazy-surface-bar app-lazy-surface-bar-title roster-staff-panel-placeholder-title-bar"></span>
-            </h2>
-        </div>
-        <div class="d-flex flex-wrap align-items-center justify-content-end gap-2 roster-staff-panel-header-actions">
-            <div class="app-lazy-surface-button-placeholder"></div>
-            {when hasMultipleRosterGroups renderRosterStaffPanelTogglePlaceholder}
-        </div>
-    </div>
-|]
 
-renderRosterStaffPanelTogglePlaceholder :: Html
-renderRosterStaffPanelTogglePlaceholder = [hsx|
-    <div class="app-lazy-surface-toggle-placeholder"></div>
-|]
 
 data RosterStaffPanelColumn
     = RosterStaffNameColumn
@@ -266,22 +235,7 @@ renderRosterStaffPanelTable panelStaffMembers weekOffset currentRosterGroupId re
     </div>
 |]
 
-renderRosterStaffPanelPlaceholderTable :: Html
-renderRosterStaffPanelPlaceholderTable = [hsx|
-    <div class="roster-staff-panel-list" aria-hidden="true">
-        <table class="roster-staff-table">
-            <thead class="roster-staff-table-head">
-                <tr>{forEach rosterStaffPanelColumns renderRosterStaffPanelSkeletonHeaderCell}</tr>
-            </thead>
-            <tbody class="roster-staff-table-body">
-                {forEach rosterStaffPanelSkeletonRows renderRosterStaffPanelSkeletonRow}
-            </tbody>
-        </table>
-    </div>
-|]
 
-rosterStaffPanelSkeletonRows :: [Int]
-rosterStaffPanelSkeletonRows = [1, 2, 3, 4, 5, 6]
 
 renderRosterStaffPanelHeaderCell :: RosterStaffPanelColumn -> Html
 renderRosterStaffPanelHeaderCell RosterStaffNameColumn = [hsx|
@@ -311,49 +265,9 @@ renderRosterStaffPanelHeaderCell RosterStaffActionColumn = [hsx|
     </th>
 |]
 
-renderRosterStaffPanelSkeletonHeaderCell :: RosterStaffPanelColumn -> Html
-renderRosterStaffPanelSkeletonHeaderCell column = [hsx|
-    <th scope="col" class={rosterStaffPanelColumnHeaderClass column}>
-        <div class={classes [("app-lazy-surface-bar", True), ("app-lazy-surface-cell-narrow", column == RosterStaffActionColumn)]}></div>
-    </th>
-|]
 
-renderRosterStaffPanelSkeletonRow :: Int -> Html
-renderRosterStaffPanelSkeletonRow rowIndex = [hsx|
-    <tr class="roster-staff-panel-entry">
-        {forEach rosterStaffPanelColumns (renderRosterStaffPanelSkeletonCell rowIndex)}
-    </tr>
-|]
 
-renderRosterStaffPanelSkeletonCell :: Int -> RosterStaffPanelColumn -> Html
-renderRosterStaffPanelSkeletonCell rowIndex column =
-    case column of
-        RosterStaffNameColumn -> [hsx|
-            <th scope="row" class="roster-staff-cell roster-staff-name">
-                <div class={classes [("app-lazy-surface-bar", True), ("app-lazy-surface-bar-short", rowIndex `mod` 3 == 0)]}></div>
-            </th>
-        |]
-        RosterStaffRoleColumn -> [hsx|
-            <td class="roster-staff-cell roster-staff-role">
-                <div class="app-lazy-surface-bar app-lazy-surface-bar-muted"></div>
-            </td>
-        |]
-        RosterStaffShiftsColumn -> [hsx|
-            <td class="roster-staff-cell roster-staff-shifts">
-                <div class="app-lazy-surface-bar app-lazy-surface-cell-narrow"></div>
-            </td>
-        |]
-        RosterStaffActionColumn -> [hsx|
-            <td class="roster-staff-cell roster-staff-action">
-                <div class="app-lazy-surface-icon-placeholder roster-staff-locate-button-placeholder"></div>
-            </td>
-        |]
 
-rosterStaffPanelColumnHeaderClass :: RosterStaffPanelColumn -> Text
-rosterStaffPanelColumnHeaderClass RosterStaffNameColumn = ""
-rosterStaffPanelColumnHeaderClass RosterStaffRoleColumn = "roster-staff-role-head"
-rosterStaffPanelColumnHeaderClass RosterStaffShiftsColumn = "roster-staff-metric-head"
-rosterStaffPanelColumnHeaderClass RosterStaffActionColumn = "roster-staff-action-head"
 
 sortRosterStaffPanelEntries :: [Staff] -> [RosterStaffPanelEntry] -> [RosterStaffPanelEntry]
 sortRosterStaffPanelEntries panelStaffMembers =
@@ -379,14 +293,14 @@ renderStaffScopeToggle weekOffset currentRosterGroupId panelScope =
         |]
   where
     actionUrl = pathTo (ShowRosterWeekStaffPanelFragmentAction weekOffset)
-    fields = RosterAction.toggleRosterStaffScopeActionFields (if panelScope == RosterStaffPanelAllVenue then "all" else "group")
+    fields = RosterAction.toggleRosterStaffScopeActionFields (if panelScope == RosterStaffPanelAllVenue then RosterStaffAllVenue else RosterStaffCurrentGroup)
 
 renderStaffScopeToggleButton :: SurfaceActionFields Surface.RosterSurface Surface.ToggleRosterStaffScope -> Id RosterGroup -> RosterStaffPanelScope -> Html
 renderStaffScopeToggleButton fields currentRosterGroupId panelScope =
     renderAppToggleButton $
         ( defaultAppToggleButtonConfig
             (staffScopeToggleInputId currentRosterGroupId)
-            (surfaceToggleScalarField @Surface.StaffScope fields "all" "group")
+            (surfaceToggleScalarField @Surface.StaffScope fields RosterStaffAllVenue RosterStaffCurrentGroup)
             (panelScope == RosterStaffPanelAllVenue)
             [hsx|<span class="small fw-semibold">Show all staff</span>|]
         )
@@ -395,8 +309,6 @@ renderStaffScopeToggleButton fields currentRosterGroupId panelScope =
             , appToggleSubmitPolicy = ToggleSubmitImmediate
             }
 
-staffPanelTargetSelector :: Text
-staffPanelTargetSelector = "#" <> rosterStaffPanelFragmentId
 
 staffScopeToggleInputId :: Id RosterGroup -> Text
 staffScopeToggleInputId rosterGroupId = "roster-staff-scope-toggle-" <> tshow rosterGroupId

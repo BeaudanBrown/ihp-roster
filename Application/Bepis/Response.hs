@@ -1,6 +1,5 @@
 module Application.Bepis.Response
-    ( bepisDialogResponse
-    , bepisFileResponse
+    ( bepisFileResponse
     , bepisHtmlResponse
     , bepisHtmxFragmentResponse
     , bepisJsonResponse
@@ -40,8 +39,6 @@ bepisHtmlResponse = bepisResponseSpan BepisHtmlResponse
 bepisHtmxFragmentResponse :: IO a -> IO a
 bepisHtmxFragmentResponse = bepisResponseSpan BepisHtmxFragmentResponse
 
-bepisDialogResponse :: IO a -> IO a
-bepisDialogResponse = bepisResponseSpan BepisDialogResponse
 
 bepisRedirectResponse :: IO a -> IO a
 bepisRedirectResponse = bepisResponseSpan BepisRedirectResponse

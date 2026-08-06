@@ -9,9 +9,6 @@ module Web.LeaveRequests.FrontendSurface
     , leaveRequestsCandidateMountedFragments
     , leaveRequestsSurfaceScope
     , leaveRequestsSurfaceImpl
-    , leaveRequestsSurfaceMountConfig
-    , leaveRequestsSurfaceScopeKey
-    , leaveRequestsSurfaceFragmentKeys
     , selfServiceLeaveFormMountedFragment
     , selfServiceLeaveHistoryMountedFragment
     , selfServiceLeaveSurfaceImpl
@@ -20,6 +17,7 @@ module Web.LeaveRequests.FrontendSurface
 
 import Application.Helper.FrontendContract.Surface.DSL (FieldSpec (..),
                                                         WireType (..))
+import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveSectionValue)
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Live as SurfaceLive
 import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
@@ -94,12 +92,7 @@ leaveRequestsSurfaceImpl scope =
         noSurfaceFields
         (leaveRequestsCandidateMountedFragments scope)
 
-leaveRequestsSurfaceMountConfig :: LeaveRequestsScopeValue -> FrontendSurfaceMountConfig
-leaveRequestsSurfaceMountConfig scope =
-    (leaveRequestsSurfaceImpl scope).surfaceImplMountConfig
 
-leaveRequestsSurfaceScopeKey :: LeaveRequestsScopeValue -> Text
-leaveRequestsSurfaceScopeKey = surfaceScopeKey . leaveRequestsSurfaceScope
 
 leaveRequestsSurfaceScope :: LeaveRequestsScopeValue -> SurfaceScope
 leaveRequestsSurfaceScope scope =
@@ -139,18 +132,16 @@ leaveAvailabilityWarningsMountedFragment =
             [("fragment", surfaceFragmentNameValue @Surface.LeaveRequestsSurface @Surface.LeaveAvailabilityWarnings)])
         FrontendSurfaceReplace
 
-leaveRequestsSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
-leaveRequestsSurfaceFragmentKeys = map (.mountedFragmentKey)
 
 leaveRequestsScopeFields :: LeaveRequestsScopeValue -> SurfaceFields (SurfaceScopeFieldSpecs Surface.LeaveRequestsSurface Surface.LeaveRequestsScope)
 leaveRequestsScopeFields scope =
     surfaceField @Surface.VenueId scope.leaveRequestsVenueId &: noSurfaceFields
 
-leaveRequestsSectionFields :: Text -> SurfaceFields '[ 'Field Surface.LeaveSection 'WireText]
+leaveRequestsSectionFields :: LeaveSectionValue -> SurfaceFields '[ 'Field Surface.LeaveSection ('WireClosed LeaveSectionValue)]
 leaveRequestsSectionFields section =
     surfaceField @Surface.LeaveSection section &: noSurfaceFields
 
-leaveRequestsTargetFields :: Text -> Text -> SurfaceFields '[ 'Field Surface.LeaveSection 'WireText, 'Field Surface.LeaveTargetSuffix 'WireText]
+leaveRequestsTargetFields :: LeaveSectionValue -> Text -> SurfaceFields '[ 'Field Surface.LeaveSection ('WireClosed LeaveSectionValue), 'Field Surface.LeaveTargetSuffix 'WireText]
 leaveRequestsTargetFields section suffix =
     surfaceField @Surface.LeaveSection section
         &: surfaceField @Surface.LeaveTargetSuffix suffix
@@ -165,7 +156,7 @@ leaveRequestsSectionMountedFragments =
         , leaveArchiveSection
         ]
 
-leaveRequestsSectionMountedFragmentsFor :: Text -> [FrontendSurfaceMountedFragment]
+leaveRequestsSectionMountedFragmentsFor :: LeaveSectionValue -> [FrontendSurfaceMountedFragment]
 leaveRequestsSectionMountedFragmentsFor section =
     [ frontendSurfaceMountedFragmentFor @Surface.LeaveRequestsSurface @Surface.LeaveSectionCount
         (leaveRequestsSectionFields section)
@@ -179,10 +170,10 @@ leaveRequestsSectionMountedFragmentsFor section =
         FrontendSurfaceReplace
     ]
 
-leaveRequestsFragmentUrl :: forall marker. ReflectPrimitive (SurfaceFragmentPrimitive Surface.LeaveRequestsSurface marker) => Text -> Text
+leaveRequestsFragmentUrl :: forall marker. ReflectPrimitive (SurfaceFragmentPrimitive Surface.LeaveRequestsSurface marker) => LeaveSectionValue -> Text
 leaveRequestsFragmentUrl section =
     appendQueryParams
         (pathTo ShowleaveRequestsContentLiveFragmentAction)
         [ ("fragment", surfaceFragmentNameValue @Surface.LeaveRequestsSurface @marker)
-        , ("section", section)
+        , ("section", inputValue section)
         ]

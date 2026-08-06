@@ -1,26 +1,45 @@
 module Web.RosterWeeks.Projection
-    ( actorRosterRowFragments
-    , rosterContentAndStaffPanelFragments
-    , rosterContentFragment
+    ( RosterMutationProjection (..)
+    , actorRosterRowFragments
     , rosterGridFrameFragment
     , rosterGridToolbarFragment
     , rosterGridInnerAndStaffPanelFragments
     , rosterGridStructuralAndStaffPanelFragments
     , rosterGridStructuralFragments
+    , rosterMutationProjectionFragments
     , rosterDaySectionFragment
-    , rosterDaySectionFragments
     , rosterRowFragment
     , rosterRowFragments
     , rosterStaffPanelFragment
     ) where
 
+import Application.Helper.UserPreferences (rosterLayoutModeIsDayColumns)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 import Web.RosterWeeks.Types
 
-rosterContentFragment :: RosterProjectionFragment
-rosterContentFragment =
-    RosterProjectionContent
+
+data RosterMutationProjection
+    = RosterDayMutation !UUID.UUID
+    | RosterRowsMutation ![(UUID.UUID, Int)]
+    | RosterTimelineMutation
+    deriving (Eq, Show)
+
+rosterMutationProjectionFragments :: RosterLayoutModeEnum -> RosterMutationProjection -> [RosterProjectionFragment]
+rosterMutationProjectionFragments layoutMode mutationProjection =
+    case mutationProjection of
+        RosterTimelineMutation -> rosterGridStructuralAndStaffPanelFragments
+        RosterDayMutation rosterDayId ->
+            rosterGridInnerAndStaffPanelFragments
+                <> rowLayoutFragments [rosterDaySectionFragment rosterDayId]
+        RosterRowsMutation impactedRows ->
+            rosterGridInnerAndStaffPanelFragments
+                <> rowLayoutFragments (actorRosterRowFragments impactedRows)
+  where
+    rowLayoutFragments fragments
+        | rosterLayoutModeIsDayColumns layoutMode = []
+        | otherwise = fragments
+
 
 rosterGridToolbarFragment :: RosterProjectionFragment
 rosterGridToolbarFragment =
@@ -53,19 +72,11 @@ rosterGridInnerAndStaffPanelFragments =
     , rosterStaffPanelFragment
     ]
 
-rosterContentAndStaffPanelFragments :: [RosterProjectionFragment]
-rosterContentAndStaffPanelFragments =
-    [ rosterContentFragment
-    , rosterStaffPanelFragment
-    ]
 
 rosterDaySectionFragment :: UUID.UUID -> RosterProjectionFragment
 rosterDaySectionFragment =
     RosterProjectionDaySection
 
-rosterDaySectionFragments :: [UUID.UUID] -> [RosterProjectionFragment]
-rosterDaySectionFragments =
-    map rosterDaySectionFragment . nub
 
 rosterRowFragment :: UUID.UUID -> Int -> RosterProjectionFragment
 rosterRowFragment =

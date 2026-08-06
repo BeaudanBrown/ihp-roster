@@ -126,7 +126,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 readIORef calls `shouldReturn` ["refresh", "employees", "pay-items-1", "calendars", "accounts", "payroll-settings"]
                 [syncRun] <- query @XeroSyncRun |> fetch
-                syncRun.syncStatus `shouldBe` "succeeded"
+                syncRun.syncStatus `shouldBe` Succeeded
                 syncRun.finishedAt `shouldSatisfy` isJust
                 completedJob <- fetch job.id
                 completedJob.status `shouldBe` JobStatusSucceeded
@@ -157,7 +157,7 @@ tests = aroundAll withDatabaseTestContext do
                         && not ("access-token" `isInfixOf` tshow result)
                         && not ("customer@example.com" `isInfixOf` tshow result)
                 [syncRun] <- query @XeroSyncRun |> fetch
-                syncRun.syncStatus `shouldBe` "failed"
+                syncRun.syncStatus `shouldBe` XeroSyncStatusEnumFailed
                 syncRun.errorMessage `shouldSatisfy` \case
                     Just message -> not ("access-token" `isInfixOf` message) && not ("customer@example.com" `isInfixOf` message)
                     Nothing -> False
@@ -247,7 +247,7 @@ tests = aroundAll withDatabaseTestContext do
                 result `shouldSatisfy` isLeft
                 query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount >>= (`shouldBe` 1)
                 [syncRun] <- query @XeroSyncRun |> fetch
-                syncRun.syncStatus `shouldBe` "failed"
+                syncRun.syncStatus `shouldBe` XeroSyncStatusEnumFailed
 
 advancingRuntime :: IORef UTCTime -> IORef [Int] -> XeroReferenceSyncRuntime
 advancingRuntime clock delays =

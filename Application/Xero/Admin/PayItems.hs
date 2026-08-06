@@ -3,7 +3,6 @@ module Application.Xero.Admin.PayItems
     , XeroPayItemSubmissionFailure (..)
     , createProposedXeroPayItems
     , selectedXeroPayItemAccountCode
-    , xeroPayItemSubmissionFailurePayload
     , xeroPayItemVerificationFailureMessage
     ) where
 
@@ -15,6 +14,7 @@ import Application.Helper.XeroAdminTypes (XeroPayItemAccountCodeOption (..),
 import Application.Helper.XeroPayItems (xeroManagedPayItemNamePrefix)
 import Application.Xero.Admin.ReferenceData
 import Application.Xero.Connection (xeroClientErrorText)
+import Application.Xero.WorkflowState (xeroAccountCodeSelectionIsVerified)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Char as Char
@@ -29,7 +29,7 @@ import IHP.ControllerPrelude
 selectedXeroPayItemAccountCode :: [XeroPayItemAccountCodeOption] -> Maybe XeroPayItemAccountCodeSelection -> Maybe Text
 selectedXeroPayItemAccountCode accountCodeOptions maybeSelection =
     case maybeSelection of
-        Just selection | selection.selectionStatus == "verified" -> do
+        Just selection | xeroAccountCodeSelectionIsVerified selection.selectionStatus -> do
             accountCode <- Text.strip <$> selection.accountCode
             if Text.null accountCode || accountCode `List.notElem` xeroPayItemAccountCodeOptionValues accountCodeOptions then Nothing else Just accountCode
         _ -> Nothing
@@ -129,16 +129,6 @@ createProposedXeroPayItems xeroClient connection accessToken now accountCode req
                         maybeExpenseAccountId
                         rest
 
-xeroPayItemSubmissionFailurePayload :: XeroPayItemSubmissionFailure -> Aeson.Value
-xeroPayItemSubmissionFailurePayload failure =
-    Aeson.object
-        [ "requirementKey" Aeson..= failure.failureRequirementKey
-        , "payItemName" Aeson..= failure.failurePayItemName
-        , "idempotencyKey" Aeson..= failure.failureIdempotencyKey
-        , "rateType" Aeson..= failure.failureRateType
-        , "ratePerUnit" Aeson..= failure.failureRatePerUnit
-        , "error" Aeson..= failure.failureError
-        ]
 
 xeroPayItemVerificationFailureMessage :: CreatePayItemsVerificationResult -> Text
 xeroPayItemVerificationFailureMessage verification =
@@ -268,7 +258,7 @@ persistCreatedXeroPayItem connection now requirement createdRate = do
                 |> fetchOneOrNothing
         forM_ maybeRequirementRecord \record ->
             record
-                |> set #requirementStatus ("created" :: Text)
+                |> set #requirementStatus XeroPayItemRequirementStatusEnumCreated
                 |> set #xeroEarningsRateId (Just earningsRate.xeroEarningsRateId)
                 |> set #xeroEarningsRateName (Just earningsRate.name)
                 |> set #xeroEarningsRateRateType earningsRate.rateType
@@ -300,7 +290,7 @@ upsertCreatedXeroEarningsRateMapping connection now requirement earningsRate = d
                 |> set #localBucketLabel localBucketLabel
                 |> set #xeroEarningsRateId (Just earningsRate.xeroEarningsRateId)
                 |> set #xeroEarningsRateName (Just earningsRate.name)
-                |> set #mappingStatus ("verified" :: Text)
+                |> set #mappingStatus XeroEarningsRateMappingStatusEnumVerified
                 |> set #lastVerifiedAt (Just now)
                 |> set #updatedByUserId (Just (unpackId currentUser.id))
     case existingMapping of

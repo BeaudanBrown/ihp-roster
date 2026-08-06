@@ -1,6 +1,6 @@
 # ADR 0002: Haskell Owns Browser Business Authority
 
-Status: proposed
+Status: accepted
 
 Date: 2026-07-12
 
@@ -11,6 +11,8 @@ Bepis needs browser behavior that is reusable without moving business authority 
 ## Decision
 
 Use an authority-only generic frontend. Haskell owns business relationships, choices, routes, payloads, canonical tags, and server/browser schemas. TypeScript may retain feature-local presentation mechanics, but consumes server-declared business meaning rather than deriving it from feature DOM structure.
+
+Persisted app-owned finite domains use PostgreSQL enums and generated Haskell constructors; provider-owned vocabularies remain open at named adapters. Non-persisted finite request values use `WireClosed` over a finite Haskell type. Surface and AppShell mutations are nominal exact operations rather than text discriminators with optional supersets. Open tagged references may remain text only when their payload is intrinsically open, such as provider ids or UUID-tagged selections; their field names and parsers still belong to the nominal operation.
 
 Promote a capability into the Haskell DSL and generated contracts immediately when TypeScript would otherwise interpret business authority, even for its first use. Keep presentation-only mechanics local until a second independent surface demonstrates a shared pattern; do not add speculative DSL vocabulary.
 
@@ -60,7 +62,7 @@ Deliver consolidation as complete cross-consumer capability slices rather than f
 
 The first slice is contract authority rather than visible UI work: audit generated groups and handwritten parallels, correct conflict-policy and event representations, narrow runtime vocabulary types, generate passkey server DTOs, add checked browser visibility and module classification, establish baseline guardrails, and prune only confirmed server-only projections. New UI capabilities build on that foundation.
 
-Every capability slice requires layered evidence: Haskell contract/IR tests, render-helper tests, TypeScript runtime tests, focused real-browser coverage where relevant, deletion guardrails, and focused drift/typecheck gates. Final consolidation requires the full repository and E2E gates with zero legacy exceptions.
+Every capability slice requires layered evidence: Haskell contract/IR tests, render-helper tests, TypeScript runtime tests, focused real-browser coverage where relevant, deletion guardrails, and focused drift/typecheck gates. Final consolidation requires the full repository and E2E gates with zero legacy exceptions. `typed-contract-authority-check` blocks generic production request seams, finite-value `WireText` regressions, handwritten migrated field names, discriminator envelopes, rendered generated-enum decisions, and unexplained Weeder debt; generated drift and compile-failure gates remain the semantic authorities.
 
 ## Alternatives Considered
 
@@ -69,5 +71,9 @@ Every capability slice requires layered evidence: Haskell contract/IR tests, ren
 
 ## Links
 
+
 - Living docs: `Application/Helper/Interaction.SPEC.md`,
   `Application/Helper/FrontendContract/Surface/README.md`
+
+- Historical workstream: `docs/archive/typed-contract-authority.md`
+- Living docs: `Application/Helper/Interaction.SPEC.md`, `Application/Helper/FrontendContract/Surface/README.md`

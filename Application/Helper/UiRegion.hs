@@ -5,9 +5,7 @@ module Application.Helper.UiRegion
     , UiRegionLifecycleEvent (..)
     , UiRegionTransitionProfile (..)
     , canonicalUiRegionDomAttributes
-    , canonicalUiRegionLifecycleEvents
     , uiRegionFragmentEnabledValue
-    , uiRegionLifecycleEventName
     , uiRegionTransitionProfileText
     ) where
 
@@ -62,16 +60,3 @@ uiRegionTransitionProfileText = \case
     UiRegionTransitionFade -> enumLiteralValue @Contract.UiRegionTransitionProfile @Contract.Fade
     UiRegionTransitionFadeSlide -> enumLiteralValue @Contract.UiRegionTransitionProfile @Contract.FadeSlide
     UiRegionTransitionPanel -> enumLiteralValue @Contract.UiRegionTransitionProfile @Contract.Panel
-
-canonicalUiRegionLifecycleEvents :: [(UiRegionLifecycleEvent, Text)]
-canonicalUiRegionLifecycleEvents =
-    [ (UiRegionRequestStart, eventNameValue @Contract.RegionRequestStart)
-    , (UiRegionBeforeSwap, eventNameValue @Contract.RegionBeforeSwap)
-    , (UiRegionAfterSwap, eventNameValue @Contract.RegionAfterSwap)
-    , (UiRegionSettle, eventNameValue @Contract.RegionSettle)
-    , (UiRegionError, eventNameValue @Contract.RegionError)
-    ]
-
-uiRegionLifecycleEventName :: UiRegionLifecycleEvent -> Text
-uiRegionLifecycleEventName event =
-    fromMaybe (error "Unknown UI region lifecycle event") (lookup event canonicalUiRegionLifecycleEvents)

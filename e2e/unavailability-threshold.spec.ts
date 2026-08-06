@@ -89,7 +89,7 @@ test.describe('Unavailable-staff threshold warnings', () => {
             await expect(adminPage.locator('#venue-unavailable-staff-warning-threshold')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
 
             const thresholdResponsePromise = adminPage.waitForResponse((response) =>
-                response.request().method() === 'POST' && response.url().includes('/UpdateVenueConfig'),
+                response.request().method() === 'POST' && response.url().includes('/UpdateUnavailableStaffWarningThreshold'),
             );
             await adminPage.locator('#venue-unavailable-staff-warning-threshold').fill('1');
             await adminPage.locator('#venue-unavailable-staff-warning-threshold').dispatchEvent('change');

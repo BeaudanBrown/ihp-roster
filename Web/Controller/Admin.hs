@@ -14,6 +14,7 @@ import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldE
 import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterWeekResource)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
 import Application.Helper.FrontendContract.Surface.Values
+import Application.Helper.InvitationStatus (invitationStatusAllowsRenewal)
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
 import Application.Helper.PasskeySetupTokens
 import Application.Helper.Profiling
@@ -21,8 +22,7 @@ import Application.Helper.RosterGroups
 import Application.Helper.SurfaceResource
 import Application.Helper.TimeRules (parseQuarterHourMinuteOfDay)
 import Application.Helper.Url (appendQueryParams)
-import Application.Helper.WeekBoundaries (validRosterWeekStartDays,
-                                          weekdayIndexLabel)
+import Application.Helper.WeekBoundaries (weekdayIndexLabel)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
@@ -274,73 +274,82 @@ instance Controller AdminController where
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (submitXeroTimesheetPreparationAction xeroTimesheetPreparationRunId)
 
-    action currentAction@UpdateVenueConfigAction = runBepis currentAction BepisMutationAction do
+    action currentAction@UpdateRosterEndTimesEnabledAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         venueConfig <- fetchVenueConfig
-        case AdminAction.parseUpdateVenueConfigActionParams of
-            Left errors -> do
-                reportSurfaceRequestErrors errors
-                respondToVenueSettingsMutation
-            Right fields ->
-                case surfaceFieldValue @Surface.ConfigFieldField fields of
-                    "rosterEndTimesEnabled" -> do
-                        let rosterEndTimesEnabled = fromMaybe False (surfaceFieldValue @Surface.RosterEndTimesEnabled fields)
-                        _ <- setRosterEndTimesEnabledMutation venueConfig rosterEndTimesEnabled
+        case AdminAction.parseUpdateRosterEndTimesEnabledActionParams of
+            Left errors -> reportSurfaceRequestErrors errors
+            Right fields -> do
+                let enabled = surfaceFieldValue @Surface.RosterEndTimesEnabled fields
+                _ <- setRosterEndTimesEnabledMutation venueConfig enabled
+                setSuccessMessage $
+                    if enabled
+                        then "Roster end times shown in the roster."
+                        else "Roster end times hidden from the roster."
+        respondToVenueSettingsMutation
+
+    action currentAction@UpdateMinutePrecisionShiftTimesEnabledAction = runBepis currentAction BepisMutationAction do
+        ensureVenueWritable
+        venueConfig <- fetchVenueConfig
+        case AdminAction.parseUpdateMinutePrecisionShiftTimesEnabledActionParams of
+            Left errors -> reportSurfaceRequestErrors errors
+            Right fields -> do
+                let enabled = surfaceFieldValue @Surface.MinutePrecisionShiftTimesEnabled fields
+                _ <- setMinutePrecisionShiftTimesEnabledMutation venueConfig enabled
+                setSuccessMessage $
+                    if enabled
+                        then "Minute-precision shift and timesheet entry enabled."
+                        else "15-minute shift and timesheet entry enabled."
+        respondToVenueSettingsMutation
+
+    action currentAction@UpdateUnavailableStaffWarningThresholdAction = runBepis currentAction BepisMutationAction do
+        ensureVenueWritable
+        venueConfig <- fetchVenueConfig
+        case AdminAction.parseUpdateUnavailableStaffWarningThresholdActionParams of
+            Left errors -> reportSurfaceRequestErrors errors
+            Right fields -> do
+                let threshold = surfaceFieldValue @Surface.UnavailableStaffWarningThreshold fields
+                if maybe True (\value -> value >= 1 && value <= 100) threshold
+                    then do
+                        _ <- setUnavailableStaffWarningThresholdMutation venueConfig threshold
                         setSuccessMessage $
-                            if rosterEndTimesEnabled
-                                then "Roster end times shown in the roster."
-                                else "Roster end times hidden from the roster."
-                        respondToVenueSettingsMutation
-                    "autoTimesheetCreationEnabled" -> do
-                        setErrorMessage "Automatic timesheet creation has been replaced by rostered timesheet suggestions."
-                        respondToVenueSettingsMutation
-                    "minutePrecisionShiftTimesEnabled" -> do
-                        let enabled = fromMaybe False (surfaceFieldValue @Surface.MinutePrecisionShiftTimesEnabled fields)
-                        _ <- setMinutePrecisionShiftTimesEnabledMutation venueConfig enabled
-                        setSuccessMessage $
-                            if enabled
-                                then "Minute-precision shift and timesheet entry enabled."
-                                else "15-minute shift and timesheet entry enabled."
-                        respondToVenueSettingsMutation
-                    "unavailableStaffWarningThreshold" -> do
-                        let threshold = surfaceFieldValue @Surface.UnavailableStaffWarningThreshold fields
-                        if maybe True (\value -> value >= 1 && value <= 100) threshold
-                            then do
-                                _ <- setUnavailableStaffWarningThresholdMutation venueConfig threshold
-                                setSuccessMessage $
-                                    maybe
-                                        "Unavailable-staff warnings disabled."
-                                        (\value -> "Managers will be warned at " <> tshow value <> " unavailable staff.")
-                                        threshold
-                                respondToVenueSettingsMutation
-                            else do
-                                setErrorMessage "Enter a threshold from 1 to 100, or leave it blank to disable warnings."
-                                respondToVenueSettingsMutation
-                    "timePickerWindow" -> do
-                        let maybeStartMinute = parseQuarterHourMinuteOfDay =<< surfaceFieldValue @Surface.TimePickerStart fields
-                        let maybeFinalSelectableMinute = parseQuarterHourMinuteOfDay =<< surfaceFieldValue @Surface.TimePickerEnd fields
-                        case (maybeStartMinute, maybeFinalSelectableMinute) of
-                            (Just startMinute, Just finalSelectableMinute) | startMinute /= finalSelectableMinute -> do
-                                _ <- setRosterTimePickerWindowMutation venueConfig startMinute finalSelectableMinute
-                                setSuccessMessage "Valid shift window updated."
-                                respondToVenueSettingsMutation
-                            _ -> do
-                                setErrorMessage "Choose different start and end times on 15-minute increments."
-                                respondToVenueSettingsMutation
-                    _ -> do
-                        requestedRosterWeekStartsOn <- validateRosterWeekStartsOn (surfaceFieldValue @Surface.RosterWeekStartsOn fields)
-                        case requestedRosterWeekStartsOn of
-                            Nothing -> respondToVenueSettingsMutation
-                            Just rosterWeekStartsOn -> do
-                                isLocked <- isVenueRosterWeekStartLocked
-                                if isLocked
-                                    then do
-                                        setErrorMessage "Roster week start can only be configured before roster, timesheet, leave, export, or payroll version data exists."
-                                        respondToVenueSettingsMutation
-                                    else do
-                                        _ <- setRosterWeekStartsOnMutation venueConfig rosterWeekStartsOn
-                                        setSuccessMessage ("Roster week will start on " <> weekdayIndexLabel rosterWeekStartsOn)
-                                        respondToVenueSettingsMutation
+                            maybe
+                                "Unavailable-staff warnings disabled."
+                                (\value -> "Managers will be warned at " <> tshow value <> " unavailable staff.")
+                                threshold
+                    else setErrorMessage "Enter a threshold from 1 to 100, or leave it blank to disable warnings."
+        respondToVenueSettingsMutation
+
+    action currentAction@UpdateRosterTimePickerWindowAction = runBepis currentAction BepisMutationAction do
+        ensureVenueWritable
+        venueConfig <- fetchVenueConfig
+        case AdminAction.parseUpdateRosterTimePickerWindowActionParams of
+            Left errors -> reportSurfaceRequestErrors errors
+            Right fields -> do
+                let maybeStartMinute = parseQuarterHourMinuteOfDay (surfaceFieldValue @Surface.TimePickerStart fields)
+                let maybeFinalSelectableMinute = parseQuarterHourMinuteOfDay (surfaceFieldValue @Surface.TimePickerEnd fields)
+                case (maybeStartMinute, maybeFinalSelectableMinute) of
+                    (Just startMinute, Just finalSelectableMinute) | startMinute /= finalSelectableMinute -> do
+                        _ <- setRosterTimePickerWindowMutation venueConfig startMinute finalSelectableMinute
+                        setSuccessMessage "Valid shift window updated."
+                    _ -> setErrorMessage "Choose different start and end times on 15-minute increments."
+        respondToVenueSettingsMutation
+
+    action currentAction@UpdateRosterWeekStartsOnAction = runBepis currentAction BepisMutationAction do
+        ensureVenueWritable
+        venueConfig <- fetchVenueConfig
+        case AdminAction.parseUpdateRosterWeekStartsOnActionParams of
+            Left errors -> reportSurfaceRequestErrors errors
+            Right fields -> do
+                requestedRosterWeekStartsOn <- validateRosterWeekStartsOn (surfaceFieldValue @Surface.RosterWeekStartsOn fields)
+                forM_ requestedRosterWeekStartsOn \rosterWeekStartsOn -> do
+                    isLocked <- isVenueRosterWeekStartLocked
+                    if isLocked
+                        then setErrorMessage "Roster week start can only be configured before roster, timesheet, leave, export, or payroll version data exists."
+                        else do
+                            _ <- setRosterWeekStartsOnMutation venueConfig rosterWeekStartsOn
+                            setSuccessMessage ("Roster week will start on " <> weekdayIndexLabel rosterWeekStartsOn)
+        respondToVenueSettingsMutation
 
     action currentAction@ShowAdminVenueSettingsFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.venue_settings_fragment.respond" do
@@ -434,7 +443,7 @@ instance Controller AdminController where
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
         invitation <- fetch venueInvitationId
         ensureRecordInCurrentVenue invitation.venueId
-        if invitation.status /= InvitationStatusEnumPending
+        if not (invitationStatusAllowsRenewal invitation.status)
             then respondToInvitesSectionMutation "Only pending invitations can be revoked." currentRosterGroup.id
             else do
                 _ <- revokeVenueInvitationMutation invitation

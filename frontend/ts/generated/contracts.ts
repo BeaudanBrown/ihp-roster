@@ -169,7 +169,7 @@ export type LeaveRequestsSurfaceFragmentKey =
   | { kind: "leave-section-count"; params: LeaveRequestsLeaveSectionCountFragmentParams }
   | { kind: "leave-section-list"; params: LeaveRequestsLeaveSectionListFragmentParams };
 export function isLeaveRequestsSurfaceFragmentKey(value: unknown): value is LeaveRequestsSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "unavailability-blackouts" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-side-panel-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-availability-warnings" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-count" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"], ["leaveSection"]) && (typeof value["params"]["leaveSection"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-list" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"], ["leaveSection"]) && (typeof value["params"]["leaveSection"] === "string"))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "unavailability-blackouts" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-side-panel-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-availability-warnings" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-count" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"], ["leaveSection"]) && (isLeaveSectionValue(value["params"]["leaveSection"])))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-list" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"], ["leaveSection"]) && (isLeaveSectionValue(value["params"]["leaveSection"])))));
 }
 
 export type SelfServiceLeaveSurfaceFragmentKey =
@@ -197,10 +197,9 @@ export type ProfileSurfaceFragmentKey =
     { kind: "profile-details-section"; params: ProfileProfileDetailsSectionFragmentParams | null }
   | { kind: "profile-preferences-section"; params: ProfileProfilePreferencesSectionFragmentParams | null }
   | { kind: "profile-security-section"; params: ProfileProfileSecuritySectionFragmentParams | null }
-  | { kind: "profile-leave-section"; params: ProfileProfileLeaveSectionFragmentParams | null }
-  | { kind: "profile-rsa-section"; params: ProfileProfileRsaSectionFragmentParams | null };
+  | { kind: "profile-leave-section"; params: ProfileProfileLeaveSectionFragmentParams | null };
 export function isProfileSurfaceFragmentKey(value: unknown): value is ProfileSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-details-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-preferences-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-security-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-leave-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-rsa-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-details-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-preferences-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-security-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-leave-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))));
 }
 
 export type StaffSurfaceFragmentKey =
@@ -344,6 +343,32 @@ export const interactionSessionStartEvent = "bepis:interaction-session-start" as
 export const interactionSessionEndEvent = "bepis:interaction-session-end" as const;
 
 export const interactionSessionCancelRequestEvent = "bepis:interaction-session-cancel-request" as const;
+
+export type RosterTemplateScaleEnum =
+    "day"
+  | "week";
+export function isRosterTemplateScaleEnum(value: unknown): value is RosterTemplateScaleEnum {
+    return typeof value === "string" && ["day", "week"].includes(value);
+}
+
+export function parseRosterTemplateScaleEnum(value: unknown): RosterTemplateScaleEnum {
+    if (isRosterTemplateScaleEnum(value)) return value;
+    throw new Error("Invalid RosterTemplateScaleEnum");
+}
+
+export type LeaveSectionValue =
+    "pending"
+  | "approved"
+  | "denied"
+  | "archive";
+export function isLeaveSectionValue(value: unknown): value is LeaveSectionValue {
+    return typeof value === "string" && ["pending", "approved", "denied", "archive"].includes(value);
+}
+
+export function parseLeaveSectionValue(value: unknown): LeaveSectionValue {
+    if (isLeaveSectionValue(value)) return value;
+    throw new Error("Invalid LeaveSectionValue");
+}
 
 export type DialogSubmitConfig = { loadingLabel: string };
 export function isDialogSubmitConfig(value: unknown): value is DialogSubmitConfig {
@@ -1010,9 +1035,9 @@ export function isTimesheetsTimesheetDaySectionFragmentParams(value: unknown): v
     return isRecord(value) && hasExactKeys(value, ["dayOffset"], ["dayOffset"]) && (typeof value["dayOffset"] === "number" && Number.isInteger(value["dayOffset"]));
 }
 
-export type TemplateApplicationCardConfig = { templateId: FrontendContractUuid; templateName: string; templateScale: string };
+export type TemplateApplicationCardConfig = { templateId: FrontendContractUuid; templateName: string; templateScale: RosterTemplateScaleEnum };
 export function isTemplateApplicationCardConfig(value: unknown): value is TemplateApplicationCardConfig {
-    return isRecord(value) && hasExactKeys(value, ["templateId", "templateName", "templateScale"], ["templateId", "templateName", "templateScale"]) && (typeof value["templateId"] === "string") && (typeof value["templateName"] === "string") && (typeof value["templateScale"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["templateId", "templateName", "templateScale"], ["templateId", "templateName", "templateScale"]) && (typeof value["templateId"] === "string") && (typeof value["templateName"] === "string") && (isRosterTemplateScaleEnum(value["templateScale"]));
 }
 
 export function parseTemplateApplicationCardConfig(value: unknown): TemplateApplicationCardConfig {
@@ -1213,14 +1238,14 @@ export function isLeaveRequestsLeaveAvailabilityWarningsFragmentParams(value: un
     return isRecord(value) && hasExactKeys(value, [], []);
 }
 
-export type LeaveRequestsLeaveSectionCountFragmentParams = { leaveSection: string };
+export type LeaveRequestsLeaveSectionCountFragmentParams = { leaveSection: LeaveSectionValue };
 export function isLeaveRequestsLeaveSectionCountFragmentParams(value: unknown): value is LeaveRequestsLeaveSectionCountFragmentParams {
-    return isRecord(value) && hasExactKeys(value, ["leaveSection"], ["leaveSection"]) && (typeof value["leaveSection"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["leaveSection"], ["leaveSection"]) && (isLeaveSectionValue(value["leaveSection"]));
 }
 
-export type LeaveRequestsLeaveSectionListFragmentParams = { leaveSection: string };
+export type LeaveRequestsLeaveSectionListFragmentParams = { leaveSection: LeaveSectionValue };
 export function isLeaveRequestsLeaveSectionListFragmentParams(value: unknown): value is LeaveRequestsLeaveSectionListFragmentParams {
-    return isRecord(value) && hasExactKeys(value, ["leaveSection"], ["leaveSection"]) && (typeof value["leaveSection"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["leaveSection"], ["leaveSection"]) && (isLeaveSectionValue(value["leaveSection"]));
 }
 
 export type SelfServiceLeaveSelfServiceLeaveScopeScope = { venueId: FrontendContractUuid; staffId: FrontendContractUuid };
@@ -1290,11 +1315,6 @@ export function isProfileProfileSecuritySectionFragmentParams(value: unknown): v
 
 export type ProfileProfileLeaveSectionFragmentParams = {  };
 export function isProfileProfileLeaveSectionFragmentParams(value: unknown): value is ProfileProfileLeaveSectionFragmentParams {
-    return isRecord(value) && hasExactKeys(value, [], []);
-}
-
-export type ProfileProfileRsaSectionFragmentParams = {  };
-export function isProfileProfileRsaSectionFragmentParams(value: unknown): value is ProfileProfileRsaSectionFragmentParams {
     return isRecord(value) && hasExactKeys(value, [], []);
 }
 
@@ -1610,7 +1630,7 @@ export const FrontendSurfaceTabSetRegistry: Record<FrontendSurfaceName, Readonly
 export type FrontendSurfaceSidePanelDefinition = { name: string; rootRoleAttribute: string; mainRoleAttribute: string; panelRoleAttribute: string; toggleRoleAttribute: string; labelRoleAttribute: string; stateAttribute: string; collapsedValue: string; expandedValue: string; isState: (value: unknown) => boolean };
 export const FrontendSurfaceSidePanelRegistry: Record<FrontendSurfaceName, ReadonlyArray<FrontendSurfaceSidePanelDefinition>> = {"timesheets":[{"name":"timesheet-side-panel","rootRoleAttribute":timesheetsTimesheetSidePanelRootDomAttr,"mainRoleAttribute":timesheetsTimesheetSidePanelMainDomAttr,"panelRoleAttribute":timesheetsTimesheetSidePanelPanelDomAttr,"toggleRoleAttribute":timesheetsTimesheetSidePanelToggleDomAttr,"labelRoleAttribute":timesheetsTimesheetSidePanelLabelDomAttr,"stateAttribute":timesheetsTimesheetSidePanelDomAttr,"collapsedValue":"collapsed","expandedValue":"expanded","isState":isTimesheetsTimesheetSidePanelState}],"roster":[{"name":"roster-side-panel","rootRoleAttribute":rosterSidePanelRootDomAttr,"mainRoleAttribute":rosterSidePanelMainDomAttr,"panelRoleAttribute":rosterSidePanelPanelDomAttr,"toggleRoleAttribute":rosterSidePanelToggleDomAttr,"labelRoleAttribute":rosterSidePanelLabelDomAttr,"stateAttribute":rosterSidePanelDomAttr,"collapsedValue":"collapsed","expandedValue":"expanded","isState":isRosterSidePanelState}],"roster-day-timeline":[],"roster-template-designer":[],"leave-requests":[{"name":"leave-side-panel","rootRoleAttribute":leaveRequestsLeaveSidePanelRootDomAttr,"mainRoleAttribute":leaveRequestsLeaveSidePanelMainDomAttr,"panelRoleAttribute":leaveRequestsLeaveSidePanelPanelDomAttr,"toggleRoleAttribute":leaveRequestsLeaveSidePanelToggleDomAttr,"labelRoleAttribute":leaveRequestsLeaveSidePanelLabelDomAttr,"stateAttribute":leaveRequestsLeaveSidePanelDomAttr,"collapsedValue":"collapsed","expandedValue":"expanded","isState":isLeaveRequestsLeaveSidePanelState}],"self-service-leave":[],"billing":[],"support":[],"profile":[],"staff":[],"admin-page":[],"admin-xero-page":[],"admin-venue-config":[],"admin-invites":[],"admin-exports":[],"admin-shift-types":[],"admin-roster-groups":[],"admin-xero":[]};
 
-export const FrontendSurfaceFragmentRegistry = {"timesheets":["timesheet-toolbar","timesheet-day-columns","timesheet-side-panel-content","timesheet-day-section"],"roster":["roster-content","roster-grid-toolbar","roster-grid-frame","roster-day-columns","roster-day-rail","roster-wage-rail","roster-slots-grid","roster-staff-panel","roster-template-library","roster-day-section","roster-row"],"roster-day-timeline":["roster-day-timeline-content"],"roster-template-designer":[],"leave-requests":["unavailability-blackouts","leave-side-panel-content","leave-availability-warnings","leave-section-count","leave-section-list"],"self-service-leave":["self-service-leave-form","visible-unavailability-blackouts","self-service-leave-history"],"billing":["billing-status"],"support":["support-award-rates","support-public-holidays"],"profile":["profile-details-section","profile-preferences-section","profile-security-section","profile-leave-section","profile-rsa-section"],"staff":["staff-details-section","staff-preferences-section","staff-visible-unavailability-blackouts","staff-leave-section"],"admin-page":[],"admin-xero-page":[],"admin-venue-config":["admin-venue-settings"],"admin-invites":["admin-invites"],"admin-exports":["admin-exports"],"admin-shift-types":["admin-shift-types"],"admin-roster-groups":["admin-roster-groups"],"admin-xero":["admin-xero-shell"]} as const;
+export const FrontendSurfaceFragmentRegistry = {"timesheets":["timesheet-toolbar","timesheet-day-columns","timesheet-side-panel-content","timesheet-day-section"],"roster":["roster-content","roster-grid-toolbar","roster-grid-frame","roster-day-columns","roster-day-rail","roster-wage-rail","roster-slots-grid","roster-staff-panel","roster-template-library","roster-day-section","roster-row"],"roster-day-timeline":["roster-day-timeline-content"],"roster-template-designer":[],"leave-requests":["unavailability-blackouts","leave-side-panel-content","leave-availability-warnings","leave-section-count","leave-section-list"],"self-service-leave":["self-service-leave-form","visible-unavailability-blackouts","self-service-leave-history"],"billing":["billing-status"],"support":["support-award-rates","support-public-holidays"],"profile":["profile-details-section","profile-preferences-section","profile-security-section","profile-leave-section"],"staff":["staff-details-section","staff-preferences-section","staff-visible-unavailability-blackouts","staff-leave-section"],"admin-page":[],"admin-xero-page":[],"admin-venue-config":["admin-venue-settings"],"admin-invites":["admin-invites"],"admin-exports":["admin-exports"],"admin-shift-types":["admin-shift-types"],"admin-roster-groups":["admin-roster-groups"],"admin-xero":["admin-xero-shell"]} as const;
 export function isFrontendSurfaceName(value: unknown): value is FrontendSurfaceName {
     return typeof value === "string" && Object.prototype.hasOwnProperty.call(FrontendSurfaceFragmentRegistry, value);
 }

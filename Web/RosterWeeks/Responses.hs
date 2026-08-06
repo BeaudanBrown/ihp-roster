@@ -35,7 +35,7 @@ import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         rosterMountedFragmentPlanFromRenderData,
                                         rosterSurfaceFragmentKeys,
                                         rosterSurfaceScope)
-import Web.RosterWeeks.Projection (rosterContentAndStaffPanelFragments)
+import Web.RosterWeeks.Projection (rosterGridInnerAndStaffPanelFragments)
 import Web.RosterWeeks.RenderData (fetchVisibleRosterReadModel,
                                    renderRosterProjectionFragmentWithMode,
                                    renderVisibleRosterReadModelFragment)
@@ -65,7 +65,7 @@ respondWithRosterOwnHighlightPreferenceUpdate rosterGroupId weekOffset toast = d
     respondWithRosterFragments
         rosterGroupId
         weekOffset
-        rosterContentAndStaffPanelFragments
+        rosterGridInnerAndStaffPanelFragments
         (renderRosterStaffSelfServicePanelFragmentOob selfServicePanel <> renderToastOob ToastBottomCenter toast)
 
 respondWithRosterFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Blaze.Html -> IO ()

@@ -130,6 +130,7 @@ in
         architecture-web-map = script ../scripts/architecture/web-map;
         architecture-module-graph = script ../scripts/architecture/module-graph;
         architecture-surface-request-closure = script ../scripts/architecture/surface-request-closure;
+        typed-contract-authority-audit = script ../scripts/architecture/typed-contract-authority-audit;
         architecture-runtime-overlay = script ../scripts/architecture/runtime-overlay;
         architecture-query = script ../scripts/architecture/query;
         architecture-trace-diagram = script ../scripts/architecture/trace-diagram;
@@ -137,8 +138,11 @@ in
         architecture-check-fresh = script ../scripts/architecture/check-fresh;
         haskell-module-name-check = script ../scripts/haskell/module-name-check;
         typecheck = script ../scripts/haskell/typecheck;
+        enum-authority-check = script ../scripts/haskell/enum-authority-check;
+        typed-contract-authority-check = script ../scripts/haskell/typed-contract-authority-check;
         frontend-contract-warnings = script ../scripts/haskell/frontend-contract-warnings;
         weeder-check = script ../scripts/haskell/weeder-check;
+        weeder-policy-test = script ../scripts/haskell/weeder-policy-test;
         regen-types = script ../scripts/haskell/regen-types;
         generated-code-sync = script ../scripts/haskell/generated-code-sync;
         hie-bios-test = script ../scripts/haskell/hie-bios-test;

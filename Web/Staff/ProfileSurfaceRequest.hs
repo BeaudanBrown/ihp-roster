@@ -8,6 +8,7 @@ module Web.Staff.ProfileSurfaceRequest
     , parseStaffSurfaceSubmission
     ) where
 
+import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue (..))
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
 import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError)
@@ -24,15 +25,15 @@ data StaffProfileDetailsSubmission = StaffProfileDetailsSubmission
     , submittedIdealShiftsPerWeek    :: !Int
     , submittedEmergencyContactName  :: !Text
     , submittedEmergencyContactPhone :: !Text
-    , submittedProfileSection        :: !Text
-    , submittedVenueRole             :: !(Maybe Text)
-    , submittedEmploymentBasis       :: !(Maybe Text)
+    , submittedProfileSection        :: !StaffProfileSectionValue
+    , submittedVenueRole             :: !(Maybe VenueRoleEnum)
+    , submittedEmploymentBasis       :: !(Maybe StaffEmploymentBasisEnum)
     , submittedPayRateSelection      :: !(Maybe Text)
     , submittedRosterGroupIds        :: !(Maybe [UUID.UUID])
     }
 
 data StaffShiftPreferencesSubmission = StaffShiftPreferencesSubmission
-    { submittedPreferencesSection  :: !Text
+    { submittedPreferencesSection  :: !StaffProfileSectionValue
     , submittedShiftPreferenceKeys :: ![Text]
     }
 
@@ -61,7 +62,7 @@ chooseSubmission ::
     Either [SurfaceRequestFieldError] StaffProfileSurfaceSubmission
 chooseSubmission preferenceResult detailsResult = do
     preferenceFields <- preferenceResult
-    if surfaceFieldValue @Surface.SectionField preferenceFields == "preferences"
+    if surfaceFieldValue @Surface.SectionField preferenceFields == StaffProfilePreferencesSection
         then Right (SubmittedStaffShiftPreferences (preferencesSubmission preferenceFields))
         else SubmittedStaffProfileDetails . detailsSubmission <$> detailsResult
 

@@ -427,8 +427,8 @@ tests = aroundAll withDatabaseTestContext do
                 today <- currentVenueCalendarDay venueConfig
                 _ <- newRecord @UnavailabilityBlackout
                     |> set #venueId (unpackId venue.id)
-                    |> set #startDate today
-                    |> set #endDate today
+                    |> set #startDate (addDays (-1) today)
+                    |> set #endDate (addDays 1 today)
                     |> set #reason "Support-visible closure"
                     |> createRecord
 

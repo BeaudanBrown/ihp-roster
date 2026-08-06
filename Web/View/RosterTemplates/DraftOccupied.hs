@@ -1,5 +1,6 @@
 module Web.View.RosterTemplates.DraftOccupied where
 
+import Application.Helper.RosterTemplateScale (rosterTemplateScaleValue)
 import Application.RosterTemplates
 import Web.View.Prelude
 
@@ -32,7 +33,7 @@ instance View DraftOccupiedView where
                                 <a class="btn btn-primary" href={ShowRosterTemplateDesignerAction existingDraft.draftDesign.id}>Continue draft</a>
                                 <form method="POST" action={DiscardAndRestartRosterTemplateDraftAction rosterGroup.id existingDraft.draftDesign.id}>
                                     <input type="hidden" name="name" value={pendingName} />
-                                    <input type="hidden" name="scale" value={scaleValue pendingScale} />
+                                    <input type="hidden" name="scale" value={rosterTemplateScaleValue pendingScale} />
                                     <input type="hidden" name="startingPoint" value={pendingStartingPoint} />
                                     <input type="hidden" name="expectedDraftRevision" value={rosterTemplateDraftRevision existingDraft} />
                                     {forEach pendingWeekOffset renderWeekOffset}
@@ -48,9 +49,6 @@ instance View DraftOccupiedView where
             |]
             }
 
-scaleValue :: RosterTemplateScaleEnum -> Text
-scaleValue Day  = "day"
-scaleValue Week = "week"
 
 renderWeekOffset :: Int -> Html
 renderWeekOffset value = [hsx|<input type="hidden" name="weekOffset" value={tshow value} />|]

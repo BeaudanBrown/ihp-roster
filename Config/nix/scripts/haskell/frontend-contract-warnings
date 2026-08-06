@@ -4,17 +4,39 @@ set -euo pipefail
 . "@scriptsRoot@/lib/ghc.sh"
 
 build_dir="${FRONTEND_CONTRACT_WARNINGS_BUILD_DIR:-$(ihp_roster_verification_build_dir)/frontend-contract-warnings}"
-ghc_opts="$(ihp_roster_ghc_opts) -Werror=unused-imports -Werror=unused-local-binds -Werror=unused-matches -Werror=incomplete-patterns -Werror=missing-methods -fwrite-interface"
+base_ghc_opts="$(ihp_roster_ghc_opts)"
+warning_ghc_opts="$base_ghc_opts -Werror=unused-imports -Werror=unused-local-binds -Werror=unused-matches -Werror=incomplete-patterns -Werror=missing-methods"
+roots=(
+    "Application/Helper/FrontendContract/Contracts.hs"
+    "Application/Helper/FrontendContract/AppShell/Request.hs"
+)
 
-# Compile the complete reflected contract registry with its own warning-policy
-# cache. GHC refreshes changed dependencies; persistent interfaces avoid paying
-# for the unchanged contract graph on every agent iteration.
+# Discover and precompile the complete reflected graph first. Generated IHP
+# modules are dependencies rather than app-owned warning authorities; their
+# generated source currently contains warnings that application code cannot fix.
+# The second invocation compiles only the reachable app-owned FrontendContract
+# sources against those interfaces with the curated warnings as errors.
 # Deliberately omit unused-top-binds: closed DSL marker types are consumed at the
 # type level and are reported as unused value declarations by that warning.
-ihp_roster_prepare_ghc_build_dir "$build_dir" "$ghc_opts"
-# shellcheck disable=SC2086 # ghc_opts is an intentional argument vector.
-ghc -fno-code $ghc_opts Application/Helper/FrontendContract/Contracts.hs \
+ihp_roster_prepare_ghc_build_dir "$build_dir" "$base_ghc_opts | $warning_ghc_opts | -fwrite-interface"
+dependencies="$build_dir/dependencies.mk"
+ghc $base_ghc_opts -M "${roots[@]}" -dep-makefile "$dependencies"
+mapfile -t app_sources < <(
+    grep -o 'Application/Helper/FrontendContract/[^[:space:]\\]*\.hs' "$dependencies" \
+        | sort -u
+)
+if ((${#app_sources[@]} == 0)); then
+    echo "frontend-contract-warnings: no app-owned FrontendContract sources discovered" >&2
+    exit 1
+fi
+
+# shellcheck disable=SC2086 # GHC option strings are intentional argument vectors.
+ghc -fno-code -fwrite-interface $base_ghc_opts "${roots[@]}" \
+    -odir "$build_dir/obj" \
+    -hidir "$build_dir/hi"
+# shellcheck disable=SC2086 # GHC option strings are intentional argument vectors.
+ghc -fno-code -c $warning_ghc_opts -i"$build_dir/hi" "${app_sources[@]}" \
     -odir "$build_dir/obj" \
     -hidir "$build_dir/hi"
 
-echo "frontend-contract-warnings: ok"
+echo "frontend-contract-warnings: ok (${#app_sources[@]} app-owned modules)"

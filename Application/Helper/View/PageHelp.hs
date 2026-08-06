@@ -295,14 +295,6 @@ pageHelpTopics =
 section :: PageHelpAudience -> Text -> [PageHelpItem] -> PageHelpSection
 section pageHelpSectionAudience pageHelpSectionTitle pageHelpSectionItems = PageHelpSection { .. }
 
-item :: PageHelpAudience -> Text -> Text -> PageHelpItem
-item pageHelpItemAudience pageHelpItemTitle pageHelpItemBody =
-    PageHelpItem
-        { pageHelpItemIconClass = Nothing
-        , pageHelpItemIconLabel = Nothing
-        , pageHelpItemExampleButton = Nothing
-        , ..
-        }
 
 iconItem :: PageHelpAudience -> Text -> Text -> Text -> Text -> PageHelpItem
 iconItem pageHelpItemAudience iconClass iconLabel pageHelpItemTitle pageHelpItemBody =

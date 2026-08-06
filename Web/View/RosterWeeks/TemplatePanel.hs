@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
+
 module Web.View.RosterWeeks.TemplatePanel
     ( renderRosterTemplateLibraryFragment
     , renderRosterTemplatePanel
@@ -76,7 +78,7 @@ renderTemplateCard weekOffset rosterGroup maybeRosterWeek template = cardHtml
   where
     cardHtml = [hsx|
         <article class="roster-template-card border rounded-3 mb-2"
-                 {...rosterTemplateCardAttrs (unpackId template.id) template.name (templateScaleValue template.scale)}>
+                 {...rosterTemplateCardAttrs (unpackId template.id) template.name template.scale}>
             <div class="d-flex align-items-stretch">
                 {applyButton}
                 <div class="d-flex align-items-center gap-1 pe-2 roster-template-card-actions">
@@ -130,7 +132,3 @@ renderTemplateCard weekOffset rosterGroup maybeRosterWeek template = cardHtml
             })
         , actionRouteExtraAttrs = rosterTemplateApplicationFormAttrs <> [("class", "d-none")]
         }
-
-templateScaleValue :: RosterTemplateScaleEnum -> Text
-templateScaleValue Day  = "day"
-templateScaleValue Week = "week"

@@ -211,8 +211,8 @@ type DragDropInteractionWithRefsVariantsAndExtraFields (sourceRef :: Type) (drop
      , ConflictPolicyFor ('SessionKind DragSession) 'AnyFragment 'Defer
      ]
 
-type LayoutModeInteraction (intent :: Type) (targetFragment :: Type) (layoutModeField :: Type) =
+type LayoutModeInteraction (intent :: Type) (targetFragment :: Type) (layoutModeField :: Type) (layoutModeWire :: WireType) =
     '[ ActivationRef RosterLayoutModeActivationRef '[ 'Submits intent, 'ValueField layoutModeField ]
-     , Action intent '[ Field layoutModeField 'WireText ] '[ 'Target targetFragment ]
-     , Intent intent '[ Field layoutModeField 'WireText ] '[ 'BackedBy intent ]
+     , Action intent '[ Field layoutModeField layoutModeWire ] '[ 'Target targetFragment ]
+     , Intent intent '[ Field layoutModeField layoutModeWire ] '[ 'BackedBy intent ]
      ]

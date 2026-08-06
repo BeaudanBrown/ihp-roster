@@ -276,7 +276,7 @@ safeDownloadFileName =
 
 parseReviewStatus :: Text -> Maybe StaffDocumentStatusEnum
 parseReviewStatus "pending_review" = Just PendingReview
-parseReviewStatus "verified"       = Just Verified
+parseReviewStatus "verified"       = Just StaffDocumentStatusEnumVerified
 parseReviewStatus "rejected"       = Just Rejected
 parseReviewStatus _                = Nothing
 
@@ -300,7 +300,7 @@ rsaReturnPath =
             appendQueryParams
                 (pathTo ShowRosterWeekAction { weekOffset = fromMaybe 0 rsaReturnWeekOffset })
                 (maybe [] (\rosterGroupId -> [("rosterGroupId", tshow rosterGroupId)]) rsaReturnRosterGroupId)
-        _ -> appendQueryParams (pathTo EditProfileAction) [("section", "rsa")]
+        _ -> pathTo EditProfileAction
 
 parseRosterGroupIdParam :: Text -> Maybe (Id RosterGroup)
 parseRosterGroupIdParam value =

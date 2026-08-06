@@ -49,7 +49,6 @@ tests = do
                         , rosterWeekResource rosterGroupId 0
                         , timesheetWeekResource venueId 0
                         , timesheetDayResource venueId 0 2
-                        , staffRsaDocumentsResource staffId
                         , adminVenueSettingsResource venueId
                         , rosterEndTimesConfigResource venueId
                         , rosterWeekBoundaryConfigResource venueId

@@ -83,6 +83,7 @@ canonicalWireSegment wire value =
                 Aeson.String text -> maybe (fail "Surface scope UUID is malformed") (pure . UUID.toText) (UUID.fromText text)
                 _ -> fail "Surface scope UUID must be a string"
         Contract.WireDayIR -> escapedText value
+        Contract.WireClosedIR {} -> escapedText value
         Contract.WireOptionalIR inner -> canonicalWireSegment inner value
         Contract.WireNullableIR _ | value == Aeson.Null -> pure "~null"
         Contract.WireNullableIR inner -> canonicalWireSegment inner value

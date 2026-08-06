@@ -2,7 +2,6 @@ module Application.Helper.VenueBootstrap
     ( VenueBootstrapConfig (..)
     , createVenueWithBootstrapConfig
     , createVenueWithBootstrapConfigInCurrentTransaction
-    , defaultStaffNameFromEmail
     , defaultVenueBootstrapConfig
     , defaultVenueBootstrapTimezone
     , ensureLinkedStaffRecord
@@ -124,17 +123,3 @@ createLinkedPlaceholderStaffRecord venue user firstName lastName = do
             |> set #rosterGroupId (unpackId rosterGroup.id)
             |> createRecord
     pure staff
-
-defaultStaffNameFromEmail :: Text -> (Text, Text)
-defaultStaffNameFromEmail emailAddress =
-    case filter (not . Text.null) (Text.split (not . Char.isAlphaNum) localPart) of
-        []                   -> ("Invited", "User")
-        [firstName]          -> (toTitleCase firstName, "User")
-        firstName:lastName:_ -> (toTitleCase firstName, toTitleCase lastName)
-    where
-        localPart = Text.takeWhile (/= '@') emailAddress
-        toTitleCase token =
-            case Text.uncons token of
-                Nothing -> "User"
-                Just (firstCharacter, remainingCharacters) ->
-                    Text.cons (Char.toUpper firstCharacter) (Text.toLower remainingCharacters)

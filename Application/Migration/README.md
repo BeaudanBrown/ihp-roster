@@ -36,6 +36,7 @@ bash ./bin/in-env typecheck
 Runbooks in this directory own exact deployment procedures for forward-only or
 destructive changes:
 
+
 - `legacy-schema-retirement-151-runbook.md` — staged capture, approval, drop,
   and restore rehearsal for retired tables.
 - `authoritative-time-boundaries-274-runbook.md` — wall-clock to instant cutover.
@@ -49,3 +50,26 @@ destructive changes:
 
 Do not infer production approval from a committed migration or runbook; use the
 named approval boundary in that runbook.
+
+## Data-Preserving Enum Conversions
+
+GitHub #338's feedback/shift-colour enum preflight, verification, and rollback
+procedure is documented in `typed-authority-enums-338-runbook.md`.
+
+## Operator-Gated Retirements
+
+GitHub #334's data-preserving Xero workflow enum conversion, preflight failure
+policy, and schema-only recovery procedure are documented in
+`xero-workflow-enums-334-runbook.md`.
+
+GitHub #239's forward-only Haskell wage cutover is documented in
+`haskell-wage-cutover-239-runbook.md`. Migration `1785242000.sql` is the normal-runner
+marker; NixOS `wage-cutover.service` then runs the atomic Haskell backfill and guarded
+retirement SQL before application startup.
+
+GitHub #151's approved read-only inventory/export procedure is documented in
+`legacy-schema-retirement-151-runbook.md` and implemented by
+`bin/legacy-schema-retirement-review`. Migration `1783899114.sql` and its
+operator rollback DDL are prepared and verified, but must not be deployed until
+the runbook's separate Stage B approval record explicitly authorizes the
+production table drop.

@@ -62,7 +62,7 @@ matchLeaveRequestsLiveScope =
         @Types1.LeaveRequestsScope
 
 leaveSectionCountLiveFragment ::
-    Text ->
+    Types1.LeaveSectionValue ->
     SurfaceFragmentKey
 leaveSectionCountLiveFragment leaveSection =
     frontendSurfaceFragmentKey
@@ -72,14 +72,14 @@ leaveSectionCountLiveFragment leaveSection =
             &: noSurfaceFields
         )
 
-matchLeaveSectionCountLiveFragment :: SurfaceFragmentKey -> Maybe (Text, ())
+matchLeaveSectionCountLiveFragment :: SurfaceFragmentKey -> Maybe (Types1.LeaveSectionValue, ())
 matchLeaveSectionCountLiveFragment =
     matchFrontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)
         @Types1.LeaveSectionCount
 
 leaveSectionListLiveFragment ::
-    Text ->
+    Types1.LeaveSectionValue ->
     SurfaceFragmentKey
 leaveSectionListLiveFragment leaveSection =
     frontendSurfaceFragmentKey
@@ -89,7 +89,7 @@ leaveSectionListLiveFragment leaveSection =
             &: noSurfaceFields
         )
 
-matchLeaveSectionListLiveFragment :: SurfaceFragmentKey -> Maybe (Text, ())
+matchLeaveSectionListLiveFragment :: SurfaceFragmentKey -> Maybe (Types1.LeaveSectionValue, ())
 matchLeaveSectionListLiveFragment =
     matchFrontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.LeaveRequestsAdapterFamily)

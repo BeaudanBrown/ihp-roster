@@ -1,9 +1,12 @@
 {-# LANGUAGE TypeApplications #-}
 
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
+
 module Web.View.Support.Index where
 
 import Application.Helper.Feedback (allowedFeedbackPriorities,
                                     allowedFeedbackStatuses)
+import Application.Helper.FeedbackType (feedbackTypeLabel)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
@@ -14,6 +17,8 @@ import Application.Helper.FrontendContract.Surface.Values (SurfaceFields,
                                                            surfaceFragmentTargetId)
 import Application.Helper.FwcMapd (FwcMapdAdminData (..),
                                    FwcMapdDisplayPayRate (..))
+import Application.Helper.InvitationStatus (invitationStatusAllowsRenewal)
+import Application.Helper.JobStatus (jobStatusLabel)
 import Application.PublicHolidays.Coverage (PublicHolidayCoverageStatus (..),
                                             PublicHolidayCoverageYear (..),
                                             publicHolidayCoverageHasWarning)
@@ -203,16 +208,8 @@ renderFeedbackReadBadge feedbackItem
     | isNothing feedbackItem.readAt = [hsx|<span class="badge text-bg-danger">unread</span>|]
     | otherwise = [hsx|<span class="badge text-bg-secondary">read</span>|]
 
-renderFeedbackTypeBadge :: Text -> Html
+renderFeedbackTypeBadge :: FeedbackTypeEnum -> Html
 renderFeedbackTypeBadge feedbackType = [hsx|<span class="badge text-bg-info">{feedbackTypeLabel feedbackType}</span>|]
-
-feedbackTypeLabel :: Text -> Text
-feedbackTypeLabel feedbackType =
-    case feedbackType of
-        "bug"        -> "bug"
-        "suggestion" -> "suggestion"
-        "other"      -> "other"
-        _            -> feedbackType
 
 renderFeedbackStatusForm :: UserFeedbackItem -> Html
 renderFeedbackStatusForm feedbackItem = [hsx|
@@ -429,7 +426,7 @@ renderPublicHolidayRefreshJobStatus maybeJob =
     case maybeJob of
         Nothing -> [hsx|No public holiday refresh job has been queued yet.|]
         Just appJob -> [hsx|
-            Latest refresh job <span class="fw-semibold">{renderJobStatus appJob.status}</span> queued at {formatTimestamp appJob.createdAt}.
+            Latest refresh job <span class="fw-semibold">{jobStatusLabel appJob.status}</span> queued at {formatTimestamp appJob.createdAt}.
             {renderJobError appJob}
         |]
 
@@ -483,20 +480,9 @@ renderRefreshJobStatus maybeJob =
     case maybeJob of
         Nothing -> [hsx|No award refresh job has been queued yet.|]
         Just appJob -> [hsx|
-            Latest refresh job <span class="fw-semibold">{renderJobStatus appJob.status}</span> queued at {formatTimestamp appJob.createdAt}.
+            Latest refresh job <span class="fw-semibold">{jobStatusLabel appJob.status}</span> queued at {formatTimestamp appJob.createdAt}.
             {renderJobError appJob}
         |]
-
-renderJobStatus :: JobStatus -> Text
-renderJobStatus status =
-    case inputValue status of
-        "job_status_not_started" -> "queued"
-        "job_status_running"     -> "running"
-        "job_status_failed"      -> "failed"
-        "job_status_timed_out"   -> "timed out"
-        "job_status_succeeded"   -> "succeeded"
-        "job_status_retry"       -> "retrying"
-        other                    -> other
 
 renderJobError :: AppJob -> Html
 renderJobError appJob =
@@ -717,15 +703,15 @@ renderVenueOnboardingInvitationRow now invitation = [hsx|
 
 renderOnboardingInvitationStatusBadge :: UTCTime -> VenueOnboardingInvitation -> Html
 renderOnboardingInvitationStatusBadge now invitation
-    | inputValue invitation.status == "pending"
+    | invitationStatusAllowsRenewal invitation.status
         && maybe False (<= now) invitation.expiresAt =
             renderAppStatusBadge AppStatusNeutral "Expired"
     | otherwise =
-        renderInvitationLifecycleStatusBadge (inputValue invitation.status)
+        renderInvitationLifecycleStatusBadge invitation.status
 
 renderOnboardingInvitationRenewalControl :: VenueOnboardingInvitation -> Html
 renderOnboardingInvitationRenewalControl invitation
-    | inputValue invitation.status == "pending" && isNothing invitation.acceptedAt = [hsx|
+    | invitationStatusAllowsRenewal invitation.status && isNothing invitation.acceptedAt = [hsx|
         <form method="POST" action={RenewSupportVenueOnboardingInvitationAction invitation.id} class="d-flex gap-2">
             <label class="visually-hidden" for={"support-renew-onboarding-email-" <> tshow invitation.id}>Corrected owner email</label>
             <input
@@ -743,12 +729,12 @@ renderOnboardingInvitationRenewalControl invitation
 
 renderOnboardingInvitationDeliveryBadge :: VenueOnboardingInvitation -> Html
 renderOnboardingInvitationDeliveryBadge invitation =
-    renderInvitationDeliveryStatusBadge (inputValue invitation.deliveryStatus)
+    renderInvitationDeliveryStatusBadge invitation.deliveryStatus
 
 renderOnboardingInvitationDeliveryError :: VenueOnboardingInvitation -> Html
 renderOnboardingInvitationDeliveryError invitation =
     case invitation.deliveryError of
-        Just deliveryError | invitation.deliveryStatus == Failed -> [hsx|
+        Just deliveryError | invitation.deliveryStatus == InvitationDeliveryStatusEnumFailed -> [hsx|
             <div class="small app-muted mt-1">{deliveryError}</div>
         |]
         _ -> mempty

@@ -15,11 +15,9 @@ module Web.Admin.FrontendSurface
     , adminXeroSurfaceImpl
     , adminVenueSettingsFragment
     , adminInvitesFragment
-    , adminExportsFragment
     , adminShiftTypesFragment
     , adminRosterGroupsFragment
     , adminXeroShellFragment
-    , adminShiftTypesFragmentKeys
     , adminRosterGroupsFragmentKeys
     , adminXeroFragmentKeys
     ) where
@@ -145,8 +143,6 @@ adminInvitesFragment maybeRosterGroupId =
   where
     query = maybe [] (\rosterGroupId -> [("rosterGroupId", tshow rosterGroupId)]) maybeRosterGroupId
 
-adminExportsFragment :: FrontendSurfaceMountedFragment
-adminExportsFragment = adminExportsFragmentForWeek 0
 
 adminExportsFragmentForWeek :: Int -> FrontendSurfaceMountedFragment
 adminExportsFragmentForWeek weekOffset =
@@ -187,8 +183,6 @@ adminXeroShellFragment =
         (pathTo ShowadminXeroShellLiveFragmentAction)
         FrontendSurfaceReplace
 
-adminShiftTypesFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
-adminShiftTypesFragmentKeys = map (.mountedFragmentKey)
 
 adminRosterGroupsFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
 adminRosterGroupsFragmentKeys = map (.mountedFragmentKey)

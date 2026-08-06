@@ -7,7 +7,9 @@ import Application.Fixture.Reset (resetDatabase)
 import Application.Fixture.Seed.Calendar (currentWeekOffsetForDay,
                                           weekStartForOffset)
 import Application.Fixture.Seed.Scenario
-import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey)
+import Application.Helper.ShiftTypeColours (ShiftTypeColourKeyEnum,
+                                            blankShiftTypeColourKey,
+                                            shiftTypeColourKeyCssValue)
 import Application.Helper.TimesheetPayLedger (backfillApprovedTimesheetPayCalculations)
 import Application.Script.Prelude
 import qualified Data.List as List
@@ -137,11 +139,10 @@ shiftTypeSummary :: ShiftType -> Text
 shiftTypeSummary shiftType =
     shiftType.name <> " (" <> displayShiftTypeColourKey shiftType.colourKey <> ")"
 
-displayShiftTypeColourKey :: Text -> Text
+displayShiftTypeColourKey :: ShiftTypeColourKeyEnum -> Text
 displayShiftTypeColourKey colourKey
     | colourKey == blankShiftTypeColourKey = "no colour"
-    | colourKey == "default" = "no colour"
-    | otherwise = colourKey
+    | otherwise = shiftTypeColourKeyCssValue colourKey
 
 data SeedDevOptions = SeedDevOptions
     { selectedScenario  :: !SeedScenarioName

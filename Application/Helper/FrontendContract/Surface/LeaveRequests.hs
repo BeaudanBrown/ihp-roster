@@ -8,6 +8,7 @@ module Application.Helper.FrontendContract.Surface.LeaveRequests
     , LeaveAvailabilityWarnings
     , LeaveAvailabilityWarningsResource
     , LeaveSection
+    , LeaveSectionValue (..)
     , LeaveSectionCount
     , LeaveSectionList
     , LeaveTargetSuffix
@@ -59,7 +60,22 @@ module Application.Helper.FrontendContract.Surface.LeaveRequests
     , VenueId
     ) where
 
-import Application.Helper.FrontendContract.Surface.DSL
+import Application.Helper.FrontendContract.Surface.DSL hiding (Enum)
+import IHP.ModelSupport (InputValue (..))
+import IHP.Prelude
+
+data LeaveSectionValue
+    = LeavePendingSection
+    | LeaveApprovedSection
+    | LeaveDeniedSection
+    | LeaveArchiveSection
+    deriving (Eq, Show, Enum, Bounded)
+
+instance InputValue LeaveSectionValue where
+    inputValue LeavePendingSection  = "pending"
+    inputValue LeaveApprovedSection = "approved"
+    inputValue LeaveDeniedSection   = "denied"
+    inputValue LeaveArchiveSection  = "archive"
 
 data LeaveRequests
 
@@ -124,7 +140,7 @@ data Expanded
 
 type UnavailabilityBlackoutsResource = Resource UnavailabilityBlackouts '[ Field VenueId 'WireUUID ]
 type LeaveAvailabilityWarningsResource = Resource LeaveAvailabilityWarnings '[ Field VenueId 'WireUUID ]
-type LeaveRequestsSectionResource = Resource LeaveRequestsSection '[ Field VenueId 'WireUUID, Field LeaveSection 'WireText ]
+type LeaveRequestsSectionResource = Resource LeaveRequestsSection '[ Field VenueId 'WireUUID, Field LeaveSection ('WireClosed LeaveSectionValue) ]
 data LeaveRequestsSection
 
 type LeaveRequestsSurface =
@@ -156,15 +172,15 @@ type LeaveRequestsSurface =
              , 'DependsOn LeaveAvailabilityWarningsResource '[ 'FromScope VenueId ]
              ]
          , Fragment LeaveSectionCount
-            '[ Field LeaveSection 'WireText ]
-            '[ 'MountTarget Leave '[ Field LeaveSection 'WireText, Field LeaveTargetSuffix 'WireText ]
+            '[ Field LeaveSection ('WireClosed LeaveSectionValue) ]
+            '[ 'MountTarget Leave '[ Field LeaveSection ('WireClosed LeaveSectionValue), Field LeaveTargetSuffix 'WireText ]
              , 'Eager
              , 'Live
              , 'DependsOn LeaveRequestsSectionResource '[ 'FromScope VenueId, 'FromFragment LeaveSection ]
              ]
          , Fragment LeaveSectionList
-            '[ Field LeaveSection 'WireText ]
-            '[ 'MountTarget Leave '[ Field LeaveSection 'WireText, Field LeaveTargetSuffix 'WireText ]
+            '[ Field LeaveSection ('WireClosed LeaveSectionValue) ]
+            '[ 'MountTarget Leave '[ Field LeaveSection ('WireClosed LeaveSectionValue), Field LeaveTargetSuffix 'WireText ]
              , 'Eager
              , 'Live
              , 'DependsOn LeaveRequestsSectionResource '[ 'FromScope VenueId, 'FromFragment LeaveSection ]

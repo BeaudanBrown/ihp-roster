@@ -9,12 +9,12 @@ module Test.FrontendSurfaceRequestAdapterSpec
 
 import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
-import Application.Helper.FrontendContract.Surface.HaskellAdapter.Action
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Core
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
-import Application.Helper.FrontendContract.Surface.HaskellAdapter.Intent
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Registry (registeredSurfaceAdapterRegistry)
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Request
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
+import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue (..))
 import qualified Application.Helper.FrontendContract.Surface.Profile as Profile
 import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import Application.Helper.FrontendContract.Surface.Reflect (reflectSurfaceRegistry)
@@ -47,7 +47,8 @@ import qualified Data.Text.IO as Text
 import Data.Time (fromGregorian)
 import qualified Data.UUID as UUID
 import qualified Data.Vault.Lazy as Vault
-import Generated.Types (RosterDay, RosterGroup)
+import Generated.Types (RosterDay, RosterGroup, RosterLayoutModeEnum (..),
+                        VenueRoleEnum (..))
 import IHP.ModelSupport.Types (Id' (Id))
 import IHP.Prelude
 import qualified Network.Wai as Wai
@@ -346,18 +347,18 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 registeredSurfaceAdapterRegistry.surfaceActionAdapterRegistrations of
                 Left diagnostics -> expectationFailure (cs (show diagnostics)) >> pure []
                 Right inventory -> pure inventory
-        length actionDeclarations `shouldBe` 63
+        length actionDeclarations `shouldBe` 67
         length actionInventory `shouldBe` length actionDeclarations
         let generatedActionOperations = mapMaybe (.checkedSurfaceRequestAdapterOperations) actionInventory
-        length generatedActionOperations `shouldBe` 58
+        length generatedActionOperations `shouldBe` 62
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterFieldsBuilderOperation)) generatedActionOperations)
-            `shouldBe` 58
+            `shouldBe` 61
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRenderMetadataOperation)) generatedActionOperations)
-            `shouldBe` 58
+            `shouldBe` 61
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRequestParserOperation)) generatedActionOperations)
-            `shouldBe` 41
+            `shouldBe` 45
         let actionIdentity registration =
-                let declaration = registration.checkedSurfaceRequestAdapterDeclaration
+                let declaration = registration.checkedSurfaceRequestAdapter.resolvedAdapterDeclaration
                  in (declaration.checkedAdapterSurfaceName, declaration.checkedAdapterDeclarationName)
         List.sort
             [ actionIdentity registration
@@ -438,7 +439,6 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                         , "Application.Helper.FrontendContract.Surface.Support.Generated.Action"
                         , "Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action"
                         ]
-        length registeredSurfaceAdapterRegistry.surfaceIntentAdapterHomes `shouldBe` 6
         case generateSurfaceIntentAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
             Left diagnostics -> expectationFailure (cs (show diagnostics))
             Right generatedModules ->
@@ -520,7 +520,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
         case parsedLayout of
             Left errors -> expectationFailure (cs (show errors))
             Right fields ->
-                surfaceFieldValue @Roster.RosterLayoutMode fields `shouldBe` "day_columns"
+                surfaceFieldValue @Roster.RosterLayoutMode fields `shouldBe` DayColumns
 
         let ?request = requestWithParams validRosterDragIntentParams
         assertRosterDragIntentFields RosterIntent.parseMoveRosterShiftToSlotIntentParams
@@ -538,6 +538,11 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 let ?request = requestWithParams [("rosterLayoutMode", Just invalidUtf8)]
                  in RosterIntent.parseSetRosterLayoutModeIntentParams
         assertRequestErrors ["rosterLayoutMode"] MalformedSurfaceRequestField malformedLayout
+
+        let unknownLayout =
+                let ?request = requestWithParams [("rosterLayoutMode", Just "diagonal")]
+                 in RosterIntent.parseSetRosterLayoutModeIntentParams
+        assertRequestErrors ["rosterLayoutMode"] MalformedSurfaceRequestField unknownLayout
 
         let missingDragIntentChecks =
                 let ?request = requestWithParams []
@@ -781,8 +786,6 @@ fixtureRegistry =
         @Fixture.FixtureResourceHomes
         @Fixture.FixtureScopeHomes
         @Fixture.FixtureFragmentHomes
-        @Fixture.FixtureActionHomes
-        @Fixture.FixtureIntentHomes
         Fixture.fixtureActorOnlyFragments
         [ surfaceActionAdapter
             @Fixture.AdapterFixtureFamily
@@ -861,8 +864,8 @@ profileDetailsFields =
         4
         "Charles"
         "0411111111"
-        "profile"
-        (Just "manager")
+        StaffProfileDetailsSection
+        (Just Manager)
         Nothing
         (Just "award:level-1")
         (Just [firstRosterGroupId, secondRosterGroupId])
@@ -877,8 +880,8 @@ staffProfileDetailsFields =
         4
         "Charles"
         "0411111111"
-        "profile"
-        (Just "manager")
+        StaffProfileDetailsSection
+        (Just Manager)
         Nothing
         (Just "award:level-1")
         (Just [firstRosterGroupId, secondRosterGroupId])
@@ -886,13 +889,13 @@ staffProfileDetailsFields =
 preferenceFields :: SurfaceActionFields Profile.ProfileSurface Profile.UpdateProfileShiftPreferences
 preferenceFields =
     ProfileAction.updateProfileShiftPreferencesActionFields
-        "preferences"
+        StaffProfilePreferencesSection
         (Just ["monday:9:17", "friday:10:18"])
 
 staffPreferenceFields :: SurfaceActionFields Profile.StaffSurface Profile.UpdateStaffShiftPreferences
 staffPreferenceFields =
     ProfileAction.updateStaffShiftPreferencesActionFields
-        "preferences"
+        StaffProfilePreferencesSection
         (Just ["monday:9:17", "friday:10:18"])
 
 selfServiceLeaveRequestFields :: SurfaceActionFields SelfServiceLeave.SelfServiceLeaveSurface SelfServiceLeave.CreateSelfServiceLeaveRequest
@@ -968,8 +971,8 @@ assertDetailsSubmission family = \case
         submission.submittedIdealShiftsPerWeek `shouldBe` 4
         submission.submittedEmergencyContactName `shouldBe` "Charles"
         submission.submittedEmergencyContactPhone `shouldBe` "0411111111"
-        submission.submittedProfileSection `shouldBe` "profile"
-        submission.submittedVenueRole `shouldBe` Just "manager"
+        submission.submittedProfileSection `shouldBe` StaffProfileDetailsSection
+        submission.submittedVenueRole `shouldBe` Just Manager
         submission.submittedEmploymentBasis `shouldBe` Nothing
         submission.submittedPayRateSelection `shouldBe` Just "award:level-1"
         submission.submittedRosterGroupIds `shouldBe` Just [firstRosterGroupId, secondRosterGroupId]
@@ -980,7 +983,7 @@ assertPreferencesSubmission family = \case
     Right (SubmittedStaffProfileDetails _) ->
         expectationFailure (cs (family <> " preferences request selected details"))
     Right (SubmittedStaffShiftPreferences submission) -> do
-        submission.submittedPreferencesSection `shouldBe` "preferences"
+        submission.submittedPreferencesSection `shouldBe` StaffProfilePreferencesSection
         submission.submittedShiftPreferenceKeys `shouldBe` ["monday:9:17", "friday:10:18"]
 
 assertRequestErrors :: [Text] -> SurfaceRequestFieldErrorKind -> Either [SurfaceRequestFieldError] value -> Expectation

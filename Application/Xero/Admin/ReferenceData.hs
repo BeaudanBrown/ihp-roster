@@ -17,6 +17,7 @@ import Application.Helper.Audit (AuditEventType (XeroReferenceSyncFailedAudit, X
                                  AuditSourceChannel (ApplicationAuditSource),
                                  recordAuditEvent)
 import Application.Helper.Xero
+import Application.Xero.WorkflowState (xeroAccountCodeSelectionIsVerified)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Functor ((<&>))
@@ -43,8 +44,8 @@ startXeroReferenceDataSync connection = do
     newRecord @XeroSyncRun
         |> set #venueId connection.venueId
         |> set #xeroConnectionId (unpackId connection.id)
-        |> set #syncStatus ("running" :: Text)
-        |> set #syncKind ("payroll_reference_data" :: Text)
+        |> set #syncStatus Running
+        |> set #syncKind PayrollReferenceData
         |> set #startedAt now
         |> createRecord
 
@@ -73,7 +74,7 @@ completeXeroReferenceDataSync maybeActorUserId syncRun connection employees earn
         reconcileXeroPayItemAccountCodeSelection maybeActorUserId connection accounts payrollSettingsAccounts
         updatedSyncRun <-
             syncRun
-                |> set #syncStatus ("succeeded" :: Text)
+                |> set #syncStatus Succeeded
                 |> set #employeesCount (length employees)
                 |> set #earningsRatesCount (length earningsRates)
                 |> set #payrollCalendarsCount (length payrollCalendars)
@@ -116,7 +117,7 @@ failXeroReferenceDataSync maybeActorUserId syncRun connection message = do
     withTransaction do
         _ <-
             syncRun
-                |> set #syncStatus ("failed" :: Text)
+                |> set #syncStatus XeroSyncStatusEnumFailed
                 |> set #errorMessage (Just message)
                 |> set #finishedAt (Just now)
                 |> updateRecord
@@ -165,14 +166,14 @@ markStaleXeroStaffMappings connection employees = do
         query @XeroStaffMapping
             |> filterWhere (#venueId, connection.venueId)
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> filterWhere (#mappingStatus, "verified" :: Text)
+            |> filterWhere (#mappingStatus, XeroStaffMappingStatusEnumVerified)
             |> fetch
     forM_ mappings \mapping ->
         case mapping.xeroEmployeeId of
             Just employeeId | employeeId `elem` activeEmployeeIds -> pure ()
             _ ->
                 mapping
-                    |> set #mappingStatus "stale"
+                    |> set #mappingStatus XeroStaffMappingStatusEnumStale
                     |> set #lastVerifiedAt Nothing
                     |> updateRecord
                     |> void
@@ -205,14 +206,14 @@ markStaleXeroEarningsRateMappings connection earningsRates = do
         query @XeroEarningsRateMapping
             |> filterWhere (#venueId, connection.venueId)
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> filterWhere (#mappingStatus, "verified" :: Text)
+            |> filterWhere (#mappingStatus, XeroEarningsRateMappingStatusEnumVerified)
             |> fetch
     forM_ mappings \mapping ->
         case mapping.xeroEarningsRateId of
             Just earningsRateId | earningsRateId `elem` activeEarningsRateIds -> pure ()
             _ ->
                 mapping
-                    |> set #mappingStatus "stale"
+                    |> set #mappingStatus XeroEarningsRateMappingStatusEnumStale
                     |> set #lastVerifiedAt Nothing
                     |> updateRecord
                     |> void
@@ -220,14 +221,14 @@ markStaleXeroEarningsRateMappings connection earningsRates = do
         query @XeroPayItemRequirementRecord
             |> filterWhere (#venueId, connection.venueId)
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> filterWhereIn (#requirementStatus, ["matched" :: Text, "created"])
+            |> filterWhereIn (#requirementStatus, [Matched, XeroPayItemRequirementStatusEnumCreated])
             |> fetch
     forM_ requirements \requirement ->
         case requirement.xeroEarningsRateId of
             Just earningsRateId | earningsRateId `elem` activeEarningsRateIds -> pure ()
             _ ->
                 requirement
-                    |> set #requirementStatus "stale"
+                    |> set #requirementStatus XeroPayItemRequirementStatusEnumStale
                     |> set #lastVerifiedAt Nothing
                     |> updateRecord
                     |> void
@@ -254,19 +255,19 @@ reconcileXeroPayItemAccountCodeSelection maybeActorUserId connection accounts pa
             |> fetchOneOrNothing
     case (maybeSelection, activeAccountCodes) of
         (Just selection, _)
-            | selection.selectionStatus == "verified"
+            | xeroAccountCodeSelectionIsVerified selection.selectionStatus
             , maybe False (\accountCode -> Text.strip accountCode `elem` activeAccountCodes) selection.accountCode ->
                 pure ()
         (_, _)
             | Just accountCode <- maybeWagesExpenseCode
             , accountCode `elem` activeAccountCodes ->
-                upsertXeroPayItemAccountCodeSelection maybeActorUserId connection "verified" (Just accountCode)
+                upsertXeroPayItemAccountCodeSelection maybeActorUserId connection XeroPayItemAccountCodeSelectionStatusEnumVerified (Just accountCode)
         (_, [accountCode]) ->
-            upsertXeroPayItemAccountCodeSelection maybeActorUserId connection "verified" (Just accountCode)
+            upsertXeroPayItemAccountCodeSelection maybeActorUserId connection XeroPayItemAccountCodeSelectionStatusEnumVerified (Just accountCode)
         (Just selection, _)
-            | selection.selectionStatus == "verified" ->
+            | xeroAccountCodeSelectionIsVerified selection.selectionStatus ->
                 selection
-                    |> set #selectionStatus ("stale" :: Text)
+                    |> set #selectionStatus XeroPayItemAccountCodeSelectionStatusEnumStale
                     |> set #lastVerifiedAt Nothing
                     |> set #updatedByUserId maybeActorUserId
                     |> updateRecord
@@ -289,7 +290,7 @@ upsertXeroPayItemAccountCodeSelection ::
     (?modelContext :: ModelContext) =>
     Maybe UUID ->
     XeroConnection ->
-    Text ->
+    XeroPayItemAccountCodeSelectionStatusEnum ->
     Maybe Text ->
     IO ()
 upsertXeroPayItemAccountCodeSelection maybeActorUserId connection selectionStatus maybeAccountCode = do
@@ -304,7 +305,7 @@ upsertXeroPayItemAccountCodeSelection maybeActorUserId connection selectionStatu
                 |> set #xeroConnectionId (unpackId connection.id)
                 |> set #accountCode maybeAccountCode
                 |> set #selectionStatus selectionStatus
-                |> set #lastVerifiedAt (if selectionStatus == "verified" then Just now else Nothing)
+                |> set #lastVerifiedAt (if xeroAccountCodeSelectionIsVerified selectionStatus then Just now else Nothing)
                 |> set #updatedByUserId maybeActorUserId
     case existingSelection of
         Just existing -> prepared existing |> updateRecord |> void

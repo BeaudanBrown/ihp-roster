@@ -23,7 +23,7 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
     ( ActorOnlyFragmentAdapterMetadata (..)
     , AdapterFamilySurface
     , CheckedSurfaceRequestAdapterRegistration
-    , checkedSurfaceRequestAdapterDeclaration
+    , checkedSurfaceRequestAdapter
     , checkedSurfaceRequestAdapterOperations
     , HaskellTypeMetadata (..)
     , ReflectSurfaceAdapterFamilies
@@ -133,7 +133,7 @@ data SurfaceRequestAdapterRegistration (kind :: SurfaceAdapterKind)
 -- and resolved through the same family/home/source-type seam as emitted code.
 data CheckedSurfaceRequestAdapterRegistration kind payload =
     CheckedSurfaceRequestAdapterRegistration
-        { checkedSurfaceRequestAdapterDeclaration :: !(CheckedAdapterDeclaration kind payload)
+        { checkedSurfaceRequestAdapter           :: !(ResolvedAdapter kind payload)
         , checkedSurfaceRequestAdapterOperations :: !(Maybe SurfaceRequestAdapterOperations)
         }
     deriving (Eq, Show)
@@ -144,9 +144,7 @@ data SurfaceAdapterRegistry = SurfaceAdapterRegistry
     , surfaceScopeAdapterHomes            :: ![SurfaceAdapterHomeMetadata 'ScopeAdapterKind]
     , surfaceFragmentAdapterHomes         :: ![SurfaceAdapterHomeMetadata 'FragmentAdapterKind]
     , surfaceActorOnlyFragmentAdapters    :: ![ActorOnlyFragmentAdapterMetadata]
-    , surfaceActionAdapterHomes           :: ![SurfaceAdapterHomeMetadata 'ActionAdapterKind]
     , surfaceActionAdapterRegistrations   :: ![SurfaceRequestAdapterRegistration 'ActionAdapterKind]
-    , surfaceIntentAdapterHomes           :: ![SurfaceAdapterHomeMetadata 'IntentAdapterKind]
     , surfaceIntentAdapterRegistrations   :: ![SurfaceRequestAdapterRegistration 'IntentAdapterKind]
     }
     deriving (Eq, Show)
@@ -332,7 +330,7 @@ resolveSurfaceRequestAdapterRegistrations layout contract families declarations 
                     (error "resolved Surface request adapter has no inventory registration")
                     (find ((== adapter.resolvedAdapterHome) . requestAdapterRegistrationHome) registrations)
          in CheckedSurfaceRequestAdapterRegistration
-                { checkedSurfaceRequestAdapterDeclaration = adapter.resolvedAdapterDeclaration
+                { checkedSurfaceRequestAdapter = adapter
                 , checkedSurfaceRequestAdapterOperations = requestAdapterGeneratedOperations registration
                 }
 
@@ -423,13 +421,11 @@ instance
         haskellTypeMetadata @marker : reflectSurfaceFieldMarkerTypes @rest
 
 reflectSurfaceAdapterRegistry ::
-    forall families resourceHomes scopeHomes fragmentHomes actionHomes intentHomes.
+    forall families resourceHomes scopeHomes fragmentHomes.
     ( ReflectSurfaceAdapterFamilies families
     , ReflectSurfaceResourceAdapterHomes resourceHomes
     , ReflectSurfaceAdapterHomes 'ScopeAdapterKind scopeHomes
     , ReflectSurfaceAdapterHomes 'FragmentAdapterKind fragmentHomes
-    , ReflectSurfaceAdapterHomes 'ActionAdapterKind actionHomes
-    , ReflectSurfaceAdapterHomes 'IntentAdapterKind intentHomes
     ) =>
     [ActorOnlyFragmentAdapterMetadata] ->
     [SurfaceRequestAdapterRegistration 'ActionAdapterKind] ->
@@ -445,8 +441,6 @@ reflectSurfaceAdapterRegistry
             , surfaceScopeAdapterHomes = reflectSurfaceAdapterHomes @'ScopeAdapterKind @scopeHomes
             , surfaceFragmentAdapterHomes = reflectSurfaceAdapterHomes @'FragmentAdapterKind @fragmentHomes
             , surfaceActorOnlyFragmentAdapters = surfaceActorOnlyFragmentAdapters
-            , surfaceActionAdapterHomes = reflectSurfaceAdapterHomes @'ActionAdapterKind @actionHomes
             , surfaceActionAdapterRegistrations = surfaceActionAdapterRegistrations
-            , surfaceIntentAdapterHomes = reflectSurfaceAdapterHomes @'IntentAdapterKind @intentHomes
             , surfaceIntentAdapterRegistrations = surfaceIntentAdapterRegistrations
             }

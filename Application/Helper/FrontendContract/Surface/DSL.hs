@@ -83,6 +83,7 @@ data WireType
     | WireBool
     | WireUUID
     | WireDay
+    | WireClosed Type
     | WireList WireType
     | WireOptional WireType
     | WireNullable WireType

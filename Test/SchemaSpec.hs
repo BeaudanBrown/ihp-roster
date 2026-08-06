@@ -263,6 +263,58 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (timesheet_entry_id) REFERENCES timesheet_entries (id) ON DELETE RESTRICT"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (leave_request_id) REFERENCES leave_requests (id) ON DELETE RESTRICT"
 
+    it "types app-owned Xero workflow state while retaining provider vocabulary as text" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        let expectedEnumDeclarations =
+                [ "CREATE TYPE xero_sync_status_enum AS ENUM ('running', 'succeeded', 'failed');"
+                , "CREATE TYPE xero_sync_kind_enum AS ENUM ('payroll_reference_data');"
+                , "CREATE TYPE xero_staff_mapping_status_enum AS ENUM ('verified', 'not_applicable', 'stale');"
+                , "CREATE TYPE xero_earnings_rate_mapping_status_enum AS ENUM ('unmapped', 'verified', 'stale');"
+                , "CREATE TYPE xero_pay_item_account_code_selection_status_enum AS ENUM ('none', 'verified', 'stale');"
+                , "CREATE TYPE xero_pay_item_requirement_status_enum AS ENUM ('proposed', 'matched', 'created', 'ignored', 'stale', 'rate_changed');"
+                , "CREATE TYPE xero_submission_source_kind_enum AS ENUM ('approved_timesheets');"
+                , "CREATE TYPE xero_submission_run_status_enum AS ENUM ('previewed', 'blocked', 'pending', 'submitted', 'partially_failed', 'failed', 'superseded');"
+                , "CREATE TYPE xero_timesheet_preparation_run_status_enum AS ENUM ('started', 'preparing', 'needs_reconnect', 'needs_approval', 'blocked', 'resolved', 'ready_for_preview', 'previewed', 'submitted', 'failed', 'cancelled');"
+                , "CREATE TYPE xero_timesheet_preparation_decision_kind_enum AS ENUM ('staff_auto_match', 'staff_manual_mapping', 'staff_not_paid', 'staff_step_approved', 'pay_item_create', 'account_code', 'calendar_selection');"
+                , "CREATE TYPE xero_timesheet_preparation_decision_status_enum AS ENUM ('pending', 'proposed', 'applied', 'blocked', 'resolved', 'dismissed');"
+                , "CREATE TYPE xero_timesheet_submission_status_enum AS ENUM ('blocked', 'pending', 'submitted', 'failed', 'skipped', 'superseded');"
+                ]
+        forM_ expectedEnumDeclarations \declaration ->
+            schemaSqlText `shouldSatisfy` Text.isInfixOf declaration
+        let (_, employeeTableAndAfter) = Text.breakOn "CREATE TABLE xero_employees" schemaSqlText
+        Text.takeWhileEnd (/= ';') (Text.takeWhile (/= ';') employeeTableAndAfter)
+            `shouldSatisfy` Text.isInfixOf "status TEXT"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "xero_pay_run_status TEXT DEFAULT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "xero_timesheet_status TEXT DEFAULT NULL"
+
+    it "validates every live Xero workflow value before converting columns to enums" do
+        migrationSqlText <- TextIO.readFile "Application/Migration/1786000000.sql"
+        runbookSqlText <- TextIO.readFile "Application/Migration/xero-workflow-enums-334-runbook.md"
+        runbookExists <- Directory.doesFileExist "Application/Migration/xero-workflow-enums-334-runbook.md"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "unexpected app-owned Xero workflow value"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "('xero_timesheet_preparation_decisions', 'decision_kind'"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "check_spec.table_name"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "check_spec.column_name"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ALTER COLUMN decision_kind TYPE xero_timesheet_preparation_decision_kind_enum"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ALTER COLUMN status TYPE xero_timesheet_submission_status_enum"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "DROP INDEX idx_xero_staff_mappings_verified_employee"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_xero_staff_mappings_verified_employee"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "DROP INDEX idx_xero_timesheet_submissions_active_remote_period"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_xero_timesheet_submissions_active_remote_period"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "string_agg"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "LIMIT 1"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DELETE FROM"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP COLUMN"
+        runbookSqlText `shouldSatisfy` Text.isInfixOf "ALTER TABLE xero_sync_runs ALTER COLUMN sync_kind DROP DEFAULT"
+        runbookSqlText `shouldSatisfy` Text.isInfixOf "ALTER TABLE xero_timesheet_submissions ALTER COLUMN status DROP DEFAULT"
+        runbookSqlText `shouldSatisfy` Text.isInfixOf "ALTER TABLE xero_sync_runs ALTER COLUMN sync_kind SET DEFAULT 'payroll_reference_data'"
+        runbookSqlText `shouldSatisfy` Text.isInfixOf "ALTER TABLE xero_timesheet_submissions ALTER COLUMN status SET DEFAULT 'pending'"
+        runbookSqlText `shouldSatisfy` Text.isInfixOf "DROP INDEX idx_xero_staff_mappings_verified_employee"
+        runbookSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_xero_staff_mappings_verified_employee"
+        runbookSqlText `shouldSatisfy` Text.isInfixOf "DROP INDEX idx_xero_timesheet_submissions_active_remote_period"
+        runbookSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_xero_timesheet_submissions_active_remote_period"
+        runbookExists `shouldBe` True
+
     it "persists Xero timesheet submission runs, per-staff submissions, and source entry links" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE xero_submission_runs"
@@ -358,8 +410,10 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_timesheet_entries_source_roster_slot ON timesheet_entries (source_roster_slot_id) WHERE source_roster_slot_id IS NOT NULL AND deleted_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_roster_groups_one_active_default ON roster_groups (venue_id) WHERE is_default = TRUE AND is_active = TRUE AND archived_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_shift_types_active_name ON shift_types (venue_id, name) WHERE is_active = TRUE AND archived_at IS NULL;"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "colour_key TEXT DEFAULT '' NOT NULL"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (colour_key = '' OR colour_key = 'palette-1'"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TYPE feedback_type_enum AS ENUM ('bug', 'suggestion', 'other');"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TYPE shift_type_colour_key_enum AS ENUM ('no_colour', 'palette_1'"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "colour_key shift_type_colour_key_enum DEFAULT 'no_colour' NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "feedback_type feedback_type_enum DEFAULT 'bug' NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_staff_shift_preferences_active_unique ON staff_shift_preferences (staff_id, weekday_index) WHERE deleted_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK ((preferred_start_hour >= 5) AND (preferred_start_hour <= 23))"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK ((preferred_end_hour >= 5) AND (preferred_end_hour <= 23))"

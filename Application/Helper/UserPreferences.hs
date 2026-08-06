@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeApplications #-}
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
 module Application.Helper.UserPreferences
     ( UserRosterPreferences (..)
@@ -10,7 +11,7 @@ module Application.Helper.UserPreferences
     , fetchCurrentUserShowWageEstimates
     , fetchCurrentUserHighlightOwnLiveShifts
     , fetchCurrentUserTimesheetPreferences
-    , parseRosterLayoutMode
+    , rosterLayoutModeIsDayColumns
     , rosterLayoutModeLabel
     , rosterLayoutModeValue
     , rosterLayoutModes
@@ -57,17 +58,17 @@ defaultRosterLayoutMode = DayRows
 rosterLayoutModes :: [RosterLayoutModeEnum]
 rosterLayoutModes = allEnumValues @RosterLayoutModeEnum
 
-parseRosterLayoutMode :: Text -> Maybe RosterLayoutModeEnum
-parseRosterLayoutMode = enumFromText @RosterLayoutModeEnum
 
 rosterLayoutModeValue :: RosterLayoutModeEnum -> Text
 rosterLayoutModeValue = inputValue
 
+rosterLayoutModeIsDayColumns :: RosterLayoutModeEnum -> Bool
+rosterLayoutModeIsDayColumns DayRows    = False
+rosterLayoutModeIsDayColumns DayColumns = True
+
 rosterLayoutModeLabel :: RosterLayoutModeEnum -> Text
-rosterLayoutModeLabel mode =
-    case rosterLayoutModeValue mode of
-        "day_columns" -> "Day columns"
-        _             -> "Day rows"
+rosterLayoutModeLabel DayRows    = "Day rows"
+rosterLayoutModeLabel DayColumns = "Day columns"
 
 fetchCurrentUserPreferenceRecord :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Maybe UserPreference)
 fetchCurrentUserPreferenceRecord =

@@ -100,6 +100,7 @@ validateWire wire value =
         SurfaceIR.WireDayIR -> case value of
             Aeson.String text -> not (Text.null text)
             _                 -> False
+        SurfaceIR.WireClosedIR {} -> isString value
         SurfaceIR.WireListIR inner -> case value of
             Aeson.Array values -> all (validateWire inner) values
             _                  -> False

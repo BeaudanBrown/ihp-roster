@@ -1,6 +1,5 @@
 module Test.Controller.StaffDocumentsSpec where
 
-import Application.Helper.FrontendContract.Surface.Profile.Resource (staffRsaDocumentsResource)
 import Application.Helper.SurfaceResource
 import Application.StaffDocuments.Rsa
 import qualified Data.Aeson as Aeson
@@ -17,7 +16,6 @@ import Test.Support
 import Web.Controller.StaffDocuments ()
 import Web.FrontController ()
 import Web.Routes
-import Web.StaffDocuments.Mutations (rsaStaffDocumentTouchedResources)
 import Web.Types
 
 tests :: Spec
@@ -137,7 +135,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue manager Manager
                 _ <- createVenueMembershipRecord venue worker Worker
                 staff <- createStaffRecord venue (Just worker) "Mina" "Managed"
-                current <- createRsaDocument worker.id staff (testRsaUpload (fromGregorian 2027 5 2)) >>= updateRecord . set #status Verified
+                current <- createRsaDocument worker.id staff (testRsaUpload (fromGregorian 2027 5 2)) >>= updateRecord . set #status StaffDocumentStatusEnumVerified
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams CreateStaffDocumentAction
@@ -158,18 +156,6 @@ tests = aroundAll withDatabaseTestContext do
                 fmap (.id) state.rsaCurrentDocument `shouldBe` Just current.id
                 fmap (.documentNumber) state.rsaPendingReplacement `shouldBe` Just (Just "MANAGER-RSA-1")
 
-        it "records touched resources for RSA document changes" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "RSA Touch Venue"
-                user <- createUserRecord "rsa-touch@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user Worker
-                staff <- createStaffRecord venue (Just user) "Touch" "Worker"
-                staffDocument <- createRsaDocument user.id staff (testRsaUpload (fromGregorian 2027 5 2))
-
-                rsaStaffDocumentTouchedResources staffDocument
-                    `shouldBe` [ staffRsaDocumentsResource (unpackId staff.id)
-                               ]
-
         it "allows managers to review RSA documents in their venue" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "RSA Review Venue"
@@ -188,7 +174,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status302
                 updatedDocument <- fetch staffDocument.id
-                updatedDocument.status `shouldBe` Verified
+                updatedDocument.status `shouldBe` StaffDocumentStatusEnumVerified
                 updatedDocument.reviewedByUserId `shouldBe` Just (unpackId manager.id)
                 updatedDocument.reviewedAt `shouldSatisfy` isJust
                 [auditEvent] <-

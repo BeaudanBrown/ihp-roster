@@ -2039,7 +2039,7 @@ tests = aroundAll withDatabaseTestContext do
                 slotName <- fetchSlotNameRecord venue "Early"
                 staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
                 level <- createPayLevelRecord venue "Level 1"
-                shiftType <- createShiftTypeRecord venue level "Floor" >>= updateRecord . set #colourKey "palette-3"
+                shiftType <- createShiftTypeRecord venue level "Floor" >>= updateRecord . set #colourKey Palette3
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 _ <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0 >>= updateRecord . set #shiftTypeId (Just (unpackId shiftType.id))

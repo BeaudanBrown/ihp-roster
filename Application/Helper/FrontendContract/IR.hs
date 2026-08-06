@@ -83,11 +83,20 @@ validateFrontendContractIR contract =
         <> concatMap validateGlobal contract.contractGlobals
         <> validateSurfaceContractIR SurfaceContractIR { contractSurfaces = contract.contractSurfaces }
         <> unresolvedReferenceDiagnostics declaredRefs referencedRefs
+        <> unregisteredClosedScalarDiagnostics declaredClosedScalars referencedClosedScalars
   where
     uniqueSurfaceDtos = List.nub (concatMap (.surfaceDtos) contract.contractSurfaces)
     schemaNames = concatMap globalSchemas contract.contractGlobals <> map (schemaNameAndMarker . (.surfaceDtoSchema)) uniqueSurfaceDtos
     declaredRefs = Set.fromList (fmap fst schemaNames)
     referencedRefs = concatMap globalRefs contract.contractGlobals <> concatMap surfaceRefs contract.contractSurfaces
+    declaredClosedScalars = Set.fromList
+        [ name
+        | global <- contract.contractGlobals
+        , GlobalSchemaIR _ (ClosedScalarIR _ name _) <- global.globalPrimitives
+        ]
+    referencedClosedScalars =
+        concatMap globalClosedScalarRefs contract.contractGlobals
+            <> concatMap surfaceClosedScalarRefs contract.contractSurfaces
     globalPrimitiveNames = concatMap globalNamedPrimitives contract.contractGlobals
 
 validateGlobal :: GlobalIR -> [ContractDiagnostic]
@@ -145,6 +154,16 @@ globalNamedPrimitives global =
 globalRefs :: GlobalIR -> [Text]
 globalRefs global = concatMap globalPrimitiveRefs global.globalPrimitives
 
+globalClosedScalarRefs :: GlobalIR -> [Text]
+globalClosedScalarRefs global = concatMap globalPrimitiveClosedScalarRefs global.globalPrimitives
+
+globalPrimitiveClosedScalarRefs :: GlobalPrimitiveIR -> [Text]
+globalPrimitiveClosedScalarRefs = \case
+    GlobalSchemaIR _ schema -> schemaClosedScalarRefs schema
+    GlobalEventIR _ _ _ fields -> fieldsClosedScalarRefs fields
+    GlobalAppShellActionIR action -> fieldsClosedScalarRefs action.appShellActionFields
+    _ -> []
+
 globalPrimitiveRefs :: GlobalPrimitiveIR -> [Text]
 globalPrimitiveRefs = \case
     GlobalSchemaIR _ schema -> schemaRefs schema
@@ -161,19 +180,38 @@ globalPrimitiveRefs = \case
     GlobalAppShellActionIR action -> fieldRefs action.appShellActionFields
 
 surfaceRefs :: SurfaceIR -> [Text]
-surfaceRefs surface =
-    fieldRefs
-        ( concatMap (.scopeFields) surface.surfaceScopes
-            <> concatMap (.mountStateFields) surface.surfaceMountStates
-            <> concatMap (.fragmentParams) surface.surfaceFragments
-            <> concatMap (.htmxActionFields) surface.surfaceHtmxActions
-            <> concatMap (.intentFields) surface.surfaceIntents
-            <> concatMap snd surface.surfaceClientEvents
-            <> concatMap (schemaFields . (.surfaceDtoSchema)) surface.surfaceDtos
-            <> concatMap
-                (concatMap (resourceFields . dependencyResource) . optionResourceDependencies . (.fragmentOptions))
-                surface.surfaceFragments
-        )
+surfaceRefs = fieldRefs . surfaceFields
+
+surfaceClosedScalarRefs :: SurfaceIR -> [Text]
+surfaceClosedScalarRefs = fieldsClosedScalarRefs . surfaceFields
+
+surfaceFields :: SurfaceIR -> [FieldIR]
+surfaceFields surface =
+    concatMap (.scopeFields) surface.surfaceScopes
+        <> concatMap (.mountStateFields) surface.surfaceMountStates
+        <> concatMap (.fragmentParams) surface.surfaceFragments
+        <> concatMap (.htmxActionFields) surface.surfaceHtmxActions
+        <> concatMap (.intentFields) surface.surfaceIntents
+        <> concatMap snd surface.surfaceClientEvents
+        <> concatMap (schemaFields . (.surfaceDtoSchema)) surface.surfaceDtos
+        <> concatMap
+            (concatMap (resourceFields . dependencyResource) . optionResourceDependencies . (.fragmentOptions))
+            surface.surfaceFragments
+
+schemaClosedScalarRefs :: SchemaIR -> [Text]
+schemaClosedScalarRefs = fieldsClosedScalarRefs . schemaFields
+
+fieldsClosedScalarRefs :: [FieldIR] -> [Text]
+fieldsClosedScalarRefs = concatMap (wireClosedScalarRefs . (.fieldWire))
+
+wireClosedScalarRefs :: WireIR -> [Text]
+wireClosedScalarRefs = \case
+    WireClosedIR name _ _ -> [name]
+    WireListIR inner -> wireClosedScalarRefs inner
+    WireMapIR key value -> wireClosedScalarRefs key <> wireClosedScalarRefs value
+    WireOptionalIR inner -> wireClosedScalarRefs inner
+    WireNullableIR inner -> wireClosedScalarRefs inner
+    _ -> []
 
 unresolvedReferenceDiagnostics :: Set.Set Text -> [Text] -> [ContractDiagnostic]
 unresolvedReferenceDiagnostics declared refs =
@@ -181,3 +219,13 @@ unresolvedReferenceDiagnostics declared refs =
         |> List.nub
         |> filter (not . (`Set.member` declared))
         |> fmap (\name -> ContractDiagnostic "unresolved-ref" ("Unresolved frontend contract ref " <> name))
+
+unregisteredClosedScalarDiagnostics :: Set.Set Text -> [Text] -> [ContractDiagnostic]
+unregisteredClosedScalarDiagnostics declared refs =
+    refs
+        |> List.nub
+        |> filter (not . (`Set.member` declared))
+        |> fmap (\name -> ContractDiagnostic
+            "unregistered-closed-scalar"
+            ("WireClosed references unregistered ClosedScalar " <> name)
+        )

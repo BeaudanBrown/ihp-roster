@@ -133,9 +133,6 @@ currentVenueMembershipOrNothing :: (?context :: ControllerContext) => Maybe Venu
 currentVenueMembershipOrNothing = unsafePerformIO (join <$> maybeFromContext @(Maybe VenueMembership))
 {-# NOINLINE currentVenueMembershipOrNothing #-}
 
-currentVenueMembership :: (?context :: ControllerContext) => VenueMembership
-currentVenueMembership =
-    fromMaybe (error "currentVenueMembership: no active venue membership in controller context") currentVenueMembershipOrNothing
 
 currentVenueRoleOrNothing :: (?context :: ControllerContext) => Maybe VenueRoleEnum
 currentVenueRoleOrNothing = unsafePerformIO (join <$> maybeFromContext @(Maybe VenueRoleEnum))

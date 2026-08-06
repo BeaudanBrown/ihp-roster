@@ -18,7 +18,14 @@ workflow and authorization live in `Web/Controller/StaffDocuments.hs` and
   pending replacement.
 - Upload, review, and live invalidation remain venue-scoped and role-authorized.
 
+
 ## Access And Expiry
+
+The read model remains the authority for reminders, review decisions, and
+focused staff-document tests. Manager edit-staff and staff self-profile RSA
+panels are intentionally not mounted; no FrontendSurface fragment or passive
+resource advertises that unavailable UI.
+
 
 - Linked staff may upload and download their own RSA evidence. Managers may
   upload, download, and review RSA evidence only for staff in their current
@@ -34,6 +41,7 @@ workflow and authorization live in `Web/Controller/StaffDocuments.hs` and
 
 ## PDF Metadata Candidates
 
+
 - PDF scanning is local and deterministic through Poppler-compatible
   `pdftotext`; it does not use AI or an external document processor.
 - Extracted dates, authority, document number, and subject name are candidate
@@ -47,3 +55,31 @@ workflow and authorization live in `Web/Controller/StaffDocuments.hs` and
   upload.
 - OCR or third-party extraction requires a separate privacy and dependency
   review.
+
+The scan result is only a candidate prefill for the existing upload fields:
+issue date, expiry date, issuing authority, and document number. The extracted
+recipient name is shown for confirmation and mismatch warnings against the
+selected staff member; when the confirmed upload is saved it is retained only as
+minimal extraction provenance (`extracted_subject_name`), not as authoritative
+staff identity. The user or manager must confirm or edit the metadata before
+`staff_documents` is written, and the saved row remains `pending_review` until
+the normal manager review flow verifies or rejects it.
+
+Confirmed scanned-prefill uploads persist minimal provenance on `staff_documents`:
+`extraction_method`, `extraction_confidence`, `extraction_warnings_json`, and
+`extracted_subject_name`. Fully manual uploads leave those columns `NULL`. The
+app does not persist full extracted certificate text or OCR output by default.
+
+Failure and low-confidence cases fall back to manual confirmation after the PDF
+has been uploaded for scanning instead of blocking upload. Empty/scanned PDFs,
+missing `pdftotext`, command failures, and uncertain parser output produce
+warnings and blank or partial fields for the user to complete.
+
+The retained scan/upload/review controller flow remains scan-first and accepts
+PDFs for the initial upload step, but it is not currently linked from profile or
+edit-staff panels. Profile return paths resolve to the ordinary profile page,
+not a hidden RSA section. Confirmed upload limits, venue scoping, role checks,
+review status transitions, and reminder behavior remain unchanged. There is no
+RSA live fragment to invalidate. OCR for image-only PDFs is out of V1 scope and
+should be added only behind a future ticket with explicit privacy and dependency
+review.

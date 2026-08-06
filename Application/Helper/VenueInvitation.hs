@@ -1,6 +1,7 @@
 module Application.Helper.VenueInvitation where
 
 import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
+import Application.Helper.InvitationStatus (invitationStatusAllowsRenewal)
 import Application.Helper.Mail
 import Application.Helper.Url (appendQueryParams)
 import qualified Control.Exception.Safe as Exception
@@ -20,7 +21,7 @@ venueInvitationEffectiveExpiresAt invitation =
 
 venueInvitationIsActive :: UTCTime -> VenueInvitation -> Bool
 venueInvitationIsActive now invitation =
-    invitation.status == InvitationStatusEnumPending
+    invitationStatusAllowsRenewal invitation.status
         && isNothing invitation.acceptedAt
         && venueInvitationEffectiveExpiresAt invitation > now
 
@@ -61,7 +62,7 @@ deliverVenueInvitationEmail invitation = do
             let errorMessage = cs (displayException exception)
             _ <-
                 invitation
-                    |> set #deliveryStatus (Failed)
+                    |> set #deliveryStatus (InvitationDeliveryStatusEnumFailed)
                     |> set #deliveryError (Just errorMessage)
                     |> updateRecord
             pure (Left errorMessage)

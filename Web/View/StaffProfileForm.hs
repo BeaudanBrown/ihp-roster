@@ -8,6 +8,7 @@ import Application.Helper.Controller (assignableVenueRolesFor,
                                       effectiveVenueRoleOrNothing,
                                       venueRoleLabel, venueRoleToText)
 import Application.Helper.FrontendContract.OrderedRange.Runtime
+import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue)
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.StaffShiftPreferences
@@ -37,14 +38,14 @@ data StaffProfileDetailsSurfaceValues = StaffProfileDetailsSurfaceValues
     , profileDetailsIdealShiftsPerWeek    :: !Int
     , profileDetailsEmergencyContactName  :: !Text
     , profileDetailsEmergencyContactPhone :: !Text
-    , profileDetailsSection               :: !Text
-    , profileDetailsVenueRole             :: !(Maybe Text)
-    , profileDetailsEmploymentBasis       :: !(Maybe Text)
+    , profileDetailsSection               :: !StaffProfileSectionValue
+    , profileDetailsVenueRole             :: !(Maybe VenueRoleEnum)
+    , profileDetailsEmploymentBasis       :: !(Maybe StaffEmploymentBasisEnum)
     , profileDetailsPayRateSelection      :: !(Maybe Text)
     , profileDetailsRosterGroupIds        :: !(Maybe [UUID.UUID])
     }
 
-staffProfileDetailsSurfaceValues :: Text -> Staff -> Maybe StaffManagementFieldData -> StaffProfileDetailsSurfaceValues
+staffProfileDetailsSurfaceValues :: StaffProfileSectionValue -> Staff -> Maybe StaffManagementFieldData -> StaffProfileDetailsSurfaceValues
 staffProfileDetailsSurfaceValues section staff maybeManagement =
     StaffProfileDetailsSurfaceValues
         { profileDetailsFirstName = staff.firstName
@@ -55,18 +56,18 @@ staffProfileDetailsSurfaceValues section staff maybeManagement =
         , profileDetailsEmergencyContactName = staff.emergencyContactName
         , profileDetailsEmergencyContactPhone = staff.emergencyContactPhone
         , profileDetailsSection = section
-        , profileDetailsVenueRole = venueRoleToText . (.venueRole) <$> (maybeManagement >>= (.managementVenueMembership))
-        , profileDetailsEmploymentBasis = inputValue . (.employmentBasis) . (.managementStaff) <$> maybeManagement
+        , profileDetailsVenueRole = (.venueRole) <$> (maybeManagement >>= (.managementVenueMembership))
+        , profileDetailsEmploymentBasis = (.employmentBasis) . (.managementStaff) <$> maybeManagement
         , profileDetailsPayRateSelection = staffPayRateSelectionValue . (.managementStaff) <$> maybeManagement
         , profileDetailsRosterGroupIds = fmap (map unpackId . (.managementSelectedRosterGroupIds)) maybeManagement
         }
 
 data StaffShiftPreferencesSurfaceValues = StaffShiftPreferencesSurfaceValues
-    { shiftPreferencesSection :: !Text
+    { shiftPreferencesSection :: !StaffProfileSectionValue
     , shiftPreferenceKeys     :: !(Maybe [Text])
     }
 
-staffShiftPreferencesSurfaceValues :: Text -> [ShiftPreferenceSelection] -> StaffShiftPreferencesSurfaceValues
+staffShiftPreferencesSurfaceValues :: StaffProfileSectionValue -> [ShiftPreferenceSelection] -> StaffShiftPreferencesSurfaceValues
 staffShiftPreferencesSurfaceValues section selectedShiftPreferences =
     StaffShiftPreferencesSurfaceValues
         { shiftPreferencesSection = section

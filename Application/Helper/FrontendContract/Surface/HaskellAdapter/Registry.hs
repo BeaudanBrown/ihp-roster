@@ -8,10 +8,8 @@
 -- eligible Resource, Live, Action, and Intent declaration without repeating
 -- field or wire declarations.
 module Application.Helper.FrontendContract.Surface.HaskellAdapter.Registry
-    ( RegisteredSurfaceActionAdapterHomes
-    , RegisteredSurfaceAdapterFamilies
+    ( RegisteredSurfaceAdapterFamilies
     , RegisteredSurfaceFragmentAdapterHomes
-    , RegisteredSurfaceIntentAdapterHomes
     , registeredSurfaceActionAdapterRegistrations
     , registeredSurfaceIntentAdapterRegistrations
     , RegisteredSurfaceResourceAdapterHomes
@@ -126,7 +124,6 @@ type RegisteredSurfaceFragmentAdapterHomes =
      , SurfaceFragmentAdapterHome ProfileAdapterFamily Profile.ProfilePreferencesSection
      , SurfaceFragmentAdapterHome ProfileAdapterFamily Profile.ProfileSecuritySection
      , SurfaceFragmentAdapterHome ProfileAdapterFamily Profile.ProfileLeaveSection
-     , SurfaceFragmentAdapterHome ProfileAdapterFamily Profile.ProfileRsaSection
      , SurfaceFragmentAdapterHome StaffAdapterFamily Profile.StaffDetailsSection
      , SurfaceFragmentAdapterHome StaffAdapterFamily Profile.StaffPreferencesSection
      , SurfaceFragmentAdapterHome StaffAdapterFamily Profile.StaffVisibleUnavailabilityBlackouts
@@ -166,7 +163,6 @@ type RegisteredSurfaceResourceAdapterHomes =
      , SurfaceResourceAdapterHome ProfileAdapterFamily Profile.StaffProfile
      , SurfaceResourceAdapterHome ProfileAdapterFamily Profile.StaffPreferences
      , SurfaceResourceAdapterHome SelfServiceLeaveAdapterFamily SelfServiceLeave.StaffLeaveRequests
-     , SurfaceResourceAdapterHome ProfileAdapterFamily Profile.StaffRsaDocuments
      , SurfaceResourceAdapterHome AdminVenueSettingsAdapterFamily Admin.AdminVenueSettings
      , SurfaceResourceAdapterHome AdminInvitesAdapterFamily Admin.AdminInvites
      , SurfaceResourceAdapterHome AdminExportsAdapterFamily Admin.AdminExports
@@ -175,70 +171,12 @@ type RegisteredSurfaceResourceAdapterHomes =
      , SurfaceResourceAdapterHome AdminXeroAdapterFamily Admin.XeroConnection
      ]
 
-type RegisteredSurfaceActionAdapterHomes =
-    '[ SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.NavigateTimesheetWeek
-     , SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.UpdateTimesheetFilters
-     , SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.ToggleTimesheetHideApproved
-     , SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.ToggleTimesheetShowSuggestions
-     , SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.CreateTimesheetEntryFromSuggestion
-     , SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.ApproveTimesheetEntry
-     , SurfaceActionAdapterHome TimesheetsAdapterFamily Timesheets.UnapproveTimesheetEntry
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.NavigateRosterWeek
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterWarnings
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterWageEstimates
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterOwnLiveShiftHighlight
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.SortRosterWeek
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterWeekLiveStatus
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ShowRosterNotificationConfirmation
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.CreateRosterNotificationRun
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterAssignmentFilters
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.CopyRosterWeek
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.CreateRosterWeekSlotDefinition
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.DeleteRosterWeekSlotDefinition
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterDayClosed
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.AddRosterRow
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.RemoveRosterRow
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ToggleRosterStaffScope
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.PreviewRosterTemplateApplication
-     , SurfaceActionAdapterHome RosterAdapterFamily Roster.ApplyRosterTemplateApplication
-     , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.ArchiveLeaveRequestsPage
-     , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.ApproveLeaveRequest
-     , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.DenyLeaveRequest
-     , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.CreateUnavailabilityBlackout
-     , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.UpdateUnavailabilityBlackout
-     , SurfaceActionAdapterHome LeaveRequestsAdapterFamily LeaveRequests.DeleteUnavailabilityBlackout
-     , SurfaceActionAdapterHome SelfServiceLeaveAdapterFamily SelfServiceLeave.CreateSelfServiceLeaveRequest
-     , SurfaceActionAdapterHome SupportAdapterFamily Support.CreatePublicHolidayRefreshJob
-     , SurfaceActionAdapterHome SupportAdapterFamily Support.CreateFwcMapdRefreshJob
-     , SurfaceActionAdapterHome ProfileAdapterFamily Profile.UpdateProfileDetails
-     , SurfaceActionAdapterHome ProfileAdapterFamily Profile.UpdateProfileShiftPreferences
-     , SurfaceActionAdapterHome StaffAdapterFamily Profile.UpdateStaffProfile
-     , SurfaceActionAdapterHome StaffAdapterFamily Profile.UpdateStaffShiftPreferences
-     , SurfaceActionAdapterHome StaffAdapterFamily Profile.CreateStaffLeaveRequest
-     , SurfaceActionAdapterHome AdminVenueSettingsAdapterFamily Admin.UpdateVenueConfig
-     , SurfaceActionAdapterHome AdminInvitesAdapterFamily Admin.CreateVenueInvitation
-     , SurfaceActionAdapterHome AdminInvitesAdapterFamily Admin.RevokeVenueInvitation
-     , SurfaceActionAdapterHome AdminInvitesAdapterFamily Admin.RenewVenueInvitation
-     , SurfaceActionAdapterHome AdminExportsAdapterFamily Admin.CreateExportJob
-     , SurfaceActionAdapterHome AdminShiftTypesAdapterFamily Admin.CreateShiftType
-     , SurfaceActionAdapterHome AdminShiftTypesAdapterFamily Admin.UpdateShiftType
-     , SurfaceActionAdapterHome AdminShiftTypesAdapterFamily Admin.MoveShiftTypeUp
-     , SurfaceActionAdapterHome AdminShiftTypesAdapterFamily Admin.MoveShiftTypeDown
-     , SurfaceActionAdapterHome AdminShiftTypesAdapterFamily Admin.AutosaveShiftTypeName
-     , SurfaceActionAdapterHome AdminShiftTypesAdapterFamily Admin.AutosaveShiftTypeSelection
-     , SurfaceActionAdapterHome AdminShiftTypesAdapterFamily Admin.ToggleInactiveShiftTypes
-     , SurfaceActionAdapterHome AdminRosterGroupsAdapterFamily Admin.CreateRosterGroup
-     , SurfaceActionAdapterHome AdminRosterGroupsAdapterFamily Admin.UpdateRosterGroup
-     , SurfaceActionAdapterHome AdminRosterGroupsAdapterFamily Admin.MoveRosterGroupUp
-     , SurfaceActionAdapterHome AdminRosterGroupsAdapterFamily Admin.MoveRosterGroupDown
-     , SurfaceActionAdapterHome AdminRosterGroupsAdapterFamily Admin.ToggleInactiveRosterGroups
-     , SurfaceActionAdapterHome AdminXeroAdapterFamily Admin.SyncXeroPayrollReferenceData
-     , SurfaceActionAdapterHome AdminXeroAdapterFamily Admin.ShowXeroTimesheetPreparationStaffMappings
-     ]
+-- The inventory contains every Action as either a generated registration or a
+-- typed declaration exclusion. Generated operations emit builders/render
+-- metadata, exact parsers are emitted only where the endpoint consumes a
+-- complete Surface request envelope, and intent-only declarations remain typed
+-- exclusions.
 
--- Every eligible Action emits builders and render metadata. The exact parser
--- inventory contains 39 generated operations and 17 typed exclusions for
--- declarations whose current endpoint consumes no complete Surface envelope.
 registeredSurfaceActionAdapterRegistrations :: [SurfaceRequestAdapterRegistration 'ActionAdapterKind]
 registeredSurfaceActionAdapterRegistrations =
     [ surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.NavigateTimesheetWeek
@@ -298,7 +236,12 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceActionAdapter @StaffAdapterFamily @Profile.UpdateStaffProfile allRequestAdapterOperations
     , surfaceActionAdapter @StaffAdapterFamily @Profile.UpdateStaffShiftPreferences allRequestAdapterOperations
     , surfaceActionAdapter @StaffAdapterFamily @Profile.CreateStaffLeaveRequest allRequestAdapterOperations
-    , surfaceActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateVenueConfig allRequestAdapterOperations
+    , surfaceActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateRosterEndTimesEnabled allRequestAdapterOperations
+    , surfaceActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateMinutePrecisionShiftTimesEnabled allRequestAdapterOperations
+    , surfaceActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateUnavailableStaffWarningThreshold allRequestAdapterOperations
+    , surfaceActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateRosterTimePickerWindow allRequestAdapterOperations
+    , surfaceActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateRosterWeekStartsOn
+        (requestAdapterParserOnly "The roster-week-start mutation is retained for compatibility but has no active rendered setting form")
     , surfaceActionAdapter @AdminInvitesAdapterFamily @Admin.CreateVenueInvitation allRequestAdapterOperations
     , surfaceActionAdapter @AdminInvitesAdapterFamily @Admin.RevokeVenueInvitation
         (requestAdapterOperationsWithoutParser "The zero-field revoke endpoint consumes its route id and has no Surface request parser")
@@ -323,16 +266,7 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceActionAdapter @AdminXeroAdapterFamily @Admin.ShowXeroTimesheetPreparationStaffMappings allRequestAdapterOperations
     ]
 
-type RegisteredSurfaceIntentAdapterHomes =
-    '[ SurfaceIntentAdapterHome RosterAdapterFamily Roster.SetRosterLayoutMode
-     , SurfaceIntentAdapterHome RosterAdapterFamily Roster.MoveRosterShiftToSlot
-     , SurfaceIntentAdapterHome RosterAdapterFamily Roster.DuplicateRosterShiftToDay
-     , SurfaceIntentAdapterHome RosterAdapterFamily Roster.DropRosterStaff
-     , SurfaceIntentAdapterHome RosterAdapterFamily Roster.PreviewRosterTemplateApplication
-     , SurfaceIntentAdapterHome RosterDayTimelineAdapterFamily Roster.MoveRosterTimelineShift
-     ]
-
--- All five production intents emit the complete inventoried builder,
+-- All six production intents emit the complete inventoried builder,
 -- form-metadata, and exact parser operation set through the Roster facade.
 registeredSurfaceIntentAdapterRegistrations :: [SurfaceRequestAdapterRegistration 'IntentAdapterKind]
 registeredSurfaceIntentAdapterRegistrations =
@@ -358,6 +292,14 @@ requestAdapterOperationsWithoutParser reason =
         { surfaceAdapterRequestParserOperation = ExcludeSurfaceAdapterOperation reason
         }
 
+requestAdapterParserOnly :: Text -> SurfaceRequestAdapterOperations
+requestAdapterParserOnly reason =
+    SurfaceRequestAdapterOperations
+        { surfaceAdapterFieldsBuilderOperation = ExcludeSurfaceAdapterOperation reason
+        , surfaceAdapterRenderMetadataOperation = ExcludeSurfaceAdapterOperation reason
+        , surfaceAdapterRequestParserOperation = GenerateSurfaceAdapterOperation
+        }
+
 intentOnlyActionReason :: Text
 intentOnlyActionReason =
     "The declaration is consumed only through its corresponding Intent form and parser; no Haskell Action adapter operation has a current consumer"
@@ -369,8 +311,6 @@ registeredSurfaceAdapterRegistry =
         @RegisteredSurfaceResourceAdapterHomes
         @RegisteredSurfaceScopeAdapterHomes
         @RegisteredSurfaceFragmentAdapterHomes
-        @RegisteredSurfaceActionAdapterHomes
-        @RegisteredSurfaceIntentAdapterHomes
         registeredSurfaceActorOnlyFragments
         registeredSurfaceActionAdapterRegistrations
         registeredSurfaceIntentAdapterRegistrations

@@ -48,6 +48,20 @@ CREATE TYPE staff_document_status_enum AS ENUM ('pending_review', 'verified', 'r
 CREATE TYPE award_penalty_kind_enum AS ENUM ('evening_after_7pm', 'late_night_after_midnight', 'saturday_penalty', 'sunday_penalty', 'public_holiday_penalty', 'delayed_meal_break_weekday', 'delayed_meal_break_saturday', 'delayed_meal_break_sunday', 'delayed_meal_break_public_holiday');
 CREATE TYPE roster_layout_mode_enum AS ENUM ('day_rows', 'day_columns');
 CREATE TYPE roster_template_scale_enum AS ENUM ('day', 'week');
+CREATE TYPE feedback_type_enum AS ENUM ('bug', 'suggestion', 'other');
+CREATE TYPE shift_type_colour_key_enum AS ENUM ('no_colour', 'palette_1', 'palette_2', 'palette_3', 'palette_4', 'palette_5', 'palette_6', 'palette_7', 'palette_8', 'palette_9', 'palette_10');
+CREATE TYPE xero_sync_status_enum AS ENUM ('running', 'succeeded', 'failed');
+CREATE TYPE xero_sync_kind_enum AS ENUM ('payroll_reference_data');
+CREATE TYPE xero_staff_mapping_status_enum AS ENUM ('verified', 'not_applicable', 'stale');
+CREATE TYPE xero_earnings_rate_mapping_status_enum AS ENUM ('unmapped', 'verified', 'stale');
+CREATE TYPE xero_pay_item_account_code_selection_status_enum AS ENUM ('none', 'verified', 'stale');
+CREATE TYPE xero_pay_item_requirement_status_enum AS ENUM ('proposed', 'matched', 'created', 'ignored', 'stale', 'rate_changed');
+CREATE TYPE xero_submission_source_kind_enum AS ENUM ('approved_timesheets');
+CREATE TYPE xero_submission_run_status_enum AS ENUM ('previewed', 'blocked', 'pending', 'submitted', 'partially_failed', 'failed', 'superseded');
+CREATE TYPE xero_timesheet_preparation_run_status_enum AS ENUM ('started', 'preparing', 'needs_reconnect', 'needs_approval', 'blocked', 'resolved', 'ready_for_preview', 'previewed', 'submitted', 'failed', 'cancelled');
+CREATE TYPE xero_timesheet_preparation_decision_kind_enum AS ENUM ('staff_auto_match', 'staff_manual_mapping', 'staff_not_paid', 'staff_step_approved', 'pay_item_create', 'account_code', 'calendar_selection');
+CREATE TYPE xero_timesheet_preparation_decision_status_enum AS ENUM ('pending', 'proposed', 'applied', 'blocked', 'resolved', 'dismissed');
+CREATE TYPE xero_timesheet_submission_status_enum AS ENUM ('blocked', 'pending', 'submitted', 'failed', 'skipped', 'superseded');
 
 -- schema-nav: identity-and-access
 CREATE TABLE venues (
@@ -308,7 +322,7 @@ CREATE TABLE shift_types (
     pay_assignment_mode pay_assignment_mode_enum DEFAULT 'staff_default' NOT NULL,
     override_award_level_id UUID DEFAULT NULL,
     imported_xero_pay_item_id UUID DEFAULT NULL,
-    colour_key TEXT DEFAULT '' NOT NULL,
+    colour_key shift_type_colour_key_enum DEFAULT 'no_colour' NOT NULL,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
     archived_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     archived_by_user_id UUID DEFAULT NULL,
@@ -318,7 +332,6 @@ CREATE TABLE shift_types (
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK ((char_length(btrim(name)) > 0) AND (char_length(name) <= 120)),
-    CHECK (colour_key = '' OR colour_key = 'palette-1' OR colour_key = 'palette-2' OR colour_key = 'palette-3' OR colour_key = 'palette-4' OR colour_key = 'palette-5' OR colour_key = 'palette-6' OR colour_key = 'palette-7' OR colour_key = 'palette-8' OR colour_key = 'palette-9' OR colour_key = 'palette-10'),
     CHECK (
         (pay_assignment_mode = 'award_rate' AND override_award_level_id IS NOT NULL AND imported_xero_pay_item_id IS NULL)
         OR (pay_assignment_mode = 'xero_rate' AND override_award_level_id IS NULL AND imported_xero_pay_item_id IS NOT NULL)
@@ -1026,7 +1039,7 @@ CREATE TABLE user_feedback_items (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
     submitted_by_user_id UUID NOT NULL,
-    feedback_type TEXT DEFAULT 'bug' NOT NULL,
+    feedback_type feedback_type_enum DEFAULT 'bug' NOT NULL,
     status TEXT DEFAULT 'new' NOT NULL,
     priority TEXT DEFAULT 'normal' NOT NULL,
     content TEXT NOT NULL,
@@ -1049,7 +1062,6 @@ CREATE TABLE user_feedback_items (
     FOREIGN KEY (submitted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     FOREIGN KEY (read_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     FOREIGN KEY (resolved_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    CHECK ((feedback_type = 'bug') OR (feedback_type = 'suggestion') OR (feedback_type = 'other')),
     CHECK ((status = 'new') OR (status = 'triaged') OR (status = 'planned') OR (status = 'in_progress') OR (status = 'done') OR (status = 'closed')),
     CHECK ((priority = 'low') OR (priority = 'normal') OR (priority = 'high')),
     CHECK (char_length(content) >= 3),
@@ -1262,8 +1274,8 @@ CREATE TABLE xero_sync_runs (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
     xero_connection_id UUID NOT NULL,
-    sync_status TEXT NOT NULL,
-    sync_kind TEXT DEFAULT 'payroll_reference_data' NOT NULL,
+    sync_status xero_sync_status_enum NOT NULL,
+    sync_kind xero_sync_kind_enum DEFAULT 'payroll_reference_data' NOT NULL,
     employees_count INT DEFAULT 0 NOT NULL,
     earnings_rates_count INT DEFAULT 0 NOT NULL,
     payroll_calendars_count INT DEFAULT 0 NOT NULL,
@@ -1273,8 +1285,7 @@ CREATE TABLE xero_sync_runs (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
-    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
-    CHECK ((sync_status = 'running') OR (sync_status = 'succeeded') OR (sync_status = 'failed'))
+    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT
 );
 CREATE TABLE xero_reference_sync_leases (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -1425,7 +1436,7 @@ CREATE TABLE xero_staff_mappings (
     xero_employee_id TEXT,
     xero_employee_name TEXT,
     xero_employee_email TEXT,
-    mapping_status TEXT DEFAULT 'not_applicable' NOT NULL,
+    mapping_status xero_staff_mapping_status_enum DEFAULT 'not_applicable' NOT NULL,
     last_verified_at TIMESTAMP WITH TIME ZONE,
     reference_refreshed_at TIMESTAMP WITH TIME ZONE,
     created_by_user_id UUID,
@@ -1436,8 +1447,7 @@ CREATE TABLE xero_staff_mappings (
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
     FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
     FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    FOREIGN KEY (updated_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    CHECK ((mapping_status = 'verified') OR (mapping_status = 'not_applicable') OR (mapping_status = 'stale'))
+    FOREIGN KEY (updated_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE xero_earnings_rate_mappings (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -1447,7 +1457,7 @@ CREATE TABLE xero_earnings_rate_mappings (
     local_bucket_label TEXT NOT NULL,
     xero_earnings_rate_id TEXT,
     xero_earnings_rate_name TEXT,
-    mapping_status TEXT DEFAULT 'unmapped' NOT NULL,
+    mapping_status xero_earnings_rate_mapping_status_enum DEFAULT 'unmapped' NOT NULL,
     last_verified_at TIMESTAMP WITH TIME ZONE,
     created_by_user_id UUID,
     updated_by_user_id UUID,
@@ -1456,15 +1466,14 @@ CREATE TABLE xero_earnings_rate_mappings (
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
     FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    FOREIGN KEY (updated_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    CHECK ((mapping_status = 'unmapped') OR (mapping_status = 'verified') OR (mapping_status = 'stale'))
+    FOREIGN KEY (updated_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE xero_pay_item_account_code_selections (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
     xero_connection_id UUID NOT NULL,
     account_code TEXT,
-    selection_status TEXT DEFAULT 'none' NOT NULL,
+    selection_status xero_pay_item_account_code_selection_status_enum DEFAULT 'none' NOT NULL,
     last_verified_at TIMESTAMP WITH TIME ZONE,
     created_by_user_id UUID,
     updated_by_user_id UUID,
@@ -1487,7 +1496,7 @@ CREATE TABLE xero_pay_item_requirement_records (
     multiplier NUMERIC(12,4),
     rate_per_unit NUMERIC(12,4),
     source_description TEXT NOT NULL,
-    requirement_status TEXT DEFAULT 'proposed' NOT NULL,
+    requirement_status xero_pay_item_requirement_status_enum DEFAULT 'proposed' NOT NULL,
     xero_earnings_rate_id TEXT,
     xero_earnings_rate_name TEXT,
     xero_earnings_rate_rate_type TEXT,
@@ -1499,8 +1508,7 @@ CREATE TABLE xero_pay_item_requirement_records (
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
     FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    FOREIGN KEY (updated_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    CHECK (requirement_status = 'proposed' OR requirement_status = 'matched' OR requirement_status = 'created' OR requirement_status = 'ignored' OR requirement_status = 'stale' OR requirement_status = 'rate_changed')
+    FOREIGN KEY (updated_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 
 -- schema-nav: timesheets
@@ -1737,8 +1745,8 @@ CREATE TABLE xero_submission_runs (
     payment_date DATE DEFAULT NULL,
     xero_pay_run_id TEXT DEFAULT NULL,
     xero_pay_run_status TEXT DEFAULT NULL,
-    source_kind TEXT DEFAULT 'approved_timesheets' NOT NULL,
-    status TEXT DEFAULT 'previewed' NOT NULL,
+    source_kind xero_submission_source_kind_enum DEFAULT 'approved_timesheets' NOT NULL,
+    status xero_submission_run_status_enum DEFAULT 'previewed' NOT NULL,
     preview_payload_json JSONB DEFAULT '{}'::JSONB NOT NULL,
     readiness_snapshot_json JSONB DEFAULT '{}'::JSONB NOT NULL,
     xero_duplicate_check_json JSONB DEFAULT '{}'::JSONB NOT NULL,
@@ -1750,8 +1758,6 @@ CREATE TABLE xero_submission_runs (
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
     FOREIGN KEY (submitted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    CHECK (source_kind = 'approved_timesheets'),
-    CHECK (status = 'previewed' OR status = 'blocked' OR status = 'pending' OR status = 'submitted' OR status = 'partially_failed' OR status = 'failed' OR status = 'superseded'),
     CHECK (pay_period_end >= pay_period_start)
 );
 CREATE TABLE xero_timesheet_preparation_runs (
@@ -1767,7 +1773,7 @@ CREATE TABLE xero_timesheet_preparation_runs (
     payment_date DATE,
     xero_pay_run_id TEXT,
     xero_pay_run_status TEXT,
-    status TEXT DEFAULT 'started' NOT NULL,
+    status xero_timesheet_preparation_run_status_enum DEFAULT 'started' NOT NULL,
     connection_snapshot_json JSONB DEFAULT '{}'::JSONB NOT NULL,
     remote_pay_runs_json JSONB DEFAULT '{}'::JSONB NOT NULL,
     remote_timesheets_json JSONB DEFAULT '{}'::JSONB NOT NULL,
@@ -1785,8 +1791,7 @@ CREATE TABLE xero_timesheet_preparation_runs (
     FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
     FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     FOREIGN KEY (xero_submission_run_id) REFERENCES xero_submission_runs (id) ON DELETE RESTRICT,
-    CHECK (pay_period_end >= pay_period_start),
-    CHECK (status = 'started' OR status = 'preparing' OR status = 'needs_reconnect' OR status = 'needs_approval' OR status = 'blocked' OR status = 'resolved' OR status = 'ready_for_preview' OR status = 'previewed' OR status = 'submitted' OR status = 'failed' OR status = 'cancelled')
+    CHECK (pay_period_end >= pay_period_start)
 );
 CREATE TABLE xero_timesheet_preparation_decisions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -1794,8 +1799,8 @@ CREATE TABLE xero_timesheet_preparation_decisions (
     venue_id UUID NOT NULL,
     xero_connection_id UUID NOT NULL,
     staff_id UUID DEFAULT NULL,
-    decision_kind TEXT NOT NULL,
-    decision_status TEXT DEFAULT 'pending' NOT NULL,
+    decision_kind xero_timesheet_preparation_decision_kind_enum NOT NULL,
+    decision_status xero_timesheet_preparation_decision_status_enum DEFAULT 'pending' NOT NULL,
     xero_employee_id TEXT,
     xero_employee_name TEXT,
     local_bucket_key TEXT,
@@ -1808,9 +1813,7 @@ CREATE TABLE xero_timesheet_preparation_decisions (
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
-    FOREIGN KEY (decided_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    CHECK (decision_kind = 'staff_auto_match' OR decision_kind = 'staff_manual_mapping' OR decision_kind = 'staff_not_paid' OR decision_kind = 'staff_step_approved' OR decision_kind = 'pay_item_create' OR decision_kind = 'account_code' OR decision_kind = 'calendar_selection'),
-    CHECK (decision_status = 'pending' OR decision_status = 'proposed' OR decision_status = 'applied' OR decision_status = 'blocked' OR decision_status = 'resolved' OR decision_status = 'dismissed')
+    FOREIGN KEY (decided_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE xero_timesheet_submissions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -1821,7 +1824,7 @@ CREATE TABLE xero_timesheet_submissions (
     xero_employee_id TEXT NOT NULL,
     pay_period_start DATE NOT NULL,
     pay_period_end DATE NOT NULL,
-    status TEXT DEFAULT 'pending' NOT NULL,
+    status xero_timesheet_submission_status_enum DEFAULT 'pending' NOT NULL,
     idempotency_key TEXT NOT NULL,
     request_payload_json JSONB DEFAULT '{}'::JSONB NOT NULL,
     response_payload_json JSONB DEFAULT '{}'::JSONB NOT NULL,
@@ -1837,7 +1840,6 @@ CREATE TABLE xero_timesheet_submissions (
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
-    CHECK (status = 'blocked' OR status = 'pending' OR status = 'submitted' OR status = 'failed' OR status = 'skipped' OR status = 'superseded'),
     CHECK (char_length(idempotency_key) <= 128),
     CHECK (attempt_count >= 0),
     CHECK (pay_period_end >= pay_period_start)

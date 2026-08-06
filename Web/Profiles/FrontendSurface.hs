@@ -6,17 +6,10 @@ module Web.Profiles.FrontendSurface
     ( ProfileScopeValue (..)
     , profileCandidateMountedFragments
     , profileSurfaceScope
-    , profileSectionFragmentForSection
     , profileSurfaceImpl
-    , profileSurfaceMountConfig
-    , profileSurfaceScopeKey
-    , profileSurfaceFragmentKeys
     , staffCandidateMountedFragments
-    , staffSectionFragmentForSection
     , staffSurfaceImpl
     , staffSurfaceScope
-    , staffSurfaceScopeKey
-    , staffSurfaceFragmentKeys
     ) where
 
 import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
@@ -46,12 +39,7 @@ profileSurfaceImpl scope =
         noSurfaceFields
         (profileCandidateMountedFragments scope)
 
-profileSurfaceMountConfig :: ProfileScopeValue -> FrontendSurfaceMountConfig
-profileSurfaceMountConfig scope =
-    (profileSurfaceImpl scope).surfaceImplMountConfig
 
-profileSurfaceScopeKey :: ProfileScopeValue -> Text
-profileSurfaceScopeKey = surfaceScopeKey . profileSurfaceScope
 
 profileSurfaceScope :: ProfileScopeValue -> SurfaceScope
 profileSurfaceScope scope =
@@ -63,11 +51,8 @@ profileCandidateMountedFragments _ =
     , profilePreferencesMountedFragment
     , profileSecurityMountedFragment
     , profileLeaveMountedFragment
-    , profileRsaMountedFragment
     ]
 
-profileSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
-profileSurfaceFragmentKeys = map (.mountedFragmentKey)
 
 staffSurfaceImpl :: StaffScopeValue -> SurfaceImpl Surface.StaffSurface
 staffSurfaceImpl scope =
@@ -77,12 +62,7 @@ staffSurfaceImpl scope =
         noSurfaceFields
         (staffCandidateMountedFragments scope)
 
-staffSurfaceMountConfig :: StaffScopeValue -> FrontendSurfaceMountConfig
-staffSurfaceMountConfig scope =
-    (staffSurfaceImpl scope).surfaceImplMountConfig
 
-staffSurfaceScopeKey :: StaffScopeValue -> Text
-staffSurfaceScopeKey = surfaceScopeKey . staffSurfaceScope
 
 staffSurfaceScope :: StaffScopeValue -> SurfaceScope
 staffSurfaceScope scope =
@@ -96,14 +76,7 @@ staffCandidateMountedFragments scope =
     , staffLeaveMountedFragment scope
     ]
 
-staffSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
-staffSurfaceFragmentKeys = map (.mountedFragmentKey)
 
-staffSectionFragmentForSection :: StaffScopeValue -> Text -> FrontendSurfaceMountedFragment
-staffSectionFragmentForSection scope = \case
-    "preferences" -> staffPreferencesMountedFragment scope
-    "leave" -> staffLeaveMountedFragment scope
-    _ -> staffDetailsMountedFragment scope
 
 staffDetailsMountedFragment :: StaffScopeValue -> FrontendSurfaceMountedFragment
 staffDetailsMountedFragment scope =
@@ -155,13 +128,6 @@ staffScopeFields scope =
         &: surfaceField @Surface.StaffId scope.profileStaffId
         &: noSurfaceFields
 
-profileSectionFragmentForSection :: Text -> FrontendSurfaceMountedFragment
-profileSectionFragmentForSection = \case
-    "preferences" -> profilePreferencesMountedFragment
-    "security" -> profileSecurityMountedFragment
-    "leave" -> profileLeaveMountedFragment
-    "rsa" -> profileRsaMountedFragment
-    _ -> profileDetailsMountedFragment
 
 profileDetailsMountedFragment :: FrontendSurfaceMountedFragment
 profileDetailsMountedFragment =
@@ -193,14 +159,6 @@ profileLeaveMountedFragment =
         noSurfaceFields
         noSurfaceFields
         (profileSectionFragmentUrl "leave")
-        FrontendSurfaceReplace
-
-profileRsaMountedFragment :: FrontendSurfaceMountedFragment
-profileRsaMountedFragment =
-    frontendSurfaceMountedFragmentFor @Surface.ProfileSurface @Surface.ProfileRsaSection
-        noSurfaceFields
-        noSurfaceFields
-        (profileSectionFragmentUrl "rsa")
         FrontendSurfaceReplace
 
 profileSectionFragmentUrl :: Text -> Text

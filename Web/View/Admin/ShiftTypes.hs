@@ -18,9 +18,8 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceActionSubmitButton,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
-import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey,
-                                            normalizeShiftTypeColourKey,
-                                            shiftTypeColourPaletteKeys)
+import Application.Helper.ShiftTypeColours (ShiftTypeColourKeyEnum (..),
+                                            shiftTypeColourKeyCssValue)
 import Application.Helper.SurfaceResource
 import Application.PayAssignment (ShiftPayAssignment (..),
                                   shiftPayAssignmentRequiresRemediation)
@@ -113,7 +112,7 @@ renderShiftTypeCreateForm _shiftTypes showInactive awardLevels awardLevelBaseRat
         </div>
     |]
     where
-        defaultCreateColourKey = blankShiftTypeColourKey
+        defaultCreateColourKey = NoColour
         fields = AdminAction.createShiftTypeActionFields showInactive "" "" defaultCreateColourKey True
         route = FrontendSurfaceActionRoute
             { actionRouteUrl = pathTo CreateShiftTypeAction
@@ -264,50 +263,47 @@ renderImportedPayItemOption selectedImportedPayItemId importedPayItem = [hsx|
     </option>
 |]
 
-renderShiftTypeColourSelect :: SurfaceFieldBundleOf (SurfaceActionFieldSpecs Surface.AdminShiftTypesSurface Surface.CreateShiftType) fields => fields -> Text -> Text -> Maybe (FrontendSurfaceAction, FrontendSurfaceActionRoute) -> Html
+renderShiftTypeColourSelect :: SurfaceFieldBundleOf (SurfaceActionFieldSpecs Surface.AdminShiftTypesSurface Surface.CreateShiftType) fields => fields -> Text -> ShiftTypeColourKeyEnum -> Maybe (FrontendSurfaceAction, FrontendSurfaceActionRoute) -> Html
 renderShiftTypeColourSelect fields fieldId selectedColourKey maybeAutosave = [hsx|
     <label class="form-label" for={fieldId}>Optional Colour</label>
     {renderSelect selectBody}
 |]
     where
-        effectiveSelectedColourKey = normalizeRenderableColourKey selectedColourKey
+        effectiveSelectedColourKey = selectedColourKey
         selectBody = [hsx|
             <select id={fieldId}
                     class="form-select admin-shift-colour-select"
                     name={surfaceFieldNameFrom @Surface.ColourKey fields}
-                    data-roster-shift-colour={effectiveSelectedColourKey}>
+                    data-roster-shift-colour={shiftTypeColourKeyCssValue effectiveSelectedColourKey}>
                 {renderBlankShiftTypeColourOption effectiveSelectedColourKey}
-                {forEach shiftTypeColourPaletteKeys (renderShiftTypeColourOption effectiveSelectedColourKey)}
+                {forEach (drop 1 (allEnumValues @ShiftTypeColourKeyEnum)) (renderShiftTypeColourOption effectiveSelectedColourKey)}
             </select>
         |]
         renderSelect selectHtml = case maybeAutosave of
             Just (action, route) -> applyFrontendSurfaceActionAttrs action route selectHtml
             Nothing -> selectHtml
 
-renderBlankShiftTypeColourOption :: Text -> Html
+renderBlankShiftTypeColourOption :: ShiftTypeColourKeyEnum -> Html
 renderBlankShiftTypeColourOption selectedColourKey = [hsx|
-    <option value={blankShiftTypeColourKey}
-            data-roster-shift-colour={blankShiftTypeColourKey}
-            selected={selectedColourKey == blankShiftTypeColourKey}>
+    <option value={inputValue NoColour}
+            data-roster-shift-colour={shiftTypeColourKeyCssValue NoColour}
+            selected={selectedColourKey == NoColour}>
         No colour
     </option>
 |]
 
-renderShiftTypeColourOption :: Text -> Text -> Html
+renderShiftTypeColourOption :: ShiftTypeColourKeyEnum -> ShiftTypeColourKeyEnum -> Html
 renderShiftTypeColourOption selectedColourKey colourKey = [hsx|
-    <option value={colourKey}
-            data-roster-shift-colour={colourKey}
+    <option value={inputValue colourKey}
+            data-roster-shift-colour={shiftTypeColourKeyCssValue colourKey}
             selected={selectedColourKey == colourKey}>
         {shiftTypeColourLabel colourKey}
     </option>
 |]
 
-normalizeRenderableColourKey :: Text -> Text
-normalizeRenderableColourKey = normalizeShiftTypeColourKey
-
-shiftTypeColourLabel :: Text -> Text
+shiftTypeColourLabel :: ShiftTypeColourKeyEnum -> Text
 shiftTypeColourLabel colourKey =
-    "Palette " <> Text.replace "palette-" "" colourKey
+    "Palette " <> Text.replace "palette-" "" (shiftTypeColourKeyCssValue colourKey)
 
 shiftTypeRowId :: Id ShiftType -> Text
 shiftTypeRowId shiftTypeId =

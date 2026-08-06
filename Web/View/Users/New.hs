@@ -1,5 +1,6 @@
 module Web.View.Users.New where
 
+import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue (..))
 import qualified Application.Helper.FrontendContract.Surface.Profile.Action as ProfileAction
 import Application.Helper.View.VenueBootstrap (renderVenueBootstrapFields)
 import Application.VenueRole (venueRoleMailLabel)
@@ -148,7 +149,7 @@ renderInvitedProfileDetailsForm NewAccountProfileFormConfig { .. } user staff em
         staff
         (Just email)
   where
-    values = staffProfileDetailsSurfaceValues "profile" staff Nothing
+    values = staffProfileDetailsSurfaceValues StaffProfileDetailsSection staff Nothing
     fields =
         ProfileAction.updateProfileDetailsActionFields
             values.profileDetailsFirstName

@@ -5,7 +5,6 @@ import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.VenueBootstrap (VenueBootstrapConfig (..),
                                           createVenueWithBootstrapConfigInCurrentTransaction,
-                                          defaultStaffNameFromEmail,
                                           defaultVenueBootstrapTimezone,
                                           ensureLinkedStaffRecord,
                                           provisionVenueMembership)

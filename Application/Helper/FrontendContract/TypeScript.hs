@@ -873,6 +873,7 @@ schemaName :: SchemaIR -> Text
 schemaName = \case
     RecordIR _ name _ -> name
     EnumIR _ name _ -> name
+    ClosedScalarIR _ name _ -> name
     LiteralEnumIR _ name _ -> name
     TaggedUnionIR _ name _ _ -> name
 
@@ -880,6 +881,8 @@ schemaTypeDeclaration :: SchemaIR -> [Text]
 schemaTypeDeclaration = \case
     RecordIR _ name fields -> ["export type " <> name <> " = " <> recordType fields <> ";"]
     EnumIR _ name values ->
+        ["export type " <> name <> " ="] <> renderUnionValues values
+    ClosedScalarIR _ name values ->
         ["export type " <> name <> " ="] <> renderUnionValues values
     LiteralEnumIR _ name values ->
         ["export type " <> name <> " ="] <> renderUnionValues (fmap snd values)
@@ -890,6 +893,7 @@ schemaGuardExpression :: SchemaIR -> Text
 schemaGuardExpression = \case
     RecordIR _ _ fields -> recordGuardExpression fields
     EnumIR _ _ values -> isEnumExpression values
+    ClosedScalarIR _ _ values -> isEnumExpression values
     LiteralEnumIR _ _ values -> isEnumExpression (fmap snd values)
     TaggedUnionIR _ _ discriminator cases -> "(" <> Text.intercalate " || " (fmap (caseGuard discriminator) cases) <> ")"
 
@@ -970,6 +974,7 @@ wireType = \case
     WireBoolIR -> "boolean"
     WireUuidIR -> wirePrimitiveTypeName WireUuidIR
     WireDayIR -> wirePrimitiveTypeName WireDayIR
+    WireClosedIR name _ _ -> name
     WireUnknownIR -> "unknown"
     WireListIR inner -> "ReadonlyArray<" <> wireType inner <> ">"
     WireMapIR key value -> "Record<" <> wireType key <> ", " <> wireType value <> ">"
@@ -1015,6 +1020,7 @@ valueGuard access = \case
     WireBoolIR -> "typeof " <> access <> " === \"boolean\""
     WireUuidIR -> primitiveValueGuard access WireUuidIR
     WireDayIR -> primitiveValueGuard access WireDayIR
+    WireClosedIR name _ _ -> "is" <> name <> "(" <> access <> ")"
     WireUnknownIR -> "true"
     WireListIR inner -> "Array.isArray(" <> access <> ") && " <> access <> ".every((item) => " <> valueGuard "item" inner <> ")"
     WireMapIR key value -> "isRecord(" <> access <> ") && Object.entries(" <> access <> ").every(([key, entry]) => " <> valueGuard "key" key <> " && " <> valueGuard "entry" value <> ")"

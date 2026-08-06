@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
+
 module Application.Helper.XeroAdminTypes where
 
 import Application.Xero.ReferenceTrust
@@ -84,7 +86,7 @@ data XeroPayItemRequirement = XeroPayItemRequirement
     , payItemRequirementIsActive      :: Bool
     , payItemRequirementMatch         :: Maybe XeroEarningsRate
     , payItemRequirementRecord        :: Maybe XeroPayItemRequirementRecord
-    , payItemRequirementStatus        :: Text
+    , payItemRequirementStatus        :: XeroPayItemRequirementStatusEnum
     }
 
 data XeroTimesheetIssueView = XeroTimesheetIssueView
@@ -148,7 +150,7 @@ data XeroTimesheetPeriodOption = XeroTimesheetPeriodOption
     , periodOptionBlocked                :: Bool
     , periodOptionBlockReason            :: Maybe Text
     , periodOptionDerivedFromSyncedXero  :: Bool
-    , periodOptionLatestSubmissionStatus :: Maybe Text
+    , periodOptionLatestSubmissionStatus :: Maybe XeroSubmissionRunStatusEnum
     , periodOptionLatestSubmissionRunId  :: Maybe (Id XeroSubmissionRun)
     }
     deriving (Eq, Show)
@@ -175,19 +177,18 @@ data XeroTimesheetPreparationState
     | XeroPreparationFailed
     deriving (Eq, Show)
 
-xeroPreparationStateFromStatus :: Text -> XeroTimesheetPreparationState
-xeroPreparationStateFromStatus status =
-    case status of
-        "needs_reconnect"   -> XeroPreparationNeedsReconnect
-        "needs_approval"    -> XeroPreparationNeedsDecision
-        "resolved"          -> XeroPreparationNeedsDecision
-        "blocked"           -> XeroPreparationBlocked
-        "ready_for_preview" -> XeroPreparationReadyForPreview
-        "previewed"         -> XeroPreparationPreviewed
-        "submitted"         -> XeroPreparationSubmitted
-        "failed"            -> XeroPreparationFailed
-        "cancelled"         -> XeroPreparationFailed
-        _                   -> XeroPreparationPreparing
+xeroPreparationStateFromStatus :: XeroTimesheetPreparationRunStatusEnum -> XeroTimesheetPreparationState
+xeroPreparationStateFromStatus Started = XeroPreparationPreparing
+xeroPreparationStateFromStatus Preparing = XeroPreparationPreparing
+xeroPreparationStateFromStatus NeedsReconnect = XeroPreparationNeedsReconnect
+xeroPreparationStateFromStatus NeedsApproval = XeroPreparationNeedsDecision
+xeroPreparationStateFromStatus XeroTimesheetPreparationRunStatusEnumBlocked = XeroPreparationBlocked
+xeroPreparationStateFromStatus XeroTimesheetPreparationRunStatusEnumResolved = XeroPreparationNeedsDecision
+xeroPreparationStateFromStatus ReadyForPreview = XeroPreparationReadyForPreview
+xeroPreparationStateFromStatus XeroTimesheetPreparationRunStatusEnumPreviewed = XeroPreparationPreviewed
+xeroPreparationStateFromStatus XeroTimesheetPreparationRunStatusEnumSubmitted = XeroPreparationSubmitted
+xeroPreparationStateFromStatus XeroTimesheetPreparationRunStatusEnumFailed = XeroPreparationFailed
+xeroPreparationStateFromStatus Cancelled = XeroPreparationFailed
 
 data XeroTimesheetPreparationView = XeroTimesheetPreparationView
     { preparationRun                         :: XeroTimesheetPreparationRun

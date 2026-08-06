@@ -8,6 +8,7 @@ module Application.Helper.FrontendContract.Surface.LeaveRequests.Resource
     , pendingLeaveRequestsResource
     ) where
 
+import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveSectionValue (..))
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Resource (leaveAvailabilityWarningsResource,
                                                                                      leaveRequestsSectionResource,
                                                                                      unavailabilityBlackoutsResource)
@@ -16,7 +17,7 @@ import qualified Data.UUID as UUID
 import IHP.Prelude
 
 pendingLeaveRequestsResource, approvedLeaveRequestsResource, deniedLeaveRequestsResource, archivedLeaveRequestsResource :: UUID.UUID -> SurfaceResourceValue
-pendingLeaveRequestsResource venueId = leaveRequestsSectionResource venueId "pending"
-approvedLeaveRequestsResource venueId = leaveRequestsSectionResource venueId "approved"
-deniedLeaveRequestsResource venueId = leaveRequestsSectionResource venueId "denied"
-archivedLeaveRequestsResource venueId = leaveRequestsSectionResource venueId "archive"
+pendingLeaveRequestsResource venueId = leaveRequestsSectionResource venueId LeavePendingSection
+approvedLeaveRequestsResource venueId = leaveRequestsSectionResource venueId LeaveApprovedSection
+deniedLeaveRequestsResource venueId = leaveRequestsSectionResource venueId LeaveDeniedSection
+archivedLeaveRequestsResource venueId = leaveRequestsSectionResource venueId LeaveArchiveSection

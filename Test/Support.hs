@@ -522,8 +522,6 @@ createApprovedTimesheetEntryRecordAtWithShiftTimes venue staff approver shiftTyp
 createLeaveRequestRecord :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> Day -> LeaveRequestStatusEnum -> IO LeaveRequest
 createLeaveRequestRecord = ApplicationFixture.createLeaveRequestRecord
 
-createLeaveRequestRecordWithNotes :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> Day -> LeaveRequestStatusEnum -> Maybe Text -> IO LeaveRequest
-createLeaveRequestRecordWithNotes = ApplicationFixture.createLeaveRequestRecordWithNotes
 
 createPayLevelRecord :: (?modelContext :: ModelContext) => Venue -> Text -> IO AwardLevel
 createPayLevelRecord = ApplicationFixture.createPayLevelRecord
@@ -544,21 +542,7 @@ createPayLevelRecordWithRates = ApplicationFixture.createPayLevelRecordWithRates
 createShiftTypeRecord :: (?modelContext :: ModelContext) => Venue -> AwardLevel -> Text -> IO ShiftType
 createShiftTypeRecord = ApplicationFixture.createShiftTypeRecord
 
-createDayNameRecord :: (?modelContext :: ModelContext) => Venue -> Int -> Text -> IO DayName
-createDayNameRecord venue weekdayIndex dayName =
-    newRecord @DayName
-        |> set #venueId (unpackId (get #id venue))
-        |> set #weekdayIndex weekdayIndex
-        |> set #name dayName
-        |> set #isActive True
-        |> createRecord
 
-fetchDayNameRecord :: (?modelContext :: ModelContext) => Venue -> Int -> IO DayName
-fetchDayNameRecord venue weekdayIndex =
-    query @DayName
-        |> filterWhere (#venueId, unpackId (get #id venue))
-        |> filterWhere (#weekdayIndex, weekdayIndex)
-        |> fetchOne
 
 createPayLevelDayRuleRecord :: (?modelContext :: ModelContext) => ShiftType -> DayName -> AwardLevel -> IO ShiftType
 createPayLevelDayRuleRecord = ApplicationFixture.createPayLevelDayRuleRecord

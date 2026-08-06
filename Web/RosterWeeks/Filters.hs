@@ -5,7 +5,6 @@ module Web.RosterWeeks.Filters
     , fetchRosterAssignmentFilters
     , normalizeOptionalText
     , parseOptionalShiftTypeId
-    , parseOptionalStaffId
     , parseOptionalTime
     , setRosterAssignmentFiltersSession
     ) where
@@ -17,8 +16,6 @@ import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 import Web.RosterWeeks.Types
 
-parseOptionalStaffId :: Maybe Text -> Maybe UUID.UUID
-parseOptionalStaffId value = UUID.fromText =<< normalizeOptionalText value
 
 parseOptionalShiftTypeId :: Maybe Text -> Maybe UUID.UUID
 parseOptionalShiftTypeId value = UUID.fromText =<< normalizeOptionalText value

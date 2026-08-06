@@ -1,6 +1,5 @@
 module Application.Xero.Admin.ReadModel
-    ( fetchActiveCurrentVenueXeroConnection
-    , fetchCurrentVenueXeroAdminSectionData
+    ( fetchCurrentVenueXeroAdminSectionData
     , fetchCurrentVenueXeroConnection
     , fetchCurrentVenueXeroEarningsRates
     , fetchCurrentVenueXeroEmployees
@@ -26,6 +25,8 @@ import Application.Xero.ReferenceDemand (fetchXeroPayrollEligibleApprovedStaffId
 import Application.Xero.ReferenceTrust (XeroMissingReferenceDemand (NoMissingPayrollReferenceDemand))
 import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..),
                                                   fetchXeroReferenceTrustState)
+import Application.Xero.WorkflowState (xeroStaffMappingIsNotApplicable,
+                                       xeroStaffMappingIsVerified)
 import Control.Monad (guard)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
@@ -39,13 +40,6 @@ import Data.Time.Calendar (Day, addDays, diffDays)
 import Generated.Types
 import IHP.ControllerPrelude
 
-fetchActiveCurrentVenueXeroConnection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe XeroConnection)
-fetchActiveCurrentVenueXeroConnection =
-    query @XeroConnection
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#connectionStatus, "active" :: Text)
-        |> orderByDesc #connectedAt
-        |> fetchOneOrNothing
 
 fetchCurrentVenueXeroConnection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe XeroConnection)
 fetchCurrentVenueXeroConnection =
@@ -147,29 +141,6 @@ fetchCurrentVenueXeroPayItemRequirements maybeConnection xeroEarningsRates =
             let requirements = deriveXeroPayItemRequirements venueConfig.rosterWeekStartsOn today usedScopes awardLevels awardLevelBaseRates awardLevelPenaltyRates awardTimePenaltyAllowances xeroEarningsRates
             syncXeroPayItemRequirementRecords connection.id currentVenueId (Just currentUser.id) requirements
 
-currentVenueLocalXeroEarningsBuckets :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [XeroLocalEarningsBucket]
-currentVenueLocalXeroEarningsBuckets = do
-    today <- utctDay <$> getCurrentTime
-    venueConfig <- fetchVenueConfig
-    usedScopes <- fetchCurrentVenueXeroUsedAwardPayScopes
-    awardLevels <-
-        query @AwardLevel
-            |> filterWhere (#isActive, True)
-            |> orderBy #classification
-            |> fetch
-    awardLevelBaseRates <-
-        query @AwardLevelBaseRate
-            |> orderBy #createdAt
-            |> fetch
-    awardLevelPenaltyRates <-
-        query @AwardLevelPenaltyRate
-            |> orderBy #createdAt
-            |> fetch
-    awardTimePenaltyAllowances <-
-        query @AwardTimePenaltyAllowance
-            |> orderBy #createdAt
-            |> fetch
-    pure (deriveXeroLocalEarningsBuckets venueConfig.rosterWeekStartsOn today usedScopes awardLevels awardLevelBaseRates awardLevelPenaltyRates awardTimePenaltyAllowances)
 
 fetchCurrentVenueXeroUsedAwardPayScopes :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [XeroUsedAwardPayScope]
 fetchCurrentVenueXeroUsedAwardPayScopes = do
@@ -211,7 +182,7 @@ ensureDefaultXeroStaffMapping connection staff Nothing =
         |> set #venueId (unpackId currentVenueId)
         |> set #staffId (unpackId staff.id)
         |> set #xeroConnectionId (unpackId connection.id)
-        |> set #mappingStatus ("not_applicable" :: Text)
+        |> set #mappingStatus NotApplicable
         |> createRecord
 
 fetchStaffLinkedUser :: (?modelContext :: ModelContext) => Staff -> IO (Maybe User)
@@ -269,7 +240,7 @@ fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection) = do
     verifiedMappings <-
         query @XeroStaffMapping
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> filterWhere (#mappingStatus, "verified" :: Text)
+            |> filterWhere (#mappingStatus, XeroStaffMappingStatusEnumVerified)
             |> filterWhereIn (#staffId, List.nub (map (.staffId) approvedEntries))
             |> fetch
     mappedEmployees <-
@@ -525,7 +496,7 @@ attachXeroStaffMappingSuggestions employees rows =
     map attach rows
     where
         attach row
-            | row.mappingRowMapping.mappingStatus /= "not_applicable" = row { mappingRowSuggestedEmployee = Nothing }
+            | not (xeroStaffMappingIsNotApplicable row.mappingRowMapping.mappingStatus) = row { mappingRowSuggestedEmployee = Nothing }
             | otherwise =
                 let availableEmployees = filter (xeroEmployeeAvailableForStaff row.mappingRowStaff rows) employees
                  in case bestXeroEmployeeSuggestion row availableEmployees of
@@ -568,7 +539,7 @@ xeroEmployeeAvailableForStaff staff mappingRows employee =
 
         verifiedEmployeeForOtherStaff row =
             let mapping = row.mappingRowMapping
-             in if unpackId row.mappingRowStaff.id /= currentStaffId && mapping.mappingStatus == "verified"
+             in if unpackId row.mappingRowStaff.id /= currentStaffId && xeroStaffMappingIsVerified mapping.mappingStatus
                     then mapping.xeroEmployeeId
                     else Nothing
 
@@ -618,7 +589,3 @@ normalizedEmail :: Text -> Maybe Text
 normalizedEmail email =
     let normalized = Text.toLower (Text.strip email)
      in if Text.null normalized then Nothing else Just normalized
-
-staffFullNameText :: Staff -> Text
-staffFullNameText staff =
-    Text.strip (staff.firstName <> " " <> staff.lastName)

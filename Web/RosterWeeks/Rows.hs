@@ -1,6 +1,5 @@
 module Web.RosterWeeks.Rows
-    ( applyOptionalField
-    , filterVisibleRosterSlots
+    ( filterVisibleRosterSlots
     , impactedRowKeysForSlotUpdate
     ) where
 
@@ -23,9 +22,3 @@ filterVisibleRosterSlots :: [RosterDay] -> [RosterSlot] -> [RosterSlot]
 filterVisibleRosterSlots rosterDays allSlots =
     let openRosterDayIds = map (coerce . (.id)) (filter (not . (.isClosed)) rosterDays)
      in filter (\slot -> slot.rosterDayId `elem` openRosterDayIds && isNothing slot.deletedAt) allSlots
-
-applyOptionalField :: forall field model value. (SetField field model value) => Proxy field -> value -> Maybe Text -> model -> model
-applyOptionalField _ parsedValue rawParam model =
-    case rawParam of
-        Nothing -> model
-        Just _  -> setField @field parsedValue model

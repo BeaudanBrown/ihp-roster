@@ -15,6 +15,8 @@ constraint. They are not implementation guidance.
   authority boundaries preserved by ADR 0004.
 - `playwright-agent-browser-tooling-research-2026-07-23.md` — official-source
   tool comparison retained for future browser-agent/tooling decisions.
+- `typed-contract-authority.md` — implemented epic #328 baseline, topology
+  counts, and exit evidence retained to support ADR 0002's zero-bypass boundary.
 - `xero-payroll-au-v2-openapi-research-2026-07-23.md` — official-source evidence
   that the required Payroll AU contract was unavailable, retained for future
   provider-contract review.

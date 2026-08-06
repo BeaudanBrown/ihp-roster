@@ -1,46 +1,40 @@
+{-# LANGUAGE TypeApplications #-}
+
 -- | Central shift type colour-key policy for admin mutations and roster badges.
--- Shift type colours are optional reusable visual labels. Blank means no
--- highlight; palette keys opt a shift type into roster colour accents.
+-- Persistence/request authority is the generated PostgreSQL enum; this module
+-- owns its CSS-facing projection (no-colour stays empty, palette keys use '-').
 module Application.Helper.ShiftTypeColours
-    ( blankShiftTypeColourKey
+    ( ShiftTypeColourKeyEnum (..)
+    , blankShiftTypeColourKey
     , shiftTypeColourPaletteKeys
     , assignShiftTypeColourKey
     , normalizeShiftTypeColourKey
+    , shiftTypeColourKeyCssValue
     ) where
 
 import qualified Data.Text as Text
+import Generated.Types (ShiftTypeColourKeyEnum (..))
 import Web.Controller.Prelude
 
-blankShiftTypeColourKey :: Text
-blankShiftTypeColourKey = ""
+blankShiftTypeColourKey :: ShiftTypeColourKeyEnum
+blankShiftTypeColourKey = NoColour
 
-shiftTypeColourPaletteKeys :: [Text]
-shiftTypeColourPaletteKeys =
-    [ "palette-1"
-    , "palette-2"
-    , "palette-3"
-    , "palette-4"
-    , "palette-5"
-    , "palette-6"
-    , "palette-7"
-    , "palette-8"
-    , "palette-9"
-    , "palette-10"
-    ]
+shiftTypeColourPaletteKeys :: [ShiftTypeColourKeyEnum]
+shiftTypeColourPaletteKeys = drop 1 (allEnumValues @ShiftTypeColourKeyEnum)
+
+shiftTypeColourKeyCssValue :: ShiftTypeColourKeyEnum -> Text
+shiftTypeColourKeyCssValue NoColour = ""
+shiftTypeColourKeyCssValue colourKey = Text.replace "_" "-" (inputValue colourKey)
 
 assignShiftTypeColourKey ::
     (?modelContext :: ModelContext) =>
     Id Venue ->
     Maybe (Id ShiftType) ->
     Bool ->
-    Text ->
-    IO Text
-assignShiftTypeColourKey _venueId _maybeCurrentShiftTypeId _willBeActive currentColourKey =
-    pure (normalizeShiftTypeColourKey currentColourKey)
+    ShiftTypeColourKeyEnum ->
+    IO ShiftTypeColourKeyEnum
+assignShiftTypeColourKey _venueId _maybeCurrentShiftTypeId _willBeActive =
+    pure . normalizeShiftTypeColourKey
 
-normalizeShiftTypeColourKey :: Text -> Text
-normalizeShiftTypeColourKey colourKey
-    | colourKey `elem` shiftTypeColourPaletteKeys = colourKey
-    | Text.strip colourKey == "default" = blankShiftTypeColourKey
-    | Text.null (Text.strip colourKey) = blankShiftTypeColourKey
-    | otherwise = blankShiftTypeColourKey
+normalizeShiftTypeColourKey :: ShiftTypeColourKeyEnum -> ShiftTypeColourKeyEnum
+normalizeShiftTypeColourKey colourKey = colourKey

@@ -1,6 +1,19 @@
 # App-owned dead-code gate. Main.main is the runtime root; IHP route/controller
 # instances are reached through the mounted FrontController graph.
-roots = ["Main.main", "Test.HspecMain.main", "^Paths_.*"]
+roots = [
+    "^Main\\.main$",
+    "^Test\\.HspecMain\\.main$",
+    # E2E builds this mock server through -main-is outside the app graph.
+    "^Test\\.StripeProcessMockMain\\.main$",
+    "^Paths_.*",
+    # IHP and project shell runners invoke one of these conventional script
+    # entrypoints from generated wrapper mains; helper declarations remain
+    # reachable only through the exact run/main body.
+    "^Application\\.Script\\.[^.]+\\.(run|main)$",
+    # The seed-dev wrapper exposes two explicit alternate executable modes.
+    "Application.Script.SeedDev.resetOnly",
+    "Application.Script.SeedDev.runAfterReset",
+]
 type-class-roots = true
 root-instances = [{ class = "\\.IsString$" }, { class = "\\.IsList$" }]
 # Marker/type aliases are reflected or exercised by compile-fail fixtures; the
@@ -11,6 +24,9 @@ unused-types = false
 # facades, handwritten modules, and generated Action/Intent APIs remain subject
 # to normal executable/test reachability.
 root-modules = [
+    # IHP generates one declaration-complete fetch statement module per model;
+    # these are framework-owned generated ORM entrypoints, never handwritten.
+    "^Generated\\.Statements\\.Fetch[^.]+$",
     "^Application\\.Helper\\.FrontendContract\\.Surface\\.[^.]+\\.Generated\\.Resource$",
     "^Application\\.Helper\\.FrontendContract\\.Surface\\.[^.]+\\.Generated\\.Live$",
 ]

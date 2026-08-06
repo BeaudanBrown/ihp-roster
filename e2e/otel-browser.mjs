@@ -45,7 +45,6 @@ const DEFAULT_ROUTES = {
     adminVenueSettingsFragment: '/ShowAdminVenueSettingsFragment',
     editProfile: '/EditProfile',
     profileSecurity: '/EditProfile?section=security',
-    profileRsa: '/EditProfile?section=rsa',
 };
 
 function usage() {

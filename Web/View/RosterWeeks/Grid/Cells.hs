@@ -27,7 +27,8 @@ import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as 
 import Application.Helper.FrontendContract.Surface.Roster.ImageExport (rosterImageExportCellAttrs,
                                                                        rosterImageExportEllipsizedCellAttrs)
 import Application.Helper.Profiling (profileRenderCounter)
-import Application.Helper.ShiftTypeColours (shiftTypeColourPaletteKeys)
+import Application.Helper.ShiftTypeColours (shiftTypeColourKeyCssValue,
+                                            shiftTypeColourPaletteKeys)
 import Application.Helper.TimeRules (rosterOperationalFinalSelectableTimeText,
                                      rosterOperationalStartTimeText)
 import Application.Helper.View (staffDisplayName)
@@ -542,7 +543,7 @@ shiftTypeBadgeColourKey =
 
 normaliseShiftTypeBadgeColourKey :: ShiftType -> Text
 normaliseShiftTypeBadgeColourKey shiftType
-    | shiftType.colourKey `elem` shiftTypeColourPaletteKeys = shiftType.colourKey
+    | shiftType.colourKey `elem` shiftTypeColourPaletteKeys = shiftTypeColourKeyCssValue shiftType.colourKey
     | otherwise = ""
 
 shiftTypeBadgeLabel :: Maybe UUID -> Maybe ShiftType -> Text

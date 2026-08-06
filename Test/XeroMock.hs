@@ -679,14 +679,6 @@ employeesFixture =
             ]
         ]
 
-payItemsFixture :: Aeson.Value
-payItemsFixture =
-    Aeson.object
-        [ "PayItems" Aeson..=
-            Aeson.object
-                [ "EarningsRates" Aeson..= [earningsRateFixture]
-                ]
-        ]
 
 earningsRatesFixture :: Aeson.Value
 earningsRatesFixture =

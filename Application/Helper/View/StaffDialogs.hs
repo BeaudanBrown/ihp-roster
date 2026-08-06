@@ -1,9 +1,7 @@
 module Application.Helper.View.StaffDialogs
-    ( renderStaffEditDialog
-    , renderStaffAddTrialDialogWithButtons
+    ( renderStaffAddTrialDialogWithButtons
     , renderStaffAddTrialPageModalWithButtons
     , renderStaffEditDialogWithButtons
-    , renderStaffEditPageModal
     , renderStaffEditPageModalWithButtons
     ) where
 
@@ -15,9 +13,6 @@ import Web.Types
 staffEditDialogClass :: Text
 staffEditDialogClass = "app-staff-edit-dialog"
 
-renderStaffEditPageModal :: Int -> Text -> Html -> Html
-renderStaffEditPageModal weekOffset formId =
-    renderStaffEditPageModalWithButtons weekOffset (defaultOverlayButtons formId)
 
 renderStaffEditPageModalWithButtons :: Int -> [OverlayButton] -> Html -> Html
 renderStaffEditPageModalWithButtons = renderStaffPageModalWithTitle "Edit Staff Member"
@@ -37,9 +32,6 @@ renderStaffPageModalWithTitle title weekOffset buttons formContent =
             , dialogOverlayDialogClass = staffEditDialogClass
             }
 
-renderStaffEditDialog :: Text -> Html -> Html
-renderStaffEditDialog formId =
-    renderStaffEditDialogWithButtons (defaultOverlayButtons formId)
 
 renderStaffEditDialogWithButtons :: [OverlayButton] -> Html -> Html
 renderStaffEditDialogWithButtons = renderStaffDialogWithTitle "Edit Staff Member"

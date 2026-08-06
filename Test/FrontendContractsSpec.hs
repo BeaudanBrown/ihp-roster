@@ -8,12 +8,16 @@ module Test.FrontendContractsSpec
 
 import qualified Application.Helper.FrontendContract.App as App
 import qualified Application.Helper.FrontendContract.AppShell as AppShell
+import Application.Helper.FrontendContract.AppShell.Request (appShellActionFields,
+                                                             appShellActionFor,
+                                                             parseAppShellActionParamPairs)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              appShellActionHtmxAttrPairs)
 import Application.Helper.FrontendContract.AppValues (AppEvents (..),
                                                       canonicalAppEvents,
                                                       interactionIntentSubmitHtmxTrigger)
+import Application.Helper.FrontendContract.ClosedScalar (closedScalarLiterals)
 import Application.Helper.FrontendContract.Contracts (TypeScriptDeclaration (..),
                                                       TypeScriptDeclarationOrigin (..),
                                                       frontendContractDeclarations,
@@ -45,7 +49,14 @@ import Application.Helper.FrontendContract.PwaInstall.Runtime (PwaInstallDom (..
 import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
+import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveSectionValue (..))
+import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue (..))
 import Application.Helper.FrontendContract.Surface.Reflect (reflectSurfaceSpec)
+import Application.Helper.FrontendContract.Surface.Roster (RosterStaffScopeValue (..))
+import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
+                                                           surfaceField,
+                                                           surfaceFieldNameFrom,
+                                                           surfaceFieldValue)
 import qualified Application.Helper.FrontendContract.TimePicker as TimePicker
 import Application.Helper.FrontendContract.TimePicker.Runtime (TimePickerDom (..),
                                                                canonicalTimePickerDom)
@@ -66,6 +77,7 @@ import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Live
 import qualified Application.Helper.FrontendContract.XeroCandidateFilter as XeroCandidateFilter
 import Application.Helper.FrontendContract.XeroCandidateFilter.Runtime (XeroCandidateFilterDom (..),
                                                                         canonicalXeroCandidateFilterDom)
+import Application.Helper.ShiftTypeColours (ShiftTypeColourKeyEnum (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as KeyMap
@@ -76,6 +88,7 @@ import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import qualified Data.Text.IO as Text
+import Generated.Types (FeedbackTypeEnum (..))
 import IHP.Prelude
 import Test.Hspec
 import qualified Test.Support.FrontendSurfaceFixture as SurfaceFixture
@@ -267,6 +280,54 @@ tests = describe "Frontend contract generator foundation" do
                        , ("hx-swap", "outerHTML")
                        , ("hx-push-url", "false")
                        ]
+
+    it "derives nominal AppShell field bundles, names, metadata, and exact parsing from one declaration" do
+        let authored =
+                appShellActionFields @AppShell.SelectXeroTimesheetPreparationPeriodOverlay
+                    (surfaceField @AppShell.PeriodKeyField "calendar:period")
+                    noSurfaceFields
+        surfaceFieldNameFrom @AppShell.PeriodKeyField authored `shouldBe` "periodKey"
+        surfaceFieldValue @AppShell.PeriodKeyField authored `shouldBe` "calendar:period"
+        (appShellActionFor authored).appShellActionName
+            `shouldBe` "select-xero-timesheet-preparation-period-overlay"
+        let parsed =
+                parseAppShellActionParamPairs @AppShell.SelectXeroTimesheetPreparationPeriodOverlay
+                    [("periodKey", Just "calendar:period")]
+        fmap (surfaceFieldValue @AppShell.PeriodKeyField) parsed
+            `shouldBe` Right "calendar:period"
+        case parseAppShellActionParamPairs @AppShell.SelectXeroTimesheetPreparationPeriodOverlay [] of
+            Left _  -> pure ()
+            Right _ -> expectationFailure "missing required periodKey parsed successfully"
+        case parseAppShellActionParamPairs @AppShell.SelectXeroTimesheetPreparationPeriodOverlay
+            [("periodKey", Just "first"), ("periodKey", Just "second")] of
+            Left _  -> pure ()
+            Right _ -> expectationFailure "repeated scalar periodKey parsed successfully"
+        case parseAppShellActionParamPairs @AppShell.ApproveXeroTimesheetPreparationPayItemsOverlay
+            [("accountCode", Just ""), ("accountCode", Just "")] of
+            Left _  -> pure ()
+            Right _ -> expectationFailure "repeated empty optional accountCode parsed successfully"
+
+    it "keeps migrated app-owned request values nominal and closed" do
+        closedScalarLiterals @FeedbackTypeEnum `shouldBe` ["bug", "suggestion", "other"]
+        closedScalarLiterals @StaffProfileSectionValue `shouldBe` ["profile", "preferences"]
+        closedScalarLiterals @RosterStaffScopeValue `shouldBe` ["group", "all"]
+        closedScalarLiterals @LeaveSectionValue `shouldBe` ["pending", "approved", "denied", "archive"]
+        closedScalarLiterals @ShiftTypeColourKeyEnum
+            `shouldBe` ["no_colour", "palette_1", "palette_2", "palette_3", "palette_4", "palette_5", "palette_6", "palette_7", "palette_8", "palette_9", "palette_10"]
+
+        let parsedFeedback =
+                parseAppShellActionParamPairs @AppShell.SubmitFeedback
+                    [ ("feedbackType", Just "suggestion")
+                    , ("content", Just "Typed feedback")
+                    ]
+        fmap (surfaceFieldValue @AppShell.FeedbackTypeField) parsedFeedback
+            `shouldBe` Right Suggestion
+        case parseAppShellActionParamPairs @AppShell.SubmitFeedback
+            [ ("feedbackType", Just "billing_secret")
+            , ("content", Just "Not a declared type")
+            ] of
+            Left _  -> pure ()
+            Right _ -> expectationFailure "undeclared feedback type parsed successfully"
 
     it "reflects generated AppShell action manifests and runtime attrs" do
         let appShellActions =

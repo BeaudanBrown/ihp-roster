@@ -148,7 +148,11 @@ data AdminController
     | ConfirmXeroTimesheetPreparationSubmissionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | RunXeroTimesheetPreparationSubmissionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | SubmitXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
-    | UpdateVenueConfigAction
+    | UpdateRosterEndTimesEnabledAction
+    | UpdateMinutePrecisionShiftTimesEnabledAction
+    | UpdateUnavailableStaffWarningThresholdAction
+    | UpdateRosterTimePickerWindowAction
+    | UpdateRosterWeekStartsOnAction
     | ShowAdminVenueSettingsFragmentAction
     | ShowadminInvitesLiveFragmentAction
     | ShowadminShiftTypesLiveFragmentAction

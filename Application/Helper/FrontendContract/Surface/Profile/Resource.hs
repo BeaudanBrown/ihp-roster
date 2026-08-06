@@ -4,12 +4,10 @@ module Application.Helper.FrontendContract.Surface.Profile.Resource
     , staffLeaveRequestsResource
     , staffPreferencesResource
     , staffProfileResource
-    , staffRsaDocumentsResource
     ) where
 
 import Application.Helper.FrontendContract.Surface.Profile.Generated.Resource (staffPreferencesResource,
-                                                                               staffProfileResource,
-                                                                               staffRsaDocumentsResource)
+                                                                               staffProfileResource)
 import qualified Application.Helper.FrontendContract.Surface.Profile.Generated.Resource as Generated
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)
 import Application.Helper.FrontendContract.Surface.SelfServiceLeave.Resource (staffLeaveRequestsResource)

@@ -5,7 +5,6 @@ module Application.WagePublication
     , datedEarningsComponents
     , derivePublishedEarnings
     , publicationBucketKey
-    , roundHourlyQuantity
     , staffHoursContributions
     ) where
 
@@ -174,11 +173,6 @@ derivePublishedEarnings components =
                 , publishedExactAmount = exactAmount
                 , publishedAmount = outputAmount
                 }
-
--- | Payroll publication preserves the exact aggregated hourly quantity.
--- Retained as a compatibility name for callers while quarter-hour rounding is retired.
-roundHourlyQuantity :: Rational -> Rational
-roundHourlyQuantity = id
 
 roundToCents :: Rational -> Rational
 roundToCents value

@@ -88,26 +88,7 @@ recordExportJobEntries exportJob entries =
                     |> set #entryUpdatedAtAtExport entry.updatedAt
                     |> set #entryApprovedAtAtExport approvedAt
 
-expireCurrentVenueExportJobs :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
-expireCurrentVenueExportJobs = do
-    now <- getCurrentTime
-    exportJobs <- query @ExportJob
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> fetch
 
-    forM_ exportJobs \exportJob ->
-        when (shouldExpireExportJob now exportJob) do
-            exportJob
-                |> set #status (exportJobStatusToText ExportExpired)
-                |> updateRecordDiscardResult
-
-fetchCurrentVenueExportJobs :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [ExportJob]
-fetchCurrentVenueExportJobs = do
-    expireCurrentVenueExportJobs
-    query @ExportJob
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> orderByDesc #createdAt
-        |> fetch
 
 authorizeExportDownload ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

@@ -92,11 +92,21 @@ Hspec, and Playwright rules belong to their local docs.
 
 ## Verification
 
-Use the repository wrapper and run its commands serially. Concurrent wrapper or
-compiler entries can race on generated shell/build state. Prefer focused checks,
-then the relevant complete gate; stop and report infrastructure failures rather
-than broadening the task. On memory-constrained hosts, stop dev hot reload before
-compile-heavy gates.
+`weeder-check` compiles the complete application Haskell source inventory to fresh HIE
+and rejects candidates against `Config/nix/weeder-baseline.tsv`. Keep runtime
+roots category-narrow and reason-bearing; never blanket-root handwritten
+application modules or retain stale baseline entries.
+
+Use the repo wrapper unless you are already inside the devenv shell. Run
+`bin/in-env` commands serially: concurrent wrapper entries can race on generated
+`.devenv` shell files and produce false setup failures. Use cheap/focused checks
+before expensive full gates, and validate worktree identity before starting any
+runtime-dependent E2E check. Stop and report infrastructure failures separately
+from code failures instead of broadening an integration task into runtime repair.
+On memory-constrained hosts, also stop dev hot reload and avoid triggering HLS
+reloads while running compile-heavy typecheck, Hspec, generator, or `verify-full`
+gates; independent GHC heaps can otherwise exhaust RAM and swap even when each
+command passes alone.
 
 ```bash
 bash ./bin/in-env verify-fast
@@ -108,6 +118,7 @@ bash ./bin/in-env frontend-check
 bash ./bin/in-env e2e
 bash ./bin/in-env lint
 bash ./bin/in-env format
+bash ./bin/in-env typed-contract-authority-check
 bash ./bin/in-env ./bin/doc-drift-check
 ```
 

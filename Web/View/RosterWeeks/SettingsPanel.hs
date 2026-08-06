@@ -16,7 +16,8 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink)
 import Application.Helper.FrontendContract.Surface.Values
-import Application.Helper.UserPreferences (rosterLayoutModeLabel,
+import Application.Helper.UserPreferences (rosterLayoutModeIsDayColumns,
+                                           rosterLayoutModeLabel,
                                            rosterLayoutModeValue,
                                            rosterLayoutModes)
 import Application.RosterNotification (RosterNotificationAudience (..),
@@ -112,14 +113,14 @@ renderRosterLayoutModeOption selectedLayoutMode layoutMode =
     let inputId = "roster-layout-mode-" <> rosterLayoutModeValue layoutMode
         layoutValue = rosterLayoutModeValue layoutMode
         fields :: SurfaceIntentFields Surface.RosterSurface Surface.SetRosterLayoutMode
-        fields = RosterIntent.setRosterLayoutModeIntentFields layoutValue
+        fields = RosterIntent.setRosterLayoutModeIntentFields layoutMode
         inputHtml = [hsx|
             <input type="radio"
                    class="btn-check"
                    name={surfaceFieldNameFrom @Surface.RosterLayoutMode fields}
                    id={inputId}
                    value={layoutValue}
-                   checked={rosterLayoutModeValue selectedLayoutMode == layoutValue} />
+                   checked={selectedLayoutMode == layoutMode} />
         |]
      in [hsx|
         {SurfaceInteraction.withFrontendSurfaceActivationRef rosterLayoutModeActivationRef inputHtml}
@@ -309,7 +310,7 @@ shouldShowRosterExport maybeRosterWeek viewCapabilities rosterLayoutMode viewMod
     viewCapabilities.canExportRosterImage
         && maybe False (.isLive) maybeRosterWeek
         && viewMode == RosterWeekGridView
-        && rosterLayoutModeValue rosterLayoutMode == "day_rows"
+        && not (rosterLayoutModeIsDayColumns rosterLayoutMode)
 
 renderRosterShareSection :: (?context :: ControllerContext) => Maybe RosterWeek -> Text -> Day -> Maybe RosterNotificationPanelData -> RosterViewCapabilities -> RosterLayoutModeEnum -> RosterGridViewMode -> Html
 renderRosterShareSection maybeRosterWeek rosterGroupName weekStartDate notificationPanelData viewCapabilities rosterLayoutMode viewMode = [hsx|

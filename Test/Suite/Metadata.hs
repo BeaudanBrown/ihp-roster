@@ -24,7 +24,6 @@ module Test.Suite.Metadata
     , suiteMetadataFromDefinition
     , validateSuiteMetadata
     , validateSuiteRegistry
-    , withPartialAcceptanceCoverage
     )
 where
 
@@ -179,9 +178,6 @@ suiteMetadataFromDefinition isolation definition =
         , partiallyCoveredAcceptanceInvariants = definition.definitionPartialInvariants
         }
 
-withPartialAcceptanceCoverage :: [AcceptanceInvariant] -> SuiteMetadata -> SuiteMetadata
-withPartialAcceptanceCoverage invariants metadata =
-    metadata{partiallyCoveredAcceptanceInvariants = invariants}
 
 suiteKind :: SuiteMetadata -> SuiteKind
 suiteKind metadata =

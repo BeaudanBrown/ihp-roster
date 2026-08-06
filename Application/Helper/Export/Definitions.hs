@@ -35,12 +35,6 @@ exportWeekSelection venueConfig weekOffset =
   where
     weekStart = venueWeekStartDate venueConfig weekOffset
 
-currentExportDateRange ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    IO (Day, Day)
-currentExportDateRange = do
-    selection <- currentExportWeekSelection
-    pure (selection.weekStart, selection.weekEnd)
 
 rangeWeekSlices ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

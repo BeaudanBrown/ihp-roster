@@ -351,7 +351,7 @@ parseToggleRosterOwnLiveShiftHighlightActionParams =
         @Types2.ToggleRosterOwnLiveShiftHighlight
 
 toggleRosterStaffScopeActionFields ::
-    Text ->
+    Types2.RosterStaffScopeValue ->
     SurfaceActionFields (AdapterFamilySurface Types3.RosterAdapterFamily) Types2.ToggleRosterStaffScope
 toggleRosterStaffScopeActionFields staffScope =
     surfaceActionFields

@@ -13,6 +13,7 @@ const facts = JSON.parse(fs.readFileSync(factsPath, "utf8"));
 const modulesByName = new Map((facts.modules || []).map((module) => [module.name, module]));
 
 const sharedRequestRuntimeClosure = [
+  "Application.Helper.FrontendContract.ClosedScalar",
   "Application.Helper.FrontendContract.Core",
   "Application.Helper.FrontendContract.DSL",
   "Application.Helper.FrontendContract.Interaction",

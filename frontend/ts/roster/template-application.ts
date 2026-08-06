@@ -121,14 +121,19 @@ function activateCard(mount: Element, card: Element): void {
 
     const session = sessionFor(mount);
     session.activeCard = card;
-    if (config.templateScale === "week") {
-        const weekTargetKey = mount.querySelector(weekTargetSelector)?.getAttribute(InteractionDom.attributes.dropzoneKey);
-        if (!weekTargetKey) return resetMount(mount);
-        transition(mount, { kind: "activate-card", templateId: config.templateId, scale: "week", weekTargetKey });
-        return;
+    switch (config.templateScale) {
+        case "day":
+            transition(mount, { kind: "activate-card", templateId: config.templateId, scale: config.templateScale });
+            return;
+        case "week": {
+            const weekTargetKey = mount.querySelector(weekTargetSelector)?.getAttribute(InteractionDom.attributes.dropzoneKey);
+            if (!weekTargetKey) return resetMount(mount);
+            transition(mount, { kind: "activate-card", templateId: config.templateId, scale: config.templateScale, weekTargetKey });
+            return;
+        }
+        default:
+            return assertNever(config.templateScale);
     }
-    if (config.templateScale !== "day") return resetMount(mount);
-    transition(mount, { kind: "activate-card", templateId: config.templateId, scale: "day" });
 }
 
 function transition(mount: Element, event: Parameters<typeof reduceTemplateApplicationSelection>[1]): void {
@@ -192,6 +197,10 @@ function closestSelectingMount(target: Element): Element | null {
 
 function dayTargetKey(target: Element): string | null {
     return target.closest(`[${InteractionDom.attributes.dropzoneKey}]`)?.getAttribute(InteractionDom.attributes.dropzoneKey) ?? null;
+}
+
+function assertNever(value: never): never {
+    throw new Error(`Unhandled roster template scale: ${String(value)}`);
 }
 
 function stopEvent(event: Event): void {

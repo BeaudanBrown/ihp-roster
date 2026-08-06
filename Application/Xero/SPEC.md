@@ -7,37 +7,151 @@ issue and, when cross-system design remains unresolved, a new workstream.
 
 ## Authorization And Boundaries
 
-- Xero management is restricted to current-venue owners and founder super
-  admins. Venue admins and managers have no Xero management authority.
-- OAuth connect, callback, reconnect, and disconnect remain native
-  session/full-page security flows. Tokens and provider payloads must not enter
-  tracked fixtures, logs, progress text, or documentation.
-- Application modules own API, service, and read-model behavior. Controllers own
-  params, authorization responses, redirects, toasts, and HTMX fragments.
-- The ordinary Xero page is a connection shell. Mapping, readiness, pay-item,
-  preview, and submission decisions occur inside guided preparation; there is no
-  venue-global payroll-calendar selection.
+
+- Xero management is restricted to current venue owners and super admins.
+- Venue admins and managers must not manage Xero connection or payroll
+  integration surfaces unless a future product decision changes access.
+- OAuth connect/reconnect/callback/disconnect flows are low-frequency security
+  flows and should remain native full-page/session flows unless a specific
+  ticket requires in-place behavior.
+- Xero reference-data and pay-item operations are venue-scoped.
+- Imported-pay-item candidate filtering receives one opaque normalized
+  name/account-code search projection in an exact Haskell-rendered config.
+  Browser code validates that boundary, then performs only root-local generic
+  matching and visibility; earnings-rate ids, checkbox
+  fields, validation, and import mutations remain server-owned.
+- The Xero page is a minimal connection shell. It may start reference sync,
+  open the imported-pay-item dialog, or launch guided timesheet preparation,
+  but it must not load or render standalone staff-mapping, earnings-mapping,
+  calendar, readiness, pay-item, or legacy timesheet panels.
+- Staff decisions, managed pay items, readiness checks, preview, and submission
+  belong to the guided preparation workflow. The staff-selection AppShell action
+  is nominal: it carries staff identity plus one provider-owned employee
+  selection and has no second text decision discriminator. The pre-wizard
+  preview, submit, and retry endpoints are retired.
+- App-owned Xero sync, staff/earnings mapping, account-code selection, managed
+  pay-item requirement, preparation run/decision, submission run/source, and
+  per-staff submission state persists as PostgreSQL enums. Production decisions
+  use generated constructors and exhaustive projections from
+  `Application.Xero.WorkflowState`; raw enum text appears only at database,
+  HTML, telemetry, or other external wire boundaries. Xero-owned employee,
+  account, pay-run, and timesheet status vocabulary remains open `Text` and is
+  preserved unchanged, including unknown future provider values.
+- Every reference-sync path uses the same background-safe persistence and
+  reconciliation service. Complete bulk refresh can run as a durable `app_jobs`
+  job, coalesced per connection and leased per Xero tenant. Provider requests
+  are sequential and paced to 50 requests/minute. Earnings-rate reads use the
+  paginated Payroll AU v2 `/earningsRates` endpoint, matching the existing v2
+  earnings-rate creation boundary. Pagination continues until a partial page, rejects a
+  repeated full page that adds no new ids, and stops at the runtime-configurable
+  `XERO_EARNINGS_RATES_MAX_PAGES` safety limit (default 1000). Structured 429
+  handling honors valid `Retry-After`, while transient
+  failures use Xero-specific jittered continuations for at most 24 hours without
+  changing unrelated job retry policy. Progress and errors contain phase/page
+  facts only, never tokens or raw provider payloads.
+- Successful OAuth connection or same-tenant repair transactionally enqueues
+  one coalescing reference-sync job and redirects directly to the Xero shell;
+  reference refresh never depends on a browser page-load trigger. The daily
+  maintenance sweep independently evaluates `lastSyncAt` for a six-day
+  reference refresh and `lastRefreshedAt` for seven-day token keepalive. All
+  reference requests reuse the durable connection dedupe and tenant lease;
+  keepalive shares that tenant lease so simultaneous due jobs cannot race
+  refresh-token rotation, while each job retains independent success/failure.
+  Lease contention uses the existing keepalive worker retries; an expired or
+  revoked token instead completes in reconnect-required state and does not loop.
+- Import and preparation resolve typed snapshot trust before job state. A
+  snapshot remains trusted for seven days and opens immediately even while its
+  six-day maintenance refresh is queued, running, retrying, or failed. Missing,
+  stale, or newly payroll-eligible missing-staff demand enqueues or joins the
+  durable job. When that attempt receives a provider `Retry-After`, a still-trusted
+  snapshot opens the mapping workflow rather than making preparation wait for the
+  delayed background retry. Polling dialogs show canonical phase/page facts,
+  transition copy after five minutes, and resume from local reference rows after
+  success.
+- Missing-staff demand resolves approval-pinned pay versions through the
+  canonical explicit pay-assignment resolver. Successful snapshots stamp
+  unresolved staff mappings as checked. When no mapping row exists yet, or an
+  unresolved placeholder is created after that snapshot, the newer of the
+  mapping refresh and connection snapshot times proves whether the approval has
+  already been checked and prevents preparation polling from enqueueing the same
+  refresh repeatedly. Approval times, not later mutable staff edits, determine
+  whether another mapping refresh is required. Effective
+  `roster_only` work does not request Xero data or block eligible payroll work.
+  Suggested staff matches remain pending until explicit owner approval.
+- Owners do not receive or access manual reference refresh. Founder support sees
+  last success, aggregate queued/running/retry-chain state, retry timing,
+  canonical progress and sanitized failure, and may request the same coalescing
+  refresh. Reauthorization-required state takes precedence over stale-data
+  support guidance.
+- A complete successful snapshot atomically marks missing or provider-inactive
+  employees, earnings rates, calendars, accounts, and imported pay items
+  unavailable; reappearance restores provider availability without changing
+  local identity. Failed pulls leave the prior availability snapshot untouched.
+- Provider availability is separate from owner archival. Unavailable imported
+  pay items stay queryable for immutable pay versions and sealed calculations,
+  but are excluded from new imports and current assignment selectors. Current
+  explicit `xero_rate` assignments require remediation; `roster_only` and
+  `staff_default` do not. Approved entries pinned to unavailable rates block
+  Xero preparation with the explicit correction/reapproval path.
+- Offline request contracts use checksum-pinned, unmodified official Identity,
+  Payroll AU v1/v2, and Accounting OpenAPI files from one upstream commit.
+  Payroll AU v2 Earnings Rates reads and creation lack official upstream
+  operations; their separately named local supplement records documentation
+  provenance, pagination, and explicit response-shape assumptions.
+- Synced payroll calendars are retained reference data. Calendar and period
+  choice is explicit on each guided preparation run; no global
+  `xero_payroll_calendar_selections` fallback is read or written.
+- A selected preparation period includes only mapped Xero employees whose
+  synced payroll-calendar assignment exactly matches that period's calendar.
+  Employees assigned to another calendar or to no calendar are excluded from
+  that period rather than sent to Xero's Timesheets API. The modal summary,
+  readiness counts, preview, and submission all use this same eligible set.
+  Preparation summary units use locked approved pay facts. Xero request hourly
+  quantities aggregate by employee, managed earning bucket and local day without
+  quarter-hour rounding. Commenced-hour quantities remain whole. Protocol
+  serialization uses 12 decimal places.
+- Managed Xero earnings-rate names put human payroll details first, e.g. `Saturday Penalty - Level 1 - CAS - Bepis - 1-July-2025`; legacy `Bepis - HIGA - ...` managed names remain matchable to avoid duplicate pay items. Pay-item approval recreates any missing current-run proposal decisions before applying them, so incomplete decision persistence cannot trap the modal on the approval step.
+- Preview/submission consumes every positive sealed earnings component exactly
+  once. Managed requirements reserve separate `RATEPERUNIT` evening and
+  early-morning commenced-hour additions and a separate missed-meal-break 50%
+  addition per classification/effective rate. Base ordinary, weekend and public
+  holiday components remain hourly; minimum top-ups merge into those hourly
+  buckets. Imported components resolve through the imported-item id locked in
+  the approved staff/shift pay version and require no managed Award mapping.
+  Imported-item venue, connection and remote earnings-rate identity are database
+  immutable; refresh may update display/rate/freshness metadata but cannot reroute
+  a sealed component to another Xero earning rate.
+- Readiness, managed pay-item proposals, preview, and submission resolve overlapping projected rates through the same latest venue-effective-rate rule as payroll calculations. Raw FWC operative dates are normalized to the venue week before constructing bucket keys.
+- Managed award pay-item effective-date keys/names use the Bepis venue-effective
+  rate date from the pay engine, not necessarily the raw FWC/MAPD operative
+  date. Projection provenance comes only from the typed WageEngine source
+  identity renderer; `Application.Xero.PayrollSourceKey` owns the one exact
+  source/rate suffix used by managed pay-item keys and sealed bucket matching.
+- Xero remains payroll, tax, and STP authority. Bepis does not calculate tax.
+- Readiness, persisted preview, direct submission, retry, and guided preparation
+  use the shared strict wage-source enforcement boundary. Any included entry's
+  calculation or source failure blocks the complete operation; imported overrides
+  bypass FWC/DataVic freshness only with a valid imported pay item.
+
 
 ## Reference Data
 
-- Every refresh path uses the same durable, connection-deduplicated reference
-  job and background-safe persistence service. Work is leased per Xero tenant so
-  concurrent refresh and token maintenance cannot race token rotation.
-- Provider requests are sequential and paced. Earnings-rate pagination continues
-  to a partial page, fails on a repeated full page with no new ids, and obeys the
-  configured page limit. Structured rate limits honor valid `Retry-After`;
-  bounded Xero-specific retries do not alter global job policy.
-- Complete refreshes atomically reconcile provider availability. Failed pulls
-  leave the previous complete snapshot intact. Provider availability is distinct
-  from owner archival, and reappearance restores availability without changing
-  local identity.
-- A snapshot is trusted for seven days. Missing, stale, or approval-pinned
-  missing-staff demand enqueues or joins refresh work; a still-trusted snapshot
-  remains usable while maintenance retries. Suggested staff matches always need
-  explicit owner approval.
-- Owners cannot manually refresh reference data. Founder support may inspect
-  bounded progress/failure facts and request the same coalescing refresh.
-  Reauthorization-required state takes precedence over stale-data guidance.
+
+- `Application/Xero/*` modules own API/service/read-model logic. Ordinary page
+  reads load connection state only; preparation-specific reads run after the
+  workflow is launched.
+- `Web/View/Admin/Xero/TimesheetPreparation.hs` owns workflow/dialog
+  orchestration. Its `StaffMappings` module owns mapping attention, selection,
+  and rendering through three focused interfaces; its `Review` module owns the
+  complete review and preview projections through two rendering interfaces.
+  Controllers continue to consume only the established top-level view interface.
+- `Web/Controller/Admin/Xero/*` owns params, redirects, toasts, HTMX/OOB
+  responses, and permission response choices.
+- Probe scripts are diagnostics; do not make production behavior depend on
+  ad hoc probe output. The Payroll AU v2 Earnings Rates gap probe is operator-only,
+  read-only, refuses CI, requires an exact tenant-id gate, and emits structural
+  response facts rather than customer/provider payloads.
+
 
 The exact paging, lease, retry, and trust implementation is authoritative in
 `ReferenceSyncJob.hs`, `Admin/ReferenceSyncPolicy.hs`, and `ReferenceTrust/`.

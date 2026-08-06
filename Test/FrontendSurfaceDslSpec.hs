@@ -41,6 +41,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID
+import IHP.ModelSupport (InputValue (..))
 import IHP.Prelude
 import Test.Hspec
 import qualified Test.Support.FrontendSurfaceFixture as SurfaceFixture
@@ -78,6 +79,22 @@ data RequestCount
 data RequestFilterId
 data RequestTags
 data RequestNote
+data ClosedRequestContract
+data ClosedRequestContractScope
+data ClosedRequestAction
+data RequestDensity
+data RequestOptionalDensity
+data RequestNullableDensity
+data RequestDensities
+data FixtureDensity
+    = CompactDensity
+    | ComfortableDensity
+    deriving (Bounded, Enum, Eq, Show)
+
+instance InputValue FixtureDensity where
+    inputValue CompactDensity     = "compact"
+    inputValue ComfortableDensity = "comfortable"
+
 data BrowserFixture
 data BrowserFixtureScope
 data BrowserFixturePayload
@@ -223,6 +240,18 @@ type RequestContractSurface =
              , OptionalField RequestFilterId 'WireUUID
              , OptionalField RequestTags ('WireList 'WireText)
              , NullableField RequestNote 'WireText
+             ]
+            '[]
+         ]
+
+type ClosedRequestContractSurface =
+    Surface ClosedRequestContract
+        '[ Scope ClosedRequestContractScope '[] '[ 'NoAuth ]
+         , Action ClosedRequestAction
+            '[ Field RequestDensity ('WireClosed FixtureDensity)
+             , OptionalField RequestOptionalDensity ('WireClosed FixtureDensity)
+             , NullableField RequestNullableDensity ('WireClosed FixtureDensity)
+             , Field RequestDensities ('WireList ('WireClosed FixtureDensity))
              ]
             '[]
          ]
@@ -660,6 +689,33 @@ tests = describe "FrontendSurface DSL foundation" do
                     `shouldBe` [ ("requestCount", MalformedSurfaceRequestField)
                                , ("requestNote", MissingSurfaceRequestField)
                                ]
+
+    it "preserves optional, nullable, and list presence for closed request scalars" do
+        let parsed = parseSurfaceActionParamPairs @ClosedRequestContractSurface @ClosedRequestAction
+                [ ("requestDensity", Just "comfortable")
+                , ("requestNullableDensity", Just "")
+                , ("requestDensities", Just "compact")
+                , ("requestDensities", Just "comfortable")
+                ]
+
+        case parsed of
+            Left errors -> expectationFailure (cs ("expected valid closed scalar fields, got " <> show errors))
+            Right fields -> do
+                surfaceFieldValue @RequestDensity fields `shouldBe` ComfortableDensity
+                surfaceFieldValue @RequestOptionalDensity fields `shouldBe` Nothing
+                surfaceFieldValue @RequestNullableDensity fields `shouldBe` Nothing
+                surfaceFieldValue @RequestDensities fields `shouldBe` [CompactDensity, ComfortableDensity]
+
+        let invalid = parseSurfaceActionParamPairs @ClosedRequestContractSurface @ClosedRequestAction
+                [ ("requestDensity", Just "wide")
+                , ("requestNullableDensity", Just "compact")
+                , ("requestDensities", Just "compact")
+                ]
+        case invalid of
+            Right _ -> expectationFailure "expected an invalid closed scalar literal"
+            Left errors ->
+                map (\fieldError -> (fieldError.surfaceRequestFieldErrorName, fieldError.surfaceRequestFieldErrorKind)) errors
+                    `shouldBe` [("requestDensity", MalformedSurfaceRequestField)]
 
     it "parses intent fields through the same complete presence and wire contract" do
         let parsed = parseSurfaceIntentParamPairs @RequestContractSurface @RequestIntent

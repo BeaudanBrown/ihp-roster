@@ -17,7 +17,6 @@ module Application.WageEngine.Adapter
     , loadWageEngineContextsWith
     , databaseWageEngineBulkSource
     , databaseWageEngineBulkSourceWith
-    , loadWageEngineContextResultsForEntries
     , loadWageEngineContextsForEntries
     , loadWageEngineContextResultsForSubjects
     , calculationInputFromLoadedContext
@@ -492,9 +491,6 @@ loadWageEngineContextsForEntries :: (?modelContext :: ModelContext) => [G.Timesh
 loadWageEngineContextsForEntries entries =
     loadWageEngineContextsWith databaseWageEngineBulkSource (entryRequests entries)
 
-loadWageEngineContextResultsForEntries :: (?modelContext :: ModelContext) => [G.TimesheetEntry] -> IO (Map.Map UUID (Either WageEngineAdapterError LoadedCalculationContext))
-loadWageEngineContextResultsForEntries entries =
-    loadWageEngineContextResultsWith databaseWageEngineBulkSource (entryRequests entries)
 
 -- | Load current or immutable context for arbitrary unsealed subjects without
 -- requiring a persisted Timesheet row. All subject relations and every rate

@@ -43,6 +43,9 @@ bash ./bin/in-env frontend-build
 bash ./bin/in-env frontend-check
 bash ./bin/in-env frontend-contracts-check
 bash ./bin/in-env frontend-surface-adapters-check
+bash ./bin/in-env typed-contract-authority-check
+bash ./bin/in-env frontend-watch
+bash ./bin/in-env generated-code-sync
 
 # Schema-derived types
 bash ./bin/in-env regen-types
@@ -51,6 +54,25 @@ bash ./bin/in-env regen-types
 `verify-fast` provides additive feedback. `verify-full` is the complete local
 gate. CI protects typecheck plus complete Hspec. Local subsystem docs list
 narrower commands and test-selection rules.
+
+`frontend-check` runs contract drift, strict TypeScript validation including
+unused-code checks, frontend unit/DOM tests, and generated JS drift. The full
+verification gate additionally runs the zero-bypass typed-authority gate,
+curated FrontendContract GHC warnings and Weeder reachability, CSS stale-selector
+ownership, architecture freshness, and documentation drift. `dev-start` and
+`just dev` first use content fingerprints to generate only stale frontend
+contracts, Haskell Surface adapters, and JavaScript, then run the coordinated
+frontend-generated watcher plus the frontend asset watcher. IHP's `RunDevServer`
+remains the sole live owner of schema-derived `build/Generated/` Haskell types.
+Foreground observability is opt-in via `IHP_ROSTER_DEV_OBSERVABILITY=1`;
+`dev-stop` cleans up detached dev processes. There is no Vite dev server or true
+HMR requirement. Contract-source edits regenerate both Haskell adapters and
+`frontend/ts/generated/contracts.ts`; the asset watcher then rebundles dependent
+JS. `generated-code-sync` (or `just regen-all`) unconditionally regenerates all
+code. Frontend unit tests and Playwright E2E are not pre-commit hooks; the
+tracked pre-commit hook only guards generated JS drift. Production/live NixOS
+runtime serves checked-in generated static JS and does not require
+Node/esbuild/TypeScript/frontend test tooling.
 
 `verify-fast` and `verify-full` include `devenv-script-freshness-check`, ensuring
 registered commands execute current checkout sources rather than stale snapshots.

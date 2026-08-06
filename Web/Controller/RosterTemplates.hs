@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
+
 module Web.Controller.RosterTemplates where
 
 import Application.Bepis.Controller
@@ -9,6 +11,8 @@ import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSur
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as RosterIntent
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
+import Application.Helper.RosterTemplateScale (parseRosterTemplateScale,
+                                               rosterTemplateScaleValue)
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.Url (appendQueryParams)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..))
@@ -57,7 +61,7 @@ instance Controller RosterTemplatesController where
         rosterGroup <- fetchScopedRosterGroup rosterGroupId
         actor <- currentRosterTemplateActor
         let requestedName = paramOrNothing @Text "name"
-        let requestedScale = paramOrNothing @Text "scale" >>= parseTemplateScale
+        let requestedScale = paramOrNothing @Text "scale" >>= parseRosterTemplateScale
         let startingPoint = paramOrNothing @Text "startingPoint"
         case (requestedName, requestedScale, startingPoint) of
             (Just name, Just scale, Just "blank") -> do
@@ -84,7 +88,7 @@ instance Controller RosterTemplatesController where
         rosterGroup <- fetchScopedRosterGroup rosterGroupId
         actor <- currentRosterTemplateActor
         currentWeekOffset <- fetchCurrentRosterWeekOffset
-        case (paramOrNothing @Text "name", paramOrNothing @Text "scale" >>= parseTemplateScale) of
+        case (paramOrNothing @Text "name", paramOrNothing @Text "scale" >>= parseRosterTemplateScale) of
             (Just templateName, Just templateScale) -> do
                 maybeReferenceWeek <- fetchRosterTemplateReferenceWeek actor rosterGroup weekOffset
                 accessDeniedUnless (isJust maybeReferenceWeek)
@@ -159,7 +163,7 @@ instance Controller RosterTemplatesController where
         ensureVenueWritable
         rosterGroup <- fetchScopedRosterGroup rosterGroupId
         actor <- currentRosterTemplateActor
-        case (paramOrNothing @Text "name", paramOrNothing @Text "scale" >>= parseTemplateScale, paramOrNothing @Text "startingPoint") of
+        case (paramOrNothing @Text "name", paramOrNothing @Text "scale" >>= parseRosterTemplateScale, paramOrNothing @Text "startingPoint") of
             (Just templateName, Just templateScale, Just "blank")
                 | Just expectedDraftRevision <- paramOrNothing @Text "expectedDraftRevision" -> do
                     replaced <- replaceBlankRosterTemplateDesignerDraft actor rosterTemplateDesignId rosterGroup templateScale templateName expectedDraftRevision
@@ -530,7 +534,7 @@ fetchScopedRosterGroup rosterGroupId = do
 referenceRequestFromParams :: (?context :: ControllerContext, ?request :: Request) => Maybe (Text, RosterTemplateScaleEnum, Maybe Int)
 referenceRequestFromParams = do
     templateName <- paramOrNothing @Text "name"
-    templateScale <- paramOrNothing @Text "scale" >>= parseTemplateScale
+    templateScale <- paramOrNothing @Text "scale" >>= parseRosterTemplateScale
     let selectedDayOffset = paramOrNothing @Text "dayOffset" >>= readMaybe . cs
     pure (templateName, templateScale, selectedDayOffset)
 
@@ -539,11 +543,12 @@ selectedReference Day (Just dayOffset) referenceWeek = do
     sourceWeek <- referenceWeek.referenceRosterWeek
     guard (any ((== dayOffset) . (.dayOffset)) referenceWeek.referenceRosterDays)
     pure (RosterTemplateDayReference sourceWeek.id dayOffset)
+selectedReference Day Nothing _ = Nothing
+selectedReference Week (Just _) _ = Nothing
 selectedReference Week Nothing referenceWeek = do
     sourceWeek <- referenceWeek.referenceRosterWeek
     guard (map (.dayOffset) referenceWeek.referenceRosterDays == [0 .. 6])
     pure (RosterTemplateWeekReference sourceWeek.id)
-selectedReference _ _ _ = Nothing
 
 renderDraftOccupied ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) =>
@@ -636,7 +641,7 @@ referenceConfirmationSessionValue token rosterGroupId weekOffset templateName te
         , tshow rosterGroupId
         , tshow weekOffset
         , templateName
-        , templateScaleValue templateScale
+        , rosterTemplateScaleValue templateScale
         , maybe "" tshow selectedDayOffset
         , sourceRevision
         , fromMaybe "" confirmedDraftRevision
@@ -661,16 +666,8 @@ referenceSelectionPath :: RosterGroup -> Int -> Text -> RosterTemplateScaleEnum 
 referenceSelectionPath rosterGroup weekOffset templateName templateScale =
     appendQueryParams
         (pathTo ShowRosterTemplateReferenceAction { rosterGroupId = rosterGroup.id, weekOffset })
-        [("name", templateName), ("scale", templateScaleValue templateScale)]
+        [("name", templateName), ("scale", rosterTemplateScaleValue templateScale)]
 
-templateScaleValue :: RosterTemplateScaleEnum -> Text
-templateScaleValue Day  = "day"
-templateScaleValue Week = "week"
-
-parseTemplateScale :: Text -> Maybe RosterTemplateScaleEnum
-parseTemplateScale "day"  = Just Day
-parseTemplateScale "week" = Just Week
-parseTemplateScale _      = Nothing
 
 renderCreationFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterGroup -> RosterTemplateError -> IO ()
 renderCreationFailure rosterGroup templateError = do

@@ -31,6 +31,7 @@ module Application.Helper.FrontendContract.DSL
     , TaggedUnion
     , TaggedUnionWithTag
     , LiteralEnum
+    , ClosedScalar
     , Literal
     , Case
     , Field
@@ -74,6 +75,7 @@ data WireType
     | WireBool
     | WireUUID
     | WireDay
+    | WireClosed Type
     | WireUnknown
     | WireList WireType
     | WireOptional WireType
@@ -118,6 +120,7 @@ data SchemaPrimitive
     = Record Type [FieldSpec]
     | Enum Type [Type]
     | LiteralEnum Type [LiteralCaseSpec]
+    | ClosedScalar Type
     | TaggedUnion Type [UnionCaseSpec]
     | TaggedUnionWithTag Type Symbol [UnionCaseSpec]
 
@@ -179,6 +182,9 @@ type BrowserBidirectionalSchema schema = 'GlobalSchema 'BrowserBidirectional sch
 type Record name fields = 'Record name fields
 type Enum name cases = 'Enum name cases
 type LiteralEnum name cases = 'LiteralEnum name cases
+-- | A finite Haskell scalar. Generated PostgreSQL enums and DSL-owned ADTs
+-- reuse their existing constructors and canonical 'InputValue' literals.
+type ClosedScalar value = 'ClosedScalar value
 type Literal name value = 'Literal name value
 type TaggedUnion name cases = 'TaggedUnion name cases
 type TaggedUnionWithTag name tagField cases = 'TaggedUnionWithTag name tagField cases

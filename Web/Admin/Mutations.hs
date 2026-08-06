@@ -30,6 +30,7 @@ import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeek
 import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWeekScopes)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource
+import Application.Helper.InvitationStatus (invitationStatusAllowsRenewal)
 import Application.Helper.Pay (ensureShiftTypePayVersionForShiftType)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureDefaultRosterSlots,
@@ -165,7 +166,7 @@ renewVenueInvitationMutation invitation correctedEmail
             (Text.toCaseFold correctedEmail)
             do
                 lockedInvitation <- fetch invitation.id
-                if lockedInvitation.status /= InvitationStatusEnumPending
+                if not (invitationStatusAllowsRenewal lockedInvitation.status)
                     then pure (Left "Only pending invitations can be renewed.")
                     else Right <$> replaceVenueInvitation lockedInvitation correctedEmail
         case maybeRenewal of
@@ -235,7 +236,7 @@ moveRosterGroupMutation _rosterGroup direction = do
         syncVenueDefaultRosterGroupToTopActive currentVenueId
     invalidateTouchedResources "admin.roster_group.move" (liveMutationResult () [adminRosterGroupsResource (unpackId currentVenueId)])
 
-createShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Bool -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Bool -> Maybe Text -> IO (LiveMutationResult AdminShiftTypeMutationResult)
+createShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Bool -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Bool -> Maybe ShiftTypeColourKeyEnum -> IO (LiveMutationResult AdminShiftTypeMutationResult)
 createShiftTypeMutation name isActive overrideAwardLevelId importedXeroPayItemId submittedRosterOnly maybeSubmittedColourKey = do
     sortOrder <- nextShiftTypeSortOrder
     colourKey <- resolveSubmittedShiftTypeColourKey Nothing isActive maybeSubmittedColourKey blankShiftTypeColourKey
@@ -260,7 +261,7 @@ createShiftTypeMutation name isActive overrideAwardLevelId importedXeroPayItemId
     let payResources = shiftTypePayResources (unpackId currentVenueId) activeRosterScopes activeTimesheetScopes
     invalidateTouchedResources "admin.shift_type.create" (liveMutationResult (AdminShiftTypeMutationResult shiftType shouldRefreshXero) (shiftTypeTouchedResources <> payResources))
 
-updateShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftType -> Text -> Bool -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Bool -> Maybe Text -> IO (LiveMutationResult AdminShiftTypeMutationResult)
+updateShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftType -> Text -> Bool -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Bool -> Maybe ShiftTypeColourKeyEnum -> IO (LiveMutationResult AdminShiftTypeMutationResult)
 updateShiftTypeMutation shiftType name isActive overrideAwardLevelId importedXeroPayItemId submittedRosterOnly maybeSubmittedColourKey = do
     now <- getCurrentTime
     sortOrder <-
@@ -292,7 +293,7 @@ updateShiftTypeMutation shiftType name isActive overrideAwardLevelId importedXer
                 else []
     invalidateTouchedResources "admin.shift_type.update" (liveMutationResult (AdminShiftTypeMutationResult updatedShiftType shouldRefreshXero) (shiftTypeTouchedResources <> payResources))
 
-resolveSubmittedShiftTypeColourKey :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe (Id ShiftType) -> Bool -> Maybe Text -> Text -> IO Text
+resolveSubmittedShiftTypeColourKey :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe (Id ShiftType) -> Bool -> Maybe ShiftTypeColourKeyEnum -> ShiftTypeColourKeyEnum -> IO ShiftTypeColourKeyEnum
 resolveSubmittedShiftTypeColourKey maybeCurrentShiftTypeId isActive maybeSubmittedColourKey fallbackColourKey =
     case maybeSubmittedColourKey of
         Nothing -> assignShiftTypeColourKey currentVenueId maybeCurrentShiftTypeId isActive fallbackColourKey

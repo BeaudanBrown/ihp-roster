@@ -88,6 +88,10 @@ data WireIR
     | WireBoolIR
     | WireUuidIR
     | WireDayIR
+    -- | Exact closed scalar schema name plus its Haskell source module/type.
+    -- Browser renderers use only the schema name; generated Haskell adapters
+    -- retain source identity without inspecting compiler syntax.
+    | WireClosedIR !Text !Text !Text
     | WireUnknownIR
     | WireListIR !WireIR
     | WireMapIR !WireIR !WireIR
@@ -156,6 +160,7 @@ data HtmxActionOptionIR
 data SchemaIR
     = RecordIR !Text !Text ![FieldIR]
     | EnumIR !Text !Text ![Text]
+    | ClosedScalarIR !Text !Text ![Text]
     | LiteralEnumIR !Text !Text ![(Text, Text)]
     | TaggedUnionIR !Text !Text !Text ![UnionCaseIR]
     deriving (Eq, Show)
@@ -177,6 +182,7 @@ validateSchemaIR :: SchemaIR -> [ContractDiagnostic]
 validateSchemaIR = \case
     RecordIR _ _ fields -> validateFieldNames fields
     EnumIR _ _ values -> duplicateDiagnostics "enum-value-collision" "enum value" [(value, value) | value <- values]
+    ClosedScalarIR _ _ values -> duplicateDiagnostics "closed-scalar-value-collision" "closed scalar value" [(value, value) | value <- values]
     LiteralEnumIR _ _ values -> duplicateDiagnostics "literal-enum-value-collision" "literal enum value" [(value, marker) | (marker, value) <- values]
     TaggedUnionIR _ _ _ cases ->
         duplicateDiagnostics "union-case-collision" "union case" [(unionCase.unionCaseTag, unionCase.unionCaseMarker) | unionCase <- cases]
@@ -208,6 +214,7 @@ schemaNameAndMarker :: SchemaIR -> (Text, Text)
 schemaNameAndMarker = \case
     RecordIR marker name _ -> (name, marker)
     EnumIR marker name _ -> (name, marker)
+    ClosedScalarIR marker name _ -> (name, marker)
     LiteralEnumIR marker name _ -> (name, marker)
     TaggedUnionIR marker name _ _ -> (name, marker)
 
@@ -215,6 +222,7 @@ schemaFields :: SchemaIR -> [FieldIR]
 schemaFields = \case
     RecordIR _ _ fields -> fields
     EnumIR {} -> []
+    ClosedScalarIR {} -> []
     LiteralEnumIR {} -> []
     TaggedUnionIR _ _ _ cases -> concatMap (.unionCaseFields) cases
 
@@ -222,6 +230,7 @@ schemaRefs :: SchemaIR -> [Text]
 schemaRefs = \case
     RecordIR _ _ fields -> fieldRefs fields
     EnumIR {} -> []
+    ClosedScalarIR {} -> []
     LiteralEnumIR {} -> []
     TaggedUnionIR _ _ _ cases -> concatMap (fieldRefs . (.unionCaseFields)) cases
 
@@ -231,6 +240,7 @@ fieldRefs = concatMap (wireRefs . (.fieldWire))
 wireRefs :: WireIR -> [Text]
 wireRefs = \case
     WireRefIR name -> [name]
+    WireClosedIR name _ _ -> [name]
     WireListIR inner -> wireRefs inner
     WireMapIR key value -> wireRefs key <> wireRefs value
     WireOptionalIR inner -> wireRefs inner

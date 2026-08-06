@@ -5,7 +5,6 @@ module Application.PublicHolidays.Sync
     , dataVicImportantDatesResourceId
     , decodeDataVicPublicHolidayResponse
     , fetchDataVicPublicHolidayRecords
-    , importDataVicPublicHolidayRecords
     , importDataVicPublicHolidayRecordsForYears
     , parseDataVicDate
     , publicHolidayImportFromDataVic
@@ -146,13 +145,6 @@ decodeDataVicPublicHolidayResponse responseBody = do
         then Right decoded.result.records
         else Left "DataVic public holiday response was not successful"
 
-importDataVicPublicHolidayRecords ::
-    (?modelContext :: ModelContext) =>
-    [DataVicHolidayRecord] ->
-    IO PublicHolidaySyncSummary
-importDataVicPublicHolidayRecords records = do
-    today <- utctDay <$> getCurrentTime
-    importDataVicPublicHolidayRecordsForYears (targetPublicHolidayYears today) records
 
 importDataVicPublicHolidayRecordsForYears ::
     (?modelContext :: ModelContext) =>
