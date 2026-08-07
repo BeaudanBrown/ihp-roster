@@ -563,7 +563,14 @@ async function main() {
     if (!profile.configuration.configure_flags || !profile.configuration.ghc_version) missing.push("GHC/configure settings");
     if (profile.app_library.module_count === 0) missing.push("module count");
     if (profile.app_library.self_size_bytes === 0) missing.push("app-lib self size");
-    if ((profile.app_library.artifacts[".hi"]?.count ?? 0) === 0 || (profile.app_library.artifacts[".dyn_hi"]?.count ?? 0) === 0) missing.push("installed .hi/.dyn_hi artifacts");
+    const interfaceCount = profile.app_library.artifacts[".hi"]?.count ?? 0;
+    const dynamicInterfaceCount = profile.app_library.artifacts[".dyn_hi"]?.count ?? 0;
+    const sharedObjectCount = profile.app_library.artifacts[".so"]?.count ?? 0;
+    const staticArchiveCount = profile.app_library.artifacts[".a"]?.count ?? 0;
+    if (interfaceCount === 0) missing.push("installed .hi artifacts");
+    if (profile.configuration.shared && dynamicInterfaceCount === 0) missing.push("installed .dyn_hi artifacts for shared configuration");
+    if (!profile.configuration.shared && (dynamicInterfaceCount !== 0 || sharedObjectCount !== 0)) missing.push("static-only configuration without .dyn_hi/.so artifacts");
+    if (profile.configuration.static && staticArchiveCount === 0) missing.push("installed .a artifact for static configuration");
     if (profile.app_library.largest_interfaces.length === 0) missing.push("largest interfaces");
     if (profile.app_library.nar_size_bytes === null || profile.app_library.closure_size_bytes === null) missing.push("Nix self/closure sizes");
     if (!options.noRebuild && profile.build.wall_seconds <= 0) missing.push("wall time");

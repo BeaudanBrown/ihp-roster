@@ -134,6 +134,29 @@ if find "$result_dir" -type f -size +5M | grep -q .; then
     exit 1
 fi
 
+static_only_dir="$fixture_root/static-only"
+rm "$app_output/lib/Application/Helper/One.dyn_hi" "$app_output/lib/libHSapp-lib.so"
+sed -i 's/--enable-shared/--disable-shared/' "$fake_bin/nix"
+PATH="$fake_bin:$PATH" \
+BEPIS_PROFILE_BUILDER_UIDS="$(id -u)" \
+node "$repo_root/scripts/production-build-profile.mjs" \
+    --output-dir "$static_only_dir" \
+    --cores 2
+jq -e '
+    .status == "succeeded" and
+    .configuration.shared == false and
+    .configuration.static == true and
+    .app_library.artifacts[".hi"].count == 1 and
+    .app_library.artifacts[".a"].count == 1 and
+    (.app_library.artifacts[".dyn_hi"] // null) == null and
+    (.app_library.artifacts[".so"] // null) == null
+' "$static_only_dir/profile.json" >/dev/null
+
+# Restore the shared fixture for output-difference and comparison coverage.
+printf 'dynamic-interface' >"$app_output/lib/Application/Helper/One.dyn_hi"
+printf 'shared' >"$app_output/lib/libHSapp-lib.so"
+sed -i 's/--disable-shared/--enable-shared/' "$fake_bin/nix"
+
 output_differs_dir="$fixture_root/output-differs"
 PATH="$fake_bin:$PATH" \
 BEPIS_PROFILE_BUILDER_UIDS="$(id -u)" \
