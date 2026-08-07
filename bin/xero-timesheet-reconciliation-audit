@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage:
+  XERO_RECONCILIATION_AUDIT_APPROVAL=read-only-issue-357 \
+  XERO_RECONCILIATION_AUDIT_OPERATOR='operator name' \
+  XERO_RECONCILIATION_AUDIT_EXPECTED_DATABASE='database_name' \
+  XERO_RECONCILIATION_AUDIT_STALE_BEFORE='2026-08-01T00:00:00Z' \
+  bash ./bin/in-env ./bin/xero-timesheet-reconciliation-audit /secure/output/directory
+
+Captures the read-only Xero timesheet reconciliation audit for GitHub #357.
+The output directory must be empty and outside the Git checkout. Connection
+settings use standard libpq variables; XERO_RECONCILIATION_AUDIT_DATABASE_URL
+may override DATABASE_URL without printing it.
+
+Every PostgreSQL session is forced read-only with bounded timeouts. Output
+contains aggregate state evidence and stale empty-run UUIDs, but no provider
+payloads, tokens, employee identifiers, or customer names.
+EOF
+}
+
+fail() {
+    echo "xero-timesheet-reconciliation-audit: $*" >&2
+    exit 1
+}
+
+if [[ "${1:-}" == "--help" ]]; then
+    usage
+    exit 0
+fi
+
+[[ "$#" -eq 1 ]] || { usage >&2; exit 1; }
+[[ "${XERO_RECONCILIATION_AUDIT_APPROVAL:-}" == "read-only-issue-357" ]] \
+    || fail "XERO_RECONCILIATION_AUDIT_APPROVAL must equal read-only-issue-357"
+[[ -n "${XERO_RECONCILIATION_AUDIT_OPERATOR:-}" ]] \
+    || fail "XERO_RECONCILIATION_AUDIT_OPERATOR is required"
+[[ "$XERO_RECONCILIATION_AUDIT_OPERATOR" != *$'\n'* && ${#XERO_RECONCILIATION_AUDIT_OPERATOR} -le 200 ]] \
+    || fail "XERO_RECONCILIATION_AUDIT_OPERATOR must be one line of at most 200 characters"
+[[ "${XERO_RECONCILIATION_AUDIT_EXPECTED_DATABASE:-}" =~ ^[A-Za-z0-9_.-]+$ ]] \
+    || fail "XERO_RECONCILIATION_AUDIT_EXPECTED_DATABASE is required and contains unsupported characters"
+[[ "${XERO_RECONCILIATION_AUDIT_STALE_BEFORE:-}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] \
+    || fail "XERO_RECONCILIATION_AUDIT_STALE_BEFORE must be UTC YYYY-MM-DDTHH:MM:SSZ"
+
+for command_name in psql jq sha256sum realpath; do
+    command -v "$command_name" >/dev/null 2>&1 || fail "required command is missing: $command_name"
+done
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(realpath -m "$script_dir/..")"
+if command -v git >/dev/null 2>&1 && git -C "$repo_root" rev-parse --show-toplevel >/dev/null 2>&1; then
+    repo_root="$(realpath -m "$(git -C "$repo_root" rev-parse --show-toplevel)")"
+fi
+cd "$repo_root"
+
+output_dir="$(realpath -m "$1")"
+case "$output_dir/" in
+    "$repo_root/"*) fail "output directory must be outside the Git checkout" ;;
+esac
+mkdir -p "$output_dir"
+[[ -d "$output_dir" ]] || fail "could not create output directory"
+if find "$output_dir" -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
+    fail "output directory must be empty: $output_dir"
+fi
+chmod 700 "$output_dir"
+umask 077
+
+connection_url="${XERO_RECONCILIATION_AUDIT_DATABASE_URL:-${DATABASE_URL:-}}"
+connection_args=()
+if [[ -n "$connection_url" ]]; then
+    connection_args+=("--dbname=$connection_url")
+fi
+export PGAPPNAME="bepis-xero-reconciliation-audit-357"
+export PGOPTIONS="${PGOPTIONS:+$PGOPTIONS }-c default_transaction_read_only=on -c statement_timeout=60000 -c lock_timeout=5000"
+psql_base=(psql -X -v ON_ERROR_STOP=1 "${connection_args[@]}")
+
+actual_database="$("${psql_base[@]}" -Atc 'SELECT current_database()')"
+[[ "$actual_database" == "$XERO_RECONCILIATION_AUDIT_EXPECTED_DATABASE" ]] \
+    || fail "connected database '$actual_database' does not match expected database"
+case "$actual_database" in
+    postgres|template0|template1) fail "refusing system database target: $actual_database" ;;
+esac
+
+transaction_read_only="$("${psql_base[@]}" -Atc "SELECT current_setting('transaction_read_only')")"
+[[ "$transaction_read_only" == "on" ]] || fail "database session is not read-only"
+
+missing_tables="$("${psql_base[@]}" -Atc "
+    SELECT STRING_AGG(table_name, ', ' ORDER BY table_name)
+    FROM (VALUES ('xero_submission_runs'), ('xero_timesheet_submissions')) AS required(table_name)
+    WHERE TO_REGCLASS('public.' || table_name) IS NULL
+")"
+[[ -z "$missing_tables" ]] || fail "required tables are missing: $missing_tables"
+
+capture_dir="$(mktemp -d "$output_dir/.capture.XXXXXX")"
+cleanup() { rm -rf "$capture_dir"; }
+trap cleanup EXIT INT TERM
+
+"${psql_base[@]}" -At \
+    --set=stale_before="$XERO_RECONCILIATION_AUDIT_STALE_BEFORE" \
+    -f scripts/operations/xero-timesheet-reconciliation-357-audit.sql \
+    > "$capture_dir/audit.json"
+jq -e '.capture.transactionReadOnly == "on"' "$capture_dir/audit.json" >/dev/null \
+    || fail "audit did not confirm a read-only transaction"
+jq -r '.staleEmptyPendingRuns.runIds[]' "$capture_dir/audit.json" \
+    > "$capture_dir/candidate-run-ids.txt"
+if grep -Ev '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$|^$' "$capture_dir/candidate-run-ids.txt" | grep -q .; then
+    fail "candidate output contains a non-UUID value"
+fi
+
+candidate_count="$(grep -c . "$capture_dir/candidate-run-ids.txt" || true)"
+audit_candidate_count="$(jq -r '.staleEmptyPendingRuns.count' "$capture_dir/audit.json")"
+[[ "$candidate_count" == "$audit_candidate_count" ]] \
+    || fail "candidate list count changed during capture; discard artifacts and retry"
+
+cat > "$capture_dir/capture-metadata.txt" <<EOF
+issue=357
+approval=read-only-issue-357
+operator=${XERO_RECONCILIATION_AUDIT_OPERATOR}
+captured_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+database=${actual_database}
+stale_before=${XERO_RECONCILIATION_AUDIT_STALE_BEFORE}
+candidate_count=${candidate_count}
+EOF
+(
+    cd "$capture_dir"
+    sha256sum audit.json candidate-run-ids.txt capture-metadata.txt > manifest.sha256
+    sha256sum --check manifest.sha256 >/dev/null
+)
+find "$capture_dir" -mindepth 1 -maxdepth 1 -exec mv -t "$output_dir" -- {} +
+rmdir "$capture_dir"
+trap - EXIT INT TERM
+
+cat <<EOF
+xero-timesheet-reconciliation-audit: capture complete
+  database:   $actual_database
+  output:     $output_dir
+  candidates: $candidate_count
+
+No database rows or schema objects were modified.
+EOF
