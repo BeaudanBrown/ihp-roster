@@ -1,5 +1,6 @@
 import { expect, test, type Locator } from '@playwright/test';
 import {
+    FrontendSurfaceCompleteSetSortRegistry,
     FrontendSurfaceSidePanelRegistry,
     FrontendSurfaceTabSetRegistry,
     type FrontendSurfaceName,
@@ -25,6 +26,16 @@ async function openPage(page: Parameters<typeof gotoWhenReady>[0], target: SideP
     const root = page.locator(`[${sidePanel.rootRoleAttribute}="true"]`);
     await expect(root).toHaveCount(1);
     return { root, sidePanel };
+}
+
+async function staffNamesByKey(root: Locator, target: SidePanelPage) {
+    const sortDefinition = FrontendSurfaceCompleteSetSortRegistry[target.surface][0];
+    if (!sortDefinition) throw new Error(`Missing staff sort contract for ${target.surface}`);
+    const rows = await root.locator(`[${sortDefinition.rowRoleAttribute}]`).evaluateAll((elements, rowAttribute) =>
+        elements.map(element => JSON.parse(element.getAttribute(rowAttribute) ?? '{}') as { staffRowKey: string; staffName: string }),
+        sortDefinition.rowRoleAttribute,
+    );
+    return new Map(rows.map(row => [row.staffRowKey, row.staffName]));
 }
 
 async function managerPanelVisualContract(root: Locator) {
@@ -105,6 +116,25 @@ test.describe('cross-page SidePanel consistency', () => {
         await expect(root).toHaveAttribute(sidePanel.stateAttribute, sidePanel.expandedValue);
         await page.reload();
         await expect(page.locator(`[${sidePanel.rootRoleAttribute}="true"]`)).toHaveAttribute(sidePanel.stateAttribute, sidePanel.collapsedValue);
+    });
+
+    test('uses Roster staff names for matching staff on every manager panel', async ({ page }) => {
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+
+        const roster = managerPages[0]!;
+        const { root: rosterRoot } = await openPage(page, roster);
+        const rosterNames = await staffNamesByKey(rosterRoot, roster);
+
+        for (const target of managerPages.slice(1)) {
+            const { root } = await openPage(page, target);
+            const targetNames = await staffNamesByKey(root, target);
+            const sharedStaff = [...targetNames].filter(([staffKey]) => rosterNames.has(staffKey));
+            expect(sharedStaff.length).toBeGreaterThan(0);
+            for (const [staffKey, staffName] of sharedStaff) {
+                expect(staffName, `${target.surface} name for ${staffKey}`).toBe(rosterNames.get(staffKey));
+            }
+        }
     });
 
     test('uses the Roster visual contract for every manager panel', async ({ page }) => {

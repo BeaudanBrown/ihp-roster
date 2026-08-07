@@ -178,7 +178,7 @@ renderLeaveSidePanelWithSwap maybeSwapOob venueToday blackouts leaveRequests sta
                         <div class="app-side-panel-content-header">
                             <h2 class="h5 mb-0">Staff</h2>
                         </div>
-                        {renderLeaveStaffPanel staffPanelEntries}
+                        {renderLeaveStaffPanel staffMembers staffPanelEntries}
                     </div>
                     <div class="tab-pane app-side-panel-pane app-side-panel-settings-pane" id="leave-settings-pane" role="tabpanel" aria-labelledby="leave-settings-tab" tabindex="0">
                         {renderUnavailabilityBlackoutsLiveFragment venueToday blackouts leaveRequests staffMembers}
@@ -192,8 +192,8 @@ renderLeaveSidePanelWithSwap maybeSwapOob venueToday blackouts leaveRequests sta
         , SidePanelTabConfig "leave-settings-tab" "leave-settings-pane" "Settings" "bi bi-sliders" False "leave-side-panel-tab" (leaveSidePanelTabAttrs LeaveSettingsTab)
         ]
 
-renderLeaveStaffPanel :: (?context :: ControllerContext) => [LeaveStaffPanelEntry] -> Html
-renderLeaveStaffPanel entries = [hsx|
+renderLeaveStaffPanel :: (?context :: ControllerContext) => [Staff] -> [LeaveStaffPanelEntry] -> Html
+renderLeaveStaffPanel staffMembers entries = [hsx|
     <div class="app-side-panel-table-list">
         <table class="app-side-panel-table leave-staff-table" {...leaveStaffPanelSortRootAttrs}>
             <thead class="app-side-panel-table-head"><tr>
@@ -202,13 +202,13 @@ renderLeaveStaffPanel entries = [hsx|
                 <th scope="col" class="app-side-panel-metric-head" aria-sort="none"><button type="button" class="app-side-panel-sort-button app-side-panel-sort-button-metric leave-staff-sort-button" {...leaveStaffPanelSortControlAttrs LeaveStaffSortByCount}>Periods</button></th>
                 <th scope="col" class="app-side-panel-action-head"><span class="visually-hidden">Locate unavailable periods</span></th>
             </tr></thead>
-            <tbody class="app-side-panel-table-body">{forEach (sortOn (Text.toCaseFold . leaveStaffName . (.panelStaff)) entries) renderLeaveStaffPanelEntry}</tbody>
+            <tbody class="app-side-panel-table-body">{forEach (sortOn (Text.toCaseFold . staffDisplayName staffMembers . (.panelStaff)) entries) (renderLeaveStaffPanelEntry staffMembers)}</tbody>
         </table>
     </div>
 |]
 
-renderLeaveStaffPanelEntry :: (?context :: ControllerContext) => LeaveStaffPanelEntry -> Html
-renderLeaveStaffPanelEntry entry =
+renderLeaveStaffPanelEntry :: (?context :: ControllerContext) => [Staff] -> LeaveStaffPanelEntry -> Html
+renderLeaveStaffPanelEntry staffMembers entry =
     SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightSource leaveStaffPeriodsLinkedHighlight staffKey $
         applyAppShellActionAttrs
             (appShellActionByMarker @OpenRosterStaffEditDialog)
@@ -230,7 +230,7 @@ renderLeaveStaffPanelEntry entry =
             |]
   where
     staffKey = "staff:" <> tshow entry.panelStaff.id
-    staffName = leaveStaffName entry.panelStaff
+    staffName = staffDisplayName staffMembers entry.panelStaff
     roleLabel = Text.toTitle (Text.replace "_" " " entry.panelStaffRole)
     locateButton =
         SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightPin leaveStaffPeriodsLinkedHighlight staffKey [hsx|
@@ -239,9 +239,6 @@ renderLeaveStaffPanelEntry entry =
                 <i class="bi bi-eye" aria-hidden="true"></i>
             </button>
         |]
-
-leaveStaffName :: Staff -> Text
-leaveStaffName staff = staff.firstName <> " " <> staff.lastName
 
 renderUnavailabilityBlackoutsLiveFragment :: (?context :: ControllerContext) => Day -> [UnavailabilityBlackout] -> [LeaveRequest] -> [Staff] -> Html
 renderUnavailabilityBlackoutsLiveFragment today blackouts leaveRequests staffMembers =
