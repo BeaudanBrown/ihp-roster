@@ -49,7 +49,7 @@ renderExportsSection selection =
         "admin-exports-section"
         [hsx|
             <p class="small app-muted mb-3">
-                Download approved Staff Hours for one roster week. The export is also retained in the venue's export history.
+                Download approved Staff Hours, hourly staffing, or payroll earnings for one roster week. Exports are also retained in the venue's export history.
             </p>
         |]
         [hsx|
@@ -100,28 +100,37 @@ exportWeekLabel selection =
         <> Text.pack (formatTime defaultTimeLocale "%-d %b %Y" selection.weekEnd)
 
 renderExportGenerationForm :: ReportWeekSelection -> Html
-renderExportGenerationForm selection =
+renderExportGenerationForm selection = [hsx|
+    <div class="d-grid gap-2">
+        {renderExportCard selection StaffPayCsv "Staff Hours CSV" "Hours grouped by staff member and effective pay level for the selected roster week." "Download CSV" "admin-export-generation-form"}
+        {renderExportCard selection HourlyBreakdownZip "Hourly Breakdown ZIP" "Hourly staffing breakdown CSV files for each date in the selected roster week." "Download ZIP" "admin-hourly-breakdown-export-generation-form"}
+        {renderExportCard selection PayrollEarningsCsv "Payroll Earnings CSV" "Approved payroll earnings by staff, date, earnings bucket, and tracking code." "Download CSV" "admin-payroll-earnings-export-generation-form"}
+    </div>
+|]
+
+renderExportCard :: ReportWeekSelection -> ExportJobType -> Text -> Text -> Text -> Text -> Html
+renderExportCard selection exportType label description downloadLabel formId =
     renderFrontendSurfaceActionFormWithHiddenFields
         (AdminAction.createExportJobAction fields)
-        createExportRoute
+        (createExportRoute formId)
         [hsx|
-            <div class={appSurfaceClasses "p-3"} data-fixed-export-card="true" data-export-type={exportJobTypeToText StaffPayCsv}>
+            <div class={appSurfaceClasses "p-3"} data-fixed-export-card="true" data-export-type={exportJobTypeToText exportType}>
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
                     <div>
-                        <div class="fw-semibold">Staff Hours CSV</div>
-                        <div class="small app-muted">Hours grouped by staff member and effective pay level for the selected roster week.</div>
+                        <div class="fw-semibold">{label}</div>
+                        <div class="small app-muted">{description}</div>
                     </div>
-                    <button class="btn btn-primary" type="submit">Download CSV</button>
+                    <button class="btn btn-primary" type="submit">{downloadLabel}</button>
                 </div>
             </div>
         |]
   where
-    fields = AdminAction.createExportJobActionFields selection.weekStart selection.weekEnd StaffPayCsv
+    fields = AdminAction.createExportJobActionFields selection.weekStart selection.weekEnd exportType
 
-createExportRoute :: FrontendSurfaceActionRoute
-createExportRoute = FrontendSurfaceActionRoute
+createExportRoute :: Text -> FrontendSurfaceActionRoute
+createExportRoute formId = FrontendSurfaceActionRoute
     { actionRouteUrl = pathTo CreateExportJobAction
     , actionRouteCustomHtmx = []
     , actionRouteStandardUrl = Just (pathTo CreateExportJobAction)
-    , actionRouteExtraAttrs = [("id", "admin-export-generation-form")]
+    , actionRouteExtraAttrs = [("id", formId)]
     }

@@ -10,9 +10,10 @@ cross-module safety and payroll contracts.
   admins, owners, and founder super admins. Managers are denied.
 - Every format uses the shared `export_jobs` persistence, expiry, authorization,
   download, and audit lifecycle. Controllers must not hand-roll export endpoints.
-- The fixed backend catalog is defined in `Types.hs`; the current UI exposes only
-  Staff Hours CSV for one URL-selected roster week. Legacy report-definition
-  tables are not runtime authority.
+- The fixed backend catalog is defined in `Types.hs`; the current UI exposes
+  Staff Hours CSV, Hourly Breakdown ZIP, and Payroll Earnings CSV for one
+  URL-selected roster week. Legacy report-definition tables are not runtime
+  authority.
 - A generation failure or empty Staff Hours result does not persist a misleading
   export. ZIP bytes are base64 only at the text-backed persistence boundary.
 

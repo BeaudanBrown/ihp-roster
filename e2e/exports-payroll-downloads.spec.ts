@@ -27,8 +27,8 @@ test.describe('Payroll export downloads', () => {
 
         await expect(payrollReportCard(page, 'Staff Hours CSV')).toHaveCount(1);
         await expect(payrollReportCard(page, 'Approved Timesheets CSV')).toHaveCount(0);
-        await expect(payrollReportCard(page, 'Hourly Breakdown ZIP')).toHaveCount(0);
-        await expect(payrollReportCard(page, 'Payroll Earnings CSV')).toHaveCount(0);
+        await expect(payrollReportCard(page, 'Hourly Breakdown ZIP')).toHaveCount(1);
+        await expect(payrollReportCard(page, 'Payroll Earnings CSV')).toHaveCount(1);
         await expect(page.getByText('Recent Exports')).toHaveCount(0);
         await expect(page.locator('#admin-export-range-start')).toHaveCount(0);
         await expect(page.locator('#admin-export-range-end')).toHaveCount(0);
