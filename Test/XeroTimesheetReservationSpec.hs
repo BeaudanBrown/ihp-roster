@@ -196,7 +196,6 @@ submissionReservationFor fixture staff employeeId sourceEntries =
         , reservationXeroEmployeeId = employeeId
         , reservationPayPeriodStart = fixture.periodStart
         , reservationPayPeriodEnd = fixture.periodEnd
-        , reservationIdempotencyKey = "xero-timesheet:create:" <> employeeId <> ":test-period"
         , reservationRequestPayloadJson = Aeson.Array mempty
         , reservationSourceEntries = sourceEntries
         }

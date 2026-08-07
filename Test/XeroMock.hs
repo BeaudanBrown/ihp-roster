@@ -22,7 +22,7 @@ import Network.HTTP.Simple (Request, parseRequest, setRequestBodyJSON,
 import Network.HTTP.Types.Header (HeaderName)
 import Network.HTTP.Types.Method (methodDelete, methodGet, methodPost)
 import Network.HTTP.Types.Status (Status, status200, status204, status400,
-                                  status404)
+                                  status404, status500)
 import qualified Network.HTTP.Types.URI as URI
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
@@ -48,14 +48,18 @@ data BodyContract
     deriving (Eq, Show)
 
 data StrictMockResponses = StrictMockResponses
-    { strictMockTimesheetCreateResponses :: ![Wai.Response]
+    { strictMockTimesheetListResponses   :: !(Maybe [Wai.Response])
+    , strictMockTimesheetCreateResponses :: !(Maybe [Wai.Response])
+    , strictMockTimesheetUpdateResponses :: !(Maybe [Wai.Response])
     , strictMockEarningsRateResponses    :: ![Wai.Response]
     }
 
 defaultStrictMockResponses :: StrictMockResponses
 defaultStrictMockResponses =
     StrictMockResponses
-        { strictMockTimesheetCreateResponses = []
+        { strictMockTimesheetListResponses = Nothing
+        , strictMockTimesheetCreateResponses = Nothing
+        , strictMockTimesheetUpdateResponses = Nothing
         , strictMockEarningsRateResponses = []
         }
 
@@ -396,7 +400,19 @@ withStrictXeroMockTimesheetCreateResponses identitySpec payrollSpec timesheetCre
     withStrictXeroMockBaseUrlWithResponses
         identitySpec
         payrollSpec
-        defaultStrictMockResponses { strictMockTimesheetCreateResponses = timesheetCreateResponses }
+        defaultStrictMockResponses { strictMockTimesheetCreateResponses = Just timesheetCreateResponses }
+        (action . xeroRequestBaseUrlsFor)
+
+withStrictXeroMockTimesheetResponses :: OpenApiSpec -> OpenApiSpec -> [Wai.Response] -> [Wai.Response] -> [Wai.Response] -> (XeroRequestBaseUrls -> IO a) -> IO a
+withStrictXeroMockTimesheetResponses identitySpec payrollSpec timesheetListResponses timesheetCreateResponses timesheetUpdateResponses action =
+    withStrictXeroMockBaseUrlWithResponses
+        identitySpec
+        payrollSpec
+        defaultStrictMockResponses
+            { strictMockTimesheetListResponses = Just timesheetListResponses
+            , strictMockTimesheetCreateResponses = Just timesheetCreateResponses
+            , strictMockTimesheetUpdateResponses = Just timesheetUpdateResponses
+            }
         (action . xeroRequestBaseUrlsFor)
 
 withStrictXeroMockBaseUrl :: OpenApiSpec -> OpenApiSpec -> (Text -> IO a) -> IO a
@@ -407,10 +423,25 @@ withStrictXeroMockBaseUrlWithResponses :: OpenApiSpec -> OpenApiSpec -> StrictMo
 withStrictXeroMockBaseUrlWithResponses identitySpec payrollSpec responses action = do
     accountingSpec <- loadOpenApiSpec "vendor/xero-openapi/xero-accounting.yaml"
     earningsRatesSpec <- loadOpenApiSpec "vendor/xero-openapi/xero-payroll-au-v2-earnings-rates.local.yaml"
+    timesheetListResponseRef <- IORef.newIORef responses.strictMockTimesheetListResponses
     timesheetCreateResponseRef <- IORef.newIORef responses.strictMockTimesheetCreateResponses
+    timesheetUpdateResponseRef <- IORef.newIORef responses.strictMockTimesheetUpdateResponses
     earningsRateResponseRef <- IORef.newIORef responses.strictMockEarningsRateResponses
-    Warp.testWithApplication (pure (xeroStrictMockApp identitySpec payrollSpec accountingSpec earningsRatesSpec timesheetCreateResponseRef earningsRateResponseRef)) \port ->
+    scriptViolationsRef <- IORef.newIORef ([] :: [Text])
+    result <- Warp.testWithApplication (pure (xeroStrictMockApp identitySpec payrollSpec accountingSpec earningsRatesSpec timesheetListResponseRef timesheetCreateResponseRef timesheetUpdateResponseRef earningsRateResponseRef scriptViolationsRef)) \port ->
         action ("http://127.0.0.1:" <> tshow port)
+    assertTimesheetScriptConsumed "list" timesheetListResponseRef
+    assertTimesheetScriptConsumed "create" timesheetCreateResponseRef
+    assertTimesheetScriptConsumed "update" timesheetUpdateResponseRef
+    IORef.readIORef scriptViolationsRef >>= (`shouldBe` [])
+    pure result
+
+assertTimesheetScriptConsumed :: Text -> IORef.IORef (Maybe [Wai.Response]) -> Expectation
+assertTimesheetScriptConsumed label responseRef =
+    IORef.readIORef responseRef >>= \case
+        Nothing -> pure ()
+        Just [] -> pure ()
+        Just remaining -> expectationFailure (cs ("Unconsumed scripted timesheet " <> label <> " responses: " <> tshow (length remaining)))
 
 xeroRequestBaseUrlsFor :: Text -> XeroRequestBaseUrls
 xeroRequestBaseUrlsFor baseUrl =
@@ -533,8 +564,8 @@ payItemsPageRate index =
         , "IsActive" Aeson..= True
         ]
 
-xeroStrictMockApp :: OpenApiSpec -> OpenApiSpec -> OpenApiSpec -> OpenApiSpec -> IORef.IORef [Wai.Response] -> IORef.IORef [Wai.Response] -> Wai.Application
-xeroStrictMockApp identitySpec payrollSpec accountingSpec earningsRatesSpec timesheetCreateResponseRef earningsRateResponseRef request respond = do
+xeroStrictMockApp :: OpenApiSpec -> OpenApiSpec -> OpenApiSpec -> OpenApiSpec -> IORef.IORef (Maybe [Wai.Response]) -> IORef.IORef (Maybe [Wai.Response]) -> IORef.IORef (Maybe [Wai.Response]) -> IORef.IORef [Wai.Response] -> IORef.IORef [Text] -> Wai.Application
+xeroStrictMockApp identitySpec payrollSpec accountingSpec earningsRatesSpec timesheetListResponseRef timesheetCreateResponseRef timesheetUpdateResponseRef earningsRateResponseRef scriptViolationsRef request respond = do
     body <- Wai.strictRequestBody request
     let baseUrl = requestBaseUrl request
     let mockRequest = waiToXeroHttpRequest baseUrl request body
@@ -576,22 +607,33 @@ xeroStrictMockApp identitySpec payrollSpec accountingSpec earningsRatesSpec time
                 (method, "/payroll.xro/1.0/Timesheets")
                     | method == methodGet -> do
                         dynamicTimesheetsFixture <- currentPeriodTimesheetsFixture
-                        pure (Just (payrollSpec, (mockPayrollReadContract baseUrl "mock timesheets list" "/Timesheets" "/Timesheets" ["where", "order", "page", "If-Modified-Since"]) { contractAllowedQueries = ["where", "order", "page"] }, jsonResponse status200 dynamicTimesheetsFixture))
+                        response <- nextTimesheetResponse "list" timesheetListResponseRef (jsonResponse status200 dynamicTimesheetsFixture)
+                        pure (Just (payrollSpec, (mockPayrollReadContract baseUrl "mock timesheets list" "/Timesheets" "/Timesheets" ["where", "order", "page", "If-Modified-Since"]) { contractAllowedQueries = ["where", "order", "page"] }, response))
                     | method == methodPost -> do
-                        response <- nextTimesheetCreateResponse
+                        response <- nextTimesheetResponse "create" timesheetCreateResponseRef (jsonResponse status200 timesheetsFixture)
                         pure (Just (payrollSpec, mockPayrollWriteContract baseUrl "mock timesheet create" "/Timesheets" "/Timesheets" JsonArrayBody, response))
                 (method, "/payroll.xro/1.0/Timesheets/timesheet-id")
                     | method == methodGet -> pure (Just (payrollSpec, mockPayrollReadContract baseUrl "mock timesheet show" "/Timesheets/{TimesheetID}" "/Timesheets/timesheet-id" [], jsonResponse status200 timesheetFixture))
-                    | method == methodPost -> pure (Just (payrollSpec, mockPayrollWriteContract baseUrl "mock timesheet update" "/Timesheets/{TimesheetID}" "/Timesheets/timesheet-id" JsonArrayBody, jsonResponse status200 timesheetsFixture))
+                    | method == methodPost -> do
+                        response <- nextTimesheetResponse "update" timesheetUpdateResponseRef (jsonResponse status200 timesheetsFixture)
+                        pure (Just (payrollSpec, mockPayrollWriteContract baseUrl "mock timesheet update" "/Timesheets/{TimesheetID}" "/Timesheets/timesheet-id" JsonArrayBody, response))
                 _ -> pure Nothing
-
-        nextTimesheetCreateResponse = IORef.atomicModifyIORef' timesheetCreateResponseRef \case
-            [] -> ([], jsonResponse status200 timesheetsFixture)
-            response : rest -> (rest, response)
 
         nextEarningsRateResponse = IORef.atomicModifyIORef' earningsRateResponseRef \case
             [] -> ([], jsonResponse status200 earningsRatesFixture)
             response : rest -> (rest, response)
+
+        nextTimesheetResponse label responseRef fallback = do
+            (response, unexpected) <-
+                IORef.atomicModifyIORef' responseRef \case
+                    Nothing -> (Nothing, (fallback, False))
+                    Just (scriptedResponse : rest) -> (Just rest, (scriptedResponse, False))
+                    Just [] ->
+                        ( Just []
+                        , (jsonResponse status500 (Aeson.object ["error" Aeson..= ("unexpected scripted timesheet " <> label <> " request")]), True)
+                        )
+            when unexpected (IORef.modifyIORef' scriptViolationsRef (<> ["unexpected " <> label <> " request"]))
+            pure response
 
 mockTokenContract :: Text -> LByteString.ByteString -> XeroEndpointContract
 mockTokenContract baseUrl body =

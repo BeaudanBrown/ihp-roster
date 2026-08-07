@@ -22,6 +22,8 @@ module Application.Xero.WorkflowState
     , xeroStaffMappingStatusFlags
     , xeroSubmissionIsInProgress
     , xeroSubmissionIsSubmitted
+    , xeroSubmissionIsSuperseded
+    , xeroSubmissionRunStatusFromStatuses
     , xeroSubmissionStatusFlags
     , xeroSubmissionRunPeriodLabel
     , xeroSubmissionTerminalRunStatus
@@ -107,20 +109,38 @@ xeroPreparationDecisionIsPending = fst . xeroPreparationDecisionStatusFlags
 xeroPreparationDecisionIsApplied :: XeroTimesheetPreparationDecisionStatusEnum -> Bool
 xeroPreparationDecisionIsApplied = snd . xeroPreparationDecisionStatusFlags
 
--- | @(is in progress, has been submitted to Xero)@.
-xeroSubmissionStatusFlags :: XeroTimesheetSubmissionStatusEnum -> (Bool, Bool)
-xeroSubmissionStatusFlags XeroTimesheetSubmissionStatusEnumBlocked = (False, False)
-xeroSubmissionStatusFlags XeroTimesheetSubmissionStatusEnumPending = (True, False)
-xeroSubmissionStatusFlags XeroTimesheetSubmissionStatusEnumSubmitted = (False, True)
-xeroSubmissionStatusFlags XeroTimesheetSubmissionStatusEnumFailed = (False, False)
-xeroSubmissionStatusFlags Skipped = (False, False)
-xeroSubmissionStatusFlags XeroTimesheetSubmissionStatusEnumSuperseded = (False, False)
+-- | @(is in progress, has been submitted to Xero, is superseded history)@.
+xeroSubmissionStatusFlags :: XeroTimesheetSubmissionStatusEnum -> (Bool, Bool, Bool)
+xeroSubmissionStatusFlags XeroTimesheetSubmissionStatusEnumBlocked = (False, False, False)
+xeroSubmissionStatusFlags XeroTimesheetSubmissionStatusEnumPending = (True, False, False)
+xeroSubmissionStatusFlags XeroTimesheetSubmissionStatusEnumSubmitted = (False, True, False)
+xeroSubmissionStatusFlags XeroTimesheetSubmissionStatusEnumFailed = (False, False, False)
+xeroSubmissionStatusFlags Skipped = (False, False, False)
+xeroSubmissionStatusFlags XeroTimesheetSubmissionStatusEnumSuperseded = (False, False, True)
 
 xeroSubmissionIsInProgress :: XeroTimesheetSubmissionStatusEnum -> Bool
-xeroSubmissionIsInProgress = fst . xeroSubmissionStatusFlags
+xeroSubmissionIsInProgress status = case xeroSubmissionStatusFlags status of
+    (value, _, _) -> value
 
 xeroSubmissionIsSubmitted :: XeroTimesheetSubmissionStatusEnum -> Bool
-xeroSubmissionIsSubmitted = snd . xeroSubmissionStatusFlags
+xeroSubmissionIsSubmitted status = case xeroSubmissionStatusFlags status of
+    (_, value, _) -> value
+
+xeroSubmissionIsSuperseded :: XeroTimesheetSubmissionStatusEnum -> Bool
+xeroSubmissionIsSuperseded status = case xeroSubmissionStatusFlags status of
+    (_, _, value) -> value
+
+xeroSubmissionRunStatusFromStatuses :: [XeroTimesheetSubmissionStatusEnum] -> XeroSubmissionRunStatusEnum
+xeroSubmissionRunStatusFromStatuses statuses
+    | null statuses = XeroSubmissionRunStatusEnumFailed
+    | null activeStatuses = XeroSubmissionRunStatusEnumSuperseded
+    | any xeroSubmissionIsInProgress activeStatuses = XeroSubmissionRunStatusEnumPending
+    | all ((== Just XeroSubmissionRunStatusEnumSubmitted) . xeroSubmissionTerminalRunStatus) activeStatuses = XeroSubmissionRunStatusEnumSubmitted
+    | all ((== Just XeroSubmissionRunStatusEnumBlocked) . xeroSubmissionTerminalRunStatus) activeStatuses = XeroSubmissionRunStatusEnumBlocked
+    | all ((== Just XeroSubmissionRunStatusEnumFailed) . xeroSubmissionTerminalRunStatus) activeStatuses = XeroSubmissionRunStatusEnumFailed
+    | otherwise = PartiallyFailed
+  where
+    activeStatuses = filter (not . xeroSubmissionIsSuperseded) statuses
 
 xeroSubmissionTerminalRunStatus :: XeroTimesheetSubmissionStatusEnum -> Maybe XeroSubmissionRunStatusEnum
 xeroSubmissionTerminalRunStatus XeroTimesheetSubmissionStatusEnumBlocked = Just XeroSubmissionRunStatusEnumBlocked

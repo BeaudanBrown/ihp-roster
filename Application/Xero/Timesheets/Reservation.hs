@@ -9,6 +9,7 @@ module Application.Xero.Timesheets.Reservation
     ) where
 
 import Application.Helper.Xero.Types (XeroTimesheetRef (..))
+import Application.Xero.Timesheets.ProviderWrite
 import Application.Xero.Timesheets.Reconciliation
 import Application.Xero.WorkflowState (xeroSubmissionIsInProgress)
 import qualified Control.Exception as Exception
@@ -29,7 +30,6 @@ data XeroTimesheetReservation = XeroTimesheetReservation
     , reservationXeroEmployeeId     :: !Text
     , reservationPayPeriodStart     :: !Day
     , reservationPayPeriodEnd       :: !Day
-    , reservationIdempotencyKey     :: !Text
     , reservationRequestPayloadJson :: !Aeson.Value
     , reservationSourceEntries      :: ![TimesheetEntry]
     }
@@ -165,15 +165,18 @@ persistReservation ::
     (XeroTimesheetReservation, Maybe XeroTimesheetSubmission, XeroTimesheetReconciliationDecision) ->
     IO XeroTimesheetSubmission
 persistReservation run (reservation, existing, decision) = do
-    case decision of
-        CreateXeroTimesheet       -> supersedeExisting existing
-        UpdateXeroDraft _         -> supersedeExisting existing
-        ReplaceMissingXeroDraft _ -> supersedeExisting existing
-        XeroSubmissionInProgress  -> error "In-progress Xero reservation reached persistence"
-        BlockXeroNonDraft {}      -> error "Blocked Xero reservation reached persistence"
-        BlockDistinctXeroTimesheets {} -> error "Blocked Xero reservation reached persistence"
-        BlockUnknownXeroStatus {} -> error "Blocked Xero reservation reached persistence"
-        BlockMissingXeroTimesheetId {} -> error "Blocked Xero reservation reached persistence"
+    operation <-
+        case xeroTimesheetOperationForDecision decision of
+            Just value -> pure value
+            Nothing -> error "Non-write Xero reconciliation decision reached reservation persistence"
+    supersedeExisting existing
+    let idempotencyKey =
+            xeroTimesheetWriteIdempotencyKey
+                reservation.reservationXeroEmployeeId
+                reservation.reservationPayPeriodStart
+                reservation.reservationPayPeriodEnd
+                operation
+        requestPayload = xeroTimesheetRequestForOperation operation reservation.reservationRequestPayloadJson
     submission <-
         newRecord @XeroTimesheetSubmission
             |> set #xeroSubmissionRunId (unpackId run.id)
@@ -184,8 +187,8 @@ persistReservation run (reservation, existing, decision) = do
             |> set #payPeriodStart reservation.reservationPayPeriodStart
             |> set #payPeriodEnd reservation.reservationPayPeriodEnd
             |> set #status XeroTimesheetSubmissionStatusEnumPending
-            |> set #idempotencyKey reservation.reservationIdempotencyKey
-            |> set #requestPayloadJson reservation.reservationRequestPayloadJson
+            |> set #idempotencyKey idempotencyKey
+            |> set #requestPayloadJson requestPayload
             |> createRecord
     mapM_ (insertSubmissionEntry submission) reservation.reservationSourceEntries
     pure submission
