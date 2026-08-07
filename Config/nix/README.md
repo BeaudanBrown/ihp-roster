@@ -36,6 +36,14 @@ then mutates `Main.hs` and proves both change. It also rejects any `Test/` leak
 and requires all tracked schema, migration, static, and deployment-module inputs
 to remain in the filtered source.
 
+The same managed IHP seam disables app-lib's unused shared way while retaining
+vanilla `.hi` interfaces and its static `.a` archive. Production entry points
+remove IHP's development byte-code mode and use GHC's external interpreter, so
+Template Haskell and package loading remain available without app-lib `.dyn_hi`
+or `.so` output. `production-package-smoke` enforces those artifacts, rejects
+app-lib in the packaged runtime closure or binary dynamic-link tables, and then
+launches every allowlisted executable.
+
 After intentionally adding or changing a module or script:
 
 1. edit `production-script-inventory.tsv` when an entry point changed;
@@ -63,7 +71,8 @@ production module.
 
 Upstream IHP builds `app-lib.cabal` from every package registered in its GHC
 environment. `production-nix-support.nix` is the managed, fail-closed seam that
-replaces that exact upstream command. Production emits the unique packages from
+requires exact dependency, app-library, and three executable-option markers
+before transforming the pinned source. Production emits the unique packages from
 `production-package-dependency-inventory.tsv` instead; it never falls back to
 `ghc-pkg list`. During source generation, `ghc-pkg find-module` verifies that
 each reviewed package actually exposes its mapped module and reports the module,

@@ -48,15 +48,46 @@ let
     '';
     registeredPackagesComment = "# Add all registered packages as build-depends";
     reviewedPackagesComment = "# Add reviewed production packages as build-depends";
+    sharedAppLibraryStart =
+        "    appLibPackage = pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (";
+    staticOnlyAppLibraryStart =
+        "    # Production executables are non-dynamic, so retain the vanilla static\n"
+        + "    # library and interfaces without producing an unused shared app library.\n"
+        + "    appLibPackage = pkgs.haskell.lib.disableSharedLibraries (pkgs.haskell.lib.disableLibraryProfiling (pkgs.haskell.lib.dontHaddock (";
+    sharedAppLibraryEnd = "        }) {}\n    ));\n\n    allHaskellPackagesWithAppLib";
+    staticOnlyAppLibraryEnd = "        }) {}\n    )));\n\n    allHaskellPackagesWithAppLib";
+    executableGhcOptions = "                    $(make print-ghc-options)";
+    # Production executables consume static app-lib object interfaces. Remove
+    # IHP's development byte-code mode and isolate any Template Haskell loading
+    # in the external interpreter instead of requesting app-lib's dynamic way.
+    staticExecutableGhcOptions = "                    $(make print-ghc-options | sed 's/-fbyte-code//g') -fexternal-interpreter";
     commandReplacements = builtins.length (lib.splitString packageInventoryCommand source) - 1;
     commentReplacements = builtins.length (lib.splitString packageInventoryComment source) - 1;
     loopCommentReplacements = builtins.length (lib.splitString registeredPackagesComment source) - 1;
+    sharedStartReplacements = builtins.length (lib.splitString sharedAppLibraryStart source) - 1;
+    sharedEndReplacements = builtins.length (lib.splitString sharedAppLibraryEnd source) - 1;
+    executableOptionReplacements = builtins.length (lib.splitString executableGhcOptions source) - 1;
 in
 if commandReplacements != 1 || commentReplacements != 1 || loopCommentReplacements != 1
-then throw "IHP NixSupport production dependency seam changed; expected one package command and its two ownership comments"
+    || sharedStartReplacements != 1 || sharedEndReplacements != 1 || executableOptionReplacements != 3
+then throw "IHP NixSupport production seam changed; expected exact dependency, shared-library, and three executable option markers"
 else builtins.toFile "ihp-production-nix-support.nix" (
     builtins.replaceStrings
-        [ packageInventoryComment packageInventoryCommand registeredPackagesComment ]
-        [ productionPackageInventoryComment productionPackageInventoryCommand reviewedPackagesComment ]
+        [
+            packageInventoryComment
+            packageInventoryCommand
+            registeredPackagesComment
+            sharedAppLibraryStart
+            sharedAppLibraryEnd
+            executableGhcOptions
+        ]
+        [
+            productionPackageInventoryComment
+            productionPackageInventoryCommand
+            reviewedPackagesComment
+            staticOnlyAppLibraryStart
+            staticOnlyAppLibraryEnd
+            staticExecutableGhcOptions
+        ]
         source
 )

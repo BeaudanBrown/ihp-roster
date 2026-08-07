@@ -50,10 +50,54 @@ if [ "$actual_cabal_dependencies" != "$expected_cabal_dependencies" ]; then
     exit 1
 fi
 
+mapfile -t app_lib_derivations < <(nix-store --query --requisites "$production_derivation" | grep -- '-app-lib-0\.1\.0\.drv$')
+if [ "${#app_lib_derivations[@]}" -ne 1 ]; then
+    echo "production-package-smoke: expected one app-lib derivation, found ${#app_lib_derivations[@]}" >&2
+    printf '%s\n' "${app_lib_derivations[@]}" >&2
+    exit 1
+fi
+app_lib_output="$(nix-store --query --outputs "${app_lib_derivations[0]}")"
+if find "$app_lib_output" -type f \( -name '*.dyn_hi' -o -name '*.so' \) -print -quit | grep -q .; then
+    echo "production-package-smoke: static-only app-lib contains a dynamic interface or shared object" >&2
+    find "$app_lib_output" -type f \( -name '*.dyn_hi' -o -name '*.so' \) -print >&2
+    exit 1
+fi
+static_library_count="$(find "$app_lib_output" -type f -name '*.a' | wc -l)"
+interface_count="$(find "$app_lib_output" -type f -name '*.hi' | wc -l)"
+if [ "$static_library_count" -ne 1 ] || [ "$interface_count" -eq 0 ]; then
+    echo "production-package-smoke: static app-lib must retain one archive and its interfaces; found $static_library_count archives and $interface_count interfaces" >&2
+    exit 1
+fi
+if runtime_app_lib_paths="$(nix-store --query --requisites "$output" | grep -- '-app-lib-' || true)" && [ -n "$runtime_app_lib_paths" ]; then
+    echo "production-package-smoke: packaged runtime closure retains app-lib" >&2
+    printf '%s\n' "$runtime_app_lib_paths" >&2
+    exit 1
+fi
+
 # Enter each wrapped executable only through the RTS boundary. This proves the
 # packaged binary launches without running database- or network-mutating main.
 while IFS= read -r executable; do
-    "$output/bin/$executable" +RTS --info >/dev/null
+    wrapper="$output/bin/$executable"
+    real_binary="$(sed -n 's/^exec \(-a "\$0" \)\?"\([^"]*\)".*$/\2/p' "$wrapper")"
+    if [ -z "$real_binary" ]; then
+        real_binary="$wrapper"
+    fi
+    if [ ! -x "$real_binary" ]; then
+        echo "production-package-smoke: cannot resolve wrapped binary for $executable" >&2
+        exit 1
+    fi
+    if dynamic_links="$(ldd "$real_binary")"; then
+        if grep -E 'app-lib|not found' <<< "$dynamic_links" >/dev/null; then
+            echo "production-package-smoke: $executable has an invalid app-lib runtime link" >&2
+            printf '%s\n' "$dynamic_links" >&2
+            exit 1
+        fi
+    else
+        echo "production-package-smoke: ldd failed for $real_binary" >&2
+        printf '%s\n' "$dynamic_links" >&2
+        exit 1
+    fi
+    "$wrapper" +RTS --info >/dev/null
 done <<< "$expected"
 
 # Focused deployed service evaluations retain the migration/recovery and Stripe
