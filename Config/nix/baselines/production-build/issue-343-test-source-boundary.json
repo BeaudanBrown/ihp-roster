@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "issue": 343,
+  "objective": "Exclude Test/** from production source and derivation hashes while retaining the complete development and Hspec source tree",
+  "captured_at": "2026-08-07",
+  "implementation_revision": "445aec1d351a4f3f8778f6f6693ce47d99d2de21",
+  "implementation_revision_dirty": false,
+  "source_seam": {
+    "file": "Config/nix/flake/project-source.nix",
+    "ihp_option": "projectPath",
+    "excluded_root": "Test",
+    "development_source": "working tree through devenv and Hspec commands",
+    "managed_ihp_patch_required": false
+  },
+  "production_source": {
+    "baseline_revision": "2e5b42b2ea96e5d778c415031555944018676172",
+    "baseline_store_path": "/nix/store/8ka7ycwismc5zkpw6c6klmdnjdi6pabq-ihp-roster-source",
+    "baseline_regular_files": 1187,
+    "baseline_nar_bytes": 12310192,
+    "baseline_test_regular_files": 56,
+    "baseline_test_symlinks": 1,
+    "candidate_store_path": "/nix/store/n1ab0crx4y9kccyncq3zqaranngnhkw7-ihp-roster-source",
+    "candidate_regular_files": 1132,
+    "candidate_nar_bytes": 12182000,
+    "candidate_test_entries": 0,
+    "nar_delta_bytes": -128192,
+    "interpretation": "The previous production Haskell inventory already omitted 186 Test .hs modules. The root exclusion additionally removes every tracked non-Haskell test fixture/document/symlink. The net regular-file count also includes the newly added production source verifier."
+  },
+  "derivation_probe": {
+    "test_only_mutation": "append one newline to Test/Fixtures/profile-seed/manifest.json",
+    "runtime_mutation": "append one Haskell comment to Main.hs",
+    "baseline": {
+      "app_drv": "/nix/store/2vkal8fwpysybvaxa1582mf7sjlq3kah-app.drv",
+      "app_lib_drv": "/nix/store/0rgkrd8l6q4rz8garx6ssxxp18r0c3jv-app-lib-0.1.0.drv",
+      "source": "/nix/store/n1ab0crx4y9kccyncq3zqaranngnhkw7-ihp-roster-source"
+    },
+    "after_test_only_mutation": {
+      "app_drv": "/nix/store/2vkal8fwpysybvaxa1582mf7sjlq3kah-app.drv",
+      "app_lib_drv": "/nix/store/0rgkrd8l6q4rz8garx6ssxxp18r0c3jv-app-lib-0.1.0.drv",
+      "source": "/nix/store/n1ab0crx4y9kccyncq3zqaranngnhkw7-ihp-roster-source",
+      "all_unchanged": true
+    },
+    "after_runtime_mutation": {
+      "app_drv": "/nix/store/pvnjcahkcjayfzvfp671ysjr5s7pixbi-app.drv",
+      "app_lib_drv": "/nix/store/qcnccwwix3ybgm07dhkjyyc5xcn6ffsx-app-lib-0.1.0.drv",
+      "source": "/nix/store/vk8a9wbx1c74kji929h4hfr5sf0wsx68-ihp-roster-source",
+      "all_changed": true
+    }
+  },
+  "critical_input_guard": {
+    "schema": "Application/Schema.sql",
+    "migrations": "all tracked Application/Migration/**",
+    "static_assets": "all tracked static/**",
+    "deployment_inputs": "all tracked Config/nix/hosts/** and Config/nix/modules/**",
+    "all_present": true
+  },
+  "verification": {
+    "tdd_red_before_exclusion": "test-only content changed production derivations",
+    "production_source_boundary_check": true,
+    "full_typecheck": true,
+    "complete_hspec_shards": 6,
+    "production_package_smoke": true,
+    "packaged_executables": 9,
+    "documentation_files": 122,
+    "verify_full_reached_only_known_weeder_findings": 7,
+    "standards_review_findings": 0,
+    "spec_review_findings": 0
+  }
+}
