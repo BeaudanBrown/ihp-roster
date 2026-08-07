@@ -95,14 +95,21 @@ tests =
                     , XeroPreparationFailed
                     , XeroPreparationFailed
                     ]
-            map xeroSubmissionTerminalRunStatus
-                [ XeroTimesheetSubmissionStatusEnumBlocked
-                , XeroTimesheetSubmissionStatusEnumPending
-                , XeroTimesheetSubmissionStatusEnumSubmitted
-                , XeroTimesheetSubmissionStatusEnumFailed
-                , Skipped
-                , XeroTimesheetSubmissionStatusEnumSuperseded
-                ]
+            let submissionStatuses =
+                    [ XeroTimesheetSubmissionStatusEnumBlocked
+                    , XeroTimesheetSubmissionStatusEnumPending
+                    , XeroTimesheetSubmissionStatusEnumSubmitted
+                    , XeroTimesheetSubmissionStatusEnumFailed
+                    , Skipped
+                    , XeroTimesheetSubmissionStatusEnumSuperseded
+                    ]
+            map xeroSubmissionStatusFlags submissionStatuses
+                `shouldBe` [(False, False), (True, False), (False, True), (False, False), (False, False), (False, False)]
+            map xeroSubmissionIsInProgress submissionStatuses
+                `shouldBe` [False, True, False, False, False, False]
+            map xeroSubmissionIsSubmitted submissionStatuses
+                `shouldBe` [False, False, True, False, False, False]
+            map xeroSubmissionTerminalRunStatus submissionStatuses
                 `shouldBe`
                     [ Just XeroSubmissionRunStatusEnumBlocked
                     , Nothing
