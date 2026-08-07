@@ -152,6 +152,15 @@ const reachableFrom = new Map();
 for (const [rootModule, closure] of closureByRoot) {
   for (const name of closure) if (!reachableFrom.has(name)) reachableFrom.set(name, rootModule);
 }
+const testOnlyImportPrefixes = ["IHP.Hspec", "Test.Hspec", "Test.QuickCheck"];
+for (const name of reachableFrom.keys()) {
+  const entry = modules.get(name);
+  for (const imported of entry.imports) {
+    if (testOnlyImportPrefixes.some((prefix) => imported === prefix || imported.startsWith(`${prefix}.`))) {
+      fail(`${entry.file}: production module imports test-only interface ${imported}`);
+    }
+  }
+}
 
 function exclusion(file) {
   if (file.startsWith("Application/Script/")) {

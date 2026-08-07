@@ -1,12 +1,30 @@
-{ ... }:
+{ inputs, ... }:
 {
-    perSystem = { config, pkgs, ... }:
+    perSystem = { config, inputs', lib, pkgs, ... }:
         let
             projectSource = import ./project-source.nix { inherit pkgs; };
             frontendContractToolSource = import ./frontend-contract-tool-source.nix { inherit pkgs; };
+            ihpSource = inputs.ihp.outPath;
+            productionNixSupport = import ./production-nix-support.nix { inherit lib; ihp = ihpSource; };
             frontendContractToolGhc = pkgs.ghc.ghcWithPackages (p:
                 config.ihp.haskellPackages p ++ [ p.ihp-ide p.ihp-schema-compiler ]
             );
+            productionApp = optimized: import productionNixSupport {
+                ihp = ihpSource;
+                haskellDeps = config.ihp.haskellPackages;
+                otherDeps = _: config.ihp.packages;
+                projectPath = config.ihp.projectPath;
+                inherit optimized pkgs;
+                ghc = pkgs.ghc;
+                rtsFlags = config.ihp.rtsFlags;
+                optimizationLevel = if optimized then config.ihp.optimizationLevel else "0";
+                relationSupport = config.ihp.relationSupport;
+                appName = config.ihp.appName;
+                filter = inputs.ihp.inputs.nix-filter.lib;
+                ihp-env-var-backwards-compat = inputs'.ihp.packages.ihp-env-var-backwards-compat;
+                ihp-static = inputs'.ihp.packages.ihp-static;
+                static = config.packages.static;
+            };
         in
         {
             ihp = {
@@ -34,7 +52,6 @@
                         aeson
                         p.ihp
                         p.ihp-mail
-                        p.ihp-hspec
                         base64-bytestring
                         base
                         crypton
@@ -48,20 +65,24 @@
                         ip
                         postgresql-simple
                         process
-                        QuickCheck
                         tz
                         validation
                         wai
                         webauthn
                         text
                         zip-archive
-                        hspec
                     ];
                 devHaskellPackages = p: with p; [
+                    hspec
+                    ihp-hspec
+                    QuickCheck
                     hlint
                     stylish-haskell
                 ];
             };
+
+            packages.optimized-prod-server = lib.mkForce (productionApp true);
+            packages.unoptimized-prod-server = lib.mkForce (productionApp false);
 
             packages.frontend-contract-tools = pkgs.stdenv.mkDerivation {
                 name = "bepis-frontend-contract-tools";

@@ -37,6 +37,25 @@ not be promoted merely to make a build pass. Promotion requires a concrete
 production runtime, deployment, maintenance, recovery, or recurring-service
 consumer.
 
+## Test-only Haskell dependencies
+
+`hspec`, `ihp-hspec`, and `QuickCheck` belong to `ihp.devHaskellPackages`, so
+Hspec and compile-failure verification retain them while production does not
+register them as direct app dependencies. The production inventory rejects
+imports of `IHP.Hspec`, `Test.Hspec`, or `Test.QuickCheck` from any reachable
+production module.
+
+IHP currently builds `app-lib.cabal` from every package registered in its
+production GHC environment. Some production dependencies themselves retain test
+packages transitively: `aeson` retains QuickCheck and the monolithic `ihp`
+package retains Hspec. `production-nix-support.nix` therefore applies a
+fail-closed, exact patch to that generated package inventory and removes the
+Hspec, QuickCheck, and IHP test package families from app-lib's direct Cabal
+declarations. `production-package-smoke` inspects the actual generated Cabal
+file from the optimized derivation and blocks any regression. General direct
+import-driven Cabal generation belongs to issue #349; do not broaden this
+focused deny rule into a second dependency authority.
+
 ## Frontend-contract tooling package
 
 `frontend-contract-tool-module-inventory.tsv` is the exact closure of the three
