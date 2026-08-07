@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+node scripts/production-inventory.mjs --check
+
+source_path="$({ nix eval --impure --raw --expr '
+    let
+      flake = builtins.getFlake (toString ./.);
+      pkgs = import flake.inputs.nixpkgs { system = builtins.currentSystem; };
+    in toString (import ./Config/nix/flake/project-source.nix { inherit pkgs; })
+'; })"
+
+while IFS=$'\t' read -r module_path packaging _; do
+    [ "$module_path" = "path" ] && continue
+    [ -z "$module_path" ] && continue
+    if [ "$packaging" = "production" ]; then
+        if [ ! -f "$source_path/$module_path" ]; then
+            echo "production-inventory: production source omitted $module_path" >&2
+            exit 1
+        fi
+    elif [ -e "$source_path/$module_path" ]; then
+        echo "production-inventory: development source leaked into production: $module_path" >&2
+        exit 1
+    fi
+done < Config/nix/production-module-inventory.tsv
+
+actual_scripts="$({
+    find "$source_path/Application/Script" -maxdepth 1 -type f -name '*.hs' \
+        -printf '%f\n' | sed 's/\.hs$//' | grep -v '^Prelude$' | sort
+})"
+expected_scripts="$(awk -F '\t' 'NR > 1 && $2 == "production" { print $1 }' Config/nix/production-script-inventory.tsv | sort)"
+if [ "$actual_scripts" != "$expected_scripts" ]; then
+    echo "production-inventory: filtered production scripts disagree with explicit inventory" >&2
+    diff -u <(printf '%s\n' "$expected_scripts") <(printf '%s\n' "$actual_scripts") >&2 || true
+    exit 1
+fi
+
+echo "production-inventory: filtered source matches explicit inventory"

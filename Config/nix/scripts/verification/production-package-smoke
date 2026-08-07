@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+production-inventory-check
+
+output="$(nix build --no-link --print-out-paths .#optimized-prod-server --accept-flake-config)"
+actual="$(find "$output/bin" -maxdepth 1 -type f -printf '%f\n' | sort)"
+expected="$(awk -F '\t' 'NR > 1 { print $1 }' Config/nix/production-executable-inventory.tsv | sort)"
+if [ "$actual" != "$expected" ]; then
+    echo "production-package-smoke: packaged bin inventory mismatch" >&2
+    diff -u <(printf '%s\n' "$expected") <(printf '%s\n' "$actual") >&2 || true
+    exit 1
+fi
+
+# Enter each wrapped executable only through the RTS boundary. This proves the
+# packaged binary launches without running database- or network-mutating main.
+while IFS= read -r executable; do
+    "$output/bin/$executable" +RTS --info >/dev/null
+done <<< "$expected"
+
+# Focused deployed service evaluations retain the migration/recovery and Stripe
+# reconciliation consumers. Remaining executable consumers are checked against
+# their exact NixOS source markers by production-inventory-check.
+nix eval --impure --json --file Config/nix/tests/wage-cutover-module.nix >/dev/null
+nix eval --impure --json --file Config/nix/tests/billing-stripe-module.nix >/dev/null
+
+echo "production-package-smoke: ok ($(printf '%s\n' "$expected" | wc -l) packaged executables)"

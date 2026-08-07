@@ -72,6 +72,8 @@ A custom typed controller dispatcher was deliberately deferred; see
 - `Application/Migration/`: customer-data-preserving deployed upgrade path.
 - `frontend/ts/`: authored browser mechanics; Haskell owns business meaning.
 - `static/`: checked-in generated bundles, local assets, and CSS.
+- `Config/nix/README.md` and `Config/nix/production-*-inventory.tsv`: explicit
+  production Haskell source and executable packaging authority.
 
 Business authority is scoped by `venue_memberships`; founder support authority
 is a separate platform role. Payroll-adjacent history must remain reproducible.

@@ -1,0 +1,17 @@
+script	packaging	category	consumer	reason
+BackfillTimesheetPayLedger	production	migration-recovery	Config/nix/modules/ihp-roster.nix	Required by the deployed wage-cutover service and pay-ledger recovery runbook
+BillingReconciliationSweep	production	recurring-service	Config/nix/modules/ihp-roster.nix	Required by the deployed Stripe reconciliation timer
+BootstrapAccount	production	deployment-maintenance	Config/nix/modules/ihp-roster.nix	Required by the deployed one-shot account bootstrap service
+FwcMapdRefreshSweep	production	recurring-service	Config/nix/modules/ihp-roster.nix	Required by the deployed FWC MAPD refresh timer
+GenerateBepisArchitectureContracts	development	architecture-generator	Config/nix/scripts/architecture/contracts	Repository architecture generation only; runnable from the development shell
+GenerateFrontendContracts	development	contract-generator	Config/nix/scripts/frontend/contracts	Checked frontend contract generation only; runnable from the development shell
+GenerateFrontendSurfaceAdapters	development	contract-generator	Config/nix/scripts/frontend/surface-adapters	Checked Haskell adapter generation only; runnable from the development shell
+ProfileLiveInvalidation	development	performance-probe	Config/nix/scripts/profile/live-invalidation	Low-rate profiling probe only; runnable from the development shell
+PublicHolidayRefreshSweep	production	recurring-service	Config/nix/modules/ihp-roster.nix	Required by the deployed public-holiday refresh timer
+RsaReminderSweep	production	recurring-service	Config/nix/modules/ihp-roster.nix	Required by the deployed roster shift acknowledgement reminder timer
+SeedDev	development	development-seed	Config/nix/scripts/db/seed-dev	Destructive local development seed only; runnable from the development shell
+SeedPayrollFixture	development	development-fixture	Application/Script/SeedPayrollFixture.hs	Manual fixture entry point with no deployment consumer
+SeedProfile	development	performance-fixture	Config/nix/scripts/db/seed-profile	Synthetic profiling dataset generator; runnable from the development shell
+SyncFwcMapd	development	operator-development-tool	Config/nix/scripts/xero/sync-fwc-mapd	Interactive source sync tool with no NixOS or deployment consumer; runnable from the development shell
+XeroKeepaliveSweep	production	recurring-service	Config/nix/modules/ihp-roster.nix	Required by the deployed Xero keepalive timer
+XeroPayItemProbe	development	integration-probe	Config/nix/scripts/xero/pay-item-probe	Guarded Xero diagnostic probe only; runnable from the development shell

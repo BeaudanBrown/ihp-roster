@@ -160,6 +160,8 @@ in
         verify-fast = script ../scripts/verification/fast;
         verify-full = script ../scripts/verification/full;
         billing-production-readiness = script ../scripts/verification/billing-production-readiness;
+        production-inventory-check = script ../scripts/verification/production-inventory;
+        production-package-smoke = script ../scripts/verification/production-package-smoke;
         lint = script ../scripts/haskell/lint;
         format = script ../scripts/haskell/format;
         ghci-app = script ../scripts/haskell/ghci-app;

@@ -39,3 +39,6 @@ jobs:
 
       - name: Complete Hspec
         run: bash ./bin/in-env hspec-test
+
+      - name: Production package and deployment smoke
+        run: bash ./bin/in-env production-package-smoke
