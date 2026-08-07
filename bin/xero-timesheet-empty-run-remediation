@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage (review-only dry run):
+  XERO_RECONCILIATION_REMEDIATION_APPROVAL=dry-run-issue-357 \
+  XERO_RECONCILIATION_REMEDIATION_OPERATOR='operator name' \
+  XERO_RECONCILIATION_REMEDIATION_EXPECTED_DATABASE='database_name' \
+  XERO_RECONCILIATION_REMEDIATION_STALE_BEFORE='2026-08-01T00:00:00Z' \
+  XERO_RECONCILIATION_REMEDIATION_EXPECTED_SHA256='<candidate file sha256>' \
+  bash ./bin/in-env ./bin/xero-timesheet-empty-run-remediation \
+    /secure/audit/candidate-run-ids.txt /secure/output/directory
+
+Apply mode is deliberately separate and requires all dry-run inputs plus:
+  XERO_RECONCILIATION_REMEDIATION_APPROVAL=apply-reviewed-issue-357 \
+  XERO_RECONCILIATION_REMEDIATION_CHANGE_ID='<approved change record>' \
+  XERO_RECONCILIATION_REMEDIATION_BACKUP_ID='<verified restorable backup>' \
+  XERO_RECONCILIATION_REMEDIATION_MAINTENANCE_WINDOW='<approved window record>'
+
+The reviewed UUID list is checksum-gated. Targets must still be untouched stale
+empty pending runs. The operation updates those retained run rows to failed; it
+never deletes history or changes submissions. Dry-run is the default approved
+mode for issue #357 and rolls back after validating and exercising the update.
+EOF
+}
+
+fail() {
+    echo "xero-timesheet-empty-run-remediation: $*" >&2
+    exit 1
+}
+
+if [[ "${1:-}" == "--help" ]]; then
+    usage
+    exit 0
+fi
+[[ "$#" -eq 2 ]] || { usage >&2; exit 1; }
+
+approval="${XERO_RECONCILIATION_REMEDIATION_APPROVAL:-}"
+case "$approval" in
+    dry-run-issue-357) apply=false ;;
+    apply-reviewed-issue-357)
+        apply=true
+        [[ -n "${XERO_RECONCILIATION_REMEDIATION_CHANGE_ID:-}" ]] || fail "apply mode requires XERO_RECONCILIATION_REMEDIATION_CHANGE_ID"
+        [[ -n "${XERO_RECONCILIATION_REMEDIATION_BACKUP_ID:-}" ]] || fail "apply mode requires XERO_RECONCILIATION_REMEDIATION_BACKUP_ID"
+        [[ -n "${XERO_RECONCILIATION_REMEDIATION_MAINTENANCE_WINDOW:-}" ]] || fail "apply mode requires XERO_RECONCILIATION_REMEDIATION_MAINTENANCE_WINDOW"
+        ;;
+    *) fail "approval must be dry-run-issue-357 or apply-reviewed-issue-357" ;;
+esac
+[[ -n "${XERO_RECONCILIATION_REMEDIATION_OPERATOR:-}" ]] || fail "operator is required"
+[[ "$XERO_RECONCILIATION_REMEDIATION_OPERATOR" != *$'\n'* && ${#XERO_RECONCILIATION_REMEDIATION_OPERATOR} -le 200 ]] || fail "operator must be one line of at most 200 characters"
+[[ "${XERO_RECONCILIATION_REMEDIATION_EXPECTED_DATABASE:-}" =~ ^[A-Za-z0-9_.-]+$ ]] || fail "expected database is required and contains unsupported characters"
+[[ "${XERO_RECONCILIATION_REMEDIATION_STALE_BEFORE:-}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || fail "stale-before must be UTC YYYY-MM-DDTHH:MM:SSZ"
+[[ "${XERO_RECONCILIATION_REMEDIATION_EXPECTED_SHA256:-}" =~ ^[0-9a-f]{64}$ ]] || fail "expected SHA-256 is required"
+
+for command_name in psql sha256sum realpath; do
+    command -v "$command_name" >/dev/null 2>&1 || fail "required command is missing: $command_name"
+done
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(realpath -m "$script_dir/..")"
+if command -v git >/dev/null 2>&1 && git -C "$repo_root" rev-parse --show-toplevel >/dev/null 2>&1; then
+    repo_root="$(realpath -m "$(git -C "$repo_root" rev-parse --show-toplevel)")"
+fi
+cd "$repo_root"
+
+candidate_file="$(realpath "$1")"
+output_dir="$(realpath -m "$2")"
+[[ -f "$candidate_file" ]] || fail "candidate file does not exist"
+case "$candidate_file" in "$repo_root"/*) fail "candidate file must be outside the Git checkout" ;; esac
+case "$output_dir/" in "$repo_root/"*) fail "output directory must be outside the Git checkout" ;; esac
+actual_sha256="$(sha256sum "$candidate_file" | cut -d' ' -f1)"
+[[ "$actual_sha256" == "$XERO_RECONCILIATION_REMEDIATION_EXPECTED_SHA256" ]] || fail "candidate file SHA-256 does not match reviewed value"
+if grep -Ev '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$|^$' "$candidate_file" | grep -q .; then
+    fail "candidate file contains a non-UUID value"
+fi
+expected_count="$(grep -c . "$candidate_file" || true)"
+[[ "$expected_count" -gt 0 ]] || fail "candidate file is empty"
+[[ "$(sort -u "$candidate_file" | grep -c .)" == "$expected_count" ]] || fail "candidate file contains duplicate UUIDs"
+
+mkdir -p "$output_dir"
+if find "$output_dir" -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
+    fail "output directory must be empty"
+fi
+chmod 700 "$output_dir"
+umask 077
+
+connection_url="${XERO_RECONCILIATION_REMEDIATION_DATABASE_URL:-${DATABASE_URL:-}}"
+connection_args=()
+[[ -z "$connection_url" ]] || connection_args+=("--dbname=$connection_url")
+export PGAPPNAME="bepis-xero-reconciliation-remediation-357"
+export PGOPTIONS="${PGOPTIONS:+$PGOPTIONS }-c statement_timeout=60000 -c lock_timeout=5000"
+psql_base=(psql -X -v ON_ERROR_STOP=1 "${connection_args[@]}")
+actual_database="$("${psql_base[@]}" -Atc 'SELECT current_database()')"
+[[ "$actual_database" == "$XERO_RECONCILIATION_REMEDIATION_EXPECTED_DATABASE" ]] || fail "connected database '$actual_database' does not match expected database"
+case "$actual_database" in postgres|template0|template1) fail "refusing system database target" ;; esac
+
+execution_sql="$(mktemp)"
+cleanup() { rm -f "$execution_sql"; }
+trap cleanup EXIT INT TERM
+{
+    echo 'BEGIN;'
+    echo 'CREATE TEMP TABLE xero_reconciliation_remediation_targets (id UUID PRIMARY KEY) ON COMMIT DROP;'
+    while IFS= read -r run_id; do
+        [[ -z "$run_id" ]] || printf "INSERT INTO xero_reconciliation_remediation_targets (id) VALUES ('%s');\n" "$run_id"
+    done < "$candidate_file"
+    cat scripts/operations/xero-timesheet-reconciliation-357-remediate.sql
+} > "$execution_sql"
+
+"${psql_base[@]}" -qAt \
+    --set=apply="$apply" \
+    --set=expected_count="$expected_count" \
+    --set=stale_before="$XERO_RECONCILIATION_REMEDIATION_STALE_BEFORE" \
+    -f "$execution_sql" > "$output_dir/execution.json"
+
+cat > "$output_dir/execution-metadata.txt" <<EOF
+issue=357
+approval=${approval}
+operator=${XERO_RECONCILIATION_REMEDIATION_OPERATOR}
+executed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+database=${actual_database}
+stale_before=${XERO_RECONCILIATION_REMEDIATION_STALE_BEFORE}
+candidate_sha256=${actual_sha256}
+candidate_count=${expected_count}
+change_id=${XERO_RECONCILIATION_REMEDIATION_CHANGE_ID:-not-applied}
+backup_id=${XERO_RECONCILIATION_REMEDIATION_BACKUP_ID:-not-applied}
+maintenance_window=${XERO_RECONCILIATION_REMEDIATION_MAINTENANCE_WINDOW:-not-applied}
+EOF
+(
+    cd "$output_dir"
+    sha256sum execution.json execution-metadata.txt > manifest.sha256
+    sha256sum --check manifest.sha256 >/dev/null
+)
+trap - EXIT INT TERM
+rm -f "$execution_sql"
+
+echo "xero-timesheet-empty-run-remediation: $([ "$apply" == true ] && echo applied || echo dry-run-complete)"
+echo "  database: $actual_database"
+echo "  targets:  $expected_count"
+echo "  output:   $output_dir"

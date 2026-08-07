@@ -13,6 +13,7 @@ module Web.Admin.Xero.Mutations
     , previewXeroTimesheetPreparationMutation
     , refreshXeroTimesheetPreparationMutation
     , runXeroTimesheetPreparationMutation
+    , reviewXeroTimesheetPreparationSubmissionMutation
     , selectXeroTimesheetPreparationPeriodMutation
     , syncXeroReferenceDataMutation
     , submitXeroTimesheetPreparationMutation
@@ -255,6 +256,10 @@ approveXeroTimesheetPreparationStaffStepMutation runId =
 previewXeroTimesheetPreparationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
 previewXeroTimesheetPreparationMutation runId =
     XeroPrepare.previewXeroTimesheetPreparation runId >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.preview"
+
+reviewXeroTimesheetPreparationSubmissionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
+reviewXeroTimesheetPreparationSubmissionMutation runId =
+    XeroPrepare.reviewXeroTimesheetPreparationSubmission runId >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.reconciliation_review"
 
 submitXeroTimesheetPreparationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Maybe Text -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
 submitXeroTimesheetPreparationMutation runId maybeAccountCode =

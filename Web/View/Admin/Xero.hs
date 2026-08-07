@@ -139,13 +139,16 @@ xeroReferenceSyncActionRoute =
 
 renderXeroActionControls :: XeroConnection -> Bool -> Bool -> Html
 renderXeroActionControls connection connectionActionsAllowed referenceRefreshAllowed = [hsx|
-    <div class="d-flex flex-wrap gap-2">
-        {renderOpenXeroTimesheetPreparationForm canRunXeroActions}
-        {renderOpenXeroPayItemImportForm canRunXeroActions}
-        {if referenceRefreshAllowed then renderXeroReferenceSyncForm canRunXeroActions else mempty}
-        <form method="POST" action={DisconnectXeroConnectionAction}>
-            <button class="btn btn-outline-danger" type="submit" disabled={not connectionActionsAllowed}>Disconnect</button>
-        </form>
+    <div class="d-flex flex-column gap-2">
+        <div class="d-flex flex-wrap gap-2">
+            {renderOpenXeroTimesheetPreparationForm canRunXeroActions}
+            {renderOpenXeroPayItemImportForm canRunXeroActions}
+            {if referenceRefreshAllowed then renderXeroReferenceSyncForm canRunXeroActions else mempty}
+            <form method="POST" action={DisconnectXeroConnectionAction}>
+                <button class="btn btn-outline-danger" type="submit" disabled={not connectionActionsAllowed}>Disconnect</button>
+            </form>
+        </div>
+        <div class="small app-muted">Before submission, Bepis checks Xero again, warns before replacing a missing Bepis-created draft, and blocks timesheets that are no longer safe to update.</div>
     </div>
 |]
     where

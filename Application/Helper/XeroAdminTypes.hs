@@ -209,6 +209,9 @@ data XeroTimesheetPreparationView = XeroTimesheetPreparationView
     , preparationPostedPayRunBlocked         :: Bool
     , preparationCanPreview                  :: Bool
     , preparationCanSubmit                   :: Bool
+    , preparationReconciliationReviewed      :: Bool
+    , preparationReconciliationCanSubmit     :: Bool
+    , preparationReconciliationNotices       :: [XeroTimesheetIssueView]
     , preparationReviewRows                  :: [XeroPreparationReviewRow]
     , preparationPreviewRows                 :: [XeroTimesheetPreviewRowView]
     , preparationSubmissionRun               :: Maybe XeroSubmissionRun

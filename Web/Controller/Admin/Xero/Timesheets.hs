@@ -55,6 +55,7 @@ import Web.Admin.Xero.Mutations (applyXeroTimesheetPreparationStaffDecisionMutat
                                  approveXeroTimesheetPreparationStaffStepMutation,
                                  previewXeroTimesheetPreparationMutation,
                                  refreshXeroTimesheetPreparationMutation,
+                                 reviewXeroTimesheetPreparationSubmissionMutation,
                                  runXeroTimesheetPreparationMutation,
                                  selectXeroTimesheetPreparationPeriodMutation,
                                  submitXeroTimesheetPreparationMutation)
@@ -245,7 +246,7 @@ confirmXeroTimesheetPreparationSubmissionAction runId =
     case parseAppShellActionParams @ConfirmXeroTimesheetPreparationSubmissionOverlay of
         Left errors -> respondWithPreparationErrorToast (surfaceRequestFieldErrorsMessage errors)
         Right _ -> do
-            result <- loadXeroTimesheetPreparationView runId
+            result <- liveMutationValue <$> reviewXeroTimesheetPreparationSubmissionMutation runId
             case result of
                 Left message -> respondWithPreparationErrorToast message
                 Right view -> respondHtml (renderXeroTimesheetPreparationSubmittingDialog view)

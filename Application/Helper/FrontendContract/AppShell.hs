@@ -269,15 +269,7 @@ type AppShellContract =
              ]
             DialogSubmitOptions
          , AppShellAction ConfirmXeroTimesheetPreparationSubmissionOverlay '[] DialogSubmitOptions
-         , AppShellAction RunXeroTimesheetPreparationSubmissionOverlay
-            '[]
-            '[ AppShellHtmxMethod 'AppShellPost
-             , AppShellHtmxTarget DialogOverlayMount
-             , AppShellHtmxSwap "innerHTML"
-             , AppShellHtmxPushUrl 'AppShellPushUrlFalse
-             , AppShellHtmxTrigger "load"
-             , AppShellHtmxIndicator "#xero-timesheet-preparation-submitting-indicator"
-             ]
+         , AppShellAction RunXeroTimesheetPreparationSubmissionOverlay '[] DialogSubmitOptions
          , AppShellAction ApplyXeroTimesheetPreparationStaffDecisionOverlay
             '[ Field StaffIdField 'WireUUID
              , Field XeroEmployeeSelectionField 'WireText

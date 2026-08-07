@@ -95,14 +95,23 @@ tests =
                     , XeroPreparationFailed
                     , XeroPreparationFailed
                     ]
-            map xeroSubmissionTerminalRunStatus
-                [ XeroTimesheetSubmissionStatusEnumBlocked
-                , XeroTimesheetSubmissionStatusEnumPending
-                , XeroTimesheetSubmissionStatusEnumSubmitted
-                , XeroTimesheetSubmissionStatusEnumFailed
-                , Skipped
-                , XeroTimesheetSubmissionStatusEnumSuperseded
-                ]
+            let submissionStatuses =
+                    [ XeroTimesheetSubmissionStatusEnumBlocked
+                    , XeroTimesheetSubmissionStatusEnumPending
+                    , XeroTimesheetSubmissionStatusEnumSubmitted
+                    , XeroTimesheetSubmissionStatusEnumFailed
+                    , Skipped
+                    , XeroTimesheetSubmissionStatusEnumSuperseded
+                    ]
+            map xeroSubmissionStatusFlags submissionStatuses
+                `shouldBe` [(False, False, False), (True, False, False), (False, True, False), (False, False, False), (False, False, False), (False, False, True)]
+            map xeroSubmissionIsInProgress submissionStatuses
+                `shouldBe` [False, True, False, False, False, False]
+            map xeroSubmissionIsSubmitted submissionStatuses
+                `shouldBe` [False, False, True, False, False, False]
+            map xeroSubmissionIsSuperseded submissionStatuses
+                `shouldBe` [False, False, False, False, False, True]
+            map xeroSubmissionTerminalRunStatus submissionStatuses
                 `shouldBe`
                     [ Just XeroSubmissionRunStatusEnumBlocked
                     , Nothing
@@ -110,6 +119,20 @@ tests =
                     , Just XeroSubmissionRunStatusEnumFailed
                     , Nothing
                     , Nothing
+                    ]
+            map xeroSubmissionRunStatusFromStatuses
+                [ []
+                , [XeroTimesheetSubmissionStatusEnumSuperseded]
+                , [XeroTimesheetSubmissionStatusEnumPending, XeroTimesheetSubmissionStatusEnumSuperseded]
+                , [XeroTimesheetSubmissionStatusEnumSubmitted, XeroTimesheetSubmissionStatusEnumSuperseded]
+                , [XeroTimesheetSubmissionStatusEnumSubmitted, XeroTimesheetSubmissionStatusEnumFailed, XeroTimesheetSubmissionStatusEnumSuperseded]
+                ]
+                `shouldBe`
+                    [ XeroSubmissionRunStatusEnumFailed
+                    , XeroSubmissionRunStatusEnumSuperseded
+                    , XeroSubmissionRunStatusEnumPending
+                    , XeroSubmissionRunStatusEnumSubmitted
+                    , PartiallyFailed
                     ]
             map xeroSubmissionRunPeriodLabel
                 [ XeroSubmissionRunStatusEnumPreviewed

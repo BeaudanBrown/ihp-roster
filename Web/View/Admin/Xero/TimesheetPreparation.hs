@@ -204,6 +204,7 @@ renderXeroTimesheetPreparationSummaryStep view =
         , dialogOverlayBody = [hsx|
             <div class="d-flex flex-column gap-3" data-xero-timesheet-preparation-dialog="true">
                 {renderStepNotice "Step 3 of 3" "Review the draft timesheets Bepis will submit to Xero."}
+                {if null view.preparationReconciliationNotices then mempty else renderReconciliationReview view}
                 {renderPreparationReview view}
                 {renderXeroPreparationOverlayForm (noAppShellActionFields @ConfirmXeroTimesheetPreparationSubmissionOverlay) (pathTo (ConfirmXeroTimesheetPreparationSubmissionAction view.preparationRun.id)) [("id", "xero-preparation-confirm-submit-form")] mempty}
             </div>
@@ -216,20 +217,18 @@ renderXeroTimesheetPreparationSummaryStep view =
 renderXeroTimesheetPreparationSubmittingDialog :: XeroTimesheetPreparationView -> Html
 renderXeroTimesheetPreparationSubmittingDialog view =
     renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = preparationDialogTitle view
+        { dialogOverlayTitle = "Confirm Xero draft timesheets"
         , dialogOverlayBody = [hsx|
-            <div class="d-flex align-items-center gap-3" data-xero-timesheet-preparation-submitting="true">
-                <div id="xero-timesheet-preparation-submitting-indicator" class="spinner-border text-primary" role="status" aria-hidden="true"></div>
-                <div>
-                    <div class="fw-semibold">Submitting Xero draft timesheets...</div>
-                    <div class="small app-muted">Bepis is creating new drafts or updating existing Xero drafts for each employee. This can take a moment.</div>
-                </div>
-                {renderXeroPreparationOverlayForm (noAppShellActionFields @RunXeroTimesheetPreparationSubmissionOverlay) (pathTo (RunXeroTimesheetPreparationSubmissionAction view.preparationRun.id)) [] mempty}
+            <div class="d-flex flex-column gap-3" data-xero-timesheet-reconciliation-review="true">
+                <div>Bepis checked Xero again immediately before submission.</div>
+                {renderReconciliationReview view}
+                <div class="small app-muted">After confirmation, Bepis will create new drafts, update confirmed drafts, or create the explicitly warned replacement drafts shown above.</div>
+                {renderXeroPreparationOverlayForm (noAppShellActionFields @RunXeroTimesheetPreparationSubmissionOverlay) (pathTo (RunXeroTimesheetPreparationSubmissionAction view.preparationRun.id)) [("id", "xero-preparation-reviewed-submit-form")] mempty}
             </div>
         |]
         , dialogOverlayStartButtons = []
-        , dialogOverlayButtons = []
-        , dialogOverlayDialogClass = ""
+        , dialogOverlayButtons = closeButton : [reviewedSubmitButton | view.preparationReconciliationCanSubmit]
+        , dialogOverlayDialogClass = "modal-lg"
         }
 
 renderXeroTimesheetPreparationFailureDialog :: XeroTimesheetPreparationView -> Html
@@ -311,9 +310,16 @@ approvePayItemsButton = OverlayButton
 
 confirmSubmitButton :: XeroTimesheetPreparationView -> OverlayButton
 confirmSubmitButton _view = OverlayButton
-    { overlayButtonLabel = "Submit draft timesheets to Xero"
+    { overlayButtonLabel = "Review Xero and continue"
     , overlayButtonClass = "btn btn-primary"
     , overlayButtonAction = OverlaySubmitFormAction "xero-preparation-confirm-submit-form"
+    }
+
+reviewedSubmitButton :: OverlayButton
+reviewedSubmitButton = OverlayButton
+    { overlayButtonLabel = "Confirm and submit draft timesheets"
+    , overlayButtonClass = "btn btn-primary"
+    , overlayButtonAction = OverlaySubmitFormAction "xero-preparation-reviewed-submit-form"
     }
 
 needsStaffStep :: XeroTimesheetPreparationView -> Bool

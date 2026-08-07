@@ -3,12 +3,15 @@
 module Web.View.Admin.Xero.TimesheetPreparation.Review
     ( renderPreparationPreview
     , renderPreparationReview
+    , renderReconciliationNotices
+    , renderReconciliationReview
     ) where
 
 import Application.Helper.XeroAdminTypes
 import Data.Scientific (FPFormat (Fixed), Scientific, formatScientific,
                         scientific)
 import qualified Data.Text as Text
+import qualified Text.Blaze.Html as Blaze
 import Web.View.Prelude
 
 renderPreparationReview :: XeroTimesheetPreparationView -> Html
@@ -16,6 +19,28 @@ renderPreparationReview view = [hsx|
     {renderFinalSummaryCards view}
     {renderReviewReadiness view}
     {renderReviewSummary view}
+|]
+
+renderReconciliationReview :: XeroTimesheetPreparationView -> Html
+renderReconciliationReview = renderReconciliationNotices . (.preparationReconciliationNotices)
+
+renderReconciliationNotices :: [XeroTimesheetIssueView] -> Blaze.Html
+renderReconciliationNotices notices
+    | null notices = [hsx|
+        <div class="alert alert-info mb-0">Xero was checked again. Bepis will create missing drafts and update only confirmed Xero drafts.</div>
+    |]
+    | otherwise = [hsx|
+        <section>
+            <h6 class="mb-2">Latest Xero check</h6>
+            <div class="d-flex flex-column gap-2">{forEach notices renderReconciliationNotice}</div>
+        </section>
+    |]
+
+renderReconciliationNotice :: XeroTimesheetIssueView -> Blaze.Html
+renderReconciliationNotice notice = [hsx|
+    <div class={classes [("alert mb-0", True), ("alert-danger", notice.timesheetIssueSeverity == "blocker"), ("alert-warning", notice.timesheetIssueSeverity /= "blocker")]}>
+        {notice.timesheetIssueMessage}
+    </div>
 |]
 
 renderFinalSummaryCards :: XeroTimesheetPreparationView -> Html
