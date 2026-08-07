@@ -6,11 +6,13 @@ module Application.Xero.Timesheets.Reservation
     ( XeroTimesheetReservation (..)
     , XeroTimesheetReservationOutcome (..)
     , reserveXeroTimesheetSubmissionRun
+    , reviewXeroTimesheetReservations
     ) where
 
 import Application.Helper.Xero.Types (XeroTimesheetRef (..))
 import Application.Xero.Timesheets.ProviderWrite
 import Application.Xero.Timesheets.Reconciliation
+import Application.Xero.Timesheets.ReconciliationReview
 import Application.Xero.WorkflowState (xeroSubmissionIsInProgress)
 import qualified Control.Exception as Exception
 import Control.Monad (void)
@@ -41,6 +43,21 @@ data XeroTimesheetReservationOutcome
     | XeroTimesheetReservationBlocked !XeroTimesheetReconciliationDecision
     | XeroTimesheetReservationInvalid !Text
     deriving (Eq, Show)
+
+reviewXeroTimesheetReservations ::
+    (?modelContext :: ModelContext) =>
+    [XeroTimesheetReservation] ->
+    [XeroTimesheetRef] ->
+    IO [XeroTimesheetReconciliationReview]
+reviewXeroTimesheetReservations reservations remoteTimesheets = do
+    reconciliations <- mapM (reconcileReservation remoteTimesheets) reservations
+    pure $ map toReview reconciliations
+  where
+    toReview (reservation, _, decision) =
+        XeroTimesheetReconciliationReview
+            { reconciliationReviewEmployeeId = reservation.reservationXeroEmployeeId
+            , reconciliationReviewDecision = decision
+            }
 
 reserveXeroTimesheetSubmissionRun ::
     (?modelContext :: ModelContext) =>

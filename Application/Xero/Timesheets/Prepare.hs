@@ -6,6 +6,7 @@ module Application.Xero.Timesheets.Prepare
     , loadXeroTimesheetPreparationView
     , previewXeroTimesheetPreparation
     , refreshXeroTimesheetPreparation
+    , reviewXeroTimesheetPreparationSubmission
     , selectXeroTimesheetPreparationPeriod
     , startXeroTimesheetPreparation
     , submitXeroTimesheetPreparation
@@ -33,6 +34,7 @@ import Application.Xero.ReferenceTrust.Service
 import Application.Xero.Timesheets.Buckets
 import Application.Xero.Timesheets.Prepare.Helpers
 import Application.Xero.Timesheets.Preview
+import Application.Xero.Timesheets.ReconciliationReview
 import Application.Xero.Timesheets.Submission
 import Application.Xero.WorkflowState (xeroPayItemRequirementIsProposed,
                                        xeroStaffMappingIsVerified)
@@ -207,6 +209,12 @@ loadXeroTimesheetPreparationView runId = do
                         && manualStaffDecisionCount == 0
                         && readinessAllowsAutomaticPayItemSubmit readiness
                         && (proposedPayItemCount == 0 || not (null accountCodeOptions))
+                reconciliationReviewed = reconciliationReviewSnapshotIsConfirmed run.proposedActionsJson
+                reconciliationNotices =
+                    either (const []) (map reconciliationNoticeView) (reconciliationReviewNotices run.proposedActionsJson)
+                reconciliationCanSubmit =
+                    reconciliationReviewed
+                        && either (const False) (\value -> value) (reconciliationReviewAllowsSubmission run.proposedActionsJson)
             pure $
                 Right
                     XeroTimesheetPreparationView
@@ -228,10 +236,24 @@ loadXeroTimesheetPreparationView runId = do
                         , preparationPostedPayRunBlocked = postedBlocked
                         , preparationCanPreview = canPreview
                         , preparationCanSubmit = canSubmit
+                        , preparationReconciliationReviewed = reconciliationReviewed
+                        , preparationReconciliationCanSubmit = reconciliationCanSubmit
+                        , preparationReconciliationNotices = reconciliationNotices
                         , preparationReviewRows = reviewRows
                         , preparationPreviewRows = submissionPreviewRows
                         , preparationSubmissionRun = maybeSubmissionRun
                         }
+
+reconciliationNoticeView :: XeroTimesheetReconciliationNotice -> XeroTimesheetIssueView
+reconciliationNoticeView notice =
+    XeroTimesheetIssueView
+        { timesheetIssueCode = "xero_reconciliation"
+        , timesheetIssueSeverity = case notice.reconciliationNoticeSeverity of
+            ReconciliationWarning -> "warning"
+            ReconciliationBlocker -> "blocker"
+        , timesheetIssueMessage = notice.reconciliationNoticeMessage
+        , timesheetIssueHint = Nothing
+        }
 
 approveXeroPreparationStaffStep ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -437,6 +459,29 @@ previewXeroTimesheetPreparation runId =
                                 |> updateRecord
                         loadXeroTimesheetPreparationView runId
 
+reviewXeroTimesheetPreparationSubmission ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Id XeroTimesheetPreparationRun ->
+    IO (Either Text XeroTimesheetPreparationView)
+reviewXeroTimesheetPreparationSubmission runId =
+    loadXeroTimesheetPreparationView runId >>= \case
+        Left message -> pure (Left message)
+        Right view
+            | not view.preparationCanSubmit ->
+                pure (Left "Resolve Xero preparation blockers before reviewing draft timesheets.")
+            | otherwise -> do
+                let run = view.preparationRun
+                    readinessRequest = preparationReadinessRequest run (remoteTimesheetsFromRun run)
+                reviewXeroDraftTimesheets readinessRequest >>= \case
+                    Left message -> pure (Left message)
+                    Right snapshot -> do
+                        _ <-
+                            run
+                                |> set #proposedActionsJson snapshot
+                                |> set #errorSummary Nothing
+                                |> updateRecord
+                        loadXeroTimesheetPreparationView runId
+
 submitXeroTimesheetPreparation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id XeroTimesheetPreparationRun ->
@@ -448,21 +493,31 @@ submitXeroTimesheetPreparation runId maybeAccountCode =
         Right view
             | not view.preparationCanSubmit ->
                 pure (Left "Resolve Xero preparation blockers before submitting draft timesheets.")
+            | not view.preparationReconciliationReviewed ->
+                pure (Left "Review the latest Xero reconciliation outcome before submitting draft timesheets.")
+            | not view.preparationReconciliationCanSubmit ->
+                pure (Left "Resolve the Xero reconciliation blockers before submitting draft timesheets.")
             | otherwise ->
                 ensurePreparationPayItemsReady view.preparationRun maybeAccountCode >>= \case
                     Left message -> pure (Left message)
                     Right () -> do
                         refreshedRun <- fetch view.preparationRun.id
-                        latestDecisions <- fetchPreparationDecisions refreshedRun
                         let remoteTimesheets = remoteTimesheetsFromRun refreshedRun
                             readinessRequest = preparationReadinessRequest refreshedRun remoteTimesheets
                         readiness <- validateXeroTimesheetReadiness readinessRequest
                         if not readiness.xeroTimesheetReady
                             then pure (Left (readinessErrorSummary readiness))
                             else
-                                submitXeroDraftTimesheetsForPreparation currentUser.id refreshedRun.id readinessRequest >>= \case
+                                submitReviewedXeroDraftTimesheetsForPreparation currentUser.id refreshedRun.id refreshedRun.proposedActionsJson readinessRequest >>= \case
                                     Left message -> pure (Left message)
-                                    Right submissionRun -> do
+                                    Right (XeroTimesheetReviewedStateChanged freshSnapshot) -> do
+                                        _ <-
+                                            refreshedRun
+                                                |> set #proposedActionsJson (reconciliationReviewRequiresReviewJson freshSnapshot)
+                                                |> set #errorSummary Nothing
+                                                |> updateRecord
+                                        loadXeroTimesheetPreparationView runId
+                                    Right (XeroTimesheetReviewedSubmissionCompleted submissionRun) -> do
                                         completedAt <- getCurrentTime
                                         _ <-
                                             refreshedRun

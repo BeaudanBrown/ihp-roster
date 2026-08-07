@@ -1,6 +1,7 @@
 module Test.XeroTimesheetSubmissionSpec where
 
 import Application.Helper.Xero
+import Application.Xero.Timesheets.ReconciliationReview
 import Application.Xero.Timesheets.Submission
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -46,6 +47,7 @@ tests =
                         Left message -> expectationFailure (cs message)
                         Right run -> do
                             run.status `shouldBe` XeroSubmissionRunStatusEnumSubmitted
+                            run.xeroDuplicateCheckJson `shouldSatisfy` jsonObjectHasKey "reconciliationReview"
                             submissions <- query @XeroTimesheetSubmission |> filterWhere (#xeroSubmissionRunId, unpackId run.id) |> fetch
                             submissions `shouldSatisfy` ((== 1) . length)
                             case submissions of
@@ -129,6 +131,53 @@ tests =
                         `shouldSatisfy` ("xero-timesheet:replace:employee-a:" `Text.isPrefixOf`)
                     secondSubmission.idempotencyKey `shouldSatisfy` ("timesheet-id" `Text.isSuffixOf`)
                     submissionExistingTimesheetIdForTest secondSubmission `shouldBe` Nothing
+
+            it "reviews a confirmed-missing Bepis draft as an explicit replacement warning" $ withContext do
+                withCleanDb do
+                    fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                    prepareConnectionForStrictMock fixture.connection
+
+                    _ <- submitWithStrictResponses identitySpec payrollSpec fixture [emptyTimesheetsResponse] [successfulTimesheetResponse] []
+                    snapshot <-
+                        XeroMock.withStrictXeroMockTimesheetResponses identitySpec payrollSpec [emptyTimesheetsResponse] [] [] \urls ->
+                            withXeroRequestBaseUrlsForTest urls do
+                                withXeroConfigForTest (Right testXeroConfig) do
+                                    reviewXeroDraftTimesheets fixture.request
+                    reviewedSnapshot <- snapshot |> either (\message -> expectationFailure (cs message) >> pure Aeson.Null) pure
+                    notices <- reconciliationReviewNotices reviewedSnapshot |> either (\message -> expectationFailure (cs message) >> pure []) pure
+
+                    reconciliationReviewAllowsSubmission reviewedSnapshot `shouldBe` Right True
+                    map (.reconciliationNoticeSeverity) notices `shouldBe` [ReconciliationWarning]
+                    map (.reconciliationNoticeMessage) notices
+                        `shouldBe` ["Bepis previously created Xero draft timesheet-id, but it is now missing. Confirm to create a replacement draft."]
+
+            it "requires review again when fresh Xero reconciliation state changes after confirmation" $ withContext do
+                withCleanDb do
+                    fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                    prepareConnectionForStrictMock fixture.connection
+
+                    reviewed <-
+                        XeroMock.withStrictXeroMockTimesheetResponses identitySpec payrollSpec [emptyTimesheetsResponse] [] [] \urls ->
+                            withXeroRequestBaseUrlsForTest urls do
+                                withXeroConfigForTest (Right testXeroConfig) do
+                                    reviewXeroDraftTimesheets fixture.request
+                    reviewedSnapshot <- reviewed |> either (\message -> expectationFailure (cs message) >> pure Aeson.Null) pure
+                    outcome <-
+                        XeroMock.withStrictXeroMockTimesheetResponses identitySpec payrollSpec [timesheetsResponse fixture "employee-a" "DRAFT"] [] [] \urls ->
+                            withXeroRequestBaseUrlsForTest urls do
+                                withXeroConfigForTest (Right testXeroConfig) do
+                                    submitReviewedXeroDraftTimesheetsForPreparation
+                                        fixture.owner.id
+                                        (Id (unpackId fixture.connection.id))
+                                        reviewedSnapshot
+                                        fixture.request
+                    case outcome of
+                        Right (XeroTimesheetReviewedStateChanged freshSnapshot) -> do
+                            reconciliationReviewSnapshotIsConfirmed freshSnapshot `shouldBe` True
+                            reconciliationReviewNotices freshSnapshot `shouldBe` Right []
+                        other -> expectationFailure (cs ("Expected changed reconciliation state, got " <> show other))
+                    query @XeroSubmissionRun |> fetchCount >>= (`shouldBe` 0)
+                    query @XeroTimesheetSubmission |> fetchCount >>= (`shouldBe` 0)
 
             it "refetches once after update 404 and replaces only after confirmed absence" $ withContext do
                 withCleanDb do
@@ -567,6 +616,10 @@ overwriteFixtureEmployeeRawCalendar fixture employeeId payrollCalendarId = do
 isSingletonArray :: Maybe Aeson.Value -> Bool
 isSingletonArray (Just (Aeson.Array values)) = Vector.length values == 1
 isSingletonArray _                           = False
+
+jsonObjectHasKey :: AesonKey.Key -> Aeson.Value -> Bool
+jsonObjectHasKey key (Aeson.Object object) = AesonKeyMap.member key object
+jsonObjectHasKey _ _                       = False
 
 responseHasTimesheets :: Aeson.Value -> Bool
 responseHasTimesheets (Aeson.Object object) = AesonKeyMap.member (AesonKey.fromText "Timesheets") object

@@ -2,7 +2,10 @@ module Test.XeroTimesheetReconciliationSpec where
 
 import Application.Helper.Xero.Types (XeroTimesheetRef (..))
 import Application.Xero.Timesheets.Reconciliation
+import Application.Xero.Timesheets.ReconciliationReview
 import qualified Data.Aeson as Aeson
+import Data.Either (isLeft)
+import qualified Data.List as List
 import Data.Time.Calendar (fromGregorian)
 import Generated.Types
 import IHP.Prelude
@@ -97,6 +100,50 @@ tests =
         it "blocks a remote reference without a TimesheetID" do
             reconcileXeroTimesheet Nothing [remoteWithTimesheetId Nothing (Just "DRAFT")]
                 `shouldBe` BlockMissingXeroTimesheetId (Just "DRAFT")
+
+        describe "review snapshots" do
+            it "persists a stable employee-ordered snapshot and warns before replacement" do
+                let snapshot = reconciliationReviewSnapshotJson
+                        [ XeroTimesheetReconciliationReview "employee-b" (UpdateXeroDraft "draft-b")
+                        , XeroTimesheetReconciliationReview "employee-a" (ReplaceMissingXeroDraft "missing-a")
+                        ]
+                reconciliationReviewNotices snapshot
+                    `shouldBe` Right
+                        [ XeroTimesheetReconciliationNotice
+                            { reconciliationNoticeEmployeeId = "employee-a"
+                            , reconciliationNoticeSeverity = ReconciliationWarning
+                            , reconciliationNoticeMessage = "Bepis previously created Xero draft missing-a, but it is now missing. Confirm to create a replacement draft."
+                            }
+                        ]
+                reconciliationReviewAllowsSubmission snapshot `shouldBe` Right True
+                snapshot `shouldBe` reconciliationReviewSnapshotJson
+                    [ XeroTimesheetReconciliationReview "employee-a" (ReplaceMissingXeroDraft "missing-a")
+                    , XeroTimesheetReconciliationReview "employee-b" (UpdateXeroDraft "draft-b")
+                    ]
+
+            it "blocks every unsafe or in-progress decision with actionable copy" do
+                let snapshot = reconciliationReviewSnapshotJson
+                        [ XeroTimesheetReconciliationReview "non-draft" (BlockXeroNonDraft "approved-id" "APPROVED")
+                        , XeroTimesheetReconciliationReview "ambiguous" (BlockDistinctXeroTimesheets ["one", "two"])
+                        , XeroTimesheetReconciliationReview "unknown" (BlockUnknownXeroStatus "future-id" (Just "FUTURE"))
+                        , XeroTimesheetReconciliationReview "missing-id" (BlockMissingXeroTimesheetId (Just "DRAFT"))
+                        , XeroTimesheetReconciliationReview "pending" XeroSubmissionInProgress
+                        ]
+                reconciliationReviewAllowsSubmission snapshot `shouldBe` Right False
+                notices <- reconciliationReviewNotices snapshot |> either (\message -> expectationFailure (cs message) >> pure []) pure
+                map (.reconciliationNoticeSeverity) notices `shouldBe` replicate 5 ReconciliationBlocker
+                List.sort (map (.reconciliationNoticeMessage) notices)
+                    `shouldBe` List.sort
+                        [ "Xero timesheet approved-id is APPROVED and cannot be changed by Bepis. Review it in Xero before trying again."
+                        , "Xero has multiple distinct timesheets for this employee and period (one, two). Resolve them in Xero, then review again."
+                        , "Xero returned an unsupported status for timesheet future-id (status FUTURE). Review it in Xero or contact support."
+                        , "Xero returned a timesheet without an ID (status DRAFT). Refresh Xero data or contact support."
+                        , "A Bepis Xero timesheet submission is still in progress. Wait for it to finish, then review again."
+                        ]
+
+            it "rejects missing and malformed reviewed snapshots" do
+                reconciliationReviewNotices (Aeson.object []) `shouldSatisfy` isLeft
+                reconciliationReviewAllowsSubmission Aeson.Null `shouldSatisfy` isLeft
   where
     terminalLocalStates =
         [ ("no local submission", Nothing, CreateXeroTimesheet)
