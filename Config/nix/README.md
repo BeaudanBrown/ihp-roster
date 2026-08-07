@@ -44,6 +44,22 @@ or `.so` output. `production-package-smoke` enforces those artifacts, rejects
 app-lib in the packaged runtime closure or binary dynamic-link tables, and then
 launches every allowlisted executable.
 
+`baselines/production-build/final-regression-budget.json` owns stable ceilings
+for app-lib self-size, module count, artifact kinds/counts, production module,
+direct-package, and executable inventories, and installed `.hi` size.
+`production-build-budget-check` applies them to an explicit profile, or to the
+current realized app-lib after `production-package-smoke`. The default interface
+ceiling is 16 MiB. Twelve exact, reason-bearing Roster paths have narrower
+per-file ceilings because GHC 9.10 serializes canonical promoted/runtime surface
+authority into those interfaces; new paths do not inherit an exception.
+
+Machine memory is deliberately not part of routine verification: process RSS
+is sampled and builder-specific. Release evidence opts into the NAS-only 8 GiB
+ceiling with `production-build-budget.mjs --enforce-measured-memory`; that mode
+also requires hostname `nas`, eight effective GHC cores, a clean revision, and
+a forced clean successful profile. This prevents a cached inspection or a
+machine-global reading from masquerading as release evidence.
+
 After intentionally adding or changing a module or script:
 
 1. edit `production-script-inventory.tsv` when an entry point changed;

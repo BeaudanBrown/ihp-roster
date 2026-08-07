@@ -164,6 +164,7 @@ in
         production-inventory-check = script ../scripts/verification/production-inventory;
         production-source-boundary-check = script ../scripts/verification/production-source-boundary;
         production-package-smoke = script ../scripts/verification/production-package-smoke;
+        production-build-budget-check = script ../scripts/verification/production-build-budget;
         frontend-contract-package-check = script ../scripts/verification/frontend-contract-package;
         lint = script ../scripts/haskell/lint;
         format = script ../scripts/haskell/format;
@@ -177,6 +178,7 @@ in
         profile-compare = script ../scripts/profile/compare;
         production-build-profile = script ../scripts/profile/production-build;
         production-build-profile-test = script ../scripts/profile/production-build-test;
+        production-build-budget-test = script ../scripts/profile/production-build-budget-test;
         profile-load = script ../scripts/profile/load;
         profile-load-suite = script ../scripts/profile/load-suite;
         profile-live-invalidation = script ../scripts/profile/live-invalidation;

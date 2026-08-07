@@ -45,11 +45,15 @@ echo "verify-full: architecture and documentation structure"
 architecture-check-fresh
 bash ./bin/doc-drift-check
 
-echo "verify-full: production build profiler contract"
+echo "verify-full: production build profiler and budget contracts"
 production-build-profile-test
+production-build-budget-test
 
 echo "verify-full: production package executable and deployment smoke"
 production-package-smoke
+
+echo "verify-full: stable production build and inventory budgets"
+production-build-budget-check
 
 echo "verify-full: canonical wage authority and fixtures"
 bash ./bin/wage-authority-check

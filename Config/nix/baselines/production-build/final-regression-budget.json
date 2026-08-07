@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "issue": 350,
+  "authority": "Stable production app-library and inventory regression ceilings; measured memory is opt-in and builder-specific",
+  "app_library": {
+    "self_size_bytes_max": 1073741824,
+    "module_count_max": 472,
+    "default_interface_bytes_max": 16777216,
+    "interface_exceptions": [
+      {
+        "path": "Application/Helper/FrontendContract/Surface/Roster/WeekOverview.hi",
+        "bytes_max": 100663296,
+        "reason": "GHC 9.10 retains the canonical promoted Roster week declaration needed by runtime parsing; operation-local caller evidence remains separately bounded"
+      },
+      {
+        "path": "Application/Helper/FrontendContract/Surface/Roster/Generated/Resource.hi",
+        "bytes_max": 83886080,
+        "reason": "GHC 9.10 serializes generated canonical Roster resource declarations consumed by runtime authority"
+      },
+      {
+        "path": "Application/Helper/FrontendContract/Surface/Roster/Generated/Live.hi",
+        "bytes_max": 67108864,
+        "reason": "GHC 9.10 serializes generated canonical live-update declarations consumed by runtime authority"
+      },
+      {
+        "path": "Application/Helper/FrontendContract/Surface/Roster/ImageExport.hi",
+        "bytes_max": 50331648,
+        "reason": "GHC 9.10 retains typed Roster image-export surface evidence required by runtime rendering"
+      },
+      {
+        "path": "Application/Helper/FrontendContract/Surface/Roster/StaffPanel.hi",
+        "bytes_max": 41943040,
+        "reason": "GHC 9.10 retains typed Roster staff-panel surface evidence required by runtime rendering"
+      },
+      {
+        "path": "Application/Helper/FrontendContract/Surface/Roster/TemplateApplication.hi",
+        "bytes_max": 37748736,
+        "reason": "GHC 9.10 retains typed Roster template-application evidence required by runtime rendering"
+      },
+      {
+        "path": "Application/Helper/FrontendContract/Surface/Roster/Resource.hi",
+        "bytes_max": 25165824,
+        "reason": "GHC 9.10 retains the typed Roster resource bridge required by runtime parsing"
+      },
+      {
+        "path": "Web/RosterWeeks/FrontendSurface.hi",
+        "bytes_max": 23068672,
+        "reason": "GHC 9.10 retains the runtime composition of canonical Roster surface declarations"
+      },
+      {
+        "path": "Application/Helper/FrontendContract/Surface/Roster/Chrome.hi",
+        "bytes_max": 22020096,
+        "reason": "GHC 9.10 retains typed Roster chrome surface evidence required by runtime rendering"
+      },
+      {
+        "path": "Web/RosterWeeks/Dom.hi",
+        "bytes_max": 20971520,
+        "reason": "GHC 9.10 retains typed DOM identifiers shared across Roster runtime renderers"
+      },
+      {
+        "path": "Web/RosterTemplates/Mutations.hi",
+        "bytes_max": 20971520,
+        "reason": "GHC 9.10 retains typed mutation result surfaces used by runtime controllers"
+      },
+      {
+        "path": "Web/RosterWeeks/Mutations.hi",
+        "bytes_max": 18874368,
+        "reason": "GHC 9.10 retains typed mutation result surfaces used by runtime controllers"
+      }
+    ],
+    "required_artifacts": {
+      ".hi": { "count": 472 },
+      ".a": { "count": 1 },
+      ".conf": { "count": 1 },
+      "[no extension]": { "count": 1 }
+    },
+    "forbidden_artifacts": [".dyn_hi", ".so"],
+    "allowed_artifacts": [".hi", ".a", ".conf", "[no extension]"]
+  },
+  "production_inventory": {
+    "module_rows_max": 473,
+    "dependency_packages_max": 41,
+    "executable_rows_max": 9,
+    "module_inventory": "../../production-module-inventory.tsv",
+    "dependency_inventory": "../../production-package-dependency-inventory.tsv",
+    "executable_inventory": "../../production-executable-inventory.tsv"
+  },
+  "measured_build": {
+    "builder": "nas",
+    "cores": 8,
+    "builder_process_peak_rss_bytes_max": 8589934592
+  }
+}
