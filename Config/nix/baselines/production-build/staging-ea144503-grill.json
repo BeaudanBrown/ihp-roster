@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "status": "succeeded_output_differs",
+  "captured_at": "2026-08-07T02:43:47.751Z",
+  "builder": {
+    "hostname": "grill",
+    "system": "x86_64-linux",
+    "cpu_model": "AMD Ryzen 5 3600X 6-Core Processor",
+    "logical_cores": 12,
+    "total_memory_bytes": 67331772416,
+    "nix": {
+      "configured_cores": 12,
+      "configured_max_jobs": 12,
+      "configured_builders": "@/etc/nix/machines",
+      "sandbox": true,
+      "profile_forced_local": true,
+      "profile_max_jobs": 1,
+      "version": "nix (Nix) 2.34.8"
+    }
+  },
+  "revision": {
+    "commit": "ea144503c99a5ce8128bf6dd26859740cda210be",
+    "dirty": false
+  },
+  "derivations": {
+    "production": "/nix/store/b97wg4pr1ic7hdnk3m34n970vq568s21-app.drv",
+    "app_library": "/nix/store/hrhqrpgjfxg5yv6d52a0sss85fzkaa15-app-lib-0.1.0.drv",
+    "app_library_output": "/nix/store/agxhli0sx6dd8lwwn8k7327qqxgdxr7x-app-lib-0.1.0",
+    "app_library_source": "/nix/store/mla7dkykrbvv1sfwypwzjypqc97fzg61-app-lib-src",
+    "direct_input_count": 32
+  },
+  "configuration": {
+    "configure_flags": "--verbose --prefix=$out --libdir=\\$prefix/lib/\\$compiler/lib --libsubdir=\\$abi/\\$libname   --with-gcc=$CC --package-db=$packageConfDir   --ghc-option=-j$NIX_BUILD_CORES --ghc-option=+RTS --ghc-option=-A64M --ghc-option=-RTS  --disable-library-profiling  --disable-profiling --enable-shared --disable-coverage --enable-static --disable-executable-dynamic --enable-tests --disable-benchmarks --enable-library-vanilla --disable-library-for-ghci --enable-split-sections --enable-library-stripping --enable-executable-stripping $configureFlags",
+    "shared": true,
+    "static": true,
+    "split_sections": true,
+    "tests": true,
+    "ghc_heap_allocation_area": "64M",
+    "ghc_version": "9.10.3",
+    "effective_ghc_cores": 12
+  },
+  "build": {
+    "forced_clean": true,
+    "output_was_present": true,
+    "nix_rebuild_check": true,
+    "cores": 12,
+    "wall_seconds": 414.755213171,
+    "cpu_seconds": 1748.06,
+    "command": [
+      "build",
+      "/nix/store/hrhqrpgjfxg5yv6d52a0sss85fzkaa15-app-lib-0.1.0.drv^out",
+      "--no-link",
+      "--max-jobs",
+      "1",
+      "--cores",
+      "12",
+      "--print-build-logs",
+      "--rebuild"
+    ],
+    "exit_status": 1,
+    "rebuilt_output_differs": true
+  },
+  "memory": {
+    "builder_process_peak_rss_bytes": 38312714240,
+    "nix_daemon_cgroup_start_bytes": 497168384,
+    "nix_daemon_cgroup_peak_bytes": 38245896192,
+    "nix_daemon_cgroup_peak_growth_bytes": 37748727808,
+    "swap_start_bytes": 3510272,
+    "swap_end_bytes": 15303249920,
+    "swap_delta_bytes": 15299739648,
+    "cpu_seconds": 1748.06,
+    "samples": 831
+  },
+  "app_library": {
+    "module_count": 501,
+    "self_size_bytes": 2001477630,
+    "allocated_size_bytes": 2003587072,
+    "nar_size_bytes": 2001697120,
+    "closure_size_bytes": 8055540728,
+    "artifacts": {
+      ".a": {
+        "count": 1,
+        "bytes": 156958688
+      },
+      ".conf": {
+        "count": 1,
+        "bytes": 40483
+      },
+      ".dyn_hi": {
+        "count": 501,
+        "bytes": 892296632
+      },
+      ".hi": {
+        "count": 501,
+        "bytes": 892294674
+      },
+      ".so": {
+        "count": 1,
+        "bytes": 59885664
+      },
+      "[no extension]": {
+        "count": 1,
+        "bytes": 1489
+      }
+    },
+    "largest_interfaces": [
+      {
+        "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-2LL2QVdmOOrK9ajpXu4mKp/Application/Helper/FrontendContract/Surface/Roster/Generated/Action.dyn_hi",
+        "bytes": 152178131,
+        "kind": ".dyn_hi"
+      },
+      {
+        "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-2LL2QVdmOOrK9ajpXu4mKp/Application/Helper/FrontendContract/Surface/Roster/Generated/Action.hi",
+        "bytes": 152178127,
+        "kind": ".hi"
+      },
+      {
+        "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-2LL2QVdmOOrK9ajpXu4mKp/Application/Helper/FrontendContract/Surface/Roster/WeekOverview.dyn_hi",
+        "bytes": 91553586,
+        "kind": ".dyn_hi"
+      },
+      {
+        "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-2LL2QVdmOOrK9ajpXu4mKp/Application/Helper/FrontendContract/Surface/Roster/WeekOverview.hi",
+        "bytes": 91553582,
+        "kind": ".hi"
+      },
+      {
+        "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-2LL2QVdmOOrK9ajpXu4mKp/Application/Helper/FrontendContract/Surface/Roster/Generated/Intent.dyn_hi",
+        "bytes": 80221962,
+        "kind": ".dyn_hi"
+      },
+      {
+        "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-2LL2QVdmOOrK9ajpXu4mKp/Application/Helper/FrontendContract/Surface/Roster/Generated/Intent.hi",
+        "bytes": 80221958,
+        "kind": ".hi"
+      },
+      {
+        "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-2LL2QVdmOOrK9ajpXu4mKp/Application/Helper/FrontendContract/Surface/Roster/Generated/Resource.dyn_hi",
+        "bytes": 78462376,
+        "kind": ".dyn_hi"
+      },
+      {
+        "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-2LL2QVdmOOrK9ajpXu4mKp/Application/Helper/FrontendContract/Surface/Roster/Generated/Resource.hi",
+        "bytes": 78462372,
+        "kind": ".hi"
+      },
+      {
+        "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-2LL2QVdmOOrK9ajpXu4mKp/Application/Helper/FrontendContract/Surface/Roster/Generated/Live.dyn_hi",
+        "bytes": 60347211,
+        "kind": ".dyn_hi"
+      },
+      {
+        "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-2LL2QVdmOOrK9ajpXu4mKp/Application/Helper/FrontendContract/Surface/Roster/Generated/Live.hi",
+        "bytes": 60347207,
+        "kind": ".hi"
+      },
+      {
+        "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-2LL2QVdmOOrK9ajpXu4mKp/Application/Helper/FrontendContract/Surface/Roster/ImageExport.dyn_hi",
+        "bytes": 44469380,
+        "kind": ".dyn_hi"
+      },
+      {
+        "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-2LL2QVdmOOrK9ajpXu4mKp/Application/Helper/FrontendContract/Surface/Roster/ImageExport.hi",
+        "bytes": 44469376,
+        "kind": ".hi"
+      },
+      {
+        "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-2LL2QVdmOOrK9ajpXu4mKp/Application/Helper/FrontendContract/Surface/Roster/StaffPanel.dyn_hi",
+        "bytes": 38585419,
+        "kind": ".dyn_hi"
+      },
+      {
+        "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-2LL2QVdmOOrK9ajpXu4mKp/Application/Helper/FrontendContract/Surface/Roster/StaffPanel.hi",
+        "bytes": 38585415,
+        "kind": ".hi"
+      },
+      {
+        "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-2LL2QVdmOOrK9ajpXu4mKp/Application/Helper/FrontendContract/Surface/Roster/TemplateApplication.dyn_hi",
+        "bytes": 35504555,
+        "kind": ".dyn_hi"
+      },
+      {
+        "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-2LL2QVdmOOrK9ajpXu4mKp/Application/Helper/FrontendContract/Surface/Roster/TemplateApplication.hi",
+        "bytes": 35504551,
+        "kind": ".hi"
+      },
+      {
+        "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-2LL2QVdmOOrK9ajpXu4mKp/Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.dyn_hi",
+        "bytes": 34298224,
+        "kind": ".dyn_hi"
+      },
+      {
+        "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-2LL2QVdmOOrK9ajpXu4mKp/Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hi",
+        "bytes": 34298220,
+        "kind": ".hi"
+      },
+      {
+        "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-2LL2QVdmOOrK9ajpXu4mKp/Web/RosterWeeks/FrontendSurface.dyn_hi",
+        "bytes": 30071195,
+        "kind": ".dyn_hi"
+      },
+      {
+        "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-2LL2QVdmOOrK9ajpXu4mKp/Web/RosterWeeks/FrontendSurface.hi",
+        "bytes": 30071191,
+        "kind": ".hi"
+      }
+    ]
+  }
+}

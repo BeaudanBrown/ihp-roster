@@ -1,5 +1,6 @@
 module Application.Helper.FrontendContract.Surface.Roster.Intent
-    ( dropRosterStaffIntentFields
+    ( SetRosterLayoutModeIntentOperation
+    , dropRosterStaffIntentFields
     , dropRosterStaffIntentForm
     , duplicateRosterShiftToDayIntentFields
     , duplicateRosterShiftToDayIntentForm
@@ -19,7 +20,8 @@ module Application.Helper.FrontendContract.Surface.Roster.Intent
     , setRosterLayoutModeIntentForm
     ) where
 
-import Application.Helper.FrontendContract.Surface.Roster.Generated.Intent (dropRosterStaffIntentFields,
+import Application.Helper.FrontendContract.Surface.Roster.Generated.Intent (SetRosterLayoutModeIntentOperation,
+                                                                            dropRosterStaffIntentFields,
                                                                             dropRosterStaffIntentForm,
                                                                             duplicateRosterShiftToDayIntentFields,
                                                                             duplicateRosterShiftToDayIntentForm,

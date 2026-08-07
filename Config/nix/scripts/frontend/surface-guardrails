@@ -163,11 +163,22 @@ expect_no_match \
 # request/live/resource facades or generated private-module facade boundary.
 expect_no_match \
     "production Web callers must not bypass generated Action adapters" \
-    '\b(parseSurfaceActionParams|frontendSurfaceAction)\b' \
+    '\b(parseSurfaceActionParams|actionParamsPresent|parseActionParams|frontendSurfaceAction|noActionFields)\b|\bactionFields[[:space:]]*@' \
     Web
 expect_no_match \
     "production Web callers must not bypass generated Intent adapters" \
     '\b(parseSurfaceIntentParams|frontendSurfaceIntentForm)\b' \
+    Web
+expect_no_match \
+    "production request adapters and callers must not carry complete Surface request evidence" \
+    '\b(SurfaceActionFields|SurfaceIntentFields|SurfaceActionFieldSpecs|SurfaceIntentFieldSpecs)\b' \
+    Application/Helper/FrontendContract/Surface/Admin/Generated \
+    Application/Helper/FrontendContract/Surface/LeaveRequests/Generated \
+    Application/Helper/FrontendContract/Surface/Profile/Generated \
+    Application/Helper/FrontendContract/Surface/Roster/Generated \
+    Application/Helper/FrontendContract/Surface/SelfServiceLeave/Generated \
+    Application/Helper/FrontendContract/Surface/Support/Generated \
+    Application/Helper/FrontendContract/Surface/Timesheets/Generated \
     Web
 expect_no_match \
     "feature code must not import raw Surface resource internals" \
@@ -236,10 +247,31 @@ for generated_path in "${generated_modules[@]}"; do
         fail "private generated $kind module must be imported only by $facade: $module_name"
         printf '  %s\n' "${consumers[@]:-<no consumers>}" >&2
     fi
-    if rg --line-number '^import .*\.Internal|HaskellAdapter\.Registry' "$generated_path" >&2; then
+    if [[ "$generated_path" == Application/* && ( "$generated_path" == */Generated/Action.hs || "$generated_path" == */Generated/Intent.hs ) ]]; then
+        if ! rg -q '^import Application\.Helper\.FrontendContract\.Surface\.Request\.Runtime\.Internal( \(|$)' "$generated_path"; then
+            fail "operation-local generated request output is missing its trusted evidence constructor edge: $generated_path"
+        fi
+        if rg '^import .*\.Internal|HaskellAdapter\.Registry' "$generated_path" \
+            | rg -v '^import Application\.Helper\.FrontendContract\.Surface\.Request\.Runtime\.Internal( \(|$)' >&2; then
+            fail "operation-local generated request output crosses an unapproved internal/registry edge: $generated_path"
+        fi
+    elif rg --line-number '^import .*\.Internal|HaskellAdapter\.Registry' "$generated_path" >&2; then
         fail "generated adapter crosses a forbidden internal/registry edge: $generated_path"
     fi
 done
+
+mapfile -t operation_evidence_internal_consumers < <(
+    rg -l --glob '*.hs' '^import[[:space:]]+(qualified[[:space:]]+)?Application\.Helper\.FrontendContract\.Surface\.Request\.Runtime\.Internal([[:space:]]|$)' Application Web Test | sort || true
+)
+mapfile -t expected_operation_internal_consumers < <(
+    {
+        printf '%s\n' 'Application/Helper/FrontendContract/Surface/Request/Runtime.hs'
+        printf '%s\n' "${generated_modules[@]}" | rg '^Application/.*/Generated/(Action|Intent)\.hs$'
+    } | sort
+)
+if ! diff -u <(printf '%s\n' "${expected_operation_internal_consumers[@]}") <(printf '%s\n' "${operation_evidence_internal_consumers[@]}") >&2; then
+    fail "trusted request runtime internals must remain limited to compatibility runtime and generated Action/Intent output"
+fi
 
 # The generator's failure-atomic publication is behavior, not source shape.
 if [ -f '@scriptsRoot@/frontend/surface-adapter-publication-test' ]; then

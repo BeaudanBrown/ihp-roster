@@ -1,0 +1,13 @@
+path	reason
+Application/Architecture/Contracts.hs	Composes architecture-only JSON and has no runtime consumer
+Application/Helper/FrontendContract/Contracts.hs	Renders the unified checked contract registry for generation only
+Application/Helper/FrontendContract/Surface/Architecture.hs	Projects Surface contracts into architecture facts only
+Application/Helper/FrontendContract/Surface/HaskellAdapter/Generator.hs	Renders managed Haskell adapter source only
+Application/Helper/FrontendContract/Surface/HaskellAdapter/Live.hs	Generator implementation for managed Live adapter source
+Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs	Generator-only inventory of adapter homes and operations
+Application/Helper/FrontendContract/Surface/HaskellAdapter/Request.hs	Generator implementation for managed Action and Intent source
+Application/Helper/FrontendContract/Surface/HaskellAdapter/Resource.hs	Generator implementation for managed Resource adapter source
+Application/Helper/FrontendContract/TypeScript.hs	Renders generated TypeScript contract source only
+Application/Script/GenerateBepisArchitectureContracts.hs	Architecture emitter executable root
+Application/Script/GenerateFrontendContracts.hs	TypeScript contract generator executable root
+Application/Script/GenerateFrontendSurfaceAdapters.hs	Haskell Surface adapter generator executable root

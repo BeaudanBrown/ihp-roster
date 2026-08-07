@@ -1,0 +1,10 @@
+executable	category	consumer	marker	reason
+RunProdServer	runtime	Config/nix/modules/ihp-roster.nix	services/app.nix	Primary deployed HTTP application service imported from IHP
+RunJobs	recurring-service-runtime	Config/nix/modules/ihp-roster.nix	services/worker.nix	Deployed background job worker imported from IHP
+BackfillTimesheetPayLedger	migration-recovery	Config/nix/modules/ihp-roster.nix	/bin/BackfillTimesheetPayLedger	Required wage-cutover and pay-ledger recovery executable
+BillingReconciliationSweep	recurring-service	Config/nix/modules/ihp-roster.nix	/bin/BillingReconciliationSweep	Stripe reconciliation timer executable
+BootstrapAccount	deployment-maintenance	Config/nix/modules/ihp-roster.nix	/bin/BootstrapAccount	One-shot deployment account bootstrap executable
+FwcMapdRefreshSweep	recurring-service	Config/nix/modules/ihp-roster.nix	/bin/FwcMapdRefreshSweep	FWC MAPD refresh timer executable
+PublicHolidayRefreshSweep	recurring-service	Config/nix/modules/ihp-roster.nix	/bin/PublicHolidayRefreshSweep	Public-holiday refresh timer executable
+RsaReminderSweep	recurring-service	Config/nix/modules/ihp-roster.nix	/bin/RsaReminderSweep	Roster shift acknowledgement reminder timer executable
+XeroKeepaliveSweep	recurring-service	Config/nix/modules/ihp-roster.nix	/bin/XeroKeepaliveSweep	Xero keepalive timer executable

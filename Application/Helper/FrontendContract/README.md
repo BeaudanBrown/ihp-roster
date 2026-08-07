@@ -57,6 +57,15 @@ do not leak into either registry.
 
 ## Generated Haskell Surface Adapters
 
+Frontend-contract generation is a separate Nix output, not a production runtime
+entry point. `.#frontend-contract-tools` owns the TypeScript contract renderer,
+Surface Haskell-adapter renderer, and typed architecture emitter. Its checked
+module inventory distinguishes 12 tooling-only modules from 81 shared canonical
+authority modules; shared reflection remains in production only where runtime
+builders, parsers, values, or metadata actually import it. The optimized server
+closure must never reference the tooling output. Package-backed CI freshness
+checks regenerate TypeScript, all managed Haskell adapters and private proofs,
+and architecture contracts before accepting checked-in generated artifacts.
 
 `AppShellAction` is the server-rendered lane for app-owned shell request initiators
 that are not owned by a mounted `FrontendSurface`, including dialog/overlay
@@ -186,38 +195,47 @@ prove zero-field and parameterized adapters, shared-module collision checks,
 and public generic builder use.
 
 Generated Resource and Live code calls only public marker-indexed builders and
-matchers. Raw `SurfaceFields` data constructors stay hidden behind the
-construction-only `noSurfaceFields` and `(&:)` functions. Generated production
-Action/Intent builders construct nominal `SurfaceActionFields surface action`
-or `SurfaceIntentFields surface intent` directly from the declared first field
-and exact tail (or the explicit zero-field constructor). The request parser
-keeps its recursive parsed-field view private and calls that same public nominal
-construction seam; no parser-only rebind operation is exported. Generated
-metadata and structured parser interfaces carry the exact wrapper, so
-operations with equal normalized field lists remain distinct. Read-only marker
-lookup and serialization stay shared through `SurfaceFieldBundle`, which
-exposes no unwrap operation. Unsupported source carriers fail with adapter kind,
-owning Surface, declaration, and field in the diagnostic.
+matchers. Raw field data constructors stay hidden behind construction-only
+functions. Every generated Action and Intent now uses a distinct nominal
+operation token with `ActionFields operation`/`IntentFields operation` and one
+local field-spec list. Builders, named presence witnesses, parsers, metadata,
+lookup, and serialization contain no complete Surface. Generated term evidence
+is rendered from checked IR and can be constructed only through a generated
+request module's guarded runtime-internal edge. Temporary unpublished aggregate
+proofs typecheck exact canonical Action and Intent set/owner/ordered-field
+equality before managed publication. Every wrapper remains nominal, exposes no
+split/re-indexing path, and reports unsupported source carriers with adapter
+kind, compact owner, declaration, and field.
 Production family associations remain feature-local, and the checked aggregate
 resource registry assigns exactly one canonical home to every unique production
 resource identity. Every private generated module has only its matching curated
 facade consumer. The lightweight `HaskellAdapter.Association` seam carries
-`AdapterFamilySurface` into generated modules without pulling
-registry/reflection mechanics from `HaskellAdapter.Family` and
+`AdapterFamilySurface` and compact owner projection into generated modules
+without pulling registry/reflection mechanics from `HaskellAdapter.Family` and
 `HaskellAdapter.Core` into focused feature compiles. Generated Action/Intent
-modules also import the focused `Surface.Request.Runtime` metadata seam rather
-than the mount/live `Surface.Runtime`. The focused seam owns opaque request
-metadata values and marker-indexed constructors; field construction remains in
-`Surface.Values`, exact parsing remains in `Surface.Request`, and HTML rendering
-remains in `Surface.Runtime`. The broad runtime consumes read-only metadata
-selectors without re-exporting the focused interface.
+modules import the focused `Surface.Request.Runtime` metadata seam rather than
+the mount/live `Surface.Runtime`; their generated modules additionally import
+`Surface.Request.Runtime.Internal` to construct checked evidence. Guardrails
+permit only those generated edges plus the compatibility runtime and reject every
+feature caller. Field construction remains in `Surface.Values`, exact parsing in
+`Surface.Request`, and HTML rendering in `Surface.Runtime`.
 
 The exact source-derived closure contract is checked by
-`architecture-surface-request-closure`: Profile Action retains 20
-`Application.*` modules and Roster Intent retains 21, with no unrelated Surface
-catalog, mount/live/wire runtime, or Haskell adapter generator implementation.
+`architecture-surface-request-closure`: Roster Action retains 22
+`Application.*` modules, Profile Action 21, and Roster Intent 22, with no
+registered Surface catalog, mount/live/wire runtime, private proof, or Haskell
+adapter generator implementation in those closures.
 The compiler-observed baseline, candidate sets, deltas, and retained-dependency
-classification are recorded in `Surface/README.md`.
+classification are recorded in `Surface/README.md`. The #346 matched 12-core
+pilot evidence is retained at
+`Config/nix/baselines/production-build/issue-346-operation-local-roster.json`:
+Roster `Generated.Action.hi`/`.dyn_hi` fell 99.88% to about 178 KB each,
+builder peak RSS fell 36.45%, and matched-core wall time fell 20.88%. The
+matched 12-core #347 rollout evidence is retained at
+`Config/nix/baselines/production-build/issue-347-operation-local-all-requests.json`:
+all generated Action/Intent interfaces are below 200 KB (well under 16 MiB),
+complete `.hi`/`.dyn_hi` totals fell 31.33%, app-lib self size 27.78%, peak RSS
+35.42%, cgroup growth 30.84%, and wall time 38.33% versus staging.
 
 The production operation inventory covers all 62 actions and six intents. It
 marks 57 actions as adapter-eligible, with builders/render metadata for 56 and
@@ -230,11 +248,12 @@ feature-adjacent `.Generated.Action` modules sit behind seven curated
 `Surface.<Feature>.Action` facades, while the six Roster intents share one
 private `Surface.Roster.Generated.Intent` module behind `Surface.Roster.Intent`.
 Production callers contain no generic Action or Intent parser/metadata calls.
-Raw `SurfaceFields` constructors are hidden behind construction-only builders.
-Nominal construction accepts only the declared first field plus its exact typed
-tail (or an explicit zero-field constructor), so the compiler exposes no raw
-bundle split/re-indexing path. Compile-failure coverage rejects
-cross-operation Action and Intent reuse for identical field shapes. The #191 and #187 independent request-adapter checkpoints pin production
+Raw field constructors are hidden behind construction-only builders. Nominal
+construction accepts only the declared first field plus its exact typed tail (or
+an explicit zero-field constructor), so the compiler exposes no raw bundle
+split/re-indexing path. The 59-fixture compile matrix includes nine direct Roster
+operation-local owner/field/operation/opacity/completeness/order/presence/wire
+checks; all retain focused diagnostics without expanding the Surface. The #191 and #187 independent request-adapter checkpoints pin production
 bundles, literal DOM-owned metadata, structured parsing, and diagnostics across
 the migrated Profile/Staff Actions and Roster Intents. Nullable and nested-list
 request shapes remain owned by the compiled #185 fixture rather than invented

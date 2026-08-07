@@ -9,8 +9,10 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Generator
     , GeneratedSurfaceAdapterLane (..)
     , composeGeneratedSurfaceAdapterModules
     , generateSurfaceActionAdapterModules
+    , generateSurfaceActionAuthorityProofModules
     , generateSurfaceAdapterModules
     , generateSurfaceIntentAdapterModules
+    , generateSurfaceIntentAuthorityProofModules
     , generateSurfaceLiveAdapterModules
     , generateSurfaceResourceAdapterModules
     ) where
@@ -21,7 +23,9 @@ import Application.Helper.FrontendContract.Surface.HaskellAdapter.Core (Generate
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Live (generateSurfaceLiveAdapterModules)
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Request (generateSurfaceActionAdapterModules,
-                                                                           generateSurfaceIntentAdapterModules)
+                                                                           generateSurfaceActionAuthorityProofModules,
+                                                                           generateSurfaceIntentAdapterModules,
+                                                                           generateSurfaceIntentAuthorityProofModules)
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Resource (generateSurfaceResourceAdapterModules)
 import Data.Either (lefts)
 import qualified Data.List as List

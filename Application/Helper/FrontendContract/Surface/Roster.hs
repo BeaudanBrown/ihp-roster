@@ -2,7 +2,8 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Application.Helper.FrontendContract.Surface.Roster
-    ( RosterContent
+    ( Roster
+    , RosterContent
     , RosterLayout
     , RosterDayColumns
     , RosterDay

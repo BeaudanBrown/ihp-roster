@@ -585,7 +585,7 @@ data StaffDetailsOverlayMarker
     = CreateTrialStaffOverlayMarker
     | UpdateStaffProfileOverlayMarker
 
-staffDetailsFormRequestMode :: OverlayFormMode -> Text -> StaffDetailsOverlayMarker -> Maybe (StaffProfileDetailsFormRequestMode (SurfaceActionFields Surface.StaffSurface Surface.UpdateStaffProfile))
+staffDetailsFormRequestMode :: OverlayFormMode -> Text -> StaffDetailsOverlayMarker -> Maybe (StaffProfileDetailsFormRequestMode (ActionFields ProfileAction.UpdateStaffProfileActionOperation))
 staffDetailsFormRequestMode HtmxOverlayForm actionUrl marker =
     case marker of
         UpdateStaffProfileOverlayMarker ->
@@ -598,7 +598,7 @@ staffDetailsAppShellAction :: StaffDetailsOverlayMarker -> AppShellActionIR
 staffDetailsAppShellAction CreateTrialStaffOverlayMarker = appShellActionByMarker @CreateTrialStaffOverlay
 staffDetailsAppShellAction UpdateStaffProfileOverlayMarker = appShellActionByMarker @UpdateStaffProfileOverlay
 
-staffShiftPreferencesOverlayRequestMode :: OverlayFormMode -> Text -> Maybe (StaffShiftPreferencesFormRequestMode (SurfaceActionFields Surface.StaffSurface Surface.UpdateStaffShiftPreferences))
+staffShiftPreferencesOverlayRequestMode :: OverlayFormMode -> Text -> Maybe (StaffShiftPreferencesFormRequestMode (ActionFields ProfileAction.UpdateStaffShiftPreferencesActionOperation))
 staffShiftPreferencesOverlayRequestMode HtmxOverlayForm actionUrl =
     Just (StaffShiftPreferencesSurfaceAction ProfileAction.updateStaffShiftPreferencesAction (staffSectionActionRoute actionUrl ("#" <> staffProfilePreferencesSectionId) "outerHTML show:none"))
 staffShiftPreferencesOverlayRequestMode PageOverlayForm _ = Nothing

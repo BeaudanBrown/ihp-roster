@@ -1,0 +1,218 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+fixture_root="$(mktemp -d)"
+cleanup() {
+    rm -rf "$fixture_root"
+}
+trap cleanup EXIT
+
+fake_bin="$fixture_root/bin"
+source_root="$fixture_root/app-lib-src"
+app_output="$fixture_root/app-lib-output"
+result_dir="$fixture_root/result"
+mkdir -p \
+    "$fake_bin" \
+    "$source_root/Application/Helper" \
+    "$source_root/Web" \
+    "$app_output/lib/Application/Helper"
+
+cat >"$source_root/Application/Helper/One.hs" <<'EOF'
+module Application.Helper.One where
+EOF
+cat >"$source_root/Web/Two.hs" <<'EOF'
+module Web.Two where
+EOF
+cat >"$source_root/app-lib.cabal" <<'EOF'
+name: app-lib
+version: 0.1.0
+library
+  exposed-modules: Application.Helper.One, Web.Two
+EOF
+printf 'interface' >"$app_output/lib/Application/Helper/One.hi"
+printf 'dynamic-interface' >"$app_output/lib/Application/Helper/One.dyn_hi"
+printf 'archive' >"$app_output/lib/libHSapp-lib.a"
+printf 'shared' >"$app_output/lib/libHSapp-lib.so"
+
+cat >"$fake_bin/nix-store" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+if [ "${1:-}" = -q ] && [ "${2:-}" = --requisites ]; then
+    printf '%s\n' '/nix/store/fixture-dependency.drv' '/nix/store/fixture-app-lib-0.1.0.drv'
+    exit 0
+fi
+echo "unexpected nix-store arguments: $*" >&2
+exit 2
+EOF
+
+cat >"$fake_bin/nix" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+case "\$*" in
+    '--version')
+        printf '%s\n' 'nix (Nix) 2.34.8'
+        ;;
+    'eval --raw '*)
+        printf '%s' '/nix/store/fixture-prod-server.drv'
+        ;;
+    'derivation show /nix/store/fixture-app-lib-0.1.0.drv')
+        cat <<'JSON'
+{"derivations":{"fixture-app-lib-0.1.0.drv":{"env":{"name":"app-lib-0.1.0","src":"$source_root","setupCompilerEnvironmentPhase":"NIX_BUILD_CORES=\$(( NIX_BUILD_CORES < 16 ? NIX_BUILD_CORES : 16 ))\nBuild with /nix/store/fixture-ghc-9.10.3.\nconfigureFlags=\"--ghc-option=-j\$NIX_BUILD_CORES --ghc-option=+RTS --ghc-option=-A64M --ghc-option=-RTS --enable-shared --enable-static --enable-split-sections --enable-tests\""},"outputs":{"out":{"path":"$app_output"}},"inputs":{"drvs":{"fixture-dependency.drv":{"outputs":["out"]}}}}},"version":4}
+JSON
+        ;;
+    'config show --json')
+        cat <<'JSON'
+{"cores":{"value":12},"max-jobs":{"value":12},"builders":{"value":"@/etc/nix/machines"},"sandbox":{"value":true},"system":{"value":"x86_64-linux"}}
+JSON
+        ;;
+    'build '*)
+        sleep 1
+        if [ "\${FAKE_NIX_LARGE_LOG:-}" = 1 ]; then
+            head -c 5242880 /dev/zero | tr '\\0' x >&2
+        fi
+        if [ "\${FAKE_NIX_OUTPUT_DIFFERS:-}" = 1 ]; then
+            printf '%s\n' \
+                "checking outputs of '/nix/store/fixture-app-lib-0.1.0.drv'..." \
+                'error: derivation may not be deterministic: output "/tmp/app-lib-output" differs' >&2
+            exit 1
+        fi
+        printf 'fixture build complete\n' >&2
+        ;;
+    'path-info --json '*)
+        cat <<'JSON'
+[{"path":"$app_output","narSize":1234,"closureSize":5678}]
+JSON
+        ;;
+    *)
+        echo "unexpected nix arguments: \$*" >&2
+        exit 2
+        ;;
+esac
+EOF
+
+chmod +x "$fake_bin/nix" "$fake_bin/nix-store"
+
+PATH="$fake_bin:$PATH" \
+BEPIS_PROFILE_BUILDER_UIDS="$(id -u)" \
+node "$repo_root/scripts/production-build-profile.mjs" \
+    --output-dir "$result_dir" \
+    --cores 2
+
+profile="$result_dir/profile.json"
+test -f "$profile"
+test -f "$result_dir/profile.md"
+test -f "$result_dir/build.log"
+
+jq -e '
+    .schema_version == 1 and
+    .status == "succeeded" and
+    .build.forced_clean == true and
+    .build.cores == 2 and
+    .build.wall_seconds > 0 and
+    .build.cpu_seconds >= 0 and
+    .memory.builder_process_peak_rss_bytes > 0 and
+    .derivations.production == "/nix/store/fixture-prod-server.drv" and
+    .derivations.app_library == "/nix/store/fixture-app-lib-0.1.0.drv" and
+    .app_library.module_count == 2 and
+    .app_library.self_size_bytes > 0 and
+    .app_library.nar_size_bytes == 1234 and
+    .app_library.closure_size_bytes == 5678 and
+    .app_library.artifacts[".hi"].count == 1 and
+    .app_library.artifacts[".dyn_hi"].count == 1 and
+    .app_library.largest_interfaces[0].bytes > 0 and
+    .configuration.shared == true and
+    .configuration.static == true and
+    .configuration.split_sections == true and
+    .configuration.ghc_heap_allocation_area == "64M" and
+    .configuration.ghc_version == "9.10.3" and
+    .configuration.effective_ghc_cores == 2
+' "$profile" >/dev/null
+
+if find "$result_dir" -type f -size +5M | grep -q .; then
+    echo "production-build-profile-test: profile artifacts are not bounded" >&2
+    exit 1
+fi
+
+output_differs_dir="$fixture_root/output-differs"
+PATH="$fake_bin:$PATH" \
+BEPIS_PROFILE_BUILDER_UIDS="$(id -u)" \
+FAKE_NIX_OUTPUT_DIFFERS=1 \
+node "$repo_root/scripts/production-build-profile.mjs" \
+    --output-dir "$output_differs_dir" \
+    --cores 2
+jq -e '
+    .status == "succeeded_output_differs" and
+    .build.exit_status == 1 and
+    .build.rebuilt_output_differs == true and
+    .app_library.module_count == 2
+' "$output_differs_dir/profile.json" >/dev/null
+
+comparison="$fixture_root/comparison.json"
+node "$repo_root/scripts/production-build-profile.mjs" \
+    --compare "$profile" "$output_differs_dir/profile.json" \
+    --output "$comparison"
+jq -e '
+    .schema_version == 1 and
+    .comparable_configuration == true and
+    .configuration_mismatches == [] and
+    .before.production_derivation == .after.production_derivation and
+    .before.app_library_derivation == .after.app_library_derivation and
+    .identity.same_production_derivation == true and
+    .identity.same_app_library_derivation == true and
+    .metrics.module_count.delta == 0 and
+    .metrics.app_library_self_size_bytes.delta == 0 and
+    .artifact_totals[".hi"].count.delta == 0 and
+    .artifact_totals[".dyn_hi"].bytes.delta == 0
+' "$comparison" >/dev/null
+
+changed_configuration="$fixture_root/changed-configuration.json"
+jq '.configuration.static = false' "$profile" >"$changed_configuration"
+node "$repo_root/scripts/production-build-profile.mjs" \
+    --compare "$profile" "$changed_configuration" \
+    --output "$comparison"
+jq -e '
+    .comparable_configuration == false and
+    .configuration_mismatches == ["static"]
+' "$comparison" >/dev/null
+
+large_log_dir="$fixture_root/large-log"
+PATH="$fake_bin:$PATH" \
+BEPIS_PROFILE_BUILDER_UIDS="$(id -u)" \
+FAKE_NIX_LARGE_LOG=1 \
+node "$repo_root/scripts/production-build-profile.mjs" \
+    --output-dir "$large_log_dir" \
+    --cores 2 >/dev/null 2>&1
+if [ "$(wc -c <"$large_log_dir/build.log")" -gt 4194304 ]; then
+    echo "production-build-profile-test: build log exceeded the documented 4 MiB bound" >&2
+    exit 1
+fi
+
+staging_baseline="$repo_root/Config/nix/baselines/production-build/staging-ea144503-grill.json"
+historical_blocker="$repo_root/Config/nix/baselines/production-build/d353573-blocker.json"
+jq -e '
+    .schema_version == 1 and
+    .status == "succeeded_output_differs" and
+    .revision.commit == "ea144503c99a5ce8128bf6dd26859740cda210be" and
+    .app_library.module_count == 501 and
+    .memory.builder_process_peak_rss_bytes > 0 and
+    .app_library.largest_interfaces[0].bytes > 0
+' "$staging_baseline" >/dev/null
+jq -e '
+    .schema_version == 1 and
+    .status == "reproduction_blocked" and
+    .revision == "d353573ccab41b806a3e671b4c8490559d80dd69" and
+    .evidence.output_present == false and
+    .evidence.substitutable == false and
+    (.blocker | length > 0)
+' "$historical_blocker" >/dev/null
+node "$repo_root/scripts/production-build-profile.mjs" \
+    --compare "$staging_baseline" "$staging_baseline" \
+    --output "$comparison"
+jq -e '
+    .comparable_configuration == true and
+    .metrics.builder_process_peak_rss_bytes.delta == 0 and
+    .artifact_totals[".hi"].bytes.delta == 0
+' "$comparison" >/dev/null
+
+printf '%s\n' 'production-build-profile-test: ok'

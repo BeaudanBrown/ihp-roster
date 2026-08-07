@@ -175,7 +175,7 @@ renderLiveToggleForm rosterWeek =
     actionUrl = pathTo (ToggleRosterWeekLiveStatusAction rosterWeek.id)
     fields = RosterAction.toggleRosterWeekLiveStatusActionFields rosterWeek.isLive
 
-renderLiveToggleButton :: SurfaceActionFields Surface.RosterSurface Surface.ToggleRosterWeekLiveStatus -> RosterWeek -> Html
+renderLiveToggleButton :: ActionFields RosterAction.ToggleRosterWeekLiveStatusActionOperation -> RosterWeek -> Html
 renderLiveToggleButton fields rosterWeek =
     renderAppToggleButton $
         ( defaultAppToggleButtonConfig

@@ -4,6 +4,14 @@ set -euo pipefail
 echo "verify-full: working-tree devenv script freshness"
 devenv-script-freshness-check
 
+echo "verify-full: explicit production module and script inventory"
+production-inventory-check
+
+# Reuse the isolated package for every generator/freshness command below.
+export FRONTEND_CONTRACT_USE_PACKAGE=1
+echo "verify-full: isolated frontend-contract tooling package"
+frontend-contract-package-check
+
 echo "verify-full: typecheck"
 typecheck
 
@@ -30,6 +38,12 @@ bash ./bin/style-audit
 echo "verify-full: architecture and documentation structure"
 architecture-check-fresh
 bash ./bin/doc-drift-check
+
+echo "verify-full: production build profiler contract"
+production-build-profile-test
+
+echo "verify-full: production package executable and deployment smoke"
+production-package-smoke
 
 echo "verify-full: canonical wage authority and fixtures"
 bash ./bin/wage-authority-check

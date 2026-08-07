@@ -256,7 +256,7 @@ renderStaffScopeToggle weekOffset currentRosterGroupId panelScope =
     actionUrl = pathTo (ShowRosterWeekStaffPanelFragmentAction weekOffset)
     fields = RosterAction.toggleRosterStaffScopeActionFields (if panelScope == RosterStaffPanelAllVenue then RosterStaffAllVenue else RosterStaffCurrentGroup)
 
-renderStaffScopeToggleButton :: SurfaceActionFields Surface.RosterSurface Surface.ToggleRosterStaffScope -> Id RosterGroup -> RosterStaffPanelScope -> Html
+renderStaffScopeToggleButton :: ActionFields RosterAction.ToggleRosterStaffScopeActionOperation -> Id RosterGroup -> RosterStaffPanelScope -> Html
 renderStaffScopeToggleButton fields currentRosterGroupId panelScope =
     renderAppToggleButton $
         ( defaultAppToggleButtonConfig

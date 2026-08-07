@@ -7,6 +7,7 @@ module Application.Helper.FrontendContract.Surface.LeaveRequests.Action
     , approveLeaveRequestActionFields
     , archiveLeaveRequestsPageAction
     , archiveLeaveRequestsPageActionFields
+    , archiveLeaveRequestsPageActionParamsPresent
     , denyLeaveRequestAction
     , denyLeaveRequestActionFields
     , parseArchiveLeaveRequestsPageActionParams
@@ -20,6 +21,7 @@ import Application.Helper.FrontendContract.Surface.LeaveRequests.Generated.Actio
                                                                                    approveLeaveRequestActionFields,
                                                                                    archiveLeaveRequestsPageAction,
                                                                                    archiveLeaveRequestsPageActionFields,
+                                                                           archiveLeaveRequestsPageActionParamsPresent,
                                                                                    createUnavailabilityBlackoutAction,
                                                                                    createUnavailabilityBlackoutActionFields,
                                                                                    deleteUnavailabilityBlackoutAction,

@@ -1,5 +1,10 @@
 module Application.Helper.FrontendContract.Surface.Admin.Action
-    ( autosaveShiftTypeNameAction
+    ( CreateShiftTypeActionOperation
+    , ToggleInactiveRosterGroupsActionOperation
+    , ToggleInactiveShiftTypesActionOperation
+    , UpdateMinutePrecisionShiftTimesEnabledActionOperation
+    , UpdateRosterEndTimesEnabledActionOperation
+    , autosaveShiftTypeNameAction
     , autosaveShiftTypeNameActionFields
     , autosaveShiftTypeSelectionAction
     , autosaveShiftTypeSelectionActionFields
@@ -48,8 +53,10 @@ module Application.Helper.FrontendContract.Surface.Admin.Action
     , syncXeroPayrollReferenceDataActionFields
     , toggleInactiveRosterGroupsAction
     , toggleInactiveRosterGroupsActionFields
+    , toggleInactiveRosterGroupsActionParamsPresent
     , toggleInactiveShiftTypesAction
     , toggleInactiveShiftTypesActionFields
+    , toggleInactiveShiftTypesActionParamsPresent
     , updateMinutePrecisionShiftTimesEnabledAction
     , updateMinutePrecisionShiftTimesEnabledActionFields
     , updateRosterEndTimesEnabledAction
@@ -64,7 +71,12 @@ module Application.Helper.FrontendContract.Surface.Admin.Action
     , updateUnavailableStaffWarningThresholdActionFields
     ) where
 
-import Application.Helper.FrontendContract.Surface.Admin.Generated.Action (autosaveShiftTypeNameAction,
+import Application.Helper.FrontendContract.Surface.Admin.Generated.Action (CreateShiftTypeActionOperation,
+                                                                           ToggleInactiveRosterGroupsActionOperation,
+                                                                           ToggleInactiveShiftTypesActionOperation,
+                                                                           UpdateMinutePrecisionShiftTimesEnabledActionOperation,
+                                                                           UpdateRosterEndTimesEnabledActionOperation,
+                                                                           autosaveShiftTypeNameAction,
                                                                            autosaveShiftTypeNameActionFields,
                                                                            autosaveShiftTypeSelectionAction,
                                                                            autosaveShiftTypeSelectionActionFields,
@@ -113,8 +125,10 @@ import Application.Helper.FrontendContract.Surface.Admin.Generated.Action (autos
                                                                            syncXeroPayrollReferenceDataActionFields,
                                                                            toggleInactiveRosterGroupsAction,
                                                                            toggleInactiveRosterGroupsActionFields,
+                                                                           toggleInactiveRosterGroupsActionParamsPresent,
                                                                            toggleInactiveShiftTypesAction,
                                                                            toggleInactiveShiftTypesActionFields,
+                                                                           toggleInactiveShiftTypesActionParamsPresent,
                                                                            updateMinutePrecisionShiftTimesEnabledAction,
                                                                            updateMinutePrecisionShiftTimesEnabledActionFields,
                                                                            updateRosterEndTimesEnabledAction,

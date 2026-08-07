@@ -9,7 +9,6 @@ import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesR
 import Application.Helper.FrontendContract.Surface.Billing.Resource (billingResource)
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (pendingLeaveRequestsResource)
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
-                                                            surfaceActionParamsPresent,
                                                             surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterWeekResource)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
@@ -132,12 +131,12 @@ fetchCurrentVenueStaffUser staffId = do
 
 parseAdminShiftTypesVisibility :: (?request :: Request) => Either [SurfaceRequestFieldError] Bool
 parseAdminShiftTypesVisibility
-    | not (surfaceActionParamsPresent @Surface.AdminShiftTypesSurface @Surface.ToggleInactiveShiftTypes) = Right False
+    | not (AdminAction.toggleInactiveShiftTypesActionParamsPresent) = Right False
     | otherwise = surfaceFieldValue @Surface.ShowInactiveShiftTypes <$> AdminAction.parseToggleInactiveShiftTypesActionParams
 
 parseAdminRosterGroupsVisibility :: (?request :: Request) => Either [SurfaceRequestFieldError] Bool
 parseAdminRosterGroupsVisibility
-    | not (surfaceActionParamsPresent @Surface.AdminRosterGroupsSurface @Surface.ToggleInactiveRosterGroups) = Right False
+    | not (AdminAction.toggleInactiveRosterGroupsActionParamsPresent) = Right False
     | otherwise = surfaceFieldValue @Surface.ShowInactiveRosterGroups <$> AdminAction.parseToggleInactiveRosterGroupsActionParams
 
 instance Controller AdminController where

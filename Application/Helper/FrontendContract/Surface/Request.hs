@@ -18,9 +18,13 @@ module Application.Helper.FrontendContract.Surface.Request
     ( KnownSurfaceRequestFields
     , SurfaceRequestFieldError (..)
     , SurfaceRequestFieldErrorKind (..)
+    , actionParamsPresent
     , attachSurfaceRequestFieldErrors
     , surfaceRequestFieldErrorsMessage
-    , surfaceActionParamsPresent
+    , parseActionParamPairs
+    , parseActionParams
+    , parseIntentParamPairs
+    , parseIntentParams
     , parseDeclaredRequestParamPairs
     , parseDeclaredRequestParams
     , parseSurfaceActionParamPairs
@@ -112,6 +116,59 @@ parseDeclaredRequestParamPairs params =
     parsedDeclaredRequestFields @owner
         <$> parseSurfaceRequestFields @fields params
 
+-- | Whether the active request carries at least one field from one generated
+-- operation-local Action contract. Generated facades expose named witnesses.
+actionParamsPresent ::
+    forall operation.
+    ( ?request :: Request
+    , KnownSurfaceRequestFields (ActionFieldSpecs operation)
+    ) =>
+    Bool
+actionParamsPresent =
+    surfaceRequestParamsPresent @(ActionFieldSpecs operation) allParams
+
+-- | Parse one generated operation-local Action contract from the active IHP
+-- request. Generated modules are the production call seam.
+parseActionParams ::
+    forall operation.
+    ( ?request :: Request
+    , KnownSurfaceRequestFields (ActionFieldSpecs operation)
+    ) =>
+    Either [SurfaceRequestFieldError] (ActionFields operation)
+parseActionParams =
+    parseActionParamPairs @operation allParams
+
+-- | Pure pair-based form of 'parseActionParams'.
+parseActionParamPairs ::
+    forall operation.
+    KnownSurfaceRequestFields (ActionFieldSpecs operation) =>
+    [(ByteString, Maybe ByteString)] ->
+    Either [SurfaceRequestFieldError] (ActionFields operation)
+parseActionParamPairs params =
+    parsedActionFields @operation
+        <$> parseSurfaceRequestFields @(ActionFieldSpecs operation) params
+
+-- | Parse one generated operation-local Intent contract from the active IHP
+-- request. Generated modules are the production call seam.
+parseIntentParams ::
+    forall operation.
+    ( ?request :: Request
+    , KnownSurfaceRequestFields (IntentFieldSpecs operation)
+    ) =>
+    Either [SurfaceRequestFieldError] (IntentFields operation)
+parseIntentParams =
+    parseIntentParamPairs @operation allParams
+
+-- | Pure pair-based form of 'parseIntentParams'.
+parseIntentParamPairs ::
+    forall operation.
+    KnownSurfaceRequestFields (IntentFieldSpecs operation) =>
+    [(ByteString, Maybe ByteString)] ->
+    Either [SurfaceRequestFieldError] (IntentFields operation)
+parseIntentParamPairs params =
+    parsedIntentFields @operation
+        <$> parseSurfaceRequestFields @(IntentFieldSpecs operation) params
+
 -- | Parse one action's complete declared field contract from the active IHP
 -- request. Unknown parameters are intentionally ignored because route and
 -- framework context are outside the Surface bundle.
@@ -123,17 +180,6 @@ parseSurfaceActionParams ::
     Either [SurfaceRequestFieldError] (SurfaceActionFields spec action)
 parseSurfaceActionParams =
     parseSurfaceActionParamPairs @spec @action allParams
-
--- | Whether the active request carries at least one field declared by the
--- selected action. Unrelated route and framework parameters do not count.
-surfaceActionParamsPresent ::
-    forall spec action.
-    ( ?request :: Request
-    , KnownSurfaceRequestFields (SurfaceActionFieldSpecs spec action)
-    ) =>
-    Bool
-surfaceActionParamsPresent =
-    surfaceRequestParamsPresent @(SurfaceActionFieldSpecs spec action) allParams
 
 -- | Pure pair-based form of 'parseSurfaceActionParams', used at adapter and
 -- contract-test boundaries.
@@ -213,6 +259,42 @@ parsedDeclaredRequestFields (ParsedOptionalSurfaceField @marker @wire value rest
         (parsedSurfaceFieldsValue rest)
 parsedDeclaredRequestFields (ParsedNullableSurfaceField @marker @wire value rest) =
     declaredRequestFields @owner @fields @'SurfaceNullable @marker @wire
+        (surfaceNullableField @marker @wire value)
+        (parsedSurfaceFieldsValue rest)
+
+parsedActionFields ::
+    forall operation.
+    ParsedSurfaceFields (ActionFieldSpecs operation) ->
+    ActionFields operation
+parsedActionFields ParsedNoSurfaceFields = noActionFields
+parsedActionFields (ParsedRequiredSurfaceField @marker @wire value rest) =
+    actionFields @operation @'SurfaceRequired @marker @wire
+        (surfaceField @marker @wire value)
+        (parsedSurfaceFieldsValue rest)
+parsedActionFields (ParsedOptionalSurfaceField @marker @wire value rest) =
+    actionFields @operation @'SurfaceOptional @marker @wire
+        (surfaceOptionalField @marker @wire value)
+        (parsedSurfaceFieldsValue rest)
+parsedActionFields (ParsedNullableSurfaceField @marker @wire value rest) =
+    actionFields @operation @'SurfaceNullable @marker @wire
+        (surfaceNullableField @marker @wire value)
+        (parsedSurfaceFieldsValue rest)
+
+parsedIntentFields ::
+    forall operation.
+    ParsedSurfaceFields (IntentFieldSpecs operation) ->
+    IntentFields operation
+parsedIntentFields ParsedNoSurfaceFields = noIntentFields
+parsedIntentFields (ParsedRequiredSurfaceField @marker @wire value rest) =
+    intentFields @operation @'SurfaceRequired @marker @wire
+        (surfaceField @marker @wire value)
+        (parsedSurfaceFieldsValue rest)
+parsedIntentFields (ParsedOptionalSurfaceField @marker @wire value rest) =
+    intentFields @operation @'SurfaceOptional @marker @wire
+        (surfaceOptionalField @marker @wire value)
+        (parsedSurfaceFieldsValue rest)
+parsedIntentFields (ParsedNullableSurfaceField @marker @wire value rest) =
+    intentFields @operation @'SurfaceNullable @marker @wire
         (surfaceNullableField @marker @wire value)
         (parsedSurfaceFieldsValue rest)
 

@@ -6,27 +6,36 @@ cd "$repo_root"
 if [ -f "@scriptsRoot@/lib/ghc.sh" ]; then
     # shellcheck source=../lib/ghc.sh
     . "@scriptsRoot@/lib/ghc.sh"
+    # shellcheck source=tool-package-lib
+    . "@scriptsRoot@/frontend/tool-package-lib"
 else
     # shellcheck source=../lib/ghc.sh
     . "Config/nix/scripts/lib/ghc.sh"
+    # shellcheck source=tool-package-lib
+    . "Config/nix/scripts/frontend/tool-package-lib"
 fi
 
 output_path="${1:-frontend/ts/generated/contracts.ts}"
 
 build_dir="${FRONTEND_CONTRACTS_BUILD_DIR:-$PWD/build/FrontendContracts}"
 mkdir -p "$(dirname "$output_path")"
-GHC_OPTS="$(ihp_roster_ghc_opts)"
-ihp_roster_prepare_ghc_build_dir "$build_dir" "$GHC_OPTS"
-echo "frontend-contracts: compiling reflected FrontendContract generator" >&2
-ghc $GHC_OPTS Application/Script/GenerateFrontendContracts.hs \
-    -main-is Application.Script.GenerateFrontendContracts \
-    -odir "$build_dir/obj" \
-    -hidir "$build_dir/hi" \
-    -o "$build_dir/generate-frontend-contracts" >/dev/null
+if generator="$(frontend_contract_tool_binary generate-frontend-contracts)"; then
+    echo "frontend-contracts: using isolated tooling package" >&2
+else
+    GHC_OPTS="$(ihp_roster_ghc_opts)"
+    ihp_roster_prepare_ghc_build_dir "$build_dir" "$GHC_OPTS"
+    echo "frontend-contracts: compiling reflected FrontendContract generator" >&2
+    ghc $GHC_OPTS Application/Script/GenerateFrontendContracts.hs \
+        -main-is Application.Script.GenerateFrontendContracts \
+        -odir "$build_dir/obj" \
+        -hidir "$build_dir/hi" \
+        -o "$build_dir/generate-frontend-contracts" >/dev/null
+    generator="$build_dir/generate-frontend-contracts"
+fi
 
 tmp_output="$(mktemp "$(dirname "$output_path")/.contracts.ts.XXXXXX")"
 echo "frontend-contracts: rendering checked reflected registry" >&2
-"$build_dir/generate-frontend-contracts" "$tmp_output"
+"$generator" "$tmp_output"
 
 if [ -f "$output_path" ] && cmp -s "$tmp_output" "$output_path"; then
     rm -f "$tmp_output"

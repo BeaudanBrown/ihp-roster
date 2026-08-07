@@ -517,7 +517,7 @@ parseUnapproveTimesheetEntryState =
     timesheetSurfaceRequestState
         <$> TimesheetsAction.parseUnapproveTimesheetEntryActionParams
 
-timesheetSurfaceRequestState :: SurfaceFieldBundleOf (SurfaceActionFieldSpecs Surface.TimesheetsSurface Surface.UpdateTimesheetFilters) fields => fields -> TimesheetSurfaceRequestState
+timesheetSurfaceRequestState :: SurfaceFieldBundleOf (ActionFieldSpecs TimesheetsAction.UpdateTimesheetFiltersActionOperation) fields => fields -> TimesheetSurfaceRequestState
 timesheetSurfaceRequestState fields =
     TimesheetSurfaceRequestState
         { surfaceRequestWeekOffset = surfaceFieldValue @Surface.WeekOffset fields
@@ -551,6 +551,6 @@ timesheetStaffFilterFromRequest :: (?request :: Request) => Maybe UUID.UUID
 timesheetStaffFilterFromRequest =
     parseUUIDText =<< paramOrNothing @Text (cs (surfaceFieldNameFrom @Surface.StaffFilterId timesheetRequestFieldWitness))
 
-timesheetRequestFieldWitness :: SurfaceActionFields Surface.TimesheetsSurface Surface.NavigateTimesheetWeek
+timesheetRequestFieldWitness :: ActionFields TimesheetsAction.NavigateTimesheetWeekActionOperation
 timesheetRequestFieldWitness =
     TimesheetsAction.navigateTimesheetWeekActionFields 0 Nothing

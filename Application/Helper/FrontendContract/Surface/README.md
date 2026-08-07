@@ -784,30 +784,22 @@ guardrails. The same-marker Action declaration exclusions remain typed and
 reason-bearing.
 
 Generated resource modules invoke `frontendSurfaceResource` and
-`matchFrontendSurfaceResource`; generated Live modules invoke only
-`frontendSurfaceScope`, `matchFrontendSurfaceScope`,
-`frontendSurfaceFragmentKey`, and `matchFrontendSurfaceFragmentKey`. Generated
-Action and Intent builders construct nominal
-`SurfaceActionFields surface action` or `SurfaceIntentFields surface intent`
-from the declaration-owned first field plus its exact typed tail; zero-field
-operations use explicit zero constructors. Raw `SurfaceFields` data
-constructors are hidden behind construction-only functions, and operation
-constructors never accept a complete raw bundle. An existing bundle therefore
-cannot be split or re-indexed to another same-shaped operation. Generated metadata functions consume the
-exact operation wrapper and generated parsers return it inside
-`Either [SurfaceRequestFieldError]`; equal normalized field lists therefore
-cannot make two generated operations interchangeable. The read-only
-`SurfaceFieldBundle` interface preserves `surfaceFieldNameFrom`,
-`surfaceFieldValue`, `surfaceFieldsJson`, and `surfaceFieldsText` for raw and
-nominal bundles without exposing an unwrap operation. Only the matching curated
-facade may import a generated module.
-Resource, Live, and Action facades re-export canonical operations and retain
-handwritten domain matchers or live orchestration only where they add meaning.
-They import and expose only API with a production or test semantic consumer.
-Mechanical aliases, generic builder/matcher bodies, and the old Billing,
-Support, Profile, Staff, and Admin fragment naming synonyms are absent. Every
-generated-kind module must stay behind its matching curated facade and must not
-import opaque internal constructors.
+`matchFrontendSurfaceResource`; generated Live modules invoke only their focused
+scope/fragment constructors and matchers. Every generated Action and Intent
+constructs a kind-specific nominal token and its exact local field specs.
+`ActionFields operation` and `IntentFields operation` carry compact owner,
+marker, and field evidence; no production caller signature or generated request
+implementation retains a complete Surface. Generated checked-IR evidence
+supplies compact owner, marker, field-name, and HTMX/form metadata, while exact
+parsers return the same nominal bundle.
+
+Raw field constructors stay hidden, no wrapper exposes an unwrap/re-indexing
+path, and read-only `SurfaceFieldBundle` lookup/serialization works for both
+seams. Resource, Live, Action, and Intent facades expose only operations with a
+semantic consumer. Generated modules stay behind their matching curated facade.
+Every production `Generated.Action` and `Generated.Intent` module imports the
+focused request-runtime internal evidence seam; exact source guardrails permit
+those generated modules plus the compatibility runtime only.
 
 Private production `.Generated.Resource` and `.Generated.Live` modules are
 registry-derived declaration-complete APIs: each checked declaration keeps its
@@ -820,8 +812,15 @@ curated facades, and handwritten modules remain under normal Weeder
 reachability; symbol allowlists and blanket FrontendContract exclusions are not
 permitted.
 
+The mandatory adapter writer emits temporary Action and Intent authority proofs
+per owning Surface. `AssertActionAuthority` and `AssertIntentAuthority` compare
+the canonical complete sequence with generated operation owner/marker/ordered
+field entries. Proofs typecheck with the complete staged managed set, are never
+published, and are absent from `app-lib`.
+
 The lightweight `HaskellAdapter.Association` module owns only
-`SurfaceAdapterFamily` and `AdapterFamilySurface`. Production family modules and
+`SurfaceAdapterFamily`, `AdapterFamilySurface`, and `AdapterSurfaceMarker`.
+Production family modules and
 private Live output import that seam, while reflection, registry validation, and
 generator mechanics remain in `HaskellAdapter.Family` and
 `HaskellAdapter.Core`. Focused feature compiles therefore do not transitively
@@ -830,6 +829,24 @@ adapter-kind/Surface/declaration/field-specific diagnostic rather than falling
 back to JSON, a generated carrier record, or a handwritten type. The generator
 uses normal Haskell type-level reflection plus `Typeable` module/type metadata;
 it does not parse source or compiler syntax trees.
+
+The matched 12-core #346 production pilot is retained at
+`Config/nix/baselines/production-build/issue-346-operation-local-roster.json`.
+Roster `Generated.Action.hi` changed from 152,178,127 to 178,099 bytes and
+`.dyn_hi` from 152,178,131 to 178,103 bytes (99.88% reductions and below the
+16 MiB budget). The 15-module Roster `.hi`/`.dyn_hi` subtrees each fell 23.99%;
+complete app interfaces fell 19.22%, app-lib self size 17.09%, peak RSS 36.45%,
+and matched-core wall time fell 20.88%. Generated TypeScript remained
+byte-identical, and the private proof was absent from the installed 502-module
+library.
+
+The matched 12-core #347 all-request rollout is retained at
+`Config/nix/baselines/production-build/issue-347-operation-local-all-requests.json`.
+Every generated Action/Intent `.hi` and `.dyn_hi` is below 200 KB, well under the
+16 MiB request-interface budget. Against staging, complete `.hi`/`.dyn_hi`
+totals fell 31.33%, app-lib self size 27.78%, peak RSS 35.42%, cgroup growth
+30.84%, swap delta fell 100.47%, CPU 28.53%, and wall time 38.33%. The final forced
+build compiled all 502 modules and reproduced its output.
 
 The Timesheets family was the representative migration checkpoint. Its
 handwritten `Resource` module moved from 35 lines to a 9-line curated facade,
@@ -1151,11 +1168,12 @@ Profile added only `Surface.Profile.{Action,Generated.Action,HaskellAdapter}`;
 Roster Intent added only
 `Surface.Roster.{Generated.Intent,HaskellAdapter,Intent}`.
 
-The current compiler-observed closures are 20 modules for Profile Action and
-21 for Roster Intent. Their exact 16-module common set is:
+The current compiler-observed closures are 20 modules for operation-local Roster
+Action, 21 for Profile Action, and 22 for Roster Intent. The latter two retain
+their exact 17-module common set:
 
 - `Application.Helper.FrontendContract.{ClosedScalar,Core,DSL,Interaction,Naming}`;
-- `Application.Helper.FrontendContract.Surface.{ContractIR,DSL,Diagnostics,LeaveRequests,Reflect,Request,Request.Runtime,SelfServiceLeave,SemanticIR,Values}`; and
+- `Application.Helper.FrontendContract.Surface.{ContractIR,DSL,Diagnostics,LeaveRequests,Reflect,Request,Request.Runtime,Request.Runtime.Internal,SelfServiceLeave,SemanticIR,Values}`; and
 - `Application.Helper.FrontendContract.Surface.HaskellAdapter.Association`.
 
 Profile retains only `Surface.Profile` plus
@@ -1174,7 +1192,11 @@ set:
 
 Profile additionally removes `Surface.Interaction` and `Surface.Roster` (33
 removed, three added, 50 to 20); Roster Intent additionally removes
-`Surface.Profile` (32 removed, three added, 50 to 21).
+`Surface.Profile` (32 removed, three added, 50 to 21). Operation-local Roster
+Action has no `HaskellAdapter.Association`; its compact additions are
+`Surface.Roster.{Action,Generated.Action}`; the shared
+`Surface.Request.Runtime.Internal` owns opaque constructors without exporting
+them through the public runtime.
 
 Every retained dependency has one request-facade role:
 
@@ -1183,8 +1205,9 @@ Every retained dependency has one request-facade role:
 - `Surface.DSL`, `Surface.Diagnostics`, and `Surface.Values` own declaration
   lookup, nominal field construction, diagnostics, and read-only serialization;
 - `Surface.Request` owns exact parsers and structured field errors;
-- `Surface.Request.Runtime`, `Surface.Reflect`, and `Naming` own opaque metadata
-  construction and marker-derived names;
+- `Surface.Request.Runtime`, its constructor-owning `Runtime.Internal` sibling,
+  `Surface.Reflect`, and `Naming` own opaque metadata construction and
+  marker-derived names;
 - `Surface.ContractIR`, `Surface.SemanticIR`, `Core`, and the global
   `DSL`/`Interaction` modules are the canonical reflected metadata model rather
   than a request-specific duplicate IR;
@@ -1201,9 +1224,10 @@ source facts and compares these exact sets, not just counts:
 bash ./bin/in-env architecture-surface-request-closure --print-modules
 ```
 
-It is also part of `architecture-check-fresh`. Both closures exclude unrelated
-Surface specs, `Surface.Runtime`, mount/live/wire implementation, and
-`Surface.HaskellAdapter.{Core,Family,Generator,Registry,Request}`.
+It is also part of `architecture-check-fresh`. All three closures exclude the
+registered Surface catalog, `Surface.Runtime`, mount/live/wire implementation,
+and `Surface.HaskellAdapter.{Core,Family,Generator,Registry,Request}`; Roster
+Action also excludes the family association and temporary proof.
 
 Write and verify output with:
 

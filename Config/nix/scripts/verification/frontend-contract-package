@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+production-inventory-check
+
+tools_root="$(nix build --no-link --print-out-paths .#frontend-contract-tools --accept-flake-config)"
+production_root="$(nix build --no-link --print-out-paths .#optimized-prod-server --accept-flake-config)"
+
+expected_bins=$'generate-bepis-architecture-contracts\ngenerate-frontend-contracts\ngenerate-frontend-surface-adapters'
+actual_bins="$(find "$tools_root/bin" -maxdepth 1 -type f -printf '%f\n' | sort)"
+if [ "$actual_bins" != "$expected_bins" ]; then
+    echo "frontend-contract-package-check: tooling bin inventory mismatch" >&2
+    diff -u <(printf '%s\n' "$expected_bins") <(printf '%s\n' "$actual_bins") >&2 || true
+    exit 1
+fi
+
+if nix-store --query --requisites "$production_root" | grep -Fxq "$tools_root"; then
+    echo "frontend-contract-package-check: production closure references tooling output" >&2
+    exit 1
+fi
+
+metrics="$tools_root/share/frontend-contract-tools/build-metrics.tsv"
+build_time="$tools_root/share/frontend-contract-tools/build-time.txt"
+[ -s "$metrics" ] && [ -s "$build_time" ] || {
+    echo "frontend-contract-package-check: missing retained build metrics" >&2
+    exit 1
+}
+tool_modules="$(awk 'END { print NR - 1 }' Config/nix/frontend-contract-tool-module-inventory.tsv)"
+compiled_interfaces="$(awk -F '\t' '$1 == "interface_count" { print $2 }' "$metrics")"
+if [ -z "$compiled_interfaces" ] || [ "$compiled_interfaces" -lt "$tool_modules" ]; then
+    echo "frontend-contract-package-check: interface evidence is incomplete" >&2
+    exit 1
+fi
+
+export FRONTEND_CONTRACT_TOOLS_ROOT="$tools_root"
+frontend-contracts-check
+frontend-surface-adapters-check
+architecture-check-fresh
+
+echo "frontend-contract-package-check: ok ($tool_modules source modules, $compiled_interfaces interfaces, 3 tools, production closure isolated)"

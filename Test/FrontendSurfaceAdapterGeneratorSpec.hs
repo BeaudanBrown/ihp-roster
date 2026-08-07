@@ -927,6 +927,7 @@ allFixtureRequestAdapterOperations =
         { surfaceAdapterFieldsBuilderOperation = GenerateSurfaceAdapterOperation
         , surfaceAdapterRenderMetadataOperation = GenerateSurfaceAdapterOperation
         , surfaceAdapterRequestParserOperation = GenerateSurfaceAdapterOperation
+        , surfaceAdapterParamsPresentOperation = ExcludeSurfaceAdapterOperation "No envelope-presence consumer in this fixture"
         }
 
 fixtureContract :: SurfaceContractIR
@@ -1100,7 +1101,7 @@ resolveFixtureIntents =
 fixtureKindRenderer :: AdapterModuleRenderer ()
 fixtureKindRenderer =
     AdapterModuleRenderer
-        { adapterRendererLanguagePragmas = ["{-# LANGUAGE TypeApplications #-}"]
+        { adapterRendererLanguagePragmas = const ["{-# LANGUAGE TypeApplications #-}"]
         , adapterRendererHeaderLines = ["-- generated fixture"]
         , adapterRendererImports = \_ _ -> ["import IHP.Prelude"]
         , adapterRendererDeclaration = \_ adapter ->

@@ -49,6 +49,9 @@ bash ./bin/in-env generated-code-sync
 
 # Schema-derived types
 bash ./bin/in-env regen-types
+
+# Clean production app-library build evidence
+bash ./bin/in-env production-build-profile --cores 12
 ```
 
 `verify-fast` provides additive feedback. `verify-full` is the complete local
@@ -104,9 +107,10 @@ contracts under `frontend/ts/generated/`. Use the frontend commands above and
 follow `frontend/AGENTS.md` and `static/AGENTS.md`. Runtime assets are local and
 loaded through `assetPath`.
 
-Generated screenshots, profiles, reports, databases, and build outputs stay in
-ignored runtime/output locations. Disposable documentation analysis belongs
-under `.pi/tmp/`.
+Generated screenshots, raw profiles, reports, databases, and build outputs stay
+in ignored runtime/output locations. Reviewed bounded machine-readable baselines
+consumed by deterministic regression tooling live beside that tooling under
+`Config/nix/baselines/`; disposable analysis belongs under `.pi/tmp/`.
 
 ## Documentation And Work
 
@@ -114,6 +118,7 @@ under `.pi/tmp/`.
 - `docs/architecture/README.md` — subsystem boundaries and queries
 - `docs/adr/README.md` — durable decisions
 - `docs/workstreams/` — unresolved design linked to GitHub issues
+- `docs/runbooks/production-build-profiling.md` — safe NAS/grill build profiling
 - GitHub Issues — only live implementation router and status tracker
 
 ## License

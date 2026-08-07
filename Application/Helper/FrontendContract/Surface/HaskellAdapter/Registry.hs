@@ -181,103 +181,103 @@ type RegisteredSurfaceResourceAdapterHomes =
 
 registeredSurfaceActionAdapterRegistrations :: [SurfaceRequestAdapterRegistration 'ActionAdapterKind]
 registeredSurfaceActionAdapterRegistrations =
-    [ surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.NavigateTimesheetWeek
+    [ surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.NavigateTimesheetWeek
         (requestAdapterOperationsWithoutParser "The endpoint consumes the routed week offset and canonical optional staff filter rather than a complete Surface request envelope")
-    , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.UpdateTimesheetFilters
+    , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.UpdateTimesheetFilters
         (requestAdapterOperationsWithoutParser "The shared navigation endpoint cannot distinguish this filter form from week navigation at the request boundary")
-    , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.ToggleTimesheetHideApproved allRequestAdapterOperations
-    , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.ToggleTimesheetShowSuggestions allRequestAdapterOperations
-    , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.CreateTimesheetEntryFromSuggestion allRequestAdapterOperations
-    , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.ApproveTimesheetEntry allRequestAdapterOperations
-    , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.UnapproveTimesheetEntry allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.NavigateRosterWeek allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWarnings allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWageEstimates allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterOwnLiveShiftHighlight allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.SortRosterWeek
+    , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.ToggleTimesheetHideApproved allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.ToggleTimesheetShowSuggestions allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.CreateTimesheetEntryFromSuggestion allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.ApproveTimesheetEntry allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.UnapproveTimesheetEntry allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.NavigateRosterWeek requestAdapterOperationsWithParamsPresent
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWarnings allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWageEstimates allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterOwnLiveShiftHighlight allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.SortRosterWeek
         (requestAdapterOperationsWithoutParser "The zero-field sort endpoint consumes route context and has no Surface request parser")
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWeekLiveStatus allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.ShowRosterNotificationConfirmation allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.CreateRosterNotificationRun allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterAssignmentFilters allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.CopyRosterWeek allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.CreateRosterWeekSlotDefinition
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWeekLiveStatus allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ShowRosterNotificationConfirmation allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.CreateRosterNotificationRun allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterAssignmentFilters allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.CopyRosterWeek allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.CreateRosterWeekSlotDefinition
         (requestAdapterOperationsWithoutParser "The zero-field slot creation endpoint consumes route context and has no Surface request parser")
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.DeleteRosterWeekSlotDefinition
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.DeleteRosterWeekSlotDefinition
         (requestAdapterOperationsWithoutParser "The zero-field slot deletion endpoint consumes route context and has no Surface request parser")
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterDayClosed
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterDayClosed
         (requestAdapterOperationsWithoutParser "The zero-field day toggle endpoint consumes its route id and has no Surface request parser")
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.AddRosterRow
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.AddRosterRow
         (requestAdapterOperationsWithoutParser "The zero-field row creation endpoint consumes its route id and has no Surface request parser")
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.RemoveRosterRow
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.RemoveRosterRow
         (requestAdapterOperationsWithoutParser "The zero-field row removal endpoint consumes its route id and has no Surface request parser")
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterStaffScope allRequestAdapterOperations
-    , surfaceActionAdapterExcluded @RosterAdapterFamily @Roster.SetRosterLayoutMode intentOnlyActionReason
-    , surfaceActionAdapterExcluded @RosterAdapterFamily @Roster.MoveRosterShiftToSlot intentOnlyActionReason
-    , surfaceActionAdapterExcluded @RosterAdapterFamily @Roster.DuplicateRosterShiftToDay intentOnlyActionReason
-    , surfaceActionAdapterExcluded @RosterAdapterFamily @Roster.DropRosterStaff intentOnlyActionReason
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.PreviewRosterTemplateApplication allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.ApplyRosterTemplateApplication allRequestAdapterOperations
-    , surfaceActionAdapterExcluded @RosterDayTimelineAdapterFamily @Roster.MoveRosterTimelineShift intentOnlyActionReason
-    , surfaceActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ArchiveLeaveRequestsPage allRequestAdapterOperations
-    , surfaceActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ApproveLeaveRequest
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterStaffScope requestAdapterOperationsWithParamsPresent
+    , surfaceOperationLocalActionAdapterExcluded @RosterAdapterFamily @Roster.SetRosterLayoutMode intentOnlyActionReason
+    , surfaceOperationLocalActionAdapterExcluded @RosterAdapterFamily @Roster.MoveRosterShiftToSlot intentOnlyActionReason
+    , surfaceOperationLocalActionAdapterExcluded @RosterAdapterFamily @Roster.DuplicateRosterShiftToDay intentOnlyActionReason
+    , surfaceOperationLocalActionAdapterExcluded @RosterAdapterFamily @Roster.DropRosterStaff intentOnlyActionReason
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.PreviewRosterTemplateApplication allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ApplyRosterTemplateApplication allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapterExcluded @RosterDayTimelineAdapterFamily @Roster.MoveRosterTimelineShift intentOnlyActionReason
+    , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ArchiveLeaveRequestsPage requestAdapterOperationsWithParamsPresent
+    , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ApproveLeaveRequest
         (requestAdapterOperationsWithoutParser "The zero-field approval endpoint consumes its route id and has no Surface request parser")
-    , surfaceActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.DenyLeaveRequest
+    , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.DenyLeaveRequest
         (requestAdapterOperationsWithoutParser "The zero-field denial endpoint consumes its route id and has no Surface request parser")
-    , surfaceActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.CreateUnavailabilityBlackout allRequestAdapterOperations
-    , surfaceActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.UpdateUnavailabilityBlackout allRequestAdapterOperations
-    , surfaceActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.DeleteUnavailabilityBlackout
+    , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.CreateUnavailabilityBlackout allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.UpdateUnavailabilityBlackout allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.DeleteUnavailabilityBlackout
         (requestAdapterOperationsWithoutParser "The zero-field deletion endpoint consumes its route id and has no Surface request parser")
-    , surfaceActionAdapter @SelfServiceLeaveAdapterFamily @SelfServiceLeave.CreateSelfServiceLeaveRequest allRequestAdapterOperations
-    , surfaceActionAdapter @SupportAdapterFamily @Support.CreatePublicHolidayRefreshJob
+    , surfaceOperationLocalActionAdapter @SelfServiceLeaveAdapterFamily @SelfServiceLeave.CreateSelfServiceLeaveRequest allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @SupportAdapterFamily @Support.CreatePublicHolidayRefreshJob
         (requestAdapterOperationsWithoutParser "The zero-field refresh endpoint has no Surface request parser")
-    , surfaceActionAdapter @SupportAdapterFamily @Support.CreateFwcMapdRefreshJob
+    , surfaceOperationLocalActionAdapter @SupportAdapterFamily @Support.CreateFwcMapdRefreshJob
         (requestAdapterOperationsWithoutParser "The zero-field refresh endpoint has no Surface request parser")
-    , surfaceActionAdapter @ProfileAdapterFamily @Profile.UpdateProfileDetails allRequestAdapterOperations
-    , surfaceActionAdapter @ProfileAdapterFamily @Profile.UpdateProfileShiftPreferences allRequestAdapterOperations
-    , surfaceActionAdapter @StaffAdapterFamily @Profile.UpdateStaffProfile allRequestAdapterOperations
-    , surfaceActionAdapter @StaffAdapterFamily @Profile.UpdateStaffShiftPreferences allRequestAdapterOperations
-    , surfaceActionAdapter @StaffAdapterFamily @Profile.CreateStaffLeaveRequest allRequestAdapterOperations
-    , surfaceActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateRosterEndTimesEnabled allRequestAdapterOperations
-    , surfaceActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateMinutePrecisionShiftTimesEnabled allRequestAdapterOperations
-    , surfaceActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateUnavailableStaffWarningThreshold allRequestAdapterOperations
-    , surfaceActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateRosterTimePickerWindow allRequestAdapterOperations
-    , surfaceActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateRosterWeekStartsOn
+    , surfaceOperationLocalActionAdapter @ProfileAdapterFamily @Profile.UpdateProfileDetails allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @ProfileAdapterFamily @Profile.UpdateProfileShiftPreferences allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @StaffAdapterFamily @Profile.UpdateStaffProfile allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @StaffAdapterFamily @Profile.UpdateStaffShiftPreferences allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @StaffAdapterFamily @Profile.CreateStaffLeaveRequest allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateRosterEndTimesEnabled allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateMinutePrecisionShiftTimesEnabled allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateUnavailableStaffWarningThreshold allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateRosterTimePickerWindow allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateRosterWeekStartsOn
         (requestAdapterParserOnly "The roster-week-start mutation is retained for compatibility but has no active rendered setting form")
-    , surfaceActionAdapter @AdminInvitesAdapterFamily @Admin.CreateVenueInvitation allRequestAdapterOperations
-    , surfaceActionAdapter @AdminInvitesAdapterFamily @Admin.RevokeVenueInvitation
+    , surfaceOperationLocalActionAdapter @AdminInvitesAdapterFamily @Admin.CreateVenueInvitation allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @AdminInvitesAdapterFamily @Admin.RevokeVenueInvitation
         (requestAdapterOperationsWithoutParser "The zero-field revoke endpoint consumes its route id and has no Surface request parser")
-    , surfaceActionAdapter @AdminInvitesAdapterFamily @Admin.RenewVenueInvitation allRequestAdapterOperations
-    , surfaceActionAdapter @AdminExportsAdapterFamily @Admin.CreateExportJob allRequestAdapterOperations
-    , surfaceActionAdapter @AdminShiftTypesAdapterFamily @Admin.CreateShiftType allRequestAdapterOperations
-    , surfaceActionAdapter @AdminShiftTypesAdapterFamily @Admin.UpdateShiftType allRequestAdapterOperations
-    , surfaceActionAdapter @AdminShiftTypesAdapterFamily @Admin.MoveShiftTypeUp allRequestAdapterOperations
-    , surfaceActionAdapter @AdminShiftTypesAdapterFamily @Admin.MoveShiftTypeDown allRequestAdapterOperations
-    , surfaceActionAdapter @AdminShiftTypesAdapterFamily @Admin.AutosaveShiftTypeName
+    , surfaceOperationLocalActionAdapter @AdminInvitesAdapterFamily @Admin.RenewVenueInvitation allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @AdminExportsAdapterFamily @Admin.CreateExportJob allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @AdminShiftTypesAdapterFamily @Admin.CreateShiftType allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @AdminShiftTypesAdapterFamily @Admin.UpdateShiftType allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @AdminShiftTypesAdapterFamily @Admin.MoveShiftTypeUp allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @AdminShiftTypesAdapterFamily @Admin.MoveShiftTypeDown allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @AdminShiftTypesAdapterFamily @Admin.AutosaveShiftTypeName
         (requestAdapterOperationsWithoutParser "Existing shift-type form handling consumes this field directly; no exact Surface parser is called")
-    , surfaceActionAdapter @AdminShiftTypesAdapterFamily @Admin.AutosaveShiftTypeSelection
+    , surfaceOperationLocalActionAdapter @AdminShiftTypesAdapterFamily @Admin.AutosaveShiftTypeSelection
         (requestAdapterOperationsWithoutParser "Existing shift-type form handling consumes these fields directly; no exact Surface parser is called")
-    , surfaceActionAdapter @AdminShiftTypesAdapterFamily @Admin.ToggleInactiveShiftTypes allRequestAdapterOperations
-    , surfaceActionAdapter @AdminRosterGroupsAdapterFamily @Admin.CreateRosterGroup allRequestAdapterOperations
-    , surfaceActionAdapter @AdminRosterGroupsAdapterFamily @Admin.UpdateRosterGroup allRequestAdapterOperations
-    , surfaceActionAdapter @AdminRosterGroupsAdapterFamily @Admin.MoveRosterGroupUp allRequestAdapterOperations
-    , surfaceActionAdapter @AdminRosterGroupsAdapterFamily @Admin.MoveRosterGroupDown allRequestAdapterOperations
-    , surfaceActionAdapter @AdminRosterGroupsAdapterFamily @Admin.ToggleInactiveRosterGroups allRequestAdapterOperations
-    , surfaceActionAdapter @AdminXeroAdapterFamily @Admin.SyncXeroPayrollReferenceData
+    , surfaceOperationLocalActionAdapter @AdminShiftTypesAdapterFamily @Admin.ToggleInactiveShiftTypes requestAdapterOperationsWithParamsPresent
+    , surfaceOperationLocalActionAdapter @AdminRosterGroupsAdapterFamily @Admin.CreateRosterGroup allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @AdminRosterGroupsAdapterFamily @Admin.UpdateRosterGroup allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @AdminRosterGroupsAdapterFamily @Admin.MoveRosterGroupUp allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @AdminRosterGroupsAdapterFamily @Admin.MoveRosterGroupDown allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @AdminRosterGroupsAdapterFamily @Admin.ToggleInactiveRosterGroups requestAdapterOperationsWithParamsPresent
+    , surfaceOperationLocalActionAdapter @AdminXeroAdapterFamily @Admin.SyncXeroPayrollReferenceData
         (requestAdapterOperationsWithoutParser "The zero-field Xero sync endpoint has no Surface request parser")
-    , surfaceActionAdapter @AdminXeroAdapterFamily @Admin.ShowXeroTimesheetPreparationStaffMappings allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @AdminXeroAdapterFamily @Admin.ShowXeroTimesheetPreparationStaffMappings allRequestAdapterOperations
     ]
 
 -- All six production intents emit the complete inventoried builder,
 -- form-metadata, and exact parser operation set through the Roster facade.
 registeredSurfaceIntentAdapterRegistrations :: [SurfaceRequestAdapterRegistration 'IntentAdapterKind]
 registeredSurfaceIntentAdapterRegistrations =
-    [ surfaceIntentAdapter @RosterAdapterFamily @Roster.SetRosterLayoutMode allRequestAdapterOperations
-    , surfaceIntentAdapter @RosterAdapterFamily @Roster.MoveRosterShiftToSlot allRequestAdapterOperations
-    , surfaceIntentAdapter @RosterAdapterFamily @Roster.DuplicateRosterShiftToDay allRequestAdapterOperations
-    , surfaceIntentAdapter @RosterAdapterFamily @Roster.DropRosterStaff allRequestAdapterOperations
-    , surfaceIntentAdapter @RosterAdapterFamily @Roster.PreviewRosterTemplateApplication allRequestAdapterOperations
-    , surfaceIntentAdapter @RosterDayTimelineAdapterFamily @Roster.MoveRosterTimelineShift allRequestAdapterOperations
+    [ surfaceOperationLocalIntentAdapter @RosterAdapterFamily @Roster.SetRosterLayoutMode allRequestAdapterOperations
+    , surfaceOperationLocalIntentAdapter @RosterAdapterFamily @Roster.MoveRosterShiftToSlot allRequestAdapterOperations
+    , surfaceOperationLocalIntentAdapter @RosterAdapterFamily @Roster.DuplicateRosterShiftToDay allRequestAdapterOperations
+    , surfaceOperationLocalIntentAdapter @RosterAdapterFamily @Roster.DropRosterStaff allRequestAdapterOperations
+    , surfaceOperationLocalIntentAdapter @RosterAdapterFamily @Roster.PreviewRosterTemplateApplication allRequestAdapterOperations
+    , surfaceOperationLocalIntentAdapter @RosterDayTimelineAdapterFamily @Roster.MoveRosterTimelineShift allRequestAdapterOperations
     ]
 
 allRequestAdapterOperations :: SurfaceRequestAdapterOperations
@@ -286,6 +286,13 @@ allRequestAdapterOperations =
         { surfaceAdapterFieldsBuilderOperation = GenerateSurfaceAdapterOperation
         , surfaceAdapterRenderMetadataOperation = GenerateSurfaceAdapterOperation
         , surfaceAdapterRequestParserOperation = GenerateSurfaceAdapterOperation
+        , surfaceAdapterParamsPresentOperation = ExcludeSurfaceAdapterOperation "No production caller needs envelope-presence detection"
+        }
+
+requestAdapterOperationsWithParamsPresent :: SurfaceRequestAdapterOperations
+requestAdapterOperationsWithParamsPresent =
+    allRequestAdapterOperations
+        { surfaceAdapterParamsPresentOperation = GenerateSurfaceAdapterOperation
         }
 
 requestAdapterOperationsWithoutParser :: Text -> SurfaceRequestAdapterOperations
@@ -300,6 +307,7 @@ requestAdapterParserOnly reason =
         { surfaceAdapterFieldsBuilderOperation = ExcludeSurfaceAdapterOperation reason
         , surfaceAdapterRenderMetadataOperation = ExcludeSurfaceAdapterOperation reason
         , surfaceAdapterRequestParserOperation = GenerateSurfaceAdapterOperation
+        , surfaceAdapterParamsPresentOperation = ExcludeSurfaceAdapterOperation "No envelope-presence consumer for this parser-only compatibility operation"
         }
 
 intentOnlyActionReason :: Text

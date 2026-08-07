@@ -85,7 +85,7 @@ renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup = [hsx|
     </form>
 |]
   where
-    fields :: SurfaceActionFields Surface.RosterSurface Surface.NavigateRosterWeek
+    fields :: ActionFields RosterAction.NavigateRosterWeekActionOperation
     fields =
         RosterAction.navigateRosterWeekActionFields
             weekOffset
@@ -112,7 +112,7 @@ renderRosterLayoutModeOption :: RosterLayoutModeEnum -> RosterLayoutModeEnum -> 
 renderRosterLayoutModeOption selectedLayoutMode layoutMode =
     let inputId = "roster-layout-mode-" <> rosterLayoutModeValue layoutMode
         layoutValue = rosterLayoutModeValue layoutMode
-        fields :: SurfaceIntentFields Surface.RosterSurface Surface.SetRosterLayoutMode
+        fields :: IntentFields RosterIntent.SetRosterLayoutModeIntentOperation
         fields = RosterIntent.setRosterLayoutModeIntentFields layoutMode
         inputHtml = [hsx|
             <input type="radio"
@@ -174,7 +174,7 @@ renderRosterWageEstimatePreferenceForm weekOffset rosterGroupId viewCapabilities
   where
     fields = RosterAction.toggleRosterWageEstimatesActionFields showWageEstimates
 
-renderRosterOwnLiveShiftHighlightToggle :: SurfaceActionFields Surface.RosterSurface Surface.ToggleRosterOwnLiveShiftHighlight -> Bool -> Html
+renderRosterOwnLiveShiftHighlightToggle :: ActionFields RosterAction.ToggleRosterOwnLiveShiftHighlightActionOperation -> Bool -> Html
 renderRosterOwnLiveShiftHighlightToggle fields highlightOwnLiveShifts =
     renderAppToggleButton $
         ( defaultAppToggleStateButtonConfig
@@ -188,7 +188,7 @@ renderRosterOwnLiveShiftHighlightToggle fields highlightOwnLiveShifts =
             , appToggleSubmitPolicy = ToggleSubmitImmediate
             }
 
-renderRosterWarningToggle :: SurfaceActionFields Surface.RosterSurface Surface.ToggleRosterWarnings -> Bool -> Html
+renderRosterWarningToggle :: ActionFields RosterAction.ToggleRosterWarningsActionOperation -> Bool -> Html
 renderRosterWarningToggle fields showRosterWarnings =
     renderAppToggleButton $
         ( defaultAppToggleStateButtonConfig
@@ -202,7 +202,7 @@ renderRosterWarningToggle fields showRosterWarnings =
             , appToggleSubmitPolicy = ToggleSubmitImmediate
             }
 
-renderRosterWageEstimateToggle :: SurfaceActionFields Surface.RosterSurface Surface.ToggleRosterWageEstimates -> Bool -> Html
+renderRosterWageEstimateToggle :: ActionFields RosterAction.ToggleRosterWageEstimatesActionOperation -> Bool -> Html
 renderRosterWageEstimateToggle fields showWageEstimates =
     renderAppToggleButton $
         ( defaultAppToggleStateButtonConfig

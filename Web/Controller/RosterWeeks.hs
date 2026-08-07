@@ -17,7 +17,6 @@ import Application.Helper.FrontendContract.Passkey.Runtime (PasskeySetupPromptMo
                                                             passkeySetupPromptModeFromValue)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
-                                                            surfaceActionParamsPresent,
                                                             surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceIntentForm)
 import Application.Helper.FrontendContract.Surface.Roster (RosterStaffScopeValue (..))
@@ -141,7 +140,7 @@ copyOccurrenceSelectionsFromRosterAction =
 
 parseRosterStaffPanelScope :: (?request :: Request) => Either Text RosterStaffPanelScope
 parseRosterStaffPanelScope
-    | not (surfaceActionParamsPresent @Surface.RosterSurface @Surface.ToggleRosterStaffScope) = Right RosterStaffPanelCurrentGroup
+    | not RosterAction.toggleRosterStaffScopeActionParamsPresent = Right RosterStaffPanelCurrentGroup
     | otherwise =
         case RosterAction.parseToggleRosterStaffScopeActionParams of
             Left errors -> Left (rosterSurfaceRequestErrorMessage errors)
@@ -231,7 +230,7 @@ instance Controller RosterWeeksController where
 
     action currentAction@ShowRosterWeekAction { weekOffset } = runBepis currentAction BepisPageAction do
         rosterGroup <- resolveRequestedRosterGroup
-        when (surfaceActionParamsPresent @Surface.RosterSurface @Surface.NavigateRosterWeek) do
+        when RosterAction.navigateRosterWeekActionParamsPresent do
             case RosterAction.parseNavigateRosterWeekActionParams of
                 Left errors -> do
                     setErrorMessage (rosterSurfaceRequestErrorMessage errors)

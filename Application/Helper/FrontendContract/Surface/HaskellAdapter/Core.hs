@@ -37,6 +37,7 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Core
     , renderableAdapterGeneratedNames
     , renderableAdapterHomeDeclaration
     , renderableAdapterHomeFamily
+    , renderableAdapterHomeSurface
     , renderableAdapterOutputModule
     , renderableAdapterPayload
     , ResolvedAdapter
@@ -86,6 +87,7 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Core
     , resourceAdapterLayout
     , scopeAdapterIdentity
     , scopeAdapterLayout
+    , sourceModuleAliases
     , sourceTypeContainsDay
     , sourceTypeContainsUuid
     , stableDiagnostics
@@ -371,6 +373,7 @@ data ResolvedAdapter (kind :: SurfaceAdapterKind) payload = ResolvedAdapter
 -- the complete output module, not only within each typed home list.
 data RenderableAdapter payload = RenderableAdapter
     { renderableAdapterHomeFamily      :: !HaskellTypeMetadata
+    , renderableAdapterHomeSurface     :: !HaskellTypeMetadata
     , renderableAdapterHomeDeclaration :: !HaskellTypeMetadata
     , renderableAdapterOutputModule    :: !Text
     , renderableAdapterGeneratedNames  :: ![Text]
@@ -401,6 +404,7 @@ toRenderableAdapter ::
 toRenderableAdapter transform adapter =
     RenderableAdapter
         { renderableAdapterHomeFamily = adapter.resolvedAdapterHome.adapterHomeFamily
+        , renderableAdapterHomeSurface = adapter.resolvedAdapterHome.adapterHomeSurface
         , renderableAdapterHomeDeclaration = adapter.resolvedAdapterHome.adapterHomeDeclaration
         , renderableAdapterOutputModule = adapter.resolvedAdapterOutputModule
         , renderableAdapterGeneratedNames = adapter.resolvedAdapterGeneratedNames
@@ -421,7 +425,7 @@ data GeneratedHaskellModule = GeneratedHaskellModule
 -- Canonical module grouping, ordering, exports, aliases, cross-kind generated
 -- name collisions, source headers, paths, and whitespace remain shared here.
 data AdapterModuleRenderer payload = AdapterModuleRenderer
-    { adapterRendererLanguagePragmas :: ![Text]
+    { adapterRendererLanguagePragmas :: [RenderableAdapter payload] -> [Text]
     , adapterRendererHeaderLines     :: ![Text]
     , adapterRendererImports         :: Map.Map Text Text -> [RenderableAdapter payload] -> [Text]
     , adapterRendererDeclaration     :: Map.Map Text Text -> RenderableAdapter payload -> [Text]
@@ -840,7 +844,7 @@ renderGeneratedAdapterModule renderer adapters@(first : _) =
     exportedNames = List.sort (concatMap (.renderableAdapterGeneratedNames) orderedAdapters)
     moduleAliases = sourceModuleAliases orderedAdapters
     sourceLines =
-        renderer.adapterRendererLanguagePragmas
+        renderer.adapterRendererLanguagePragmas orderedAdapters
             <> [""]
             <> renderer.adapterRendererHeaderLines
             <> ["module " <> moduleName]
@@ -874,6 +878,7 @@ sourceModuleAliases adapters =
 adapterSourceModules :: RenderableAdapter payload -> [Text]
 adapterSourceModules adapter =
     adapter.renderableAdapterHomeFamily.haskellTypeModule
+        : adapter.renderableAdapterHomeSurface.haskellTypeModule
         : adapter.renderableAdapterHomeDeclaration.haskellTypeModule
         : map (.resolvedAdapterFieldMarker.haskellTypeModule) adapter.renderableAdapterFields
         <> concatMap (sourceTypeModules . (.resolvedAdapterFieldType)) adapter.renderableAdapterFields

@@ -152,7 +152,7 @@ renderRosterEndTimesForm venueConfig =
   where
     fields = AdminAction.updateRosterEndTimesEnabledActionFields venueConfig.rosterEndTimesEnabled
 
-renderMinutePrecisionSettingToggle :: SurfaceActionFields Surface.AdminVenueSettingsSurface Surface.UpdateMinutePrecisionShiftTimesEnabled -> Text -> Bool -> Html
+renderMinutePrecisionSettingToggle :: ActionFields AdminAction.UpdateMinutePrecisionShiftTimesEnabledActionOperation -> Text -> Bool -> Html
 renderMinutePrecisionSettingToggle fields inputId isEnabled =
     renderAppToggleButton $
         ( defaultAppToggleStateButtonConfig
@@ -167,7 +167,7 @@ renderMinutePrecisionSettingToggle fields inputId isEnabled =
             , appToggleSubmitPolicy = ToggleSubmitImmediate
             }
 
-renderVenueSettingToggle :: SurfaceActionFields Surface.AdminVenueSettingsSurface Surface.UpdateRosterEndTimesEnabled -> Text -> Bool -> Html
+renderVenueSettingToggle :: ActionFields AdminAction.UpdateRosterEndTimesEnabledActionOperation -> Text -> Bool -> Html
 renderVenueSettingToggle fields inputId isEnabled =
     renderAppToggleButton $
         ( defaultAppToggleStateButtonConfig

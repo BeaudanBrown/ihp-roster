@@ -160,6 +160,9 @@ in
         verify-fast = script ../scripts/verification/fast;
         verify-full = script ../scripts/verification/full;
         billing-production-readiness = script ../scripts/verification/billing-production-readiness;
+        production-inventory-check = script ../scripts/verification/production-inventory;
+        production-package-smoke = script ../scripts/verification/production-package-smoke;
+        frontend-contract-package-check = script ../scripts/verification/frontend-contract-package;
         lint = script ../scripts/haskell/lint;
         format = script ../scripts/haskell/format;
         ghci-app = script ../scripts/haskell/ghci-app;
@@ -170,6 +173,8 @@ in
         otel-browser = script ../scripts/profile/otel-browser;
         otel-summary = script ../scripts/profile/otel-summary;
         profile-compare = script ../scripts/profile/compare;
+        production-build-profile = script ../scripts/profile/production-build;
+        production-build-profile-test = script ../scripts/profile/production-build-test;
         profile-load = script ../scripts/profile/load;
         profile-load-suite = script ../scripts/profile/load-suite;
         profile-live-invalidation = script ../scripts/profile/live-invalidation;
