@@ -20,6 +20,7 @@ test.describe('Roster side-panel toggle', () => {
         const staffPanel = page.locator('#roster-staff-panel-fragment');
         const expandButton = shell.locator(`[${rosterSidePanelToggleDomAttr}="true"]`);
 
+        await expect(page.getByRole('tab', { name: 'Templates', exact: true })).toHaveCount(0);
         await expect(staffPanel).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
         await expect(expandButton).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
         const initialMainWidth = await main.boundingBox().then((box) => box?.width ?? 0);

@@ -397,8 +397,14 @@ fetchRosterPanelNotificationData rosterGroup (Just rosterWeek)
         pure (Just Notification.RosterNotificationPanelData { .. })
 fetchRosterPanelNotificationData _ _ = pure Nothing
 
+-- Templates are intentionally hidden from the Roster side panel for the next release.
+-- Keep the implementation and routes intact so the feature can be re-enabled later.
+rosterTemplatesVisibleInPanel :: Bool
+rosterTemplatesVisibleInPanel = False
+
 fetchRosterPanelTemplateLibrary :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterGroup -> IO (Maybe (Id User), Maybe RosterTemplateLibrary)
 fetchRosterPanelTemplateLibrary rosterGroup
+    | not rosterTemplatesVisibleInPanel = pure (Nothing, Nothing)
     | not (hasRole Manager) = pure (Nothing, Nothing)
     | otherwise = do
         actor <- currentRosterTemplateActor

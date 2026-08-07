@@ -26,6 +26,10 @@ async function openTemplateCreation(page: Parameters<typeof gotoWhenReady>[0]) {
     );
 }
 
+test.beforeEach(() => {
+    test.skip(true, 'Templates are intentionally hidden from the Roster side panel for the next release.');
+});
+
 test.beforeEach(async ({ page }) => {
     resetTemplateDesignerState();
     runSql(`

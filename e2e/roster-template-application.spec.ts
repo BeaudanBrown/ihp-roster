@@ -60,6 +60,10 @@ async function openTemplatesTab(page: Page) {
     await expect(page.getByRole('heading', { name: 'Templates', exact: true })).toBeVisible();
 }
 
+test.beforeEach(() => {
+    test.skip(true, 'Templates are intentionally hidden from the Roster side panel for the next release.');
+});
+
 test.afterEach(() => {
     resetApplicationTargetState();
 });

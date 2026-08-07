@@ -79,7 +79,8 @@ a registered `WireClosed` scalar; generated TypeScript owns the `"day" |
 - Roster writes validate venue/group scope and current Staff/Open/pay state at
   the server boundary, regardless of rendered controls.
 - The shared SidePanel owns only visibility and responsive mechanics. Roster
-  owns Staff/Templates/Settings content, permissions, and linked highlighting.
+  owns Staff/Settings content, permissions, and linked highlighting. Template
+  functionality remains implemented but is intentionally hidden for the next release.
 - Emailing a live roster is an explicit editor action. One immutable run
   snapshots its audience and roster; each recipient sees only their own assigned
   shifts and the snapshot's Open shifts. Durable jobs continue if the roster
@@ -95,7 +96,7 @@ Template application targets one explicitly scoped, non-live roster-group week. 
 
 Preview returns authoritative template and target revisions, resolved shift instants, destructive and Timesheet warnings, assignment-cleanup reasons, and typed touched resources. It intentionally confirms scope and consequences without a Before/After visual comparison. Confirmation locks the template, target week structure/content, Timesheet snapshots, Shift types, Staff rows, and group memberships; revalidates both revisions, and performs all source-template cleanup and target replacement in one transaction. Replaced roster shifts are soft-deleted, so materialized Timesheet snapshots retain their source and values.
 
-The editor-only roster side panel exposes `Staff | Templates | Settings`. Its authoritative user-specific library fragment separates Day and Week cards, private-draft recovery, and isolated Edit/Delete controls. Day activation enters cancellable compatible-day target mode; Week activation targets the complete viewed week immediately. The same generated source/dropzone contracts drive mouse drag, while keyboard and touch activation use the server-rendered confirmation form. Live or incomplete targets expose no compatible application target. Library, delete, save, draft, and application resources invalidate mounted fragments for actor and passive viewers.
+The editor-only roster side panel exposes `Staff | Settings` for the next release. Template functionality and its authoritative user-specific library fragment remain implemented but hidden; the library separates Day and Week cards, private-draft recovery, and isolated Edit/Delete controls. Day activation enters cancellable compatible-day target mode; Week activation targets the complete viewed week immediately. The same generated source/dropzone contracts drive mouse drag, while keyboard and touch activation use the server-rendered confirmation form. Live or incomplete targets expose no compatible application target. Library, delete, save, draft, and application resources invalidate mounted fragments for actor and passive viewers.
 
 Template local minutes resolve on the target operational date under current `Australia/Melbourne` rules. Nonexistent spring clocks fail; repeated autumn endpoints require explicit first/second choices and are never guessed.
 

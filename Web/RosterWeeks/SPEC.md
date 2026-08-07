@@ -132,8 +132,9 @@ unsealed boundary as a Timesheet suggestion; roster-only shifts contribute
 neither totals nor errors. Wage visibility and staff filtering remain
 server-authorized and transient.
 
-Managers receive Staff, Templates, and Settings in the shared transient
-SidePanel; feature content and authorization remain roster-owned. Its toggle uses
+Managers receive Staff and Settings in the shared transient SidePanel; Template
+functionality remains implemented but is intentionally hidden for the next release.
+Feature content and authorization remain roster-owned. Its toggle uses
 the shared main-card header location, desktop focus/Escape contract, transient
 visibility, and phone stacking used by Timesheets and manager Unavailability. Live rosters
 may highlight the effective viewer's own assigned shifts from a global user
