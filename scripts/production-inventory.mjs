@@ -178,7 +178,7 @@ const renderedProductionPackageDependencies = [
   "module\tpackage\treason",
   ...[...externalImportSources.keys()].sort().map((imported) => {
     const existing = existingProductionPackageDependencyByModule.get(imported);
-    return [imported, existing?.package ?? "UNCLASSIFIED", existing?.reason ?? [...externalImportSources.get(imported)][0]].join("\t");
+    return [imported, existing?.package ?? "UNCLASSIFIED", [...externalImportSources.get(imported)][0]].join("\t");
   }),
   "",
 ].join("\n");
@@ -196,7 +196,10 @@ if (mode !== "--write-dependencies") {
       } else if (!/^[A-Za-z0-9][A-Za-z0-9-]*$/.test(row.package)) {
         fail(`${productionPackageDependencyInventoryPath}: invalid Cabal package name ${row.package} for ${row.module}`);
       }
-      if (!row.reason) fail(`${productionPackageDependencyInventoryPath}: ${row.module} needs a reason`);
+      const expectedReason = [...externalImportSources.get(row.module)][0];
+      if (row.reason !== expectedReason) {
+        fail(`${productionPackageDependencyInventoryPath}: stale provenance for ${row.module}; expected ${expectedReason}`);
+      }
     }
     for (const [imported, sources] of externalImportSources) {
       if (!seenDependencyModules.has(imported)) {
