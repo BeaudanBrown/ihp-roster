@@ -112,7 +112,7 @@ renderRosterLayoutModeOption :: RosterLayoutModeEnum -> RosterLayoutModeEnum -> 
 renderRosterLayoutModeOption selectedLayoutMode layoutMode =
     let inputId = "roster-layout-mode-" <> rosterLayoutModeValue layoutMode
         layoutValue = rosterLayoutModeValue layoutMode
-        fields :: SurfaceIntentFields Surface.RosterSurface Surface.SetRosterLayoutMode
+        fields :: IntentFields RosterIntent.SetRosterLayoutModeIntentOperation
         fields = RosterIntent.setRosterLayoutModeIntentFields layoutMode
         inputHtml = [hsx|
             <input type="radio"

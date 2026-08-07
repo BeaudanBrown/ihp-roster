@@ -218,7 +218,7 @@ renderShiftTypeMoveButton isDisabled action actionUrl label =
             , actionRouteExtraAttrs = [("class", "btn btn-outline-secondary")]
             }
 
-renderPayRateSelect :: SurfaceFieldBundleOf (SurfaceActionFieldSpecs Surface.AdminShiftTypesSurface Surface.CreateShiftType) fields => fields -> Text -> PayAssignmentModeEnum -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Maybe (FrontendSurfaceAction, FrontendSurfaceActionRoute) -> Html
+renderPayRateSelect :: SurfaceFieldBundleOf (ActionFieldSpecs AdminAction.CreateShiftTypeActionOperation) fields => fields -> Text -> PayAssignmentModeEnum -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Maybe (FrontendSurfaceAction, FrontendSurfaceActionRoute) -> Html
 renderPayRateSelect fields fieldId selectedMode selectedAwardLevelId selectedImportedPayItemId awardLevels awardLevelBaseRates importedPayItems maybeAutosave = [hsx|
     <label class="form-label" for={fieldId}>Pay Rate</label>
     {renderSelect selectBody}
@@ -263,7 +263,7 @@ renderImportedPayItemOption selectedImportedPayItemId importedPayItem = [hsx|
     </option>
 |]
 
-renderShiftTypeColourSelect :: SurfaceFieldBundleOf (SurfaceActionFieldSpecs Surface.AdminShiftTypesSurface Surface.CreateShiftType) fields => fields -> Text -> ShiftTypeColourKeyEnum -> Maybe (FrontendSurfaceAction, FrontendSurfaceActionRoute) -> Html
+renderShiftTypeColourSelect :: SurfaceFieldBundleOf (ActionFieldSpecs AdminAction.CreateShiftTypeActionOperation) fields => fields -> Text -> ShiftTypeColourKeyEnum -> Maybe (FrontendSurfaceAction, FrontendSurfaceActionRoute) -> Html
 renderShiftTypeColourSelect fields fieldId selectedColourKey maybeAutosave = [hsx|
     <label class="form-label" for={fieldId}>Optional Colour</label>
     {renderSelect selectBody}

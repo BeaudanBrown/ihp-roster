@@ -272,7 +272,7 @@ renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences =
             values.shiftPreferencesSection
             values.shiftPreferenceKeys
 
-renderProfileStaffManagementSection :: SurfaceActionFields Surface.ProfileSurface Surface.UpdateProfileDetails -> StaffManagementFieldData -> Html
+renderProfileStaffManagementSection :: ActionFields ProfileAction.UpdateProfileDetailsActionOperation -> StaffManagementFieldData -> Html
 renderProfileStaffManagementSection fields managementFields = [hsx|
     <div class="mt-4">
         <h5 class="mb-3">Staff Admin</h5>

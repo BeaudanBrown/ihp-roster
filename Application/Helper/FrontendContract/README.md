@@ -187,42 +187,46 @@ and public generic builder use.
 
 Generated Resource and Live code calls only public marker-indexed builders and
 matchers. Raw field data constructors stay hidden behind construction-only
-functions. Roster Actions now use generated nominal operation tokens,
-`ActionFields operation`, and one local `ActionFieldSpecs operation`; their
-builder, parser, metadata evidence, lookup, and serialization interfaces contain
-no `RosterSurface` or `SurfaceActionFields`. Generated term evidence is rendered
-from checked IR and can be constructed only through the generated Roster module's
-single guarded runtime-internal edge. A temporary, unpublished aggregate proof
-typechecks exact canonical Roster Action set/owner/ordered-field equality before
-managed publication. Other Actions and all Intents retain the whole-Surface
-wrapper until #347. Every wrapper remains nominal, exposes no split/re-indexing
-path, and reports unsupported source carriers with adapter kind, compact owner,
-declaration, and field.
+functions. Every generated Action and Intent now uses a distinct nominal
+operation token with `ActionFields operation`/`IntentFields operation` and one
+local field-spec list. Builders, named presence witnesses, parsers, metadata,
+lookup, and serialization contain no complete Surface. Generated term evidence
+is rendered from checked IR and can be constructed only through a generated
+request module's guarded runtime-internal edge. Temporary unpublished aggregate
+proofs typecheck exact canonical Action and Intent set/owner/ordered-field
+equality before managed publication. Every wrapper remains nominal, exposes no
+split/re-indexing path, and reports unsupported source carriers with adapter
+kind, compact owner, declaration, and field.
 Production family associations remain feature-local, and the checked aggregate
 resource registry assigns exactly one canonical home to every unique production
 resource identity. Every private generated module has only its matching curated
 facade consumer. The lightweight `HaskellAdapter.Association` seam carries
-`AdapterFamilySurface` into generated modules without pulling
-registry/reflection mechanics from `HaskellAdapter.Family` and
-`HaskellAdapter.Core` into focused feature compiles. Generated Action/Intent modules import the focused
-`Surface.Request.Runtime` metadata seam rather than the mount/live
-`Surface.Runtime`. Roster Action alone additionally imports
-`Surface.Request.Runtime.Internal` to construct checked generated evidence;
-guardrails permit that generated edge plus the compatibility runtime and reject
-every feature caller. Field construction remains in `Surface.Values`, exact parsing in
+`AdapterFamilySurface` and compact owner projection into generated modules
+without pulling registry/reflection mechanics from `HaskellAdapter.Family` and
+`HaskellAdapter.Core` into focused feature compiles. Generated Action/Intent
+modules import the focused `Surface.Request.Runtime` metadata seam rather than
+the mount/live `Surface.Runtime`; their generated modules additionally import
+`Surface.Request.Runtime.Internal` to construct checked evidence. Guardrails
+permit only those generated edges plus the compatibility runtime and reject every
+feature caller. Field construction remains in `Surface.Values`, exact parsing in
 `Surface.Request`, and HTML rendering in `Surface.Runtime`.
 
 The exact source-derived closure contract is checked by
-`architecture-surface-request-closure`: operation-local Roster Action retains 20
+`architecture-surface-request-closure`: Roster Action retains 22
 `Application.*` modules, Profile Action 21, and Roster Intent 22, with no
-registered Surface catalog, mount/live/wire runtime, family association, private
-proof, or Haskell adapter generator implementation in the Roster Action closure.
+registered Surface catalog, mount/live/wire runtime, private proof, or Haskell
+adapter generator implementation in those closures.
 The compiler-observed baseline, candidate sets, deltas, and retained-dependency
 classification are recorded in `Surface/README.md`. The #346 matched 12-core
 pilot evidence is retained at
 `Config/nix/baselines/production-build/issue-346-operation-local-roster.json`:
 Roster `Generated.Action.hi`/`.dyn_hi` fell 99.88% to about 178 KB each,
-builder peak RSS fell 36.45%, and matched-core wall time fell 20.88%.
+builder peak RSS fell 36.45%, and matched-core wall time fell 20.88%. The
+matched 12-core #347 rollout evidence is retained at
+`Config/nix/baselines/production-build/issue-347-operation-local-all-requests.json`:
+all generated Action/Intent interfaces are below 200 KB (well under 16 MiB),
+complete `.hi`/`.dyn_hi` totals fell 31.33%, app-lib self size 27.78%, peak RSS
+35.42%, cgroup growth 30.84%, and wall time 38.33% versus staging.
 
 The production operation inventory covers all 62 actions and six intents. It
 marks 57 actions as adapter-eligible, with builders/render metadata for 56 and

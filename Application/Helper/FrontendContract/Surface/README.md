@@ -785,22 +785,21 @@ reason-bearing.
 
 Generated resource modules invoke `frontendSurfaceResource` and
 `matchFrontendSurfaceResource`; generated Live modules invoke only their focused
-scope/fragment constructors and matchers. Roster Action builders now construct
-`ActionFields operation` from a generated kind-specific token and that
-operation's exact local `ActionFieldSpecs`; no Roster caller signature or
-generated implementation retains `RosterSurface`. Generated checked-IR evidence
-supplies compact owner, marker, field-name, and HTMX metadata, while exact
-parsers return the same nominal bundle. Other Actions and every Intent retain
-`SurfaceActionFields surface action` or `SurfaceIntentFields surface intent`
-until #347.
+scope/fragment constructors and matchers. Every generated Action and Intent
+constructs a kind-specific nominal token and its exact local field specs.
+`ActionFields operation` and `IntentFields operation` carry compact owner,
+marker, and field evidence; no production caller signature or generated request
+implementation retains a complete Surface. Generated checked-IR evidence
+supplies compact owner, marker, field-name, and HTMX/form metadata, while exact
+parsers return the same nominal bundle.
 
 Raw field constructors stay hidden, no wrapper exposes an unwrap/re-indexing
 path, and read-only `SurfaceFieldBundle` lookup/serialization works for both
-seams. Resource, Live, and Action facades expose only operations with a semantic
-consumer. Generated modules stay behind their matching curated facade. The sole
-constructor exception is Roster `Generated.Action` importing the focused
-request-runtime internal evidence seam; exact source guardrails permit that
-generated module plus the compatibility runtime.
+seams. Resource, Live, Action, and Intent facades expose only operations with a
+semantic consumer. Generated modules stay behind their matching curated facade.
+Every production `Generated.Action` and `Generated.Intent` module imports the
+focused request-runtime internal evidence seam; exact source guardrails permit
+those generated modules plus the compatibility runtime only.
 
 Private production `.Generated.Resource` and `.Generated.Live` modules are
 registry-derived declaration-complete APIs: each checked declaration keeps its
@@ -813,14 +812,15 @@ curated facades, and handwritten modules remain under normal Weeder
 reachability; symbol allowlists and blanket FrontendContract exclusions are not
 permitted.
 
-The mandatory adapter writer also emits one temporary Roster Action authority
-proof. `AssertActionAuthority` compares the canonical complete Surface Action
-sequence with generated operation owner/marker/ordered-field entries. The proof
-typechecks with the complete staged managed set, is never published, and is
-absent from `app-lib`.
+The mandatory adapter writer emits temporary Action and Intent authority proofs
+per owning Surface. `AssertActionAuthority` and `AssertIntentAuthority` compare
+the canonical complete sequence with generated operation owner/marker/ordered
+field entries. Proofs typecheck with the complete staged managed set, are never
+published, and are absent from `app-lib`.
 
 The lightweight `HaskellAdapter.Association` module owns only
-`SurfaceAdapterFamily` and `AdapterFamilySurface`. Production family modules and
+`SurfaceAdapterFamily`, `AdapterFamilySurface`, and `AdapterSurfaceMarker`.
+Production family modules and
 private Live output import that seam, while reflection, registry validation, and
 generator mechanics remain in `HaskellAdapter.Family` and
 `HaskellAdapter.Core`. Focused feature compiles therefore do not transitively
@@ -839,6 +839,14 @@ complete app interfaces fell 19.22%, app-lib self size 17.09%, peak RSS 36.45%,
 and matched-core wall time fell 20.88%. Generated TypeScript remained
 byte-identical, and the private proof was absent from the installed 502-module
 library.
+
+The matched 12-core #347 all-request rollout is retained at
+`Config/nix/baselines/production-build/issue-347-operation-local-all-requests.json`.
+Every generated Action/Intent `.hi` and `.dyn_hi` is below 200 KB, well under the
+16 MiB request-interface budget. Against staging, complete `.hi`/`.dyn_hi`
+totals fell 31.33%, app-lib self size 27.78%, peak RSS 35.42%, cgroup growth
+30.84%, swap delta fell 100.47%, CPU 28.53%, and wall time 38.33%. The final forced
+build compiled all 502 modules and reproduced its output.
 
 The Timesheets family was the representative migration checkpoint. Its
 handwritten `Resource` module moved from 35 lines to a 9-line curated facade,

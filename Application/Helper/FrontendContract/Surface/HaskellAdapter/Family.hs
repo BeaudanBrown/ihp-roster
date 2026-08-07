@@ -56,6 +56,7 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
     , surfaceActorOnlyFragmentAdapter
     , surfaceAdapterOperationIsGenerated
     , surfaceIntentAdapter
+    , surfaceOperationLocalIntentAdapter
     ) where
 
 import Application.Helper.FrontendContract.Surface.ContractIR (ContractDiagnostic (..),
@@ -123,6 +124,7 @@ data SurfaceRequestAdapterOperations = SurfaceRequestAdapterOperations
     { surfaceAdapterFieldsBuilderOperation :: !SurfaceAdapterOperationEligibility
     , surfaceAdapterRenderMetadataOperation :: !SurfaceAdapterOperationEligibility
     , surfaceAdapterRequestParserOperation :: !SurfaceAdapterOperationEligibility
+    , surfaceAdapterParamsPresentOperation  :: !SurfaceAdapterOperationEligibility
     }
     deriving (Eq, Show)
 
@@ -160,9 +162,6 @@ data SurfaceAdapterRegistry = SurfaceAdapterRegistry
     , surfaceIntentAdapterRegistrations   :: ![SurfaceRequestAdapterRegistration 'IntentAdapterKind]
     }
     deriving (Eq, Show)
-
-type family AdapterSurfaceMarker (surface :: SurfaceSpec) :: Type where
-    AdapterSurfaceMarker ('Surface marker primitives) = marker
 
 type family SurfaceAdapterFieldSpecs
     (kind :: SurfaceAdapterKind)
@@ -322,6 +321,19 @@ surfaceIntentAdapter operations =
         operations
         WholeSurfaceRequestEvidence
 
+surfaceOperationLocalIntentAdapter ::
+    forall adapterFamily intent.
+    ReflectSurfaceAdapterHomes
+        'IntentAdapterKind
+        '[SurfaceIntentAdapterHome adapterFamily intent] =>
+    SurfaceRequestAdapterOperations ->
+    SurfaceRequestAdapterRegistration 'IntentAdapterKind
+surfaceOperationLocalIntentAdapter operations =
+    GenerateSurfaceRequestAdapter
+        (singleSurfaceAdapterHome @'IntentAdapterKind @adapterFamily @intent)
+        operations
+        OperationLocalRequestEvidence
+
 singleSurfaceAdapterHome ::
     forall kind adapterFamily declaration.
     ReflectSurfaceAdapterHomes
@@ -436,6 +448,7 @@ requestAdapterOperationRows operations =
     [ ("fields-builder", operations.surfaceAdapterFieldsBuilderOperation)
     , ("render-metadata", operations.surfaceAdapterRenderMetadataOperation)
     , ("request-parser", operations.surfaceAdapterRequestParserOperation)
+    , ("params-present", operations.surfaceAdapterParamsPresentOperation)
     ]
 
 requestAdapterOperationValues :: SurfaceRequestAdapterOperations -> [SurfaceAdapterOperationEligibility]

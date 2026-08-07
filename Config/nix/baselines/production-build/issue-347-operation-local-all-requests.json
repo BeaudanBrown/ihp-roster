@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "issue": 347,
+  "objective": "Roll out operation-local typed evidence across all generated Action and Intent adapters",
+  "baseline_profile": "Config/nix/baselines/production-build/staging-ea144503-grill.json",
+  "candidate_profile": "output/production-build/issue-347-operation-local-all-request-approved-cores12/profile.json",
+  "captured_at": "2026-08-07T07:30:31Z",
+  "configuration": {
+    "system": "x86_64-linux",
+    "ghc_version": "9.10.3",
+    "cores": 12,
+    "forced_clean": true,
+    "module_count": 502,
+    "rebuilt_output_differs": false
+  },
+  "generated_request_interface_budget": {
+    "maximum_bytes": 16777216,
+    "largest": {
+      "path": "Application/Helper/FrontendContract/Surface/Roster/Generated/Intent.dyn_hi",
+      "bytes": 199558
+    },
+    "all_generated_action_and_intent_interfaces_within_budget": true
+  },
+  "baseline_to_candidate": {
+    "app_library_self_bytes": {
+      "baseline": 2001477630,
+      "candidate": 1445377328,
+      "delta_percent": -27.784488
+    },
+    "hi_bytes": {
+      "baseline": 892294674,
+      "candidate": 612725589,
+      "delta_percent": -31.331475
+    },
+    "dyn_hi_bytes": {
+      "baseline": 892296632,
+      "candidate": 612727550,
+      "delta_percent": -31.331406
+    },
+    "builder_peak_rss_bytes": {
+      "baseline": 38312714240,
+      "candidate": 24741154816,
+      "delta_percent": -35.423122
+    },
+    "nix_cgroup_peak_growth_bytes": {
+      "baseline": 37748727808,
+      "candidate": 26106331136,
+      "delta_percent": -30.841825
+    },
+    "swap_delta_bytes": {
+      "baseline": 15299739648,
+      "candidate": -71823360,
+      "delta_percent": -100.469442
+    },
+    "wall_seconds": {
+      "baseline": 414.755213171,
+      "candidate": 255.762411179,
+      "delta_percent": -38.33413
+    },
+    "cpu_seconds": {
+      "baseline": 1748.06,
+      "candidate": 1249.38,
+      "delta_percent": -28.527625
+    }
+  }
+}

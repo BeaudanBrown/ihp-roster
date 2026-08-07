@@ -379,7 +379,7 @@ renderTimesheetStaffFilterForm weekOffset selectedStaffFilterId staffMembers =
     updateUrl = pathTo (ShowTimesheetWeekAction weekOffset)
     fields = TimesheetsAction.updateTimesheetFiltersActionFields weekOffset selectedStaffFilterId
 
-renderTimesheetStaffFilter :: SurfaceActionFields Surface.TimesheetsSurface Surface.UpdateTimesheetFilters -> Maybe UUID -> [Staff] -> Html
+renderTimesheetStaffFilter :: ActionFields TimesheetsAction.UpdateTimesheetFiltersActionOperation -> Maybe UUID -> [Staff] -> Html
 renderTimesheetStaffFilter fields selectedStaffFilterId staffMembers = [hsx|
     <div class="mt-3">
         <label for="timesheet-staff-filter" class="form-label small mb-1">Staff</label>

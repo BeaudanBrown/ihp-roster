@@ -11,6 +11,7 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Request
     , checkedSurfaceIntentAdapterDeclarations
     , generateSurfaceActionAdapterModules
     , generateSurfaceActionAuthorityProofModules
+    , generateSurfaceIntentAuthorityProofModules
     , generateSurfaceIntentAdapterModules
     , renderSurfaceActionAdapterModules
     , renderSurfaceIntentAdapterModules
@@ -32,6 +33,7 @@ data SurfaceRequestAdapterDeclaration = SurfaceRequestAdapterDeclaration
     { surfaceRequestDeclarationOperations   :: !SurfaceRequestAdapterOperations
     , surfaceRequestDeclarationEvidenceMode :: !SurfaceRequestAdapterEvidenceMode
     , surfaceRequestDeclarationAction       :: !(Maybe HtmxActionIR)
+    , surfaceRequestDeclarationIntent       :: !(Maybe IntentIR)
     }
     deriving (Eq, Show)
 
@@ -75,7 +77,7 @@ generateSurfaceActionAdapterModules contract registry = do
     adapters <-
         resolveGeneratedRequestAdapters
             actionRequestRenderer
-            Just
+            (\action -> (Just action, Nothing))
             contract
             registry.surfaceAdapterFamilies
             declarations
@@ -107,6 +109,28 @@ generateSurfaceActionAuthorityProofModules contract registry = do
             ]
     pure (renderActionAuthorityProofModules orderedInventory)
 
+generateSurfaceIntentAuthorityProofModules ::
+    SurfaceContractIR ->
+    SurfaceAdapterRegistry ->
+    Either [ContractDiagnostic] [GeneratedHaskellModule]
+generateSurfaceIntentAuthorityProofModules contract registry = do
+    declarations <- checkedSurfaceIntentAdapterDeclarations contract
+    inventory <-
+        resolveSurfaceRequestAdapterRegistrations
+            intentAdapterLayout
+            contract
+            registry.surfaceAdapterFamilies
+            declarations
+            registry.surfaceIntentAdapterRegistrations
+    let orderedInventory =
+            [ registration
+            | declaration <- declarations
+            , registration <- inventory
+            , registration.checkedSurfaceRequestAdapter.resolvedAdapterDeclaration.checkedAdapterIdentity
+                == declaration.checkedAdapterIdentity
+            ]
+    pure (renderIntentAuthorityProofModules orderedInventory)
+
 generateSurfaceIntentAdapterModules ::
     SurfaceContractIR ->
     SurfaceAdapterRegistry ->
@@ -116,7 +140,7 @@ generateSurfaceIntentAdapterModules contract registry = do
     adapters <-
         resolveGeneratedRequestAdapters
             intentRequestRenderer
-            (const Nothing)
+            (\intent -> (Nothing, Just intent))
             contract
             registry.surfaceAdapterFamilies
             declarations
@@ -125,7 +149,7 @@ generateSurfaceIntentAdapterModules contract registry = do
 
 resolveGeneratedRequestAdapters ::
     RequestAdapterRenderer kind ->
-    (payload -> Maybe HtmxActionIR) ->
+    (payload -> (Maybe HtmxActionIR, Maybe IntentIR)) ->
     SurfaceContractIR ->
     [SurfaceAdapterFamilyMetadata] ->
     [CheckedAdapterDeclaration kind payload] ->
@@ -142,10 +166,12 @@ resolveGeneratedRequestAdapters renderer actionOf contract families declarations
     pure
         [ prepareResolvedAdapter
             (\payload ->
-                SurfaceRequestAdapterDeclaration
+                let (surfaceRequestDeclarationAction, surfaceRequestDeclarationIntent) = actionOf payload
+                in SurfaceRequestAdapterDeclaration
                     { surfaceRequestDeclarationOperations = operations
                     , surfaceRequestDeclarationEvidenceMode = registration.checkedSurfaceRequestAdapterEvidenceMode
-                    , surfaceRequestDeclarationAction = actionOf payload
+                    , surfaceRequestDeclarationAction
+                    , surfaceRequestDeclarationIntent
                     }
             )
             (requestGeneratedNames renderer)
@@ -173,9 +199,18 @@ data RequestAdapterRenderer kind = RequestAdapterRenderer
     , requestAdapterBindFields         :: !Text
     , requestAdapterEmptyFields        :: !Text
     , requestAdapterMetadataImports    :: ![Text]
+    , requestAdapterOperationLocalMetadataImports :: ![Text]
     , requestAdapterMetadataResultType :: !Text
     , requestAdapterMetadataBuilder    :: !Text
     , requestAdapterParser             :: !Text
+    , requestAdapterOperationPrefix    :: !Text
+    , requestAdapterOperationFields    :: !Text
+    , requestAdapterOperationFieldSpecs :: !Text
+    , requestAdapterOperationSurface   :: !Text
+    , requestAdapterOperationMarker    :: !Text
+    , requestAdapterOperationEmpty     :: !Text
+    , requestAdapterOperationBind      :: !Text
+    , requestAdapterOperationPresent   :: !Text
     }
 
 actionRequestRenderer :: RequestAdapterRenderer 'ActionAdapterKind
@@ -192,9 +227,18 @@ actionRequestRenderer =
         , requestAdapterBindFields = "surfaceActionFields"
         , requestAdapterEmptyFields = "noSurfaceActionFields"
         , requestAdapterMetadataImports = ["FrontendSurfaceAction", "frontendSurfaceAction"]
+        , requestAdapterOperationLocalMetadataImports = ["FrontendSurfaceAction"]
         , requestAdapterMetadataResultType = "FrontendSurfaceAction"
         , requestAdapterMetadataBuilder = "frontendSurfaceAction"
         , requestAdapterParser = "parseSurfaceActionParams"
+        , requestAdapterOperationPrefix = "Action"
+        , requestAdapterOperationFields = "ActionFields"
+        , requestAdapterOperationFieldSpecs = "ActionFieldSpecs"
+        , requestAdapterOperationSurface = "ActionSurface"
+        , requestAdapterOperationMarker = "ActionMarker"
+        , requestAdapterOperationEmpty = "noActionFields"
+        , requestAdapterOperationBind = "actionFields"
+        , requestAdapterOperationPresent = "actionParamsPresent"
         }
 
 intentRequestRenderer :: RequestAdapterRenderer 'IntentAdapterKind
@@ -215,9 +259,21 @@ intentRequestRenderer =
             , "FrontendSurfaceIntentForm"
             , "frontendSurfaceIntentForm"
             ]
+        , requestAdapterOperationLocalMetadataImports =
+            [ "FrontendSurfaceHtmxRequest"
+            , "FrontendSurfaceIntentForm"
+            ]
         , requestAdapterMetadataResultType = "FrontendSurfaceHtmxRequest -> FrontendSurfaceIntentForm"
         , requestAdapterMetadataBuilder = "frontendSurfaceIntentForm"
         , requestAdapterParser = "parseSurfaceIntentParams"
+        , requestAdapterOperationPrefix = "Intent"
+        , requestAdapterOperationFields = "IntentFields"
+        , requestAdapterOperationFieldSpecs = "IntentFieldSpecs"
+        , requestAdapterOperationSurface = "IntentSurface"
+        , requestAdapterOperationMarker = "IntentMarker"
+        , requestAdapterOperationEmpty = "noIntentFields"
+        , requestAdapterOperationBind = "intentFields"
+        , requestAdapterOperationPresent = "intentParamsPresent"
         }
 
 requestGeneratedNames ::
@@ -229,10 +285,7 @@ requestGeneratedNames renderer declaration =
         <> concat
             [ operationName operations.surfaceAdapterFieldsBuilderOperation (baseName <> "Fields")
             , operationName operations.surfaceAdapterRenderMetadataOperation (baseName <> renderer.requestAdapterMetadataSuffix)
-            , [ baseName <> "ParamsPresent"
-              | payload.surfaceRequestDeclarationEvidenceMode == OperationLocalRequestEvidence
-              , surfaceAdapterOperationIsGenerated operations.surfaceAdapterRequestParserOperation
-              ]
+            , operationName operations.surfaceAdapterParamsPresentOperation (baseName <> "ParamsPresent")
             , operationName operations.surfaceAdapterRequestParserOperation ("parse" <> upperFirst baseName <> "Params")
             ]
   where
@@ -281,30 +334,37 @@ renderRequestImports ::
     [RenderableAdapter SurfaceRequestAdapterDeclaration] ->
     [Text]
 renderRequestImports renderer aliases adapters =
-    conditionalImports hasWholeSurface
+    conditionalImports (hasWholeSurface || hasOperationLocal)
         ( renderImportList
             "Application.Helper.FrontendContract.Surface.HaskellAdapter.Association"
-            ["AdapterFamilySurface"]
+            ( ["AdapterFamilySurface"]
+                <> ["AdapterSurfaceMarker" | hasOperationLocal]
+            )
         )
         <> conditionalImports hasParser
             ( renderImportList
                 "Application.Helper.FrontendContract.Surface.Request"
                 ( ["SurfaceRequestFieldError"]
                     <> [renderer.requestAdapterParser | hasWholeSurfaceParser]
-                    <> (if hasOperationLocalParser then ["actionParamsPresent", "parseActionParams"] else [])
+                    <> ["parse" <> renderer.requestAdapterOperationPrefix <> "Params" | hasOperationLocalParser]
+                    <> [renderer.requestAdapterOperationPresent | hasOperationLocalPresence]
                 )
             )
         <> conditionalImports hasMetadata
             ( renderImportList
                 "Application.Helper.FrontendContract.Surface.Request.Runtime"
-                ( ["FrontendSurfaceAction" | hasOperationLocalMetadata]
-                    <> (if hasWholeSurfaceMetadata then renderer.requestAdapterMetadataImports else [])
+                ( if hasOperationLocalMetadata
+                    then renderer.requestAdapterOperationLocalMetadataImports
+                    else if hasWholeSurfaceMetadata then renderer.requestAdapterMetadataImports else []
                 )
             )
         <> conditionalImports hasOperationLocalMetadata
             ( renderImportList
                 "Application.Helper.FrontendContract.Surface.Request.Runtime.Internal"
-                ["ActionEvidence", "actionEvidence", "frontendSurfaceActionFromEvidence"]
+                ( if renderer.requestAdapterOperationPrefix == "Action"
+                    then ["ActionEvidence", "actionEvidence", "frontendSurfaceActionFromEvidence"]
+                    else ["IntentEvidence", "intentEvidence", "frontendSurfaceIntentFormFromEvidence"]
+                )
             )
         <> conditionalImports hasOperationLocal
             ["import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR"]
@@ -339,18 +399,25 @@ renderRequestImports renderer aliases adapters =
     hasParser = not (null parserAdapters)
     hasOperationLocalParser = any isOperationLocal parserAdapters
     hasWholeSurfaceParser = any (not . isOperationLocal) parserAdapters
+    presentAdapters = filter (hasGeneratedOperation (.surfaceAdapterParamsPresentOperation)) adapters
+    hasOperationLocalPresence = any isOperationLocal presentAdapters
     hasOperationLocalMetadata = any isOperationLocal metadataAdapters
     hasWholeSurfaceMetadata = any (not . isOperationLocal) metadataAdapters
     valueImports =
         List.sort
             ( List.nub
                 ( [renderer.requestAdapterFieldsType | hasWholeSurface]
-                    <> (if hasOperationLocal then ["ActionFieldSpecs", "ActionFields", "ActionMarker", "ActionSurface"] else [])
+                    <> (if hasOperationLocal then
+                        [ renderer.requestAdapterOperationFieldSpecs
+                        , renderer.requestAdapterOperationFields
+                        , renderer.requestAdapterOperationMarker
+                        , renderer.requestAdapterOperationSurface
+                        ] else [])
                     <> [renderer.requestAdapterEmptyFields | not (null emptyBuilderAdapters) && hasWholeSurface]
-                    <> ["noActionFields" | any (\adapter -> isOperationLocal adapter && null adapter.renderableAdapterFields) builderAdapters]
+                    <> [renderer.requestAdapterOperationEmpty | any (\adapter -> isOperationLocal adapter && null adapter.renderableAdapterFields) builderAdapters]
                     <> (if null nonEmptyBuilderAdapters then [] else ["noSurfaceFields"])
                     <> [renderer.requestAdapterBindFields | any (not . isOperationLocal) nonEmptyBuilderAdapters]
-                    <> ["actionFields" | any isOperationLocal nonEmptyBuilderAdapters]
+                    <> [renderer.requestAdapterOperationBind | any isOperationLocal nonEmptyBuilderAdapters]
                     <> ["surfaceField" | any ((== RequiredField) . (.fieldPresence) . (.resolvedAdapterFieldIR)) builderFields]
                     <> ["surfaceNullableField" | any ((== NullableFieldPresence) . (.fieldPresence) . (.resolvedAdapterFieldIR)) builderFields]
                     <> ["surfaceOptionalField" | any ((== OptionalFieldPresence) . (.fieldPresence) . (.resolvedAdapterFieldIR)) builderFields]
@@ -360,12 +427,9 @@ renderRequestImports renderer aliases adapters =
     builderTypes = concatMap (map (.resolvedAdapterFieldType) . (.renderableAdapterFields)) builderAdapters
     needsDay = any sourceTypeContainsDay builderTypes
     needsUuid = any sourceTypeContainsUuid builderTypes
-    localFamilyModules =
-        [ adapter.renderableAdapterHomeFamily.haskellTypeModule
-        | adapter <- adapters
-        , isOperationLocal adapter
-        ]
-    usedAliases = foldr Map.delete aliases localFamilyModules
+    -- Operation-local tokens name their compact owner through the nominal
+    -- family association, so that family import remains required.
+    usedAliases = aliases
     hasGeneratedOperation operation adapter =
         surfaceAdapterOperationIsGenerated (operation (operationsOf adapter))
     conditionalImports True imports = imports
@@ -395,6 +459,9 @@ renderRequestAdapter renderer aliases adapter =
               )
             , ( operations.surfaceAdapterRenderMetadataOperation
               , renderMetadata renderer aliases adapter
+              )
+            , ( operations.surfaceAdapterParamsPresentOperation
+              , renderParamsPresent renderer adapter
               )
             , ( operations.surfaceAdapterRequestParserOperation
               , renderParser renderer aliases adapter
@@ -439,8 +506,8 @@ renderFieldsBuilder renderer aliases adapter = signature <> body
                 ]
                     <> renderAdapterFieldsExpression aliases rest
     operationLocal = isOperationLocalAdapter adapter
-    emptyFieldsBuilder = if operationLocal then "noActionFields" else renderer.requestAdapterEmptyFields
-    bindFieldsBuilder = if operationLocal then "actionFields" else renderer.requestAdapterBindFields
+    emptyFieldsBuilder = if operationLocal then renderer.requestAdapterOperationEmpty else renderer.requestAdapterEmptyFields
+    bindFieldsBuilder = if operationLocal then renderer.requestAdapterOperationBind else renderer.requestAdapterBindFields
 
 renderMetadata ::
     RequestAdapterRenderer kind ->
@@ -463,20 +530,26 @@ renderParser ::
     Map.Map Text Text ->
     RenderableAdapter SurfaceRequestAdapterDeclaration ->
     [Text]
+renderParamsPresent ::
+    RequestAdapterRenderer kind ->
+    RenderableAdapter SurfaceRequestAdapterDeclaration ->
+    [Text]
+renderParamsPresent renderer adapter =
+    [ paramsPresentName renderer adapter <> " ::"
+    , "    (?request :: Request) =>"
+    , "    Bool"
+    , paramsPresentName renderer adapter <> " ="
+    , "    " <> renderer.requestAdapterOperationPresent
+    , "        @" <> operationTokenName renderer adapter
+    ]
+
 renderParser renderer aliases adapter
     | isOperationLocalAdapter adapter =
-        [ paramsPresentName renderer adapter <> " ::"
-        , "    (?request :: Request) =>"
-        , "    Bool"
-        , paramsPresentName renderer adapter <> " ="
-        , "    actionParamsPresent"
-        , "        @" <> operationTokenName renderer adapter
-        , ""
-        , parserName renderer adapter <> " ::"
+        [ parserName renderer adapter <> " ::"
         , "    (?request :: Request) =>"
         , "    Either [SurfaceRequestFieldError] (" <> requestFieldsType renderer aliases adapter <> ")"
         , parserName renderer adapter <> " ="
-        , "    parseActionParams"
+        , "    parse" <> renderer.requestAdapterOperationPrefix <> "Params"
         , "        @" <> operationTokenName renderer adapter
         ]
     | otherwise =
@@ -496,7 +569,7 @@ requestFieldsType ::
     Text
 requestFieldsType renderer aliases adapter
     | isOperationLocalAdapter adapter =
-        "ActionFields " <> operationTokenName renderer adapter
+        renderer.requestAdapterOperationFields <> " " <> operationTokenName renderer adapter
     | otherwise =
         renderer.requestAdapterFieldsType <> " (AdapterFamilySurface "
             <> qualifyHaskellType aliases adapter.renderableAdapterHomeFamily
@@ -511,11 +584,11 @@ renderOperationToken ::
 renderOperationToken renderer aliases adapter =
     [ "data " <> token
     , ""
-    , "type instance ActionSurface " <> token <> " = "
-        <> qualifyHaskellType aliases adapter.renderableAdapterHomeSurface
-    , "type instance ActionMarker " <> token <> " = "
+    , "type instance " <> renderer.requestAdapterOperationSurface <> " " <> token <> " = AdapterSurfaceMarker (AdapterFamilySurface "
+        <> qualifyHaskellType aliases adapter.renderableAdapterHomeFamily <> ")"
+    , "type instance " <> renderer.requestAdapterOperationMarker <> " " <> token <> " = "
         <> qualifyHaskellType aliases adapter.renderableAdapterHomeDeclaration
-    , "type instance ActionFieldSpecs " <> token <> " ="
+    , "type instance " <> renderer.requestAdapterOperationFieldSpecs <> " " <> token <> " ="
     ]
         <> renderPromotedFieldList aliases adapter.renderableAdapterFields
   where
@@ -561,20 +634,35 @@ renderOperationLocalMetadata ::
     RequestAdapterRenderer kind ->
     RenderableAdapter SurfaceRequestAdapterDeclaration ->
     [Text]
-renderOperationLocalMetadata renderer adapter =
-    case adapter.renderableAdapterPayload.surfaceRequestDeclarationAction of
-        Nothing -> error "Operation-local Action adapter is missing checked Action metadata"
-        Just action ->
-            [ evidenceName <> " :: ActionEvidence " <> token
-            , evidenceName <> " ="
-            , "    actionEvidence (" <> renderHtmxActionIR action <> ")"
-            , ""
-            , metadataName renderer adapter <> " :: ActionFields " <> token
-                <> " -> " <> renderer.requestAdapterMetadataResultType
-            , metadataName renderer adapter <> " ="
-            , "    frontendSurfaceActionFromEvidence " <> evidenceName
-            ]
+renderOperationLocalMetadata renderer adapter
+    | renderer.requestAdapterOperationPrefix == "Action" =
+        case payload.surfaceRequestDeclarationAction of
+            Nothing -> error "Operation-local Action adapter is missing checked Action metadata"
+            Just action ->
+                [ evidenceName <> " :: ActionEvidence " <> token
+                , evidenceName <> " ="
+                , "    actionEvidence (" <> renderHtmxActionIR action <> ")"
+                , ""
+                , metadataName renderer adapter <> " :: " <> renderer.requestAdapterOperationFields <> " " <> token
+                    <> " -> " <> renderer.requestAdapterMetadataResultType
+                , metadataName renderer adapter <> " ="
+                , "    frontendSurfaceActionFromEvidence " <> evidenceName
+                ]
+    | otherwise =
+        case payload.surfaceRequestDeclarationIntent of
+            Nothing -> error "Operation-local Intent adapter is missing checked Intent metadata"
+            Just intent ->
+                [ evidenceName <> " :: IntentEvidence " <> token
+                , evidenceName <> " ="
+                , "    intentEvidence (" <> renderIntentIR intent <> ")"
+                , ""
+                , metadataName renderer adapter <> " :: " <> renderer.requestAdapterOperationFields <> " " <> token
+                    <> " -> " <> renderer.requestAdapterMetadataResultType
+                , metadataName renderer adapter <> " ="
+                , "    frontendSurfaceIntentFormFromEvidence " <> evidenceName
+                ]
   where
+    payload = adapter.renderableAdapterPayload
     token = operationTokenName renderer adapter
     evidenceName = baseName renderer adapter <> "Evidence"
 
@@ -584,7 +672,15 @@ renderHtmxActionIR action =
         <> renderTextLiteral action.htmxActionMarker <> " "
         <> renderTextLiteral action.htmxActionName <> " "
         <> renderList renderFieldIR action.htmxActionFields <> " "
-        <> renderList renderActionOptionIR action.htmxActionOptions
+        <> renderList renderHtmxActionOptionIR (optionHtmxActionOptions action.htmxActionOptions)
+
+renderIntentIR :: IntentIR -> Text
+renderIntentIR intent =
+    "SurfaceIR.IntentIR "
+        <> renderTextLiteral intent.intentMarker <> " "
+        <> renderTextLiteral intent.intentName <> " "
+        <> renderList renderFieldIR intent.intentFields <> " "
+        <> renderList renderHtmxActionOptionIR (optionHtmxActionOptions intent.intentOptions)
 
 renderFieldIR :: FieldIR -> Text
 renderFieldIR field =
@@ -619,10 +715,9 @@ renderFieldPresence = \case
     OptionalFieldPresence -> "SurfaceIR.OptionalFieldPresence"
     NullableFieldPresence -> "SurfaceIR.NullableFieldPresence"
 
-renderActionOptionIR :: OptionIR -> Text
-renderActionOptionIR = \case
-    HtmxOption option -> "SurfaceIR.HtmxOption (" <> renderHtmxOptionIR option <> ")"
-    unsupported -> error ("Operation-local Action metadata contains unsupported non-HTMX option " <> show unsupported)
+renderHtmxActionOptionIR :: HtmxActionOptionIR -> Text
+renderHtmxActionOptionIR option =
+    "SurfaceIR.HtmxOption (" <> renderHtmxOptionIR option <> ")"
 
 renderHtmxOptionIR :: HtmxActionOptionIR -> Text
 renderHtmxOptionIR = \case
@@ -696,15 +791,20 @@ renderActionAuthorityProofModules ::
 renderActionAuthorityProofModules inventory =
     inventory
         |> filter ((== OperationLocalRequestEvidence) . (.checkedSurfaceRequestAdapterEvidenceMode))
-        |> List.sortOn (proofOutputModule . (.checkedSurfaceRequestAdapter))
+        |> List.sortOn (proofGroupKey . (.checkedSurfaceRequestAdapter))
         |> List.groupBy
             (\left right ->
-                proofOutputModule left.checkedSurfaceRequestAdapter
-                    == proofOutputModule right.checkedSurfaceRequestAdapter
+                proofGroupKey left.checkedSurfaceRequestAdapter
+                    == proofGroupKey right.checkedSurfaceRequestAdapter
             )
         |> map renderActionAuthorityProofModule
   where
     proofOutputModule = (.resolvedAdapterOutputModule)
+    proofGroupKey adapter =
+        ( proofOutputModule adapter
+        , adapter.resolvedAdapterHome.adapterHomeSurface.haskellTypeModule
+        , adapter.resolvedAdapterHome.adapterHomeSurface.haskellTypeName
+        )
 
 renderActionAuthorityProofModule ::
     [CheckedSurfaceRequestAdapterRegistration 'ActionAdapterKind HtmxActionIR] ->
@@ -722,7 +822,7 @@ renderActionAuthorityProofModule registrations@(first : _) =
     aliases = sourceModuleAliases renderableAdapters
     firstAdapter = first.checkedSurfaceRequestAdapter
     generatedModuleName = firstAdapter.resolvedAdapterOutputModule
-    proofModuleName = generatedModuleName <> "AuthorityProof"
+    proofModuleName = generatedModuleName <> "AuthorityProof" <> firstAdapter.resolvedAdapterHome.adapterHomeSurface.haskellTypeName
     familyType = qualifyHaskellType aliases firstAdapter.resolvedAdapterHome.adapterHomeFamily
     operationTypes = zipWith proofOperationType registrations renderableAdapters
     excludedDeclarations =
@@ -772,6 +872,97 @@ renderActionAuthorityProofModule registrations@(first : _) =
             <> [ "        )"
                , "rosterActionAuthority = AuthorityDict"
                ]
+
+renderIntentAuthorityProofModules ::
+    [CheckedSurfaceRequestAdapterRegistration 'IntentAdapterKind IntentIR] ->
+    [GeneratedHaskellModule]
+renderIntentAuthorityProofModules inventory =
+    inventory
+        |> filter ((== OperationLocalRequestEvidence) . (.checkedSurfaceRequestAdapterEvidenceMode))
+        |> List.sortOn (intentProofGroupKey . (.checkedSurfaceRequestAdapter))
+        |> List.groupBy
+            (\left right ->
+                intentProofGroupKey left.checkedSurfaceRequestAdapter
+                    == intentProofGroupKey right.checkedSurfaceRequestAdapter
+            )
+        |> map renderIntentAuthorityProofModule
+  where
+    intentProofGroupKey adapter =
+        ( adapter.resolvedAdapterOutputModule
+        , adapter.resolvedAdapterHome.adapterHomeSurface.haskellTypeModule
+        , adapter.resolvedAdapterHome.adapterHomeSurface.haskellTypeName
+        )
+
+renderIntentAuthorityProofModule ::
+    [CheckedSurfaceRequestAdapterRegistration 'IntentAdapterKind IntentIR] ->
+    GeneratedHaskellModule
+renderIntentAuthorityProofModule [] = GeneratedHaskellModule "" "" ""
+renderIntentAuthorityProofModule registrations@(first : _) =
+    GeneratedHaskellModule
+        { generatedModuleName = proofModuleName
+        , generatedModulePath = cs (Text.replace "." "/" proofModuleName <> ".hs")
+        , generatedModuleSource = Text.unlines sourceLines
+        }
+  where
+    adapters = map (.checkedSurfaceRequestAdapter) registrations
+    renderableAdapters = map (toRenderableAdapter (const ())) adapters
+    aliases = sourceModuleAliases renderableAdapters
+    firstAdapter = first.checkedSurfaceRequestAdapter
+    generatedModuleName = firstAdapter.resolvedAdapterOutputModule
+    proofModuleName = generatedModuleName <> "AuthorityProof" <> firstAdapter.resolvedAdapterHome.adapterHomeSurface.haskellTypeName
+    familyType = qualifyHaskellType aliases firstAdapter.resolvedAdapterHome.adapterHomeFamily
+    operationTypes = zipWith intentProofOperationType registrations renderableAdapters
+    sourceLines =
+        [ "{-# LANGUAGE ConstraintKinds #-}"
+        , "{-# LANGUAGE DataKinds       #-}"
+        , "{-# LANGUAGE GADTs           #-}"
+        , "{-# LANGUAGE TypeFamilies    #-}"
+        , "{-# LANGUAGE TypeOperators   #-}"
+        , ""
+        , "-- @generated verification-only authority proof; never publish into app-lib."
+        , "module " <> proofModuleName <> " () where"
+        , ""
+        ]
+            <> renderImportList
+                "Application.Helper.FrontendContract.Surface.HaskellAdapter.Association"
+                ["AdapterFamilySurface"]
+            <> renderImportList
+                "Application.Helper.FrontendContract.Surface.Values"
+                ["AssertIntentAuthority"]
+            <> [ "import qualified " <> generatedModuleName <> " as Generated"
+               , "import Data.Kind (Constraint)"
+               , "import IHP.Prelude"
+               ]
+            <> [ "import qualified " <> sourceModule <> " as " <> alias
+               | (sourceModule, alias) <- Map.toAscList aliases
+               ]
+            <> [ ""
+               , "data AuthorityDict (constraint :: Constraint) where"
+               , "    AuthorityDict :: constraint => AuthorityDict constraint"
+               , ""
+               , "intentAuthority ::"
+               , "    AuthorityDict"
+               , "        (AssertIntentAuthority"
+               , "            (AdapterFamilySurface " <> familyType <> ")"
+               ]
+            <> renderPromotedTypeList operationTypes
+            <> [ "        )"
+               , "intentAuthority = AuthorityDict"
+               ]
+
+intentProofOperationType ::
+    CheckedSurfaceRequestAdapterRegistration 'IntentAdapterKind IntentIR ->
+    RenderableAdapter () ->
+    Text
+intentProofOperationType registration adapter =
+    if isJust registration.checkedSurfaceRequestAdapterOperations
+        then "Generated." <> proofIntentOperationTokenName adapter
+        else error "Operation-local Intent proof cannot omit a generated Intent declaration"
+
+proofIntentOperationTokenName :: RenderableAdapter payload -> Text
+proofIntentOperationTokenName adapter =
+    upperFirst (requestBaseName "intent" adapter.renderableAdapterHomeDeclaration.haskellTypeName)
+        <> "Operation"
 
 proofOperationType ::
     CheckedSurfaceRequestAdapterRegistration 'ActionAdapterKind HtmxActionIR ->

@@ -926,6 +926,7 @@ allFixtureRequestAdapterOperations =
         { surfaceAdapterFieldsBuilderOperation = GenerateSurfaceAdapterOperation
         , surfaceAdapterRenderMetadataOperation = GenerateSurfaceAdapterOperation
         , surfaceAdapterRequestParserOperation = GenerateSurfaceAdapterOperation
+        , surfaceAdapterParamsPresentOperation = ExcludeSurfaceAdapterOperation "No envelope-presence consumer in this fixture"
         }
 
 fixtureContract :: SurfaceContractIR

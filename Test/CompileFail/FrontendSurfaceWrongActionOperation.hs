@@ -9,8 +9,5 @@ wrongActionOperation =
     TimesheetsAction.approveTimesheetEntryAction
         ( TimesheetsAction.navigateTimesheetWeekActionFields
             0
-            False
-            True
-            True
             Nothing
         )

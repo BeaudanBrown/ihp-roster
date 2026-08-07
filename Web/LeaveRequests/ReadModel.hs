@@ -21,8 +21,7 @@ import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Su
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Action as LeaveRequestsAction
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Live (leaveRequestsLiveScope)
 import Application.Helper.FrontendContract.Surface.Live (SurfaceScope)
-import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
-                                                            surfaceActionParamsPresent)
+import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError)
 import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.Profiling
@@ -209,7 +208,7 @@ currentLeaveArchivePage =
 
 currentLeaveArchivePageResult :: (?request :: Request) => Either [SurfaceRequestFieldError] Int
 currentLeaveArchivePageResult
-    | not (surfaceActionParamsPresent @Surface.LeaveRequestsSurface @Surface.ArchiveLeaveRequestsPage) = Right 1
+    | not (LeaveRequestsAction.archiveLeaveRequestsPageActionParamsPresent) = Right 1
     | otherwise = max 1 . surfaceFieldValue @Surface.ArchivePage <$> LeaveRequestsAction.parseArchiveLeaveRequestsPageActionParams
 
 currentLeaveArchiveOpen :: (?request :: Request) => Bool

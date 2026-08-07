@@ -60,7 +60,10 @@ stageGeneratedProofModules ::
 stageGeneratedProofModules outputRoot contract registry =
     stageGeneratedModuleSet
         outputRoot
-        (generateSurfaceActionAuthorityProofModules contract registry)
+        ( (<>)
+            <$> generateSurfaceActionAuthorityProofModules contract registry
+            <*> generateSurfaceIntentAuthorityProofModules contract registry
+        )
 
 -- | Publication barrier for the complete all-kind managed set. A focused-lane
 -- failure is returned before the output directory is created or any existing

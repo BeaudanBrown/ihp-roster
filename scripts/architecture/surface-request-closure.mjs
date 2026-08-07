@@ -35,15 +35,14 @@ const closureContracts = [
     label: "Surface.Roster.Action",
     root: "Application.Helper.FrontendContract.Surface.Roster.Action",
     expected: [
-      ...sharedRequestRuntimeClosure.filter(
-        (name) => name !== "Application.Helper.FrontendContract.Surface.HaskellAdapter.Association",
-      ),
+      ...sharedRequestRuntimeClosure,
       "Application.Helper.FrontendContract.Surface.Interaction",
       "Application.Helper.FrontendContract.Surface.LeaveRequests",
       "Application.Helper.FrontendContract.Surface.Request.Runtime.Internal",
       "Application.Helper.FrontendContract.Surface.Roster",
       "Application.Helper.FrontendContract.Surface.Roster.Action",
       "Application.Helper.FrontendContract.Surface.Roster.Generated.Action",
+      "Application.Helper.FrontendContract.Surface.Roster.HaskellAdapter",
       "Application.Helper.FrontendContract.Surface.SelfServiceLeave",
     ],
   },

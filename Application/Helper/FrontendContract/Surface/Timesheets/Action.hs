@@ -1,5 +1,7 @@
 module Application.Helper.FrontendContract.Surface.Timesheets.Action
-    ( approveTimesheetEntryAction
+    ( NavigateTimesheetWeekActionOperation
+    , UpdateTimesheetFiltersActionOperation
+    , approveTimesheetEntryAction
     , approveTimesheetEntryActionFields
     , createTimesheetEntryFromSuggestionAction
     , createTimesheetEntryFromSuggestionActionFields
@@ -20,7 +22,9 @@ module Application.Helper.FrontendContract.Surface.Timesheets.Action
     , updateTimesheetFiltersActionFields
     ) where
 
-import Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action (approveTimesheetEntryAction,
+import Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action (NavigateTimesheetWeekActionOperation,
+                                                                                UpdateTimesheetFiltersActionOperation,
+                                                                                approveTimesheetEntryAction,
                                                                                 approveTimesheetEntryActionFields,
                                                                                 createTimesheetEntryFromSuggestionAction,
                                                                                 createTimesheetEntryFromSuggestionActionFields,

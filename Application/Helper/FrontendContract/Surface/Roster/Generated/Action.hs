@@ -29,13 +29,10 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , addRosterRowActionFields
     , applyRosterTemplateApplicationAction
     , applyRosterTemplateApplicationActionFields
-    , applyRosterTemplateApplicationActionParamsPresent
     , copyRosterWeekAction
     , copyRosterWeekActionFields
-    , copyRosterWeekActionParamsPresent
     , createRosterNotificationRunAction
     , createRosterNotificationRunActionFields
-    , createRosterNotificationRunActionParamsPresent
     , createRosterWeekSlotDefinitionAction
     , createRosterWeekSlotDefinitionActionFields
     , deleteRosterWeekSlotDefinitionAction
@@ -57,39 +54,34 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , parseToggleRosterWeekLiveStatusActionParams
     , previewRosterTemplateApplicationAction
     , previewRosterTemplateApplicationActionFields
-    , previewRosterTemplateApplicationActionParamsPresent
     , removeRosterRowAction
     , removeRosterRowActionFields
     , showRosterNotificationConfirmationAction
     , showRosterNotificationConfirmationActionFields
-    , showRosterNotificationConfirmationActionParamsPresent
     , sortRosterWeekAction
     , sortRosterWeekActionFields
     , toggleRosterAssignmentFiltersAction
     , toggleRosterAssignmentFiltersActionFields
-    , toggleRosterAssignmentFiltersActionParamsPresent
     , toggleRosterDayClosedAction
     , toggleRosterDayClosedActionFields
     , toggleRosterOwnLiveShiftHighlightAction
     , toggleRosterOwnLiveShiftHighlightActionFields
-    , toggleRosterOwnLiveShiftHighlightActionParamsPresent
     , toggleRosterStaffScopeAction
     , toggleRosterStaffScopeActionFields
     , toggleRosterStaffScopeActionParamsPresent
     , toggleRosterWageEstimatesAction
     , toggleRosterWageEstimatesActionFields
-    , toggleRosterWageEstimatesActionParamsPresent
     , toggleRosterWarningsAction
     , toggleRosterWarningsActionFields
-    , toggleRosterWarningsActionParamsPresent
     , toggleRosterWeekLiveStatusAction
     , toggleRosterWeekLiveStatusActionFields
-    , toggleRosterWeekLiveStatusActionParamsPresent
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.DSL (FieldSpec (..),
                                                         WireType (..))
+import Application.Helper.FrontendContract.Surface.HaskellAdapter.Association (AdapterFamilySurface,
+                                                                               AdapterSurfaceMarker)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as Types1
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
                                                             actionParamsPresent,
@@ -99,6 +91,7 @@ import Application.Helper.FrontendContract.Surface.Request.Runtime.Internal (Act
                                                                              actionEvidence,
                                                                              frontendSurfaceActionFromEvidence)
 import qualified Application.Helper.FrontendContract.Surface.Roster as Types2
+import qualified Application.Helper.FrontendContract.Surface.Roster.HaskellAdapter as Types3
 import Application.Helper.FrontendContract.Surface.Values (ActionFieldSpecs,
                                                            ActionFields,
                                                            ActionMarker,
@@ -115,7 +108,7 @@ import Network.Wai (Request)
 
 data AddRosterRowActionOperation
 
-type instance ActionSurface AddRosterRowActionOperation = Types2.Roster
+type instance ActionSurface AddRosterRowActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker AddRosterRowActionOperation = Types2.AddRosterRow
 type instance ActionFieldSpecs AddRosterRowActionOperation =
     '[]
@@ -134,7 +127,7 @@ addRosterRowAction =
 
 data ApplyRosterTemplateApplicationActionOperation
 
-type instance ActionSurface ApplyRosterTemplateApplicationActionOperation = Types2.Roster
+type instance ActionSurface ApplyRosterTemplateApplicationActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker ApplyRosterTemplateApplicationActionOperation = Types2.ApplyRosterTemplateApplication
 type instance ActionFieldSpecs ApplyRosterTemplateApplicationActionOperation =
     '[ 'Field Types2.TemplateId 'WireUUID
@@ -166,13 +159,6 @@ applyRosterTemplateApplicationAction :: ActionFields ApplyRosterTemplateApplicat
 applyRosterTemplateApplicationAction =
     frontendSurfaceActionFromEvidence applyRosterTemplateApplicationActionEvidence
 
-applyRosterTemplateApplicationActionParamsPresent ::
-    (?request :: Request) =>
-    Bool
-applyRosterTemplateApplicationActionParamsPresent =
-    actionParamsPresent
-        @ApplyRosterTemplateApplicationActionOperation
-
 parseApplyRosterTemplateApplicationActionParams ::
     (?request :: Request) =>
     Either [SurfaceRequestFieldError] (ActionFields ApplyRosterTemplateApplicationActionOperation)
@@ -182,7 +168,7 @@ parseApplyRosterTemplateApplicationActionParams =
 
 data CopyRosterWeekActionOperation
 
-type instance ActionSurface CopyRosterWeekActionOperation = Types2.Roster
+type instance ActionSurface CopyRosterWeekActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker CopyRosterWeekActionOperation = Types2.CopyRosterWeek
 type instance ActionFieldSpecs CopyRosterWeekActionOperation =
     '[ 'OptionalField Types2.CopyStartOccurrence 'WireText
@@ -208,13 +194,6 @@ copyRosterWeekAction :: ActionFields CopyRosterWeekActionOperation -> FrontendSu
 copyRosterWeekAction =
     frontendSurfaceActionFromEvidence copyRosterWeekActionEvidence
 
-copyRosterWeekActionParamsPresent ::
-    (?request :: Request) =>
-    Bool
-copyRosterWeekActionParamsPresent =
-    actionParamsPresent
-        @CopyRosterWeekActionOperation
-
 parseCopyRosterWeekActionParams ::
     (?request :: Request) =>
     Either [SurfaceRequestFieldError] (ActionFields CopyRosterWeekActionOperation)
@@ -224,7 +203,7 @@ parseCopyRosterWeekActionParams =
 
 data CreateRosterNotificationRunActionOperation
 
-type instance ActionSurface CreateRosterNotificationRunActionOperation = Types2.Roster
+type instance ActionSurface CreateRosterNotificationRunActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker CreateRosterNotificationRunActionOperation = Types2.CreateRosterNotificationRun
 type instance ActionFieldSpecs CreateRosterNotificationRunActionOperation =
     '[ 'Field Types2.NotificationRosterWeekId 'WireUUID
@@ -246,13 +225,6 @@ createRosterNotificationRunAction :: ActionFields CreateRosterNotificationRunAct
 createRosterNotificationRunAction =
     frontendSurfaceActionFromEvidence createRosterNotificationRunActionEvidence
 
-createRosterNotificationRunActionParamsPresent ::
-    (?request :: Request) =>
-    Bool
-createRosterNotificationRunActionParamsPresent =
-    actionParamsPresent
-        @CreateRosterNotificationRunActionOperation
-
 parseCreateRosterNotificationRunActionParams ::
     (?request :: Request) =>
     Either [SurfaceRequestFieldError] (ActionFields CreateRosterNotificationRunActionOperation)
@@ -262,7 +234,7 @@ parseCreateRosterNotificationRunActionParams =
 
 data CreateRosterWeekSlotDefinitionActionOperation
 
-type instance ActionSurface CreateRosterWeekSlotDefinitionActionOperation = Types2.Roster
+type instance ActionSurface CreateRosterWeekSlotDefinitionActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker CreateRosterWeekSlotDefinitionActionOperation = Types2.CreateRosterWeekSlotDefinition
 type instance ActionFieldSpecs CreateRosterWeekSlotDefinitionActionOperation =
     '[]
@@ -281,7 +253,7 @@ createRosterWeekSlotDefinitionAction =
 
 data DeleteRosterWeekSlotDefinitionActionOperation
 
-type instance ActionSurface DeleteRosterWeekSlotDefinitionActionOperation = Types2.Roster
+type instance ActionSurface DeleteRosterWeekSlotDefinitionActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker DeleteRosterWeekSlotDefinitionActionOperation = Types2.DeleteRosterWeekSlotDefinition
 type instance ActionFieldSpecs DeleteRosterWeekSlotDefinitionActionOperation =
     '[]
@@ -300,7 +272,7 @@ deleteRosterWeekSlotDefinitionAction =
 
 data NavigateRosterWeekActionOperation
 
-type instance ActionSurface NavigateRosterWeekActionOperation = Types2.Roster
+type instance ActionSurface NavigateRosterWeekActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker NavigateRosterWeekActionOperation = Types2.NavigateRosterWeek
 type instance ActionFieldSpecs NavigateRosterWeekActionOperation =
     '[ 'Field Types2.WeekOffset 'WireInt
@@ -342,7 +314,7 @@ parseNavigateRosterWeekActionParams =
 
 data PreviewRosterTemplateApplicationActionOperation
 
-type instance ActionSurface PreviewRosterTemplateApplicationActionOperation = Types2.Roster
+type instance ActionSurface PreviewRosterTemplateApplicationActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker PreviewRosterTemplateApplicationActionOperation = Types2.PreviewRosterTemplateApplication
 type instance ActionFieldSpecs PreviewRosterTemplateApplicationActionOperation =
     '[ 'Field Types1.SourceItemKey 'WireText
@@ -395,13 +367,6 @@ previewRosterTemplateApplicationAction :: ActionFields PreviewRosterTemplateAppl
 previewRosterTemplateApplicationAction =
     frontendSurfaceActionFromEvidence previewRosterTemplateApplicationActionEvidence
 
-previewRosterTemplateApplicationActionParamsPresent ::
-    (?request :: Request) =>
-    Bool
-previewRosterTemplateApplicationActionParamsPresent =
-    actionParamsPresent
-        @PreviewRosterTemplateApplicationActionOperation
-
 parsePreviewRosterTemplateApplicationActionParams ::
     (?request :: Request) =>
     Either [SurfaceRequestFieldError] (ActionFields PreviewRosterTemplateApplicationActionOperation)
@@ -411,7 +376,7 @@ parsePreviewRosterTemplateApplicationActionParams =
 
 data RemoveRosterRowActionOperation
 
-type instance ActionSurface RemoveRosterRowActionOperation = Types2.Roster
+type instance ActionSurface RemoveRosterRowActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker RemoveRosterRowActionOperation = Types2.RemoveRosterRow
 type instance ActionFieldSpecs RemoveRosterRowActionOperation =
     '[]
@@ -430,7 +395,7 @@ removeRosterRowAction =
 
 data ShowRosterNotificationConfirmationActionOperation
 
-type instance ActionSurface ShowRosterNotificationConfirmationActionOperation = Types2.Roster
+type instance ActionSurface ShowRosterNotificationConfirmationActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker ShowRosterNotificationConfirmationActionOperation = Types2.ShowRosterNotificationConfirmation
 type instance ActionFieldSpecs ShowRosterNotificationConfirmationActionOperation =
     '[ 'Field Types2.NotificationRosterWeekId 'WireUUID
@@ -452,13 +417,6 @@ showRosterNotificationConfirmationAction :: ActionFields ShowRosterNotificationC
 showRosterNotificationConfirmationAction =
     frontendSurfaceActionFromEvidence showRosterNotificationConfirmationActionEvidence
 
-showRosterNotificationConfirmationActionParamsPresent ::
-    (?request :: Request) =>
-    Bool
-showRosterNotificationConfirmationActionParamsPresent =
-    actionParamsPresent
-        @ShowRosterNotificationConfirmationActionOperation
-
 parseShowRosterNotificationConfirmationActionParams ::
     (?request :: Request) =>
     Either [SurfaceRequestFieldError] (ActionFields ShowRosterNotificationConfirmationActionOperation)
@@ -468,7 +426,7 @@ parseShowRosterNotificationConfirmationActionParams =
 
 data SortRosterWeekActionOperation
 
-type instance ActionSurface SortRosterWeekActionOperation = Types2.Roster
+type instance ActionSurface SortRosterWeekActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker SortRosterWeekActionOperation = Types2.SortRosterWeek
 type instance ActionFieldSpecs SortRosterWeekActionOperation =
     '[]
@@ -487,7 +445,7 @@ sortRosterWeekAction =
 
 data ToggleRosterAssignmentFiltersActionOperation
 
-type instance ActionSurface ToggleRosterAssignmentFiltersActionOperation = Types2.Roster
+type instance ActionSurface ToggleRosterAssignmentFiltersActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker ToggleRosterAssignmentFiltersActionOperation = Types2.ToggleRosterAssignmentFilters
 type instance ActionFieldSpecs ToggleRosterAssignmentFiltersActionOperation =
     '[ 'Field Types2.HideStaffAtIdealShifts 'WireBool
@@ -519,13 +477,6 @@ toggleRosterAssignmentFiltersAction :: ActionFields ToggleRosterAssignmentFilter
 toggleRosterAssignmentFiltersAction =
     frontendSurfaceActionFromEvidence toggleRosterAssignmentFiltersActionEvidence
 
-toggleRosterAssignmentFiltersActionParamsPresent ::
-    (?request :: Request) =>
-    Bool
-toggleRosterAssignmentFiltersActionParamsPresent =
-    actionParamsPresent
-        @ToggleRosterAssignmentFiltersActionOperation
-
 parseToggleRosterAssignmentFiltersActionParams ::
     (?request :: Request) =>
     Either [SurfaceRequestFieldError] (ActionFields ToggleRosterAssignmentFiltersActionOperation)
@@ -535,7 +486,7 @@ parseToggleRosterAssignmentFiltersActionParams =
 
 data ToggleRosterDayClosedActionOperation
 
-type instance ActionSurface ToggleRosterDayClosedActionOperation = Types2.Roster
+type instance ActionSurface ToggleRosterDayClosedActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker ToggleRosterDayClosedActionOperation = Types2.ToggleRosterDayClosed
 type instance ActionFieldSpecs ToggleRosterDayClosedActionOperation =
     '[]
@@ -554,7 +505,7 @@ toggleRosterDayClosedAction =
 
 data ToggleRosterOwnLiveShiftHighlightActionOperation
 
-type instance ActionSurface ToggleRosterOwnLiveShiftHighlightActionOperation = Types2.Roster
+type instance ActionSurface ToggleRosterOwnLiveShiftHighlightActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker ToggleRosterOwnLiveShiftHighlightActionOperation = Types2.ToggleRosterOwnLiveShiftHighlight
 type instance ActionFieldSpecs ToggleRosterOwnLiveShiftHighlightActionOperation =
     '[ 'Field Types2.HighlightOwnLiveShifts 'WireBool
@@ -576,13 +527,6 @@ toggleRosterOwnLiveShiftHighlightAction :: ActionFields ToggleRosterOwnLiveShift
 toggleRosterOwnLiveShiftHighlightAction =
     frontendSurfaceActionFromEvidence toggleRosterOwnLiveShiftHighlightActionEvidence
 
-toggleRosterOwnLiveShiftHighlightActionParamsPresent ::
-    (?request :: Request) =>
-    Bool
-toggleRosterOwnLiveShiftHighlightActionParamsPresent =
-    actionParamsPresent
-        @ToggleRosterOwnLiveShiftHighlightActionOperation
-
 parseToggleRosterOwnLiveShiftHighlightActionParams ::
     (?request :: Request) =>
     Either [SurfaceRequestFieldError] (ActionFields ToggleRosterOwnLiveShiftHighlightActionOperation)
@@ -592,7 +536,7 @@ parseToggleRosterOwnLiveShiftHighlightActionParams =
 
 data ToggleRosterStaffScopeActionOperation
 
-type instance ActionSurface ToggleRosterStaffScopeActionOperation = Types2.Roster
+type instance ActionSurface ToggleRosterStaffScopeActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker ToggleRosterStaffScopeActionOperation = Types2.ToggleRosterStaffScope
 type instance ActionFieldSpecs ToggleRosterStaffScopeActionOperation =
     '[ 'Field Types2.StaffScope ('WireClosed Types2.RosterStaffScopeValue)
@@ -630,7 +574,7 @@ parseToggleRosterStaffScopeActionParams =
 
 data ToggleRosterWageEstimatesActionOperation
 
-type instance ActionSurface ToggleRosterWageEstimatesActionOperation = Types2.Roster
+type instance ActionSurface ToggleRosterWageEstimatesActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker ToggleRosterWageEstimatesActionOperation = Types2.ToggleRosterWageEstimates
 type instance ActionFieldSpecs ToggleRosterWageEstimatesActionOperation =
     '[ 'Field Types2.ShowWageEstimates 'WireBool
@@ -652,13 +596,6 @@ toggleRosterWageEstimatesAction :: ActionFields ToggleRosterWageEstimatesActionO
 toggleRosterWageEstimatesAction =
     frontendSurfaceActionFromEvidence toggleRosterWageEstimatesActionEvidence
 
-toggleRosterWageEstimatesActionParamsPresent ::
-    (?request :: Request) =>
-    Bool
-toggleRosterWageEstimatesActionParamsPresent =
-    actionParamsPresent
-        @ToggleRosterWageEstimatesActionOperation
-
 parseToggleRosterWageEstimatesActionParams ::
     (?request :: Request) =>
     Either [SurfaceRequestFieldError] (ActionFields ToggleRosterWageEstimatesActionOperation)
@@ -668,7 +605,7 @@ parseToggleRosterWageEstimatesActionParams =
 
 data ToggleRosterWarningsActionOperation
 
-type instance ActionSurface ToggleRosterWarningsActionOperation = Types2.Roster
+type instance ActionSurface ToggleRosterWarningsActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker ToggleRosterWarningsActionOperation = Types2.ToggleRosterWarnings
 type instance ActionFieldSpecs ToggleRosterWarningsActionOperation =
     '[ 'Field Types2.ShowRosterWarnings 'WireBool
@@ -690,13 +627,6 @@ toggleRosterWarningsAction :: ActionFields ToggleRosterWarningsActionOperation -
 toggleRosterWarningsAction =
     frontendSurfaceActionFromEvidence toggleRosterWarningsActionEvidence
 
-toggleRosterWarningsActionParamsPresent ::
-    (?request :: Request) =>
-    Bool
-toggleRosterWarningsActionParamsPresent =
-    actionParamsPresent
-        @ToggleRosterWarningsActionOperation
-
 parseToggleRosterWarningsActionParams ::
     (?request :: Request) =>
     Either [SurfaceRequestFieldError] (ActionFields ToggleRosterWarningsActionOperation)
@@ -706,7 +636,7 @@ parseToggleRosterWarningsActionParams =
 
 data ToggleRosterWeekLiveStatusActionOperation
 
-type instance ActionSurface ToggleRosterWeekLiveStatusActionOperation = Types2.Roster
+type instance ActionSurface ToggleRosterWeekLiveStatusActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker ToggleRosterWeekLiveStatusActionOperation = Types2.ToggleRosterWeekLiveStatus
 type instance ActionFieldSpecs ToggleRosterWeekLiveStatusActionOperation =
     '[ 'Field Types2.IsLive 'WireBool
@@ -727,13 +657,6 @@ toggleRosterWeekLiveStatusActionEvidence =
 toggleRosterWeekLiveStatusAction :: ActionFields ToggleRosterWeekLiveStatusActionOperation -> FrontendSurfaceAction
 toggleRosterWeekLiveStatusAction =
     frontendSurfaceActionFromEvidence toggleRosterWeekLiveStatusActionEvidence
-
-toggleRosterWeekLiveStatusActionParamsPresent ::
-    (?request :: Request) =>
-    Bool
-toggleRosterWeekLiveStatusActionParamsPresent =
-    actionParamsPresent
-        @ToggleRosterWeekLiveStatusActionOperation
 
 parseToggleRosterWeekLiveStatusActionParams ::
     (?request :: Request) =>

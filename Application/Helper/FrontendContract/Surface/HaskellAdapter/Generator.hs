@@ -12,6 +12,7 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Generator
     , generateSurfaceActionAuthorityProofModules
     , generateSurfaceAdapterModules
     , generateSurfaceIntentAdapterModules
+    , generateSurfaceIntentAuthorityProofModules
     , generateSurfaceLiveAdapterModules
     , generateSurfaceResourceAdapterModules
     ) where
@@ -23,7 +24,8 @@ import Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Live (generateSurfaceLiveAdapterModules)
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Request (generateSurfaceActionAdapterModules,
                                                                            generateSurfaceActionAuthorityProofModules,
-                                                                           generateSurfaceIntentAdapterModules)
+                                                                           generateSurfaceIntentAdapterModules,
+                                                                           generateSurfaceIntentAuthorityProofModules)
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Resource (generateSurfaceResourceAdapterModules)
 import Data.Either (lefts)
 import qualified Data.List as List

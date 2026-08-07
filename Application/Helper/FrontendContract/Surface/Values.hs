@@ -19,6 +19,11 @@ module Application.Helper.FrontendContract.Surface.Values
     , ActionMarker
     , ActionSurface
     , AssertActionAuthority
+    , IntentFieldSpecs
+    , IntentFields
+    , IntentMarker
+    , IntentSurface
+    , AssertIntentAuthority
     , AssertBrowserReachableSurfaceDto
     , FindMountTarget
     , KnownMountTarget
@@ -71,6 +76,8 @@ module Application.Helper.FrontendContract.Surface.Values
     , SurfaceSourceRefPrimitive
     , SurfaceWireValue
     , actionFields
+    , intentFields
+    , noIntentFields
     , declaredRequestFields
     , noActionFields
     , noDeclaredRequestFields
@@ -119,7 +126,7 @@ import Application.Helper.FrontendContract.ClosedScalar (KnownClosedScalar,
                                                          closedScalarLiteral,
                                                          parseClosedScalarLiteral)
 import qualified Application.Helper.FrontendContract.Naming as Naming
-import Application.Helper.FrontendContract.Surface.ContractIR
+import Application.Helper.FrontendContract.Surface.ContractIR hiding (intentFields)
 import Application.Helper.FrontendContract.Surface.Diagnostics
 import Application.Helper.FrontendContract.Surface.DSL
 import Application.Helper.FrontendContract.Surface.Reflect
@@ -223,6 +230,14 @@ type family ActionMarker (operation :: Type) :: Type
 
 type family ActionFieldSpecs (operation :: Type) :: [FieldSpec]
 
+-- | Compact generated Intent identity. This is deliberately distinct from the
+-- Action lane even when declarations share marker names and field shapes.
+type family IntentSurface (operation :: Type) :: Type
+
+type family IntentMarker (operation :: Type) :: Type
+
+type family IntentFieldSpecs (operation :: Type) :: [FieldSpec]
+
 -- | Verification-only whole-Surface equality. Generated proof modules reduce
 -- this family outside installed application interfaces; feature callers never
 -- need the complete Surface to construct or consume one operation.
@@ -250,10 +265,39 @@ type family OperationActionEntries
         '(ActionSurface operation, ActionMarker operation, ActionFieldSpecs operation)
             ': OperationActionEntries rest
 
+type AssertIntentAuthority surface operations =
+    (CanonicalIntentEntries surface ~ OperationIntentEntries operations)
+
+type family CanonicalIntentEntries
+    (surface :: SurfaceSpec) :: [(Type, Type, [FieldSpec])] where
+    CanonicalIntentEntries ('Surface owner primitives) =
+        CanonicalIntentPrimitiveEntries owner primitives
+
+type family CanonicalIntentPrimitiveEntries
+    (owner :: Type)
+    (primitives :: [SurfacePrimitive]) :: [(Type, Type, [FieldSpec])] where
+    CanonicalIntentPrimitiveEntries owner '[] = '[]
+    CanonicalIntentPrimitiveEntries owner (('Intent marker fields options) ': rest) =
+        '(owner, marker, fields) ': CanonicalIntentPrimitiveEntries owner rest
+    CanonicalIntentPrimitiveEntries owner (primitive ': rest) =
+        CanonicalIntentPrimitiveEntries owner rest
+
+type family OperationIntentEntries
+    (operations :: [Type]) :: [(Type, Type, [FieldSpec])] where
+    OperationIntentEntries '[] = '[]
+    OperationIntentEntries (operation ': rest) =
+        '(IntentSurface operation, IntentMarker operation, IntentFieldSpecs operation)
+            ': OperationIntentEntries rest
+
 newtype ActionFields (operation :: Type) =
     ActionFields (BoundSurfaceFields (ActionFieldSpecs operation))
 
 type role ActionFields nominal
+
+newtype IntentFields (operation :: Type) =
+    IntentFields (BoundSurfaceFields (IntentFieldSpecs operation))
+
+type role IntentFields nominal
 
 newtype SurfaceActionFields (spec :: SurfaceSpec) (marker :: Type) =
     SurfaceActionFields (BoundSurfaceFields (SurfaceActionFieldSpecs spec marker))
@@ -269,6 +313,7 @@ type family SurfaceFieldBundleSpecs (bundle :: Type) :: [FieldSpec] where
     SurfaceFieldBundleSpecs (SurfaceFields fields) = fields
     SurfaceFieldBundleSpecs (DeclaredRequestFields owner fields) = fields
     SurfaceFieldBundleSpecs (ActionFields operation) = ActionFieldSpecs operation
+    SurfaceFieldBundleSpecs (IntentFields operation) = IntentFieldSpecs operation
     SurfaceFieldBundleSpecs (SurfaceActionFields spec marker) = SurfaceActionFieldSpecs spec marker
     SurfaceFieldBundleSpecs (SurfaceIntentFields spec marker) = SurfaceIntentFieldSpecs spec marker
 
@@ -292,6 +337,10 @@ instance SurfaceFieldBundle (DeclaredRequestFields owner fields) where
 instance SurfaceFieldBundle (ActionFields operation) where
     surfaceFieldBundleJsonPairs (ActionFields fields) = boundSurfaceFieldJsonPairs fields
     surfaceFieldBundleTextValue (ActionFields fields) = boundSurfaceFieldsTextValue fields
+
+instance SurfaceFieldBundle (IntentFields operation) where
+    surfaceFieldBundleJsonPairs (IntentFields fields) = boundSurfaceFieldJsonPairs fields
+    surfaceFieldBundleTextValue (IntentFields fields) = boundSurfaceFieldsTextValue fields
 
 instance SurfaceFieldBundle (SurfaceActionFields spec marker) where
     surfaceFieldBundleJsonPairs (SurfaceActionFields fields) = boundSurfaceFieldJsonPairs fields
@@ -349,6 +398,28 @@ actionFields ::
     ActionFields operation
 actionFields field rest =
     ActionFields (BoundSurfaceField field rest)
+
+noIntentFields ::
+    forall operation.
+    AssertSurfaceFieldsEnd (IntentFieldSpecs operation) =>
+    IntentFields operation
+noIntentFields = IntentFields NoBoundSurfaceFields
+
+intentFields ::
+    forall operation presence fieldMarker fallback.
+    AssertSurfaceFieldHead
+        presence
+        fieldMarker
+        (SurfaceFieldInputWire (IntentFieldSpecs operation) fallback)
+        (IntentFieldSpecs operation) =>
+    SurfaceFieldInput
+        presence
+        fieldMarker
+        (SurfaceFieldInputWire (IntentFieldSpecs operation) fallback) ->
+    SurfaceFields (SurfaceFieldsTail (IntentFieldSpecs operation)) ->
+    IntentFields operation
+intentFields field rest =
+    IntentFields (BoundSurfaceField field rest)
 
 noSurfaceActionFields ::
     forall spec operation.

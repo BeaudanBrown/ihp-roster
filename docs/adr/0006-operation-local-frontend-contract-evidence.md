@@ -63,7 +63,8 @@ callers learn less while retaining compile-time authority.
 - Tickets: GitHub #339, #345–#347
 - Living docs: `Application/Helper/FrontendContract/README.md`,
   `Application/Helper/FrontendContract/Surface/README.md`
-- Implementation design: `docs/workstreams/operation-local-frontend-contract-evidence.md`
+- Matched rollout evidence:
+  `Config/nix/baselines/production-build/issue-347-operation-local-all-requests.json`
 - Sources: `Application/Helper/FrontendContract/Surface/Values.hs`,
   `Application/Helper/FrontendContract/Surface/Request.hs`,
   `Application/Helper/FrontendContract/Surface/HaskellAdapter/Request.hs`

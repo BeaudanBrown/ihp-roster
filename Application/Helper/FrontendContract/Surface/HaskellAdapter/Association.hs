@@ -7,6 +7,7 @@
 -- feature's focused compile closure.
 module Application.Helper.FrontendContract.Surface.HaskellAdapter.Association
     ( AdapterFamilySurface
+    , AdapterSurfaceMarker
     , SurfaceAdapterFamily
     ) where
 
@@ -15,3 +16,6 @@ import Data.Kind (Type)
 
 class SurfaceAdapterFamily (adapterFamily :: Type) where
     type AdapterFamilySurface adapterFamily :: SurfaceSpec
+
+type family AdapterSurfaceMarker (surface :: SurfaceSpec) :: Type where
+    AdapterSurfaceMarker ('Surface marker primitives) = marker

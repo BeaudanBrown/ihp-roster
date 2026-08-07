@@ -34,7 +34,8 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceIntentForm)
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as SelfServiceLeave
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave.Action as SelfServiceLeaveAction
-import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFields,
+import Application.Helper.FrontendContract.Surface.Values (ActionFields,
+                                                           SurfaceActionFields,
                                                            SurfaceFieldBundle,
                                                            SurfaceFieldBundleOf,
                                                            surfaceFieldValue,
@@ -261,6 +262,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                     { surfaceAdapterFieldsBuilderOperation = GenerateSurfaceAdapterOperation
                     , surfaceAdapterRenderMetadataOperation = ExcludeSurfaceAdapterOperation "No metadata consumer in this fixture variant"
                     , surfaceAdapterRequestParserOperation = ExcludeSurfaceAdapterOperation "No parser consumer in this fixture variant"
+                    , surfaceAdapterParamsPresentOperation = ExcludeSurfaceAdapterOperation "No envelope-presence consumer in this fixture variant"
                     }
         let builderOnlyActionRegistry =
                 fixtureRegistry
@@ -286,6 +288,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                     { surfaceAdapterFieldsBuilderOperation = ExcludeSurfaceAdapterOperation "No builder consumer in this fixture variant"
                     , surfaceAdapterRenderMetadataOperation = GenerateSurfaceAdapterOperation
                     , surfaceAdapterRequestParserOperation = ExcludeSurfaceAdapterOperation "No parser consumer in this fixture variant"
+                    , surfaceAdapterParamsPresentOperation = ExcludeSurfaceAdapterOperation "No envelope-presence consumer in this fixture variant"
                     }
         let metadataOnlyIntentRegistry =
                 fixtureRegistry
@@ -476,17 +479,28 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                  in RosterAction.navigateRosterWeekActionParamsPresent
         present `shouldBe` True
 
-    it "emits the whole-Roster Action authority only as a private proof" do
+    it "emits per-Surface Action authority only as private proofs" do
         case generateSurfaceActionAuthorityProofModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
             Left diagnostics -> expectationFailure (cs (show diagnostics))
-            Right [proof] -> do
-                proof.generatedModuleName
-                    `shouldBe` "Application.Helper.FrontendContract.Surface.Roster.Generated.ActionAuthorityProof"
-                proof.generatedModuleSource `shouldSatisfy` Text.isInfixOf "AssertActionAuthority"
-                proof.generatedModuleSource `shouldSatisfy` Text.isInfixOf "Generated.NavigateRosterWeekActionOperation"
-                proof.generatedModuleSource `shouldSatisfy` Text.isInfixOf "data SetRosterLayoutModeActionOperation"
-                Directory.doesFileExist proof.generatedModulePath `shouldReturn` False
-            Right proofs -> expectationFailure (cs ("expected one private Roster Action proof, got " <> show (length proofs)))
+            Right proofs ->
+                case find ((== "Application.Helper.FrontendContract.Surface.Roster.Generated.ActionAuthorityProofRoster") . (.generatedModuleName)) proofs of
+                    Nothing -> expectationFailure "missing private Roster Action proof"
+                    Just proof -> do
+                        proof.generatedModuleSource `shouldSatisfy` Text.isInfixOf "AssertActionAuthority"
+                        proof.generatedModuleSource `shouldSatisfy` Text.isInfixOf "Generated.NavigateRosterWeekActionOperation"
+                        proof.generatedModuleSource `shouldSatisfy` Text.isInfixOf "data SetRosterLayoutModeActionOperation"
+                        Directory.doesFileExist proof.generatedModulePath `shouldReturn` False
+
+    it "emits the whole-Roster Intent authority only as a private proof" do
+        case generateSurfaceIntentAuthorityProofModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
+            Left diagnostics -> expectationFailure (cs (show diagnostics))
+            Right proofs ->
+                case find ((== "Application.Helper.FrontendContract.Surface.Roster.Generated.IntentAuthorityProofRoster") . (.generatedModuleName)) proofs of
+                    Nothing -> expectationFailure "missing private Roster Intent proof"
+                    Just proof -> do
+                        proof.generatedModuleSource `shouldSatisfy` Text.isInfixOf "AssertIntentAuthority"
+                        proof.generatedModuleSource `shouldSatisfy` Text.isInfixOf "Generated.SetRosterLayoutModeIntentOperation"
+                        Directory.doesFileExist proof.generatedModulePath `shouldReturn` False
 
     it "pins complete Roster Intent bundles and DOM-owned form metadata from independent literals" do
         let venueId = fixtureMemberId "00000000-0000-0000-0000-000000000111"
@@ -847,6 +861,7 @@ allFixtureRequestAdapterOperations =
         { surfaceAdapterFieldsBuilderOperation = GenerateSurfaceAdapterOperation
         , surfaceAdapterRenderMetadataOperation = GenerateSurfaceAdapterOperation
         , surfaceAdapterRequestParserOperation = GenerateSurfaceAdapterOperation
+        , surfaceAdapterParamsPresentOperation = ExcludeSurfaceAdapterOperation "No envelope-presence consumer in this fixture"
         }
 
 fixtureContract :: SurfaceContractIR
@@ -897,7 +912,7 @@ sectionActionRoute url target =
             ]
         }
 
-profileDetailsFields :: SurfaceActionFields Profile.ProfileSurface Profile.UpdateProfileDetails
+profileDetailsFields :: ActionFields ProfileAction.UpdateProfileDetailsActionOperation
 profileDetailsFields =
     ProfileAction.updateProfileDetailsActionFields
         "Ada"
@@ -913,7 +928,7 @@ profileDetailsFields =
         (Just "award:level-1")
         (Just [firstRosterGroupId, secondRosterGroupId])
 
-staffProfileDetailsFields :: SurfaceActionFields Profile.StaffSurface Profile.UpdateStaffProfile
+staffProfileDetailsFields :: ActionFields ProfileAction.UpdateStaffProfileActionOperation
 staffProfileDetailsFields =
     ProfileAction.updateStaffProfileActionFields
         "Ada"
@@ -929,26 +944,26 @@ staffProfileDetailsFields =
         (Just "award:level-1")
         (Just [firstRosterGroupId, secondRosterGroupId])
 
-preferenceFields :: SurfaceActionFields Profile.ProfileSurface Profile.UpdateProfileShiftPreferences
+preferenceFields :: ActionFields ProfileAction.UpdateProfileShiftPreferencesActionOperation
 preferenceFields =
     ProfileAction.updateProfileShiftPreferencesActionFields
         StaffProfilePreferencesSection
         (Just ["monday:9:17", "friday:10:18"])
 
-staffPreferenceFields :: SurfaceActionFields Profile.StaffSurface Profile.UpdateStaffShiftPreferences
+staffPreferenceFields :: ActionFields ProfileAction.UpdateStaffShiftPreferencesActionOperation
 staffPreferenceFields =
     ProfileAction.updateStaffShiftPreferencesActionFields
         StaffProfilePreferencesSection
         (Just ["monday:9:17", "friday:10:18"])
 
-selfServiceLeaveRequestFields :: SurfaceActionFields SelfServiceLeave.SelfServiceLeaveSurface SelfServiceLeave.CreateSelfServiceLeaveRequest
+selfServiceLeaveRequestFields :: ActionFields SelfServiceLeaveAction.CreateSelfServiceLeaveRequestActionOperation
 selfServiceLeaveRequestFields =
     SelfServiceLeaveAction.createSelfServiceLeaveRequestActionFields
         (fromGregorian 2026 7 20)
         (fromGregorian 2026 7 22)
         "Family event"
 
-staffLeaveRequestFields :: SurfaceActionFields Profile.StaffSurface Profile.CreateStaffLeaveRequest
+staffLeaveRequestFields :: ActionFields ProfileAction.CreateStaffLeaveRequestActionOperation
 staffLeaveRequestFields =
     ProfileAction.createStaffLeaveRequestActionFields
         (fromGregorian 2026 7 20)

@@ -29,6 +29,9 @@ import qualified Application.Helper.FrontendContract.Surface.ContractIR as Surfa
 import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive (..),
                                                             ReflectedPrimitive (..))
 import Application.Helper.FrontendContract.Surface.Request.Runtime.Internal (FrontendSurfaceAction,
+                                                                             FrontendSurfaceHtmxMethod (..),
+                                                                             FrontendSurfaceHtmxRequest (..),
+                                                                             FrontendSurfaceIntentForm (..),
                                                                              frontendSurfaceActionFieldPairs,
                                                                              frontendSurfaceActionFromIR,
                                                                              frontendSurfaceActionIR)
@@ -51,29 +54,6 @@ frontendSurfaceAction fields =
         case reflectPrimitive @(SurfaceActionPrimitive spec marker) of
             ReflectedHtmxAction reflectedAction -> reflectedAction
             _ -> error "impossible: action lookup reflected a different primitive"
-
-data FrontendSurfaceHtmxMethod
-    = FrontendSurfaceGet
-    | FrontendSurfacePost
-    | FrontendSurfacePut
-    | FrontendSurfacePatch
-    | FrontendSurfaceDelete
-    deriving (Eq, Show)
-
-data FrontendSurfaceHtmxRequest = FrontendSurfaceHtmxRequest
-    { htmxRequestMethod :: !FrontendSurfaceHtmxMethod
-    , htmxRequestUrl    :: !Text
-    , htmxRequestTarget :: !Text
-    , htmxRequestSwap   :: !Text
-    }
-    deriving (Eq, Show)
-
-data FrontendSurfaceIntentForm = FrontendSurfaceIntentForm
-    { intentFormName   :: !Text
-    , intentFormSubmit :: !FrontendSurfaceHtmxRequest
-    , intentFormFields :: ![(SurfaceIR.FieldIR, Text)]
-    }
-    deriving (Eq, Show)
 
 frontendSurfaceIntentForm ::
     forall spec marker.
