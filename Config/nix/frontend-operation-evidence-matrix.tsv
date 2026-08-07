@@ -1,4 +1,4 @@
-fixture	guarantee	existing_pilot_treatment	full_rollout	roster_action_pilot_fixture
+fixture	guarantee	pilot_seam	full_rollout	roster_action_equivalent
 Test/CompileFail/FrontendSurfaceRawMountedTarget.hs	opaque	unchanged	unchanged	-
 Test/CompileFail/FrontendSurfaceWrongFragmentMarker.hs	owner	unchanged	unchanged	-
 Test/CompileFail/FrontendSurfaceWrongFragmentField.hs	fields	unchanged	unchanged	-
@@ -25,6 +25,15 @@ Test/CompileFail/FrontendSurfaceWrongResourceWireType.hs	fields	unchanged	unchan
 Test/CompileFail/FrontendSurfaceWrongActionMarker.hs	owner	unchanged	operation-local-action	Test/CompileFail/FrontendSurfaceRosterActionWrongOwner.hs
 Test/CompileFail/FrontendSurfaceWrongActionField.hs	fields	unchanged	operation-local-action	Test/CompileFail/FrontendSurfaceRosterActionWrongField.hs
 Test/CompileFail/FrontendSurfaceWrongActionOperation.hs	operation	unchanged	operation-local-action	Test/CompileFail/FrontendSurfaceRosterActionWrongOperation.hs
+Test/CompileFail/FrontendSurfaceRosterActionWrongOperation.hs	operation	operation-local-action	operation-local-action	-
+Test/CompileFail/FrontendSurfaceRosterActionWrongOwner.hs	owner	operation-local-action	operation-local-action	-
+Test/CompileFail/FrontendSurfaceRosterActionWrongField.hs	fields	operation-local-action	operation-local-action	-
+Test/CompileFail/FrontendSurfaceRosterActionRawRebinding.hs	opaque	operation-local-action	operation-local-action	-
+Test/CompileFail/FrontendSurfaceRosterActionIncomplete.hs	fields	operation-local-action	operation-local-action	-
+Test/CompileFail/FrontendSurfaceRosterActionExtraField.hs	fields	operation-local-action	operation-local-action	-
+Test/CompileFail/FrontendSurfaceRosterActionWrongFieldOrder.hs	fields	operation-local-action	operation-local-action	-
+Test/CompileFail/FrontendSurfaceRosterActionWrongFieldPresence.hs	fields	operation-local-action	operation-local-action	-
+Test/CompileFail/FrontendSurfaceRosterActionWrongWireType.hs	fields	operation-local-action	operation-local-action	-
 Test/CompileFail/FrontendSurfaceRawActionRebinding.hs	opaque	unchanged	operation-local-action	Test/CompileFail/FrontendSurfaceRosterActionRawRebinding.hs
 Test/CompileFail/FrontendSurfaceIncompleteAction.hs	fields	unchanged	operation-local-action	Test/CompileFail/FrontendSurfaceRosterActionIncomplete.hs
 Test/CompileFail/FrontendSurfaceWrongActionWireType.hs	fields	unchanged	operation-local-action	Test/CompileFail/FrontendSurfaceRosterActionWrongWireType.hs

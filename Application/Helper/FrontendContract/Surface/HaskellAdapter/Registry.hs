@@ -188,34 +188,34 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.CreateTimesheetEntryFromSuggestion allRequestAdapterOperations
     , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.ApproveTimesheetEntry allRequestAdapterOperations
     , surfaceActionAdapter @TimesheetsAdapterFamily @Timesheets.UnapproveTimesheetEntry allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.NavigateRosterWeek allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWarnings allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWageEstimates allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterOwnLiveShiftHighlight allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.SortRosterWeek
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.NavigateRosterWeek allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWarnings allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWageEstimates allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterOwnLiveShiftHighlight allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.SortRosterWeek
         (requestAdapterOperationsWithoutParser "The zero-field sort endpoint consumes route context and has no Surface request parser")
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWeekLiveStatus allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.ShowRosterNotificationConfirmation allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.CreateRosterNotificationRun allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterAssignmentFilters allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.CopyRosterWeek allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.CreateRosterWeekSlotDefinition
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWeekLiveStatus allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ShowRosterNotificationConfirmation allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.CreateRosterNotificationRun allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterAssignmentFilters allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.CopyRosterWeek allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.CreateRosterWeekSlotDefinition
         (requestAdapterOperationsWithoutParser "The zero-field slot creation endpoint consumes route context and has no Surface request parser")
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.DeleteRosterWeekSlotDefinition
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.DeleteRosterWeekSlotDefinition
         (requestAdapterOperationsWithoutParser "The zero-field slot deletion endpoint consumes route context and has no Surface request parser")
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterDayClosed
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterDayClosed
         (requestAdapterOperationsWithoutParser "The zero-field day toggle endpoint consumes its route id and has no Surface request parser")
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.AddRosterRow
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.AddRosterRow
         (requestAdapterOperationsWithoutParser "The zero-field row creation endpoint consumes its route id and has no Surface request parser")
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.RemoveRosterRow
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.RemoveRosterRow
         (requestAdapterOperationsWithoutParser "The zero-field row removal endpoint consumes its route id and has no Surface request parser")
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.ToggleRosterStaffScope allRequestAdapterOperations
-    , surfaceActionAdapterExcluded @RosterAdapterFamily @Roster.SetRosterLayoutMode intentOnlyActionReason
-    , surfaceActionAdapterExcluded @RosterAdapterFamily @Roster.MoveRosterShiftToSlot intentOnlyActionReason
-    , surfaceActionAdapterExcluded @RosterAdapterFamily @Roster.DuplicateRosterShiftToDay intentOnlyActionReason
-    , surfaceActionAdapterExcluded @RosterAdapterFamily @Roster.DropRosterStaff intentOnlyActionReason
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.PreviewRosterTemplateApplication allRequestAdapterOperations
-    , surfaceActionAdapter @RosterAdapterFamily @Roster.ApplyRosterTemplateApplication allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterStaffScope allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapterExcluded @RosterAdapterFamily @Roster.SetRosterLayoutMode intentOnlyActionReason
+    , surfaceOperationLocalActionAdapterExcluded @RosterAdapterFamily @Roster.MoveRosterShiftToSlot intentOnlyActionReason
+    , surfaceOperationLocalActionAdapterExcluded @RosterAdapterFamily @Roster.DuplicateRosterShiftToDay intentOnlyActionReason
+    , surfaceOperationLocalActionAdapterExcluded @RosterAdapterFamily @Roster.DropRosterStaff intentOnlyActionReason
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.PreviewRosterTemplateApplication allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ApplyRosterTemplateApplication allRequestAdapterOperations
     , surfaceActionAdapterExcluded @RosterDayTimelineAdapterFamily @Roster.MoveRosterTimelineShift intentOnlyActionReason
     , surfaceActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ArchiveLeaveRequestsPage allRequestAdapterOperations
     , surfaceActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ApproveLeaveRequest

@@ -186,38 +186,43 @@ prove zero-field and parameterized adapters, shared-module collision checks,
 and public generic builder use.
 
 Generated Resource and Live code calls only public marker-indexed builders and
-matchers. Raw `SurfaceFields` data constructors stay hidden behind the
-construction-only `noSurfaceFields` and `(&:)` functions. Generated production
-Action/Intent builders construct nominal `SurfaceActionFields surface action`
-or `SurfaceIntentFields surface intent` directly from the declared first field
-and exact tail (or the explicit zero-field constructor). The request parser
-keeps its recursive parsed-field view private and calls that same public nominal
-construction seam; no parser-only rebind operation is exported. Generated
-metadata and structured parser interfaces carry the exact wrapper, so
-operations with equal normalized field lists remain distinct. Read-only marker
-lookup and serialization stay shared through `SurfaceFieldBundle`, which
-exposes no unwrap operation. Unsupported source carriers fail with adapter kind,
-owning Surface, declaration, and field in the diagnostic.
+matchers. Raw field data constructors stay hidden behind construction-only
+functions. Roster Actions now use generated nominal operation tokens,
+`ActionFields operation`, and one local `ActionFieldSpecs operation`; their
+builder, parser, metadata evidence, lookup, and serialization interfaces contain
+no `RosterSurface` or `SurfaceActionFields`. Generated term evidence is rendered
+from checked IR and can be constructed only through the generated Roster module's
+single guarded runtime-internal edge. A temporary, unpublished aggregate proof
+typechecks exact canonical Roster Action set/owner/ordered-field equality before
+managed publication. Other Actions and all Intents retain the whole-Surface
+wrapper until #347. Every wrapper remains nominal, exposes no split/re-indexing
+path, and reports unsupported source carriers with adapter kind, compact owner,
+declaration, and field.
 Production family associations remain feature-local, and the checked aggregate
 resource registry assigns exactly one canonical home to every unique production
 resource identity. Every private generated module has only its matching curated
 facade consumer. The lightweight `HaskellAdapter.Association` seam carries
 `AdapterFamilySurface` into generated modules without pulling
 registry/reflection mechanics from `HaskellAdapter.Family` and
-`HaskellAdapter.Core` into focused feature compiles. Generated Action/Intent
-modules also import the focused `Surface.Request.Runtime` metadata seam rather
-than the mount/live `Surface.Runtime`. The focused seam owns opaque request
-metadata values and marker-indexed constructors; field construction remains in
-`Surface.Values`, exact parsing remains in `Surface.Request`, and HTML rendering
-remains in `Surface.Runtime`. The broad runtime consumes read-only metadata
-selectors without re-exporting the focused interface.
+`HaskellAdapter.Core` into focused feature compiles. Generated Action/Intent modules import the focused
+`Surface.Request.Runtime` metadata seam rather than the mount/live
+`Surface.Runtime`. Roster Action alone additionally imports
+`Surface.Request.Runtime.Internal` to construct checked generated evidence;
+guardrails permit that generated edge plus the compatibility runtime and reject
+every feature caller. Field construction remains in `Surface.Values`, exact parsing in
+`Surface.Request`, and HTML rendering in `Surface.Runtime`.
 
 The exact source-derived closure contract is checked by
-`architecture-surface-request-closure`: Profile Action retains 20
-`Application.*` modules and Roster Intent retains 21, with no unrelated Surface
-catalog, mount/live/wire runtime, or Haskell adapter generator implementation.
+`architecture-surface-request-closure`: operation-local Roster Action retains 20
+`Application.*` modules, Profile Action 21, and Roster Intent 22, with no
+registered Surface catalog, mount/live/wire runtime, family association, private
+proof, or Haskell adapter generator implementation in the Roster Action closure.
 The compiler-observed baseline, candidate sets, deltas, and retained-dependency
-classification are recorded in `Surface/README.md`.
+classification are recorded in `Surface/README.md`. The #346 matched 12-core
+pilot evidence is retained at
+`Config/nix/baselines/production-build/issue-346-operation-local-roster.json`:
+Roster `Generated.Action.hi`/`.dyn_hi` fell 99.88% to about 178 KB each,
+builder peak RSS fell 36.45%, and matched-core wall time fell 20.88%.
 
 The production operation inventory covers all 62 actions and six intents. It
 marks 57 actions as adapter-eligible, with builders/render metadata for 56 and
@@ -230,11 +235,12 @@ feature-adjacent `.Generated.Action` modules sit behind seven curated
 `Surface.<Feature>.Action` facades, while the six Roster intents share one
 private `Surface.Roster.Generated.Intent` module behind `Surface.Roster.Intent`.
 Production callers contain no generic Action or Intent parser/metadata calls.
-Raw `SurfaceFields` constructors are hidden behind construction-only builders.
-Nominal construction accepts only the declared first field plus its exact typed
-tail (or an explicit zero-field constructor), so the compiler exposes no raw
-bundle split/re-indexing path. Compile-failure coverage rejects
-cross-operation Action and Intent reuse for identical field shapes. The #191 and #187 independent request-adapter checkpoints pin production
+Raw field constructors are hidden behind construction-only builders. Nominal
+construction accepts only the declared first field plus its exact typed tail (or
+an explicit zero-field constructor), so the compiler exposes no raw bundle
+split/re-indexing path. The 59-fixture compile matrix includes nine direct Roster
+operation-local owner/field/operation/opacity/completeness/order/presence/wire
+checks; all retain focused diagnostics without expanding the Surface. The #191 and #187 independent request-adapter checkpoints pin production
 bundles, literal DOM-owned metadata, structured parsing, and diagnostics across
 the migrated Profile/Staff Actions and Roster Intents. Nullable and nested-list
 request shapes remain owned by the compiled #185 fixture rather than invented

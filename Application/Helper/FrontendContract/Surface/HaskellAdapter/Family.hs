@@ -24,6 +24,7 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
     , AdapterFamilySurface
     , CheckedSurfaceRequestAdapterRegistration
     , checkedSurfaceRequestAdapter
+    , checkedSurfaceRequestAdapterEvidenceMode
     , checkedSurfaceRequestAdapterOperations
     , HaskellTypeMetadata (..)
     , ReflectSurfaceAdapterFamilies
@@ -39,6 +40,7 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
     , SurfaceFragmentAdapterHome
     , SurfaceIntentAdapterHome
     , SurfaceRequestAdapterOperations (..)
+    , SurfaceRequestAdapterEvidenceMode (..)
     , SurfaceRequestAdapterRegistration
     , SurfaceResourceAdapterHome
     , SurfaceResourceAdapterHomeMetadata
@@ -49,6 +51,8 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
     , resolveSurfaceRequestAdapterRegistrations
     , surfaceActionAdapter
     , surfaceActionAdapterExcluded
+    , surfaceOperationLocalActionAdapter
+    , surfaceOperationLocalActionAdapterExcluded
     , surfaceActorOnlyFragmentAdapter
     , surfaceAdapterOperationIsGenerated
     , surfaceIntentAdapter
@@ -110,6 +114,11 @@ data SurfaceAdapterOperationEligibility
     | ExcludeSurfaceAdapterOperation !Text
     deriving (Eq, Show)
 
+data SurfaceRequestAdapterEvidenceMode
+    = WholeSurfaceRequestEvidence
+    | OperationLocalRequestEvidence
+    deriving (Eq, Show)
+
 data SurfaceRequestAdapterOperations = SurfaceRequestAdapterOperations
     { surfaceAdapterFieldsBuilderOperation :: !SurfaceAdapterOperationEligibility
     , surfaceAdapterRenderMetadataOperation :: !SurfaceAdapterOperationEligibility
@@ -124,17 +133,20 @@ data SurfaceRequestAdapterRegistration (kind :: SurfaceAdapterKind)
     = GenerateSurfaceRequestAdapter
         !(SurfaceAdapterHomeMetadata kind)
         !SurfaceRequestAdapterOperations
+        !SurfaceRequestAdapterEvidenceMode
     | ExcludeSurfaceRequestAdapter
         !(SurfaceAdapterHomeMetadata kind)
         !Text
+        !SurfaceRequestAdapterEvidenceMode
     deriving (Eq, Show)
 
 -- | Validated inventory row. Its declaration was normalized from checked IR
 -- and resolved through the same family/home/source-type seam as emitted code.
 data CheckedSurfaceRequestAdapterRegistration kind payload =
     CheckedSurfaceRequestAdapterRegistration
-        { checkedSurfaceRequestAdapter           :: !(ResolvedAdapter kind payload)
-        , checkedSurfaceRequestAdapterOperations :: !(Maybe SurfaceRequestAdapterOperations)
+        { checkedSurfaceRequestAdapter             :: !(ResolvedAdapter kind payload)
+        , checkedSurfaceRequestAdapterOperations   :: !(Maybe SurfaceRequestAdapterOperations)
+        , checkedSurfaceRequestAdapterEvidenceMode :: !SurfaceRequestAdapterEvidenceMode
         }
     deriving (Eq, Show)
 
@@ -256,6 +268,20 @@ surfaceActionAdapter operations =
     GenerateSurfaceRequestAdapter
         (singleSurfaceAdapterHome @'ActionAdapterKind @adapterFamily @action)
         operations
+        WholeSurfaceRequestEvidence
+
+surfaceOperationLocalActionAdapter ::
+    forall adapterFamily action.
+    ReflectSurfaceAdapterHomes
+        'ActionAdapterKind
+        '[SurfaceActionAdapterHome adapterFamily action] =>
+    SurfaceRequestAdapterOperations ->
+    SurfaceRequestAdapterRegistration 'ActionAdapterKind
+surfaceOperationLocalActionAdapter operations =
+    GenerateSurfaceRequestAdapter
+        (singleSurfaceAdapterHome @'ActionAdapterKind @adapterFamily @action)
+        operations
+        OperationLocalRequestEvidence
 
 surfaceActionAdapterExcluded ::
     forall adapterFamily action.
@@ -268,6 +294,20 @@ surfaceActionAdapterExcluded reason =
     ExcludeSurfaceRequestAdapter
         (singleSurfaceAdapterHome @'ActionAdapterKind @adapterFamily @action)
         reason
+        WholeSurfaceRequestEvidence
+
+surfaceOperationLocalActionAdapterExcluded ::
+    forall adapterFamily action.
+    ReflectSurfaceAdapterHomes
+        'ActionAdapterKind
+        '[SurfaceActionAdapterHome adapterFamily action] =>
+    Text ->
+    SurfaceRequestAdapterRegistration 'ActionAdapterKind
+surfaceOperationLocalActionAdapterExcluded reason =
+    ExcludeSurfaceRequestAdapter
+        (singleSurfaceAdapterHome @'ActionAdapterKind @adapterFamily @action)
+        reason
+        OperationLocalRequestEvidence
 
 surfaceIntentAdapter ::
     forall adapterFamily intent.
@@ -280,6 +320,7 @@ surfaceIntentAdapter operations =
     GenerateSurfaceRequestAdapter
         (singleSurfaceAdapterHome @'IntentAdapterKind @adapterFamily @intent)
         operations
+        WholeSurfaceRequestEvidence
 
 singleSurfaceAdapterHome ::
     forall kind adapterFamily declaration.
@@ -332,11 +373,12 @@ resolveSurfaceRequestAdapterRegistrations layout contract families declarations 
          in CheckedSurfaceRequestAdapterRegistration
                 { checkedSurfaceRequestAdapter = adapter
                 , checkedSurfaceRequestAdapterOperations = requestAdapterGeneratedOperations registration
+                , checkedSurfaceRequestAdapterEvidenceMode = requestAdapterEvidenceMode registration
                 }
 
     validateRegistration registration =
         case registration of
-            ExcludeSurfaceRequestAdapter home reason ->
+            ExcludeSurfaceRequestAdapter home reason _ ->
                 [ ContractDiagnostic
                     { diagnosticCode = "adapter-" <> layout.adapterKindSlug <> "-declaration-exclusion-reason"
                     , diagnosticMessage =
@@ -345,7 +387,7 @@ resolveSurfaceRequestAdapterRegistrations layout contract families declarations 
                     }
                 | Text.null (Text.strip reason)
                 ]
-            GenerateSurfaceRequestAdapter home operations ->
+            GenerateSurfaceRequestAdapter home operations _ ->
                 operationReasonDiagnostics home operations
                     <> [ ContractDiagnostic
                             { diagnosticCode = "adapter-" <> layout.adapterKindSlug <> "-empty-operation-set"
@@ -372,15 +414,22 @@ requestAdapterRegistrationHome ::
     SurfaceRequestAdapterRegistration kind ->
     SurfaceAdapterHomeMetadata kind
 requestAdapterRegistrationHome = \case
-    GenerateSurfaceRequestAdapter home _ -> home
-    ExcludeSurfaceRequestAdapter home _  -> home
+    GenerateSurfaceRequestAdapter home _ _ -> home
+    ExcludeSurfaceRequestAdapter home _ _  -> home
 
 requestAdapterGeneratedOperations ::
     SurfaceRequestAdapterRegistration kind ->
     Maybe SurfaceRequestAdapterOperations
 requestAdapterGeneratedOperations = \case
-    GenerateSurfaceRequestAdapter _ operations -> Just operations
-    ExcludeSurfaceRequestAdapter _ _            -> Nothing
+    GenerateSurfaceRequestAdapter _ operations _ -> Just operations
+    ExcludeSurfaceRequestAdapter _ _ _            -> Nothing
+
+requestAdapterEvidenceMode ::
+    SurfaceRequestAdapterRegistration kind ->
+    SurfaceRequestAdapterEvidenceMode
+requestAdapterEvidenceMode = \case
+    GenerateSurfaceRequestAdapter _ _ mode -> mode
+    ExcludeSurfaceRequestAdapter _ _ mode  -> mode
 
 requestAdapterOperationRows :: SurfaceRequestAdapterOperations -> [(Text, SurfaceAdapterOperationEligibility)]
 requestAdapterOperationRows operations =

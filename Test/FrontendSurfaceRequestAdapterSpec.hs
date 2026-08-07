@@ -52,6 +52,7 @@ import Generated.Types (RosterDay, RosterGroup, RosterLayoutModeEnum (..),
 import IHP.ModelSupport.Types (Id' (Id))
 import IHP.Prelude
 import qualified Network.Wai as Wai
+import qualified System.Directory as Directory
 import Test.Hspec
 import qualified Test.Support.FrontendSurfaceAdapterFixture as Fixture
 import qualified Test.Support.FrontendSurfaceAdapterFixture.Action as FixtureAction
@@ -444,6 +445,48 @@ tests = describe "FrontendSurfaceRequestAdapter" do
             Right generatedModules ->
                 map (.generatedModuleName) generatedModules
                     `shouldBe` ["Application.Helper.FrontendContract.Surface.Roster.Generated.Intent"]
+
+    it "renders Roster Actions through compact operation-local evidence" do
+        case generateSurfaceActionAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
+            Left diagnostics -> expectationFailure (cs (show diagnostics))
+            Right generatedModules ->
+                case find ((== "Application.Helper.FrontendContract.Surface.Roster.Generated.Action") . (.generatedModuleName)) generatedModules of
+                    Nothing -> expectationFailure "missing generated Roster Action module"
+                    Just generated -> do
+                        generated.generatedModuleSource
+                            `shouldSatisfy` Text.isInfixOf "data NavigateRosterWeekActionOperation"
+                        generated.generatedModuleSource
+                            `shouldSatisfy` Text.isInfixOf "ActionFields NavigateRosterWeekActionOperation"
+                        generated.generatedModuleSource
+                            `shouldSatisfy` Text.isInfixOf "navigateRosterWeekActionEvidence :: ActionEvidence NavigateRosterWeekActionOperation"
+                        generated.generatedModuleSource
+                            `shouldSatisfy` Text.isInfixOf "navigateRosterWeekActionParamsPresent ::"
+                        generated.generatedModuleSource
+                            `shouldNotSatisfy` Text.isInfixOf "SurfaceActionFields"
+                        generated.generatedModuleSource
+                            `shouldNotSatisfy` Text.isInfixOf "RosterSurface"
+
+    it "detects operation-local Roster Action envelopes through named facade witnesses" do
+        let absent =
+                let ?request = requestWithParams []
+                 in RosterAction.navigateRosterWeekActionParamsPresent
+        absent `shouldBe` False
+        let present =
+                let ?request = requestWithParams [("weekOffset", Just "2")]
+                 in RosterAction.navigateRosterWeekActionParamsPresent
+        present `shouldBe` True
+
+    it "emits the whole-Roster Action authority only as a private proof" do
+        case generateSurfaceActionAuthorityProofModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
+            Left diagnostics -> expectationFailure (cs (show diagnostics))
+            Right [proof] -> do
+                proof.generatedModuleName
+                    `shouldBe` "Application.Helper.FrontendContract.Surface.Roster.Generated.ActionAuthorityProof"
+                proof.generatedModuleSource `shouldSatisfy` Text.isInfixOf "AssertActionAuthority"
+                proof.generatedModuleSource `shouldSatisfy` Text.isInfixOf "Generated.NavigateRosterWeekActionOperation"
+                proof.generatedModuleSource `shouldSatisfy` Text.isInfixOf "data SetRosterLayoutModeActionOperation"
+                Directory.doesFileExist proof.generatedModulePath `shouldReturn` False
+            Right proofs -> expectationFailure (cs ("expected one private Roster Action proof, got " <> show (length proofs)))
 
     it "pins complete Roster Intent bundles and DOM-owned form metadata from independent literals" do
         let venueId = fixtureMemberId "00000000-0000-0000-0000-000000000111"

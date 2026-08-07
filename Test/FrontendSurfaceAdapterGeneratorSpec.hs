@@ -1099,7 +1099,7 @@ resolveFixtureIntents =
 fixtureKindRenderer :: AdapterModuleRenderer ()
 fixtureKindRenderer =
     AdapterModuleRenderer
-        { adapterRendererLanguagePragmas = ["{-# LANGUAGE TypeApplications #-}"]
+        { adapterRendererLanguagePragmas = const ["{-# LANGUAGE TypeApplications #-}"]
         , adapterRendererHeaderLines = ["-- generated fixture"]
         , adapterRendererImports = \_ _ -> ["import IHP.Prelude"]
         , adapterRendererDeclaration = \_ adapter ->

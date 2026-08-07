@@ -22,13 +22,10 @@ EOF
 fi
 
 filters=("$@")
-# Keep this explicit: project commands execute the working-tree script through
-# /dev/fd, so reading $0 would consume the script stream itself.
-declared_total=50
-selected_total="$declared_total"
-if ((${#filters[@]} > 0)); then
-    selected_total="${#filters[@]}"
-fi
+# Project commands execute the working-tree script through /dev/fd, so fixture
+# inventory validation reads the explicit source path rather than $0.
+declared_total=0
+selected_total=0
 checked_count=0
 declare -A matched_filters=()
 
@@ -49,12 +46,12 @@ if [ ! -f "$design_matrix" ]; then
 fi
 if ! awk -F '\t' '
     NR == 1 {
-        if ($0 != "fixture\tguarantee\texisting_pilot_treatment\tfull_rollout\troster_action_pilot_fixture") exit 1
+        if ($0 != "fixture\tguarantee\tpilot_seam\tfull_rollout\troster_action_equivalent") exit 1
         next
     }
     NF != 5 || $1 == "" { exit 1 }
     $2 !~ /^(closed|fields|kind|opaque|operation|owner|reachability)$/ { exit 1 }
-    $3 != "unchanged" { exit 1 }
+    $3 !~ /^(operation-local-action|unchanged)$/ { exit 1 }
     $4 !~ /^(kind-indexed-generator|operation-kind|operation-local-action|operation-local-intent|unchanged)$/ { exit 1 }
     $5 != "-" && $5 !~ /^Test\/CompileFail\/FrontendSurfaceRosterAction(WrongOwner|WrongField|WrongOperation|RawRebinding|Incomplete|ExtraField|WrongFieldOrder|WrongFieldPresence|WrongWireType)\.hs$/ { exit 1 }
 ' "$design_matrix"; then
@@ -66,6 +63,11 @@ awk '/^expect_compile_failure \\/ {
     gsub(/[ "\\]/, "", $0)
     print
 }' "$script_source" | sort >"$tmp_dir/declared-fixtures.txt"
+declared_total="$(wc -l <"$tmp_dir/declared-fixtures.txt")"
+selected_total="$declared_total"
+if ((${#filters[@]} > 0)); then
+    selected_total="${#filters[@]}"
+fi
 tail -n +2 "$design_matrix" | cut -f1 | sort >"$tmp_dir/matrix-fixtures.txt"
 awk -F '\t' 'NR > 1 && $5 != "-" { print $5 }' "$design_matrix" | sort >"$tmp_dir/pilot-fixtures.txt"
 if [ "$(wc -l <"$tmp_dir/pilot-fixtures.txt")" -ne 9 ] || [ -n "$(uniq -d "$tmp_dir/pilot-fixtures.txt")" ]; then
@@ -335,6 +337,55 @@ expect_compile_failure \
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceRawActionRebinding.hs" \
     "Not in scope: data constructor ‘:&’"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceRosterActionWrongOperation.hs" \
+    "ActionFields" \
+    "NavigateRosterWeekActionOperation" \
+    "ToggleRosterWarningsActionOperation"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceRosterActionWrongOwner.hs" \
+    "Roster.Roster" \
+    "OtherSurfaceOwner" \
+    "--reject" \
+    "Surface.DSL.Surface"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceRosterActionWrongField.hs" \
+    "FrontendSurface field bundle does not declare marker Roster.NotificationRosterWeekId"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceRosterActionRawRebinding.hs" \
+    "Illegal term-level use of the type constructor ‘ActionFields’"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceRosterActionIncomplete.hs" \
+    "FrontendSurface field list is incomplete" \
+    "Missing next field: Roster.RosterGroupId :: required WireUUID"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceRosterActionExtraField.hs" \
+    "FrontendSurface field list has an extra field" \
+    "Received field: Roster.WeekOffset :: required (no declared wire)"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceRosterActionWrongFieldOrder.hs" \
+    "FrontendSurface field order mismatch" \
+    "Expected next field: Roster.HideStaffAtIdealShifts :: required WireBool" \
+    "Received field: Roster.HideStaffUnavailable :: required WireBool"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceRosterActionWrongFieldPresence.hs" \
+    "FrontendSurface field presence mismatch" \
+    "Expected next field: Roster.WeekOffset :: required WireInt" \
+    "Received field: Roster.WeekOffset :: optional WireInt"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceRosterActionWrongWireType.hs" \
+    "FrontendSurface field wire mismatch" \
+    "Declared field: Roster.WeekOffset :: required WireInt" \
+    "Received Haskell value: Text"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceIncompleteAction.hs" \

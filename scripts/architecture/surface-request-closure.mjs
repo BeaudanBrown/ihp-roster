@@ -25,11 +25,28 @@ const sharedRequestRuntimeClosure = [
   "Application.Helper.FrontendContract.Surface.Reflect",
   "Application.Helper.FrontendContract.Surface.Request",
   "Application.Helper.FrontendContract.Surface.Request.Runtime",
+  "Application.Helper.FrontendContract.Surface.Request.Runtime.Internal",
   "Application.Helper.FrontendContract.Surface.SemanticIR",
   "Application.Helper.FrontendContract.Surface.Values",
 ];
 
 const closureContracts = [
+  {
+    label: "Surface.Roster.Action",
+    root: "Application.Helper.FrontendContract.Surface.Roster.Action",
+    expected: [
+      ...sharedRequestRuntimeClosure.filter(
+        (name) => name !== "Application.Helper.FrontendContract.Surface.HaskellAdapter.Association",
+      ),
+      "Application.Helper.FrontendContract.Surface.Interaction",
+      "Application.Helper.FrontendContract.Surface.LeaveRequests",
+      "Application.Helper.FrontendContract.Surface.Request.Runtime.Internal",
+      "Application.Helper.FrontendContract.Surface.Roster",
+      "Application.Helper.FrontendContract.Surface.Roster.Action",
+      "Application.Helper.FrontendContract.Surface.Roster.Generated.Action",
+      "Application.Helper.FrontendContract.Surface.SelfServiceLeave",
+    ],
+  },
   {
     label: "Surface.Profile.Action",
     root: "Application.Helper.FrontendContract.Surface.Profile.Action",

@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Application.Script.GenerateFrontendSurfaceAdapters where
 
 import Application.Helper.FrontendContract.Surface.ContractIR (ContractDiagnostic (..),
@@ -23,19 +25,24 @@ main :: IO ()
 main = do
     args <- Environment.getArgs
     case args of
-        [outputRoot] -> writeGeneratedModules outputRoot
+        [outputRoot, proofRoot] -> writeGeneratedModules outputRoot proofRoot
         _ -> do
-            putStrLn "usage: GenerateFrontendSurfaceAdapters <output-root>" :: IO ()
+            putStrLn "usage: GenerateFrontendSurfaceAdapters <output-root> <proof-root>" :: IO ()
             exitFailure
 
-writeGeneratedModules :: FilePath -> IO ()
-writeGeneratedModules outputRoot = do
+writeGeneratedModules :: FilePath -> FilePath -> IO ()
+writeGeneratedModules outputRoot proofRoot = do
     publication <-
         stageGeneratedModules
             outputRoot
             registeredFrontendSurfaceContractIR
             registeredSurfaceAdapterRegistry
-    case publication of
+    proofPublication <-
+        stageGeneratedProofModules
+            proofRoot
+            registeredFrontendSurfaceContractIR
+            registeredSurfaceAdapterRegistry
+    case publication *> proofPublication of
         Left diagnostics -> do
             forM_ diagnostics \diagnostic ->
                 Text.hPutStrLn stderr
@@ -44,6 +51,16 @@ writeGeneratedModules outputRoot = do
                     )
             exitFailure
         Right () -> pure ()
+
+stageGeneratedProofModules ::
+    FilePath ->
+    SurfaceContractIR ->
+    SurfaceAdapterRegistry ->
+    IO (Either [ContractDiagnostic] ())
+stageGeneratedProofModules outputRoot contract registry =
+    stageGeneratedModuleSet
+        outputRoot
+        (generateSurfaceActionAuthorityProofModules contract registry)
 
 -- | Publication barrier for the complete all-kind managed set. A focused-lane
 -- failure is returned before the output directory is created or any existing
@@ -55,12 +72,18 @@ stageGeneratedModules ::
     SurfaceAdapterRegistry ->
     IO (Either [ContractDiagnostic] ())
 stageGeneratedModules outputRoot contract registry =
-    case generateSurfaceAdapterModules contract registry of
-        Left diagnostics -> pure (Left diagnostics)
-        Right generatedModules -> do
-            Directory.createDirectoryIfMissing True outputRoot
-            forM_ generatedModules \generated -> do
-                let outputPath = outputRoot </> generated.generatedModulePath
-                Directory.createDirectoryIfMissing True (takeDirectory outputPath)
-                Text.writeFile outputPath generated.generatedModuleSource
-            pure (Right ())
+    stageGeneratedModuleSet outputRoot (generateSurfaceAdapterModules contract registry)
+
+stageGeneratedModuleSet ::
+    FilePath ->
+    Either [ContractDiagnostic] [GeneratedHaskellModule] ->
+    IO (Either [ContractDiagnostic] ())
+stageGeneratedModuleSet outputRoot = \case
+    Left diagnostics -> pure (Left diagnostics)
+    Right generatedModules -> do
+        Directory.createDirectoryIfMissing True outputRoot
+        forM_ generatedModules \generated -> do
+            let outputPath = outputRoot </> generated.generatedModulePath
+            Directory.createDirectoryIfMissing True (takeDirectory outputPath)
+            Text.writeFile outputPath generated.generatedModuleSource
+        pure (Right ())

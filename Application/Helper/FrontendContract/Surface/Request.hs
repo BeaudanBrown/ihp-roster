@@ -18,9 +18,12 @@ module Application.Helper.FrontendContract.Surface.Request
     ( KnownSurfaceRequestFields
     , SurfaceRequestFieldError (..)
     , SurfaceRequestFieldErrorKind (..)
+    , actionParamsPresent
     , attachSurfaceRequestFieldErrors
     , surfaceRequestFieldErrorsMessage
     , surfaceActionParamsPresent
+    , parseActionParamPairs
+    , parseActionParams
     , parseDeclaredRequestParamPairs
     , parseDeclaredRequestParams
     , parseSurfaceActionParamPairs
@@ -111,6 +114,38 @@ parseDeclaredRequestParamPairs ::
 parseDeclaredRequestParamPairs params =
     parsedDeclaredRequestFields @owner
         <$> parseSurfaceRequestFields @fields params
+
+-- | Whether the active request carries at least one field from one generated
+-- operation-local Action contract. Generated facades expose named witnesses.
+actionParamsPresent ::
+    forall operation.
+    ( ?request :: Request
+    , KnownSurfaceRequestFields (ActionFieldSpecs operation)
+    ) =>
+    Bool
+actionParamsPresent =
+    surfaceRequestParamsPresent @(ActionFieldSpecs operation) allParams
+
+-- | Parse one generated operation-local Action contract from the active IHP
+-- request. Generated modules are the production call seam.
+parseActionParams ::
+    forall operation.
+    ( ?request :: Request
+    , KnownSurfaceRequestFields (ActionFieldSpecs operation)
+    ) =>
+    Either [SurfaceRequestFieldError] (ActionFields operation)
+parseActionParams =
+    parseActionParamPairs @operation allParams
+
+-- | Pure pair-based form of 'parseActionParams'.
+parseActionParamPairs ::
+    forall operation.
+    KnownSurfaceRequestFields (ActionFieldSpecs operation) =>
+    [(ByteString, Maybe ByteString)] ->
+    Either [SurfaceRequestFieldError] (ActionFields operation)
+parseActionParamPairs params =
+    parsedActionFields @operation
+        <$> parseSurfaceRequestFields @(ActionFieldSpecs operation) params
 
 -- | Parse one action's complete declared field contract from the active IHP
 -- request. Unknown parameters are intentionally ignored because route and
@@ -213,6 +248,24 @@ parsedDeclaredRequestFields (ParsedOptionalSurfaceField @marker @wire value rest
         (parsedSurfaceFieldsValue rest)
 parsedDeclaredRequestFields (ParsedNullableSurfaceField @marker @wire value rest) =
     declaredRequestFields @owner @fields @'SurfaceNullable @marker @wire
+        (surfaceNullableField @marker @wire value)
+        (parsedSurfaceFieldsValue rest)
+
+parsedActionFields ::
+    forall operation.
+    ParsedSurfaceFields (ActionFieldSpecs operation) ->
+    ActionFields operation
+parsedActionFields ParsedNoSurfaceFields = noActionFields
+parsedActionFields (ParsedRequiredSurfaceField @marker @wire value rest) =
+    actionFields @operation @'SurfaceRequired @marker @wire
+        (surfaceField @marker @wire value)
+        (parsedSurfaceFieldsValue rest)
+parsedActionFields (ParsedOptionalSurfaceField @marker @wire value rest) =
+    actionFields @operation @'SurfaceOptional @marker @wire
+        (surfaceOptionalField @marker @wire value)
+        (parsedSurfaceFieldsValue rest)
+parsedActionFields (ParsedNullableSurfaceField @marker @wire value rest) =
+    actionFields @operation @'SurfaceNullable @marker @wire
         (surfaceNullableField @marker @wire value)
         (parsedSurfaceFieldsValue rest)
 

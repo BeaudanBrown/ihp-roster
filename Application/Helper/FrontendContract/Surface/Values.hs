@@ -14,7 +14,12 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Application.Helper.FrontendContract.Surface.Values
-    ( AssertBrowserReachableSurfaceDto
+    ( ActionFieldSpecs
+    , ActionFields
+    , ActionMarker
+    , ActionSurface
+    , AssertActionAuthority
+    , AssertBrowserReachableSurfaceDto
     , FindMountTarget
     , KnownMountTarget
     , KnownSurfaceFieldLookup
@@ -65,7 +70,9 @@ module Application.Helper.FrontendContract.Surface.Values
     , SurfaceScopePrimitive
     , SurfaceSourceRefPrimitive
     , SurfaceWireValue
+    , actionFields
     , declaredRequestFields
+    , noActionFields
     , noDeclaredRequestFields
     , noSurfaceActionFields
     , noSurfaceFields
@@ -207,6 +214,47 @@ newtype DeclaredRequestFields (owner :: Type) (fields :: [FieldSpec]) =
 
 type role DeclaredRequestFields nominal nominal
 
+-- | Compact generated Action identity. Generated operation modules provide one
+-- instance per canonical declaration; caller signatures therefore carry one
+-- local field list and compact owner marker rather than a complete Surface.
+type family ActionSurface (operation :: Type) :: Type
+
+type family ActionMarker (operation :: Type) :: Type
+
+type family ActionFieldSpecs (operation :: Type) :: [FieldSpec]
+
+-- | Verification-only whole-Surface equality. Generated proof modules reduce
+-- this family outside installed application interfaces; feature callers never
+-- need the complete Surface to construct or consume one operation.
+type AssertActionAuthority surface operations =
+    (CanonicalActionEntries surface ~ OperationActionEntries operations)
+
+type family CanonicalActionEntries
+    (surface :: SurfaceSpec) :: [(Type, Type, [FieldSpec])] where
+    CanonicalActionEntries ('Surface owner primitives) =
+        CanonicalActionPrimitiveEntries owner primitives
+
+type family CanonicalActionPrimitiveEntries
+    (owner :: Type)
+    (primitives :: [SurfacePrimitive]) :: [(Type, Type, [FieldSpec])] where
+    CanonicalActionPrimitiveEntries owner '[] = '[]
+    CanonicalActionPrimitiveEntries owner (('Action marker fields options) ': rest) =
+        '(owner, marker, fields) ': CanonicalActionPrimitiveEntries owner rest
+    CanonicalActionPrimitiveEntries owner (primitive ': rest) =
+        CanonicalActionPrimitiveEntries owner rest
+
+type family OperationActionEntries
+    (operations :: [Type]) :: [(Type, Type, [FieldSpec])] where
+    OperationActionEntries '[] = '[]
+    OperationActionEntries (operation ': rest) =
+        '(ActionSurface operation, ActionMarker operation, ActionFieldSpecs operation)
+            ': OperationActionEntries rest
+
+newtype ActionFields (operation :: Type) =
+    ActionFields (BoundSurfaceFields (ActionFieldSpecs operation))
+
+type role ActionFields nominal
+
 newtype SurfaceActionFields (spec :: SurfaceSpec) (marker :: Type) =
     SurfaceActionFields (BoundSurfaceFields (SurfaceActionFieldSpecs spec marker))
 
@@ -220,6 +268,7 @@ type role SurfaceIntentFields nominal nominal
 type family SurfaceFieldBundleSpecs (bundle :: Type) :: [FieldSpec] where
     SurfaceFieldBundleSpecs (SurfaceFields fields) = fields
     SurfaceFieldBundleSpecs (DeclaredRequestFields owner fields) = fields
+    SurfaceFieldBundleSpecs (ActionFields operation) = ActionFieldSpecs operation
     SurfaceFieldBundleSpecs (SurfaceActionFields spec marker) = SurfaceActionFieldSpecs spec marker
     SurfaceFieldBundleSpecs (SurfaceIntentFields spec marker) = SurfaceIntentFieldSpecs spec marker
 
@@ -239,6 +288,10 @@ instance SurfaceFieldBundle (SurfaceFields fields) where
 instance SurfaceFieldBundle (DeclaredRequestFields owner fields) where
     surfaceFieldBundleJsonPairs (DeclaredRequestFields fields) = boundSurfaceFieldJsonPairs fields
     surfaceFieldBundleTextValue (DeclaredRequestFields fields) = boundSurfaceFieldsTextValue fields
+
+instance SurfaceFieldBundle (ActionFields operation) where
+    surfaceFieldBundleJsonPairs (ActionFields fields) = boundSurfaceFieldJsonPairs fields
+    surfaceFieldBundleTextValue (ActionFields fields) = boundSurfaceFieldsTextValue fields
 
 instance SurfaceFieldBundle (SurfaceActionFields spec marker) where
     surfaceFieldBundleJsonPairs (SurfaceActionFields fields) = boundSurfaceFieldJsonPairs fields
@@ -274,6 +327,28 @@ declaredRequestFields ::
     DeclaredRequestFields owner fields
 declaredRequestFields field rest =
     DeclaredRequestFields (BoundSurfaceField field rest)
+
+noActionFields ::
+    forall operation.
+    AssertSurfaceFieldsEnd (ActionFieldSpecs operation) =>
+    ActionFields operation
+noActionFields = ActionFields NoBoundSurfaceFields
+
+actionFields ::
+    forall operation presence fieldMarker fallback.
+    AssertSurfaceFieldHead
+        presence
+        fieldMarker
+        (SurfaceFieldInputWire (ActionFieldSpecs operation) fallback)
+        (ActionFieldSpecs operation) =>
+    SurfaceFieldInput
+        presence
+        fieldMarker
+        (SurfaceFieldInputWire (ActionFieldSpecs operation) fallback) ->
+    SurfaceFields (SurfaceFieldsTail (ActionFieldSpecs operation)) ->
+    ActionFields operation
+actionFields field rest =
+    ActionFields (BoundSurfaceField field rest)
 
 noSurfaceActionFields ::
     forall spec operation.

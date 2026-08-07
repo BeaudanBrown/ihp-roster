@@ -28,6 +28,10 @@ module Application.Helper.FrontendContract.Surface.Request.Runtime
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive (..),
                                                             ReflectedPrimitive (..))
+import Application.Helper.FrontendContract.Surface.Request.Runtime.Internal (FrontendSurfaceAction,
+                                                                             frontendSurfaceActionFieldPairs,
+                                                                             frontendSurfaceActionFromIR,
+                                                                             frontendSurfaceActionIR)
 import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFields,
                                                            SurfaceActionPrimitive,
                                                            SurfaceIntentFields,
@@ -35,25 +39,13 @@ import Application.Helper.FrontendContract.Surface.Values (SurfaceActionFields,
                                                            surfaceFieldsText)
 import IHP.Prelude
 
--- | One action together with its complete declaration-indexed field bundle.
--- The constructor stays hidden: generated operation metadata functions are the
--- production construction seam.
-data FrontendSurfaceAction = FrontendSurfaceAction
-    { frontendSurfaceActionIR         :: !SurfaceIR.HtmxActionIR
-    , frontendSurfaceActionFieldPairs :: ![(Text, Text)]
-    }
-    deriving (Eq, Show)
-
 frontendSurfaceAction ::
     forall spec marker.
     ReflectPrimitive (SurfaceActionPrimitive spec marker) =>
     SurfaceActionFields spec marker ->
     FrontendSurfaceAction
 frontendSurfaceAction fields =
-    FrontendSurfaceAction
-        { frontendSurfaceActionIR = action
-        , frontendSurfaceActionFieldPairs = surfaceFieldsText fields
-        }
+    frontendSurfaceActionFromIR action (surfaceFieldsText fields)
   where
     action =
         case reflectPrimitive @(SurfaceActionPrimitive spec marker) of
