@@ -265,6 +265,22 @@ export function querySql(sql: string) {
     }).trim();
 }
 
+export function resetCanonicalRosterAssignedShiftFixture() {
+    runSql(`
+        UPDATE roster_weeks
+        SET is_live = FALSE, updated_at = NOW()
+        WHERE id = 'a1000000-0000-0000-0000-000000000051';
+        UPDATE roster_slots
+        SET assignment_state = 'staff',
+            staff_id = 'a1000000-0000-0000-0000-000000000031',
+            deleted_at = NULL,
+            deleted_by_user_id = NULL,
+            delete_reason = NULL,
+            updated_at = NOW()
+        WHERE id = 'a1000000-0000-0000-0000-000000000071';
+    `);
+}
+
 export function resetTimesheetDisplayPreferences(email: string) {
     runSql(`
         INSERT INTO user_preferences (user_id, hide_approved, show_timesheet_suggestions)

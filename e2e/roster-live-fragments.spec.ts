@@ -6,7 +6,7 @@ import {
     toggleRootDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
-import { ensureRosterLayout, fillRosterShiftDialogDefaults, openRoster, openRosterSettings, openRosterShiftDialog, runSql, saveRosterShiftDialog } from './test-helpers';
+import { ensureRosterLayout, fillRosterShiftDialogDefaults, openRoster, openRosterSettings, openRosterShiftDialog, resetCanonicalRosterAssignedShiftFixture, runSql, saveRosterShiftDialog } from './test-helpers';
 
 type OpenShiftLiveWindow = Window & { __openShiftRosterSubscriptions?: string[] };
 
@@ -117,7 +117,7 @@ async function changeShiftToAlternateStaffKey(page: Page, groupKey: string): Pro
         const select = element as HTMLSelectElement;
         return Array.from(select.options)
             .map((option) => option.value)
-            .find((value) => value.length > 0 && value !== current) ?? '';
+            .find((value) => value.length > 0 && value !== 'open' && value !== current) ?? '';
     }, currentStaffId);
     expect(nextStaffId).not.toBe('');
 
@@ -159,6 +159,8 @@ async function copyPreviousWeek(page: Page) {
 
 test.describe('Roster live fragments', () => {
     test.setTimeout(E2E_TIMEOUT.slowTest);
+    test.beforeEach(resetCanonicalRosterAssignedShiftFixture);
+    test.afterEach(resetCanonicalRosterAssignedShiftFixture);
 
     test('updates another viewer live after a shift assignment changes', async ({ browser }) => {
         const actorContext = await browser.newContext();
@@ -174,6 +176,7 @@ test.describe('Roster live fragments', () => {
         await expectShiftGroupStaffKey(actorPage, groupKey, initialStaffKey);
 
         const nextStaffKey = await changeShiftToAlternateStaffKey(actorPage, groupKey);
+        expect(nextStaffKey).not.toBe('');
 
         await expectShiftGroupStaffKey(actorPage, groupKey, nextStaffKey);
         await viewerPage.reload();
