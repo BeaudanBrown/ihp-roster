@@ -170,6 +170,8 @@ in
         otel-browser = script ../scripts/profile/otel-browser;
         otel-summary = script ../scripts/profile/otel-summary;
         profile-compare = script ../scripts/profile/compare;
+        production-build-profile = script ../scripts/profile/production-build;
+        production-build-profile-test = script ../scripts/profile/production-build-test;
         profile-load = script ../scripts/profile/load;
         profile-load-suite = script ../scripts/profile/load-suite;
         profile-live-invalidation = script ../scripts/profile/live-invalidation;

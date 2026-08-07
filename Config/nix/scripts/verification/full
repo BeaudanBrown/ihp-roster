@@ -31,6 +31,9 @@ echo "verify-full: architecture and documentation structure"
 architecture-check-fresh
 bash ./bin/doc-drift-check
 
+echo "verify-full: production build profiler contract"
+production-build-profile-test
+
 echo "verify-full: canonical wage authority and fixtures"
 bash ./bin/wage-authority-check
 

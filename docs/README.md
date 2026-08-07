@@ -43,4 +43,6 @@ sourced evidence must not be weakened or deleted without issue-specific review
 and evidence that its obligation or retention value has ended.
 
 Keep inventories, audit findings, and other disposable analysis under
-`.pi/tmp/`; do not commit them as reports or parallel trackers.
+`.pi/tmp/`; do not commit them as reports or parallel trackers. Reviewed bounded
+machine-readable baselines consumed by deterministic regression tooling are
+configuration and stay beside that tooling rather than under `docs/`.
