@@ -40,6 +40,49 @@ trap cleanup EXIT
 
 mkdir -p "$tmp_dir/obj" "$tmp_dir/hi"
 GHC_OPTS="$(ihp_roster_ghc_opts)"
+
+design_matrix="$repo_root/Config/nix/frontend-operation-evidence-matrix.tsv"
+script_source="$repo_root/Config/nix/scripts/frontend/surface-compile-fail-check"
+if [ ! -f "$design_matrix" ]; then
+    echo "surface-compile-fail-check: missing operation-evidence design matrix: $design_matrix" >&2
+    exit 2
+fi
+if ! awk -F '\t' '
+    NR == 1 {
+        if ($0 != "fixture\tguarantee\texisting_pilot_treatment\tfull_rollout\troster_action_pilot_fixture") exit 1
+        next
+    }
+    NF != 5 || $1 == "" { exit 1 }
+    $2 !~ /^(closed|fields|kind|opaque|operation|owner|reachability)$/ { exit 1 }
+    $3 != "unchanged" { exit 1 }
+    $4 !~ /^(kind-indexed-generator|operation-kind|operation-local-action|operation-local-intent|unchanged)$/ { exit 1 }
+    $5 != "-" && $5 !~ /^Test\/CompileFail\/FrontendSurfaceRosterAction(WrongOwner|WrongField|WrongOperation|RawRebinding|Incomplete|ExtraField|WrongFieldOrder|WrongFieldPresence|WrongWireType)\.hs$/ { exit 1 }
+' "$design_matrix"; then
+    echo "surface-compile-fail-check: malformed operation-evidence design matrix" >&2
+    exit 2
+fi
+awk '/^expect_compile_failure \\/ {
+    getline
+    gsub(/[ "\\]/, "", $0)
+    print
+}' "$script_source" | sort >"$tmp_dir/declared-fixtures.txt"
+tail -n +2 "$design_matrix" | cut -f1 | sort >"$tmp_dir/matrix-fixtures.txt"
+awk -F '\t' 'NR > 1 && $5 != "-" { print $5 }' "$design_matrix" | sort >"$tmp_dir/pilot-fixtures.txt"
+if [ "$(wc -l <"$tmp_dir/pilot-fixtures.txt")" -ne 9 ] || [ -n "$(uniq -d "$tmp_dir/pilot-fixtures.txt")" ]; then
+    echo "surface-compile-fail-check: operation-evidence design matrix must name nine unique Roster Action pilot fixtures" >&2
+    exit 2
+fi
+if [ -n "$(uniq -d "$tmp_dir/matrix-fixtures.txt")" ]; then
+    echo "surface-compile-fail-check: duplicate fixture in operation-evidence design matrix" >&2
+    uniq -d "$tmp_dir/matrix-fixtures.txt" >&2
+    exit 2
+fi
+if ! diff -u "$tmp_dir/declared-fixtures.txt" "$tmp_dir/matrix-fixtures.txt"; then
+    echo "surface-compile-fail-check: operation-evidence design matrix does not cover the exact registered fixture set" >&2
+    exit 2
+fi
+echo "surface-compile-fail-check: operation-evidence design matrix covers $declared_total/$declared_total registered fixtures and names 9/9 Roster Action pilot fixtures"
+
 fixtures=()
 expected_diagnostics=()
 rejected_diagnostics=()

@@ -24,3 +24,5 @@ Use `docs/templates/adr.md` for new ADRs.
   the protected gate; partial metadata selections are additive diagnostics.
 - `0005-explicit-roster-shift-assignment-state.md` - roster shifts use an explicit
   staff/Open assignment state rather than interpreting missing staff as Open.
+- `0006-operation-local-frontend-contract-evidence.md` - generated request callers
+  use compact nominal operation evidence while whole-Surface proofs stay private.
