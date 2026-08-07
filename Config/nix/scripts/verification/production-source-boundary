@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+test_only_path="Test/Fixtures/profile-seed/manifest.json"
+runtime_path="Main.hs"
+test_only_backup="$(mktemp)"
+runtime_backup="$(mktemp)"
+cp "$test_only_path" "$test_only_backup"
+cp "$runtime_path" "$runtime_backup"
+restore_sources() {
+    cp "$test_only_backup" "$test_only_path"
+    cp "$runtime_backup" "$runtime_path"
+    rm -f "$test_only_backup" "$runtime_backup"
+}
+trap restore_sources EXIT
+
+production_derivations() {
+    local app_drv requisites app_lib_drvs app_lib_count source_paths source_count
+    app_drv="$(nix eval --raw .#optimized-prod-server.drvPath --accept-flake-config)"
+    requisites="$(nix-store --query --requisites "$app_drv")"
+    app_lib_drvs="$(printf '%s\n' "$requisites" | grep -- '-app-lib-0\.1\.0\.drv$' || true)"
+    app_lib_count="$(printf '%s\n' "$app_lib_drvs" | grep -c . || true)"
+    if [ "$app_lib_count" -ne 1 ]; then
+        echo "production-source-boundary: expected one app-lib derivation below $app_drv, found $app_lib_count" >&2
+        printf '%s\n' "$app_lib_drvs" >&2
+        exit 1
+    fi
+    source_paths="$(printf '%s\n' "$requisites" | grep -- '-ihp-roster-source$' || true)"
+    source_count="$(printf '%s\n' "$source_paths" | grep -c . || true)"
+    if [ "$source_count" -ne 1 ]; then
+        echo "production-source-boundary: expected one filtered project source below $app_drv, found $source_count" >&2
+        printf '%s\n' "$source_paths" >&2
+        exit 1
+    fi
+    printf '%s\t%s\t%s\n' "$app_drv" "$app_lib_drvs" "$source_paths"
+}
+
+baseline="$(production_derivations)"
+IFS=$'\t' read -r baseline_app baseline_app_lib production_source <<< "$baseline"
+if [ -e "$production_source/Test" ]; then
+    echo "production-source-boundary: Test leaked into filtered production source" >&2
+    exit 1
+fi
+while IFS= read -r -d '' required_path; do
+    if [ ! -e "$production_source/$required_path" ]; then
+        echo "production-source-boundary: required production input omitted: $required_path" >&2
+        exit 1
+    fi
+done < <(git ls-files -z -- Application/Schema.sql Application/Migration static Config/nix/hosts Config/nix/modules)
+printf '\n' >> "$test_only_path"
+test_only_change="$(production_derivations)"
+cp "$test_only_backup" "$test_only_path"
+
+if [ "$baseline" != "$test_only_change" ]; then
+    echo "production-source-boundary: test-only content changed production derivations" >&2
+    diff -u <(printf '%s\n' "$baseline") <(printf '%s\n' "$test_only_change") >&2 || true
+    exit 1
+fi
+
+printf '\n-- production-source-boundary runtime invalidation probe\n' >> "$runtime_path"
+runtime_change="$(production_derivations)"
+cp "$runtime_backup" "$runtime_path"
+
+IFS=$'\t' read -r runtime_app runtime_app_lib runtime_source <<< "$runtime_change"
+if [ "$baseline_app" = "$runtime_app" ] || [ "$baseline_app_lib" = "$runtime_app_lib" ] || [ "$production_source" = "$runtime_source" ]; then
+    echo "production-source-boundary: runtime content did not invalidate filtered source and both production derivations" >&2
+    diff -u <(printf '%s\n' "$baseline") <(printf '%s\n' "$runtime_change") >&2 || true
+    exit 1
+fi
+
+printf 'production-source-boundary: test-only edit stable; runtime edit invalidated app and app-lib\n'

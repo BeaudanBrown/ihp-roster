@@ -2,7 +2,7 @@
 {
     perSystem = { config, inputs', lib, pkgs, ... }:
         let
-            projectSource = import ./project-source.nix { inherit pkgs; };
+            productionProjectSource = import ./project-source.nix { inherit pkgs; };
             frontendContractToolSource = import ./frontend-contract-tool-source.nix { inherit pkgs; };
             ihpSource = inputs.ihp.outPath;
             productionNixSupport = import ./production-nix-support.nix { inherit lib; ihp = ihpSource; };
@@ -33,7 +33,7 @@
                 withHoogle = true;
                 # Use a filtered project source so local dev artifacts do not leak into
                 # production packaging or generated app-lib.cabal module discovery.
-                projectPath = projectSource;
+                projectPath = productionProjectSource;
                 # Bepis loads split static assets directly from Web.View.Layout via
                 # assetPath. Disable IHP's optional prod.js/prod.css concatenation so
                 # production packaging does not generate unused bundle artifacts.

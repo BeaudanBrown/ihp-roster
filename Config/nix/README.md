@@ -27,6 +27,15 @@ the filtered production source. `production-package-smoke` builds the optimized
 package, checks its exact `bin/` set, enters every binary through the non-mutating
 GHC RTS boundary, and evaluates wage-cutover and billing deployment modules.
 
+`project-source.nix` is the production-only source seam passed through IHP's
+`projectPath` option. It excludes the complete `Test/` tree from production
+source and derivation hashes; the working tree and devenv remain unfiltered, so
+Hspec still discovers all tests and fixtures. `production-source-boundary-check`
+mutates a tracked test fixture and proves both app derivations remain identical,
+then mutates `Main.hs` and proves both change. It also rejects any `Test/` leak
+and requires all tracked schema, migration, static, and deployment-module inputs
+to remain in the filtered source.
+
 After intentionally adding or changing a module or script:
 
 1. edit `production-script-inventory.tsv` when an entry point changed;

@@ -162,6 +162,7 @@ in
         billing-production-readiness = script ../scripts/verification/billing-production-readiness;
         http-polling-policy-check = script ../scripts/verification/http-polling-policy;
         production-inventory-check = script ../scripts/verification/production-inventory;
+        production-source-boundary-check = script ../scripts/verification/production-source-boundary;
         production-package-smoke = script ../scripts/verification/production-package-smoke;
         frontend-contract-package-check = script ../scripts/verification/frontend-contract-package;
         lint = script ../scripts/haskell/lint;

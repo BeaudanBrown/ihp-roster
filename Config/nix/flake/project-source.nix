@@ -30,6 +30,9 @@ builtins.path {
                 ".claude"
                 "notes"
                 "output"
+                # Tests and fixtures stay in the working tree/devenv, but never
+                # participate in production source or derivation hashes.
+                "Test"
             ];
             isUnderExcludedRoot = excludedRoot:
                 relativePath == excludedRoot || pkgs.lib.hasPrefix "${excludedRoot}/" relativePath;
