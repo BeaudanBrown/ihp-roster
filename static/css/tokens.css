@@ -169,6 +169,13 @@
     --roster-text-xs: clamp(0.58rem, 0.57rem + 0.11vw, 0.72rem);
     --roster-text-sm: clamp(0.66rem, 0.64rem + 0.14vw, 0.8rem);
     --roster-text-base: clamp(0.74rem, 0.71rem + 0.18vw, 0.9rem);
+    --app-side-panel-text-xs: var(--roster-text-xs);
+    --app-side-panel-text-sm: var(--roster-text-sm);
+    --app-side-panel-border-weak: var(--app-roster-border-weak);
+    --app-side-panel-border-mid: var(--app-roster-border-mid);
+    --app-side-panel-border-strong: var(--app-roster-border-strong);
+    --app-side-panel-header-bg: var(--app-roster-header-bg);
+    --app-side-panel-sort-muted: var(--app-roster-sort-muted);
 }
 
 [data-ui-scale="compact"] {

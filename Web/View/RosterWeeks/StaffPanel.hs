@@ -90,45 +90,17 @@ renderRosterStaffPanel panelModel@RosterStaffPanelRenderModel { staffPanelWeekOf
 
 
 renderRosterStaffPanelShell :: Html -> Html
-renderRosterStaffPanelShell body = [hsx|
-    <div class="app-panel app-side-panel-scroll roster-staff-panel">
-        <div class="app-panel-body">
-            {body}
-        </div>
-    </div>
-|]
+renderRosterStaffPanelShell =
+    renderSidePanelCard SidePanelCardConfig
+        { sidePanelCardClass = "roster-staff-panel"
+        , sidePanelCardBodyClass = ""
+        }
 
 renderRosterStaffPanelTabs :: Bool -> Html -> Html -> Html -> Html
 renderRosterStaffPanelTabs showTemplates staffContent templateContent settingsContent = [hsx|
-    <div class="nav nav-pills roster-staff-panel-tabs" role="tablist" aria-label="Roster side panel">
-        <button class="nav-link active roster-staff-panel-tab"
-                id={rosterStaffPanelStaffTabId}
-                type="button"
-                role="tab"
-                data-bs-toggle="tab"
-                data-bs-target={"#" <> rosterStaffPanelStaffPaneId}
-                aria-controls={rosterStaffPanelStaffPaneId}
-                aria-selected="true"
-                {...rosterStaffPanelTabAttrs RosterStaffTab}>
-            <i class="bi bi-people" aria-hidden="true"></i>
-            <span>Staff</span>
-        </button>
-        {renderRosterTemplatesTab showTemplates}
-        <button class="nav-link roster-staff-panel-tab"
-                id={rosterStaffPanelSettingsTabId}
-                type="button"
-                role="tab"
-                data-bs-toggle="tab"
-                data-bs-target={"#" <> rosterStaffPanelSettingsPaneId}
-                aria-controls={rosterStaffPanelSettingsPaneId}
-                aria-selected="false"
-                {...rosterStaffPanelTabAttrs RosterSettingsTab}>
-            <i class="bi bi-sliders" aria-hidden="true"></i>
-            <span>Settings</span>
-        </button>
-    </div>
-    <div class="tab-content roster-staff-panel-tab-content">
-        <div class="tab-pane show active roster-staff-panel-pane"
+    {renderSidePanelTabs "Roster side panel" tabs}
+    <div class="tab-content app-side-panel-tab-content roster-staff-panel-tab-content">
+        <div class="tab-pane show active app-side-panel-pane roster-staff-panel-pane"
              id={rosterStaffPanelStaffPaneId}
              role="tabpanel"
              aria-labelledby={rosterStaffPanelStaffTabId}
@@ -136,7 +108,7 @@ renderRosterStaffPanelTabs showTemplates staffContent templateContent settingsCo
             {staffContent}
         </div>
         {when showTemplates (renderRosterTemplatesPane templateContent)}
-        <div class="tab-pane roster-staff-panel-pane roster-staff-panel-settings-pane"
+        <div class="tab-pane app-side-panel-pane app-side-panel-settings-pane roster-staff-panel-pane roster-staff-panel-settings-pane"
              id={rosterStaffPanelSettingsPaneId}
              role="tabpanel"
              aria-labelledby={rosterStaffPanelSettingsTabId}
@@ -145,27 +117,16 @@ renderRosterStaffPanelTabs showTemplates staffContent templateContent settingsCo
         </div>
     </div>
 |]
-
-renderRosterTemplatesTab :: Bool -> Html
-renderRosterTemplatesTab False = mempty
-renderRosterTemplatesTab True = [hsx|
-    <button class="nav-link roster-staff-panel-tab"
-            id={rosterStaffPanelTemplatesTabId}
-            type="button"
-            role="tab"
-            data-bs-toggle="tab"
-            data-bs-target={"#" <> rosterStaffPanelTemplatesPaneId}
-            aria-controls={rosterStaffPanelTemplatesPaneId}
-            aria-selected="false"
-            {...rosterStaffPanelTabAttrs RosterTemplatesTab}>
-        <i class="bi bi-collection" aria-hidden="true"></i>
-        <span>Templates</span>
-    </button>
-|]
+  where
+    tabs =
+        [ SidePanelTabConfig rosterStaffPanelStaffTabId rosterStaffPanelStaffPaneId "Staff" "bi bi-people" True "roster-staff-panel-tab" (rosterStaffPanelTabAttrs RosterStaffTab)
+        ]
+            <> [SidePanelTabConfig rosterStaffPanelTemplatesTabId rosterStaffPanelTemplatesPaneId "Templates" "bi bi-collection" False "roster-staff-panel-tab" (rosterStaffPanelTabAttrs RosterTemplatesTab) | showTemplates]
+            <> [SidePanelTabConfig rosterStaffPanelSettingsTabId rosterStaffPanelSettingsPaneId "Settings" "bi bi-sliders" False "roster-staff-panel-tab" (rosterStaffPanelTabAttrs RosterSettingsTab)]
 
 renderRosterTemplatesPane :: Html -> Html
 renderRosterTemplatesPane templateContent = [hsx|
-    <div class="tab-pane roster-staff-panel-pane roster-template-panel-pane"
+    <div class="tab-pane app-side-panel-pane roster-staff-panel-pane roster-template-panel-pane"
          id={rosterStaffPanelTemplatesPaneId}
          role="tabpanel"
          aria-labelledby={rosterStaffPanelTemplatesTabId}
@@ -176,11 +137,11 @@ renderRosterTemplatesPane templateContent = [hsx|
 
 renderRosterStaffPanelHeader :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Bool -> RosterStaffPanelScope -> Html
 renderRosterStaffPanelHeader weekOffset currentRosterGroupId hasMultipleRosterGroups panelScope = [hsx|
-    <div class="roster-staff-panel-header">
+    <div class="app-side-panel-content-header roster-staff-panel-header">
         <div>
             <h2 class="h5 mb-0">Staff</h2>
         </div>
-        <div class="d-flex flex-wrap align-items-center justify-content-end gap-2 roster-staff-panel-header-actions">
+        <div class="app-side-panel-content-header-actions roster-staff-panel-header-actions">
             {renderOpenRosterStaffCreateDialogButton weekOffset currentRosterGroupId}
             {when hasMultipleRosterGroups (renderStaffScopeToggle weekOffset currentRosterGroupId panelScope)}
         </div>
@@ -223,12 +184,12 @@ rosterStaffPanelColumns =
 
 renderRosterStaffPanelTable :: [Staff] -> Int -> Id RosterGroup -> [RosterStaffPanelEntry] -> Html
 renderRosterStaffPanelTable panelStaffMembers weekOffset currentRosterGroupId renderedPanelStaff = [hsx|
-    <div class="roster-staff-panel-list">
-        <table class="roster-staff-table" {...rosterStaffPanelSortRootAttrs}>
-            <thead class="roster-staff-table-head">
+    <div class="app-side-panel-table-list roster-staff-panel-list">
+        <table class="app-side-panel-table roster-staff-table" {...rosterStaffPanelSortRootAttrs}>
+            <thead class="app-side-panel-table-head roster-staff-table-head">
                 <tr>{forEach rosterStaffPanelColumns renderRosterStaffPanelHeaderCell}</tr>
             </thead>
-            <tbody class="roster-staff-table-body">
+            <tbody class="app-side-panel-table-body roster-staff-table-body">
                 {forEach renderedPanelStaff (renderRosterStaffPanelEntry panelStaffMembers weekOffset currentRosterGroupId)}
             </tbody>
         </table>
@@ -240,27 +201,27 @@ renderRosterStaffPanelTable panelStaffMembers weekOffset currentRosterGroupId re
 renderRosterStaffPanelHeaderCell :: RosterStaffPanelColumn -> Html
 renderRosterStaffPanelHeaderCell RosterStaffNameColumn = [hsx|
     <th scope="col" aria-sort="none">
-        <button type="button" class="roster-staff-sort-button" {...rosterStaffPanelSortControlAttrs RosterStaffSortByName}>
+        <button type="button" class="app-side-panel-sort-button roster-staff-sort-button" {...rosterStaffPanelSortControlAttrs RosterStaffSortByName}>
             Name
         </button>
     </th>
 |]
 renderRosterStaffPanelHeaderCell RosterStaffRoleColumn = [hsx|
-    <th scope="col" class="roster-staff-role-head" aria-sort="none">
-        <button type="button" class="roster-staff-sort-button" {...rosterStaffPanelSortControlAttrs RosterStaffSortByRole}>
+    <th scope="col" class="app-side-panel-role-head roster-staff-role-head" aria-sort="none">
+        <button type="button" class="app-side-panel-sort-button roster-staff-sort-button" {...rosterStaffPanelSortControlAttrs RosterStaffSortByRole}>
             Role
         </button>
     </th>
 |]
 renderRosterStaffPanelHeaderCell RosterStaffShiftsColumn = [hsx|
-    <th scope="col" class="roster-staff-metric-head" aria-sort="none">
-        <button type="button" class="roster-staff-sort-button roster-staff-sort-button-metric" {...rosterStaffPanelSortControlAttrs RosterStaffSortByShifts}>
+    <th scope="col" class="app-side-panel-metric-head roster-staff-metric-head" aria-sort="none">
+        <button type="button" class="app-side-panel-sort-button app-side-panel-sort-button-metric roster-staff-sort-button roster-staff-sort-button-metric" {...rosterStaffPanelSortControlAttrs RosterStaffSortByShifts}>
             Shifts
         </button>
     </th>
 |]
 renderRosterStaffPanelHeaderCell RosterStaffActionColumn = [hsx|
-    <th scope="col" class="roster-staff-action-head">
+    <th scope="col" class="app-side-panel-action-head roster-staff-action-head">
         <span class="visually-hidden">Locate shifts</span>
     </th>
 |]
@@ -332,7 +293,7 @@ renderRosterStaffPanelEntryRow weekOffset currentRosterGroupId staffDisplayLabel
                 (appShellActionByMarker @OpenRosterStaffEditDialog)
                 (rosterStaffOverlayRoute (appendQueryParams (pathTo (EditStaffAction entry.staff.id)) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]))
                 [hsx|
-                    <tr class="roster-staff-panel-entry"
+                    <tr class="app-side-panel-entry roster-staff-panel-entry"
                     {...rosterStaffPanelSortRowAttrs staffKey staffDisplayLabel staffRoleLabel entry.assignedShiftCount entry.staff.idealShiftsPerWeek}
                     aria-disabled="false"
                     role="button"
@@ -343,8 +304,8 @@ renderRosterStaffPanelEntryRow weekOffset currentRosterGroupId staffDisplayLabel
 
 renderRosterStaffPanelEntryCell :: Int -> Id RosterGroup -> Text -> Text -> RosterStaffPanelEntry -> RosterStaffPanelColumn -> Html
 renderRosterStaffPanelEntryCell weekOffset currentRosterGroupId staffDisplayLabel _ entry RosterStaffNameColumn = [hsx|
-    <th scope="row" class="roster-staff-cell roster-staff-name">
-        <div class="roster-staff-name-primary d-inline-flex align-items-center gap-2">
+    <th scope="row" class="app-side-panel-cell app-side-panel-name roster-staff-cell roster-staff-name">
+        <div class="app-side-panel-name-primary roster-staff-name-primary d-inline-flex align-items-center gap-2">
             <span>{staffDisplayLabel}</span>
             {renderStaffPayConfigurationWarning entry}
             {renderTrialStaffInviteButton weekOffset currentRosterGroupId staffDisplayLabel entry}
@@ -352,16 +313,16 @@ renderRosterStaffPanelEntryCell weekOffset currentRosterGroupId staffDisplayLabe
     </th>
 |]
 renderRosterStaffPanelEntryCell _ _ _ staffRoleLabel _ RosterStaffRoleColumn = [hsx|
-    <td class="roster-staff-cell roster-staff-role">{staffRoleLabel}</td>
+    <td class="app-side-panel-cell app-side-panel-role roster-staff-cell roster-staff-role">{staffRoleLabel}</td>
 |]
 renderRosterStaffPanelEntryCell _ _ _ _ entry RosterStaffShiftsColumn = [hsx|
-    <td class="roster-staff-cell roster-staff-shifts">{renderShiftSummary entry}</td>
+    <td class="app-side-panel-cell app-side-panel-metric roster-staff-cell roster-staff-shifts">{renderShiftSummary entry}</td>
 |]
 renderRosterStaffPanelEntryCell _ _ staffDisplayLabel _ entry RosterStaffActionColumn =
     let locateButton =
             SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightPin rosterStaffLinkedHighlight ("staff:" <> tshow entry.staff.id) [hsx|
                 <button type="button"
-                        class="btn btn-sm btn-outline-secondary app-icon-button roster-staff-locate-button"
+                        class="btn btn-sm btn-outline-secondary app-icon-button app-side-panel-locate-button roster-staff-locate-button"
                         aria-label={"Locate shifts for " <> staffDisplayLabel}
                         aria-pressed="false">
                     <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16">
@@ -370,7 +331,7 @@ renderRosterStaffPanelEntryCell _ _ staffDisplayLabel _ entry RosterStaffActionC
                 </button>
             |]
      in [hsx|
-        <td class="roster-staff-cell roster-staff-action">{locateButton}</td>
+        <td class="app-side-panel-cell app-side-panel-action roster-staff-cell roster-staff-action">{locateButton}</td>
     |]
 
 renderStaffPayConfigurationWarning :: (?context :: ControllerContext) => RosterStaffPanelEntry -> Html
@@ -407,6 +368,6 @@ humanizeStaffRole value =
 
 renderShiftSummary :: RosterStaffPanelEntry -> Html
 renderShiftSummary entry = [hsx|
-    <span class="roster-staff-shifts-actual">{tshow entry.assignedShiftCount}</span>
-    <span class="roster-staff-shifts-ideal">({tshow entry.staff.idealShiftsPerWeek})</span>
+    <span class="app-side-panel-count roster-staff-shifts-actual">{tshow entry.assignedShiftCount}</span>
+    <span class="app-side-panel-count app-side-panel-count-secondary roster-staff-shifts-ideal">({tshow entry.staff.idealShiftsPerWeek})</span>
 |]

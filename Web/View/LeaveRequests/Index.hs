@@ -166,40 +166,45 @@ renderLeaveSidePanelWithSwap maybeSwapOob venueToday blackouts leaveRequests sta
         , sidePanelRegionClass = "col-12 col-xl-4 col-xxl-3 leave-side-panel"
         , sidePanelRegionExtraAttrs = maybe [] (\swap -> [("hx-swap-oob", swap)]) maybeSwapOob
         }
-        [hsx|
-            <div class="app-panel app-side-panel-card app-side-panel-scroll leave-side-panel-card">
-                <div class="app-panel-body app-side-panel-scroll-body">
-                    <div class="nav nav-pills app-side-panel-tabs leave-side-panel-tabs" role="tablist" aria-label="Unavailability side panel">
-                        <button class="nav-link active app-side-panel-tab leave-side-panel-tab" id="leave-staff-tab" type="button" role="tab"
-                                data-bs-toggle="tab" data-bs-target="#leave-staff-pane" aria-controls="leave-staff-pane"
-                                aria-selected="true" {...leaveSidePanelTabAttrs LeaveStaffTab}>Staff</button>
-                        <button class="nav-link app-side-panel-tab leave-side-panel-tab" id="leave-settings-tab" type="button" role="tab"
-                                data-bs-toggle="tab" data-bs-target="#leave-settings-pane" aria-controls="leave-settings-pane"
-                                aria-selected="false" {...leaveSidePanelTabAttrs LeaveSettingsTab}>Settings</button>
+        ( renderSidePanelCard
+            SidePanelCardConfig
+                { sidePanelCardClass = "leave-side-panel-card"
+                , sidePanelCardBodyClass = "app-side-panel-scroll-body"
+                }
+            [hsx|
+                {renderSidePanelTabs "Unavailability side panel" tabs}
+                <div class="tab-content app-side-panel-tab-content leave-side-panel-tab-content">
+                    <div class="tab-pane show active app-side-panel-pane" id="leave-staff-pane" role="tabpanel" aria-labelledby="leave-staff-tab" tabindex="0">
+                        <div class="app-side-panel-content-header">
+                            <h2 class="h5 mb-0">Staff</h2>
+                        </div>
+                        {renderLeaveStaffPanel staffPanelEntries}
                     </div>
-                    <div class="tab-content leave-side-panel-tab-content">
-                        <div class="tab-pane show active" id="leave-staff-pane" role="tabpanel" aria-labelledby="leave-staff-tab" tabindex="0">
-                            {renderLeaveStaffPanel staffPanelEntries}
-                        </div>
-                        <div class="tab-pane" id="leave-settings-pane" role="tabpanel" aria-labelledby="leave-settings-tab" tabindex="0">
-                            {renderUnavailabilityBlackoutsLiveFragment venueToday blackouts leaveRequests staffMembers}
-                        </div>
+                    <div class="tab-pane app-side-panel-pane app-side-panel-settings-pane" id="leave-settings-pane" role="tabpanel" aria-labelledby="leave-settings-tab" tabindex="0">
+                        {renderUnavailabilityBlackoutsLiveFragment venueToday blackouts leaveRequests staffMembers}
                     </div>
                 </div>
-            </div>
-        |]
+            |]
+        )
+  where
+    tabs =
+        [ SidePanelTabConfig "leave-staff-tab" "leave-staff-pane" "Staff" "bi bi-people" True "leave-side-panel-tab" (leaveSidePanelTabAttrs LeaveStaffTab)
+        , SidePanelTabConfig "leave-settings-tab" "leave-settings-pane" "Settings" "bi bi-sliders" False "leave-side-panel-tab" (leaveSidePanelTabAttrs LeaveSettingsTab)
+        ]
 
 renderLeaveStaffPanel :: (?context :: ControllerContext) => [LeaveStaffPanelEntry] -> Html
 renderLeaveStaffPanel entries = [hsx|
-    <table class="app-side-panel-table leave-staff-table" {...leaveStaffPanelSortRootAttrs}>
-        <thead><tr>
-            <th scope="col" aria-sort="none"><button type="button" class="app-side-panel-sort-button leave-staff-sort-button" {...leaveStaffPanelSortControlAttrs LeaveStaffSortByName}>Name</button></th>
-            <th scope="col" aria-sort="none"><button type="button" class="app-side-panel-sort-button leave-staff-sort-button" {...leaveStaffPanelSortControlAttrs LeaveStaffSortByRole}>Role</button></th>
-            <th scope="col" aria-sort="none"><button type="button" class="app-side-panel-sort-button leave-staff-sort-button" {...leaveStaffPanelSortControlAttrs LeaveStaffSortByCount}>Periods</button></th>
-            <th scope="col"><span class="visually-hidden">Locate unavailable periods</span></th>
-        </tr></thead>
-        <tbody>{forEach (sortOn (Text.toCaseFold . leaveStaffName . (.panelStaff)) entries) renderLeaveStaffPanelEntry}</tbody>
-    </table>
+    <div class="app-side-panel-table-list">
+        <table class="app-side-panel-table leave-staff-table" {...leaveStaffPanelSortRootAttrs}>
+            <thead class="app-side-panel-table-head"><tr>
+                <th scope="col" aria-sort="none"><button type="button" class="app-side-panel-sort-button leave-staff-sort-button" {...leaveStaffPanelSortControlAttrs LeaveStaffSortByName}>Name</button></th>
+                <th scope="col" class="app-side-panel-role-head" aria-sort="none"><button type="button" class="app-side-panel-sort-button leave-staff-sort-button" {...leaveStaffPanelSortControlAttrs LeaveStaffSortByRole}>Role</button></th>
+                <th scope="col" class="app-side-panel-metric-head" aria-sort="none"><button type="button" class="app-side-panel-sort-button app-side-panel-sort-button-metric leave-staff-sort-button" {...leaveStaffPanelSortControlAttrs LeaveStaffSortByCount}>Periods</button></th>
+                <th scope="col" class="app-side-panel-action-head"><span class="visually-hidden">Locate unavailable periods</span></th>
+            </tr></thead>
+            <tbody class="app-side-panel-table-body">{forEach (sortOn (Text.toCaseFold . leaveStaffName . (.panelStaff)) entries) renderLeaveStaffPanelEntry}</tbody>
+        </table>
+    </div>
 |]
 
 renderLeaveStaffPanelEntry :: (?context :: ControllerContext) => LeaveStaffPanelEntry -> Html
@@ -217,10 +222,10 @@ renderLeaveStaffPanelEntry entry =
             [hsx|
                 <tr class="app-side-panel-entry leave-staff-panel-entry" role="button" tabindex="0"
                     {...leaveStaffPanelSortRowAttrs staffKey staffName roleLabel entry.panelPeriodCount entry.panelPendingCount}>
-                    <th scope="row">{staffName}</th>
-                    <td>{roleLabel}</td>
-                    <td><span class="app-side-panel-count leave-staff-count-total">{entry.panelPeriodCount}</span> <span class="app-side-panel-count app-side-panel-count-secondary leave-staff-count-pending">({entry.panelPendingCount})</span></td>
-                    <td>{locateButton}</td>
+                    <th scope="row" class="app-side-panel-cell app-side-panel-name"><span class="app-side-panel-name-primary">{staffName}</span></th>
+                    <td class="app-side-panel-cell app-side-panel-role">{roleLabel}</td>
+                    <td class="app-side-panel-cell app-side-panel-metric"><span class="app-side-panel-count leave-staff-count-total">{entry.panelPeriodCount}</span><span class="app-side-panel-count app-side-panel-count-secondary leave-staff-count-pending">({entry.panelPendingCount})</span></td>
+                    <td class="app-side-panel-cell app-side-panel-action">{locateButton}</td>
                 </tr>
             |]
   where
@@ -229,7 +234,7 @@ renderLeaveStaffPanelEntry entry =
     roleLabel = Text.toTitle (Text.replace "_" " " entry.panelStaffRole)
     locateButton =
         SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightPin leaveStaffPeriodsLinkedHighlight staffKey [hsx|
-            <button type="button" class="btn btn-sm btn-outline-secondary app-icon-button leave-staff-locate-button"
+            <button type="button" class="btn btn-sm btn-outline-secondary app-icon-button app-side-panel-locate-button leave-staff-locate-button"
                     aria-label={"Locate unavailable periods for " <> staffName} aria-pressed="false">
                 <i class="bi bi-eye" aria-hidden="true"></i>
             </button>

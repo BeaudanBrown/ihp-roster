@@ -53,36 +53,11 @@ renderRosterStaffSelfServicePanelFragmentWithSwap maybeSwapOob (Just panel)
             , sidePanelRegionExtraAttrs = maybe [] (\swap -> [("hx-swap-oob", swap)]) maybeSwapOob
             }
             [hsx|
-                <div class="app-panel app-side-panel-scroll roster-staff-panel">
+                <div class="app-panel app-side-panel-card app-side-panel-scroll roster-staff-panel">
                     <div class="app-panel-body">
-                        <div class="nav nav-pills roster-staff-panel-tabs" role="tablist" aria-label="Roster side panel">
-                            <button class="nav-link active roster-staff-panel-tab"
-                                    id={rosterSelfServiceQuickToolsTabId}
-                                    type="button"
-                                    role="tab"
-                                    data-bs-toggle="tab"
-                                    data-bs-target={"#" <> rosterSelfServiceQuickToolsPaneId}
-                                    aria-controls={rosterSelfServiceQuickToolsPaneId}
-                                    aria-selected="true"
-                                    {...rosterSelfServicePanelTabAttrs RosterQuickToolsTab}>
-                                <i class="bi bi-lightning" aria-hidden="true"></i>
-                                <span>Quick tools</span>
-                            </button>
-                            <button class="nav-link roster-staff-panel-tab"
-                                    id={rosterSelfServiceSettingsTabId}
-                                    type="button"
-                                    role="tab"
-                                    data-bs-toggle="tab"
-                                    data-bs-target={"#" <> rosterSelfServiceSettingsPaneId}
-                                    aria-controls={rosterSelfServiceSettingsPaneId}
-                                    aria-selected="false"
-                                    {...rosterSelfServicePanelTabAttrs RosterSelfServiceSettingsTab}>
-                                <i class="bi bi-sliders" aria-hidden="true"></i>
-                                <span>Settings</span>
-                            </button>
-                        </div>
-                        <div class="tab-content roster-staff-panel-tab-content">
-                            <div class="tab-pane show active roster-staff-panel-pane"
+                        {renderSidePanelTabs "Roster side panel" tabs}
+                        <div class="tab-content app-side-panel-tab-content roster-staff-panel-tab-content">
+                            <div class="tab-pane show active app-side-panel-pane roster-staff-panel-pane"
                                  id={rosterSelfServiceQuickToolsPaneId}
                                  role="tabpanel"
                                  aria-labelledby={rosterSelfServiceQuickToolsTabId}
@@ -98,7 +73,7 @@ renderRosterStaffSelfServicePanelFragmentWithSwap maybeSwapOob (Just panel)
                                     </div>
                                     <div class="app-panel roster-quick-tool-panel">
                                         <div class="app-panel-body">
-                                            <div class="roster-staff-panel-header">
+                                            <div class="app-side-panel-content-header roster-staff-panel-header">
                                                 <div>
                                                     <h2 class="h5 mb-1">Unavailability</h2>
                                                     <div class="roster-staff-panel-summary">Add unavailable time</div>
@@ -109,7 +84,7 @@ renderRosterStaffSelfServicePanelFragmentWithSwap maybeSwapOob (Just panel)
                                     </div>
                                 </div>
                             </div>
-                            <div class="tab-pane roster-staff-panel-pane roster-staff-panel-settings-pane"
+                            <div class="tab-pane app-side-panel-pane app-side-panel-settings-pane roster-staff-panel-pane roster-staff-panel-settings-pane"
                                  id={rosterSelfServiceSettingsPaneId}
                                  role="tabpanel"
                                  aria-labelledby={rosterSelfServiceSettingsTabId}
@@ -128,6 +103,11 @@ renderRosterStaffSelfServicePanelFragmentWithSwap maybeSwapOob (Just panel)
                     </div>
                 </div>
             |]
+  where
+    tabs =
+        [ SidePanelTabConfig rosterSelfServiceQuickToolsTabId rosterSelfServiceQuickToolsPaneId "Quick tools" "bi bi-lightning" True "roster-staff-panel-tab" (rosterSelfServicePanelTabAttrs RosterQuickToolsTab)
+        , SidePanelTabConfig rosterSelfServiceSettingsTabId rosterSelfServiceSettingsPaneId "Settings" "bi bi-sliders" False "roster-staff-panel-tab" (rosterSelfServicePanelTabAttrs RosterSelfServiceSettingsTab)
+        ]
 
 timesheetDayModel :: RosterStaffSelfServicePanel -> TimesheetDayRenderModel
 timesheetDayModel panel =

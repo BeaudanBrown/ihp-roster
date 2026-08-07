@@ -30,7 +30,7 @@ renderRosterTemplateLibraryFragment userId weekOffset rosterGroup maybeRosterWee
 renderRosterTemplatePanel :: (?context :: ControllerContext) => Int -> RosterGroup -> Maybe RosterWeek -> RosterTemplateLibrary -> Html
 renderRosterTemplatePanel weekOffset rosterGroup maybeRosterWeek library = [hsx|
     <section class="roster-template-panel" aria-labelledby="roster-template-panel-heading">
-        <div class="roster-staff-panel-header">
+        <div class="app-side-panel-content-header roster-staff-panel-header">
             <h2 id="roster-template-panel-heading" class="h5 mb-0">Templates</h2>
             <div class="d-flex gap-2">
                 <button class="btn btn-sm btn-outline-secondary" type="button" hidden="hidden" {...rosterTemplateCancelAttrs}>Cancel</button>

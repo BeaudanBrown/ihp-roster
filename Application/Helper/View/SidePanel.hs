@@ -6,10 +6,14 @@
 module Application.Helper.View.SidePanel
     ( SidePanelRenderAttrs (..)
     , SidePanelRegionConfig (..)
+    , SidePanelCardConfig (..)
+    , SidePanelTabConfig (..)
     , sidePanelRenderAttrs
     , renderSidePanelLayout
     , renderSidePanelMainRegion
     , renderSidePanelPanelRegion
+    , renderSidePanelCard
+    , renderSidePanelTabs
     , renderSidePanelHeaderToggle
     , renderSidePanelToggle
     ) where
@@ -18,6 +22,7 @@ import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive,
                                                             ReflectSurfaceSpec)
 import Application.Helper.FrontendContract.Surface.SidePanel
 import Application.Helper.FrontendContract.Surface.Values (SurfaceSidePanelPrimitive)
+import qualified Data.Text as Text
 import IHP.ViewPrelude
 
 -- | Resolved generated marker attributes supplied by a feature adapter.
@@ -33,6 +38,21 @@ data SidePanelRegionConfig = SidePanelRegionConfig
     { sidePanelRegionId         :: !(Maybe Text)
     , sidePanelRegionClass      :: !Text
     , sidePanelRegionExtraAttrs :: ![(Text, Text)]
+    }
+
+data SidePanelCardConfig = SidePanelCardConfig
+    { sidePanelCardClass     :: !Text
+    , sidePanelCardBodyClass :: !Text
+    }
+
+data SidePanelTabConfig = SidePanelTabConfig
+    { sidePanelTabId         :: !Text
+    , sidePanelTabPaneId     :: !Text
+    , sidePanelTabLabel      :: !Text
+    , sidePanelTabIconClass  :: !Text
+    , sidePanelTabIsSelected :: !Bool
+    , sidePanelTabClass      :: !Text
+    , sidePanelTabAttrs      :: ![(Text, Text)]
     }
 
 sidePanelRenderAttrs :: forall spec marker.
@@ -76,6 +96,37 @@ renderSidePanelPanelRegion attrs config body = [hsx|
         {body}
     </aside>
 |]
+
+renderSidePanelCard :: SidePanelCardConfig -> Html -> Html
+renderSidePanelCard config body = [hsx|
+    <div class={"app-panel app-side-panel-card app-side-panel-scroll " <> config.sidePanelCardClass}>
+        <div class={"app-panel-body " <> config.sidePanelCardBodyClass}>
+            {body}
+        </div>
+    </div>
+|]
+
+renderSidePanelTabs :: Text -> [SidePanelTabConfig] -> Html
+renderSidePanelTabs ariaLabel tabs = [hsx|
+    <div class="nav nav-pills app-side-panel-tabs" role="tablist" aria-label={ariaLabel}>
+        {forEach tabs renderTab}
+    </div>
+|]
+  where
+    renderTab tab = [hsx|
+        <button class={classes [ ("nav-link", True), ("active", tab.sidePanelTabIsSelected), ("app-side-panel-tab", True), (tab.sidePanelTabClass, not (Text.null tab.sidePanelTabClass)) ]}
+                id={tab.sidePanelTabId}
+                type="button"
+                role="tab"
+                data-bs-toggle="tab"
+                data-bs-target={"#" <> tab.sidePanelTabPaneId}
+                aria-controls={tab.sidePanelTabPaneId}
+                aria-selected={if tab.sidePanelTabIsSelected then ("true" :: Text) else "false"}
+                {...tab.sidePanelTabAttrs}>
+            <i class={tab.sidePanelTabIconClass} aria-hidden="true"></i>
+            <span>{tab.sidePanelTabLabel}</span>
+        </button>
+    |]
 
 renderSidePanelHeaderToggle :: SidePanelRenderAttrs -> Html
 renderSidePanelHeaderToggle attrs = [hsx|

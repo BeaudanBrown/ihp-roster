@@ -236,33 +236,34 @@ renderTimesheetSidePanelWithSwap maybeSwapOob view =
         , sidePanelRegionClass = "col-12 col-xl-4 col-xxl-3 timesheet-side-panel"
         , sidePanelRegionExtraAttrs = maybe [] (\swap -> [("hx-swap-oob", swap)]) maybeSwapOob
         }
-        [hsx|
-            <div class="app-panel app-side-panel-card app-side-panel-scroll timesheet-side-panel-card">
-                <div class="app-panel-body app-side-panel-scroll-body">
-                    {if currentUserIsManager then renderManagerTimesheetSidePanel view else renderWorkerTimesheetSettings view}
-                </div>
-            </div>
-        |]
+        ( renderSidePanelCard
+            SidePanelCardConfig
+                { sidePanelCardClass = "timesheet-side-panel-card"
+                , sidePanelCardBodyClass = "app-side-panel-scroll-body"
+                }
+            (if currentUserIsManager then renderManagerTimesheetSidePanel view else renderWorkerTimesheetSettings view)
+        )
 
 renderManagerTimesheetSidePanel :: (?context :: ControllerContext) => IndexView -> Html
 renderManagerTimesheetSidePanel view = [hsx|
-    <div class="nav nav-pills app-side-panel-tabs timesheet-side-panel-tabs" role="tablist" aria-label="Timesheet side panel">
-        <button class="nav-link active app-side-panel-tab timesheet-side-panel-tab" id="timesheet-staff-tab" type="button" role="tab"
-                data-bs-toggle="tab" data-bs-target="#timesheet-staff-pane" aria-controls="timesheet-staff-pane"
-                aria-selected="true" {...timesheetSidePanelTabAttrs TimesheetStaffTab}>Staff</button>
-        <button class="nav-link app-side-panel-tab timesheet-side-panel-tab" id="timesheet-settings-tab" type="button" role="tab"
-                data-bs-toggle="tab" data-bs-target="#timesheet-settings-pane" aria-controls="timesheet-settings-pane"
-                aria-selected="false" {...timesheetSidePanelTabAttrs TimesheetSettingsTab}>Settings</button>
-    </div>
-    <div class="tab-content timesheet-side-panel-tab-content">
-        <div class="tab-pane show active" id="timesheet-staff-pane" role="tabpanel" aria-labelledby="timesheet-staff-tab" tabindex="0">
+    {renderSidePanelTabs "Timesheet side panel" tabs}
+    <div class="tab-content app-side-panel-tab-content timesheet-side-panel-tab-content">
+        <div class="tab-pane show active app-side-panel-pane" id="timesheet-staff-pane" role="tabpanel" aria-labelledby="timesheet-staff-tab" tabindex="0">
+            <div class="app-side-panel-content-header">
+                <h2 class="h5 mb-0">Staff</h2>
+            </div>
             {renderTimesheetStaffPanel view.weekOffset view.staffMembers view.staffPanelEntries}
         </div>
-        <div class="tab-pane" id="timesheet-settings-pane" role="tabpanel" aria-labelledby="timesheet-settings-tab" tabindex="0">
+        <div class="tab-pane app-side-panel-pane app-side-panel-settings-pane" id="timesheet-settings-pane" role="tabpanel" aria-labelledby="timesheet-settings-tab" tabindex="0">
             {renderTimesheetSettings view}
         </div>
     </div>
 |]
+  where
+    tabs =
+        [ SidePanelTabConfig "timesheet-staff-tab" "timesheet-staff-pane" "Staff" "bi bi-people" True "timesheet-side-panel-tab" (timesheetSidePanelTabAttrs TimesheetStaffTab)
+        , SidePanelTabConfig "timesheet-settings-tab" "timesheet-settings-pane" "Settings" "bi bi-sliders" False "timesheet-side-panel-tab" (timesheetSidePanelTabAttrs TimesheetSettingsTab)
+        ]
 
 renderWorkerTimesheetSettings :: (?context :: ControllerContext) => IndexView -> Html
 renderWorkerTimesheetSettings view = [hsx|
@@ -281,15 +282,17 @@ renderTimesheetSettings IndexView { weekOffset, hideApproved, showTimesheetSugge
 
 renderTimesheetStaffPanel :: (?context :: ControllerContext) => Int -> [Staff] -> [TimesheetStaffPanelEntry] -> Html
 renderTimesheetStaffPanel weekOffset staffMembers entries = [hsx|
-    <table class="app-side-panel-table timesheet-staff-table" {...timesheetStaffPanelSortRootAttrs}>
-        <thead><tr>
-            <th scope="col" aria-sort="none"><button type="button" class="app-side-panel-sort-button timesheet-staff-sort-button" {...timesheetStaffPanelSortControlAttrs TimesheetStaffSortByName}>Name</button></th>
-            <th scope="col" aria-sort="none"><button type="button" class="app-side-panel-sort-button timesheet-staff-sort-button" {...timesheetStaffPanelSortControlAttrs TimesheetStaffSortByRole}>Role</button></th>
-            <th scope="col" aria-sort="none"><button type="button" class="app-side-panel-sort-button timesheet-staff-sort-button" {...timesheetStaffPanelSortControlAttrs TimesheetStaffSortByCount}>Entries</button></th>
-            <th scope="col"><span class="visually-hidden">Locate entries</span></th>
-        </tr></thead>
-        <tbody>{forEach (sortOn (Text.toCaseFold . staffDisplayName staffMembers . (.panelStaff)) entries) (renderTimesheetStaffPanelEntry weekOffset staffMembers)}</tbody>
-    </table>
+    <div class="app-side-panel-table-list">
+        <table class="app-side-panel-table timesheet-staff-table" {...timesheetStaffPanelSortRootAttrs}>
+            <thead class="app-side-panel-table-head"><tr>
+                <th scope="col" aria-sort="none"><button type="button" class="app-side-panel-sort-button timesheet-staff-sort-button" {...timesheetStaffPanelSortControlAttrs TimesheetStaffSortByName}>Name</button></th>
+                <th scope="col" class="app-side-panel-role-head" aria-sort="none"><button type="button" class="app-side-panel-sort-button timesheet-staff-sort-button" {...timesheetStaffPanelSortControlAttrs TimesheetStaffSortByRole}>Role</button></th>
+                <th scope="col" class="app-side-panel-metric-head" aria-sort="none"><button type="button" class="app-side-panel-sort-button app-side-panel-sort-button-metric timesheet-staff-sort-button" {...timesheetStaffPanelSortControlAttrs TimesheetStaffSortByCount}>Entries</button></th>
+                <th scope="col" class="app-side-panel-action-head"><span class="visually-hidden">Locate entries</span></th>
+            </tr></thead>
+            <tbody class="app-side-panel-table-body">{forEach (sortOn (Text.toCaseFold . staffDisplayName staffMembers . (.panelStaff)) entries) (renderTimesheetStaffPanelEntry weekOffset staffMembers)}</tbody>
+        </table>
+    </div>
 |]
 
 renderTimesheetStaffPanelEntry :: (?context :: ControllerContext) => Int -> [Staff] -> TimesheetStaffPanelEntry -> Html
@@ -307,10 +310,10 @@ renderTimesheetStaffPanelEntry weekOffset staffMembers entry =
             [hsx|
                 <tr class="app-side-panel-entry timesheet-staff-panel-entry" role="button" tabindex="0"
                     {...timesheetStaffPanelSortRowAttrs staffKey staffName roleLabel entry.panelEntryCount entry.panelApprovedCount}>
-                    <th scope="row">{staffName}</th>
-                    <td>{roleLabel}</td>
-                    <td><span class="app-side-panel-count timesheet-staff-count-total">{entry.panelEntryCount}</span> <span class="app-side-panel-count app-side-panel-count-secondary timesheet-staff-count-approved">({entry.panelApprovedCount})</span></td>
-                    <td>{locateButton}</td>
+                    <th scope="row" class="app-side-panel-cell app-side-panel-name"><span class="app-side-panel-name-primary">{staffName}</span></th>
+                    <td class="app-side-panel-cell app-side-panel-role">{roleLabel}</td>
+                    <td class="app-side-panel-cell app-side-panel-metric"><span class="app-side-panel-count timesheet-staff-count-total">{entry.panelEntryCount}</span><span class="app-side-panel-count app-side-panel-count-secondary timesheet-staff-count-approved">({entry.panelApprovedCount})</span></td>
+                    <td class="app-side-panel-cell app-side-panel-action">{locateButton}</td>
                 </tr>
             |]
   where
@@ -319,7 +322,7 @@ renderTimesheetStaffPanelEntry weekOffset staffMembers entry =
     roleLabel = maybe (Text.toTitle (Text.replace "_" " " entry.panelStaffRole)) venueRoleLabel (parseVenueRole entry.panelStaffRole)
     locateButton =
         SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightPin timesheetStaffCardsLinkedHighlight staffKey [hsx|
-            <button type="button" class="btn btn-sm btn-outline-secondary app-icon-button timesheet-staff-locate-button"
+            <button type="button" class="btn btn-sm btn-outline-secondary app-icon-button app-side-panel-locate-button timesheet-staff-locate-button"
                     aria-label={"Locate entries for " <> staffName} aria-pressed="false">
                 <i class="bi bi-eye" aria-hidden="true"></i>
             </button>
