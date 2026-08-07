@@ -6,6 +6,7 @@ const scriptInventoryPath = "Config/nix/production-script-inventory.tsv";
 const executableInventoryPath = "Config/nix/production-executable-inventory.tsv";
 const frontendContractToolInventoryPath = "Config/nix/frontend-contract-tool-module-inventory.tsv";
 const frontendContractToolingOnlyPolicyPath = "Config/nix/frontend-contract-tooling-only-policy.tsv";
+const productionPackageDependencyInventoryPath = "Config/nix/production-package-dependency-inventory.tsv";
 const mode = process.argv[2] ?? "--check";
 
 function fail(message) {
@@ -153,11 +154,54 @@ for (const [rootModule, closure] of closureByRoot) {
   for (const name of closure) if (!reachableFrom.has(name)) reachableFrom.set(name, rootModule);
 }
 const testOnlyImportPrefixes = ["IHP.Hspec", "Test.Hspec", "Test.QuickCheck"];
-for (const name of reachableFrom.keys()) {
+const externalImportSources = new Map();
+for (const [name, rootModule] of reachableFrom) {
   const entry = modules.get(name);
   for (const imported of entry.imports) {
     if (testOnlyImportPrefixes.some((prefix) => imported === prefix || imported.startsWith(`${prefix}.`))) {
       fail(`${entry.file}: production module imports test-only interface ${imported}`);
+    }
+    if (modules.has(imported)) continue;
+    if (!externalImportSources.has(imported)) externalImportSources.set(imported, new Set());
+    externalImportSources.get(imported).add(`${entry.file} via ${rootModule}`);
+  }
+}
+
+const existingProductionPackageDependencyRows = parseTsv(
+  productionPackageDependencyInventoryPath,
+  ["module", "package", "reason"],
+) ?? [];
+const existingProductionPackageDependencyByModule = new Map(
+  existingProductionPackageDependencyRows.map((row) => [row.module, row]),
+);
+const renderedProductionPackageDependencies = [
+  "module\tpackage\treason",
+  ...[...externalImportSources.keys()].sort().map((imported) => {
+    const existing = existingProductionPackageDependencyByModule.get(imported);
+    return [imported, existing?.package ?? "UNCLASSIFIED", existing?.reason ?? [...externalImportSources.get(imported)][0]].join("\t");
+  }),
+  "",
+].join("\n");
+if (mode !== "--write-dependencies") {
+  if (!existsSync(productionPackageDependencyInventoryPath)) {
+    fail(`missing ${productionPackageDependencyInventoryPath}; run with --write-dependencies and classify each external import`);
+  } else {
+    const seenDependencyModules = new Set();
+    for (const row of existingProductionPackageDependencyRows) {
+      if (seenDependencyModules.has(row.module)) fail(`${productionPackageDependencyInventoryPath}: duplicate ${row.module}`);
+      seenDependencyModules.add(row.module);
+      if (!externalImportSources.has(row.module)) fail(`${productionPackageDependencyInventoryPath}: stale external import ${row.module}`);
+      if (!row.package || row.package === "UNCLASSIFIED") {
+        fail(`${productionPackageDependencyInventoryPath}: undeclared external production import ${row.module}; imported by ${[...externalImportSources.get(row.module)].join(", ")}`);
+      } else if (!/^[A-Za-z0-9][A-Za-z0-9-]*$/.test(row.package)) {
+        fail(`${productionPackageDependencyInventoryPath}: invalid Cabal package name ${row.package} for ${row.module}`);
+      }
+      if (!row.reason) fail(`${productionPackageDependencyInventoryPath}: ${row.module} needs a reason`);
+    }
+    for (const [imported, sources] of externalImportSources) {
+      if (!seenDependencyModules.has(imported)) {
+        fail(`${productionPackageDependencyInventoryPath}: undeclared external production import ${imported}; imported by ${[...sources].join(", ")}`);
+      }
     }
   }
 }
@@ -227,6 +271,9 @@ if (mode === "--write") {
 } else if (mode === "--write-tooling") {
   writeFileSync(frontendContractToolInventoryPath, renderedFrontendContractTools);
   console.log(`production-inventory: wrote ${frontendContractToolRows.length} frontend-contract tool module classifications`);
+} else if (mode === "--write-dependencies") {
+  writeFileSync(productionPackageDependencyInventoryPath, renderedProductionPackageDependencies);
+  console.log(`production-inventory: wrote ${externalImportSources.size} external production import classifications`);
 } else if (mode === "--check") {
   if (!existsSync(moduleInventoryPath)) fail(`missing ${moduleInventoryPath}; run with --write`);
   else if (readFileSync(moduleInventoryPath, "utf8") !== rendered) fail(`${moduleInventoryPath} is stale; run with --write and review classification changes`);
@@ -234,5 +281,5 @@ if (mode === "--write") {
   else if (readFileSync(frontendContractToolInventoryPath, "utf8") !== renderedFrontendContractTools) fail(`${frontendContractToolInventoryPath} is stale; run with --write-tooling and review package seam changes`);
   if (!process.exitCode) console.log(`production-inventory: ok (${reachableFrom.size} production modules, ${frontendContractToolRows.length} frontend-contract tool modules, ${productionScripts.length} production scripts, ${scriptRows.length - productionScripts.length} development scripts, ${executableRows.length} packaged executables)`);
 } else {
-  fail(`unknown mode ${mode}; expected --check, --write, or --write-tooling`);
+  fail(`unknown mode ${mode}; expected --check, --write, --write-tooling, or --write-dependencies`);
 }

@@ -36,6 +36,19 @@ else
         exit 1
     fi
 fi
+actual_cabal_dependencies="$(
+    awk '/^    build-depends:/{in_dependencies=1; next} in_dependencies && /^    exposed-modules:/{exit} in_dependencies {gsub(/^[[:space:]]*,?[[:space:]]*/, ""); if ($0 != "") print}' "$app_lib_cabal" \
+        | LC_ALL=C sort
+)"
+expected_cabal_dependencies="$(
+    awk -F '\t' 'NR > 1 { print $2 }' Config/nix/production-package-dependency-inventory.tsv \
+        | LC_ALL=C sort -u
+)"
+if [ "$actual_cabal_dependencies" != "$expected_cabal_dependencies" ]; then
+    echo "production-package-smoke: generated app-lib dependencies differ from the reviewed production import authority" >&2
+    diff -u <(printf '%s\n' "$expected_cabal_dependencies") <(printf '%s\n' "$actual_cabal_dependencies") >&2 || true
+    exit 1
+fi
 
 # Enter each wrapped executable only through the RTS boundary. This proves the
 # packaged binary launches without running database- or network-mutating main.

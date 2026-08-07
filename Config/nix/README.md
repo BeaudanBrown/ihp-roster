@@ -15,6 +15,10 @@ than every non-test source file.
   source under `Application/`, `Web/`, and `Config/` is classified. Production
   rows enter `project-source.nix`; development rows remain available from the
   working tree and devenv shell.
+- `production-package-dependency-inventory.tsv` maps every external module
+  imported by that production closure to its reviewed Cabal package. It is the
+  direct dependency authority for generated `app-lib.cabal`; package
+  availability in the GHC environment is not declaration authority.
 
 `production-inventory-check` is blocking. It rejects unclassified or stale
 modules/scripts, missing deployment consumers, disagreement between deployed
@@ -27,9 +31,12 @@ After intentionally adding or changing a module or script:
 
 1. edit `production-script-inventory.tsv` when an entry point changed;
 2. run `bash ./bin/in-env node scripts/production-inventory.mjs --write`;
-3. review every changed classification and reason;
-4. run `bash ./bin/in-env production-inventory-check`;
-5. for production changes, run
+3. when external imports changed, run
+   `bash ./bin/in-env node scripts/production-inventory.mjs --write-dependencies`,
+   replace every `UNCLASSIFIED` package, and review every mapping and reason;
+4. review every changed classification and reason;
+5. run `bash ./bin/in-env production-inventory-check`;
+6. for production changes, run
    `bash ./bin/in-env production-package-smoke`.
 
 Development seeds, fixtures, generators, probes, and architecture tooling must
@@ -45,16 +52,21 @@ register them as direct app dependencies. The production inventory rejects
 imports of `IHP.Hspec`, `Test.Hspec`, or `Test.QuickCheck` from any reachable
 production module.
 
-IHP currently builds `app-lib.cabal` from every package registered in its
-production GHC environment. Some production dependencies themselves retain test
-packages transitively: `aeson` retains QuickCheck and the monolithic `ihp`
-package retains Hspec. `production-nix-support.nix` therefore applies a
-fail-closed, exact patch to that generated package inventory and removes the
-Hspec, QuickCheck, and IHP test package families from app-lib's direct Cabal
-declarations. `production-package-smoke` inspects the actual generated Cabal
-file from the optimized derivation and blocks any regression. General direct
-import-driven Cabal generation belongs to issue #349; do not broaden this
-focused deny rule into a second dependency authority.
+Upstream IHP builds `app-lib.cabal` from every package registered in its GHC
+environment. `production-nix-support.nix` is the managed, fail-closed seam that
+replaces that exact upstream command. Production emits the unique packages from
+`production-package-dependency-inventory.tsv` instead; it never falls back to
+`ghc-pkg list`. During source generation, `ghc-pkg find-module` verifies that
+each reviewed package actually exposes its mapped module and reports the module,
+declaration, and available packages on disagreement.
+
+`production-inventory-check` rejects new undeclared external imports and stale
+mappings with source provenance. `production-package-smoke` independently
+compares the generated optimized `app-lib.cabal` dependency set to the reviewed
+inventory. Some declared runtime packages themselves retain test packages
+transitively—`aeson` retains QuickCheck and monolithic `ihp` retains Hspec—but
+those packages are not direct app declarations. Hspec, compile-failure, and
+tooling dependencies remain in their separate development/tool package sets.
 
 ## Frontend-contract tooling package
 
