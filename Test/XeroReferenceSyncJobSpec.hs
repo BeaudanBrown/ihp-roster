@@ -2,13 +2,21 @@ module Test.XeroReferenceSyncJobSpec where
 
 import Application.Async.Queue
 import Application.Helper.Xero
+import Application.Xero.Admin.ReferenceData (XeroReferenceDataSyncResult,
+                                             completeXeroReferenceDataSync,
+                                             startXeroReferenceDataSync)
 import Application.Xero.ReferenceSyncJob
 import Application.Xero.ReferenceSyncRequest
+import Application.Xero.ReferenceTrust
+import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..))
+import Application.Xero.ReferenceTrust.Service
 import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import Data.Either (isLeft)
 import Data.IORef
-import Data.Time.Clock (addUTCTime, diffUTCTime, getCurrentTime)
+import Data.Time.Calendar (fromGregorian)
+import Data.Time.Clock (UTCTime (..), addUTCTime, diffUTCTime, getCurrentTime,
+                        secondsToDiffTime)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Prelude
@@ -48,6 +56,29 @@ tests = aroundAll withDatabaseTestContext do
                     |> filterWhere (#jobKind, xeroReferenceSyncJobKind)
                     |> fetchCount
                     >>= (`shouldBe` 1)
+
+        it "converges repeated command requests after one successful refresh" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Successful Request Convergence"
+                owner <- createUserRecord "xero-successful-request-convergence@example.com" "staff" True
+                connection <- createReferenceSyncConnection venue owner "tenant-successful-request-convergence"
+                let requestedAt = fixedReferenceSyncTime
+
+                firstState <- requestTrustedXeroReferenceData requestedAt (Just owner.id) connection NoMissingPayrollReferenceDemand
+                firstState.trustDecision `shouldSatisfy` \case
+                    WaitForTrustedXeroReferenceSnapshot _ -> True
+                    _ -> False
+                [job] <- query @AppJob |> fetch
+                performXeroReferenceSyncJobWith (testRuntime requestedAt) (emptyReferenceSource connection) job
+                let observedAt = addUTCTime 60 requestedAt
+
+                forM_ [1 .. 3 :: Int] \_ -> do
+                    state <- requestTrustedXeroReferenceData observedAt (Just owner.id) connection MissingPayrollEligibleStaffReference
+                    state.trustDecision `shouldBe` UseTrustedXeroReferenceSnapshot
+
+                query @AppJob |> fetchCount >>= (`shouldBe` 1)
+                [syncRun] <- query @XeroSyncRun |> fetch
+                syncRun.syncStatus `shouldBe` Succeeded
 
         it "leases one bulk scan per tenant while allowing different tenants" $ withContext do
             withCleanDb do
@@ -111,6 +142,77 @@ tests = aroundAll withDatabaseTestContext do
 
                 acquireXeroReferenceSyncLease now firstJob firstConnection.tenantId `shouldReturn` True
                 acquireXeroReferenceSyncLease (addUTCTime (xeroReferenceSyncLeaseSeconds + 1) now) secondJob secondConnection.tenantId `shouldReturn` True
+
+        it "does not repeat provider work when a retry follows a committed snapshot" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Committed Snapshot Retry"
+                owner <- createUserRecord "xero-committed-snapshot-retry@example.com" "staff" True
+                connection <- createReferenceSyncConnection venue owner "tenant-committed-snapshot-retry"
+                let now = fixedReferenceSyncTime
+                currentConnection <- connection |> set #lastSyncAt (Just now) |> updateRecord
+                EnqueuedAppJob queuedJob <- enqueueXeroReferenceSyncJob (Just owner.id) currentConnection
+                job <- queuedJob
+                    |> set #payload (referenceSyncPayload currentConnection (addUTCTime (-1) now) 1)
+                    |> updateRecord
+                calls <- newIORef []
+
+                performXeroReferenceSyncJobWith (testRuntime now) (recordingReferenceSource calls currentConnection) job
+
+                readIORef calls `shouldReturn` []
+                query @XeroSyncRun |> fetchCount >>= (`shouldBe` 0)
+                completedJob <- fetch job.id
+                completedJob.status `shouldBe` JobStatusSucceeded
+                completedJob.result `shouldBe` Aeson.object
+                    [ "status" Aeson..= ("skipped" :: Text)
+                    , "reason" Aeson..= ("snapshot_already_current" :: Text)
+                    ]
+
+        it "terminalizes a run when an unexpected interruption escapes the worker" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Interrupted Worker Sync"
+                owner <- createUserRecord "xero-interrupted-worker@example.com" "staff" True
+                connection <- createReferenceSyncConnection venue owner "tenant-interrupted-worker"
+                EnqueuedAppJob job <- enqueueXeroReferenceSyncJob (Just owner.id) connection
+                let now = fixedReferenceSyncTime
+                    interruptedSource =
+                        (emptyReferenceSource connection)
+                            { fetchReferenceEmployees = \_ _ -> Exception.throwIO (userError "worker interrupted")
+                            }
+
+                result <- Exception.try (performXeroReferenceSyncJobWith (testRuntime now) interruptedSource job) :: IO (Either Exception.SomeException ())
+
+                result `shouldSatisfy` isLeft
+                [syncRun] <- query @XeroSyncRun |> fetch
+                syncRun.syncStatus `shouldBe` XeroSyncStatusEnumFailed
+                syncRun.finishedAt `shouldSatisfy` isJust
+                syncRun.errorMessage `shouldBe` Just "Xero worker sync failed."
+                interruptedJob <- fetch job.id
+                interruptedJob.progress `shouldBe` Aeson.object
+                    [ "phase" Aeson..= ("worker" :: Text)
+                    , "failureCode" Aeson..= ("transport_error" :: Text)
+                    ]
+
+        it "terminalizes an interrupted run before starting its replacement" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Interrupted Background Sync"
+                owner <- createUserRecord "xero-interrupted-job@example.com" "staff" True
+                connection <- createReferenceSyncConnection venue owner "tenant-interrupted"
+                interruptedRun <- startXeroReferenceDataSync connection
+                EnqueuedAppJob replacementJob <- enqueueXeroReferenceSyncJob (Just owner.id) connection
+                let now = fixedReferenceSyncTime
+
+                performXeroReferenceSyncJobWith (testRuntime now) (emptyReferenceSource connection) replacementJob
+                lateCompletion <- Exception.try (completeXeroReferenceDataSync Nothing interruptedRun connection [] [] [] [] []) :: IO (Either Exception.SomeException XeroReferenceDataSyncResult)
+
+                case lateCompletion of
+                    Left _ -> pure ()
+                    Right _ -> expectationFailure "Expected a superseded sync run to reject late completion"
+                terminalizedRun <- fetch interruptedRun.id
+                terminalizedRun.syncStatus `shouldBe` XeroSyncStatusEnumFailed
+                terminalizedRun.finishedAt `shouldSatisfy` isJust
+                terminalizedRun.errorMessage `shouldBe` Just "Xero worker sync failed."
+                runs <- query @XeroSyncRun |> orderByAsc #createdAt |> fetch
+                map (.syncStatus) runs `shouldBe` [XeroSyncStatusEnumFailed, Succeeded]
 
         it "runs every paced phase and finalizes one complete snapshot" $ withContext do
             withCleanDb do
@@ -258,6 +360,9 @@ advancingRuntime clock delays =
             modifyIORef' clock (addUTCTime (fromIntegral micros / 1000000))
         , referenceSyncJitterSeconds = pure 0
         }
+
+fixedReferenceSyncTime :: UTCTime
+fixedReferenceSyncTime = UTCTime (fromGregorian 2026 8 7) (secondsToDiffTime 0)
 
 testRuntime :: UTCTime -> XeroReferenceSyncRuntime
 testRuntime now =

@@ -121,9 +121,15 @@ performXeroReferenceSyncJobWith runtime source appJob =
                                         refreshedConnection <- fetch connection.id
                                         if refreshedConnection.connectionStatus /= "active" || refreshedConnection.tenantId /= connection.tenantId
                                             then completeSkippedReferenceSyncJob appJob "connection_changed"
-                                            else runLeasedReferenceSync runtime source appJob payload refreshedConnection
+                                            else if referenceSnapshotSatisfiesRequest payload refreshedConnection
+                                                then completeSkippedReferenceSyncJob appJob "snapshot_already_current"
+                                                else runLeasedReferenceSync runtime source appJob payload refreshedConnection
                                     )
                                     (releaseXeroReferenceSyncLease appJob connection.tenantId)
+
+referenceSnapshotSatisfiesRequest :: XeroReferenceSyncJobPayload -> XeroConnection -> Bool
+referenceSnapshotSatisfiesRequest payload connection =
+    maybe False (>= payload.requestedAt) connection.lastSyncAt
 
 runLeasedReferenceSync ::
     (?modelContext :: ModelContext) =>
@@ -135,19 +141,37 @@ runLeasedReferenceSync ::
     IO ()
 runLeasedReferenceSync runtime source appJob payload connection = do
     syncRun <- startXeroReferenceDataSync connection
-    previousRequestStart <- fetchXeroReferenceSyncLastRequestStart connection.tenantId
-    pacer <- newXeroReferencePacerAfter previousRequestStart
-    refreshResult <- runReferencePhase runtime pacer appJob connection "refresh_access" (source.refreshReferenceAccess connection)
-    case refreshResult of
-        Left err -> handleReferenceSyncFailure runtime appJob payload connection (Just syncRun) (XeroReferencePhaseFailure "refresh_access" err)
-        Right (refreshedConnection, accessToken) ->
-            fetchReferenceSnapshot runtime source pacer appJob refreshedConnection accessToken >>= \case
-                Left failure -> handleReferenceSyncFailure runtime appJob payload refreshedConnection (Just syncRun) failure
-                Right snapshot -> do
-                    result <- completeXeroReferenceDataSync appJob.requestedByUserId syncRun refreshedConnection snapshot.employees snapshot.earningsRates snapshot.payrollCalendars snapshot.accounts snapshot.payrollSettingsAccounts
-                    completeReferenceSyncJob appJob result
-                    void $ invalidateTouchedResourcesWithoutContext "xero.reference_sync.completed" $
-                        liveMutationResult refreshedConnection [xeroConnectionResource refreshedConnection.venueId]
+    let runAttempt = do
+            previousRequestStart <- fetchXeroReferenceSyncLastRequestStart connection.tenantId
+            pacer <- newXeroReferencePacerAfter previousRequestStart
+            refreshResult <- runReferencePhase runtime pacer appJob connection "refresh_access" (source.refreshReferenceAccess connection)
+            case refreshResult of
+                Left err -> handleReferenceSyncFailure runtime appJob payload connection (Just syncRun) (XeroReferencePhaseFailure "refresh_access" err)
+                Right (refreshedConnection, accessToken) ->
+                    fetchReferenceSnapshot runtime source pacer appJob refreshedConnection accessToken >>= \case
+                        Left failure -> handleReferenceSyncFailure runtime appJob payload refreshedConnection (Just syncRun) failure
+                        Right snapshot -> do
+                            result <- completeXeroReferenceDataSync appJob.requestedByUserId syncRun refreshedConnection snapshot.employees snapshot.earningsRates snapshot.payrollCalendars snapshot.accounts snapshot.payrollSettingsAccounts
+                            completeReferenceSyncJob appJob result
+                            void $ invalidateTouchedResourcesWithoutContext "xero.reference_sync.completed" $
+                                liveMutationResult refreshedConnection [xeroConnectionResource refreshedConnection.venueId]
+    runAttempt `Exception.onException` terminalizeInterruptedReferenceSyncRun appJob syncRun connection
+
+terminalizeInterruptedReferenceSyncRun ::
+    (?modelContext :: ModelContext) =>
+    AppJob ->
+    XeroSyncRun ->
+    XeroConnection ->
+    IO ()
+terminalizeInterruptedReferenceSyncRun appJob syncRun connection = do
+    latestRun <- fetch syncRun.id
+    when (latestRun.syncStatus == Running) do
+        let interruption = XeroReferencePhaseFailure "worker" (XeroHttpError "Xero reference sync worker interrupted.")
+            message = "Xero worker sync failed."
+        updateReferenceSyncFailureProgress appJob interruption
+        void (failXeroReferenceDataSync appJob.requestedByUserId latestRun connection message :: IO (Either Text ()))
+        void $ invalidateTouchedResourcesWithoutContext "xero.reference_sync.interrupted" $
+            liveMutationResult connection [xeroConnectionResource connection.venueId]
 
 fetchReferenceSnapshot ::
     (?modelContext :: ModelContext) =>

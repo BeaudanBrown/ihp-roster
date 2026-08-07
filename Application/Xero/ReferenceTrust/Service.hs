@@ -1,24 +1,29 @@
 module Application.Xero.ReferenceTrust.Service
-    ( ensureTrustedXeroReferenceData
+    ( requestTrustedXeroReferenceData
     ) where
 
+import Application.Xero.ReferenceDemand (fetchXeroMissingReferenceDemand)
 import Application.Xero.ReferenceSyncJob (enqueueXeroReferenceSyncJob)
 import Application.Xero.ReferenceTrust
 import Application.Xero.ReferenceTrust.ReadModel
 import Generated.Types
 import IHP.ControllerPrelude
 
-ensureTrustedXeroReferenceData ::
+requestTrustedXeroReferenceData ::
     (?modelContext :: ModelContext) =>
     UTCTime ->
     Maybe (Id User) ->
     XeroConnection ->
     XeroMissingReferenceDemand ->
     IO XeroReferenceTrustState
-ensureTrustedXeroReferenceData now maybeActorUserId connection missingReferenceDemand = do
-    initialState <- fetchXeroReferenceTrustState now connection missingReferenceDemand
+requestTrustedXeroReferenceData now maybeActorUserId connection requestedDemand = do
+    currentConnection <- fetch connection.id
+    currentDemand <- case requestedDemand of
+        MissingPayrollEligibleStaffReference -> fetchXeroMissingReferenceDemand currentConnection
+        _ -> pure requestedDemand
+    initialState <- fetchXeroReferenceTrustState now currentConnection currentDemand
     case initialState.trustDecision of
         StartOrJoinXeroReferenceSync -> do
-            _ <- enqueueXeroReferenceSyncJob maybeActorUserId connection
-            fetchXeroReferenceTrustState now connection missingReferenceDemand
+            _ <- enqueueXeroReferenceSyncJob maybeActorUserId currentConnection
+            fetchXeroReferenceTrustState now currentConnection currentDemand
         _ -> pure initialState

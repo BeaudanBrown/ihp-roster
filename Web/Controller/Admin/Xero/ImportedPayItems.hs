@@ -53,7 +53,7 @@ withTrustedXeroEarningsRates respondError respondWaiting action = do
         Nothing -> respondError (xeroErrorToast "Connect Xero before importing pay items.")
         Just connection -> do
             now <- getCurrentTime
-            trustState <- ensureTrustedXeroReferenceData now (Just currentUser.id) connection NoMissingPayrollReferenceDemand
+            trustState <- requestTrustedXeroReferenceData now (Just currentUser.id) connection NoMissingPayrollReferenceDemand
             case trustState.trustDecision of
                 UseTrustedXeroReferenceSnapshot -> do
                     syncedRates <- fetchSyncedXeroEarningsRateRefs connection

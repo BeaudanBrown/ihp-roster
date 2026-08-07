@@ -4,8 +4,12 @@ import Application.Async.Queue
 import Application.Xero.ReferenceSyncJob
 import Application.Xero.ReferenceTrust
 import Application.Xero.ReferenceTrust.ReadModel
+import Application.Xero.ReferenceTrust.Service
+import Control.Monad (replicateM_)
 import qualified Data.Aeson as Aeson
-import Data.Time.Clock (addUTCTime, getCurrentTime)
+import Data.Time.Calendar (fromGregorian)
+import Data.Time.Clock (UTCTime (..), addUTCTime, getCurrentTime,
+                        secondsToDiffTime)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Job.Types
@@ -18,6 +22,45 @@ import Test.Support.XeroAdmin
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Xero reference trust read model" do
+        it "observes trust repeatedly without starting jobs or sync runs" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Read Only Observation Venue"
+                owner <- createUserRecord "xero-read-only-observation@example.com" "staff" True
+                connection <- createSyncableXeroConnection venue owner
+                let now = fixedReferenceTrustTime
+
+                replicateM_ 3 do
+                    state <- fetchXeroReferenceTrustState now connection NoMissingPayrollReferenceDemand
+                    state.trustDecision `shouldBe` StartOrJoinXeroReferenceSync
+
+                query @AppJob |> fetchCount >>= (`shouldBe` 0)
+                query @XeroSyncRun |> fetchCount >>= (`shouldBe` 0)
+
+        it "does not start another job after a command observes the newly trusted snapshot" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Idempotent Trust Command Venue"
+                owner <- createUserRecord "xero-idempotent-command@example.com" "staff" True
+                staleConnection <- createSyncableXeroConnection venue owner
+                let now = fixedReferenceTrustTime
+
+                firstState <- requestTrustedXeroReferenceData now (Just owner.id) staleConnection NoMissingPayrollReferenceDemand
+                firstState.trustDecision `shouldSatisfy` \case
+                    WaitForTrustedXeroReferenceSnapshot _ -> True
+                    _ -> False
+                activeState <- requestTrustedXeroReferenceData now (Just owner.id) staleConnection NoMissingPayrollReferenceDemand
+                activeState.trustDecision `shouldSatisfy` \case
+                    WaitForTrustedXeroReferenceSnapshot _ -> True
+                    _ -> False
+                query @AppJob |> fetchCount >>= (`shouldBe` 1)
+                [firstJob] <- query @AppJob |> fetch
+                _ <- firstJob |> set #status JobStatusSucceeded |> updateRecord
+                _ <- staleConnection |> set #lastSyncAt (Just now) |> updateRecord
+
+                secondState <- requestTrustedXeroReferenceData now (Just owner.id) staleConnection NoMissingPayrollReferenceDemand
+
+                secondState.trustDecision `shouldBe` UseTrustedXeroReferenceSnapshot
+                query @AppJob |> fetchCount >>= (`shouldBe` 1)
+
         it "aggregates future continuation jobs as retry waiting while preserving fresh snapshot use" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Trust Read Model Venue"
@@ -70,6 +113,9 @@ tests = aroundAll withDatabaseTestContext do
                 state.syncActivity `shouldBe` XeroReferenceSyncFailed "Xero reference sync stopped safely."
                 state.syncSanitizedError `shouldBe` Just "Xero reference sync stopped after the accounts phase failed."
                 state.trustDecision `shouldBe` BlockStaleXeroReferenceData "Xero reference sync stopped safely."
+
+fixedReferenceTrustTime :: UTCTime
+fixedReferenceTrustTime = UTCTime (fromGregorian 2026 8 7) (secondsToDiffTime 0)
 
 oneDay :: NominalDiffTime
 oneDay = 24 * 60 * 60

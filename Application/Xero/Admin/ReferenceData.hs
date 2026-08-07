@@ -41,13 +41,26 @@ startXeroReferenceDataSync ::
     IO XeroSyncRun
 startXeroReferenceDataSync connection = do
     now <- getCurrentTime
-    newRecord @XeroSyncRun
-        |> set #venueId connection.venueId
-        |> set #xeroConnectionId (unpackId connection.id)
-        |> set #syncStatus Running
-        |> set #syncKind PayrollReferenceData
-        |> set #startedAt now
-        |> createRecord
+    withTransaction do
+        interruptedRuns <-
+            query @XeroSyncRun
+                |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> filterWhere (#syncStatus, Running)
+                |> fetch
+        forM_ interruptedRuns \interruptedRun ->
+            interruptedRun
+                |> set #syncStatus XeroSyncStatusEnumFailed
+                |> set #errorMessage (Just "Xero worker sync failed.")
+                |> set #finishedAt (Just now)
+                |> updateRecord
+                |> void
+        newRecord @XeroSyncRun
+            |> set #venueId connection.venueId
+            |> set #xeroConnectionId (unpackId connection.id)
+            |> set #syncStatus Running
+            |> set #syncKind PayrollReferenceData
+            |> set #startedAt now
+            |> createRecord
 
 completeXeroReferenceDataSync ::
     (?modelContext :: ModelContext) =>
@@ -63,6 +76,9 @@ completeXeroReferenceDataSync ::
 completeXeroReferenceDataSync maybeActorUserId syncRun connection employees earningsRates payrollCalendars accounts payrollSettingsAccounts = do
     now <- getCurrentTime
     completedRun <- withTransaction do
+        activeSyncRun <- fetch syncRun.id
+        when (activeSyncRun.syncStatus /= Running) $
+            fail "Xero reference sync run is no longer active."
         mapM_ (upsertXeroEmployee connection now) employees
         mapM_ (upsertXeroEarningsRate connection now) earningsRates
         mapM_ (upsertXeroPayrollCalendar connection now) payrollCalendars
@@ -73,7 +89,7 @@ completeXeroReferenceDataSync maybeActorUserId syncRun connection employees earn
         markStaleXeroEarningsRateMappings connection earningsRates
         reconcileXeroPayItemAccountCodeSelection maybeActorUserId connection accounts payrollSettingsAccounts
         updatedSyncRun <-
-            syncRun
+            activeSyncRun
                 |> set #syncStatus Succeeded
                 |> set #employeesCount (length employees)
                 |> set #earningsRatesCount (length earningsRates)

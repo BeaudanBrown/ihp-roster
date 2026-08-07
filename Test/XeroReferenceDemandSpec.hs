@@ -2,6 +2,7 @@ module Test.XeroReferenceDemandSpec where
 
 import Application.Xero.ReferenceDemand
 import Application.Xero.ReferenceTrust
+import Data.Time.Clock (addUTCTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
@@ -44,7 +45,12 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- staff |> set #firstName "Ada updated after approval" |> updateRecord
                 fetchXeroMissingReferenceDemand fixture.connection `shouldReturn` NoMissingPayrollReferenceDemand
 
-                _ <- entry
+                approvedAfterRefresh <- entry |> set #approvedAt (Just (addUTCTime 1 refreshedAt)) |> updateRecord
+                fetchXeroMissingReferenceDemand fixture.connection `shouldReturn` MissingPayrollEligibleStaffReference
+                _ <- mapping |> set #referenceRefreshedAt (Just (addUTCTime 2 refreshedAt)) |> updateRecord
+                fetchXeroMissingReferenceDemand fixture.connection `shouldReturn` NoMissingPayrollReferenceDemand
+
+                _ <- approvedAfterRefresh
                     |> set #isApproved False
                     |> set #activePayCalculationId Nothing
                     |> set #legacyPayBackfillPending False

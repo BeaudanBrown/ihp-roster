@@ -88,7 +88,7 @@ refreshCurrentVenueXeroReferenceDataForPreparation ::
 refreshCurrentVenueXeroReferenceDataForPreparation connection = do
     now <- getCurrentTime
     missingReferenceDemand <- fetchXeroMissingReferenceDemand connection
-    trustState <- ensureTrustedXeroReferenceData now (Just currentUser.id) connection missingReferenceDemand
+    trustState <- requestTrustedXeroReferenceData now (Just currentUser.id) connection missingReferenceDemand
     pure case trustState.trustDecision of
         UseTrustedXeroReferenceSnapshot -> Right connection
         StartOrJoinXeroReferenceSync -> Left "Xero payroll reference data is starting in the background."
