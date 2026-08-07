@@ -124,6 +124,7 @@ import qualified Test.XeroReferenceTrustSpec
 import qualified Test.XeroTimesheetPreviewSpec
 import qualified Test.XeroTimesheetReadinessSpec
 import qualified Test.XeroTimesheetReconciliationSpec
+import qualified Test.XeroTimesheetReservationSpec
 import qualified Test.XeroTimesheetSubmissionSpec
 import qualified Test.XeroWorkflowStateSpec
 
@@ -510,6 +511,7 @@ allSuites =
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "XeroTimesheetPreview", definitionEstimatedRuntimeSeconds = 2.0, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = MediumFixture, definitionExternalMocks = [], definitionOwnedInvariants = [P5, P6], definitionPartialInvariants = []} Test.XeroTimesheetPreviewSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "XeroTimesheetReadiness", definitionEstimatedRuntimeSeconds = 2.0, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = MediumFixture, definitionExternalMocks = [], definitionOwnedInvariants = [P5, P6], definitionPartialInvariants = []} Test.XeroTimesheetReadinessSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "XeroTimesheetReconciliation", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [P6], definitionPartialInvariants = []} Test.XeroTimesheetReconciliationSpec.tests
+    , databaseSuite BroadCleanStateRequired CommittedVisibilityRequired SuiteDefinition{definitionLabel = "XeroTimesheetReservation", definitionEstimatedRuntimeSeconds = 1.0, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = MediumFixture, definitionExternalMocks = [], definitionOwnedInvariants = [P6], definitionPartialInvariants = []} Test.XeroTimesheetReservationSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "XeroTimesheetSubmission", definitionEstimatedRuntimeSeconds = 1.0, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = LargeFixture, definitionExternalMocks = [XeroHttpMock], definitionOwnedInvariants = [P6], definitionPartialInvariants = []} Test.XeroTimesheetSubmissionSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "XeroWorkflowState", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.XeroWorkflowStateSpec.tests
     ]
