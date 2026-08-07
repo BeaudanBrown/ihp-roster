@@ -25,7 +25,7 @@ if [ ! -r "$app_lib_cabal" ]; then
     echo "production-package-smoke: generated app-lib Cabal file is unreadable: $app_lib_cabal" >&2
     exit 1
 fi
-if test_dependency_matches="$(grep -E '^[[:space:]]*,?[[:space:]]*(QuickCheck|quickcheck-[^[:space:]]*|hspec|hspec-[^[:space:]]*|ihp-hspec)([[:space:]]|$)' "$app_lib_cabal")"; then
+if test_dependency_matches="$(grep -E '^[[:space:]]*,?[[:space:]]*(QuickCheck|quickcheck-[^,[:space:]]*|hspec|hspec-[^,[:space:]]*|ihp-hspec)([,[:space:]]|$)' "$app_lib_cabal")"; then
     echo "production-package-smoke: generated app-lib declares a test-only Hspec, QuickCheck, or IHP test dependency" >&2
     printf '%s\n' "$test_dependency_matches" >&2
     exit 1
