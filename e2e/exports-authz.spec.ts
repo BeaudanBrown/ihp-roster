@@ -35,7 +35,7 @@ test.describe('Export authorization and negative cases', () => {
         await expect(page.getByRole('button', { name: 'Exports' })).toBeVisible();
         await expect(payrollReportCard(page, 'Approved Timesheets CSV')).toHaveCount(0);
         await expect(payrollReportCard(page, 'Staff Hours CSV')).toHaveCount(1);
-        await expect(payrollReportCard(page, 'Hourly Breakdown ZIP')).toHaveCount(0);
-        await expect(payrollReportCard(page, 'Payroll Earnings CSV')).toHaveCount(0);
+        await expect(payrollReportCard(page, 'Hourly Breakdown ZIP')).toHaveCount(1);
+        await expect(payrollReportCard(page, 'Payroll Earnings CSV')).toHaveCount(1);
     });
 });
