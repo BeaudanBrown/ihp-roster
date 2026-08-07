@@ -57,6 +57,15 @@ do not leak into either registry.
 
 ## Generated Haskell Surface Adapters
 
+Frontend-contract generation is a separate Nix output, not a production runtime
+entry point. `.#frontend-contract-tools` owns the TypeScript contract renderer,
+Surface Haskell-adapter renderer, and typed architecture emitter. Its checked
+module inventory distinguishes 12 tooling-only modules from 81 shared canonical
+authority modules; shared reflection remains in production only where runtime
+builders, parsers, values, or metadata actually import it. The optimized server
+closure must never reference the tooling output. Package-backed CI freshness
+checks regenerate TypeScript, all managed Haskell adapters and private proofs,
+and architecture contracts before accepting checked-in generated artifacts.
 
 `AppShellAction` is the server-rendered lane for app-owned shell request initiators
 that are not owned by a mounted `FrontendSurface`, including dialog/overlay

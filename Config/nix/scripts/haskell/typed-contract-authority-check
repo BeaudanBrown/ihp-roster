@@ -107,6 +107,9 @@ else
     bash Config/nix/scripts/haskell/enum-authority-check || fail "generated enum authority failed"
 fi
 
+node scripts/production-inventory.mjs --check \
+    || fail "frontend-contract tooling/runtime package authority drifted"
+
 if [[ "$failures" -ne 0 ]]; then
     echo "typed-contract-authority-check: $failures violation(s)" >&2
     exit 1

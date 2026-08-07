@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "issue": 348,
+  "objective": "Separate frontend-contract generation and architecture tooling from the production runtime output",
+  "baseline": "Config/nix/baselines/production-build/issue-344-explicit-production-inventory.json",
+  "captured_at": "2026-08-07T09:27:53Z",
+  "production_runtime": {
+    "optimized_output": "/nix/store/0mzv2kaagh211shsp36pz0wl6lkfq0zb-app",
+    "derivation": "/nix/store/sriyr4d1hmkszx6ac5r8wynaz8vq4abp-app.drv",
+    "unchanged_from_issue_344": true,
+    "app_library_module_count": 472,
+    "closure_bytes": 462793544,
+    "references_frontend_contract_tool_output": false,
+    "decision": "No shared-authority module was removed from runtime merely to manufacture a split; all 81 shared modules have real runtime reachability. The 12 generator/emitter modules remain excluded. The production compile and output are therefore bit-identical to issue 344 rather than accepting a non-improving runtime refactor."
+  },
+  "tooling_package": {
+    "output": "/nix/store/w2pnfw9ilbyaarijb2b542yv763qydci-bepis-frontend-contract-tools",
+    "derivation": "/nix/store/4iv5zwnf4dl3sx8mbchypzhmz3pwwj0l-bepis-frontend-contract-tools.drv",
+    "inventoried_source_modules": 93,
+    "shared_authority_modules": 81,
+    "tooling_only_modules": 12,
+    "tooling_only_policy_is_explicit_and_reason_bearing": true,
+    "compiled_hi_count": 657,
+    "hi_bytes": 12983496,
+    "compiled_dyn_hi_count": 654,
+    "dyn_hi_bytes": 12915560,
+    "largest_interface": {
+      "path": "Web/Controller/Prelude.dyn_hi",
+      "bytes": 209305
+    },
+    "self_bytes": 30243897,
+    "closure_bytes": 137600696,
+    "executables": [
+      "generate-bepis-architecture-contracts",
+      "generate-frontend-contracts",
+      "generate-frontend-surface-adapters"
+    ],
+    "generator_builds": [
+      {
+        "name": "frontend-contracts",
+        "wall_seconds": 34.86,
+        "user_seconds": 117.03,
+        "system_seconds": 10.8,
+        "peak_rss_bytes": 1675419648
+      },
+      {
+        "name": "frontend-surface-adapters",
+        "wall_seconds": 23.75,
+        "user_seconds": 30.0,
+        "system_seconds": 4.09,
+        "peak_rss_bytes": 2791510016
+      },
+      {
+        "name": "architecture-contracts",
+        "wall_seconds": 5.28,
+        "user_seconds": 5.42,
+        "system_seconds": 1.57,
+        "peak_rss_bytes": 1686048768
+      }
+    ]
+  },
+  "rebuild_locality": {
+    "tooling_only_change_changes_tool_derivation": true,
+    "tooling_only_change_changes_production_derivation": false,
+    "runtime_only_change_changes_tool_derivation": false,
+    "runtime_only_change_changes_production_derivation": true,
+    "tool_derivation_before": "/nix/store/4iv5zwnf4dl3sx8mbchypzhmz3pwwj0l-bepis-frontend-contract-tools.drv",
+    "tool_derivation_after_tooling_probe": "/nix/store/jjkjkp1czjksa6pn5gdx3xdawjihnn2z-bepis-frontend-contract-tools.drv",
+    "production_derivation_after_runtime_probe": "/nix/store/3f76xl2jc301k63f9pjm6khzlg365s1z-app.drv"
+  },
+  "verification": {
+    "package_backed_typescript_fresh": true,
+    "package_backed_surface_adapter_modules_current": 24,
+    "private_authority_proofs_typecheck": true,
+    "package_backed_architecture_emitter": true,
+    "package_backed_architecture_semantic_and_freshness_gates": true,
+    "required_in_verify_full": true,
+    "required_in_pull_request_ci": true
+  }
+}

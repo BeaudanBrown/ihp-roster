@@ -6,9 +6,13 @@ cd "$repo_root"
 if [ -f "@scriptsRoot@/lib/ghc.sh" ]; then
     # shellcheck source=../lib/ghc.sh
     . "@scriptsRoot@/lib/ghc.sh"
+    # shellcheck source=tool-package-lib
+    . "@scriptsRoot@/frontend/tool-package-lib"
 else
     # shellcheck source=../lib/ghc.sh
     . "Config/nix/scripts/lib/ghc.sh"
+    # shellcheck source=tool-package-lib
+    . "Config/nix/scripts/frontend/tool-package-lib"
 fi
 if [ -f "@scriptsRoot@/frontend/surface-adapter-publish-lib" ]; then
     # shellcheck source=surface-adapter-publish-lib
@@ -21,13 +25,18 @@ fi
 build_dir="${FRONTEND_SURFACE_ADAPTERS_BUILD_DIR:-$PWD/build/FrontendSurfaceAdapters}"
 publication_root="${FRONTEND_SURFACE_ADAPTERS_PUBLICATION_ROOT:-$PWD}"
 GHC_OPTS="$(ihp_roster_ghc_opts)"
-ihp_roster_prepare_ghc_build_dir "$build_dir" "$GHC_OPTS"
-echo "frontend-surface-adapters: compiling checked-IR Haskell generator" >&2
-ghc $GHC_OPTS Application/Script/GenerateFrontendSurfaceAdapters.hs \
-    -main-is Application.Script.GenerateFrontendSurfaceAdapters \
-    -odir "$build_dir/obj" \
-    -hidir "$build_dir/hi" \
-    -o "$build_dir/generate-frontend-surface-adapters" >/dev/null
+if generator="$(frontend_contract_tool_binary generate-frontend-surface-adapters)"; then
+    echo "frontend-surface-adapters: using isolated tooling package" >&2
+else
+    ihp_roster_prepare_ghc_build_dir "$build_dir" "$GHC_OPTS"
+    echo "frontend-surface-adapters: compiling checked-IR Haskell generator" >&2
+    ghc $GHC_OPTS Application/Script/GenerateFrontendSurfaceAdapters.hs \
+        -main-is Application.Script.GenerateFrontendSurfaceAdapters \
+        -odir "$build_dir/obj" \
+        -hidir "$build_dir/hi" \
+        -o "$build_dir/generate-frontend-surface-adapters" >/dev/null
+    generator="$build_dir/generate-frontend-surface-adapters"
+fi
 
 tmp_dir="$(mktemp -d)"
 proof_dir="$(mktemp -d)"
@@ -37,7 +46,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "frontend-surface-adapters: rendering typed adapter homes" >&2
-"$build_dir/generate-frontend-surface-adapters" "$tmp_dir" "$proof_dir"
+"$generator" "$tmp_dir" "$proof_dir"
 
 mapfile -t expected_files < <(find "$tmp_dir" -type f -name '*.hs' -print | sort)
 mapfile -t proof_files < <(find "$proof_dir" -type f -name '*.hs' -print | sort)

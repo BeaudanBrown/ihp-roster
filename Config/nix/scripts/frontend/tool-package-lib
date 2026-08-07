@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+
+frontend_contract_tool_binary() {
+    local binary="$1"
+    if [ -n "${FRONTEND_CONTRACT_TOOLS_ROOT:-}" ]; then
+        [ -x "$FRONTEND_CONTRACT_TOOLS_ROOT/bin/$binary" ] || {
+            echo "frontend-contract-tools: missing $binary in $FRONTEND_CONTRACT_TOOLS_ROOT" >&2
+            return 1
+        }
+        printf '%s\n' "$FRONTEND_CONTRACT_TOOLS_ROOT/bin/$binary"
+        return 0
+    fi
+    if [ "${FRONTEND_CONTRACT_USE_PACKAGE:-0}" = 1 ]; then
+        local root
+        root="$(nix build --no-link --print-out-paths .#frontend-contract-tools --accept-flake-config)"
+        printf '%s\n' "$root/bin/$binary"
+        return 0
+    fi
+    return 1
+}

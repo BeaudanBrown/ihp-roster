@@ -4,6 +4,8 @@ import path from "node:path";
 const moduleInventoryPath = "Config/nix/production-module-inventory.tsv";
 const scriptInventoryPath = "Config/nix/production-script-inventory.tsv";
 const executableInventoryPath = "Config/nix/production-executable-inventory.tsv";
+const frontendContractToolInventoryPath = "Config/nix/frontend-contract-tool-module-inventory.tsv";
+const frontendContractToolingOnlyPolicyPath = "Config/nix/frontend-contract-tooling-only-policy.tsv";
 const mode = process.argv[2] ?? "--check";
 
 function fail(message) {
@@ -136,6 +138,16 @@ const closureForRoot = (rootModule) => {
   return reached;
 };
 const closureByRoot = new Map(roots.map((rootModule) => [rootModule, closureForRoot(rootModule)]));
+const frontendContractToolRoots = [
+  "Application.Script.GenerateFrontendContracts",
+  "Application.Script.GenerateFrontendSurfaceAdapters",
+  "Application.Script.GenerateBepisArchitectureContracts",
+];
+for (const rootModule of frontendContractToolRoots) if (!modules.has(rootModule)) fail(`missing frontend-contract tool root module ${rootModule}`);
+const frontendContractToolReachableFrom = new Map();
+for (const rootModule of frontendContractToolRoots) {
+  for (const name of closureForRoot(rootModule)) if (!frontendContractToolReachableFrom.has(name)) frontendContractToolReachableFrom.set(name, rootModule);
+}
 const reachableFrom = new Map();
 for (const [rootModule, closure] of closureByRoot) {
   for (const name of closure) if (!reachableFrom.has(name)) reachableFrom.set(name, rootModule);
@@ -167,14 +179,51 @@ const rendered = [
   ...expectedRows.map((row) => [row.file, row.packaging, row.category, row.owner, row.reason].join("\t")),
   "",
 ].join("\n");
+const toolingOnlyPolicyRows = parseTsv(frontendContractToolingOnlyPolicyPath, ["path", "reason"]);
+if (!toolingOnlyPolicyRows) fail(`missing ${frontendContractToolingOnlyPolicyPath}`);
+const toolingOnlyPolicy = new Map();
+for (const row of toolingOnlyPolicyRows ?? []) {
+  if (toolingOnlyPolicy.has(row.path)) fail(`${frontendContractToolingOnlyPolicyPath}: duplicate ${row.path}`);
+  if (!row.reason) fail(`${frontendContractToolingOnlyPolicyPath}: ${row.path} needs a reason`);
+  toolingOnlyPolicy.set(row.path, row.reason);
+}
+for (const [file] of toolingOnlyPolicy) {
+  const name = [...modules].find(([, entry]) => entry.file === file)?.[0];
+  if (!name || !frontendContractToolReachableFrom.has(name)) fail(`${frontendContractToolingOnlyPolicyPath}: ${file} is not in the frontend-contract tool closure`);
+  if (reachableFrom.has(name)) fail(`${frontendContractToolingOnlyPolicyPath}: tooling-only module reached production: ${file}`);
+}
+const frontendContractToolRows = [...frontendContractToolReachableFrom]
+  .map(([name, owner]) => {
+    const file = modules.get(name).file;
+    const sharedWithProduction = reachableFrom.has(name);
+    if (!sharedWithProduction && !toolingOnlyPolicy.has(file)) fail(`${frontendContractToolingOnlyPolicyPath}: unclassified tooling-only module ${file}`);
+    return {
+      file,
+      category: toolingOnlyPolicy.has(file) ? "tooling-only" : "shared-authority",
+      owner,
+      reason: toolingOnlyPolicy.get(file)
+        ?? "Canonical Haskell authority consumed by runtime and frontend-contract tooling",
+    };
+  })
+  .sort((left, right) => left.file.localeCompare(right.file));
+const renderedFrontendContractTools = [
+  "path\tcategory\towner\treason",
+  ...frontendContractToolRows.map((row) => [row.file, row.category, row.owner, row.reason].join("\t")),
+  "",
+].join("\n");
 
 if (mode === "--write") {
   writeFileSync(moduleInventoryPath, rendered);
   console.log(`production-inventory: wrote ${expectedRows.length} module classifications`);
+} else if (mode === "--write-tooling") {
+  writeFileSync(frontendContractToolInventoryPath, renderedFrontendContractTools);
+  console.log(`production-inventory: wrote ${frontendContractToolRows.length} frontend-contract tool module classifications`);
 } else if (mode === "--check") {
   if (!existsSync(moduleInventoryPath)) fail(`missing ${moduleInventoryPath}; run with --write`);
   else if (readFileSync(moduleInventoryPath, "utf8") !== rendered) fail(`${moduleInventoryPath} is stale; run with --write and review classification changes`);
-  if (!process.exitCode) console.log(`production-inventory: ok (${reachableFrom.size} production modules, ${productionScripts.length} production scripts, ${scriptRows.length - productionScripts.length} development scripts, ${executableRows.length} packaged executables)`);
+  if (!existsSync(frontendContractToolInventoryPath)) fail(`missing ${frontendContractToolInventoryPath}; run with --write-tooling`);
+  else if (readFileSync(frontendContractToolInventoryPath, "utf8") !== renderedFrontendContractTools) fail(`${frontendContractToolInventoryPath} is stale; run with --write-tooling and review package seam changes`);
+  if (!process.exitCode) console.log(`production-inventory: ok (${reachableFrom.size} production modules, ${frontendContractToolRows.length} frontend-contract tool modules, ${productionScripts.length} production scripts, ${scriptRows.length - productionScripts.length} development scripts, ${executableRows.length} packaged executables)`);
 } else {
-  fail(`unknown mode ${mode}; expected --check or --write`);
+  fail(`unknown mode ${mode}; expected --check, --write, or --write-tooling`);
 }

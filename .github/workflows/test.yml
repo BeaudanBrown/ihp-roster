@@ -40,5 +40,8 @@ jobs:
       - name: Complete Hspec
         run: bash ./bin/in-env hspec-test
 
+      - name: Frontend-contract tooling package seam
+        run: bash ./bin/in-env frontend-contract-package-check
+
       - name: Production package and deployment smoke
         run: bash ./bin/in-env production-package-smoke
