@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 import {
     FrontendSurfaceSidePanelRegistry,
     FrontendSurfaceTabSetRegistry,
@@ -25,6 +25,42 @@ async function openPage(page: Parameters<typeof gotoWhenReady>[0], target: SideP
     const root = page.locator(`[${sidePanel.rootRoleAttribute}="true"]`);
     await expect(root).toHaveCount(1);
     return { root, sidePanel };
+}
+
+async function managerPanelVisualContract(root: Locator) {
+    const panel = root.locator('.app-side-panel-region');
+    const staffTab = panel.getByRole('tab', { name: 'Staff' });
+    const firstHeader = panel.locator('table thead th').first();
+    const firstRole = panel.locator('table tbody tr').first().locator('td').first();
+    const firstLocate = panel.getByRole('button', { name: /^Locate/ }).first();
+
+    await expect(staffTab).toBeVisible();
+    await expect(firstHeader).toBeVisible();
+    await expect(firstRole).toBeVisible();
+    await expect(firstLocate).toBeVisible();
+
+    return {
+        tabs: await staffTab.locator('..').evaluate(element => {
+            const style = getComputedStyle(element);
+            return [style.display, style.gridTemplateColumns.split(' ').length.toString(), style.gap, style.padding, style.borderRadius, style.backgroundColor];
+        }),
+        tab: await staffTab.evaluate(element => {
+            const style = getComputedStyle(element);
+            return [style.minHeight, style.borderRadius, style.fontSize, style.fontWeight, style.backgroundColor, style.color];
+        }),
+        header: await firstHeader.evaluate(element => {
+            const style = getComputedStyle(element);
+            return [style.paddingTop, style.paddingBottom, style.fontSize, style.fontWeight, style.letterSpacing, style.textTransform];
+        }),
+        role: await firstRole.evaluate(element => {
+            const style = getComputedStyle(element);
+            return [style.fontSize, style.fontWeight, style.letterSpacing, style.textTransform, style.color];
+        }),
+        locate: await firstLocate.evaluate(element => {
+            const style = getComputedStyle(element);
+            return [style.width, style.height, style.borderRadius, style.paddingTop, style.paddingRight];
+        }),
+    };
 }
 
 test.describe('cross-page SidePanel consistency', () => {
@@ -69,6 +105,20 @@ test.describe('cross-page SidePanel consistency', () => {
         await expect(root).toHaveAttribute(sidePanel.stateAttribute, sidePanel.expandedValue);
         await page.reload();
         await expect(page.locator(`[${sidePanel.rootRoleAttribute}="true"]`)).toHaveAttribute(sidePanel.stateAttribute, sidePanel.collapsedValue);
+    });
+
+    test('uses the Roster visual contract for every manager panel', async ({ page }) => {
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+
+        const roster = managerPages[0]!;
+        const { root: rosterRoot } = await openPage(page, roster);
+        const expectedVisualContract = await managerPanelVisualContract(rosterRoot);
+
+        for (const target of managerPages.slice(1)) {
+            const { root } = await openPage(page, target);
+            expect(await managerPanelVisualContract(root)).toEqual(expectedVisualContract);
+        }
     });
 
     test('stacks every panel without page-level horizontal overflow on phone widths', async ({ page }) => {
