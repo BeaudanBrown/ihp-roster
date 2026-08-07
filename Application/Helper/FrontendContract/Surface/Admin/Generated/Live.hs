@@ -18,6 +18,7 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Live
     , adminXeroLiveScope
     , adminXeroPageContentLiveFragment
     , adminXeroPageLiveScope
+    , adminXeroReferenceSyncLiveFragment
     , adminXeroShellLiveFragment
     , matchAdminExportsLiveFragment
     , matchAdminExportsLiveScope
@@ -34,6 +35,7 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Live
     , matchAdminXeroLiveScope
     , matchAdminXeroPageContentLiveFragment
     , matchAdminXeroPageLiveScope
+    , matchAdminXeroReferenceSyncLiveFragment
     , matchAdminXeroShellLiveFragment
     ) where
 
@@ -277,6 +279,19 @@ matchAdminXeroPageLiveScope =
     matchFrontendSurfaceScope
         @(AdapterFamilySurface Types2.AdminXeroPageAdapterFamily)
         @Types1.AdminXeroPageScope
+
+adminXeroReferenceSyncLiveFragment :: SurfaceFragmentKey
+adminXeroReferenceSyncLiveFragment =
+    frontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.AdminXeroAdapterFamily)
+        @Types1.AdminXeroReferenceSyncFragment
+        noSurfaceFields
+
+matchAdminXeroReferenceSyncLiveFragment :: SurfaceFragmentKey -> Maybe ()
+matchAdminXeroReferenceSyncLiveFragment =
+    matchFrontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.AdminXeroAdapterFamily)
+        @Types1.AdminXeroReferenceSyncFragment
 
 adminXeroShellLiveFragment :: SurfaceFragmentKey
 adminXeroShellLiveFragment =

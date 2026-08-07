@@ -186,9 +186,13 @@ their focused/golden tests.
 - Internal Xero services do not broadcast browser updates.
 - `Web/Admin/Xero/Mutations.hs` is the web-facing invalidation boundary and
   returns typed touched-resource results.
-- Background jobs publish typed resource invalidations without requiring request
-  or current-user context. The retained shell depends only on its declared
-  connection resource; guided preparation remains dialog-local.
+- Background reference-sync requests and jobs publish the dedicated typed
+  reference-sync-state resource for queued, progress, retry, skipped, success,
+  and failure transitions without requiring request or current-user context.
+  The retained shell depends only on its connection resource; its nested
+  read-only reference-sync fragment depends on the sync-state resource and
+  reconnect/version-gap resync refetches the same canonical venue-scoped state.
+  Guided preparation remains dialog-local.
 
 ## Provider Contracts
 

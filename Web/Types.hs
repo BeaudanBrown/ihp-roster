@@ -159,6 +159,7 @@ data AdminController
     | ShowadminRosterGroupsLiveFragmentAction
     | ShowadminExportsLiveFragmentAction
     | ShowadminXeroShellLiveFragmentAction
+    | ShowadminXeroReferenceSyncLiveFragmentAction
     | CreateVenueInvitationAction
     | RevokeVenueInvitationAction { venueInvitationId :: !(Id VenueInvitation) }
     | RenewVenueInvitationAction { venueInvitationId :: !(Id VenueInvitation) }

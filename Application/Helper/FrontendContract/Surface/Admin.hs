@@ -28,12 +28,14 @@ module Application.Helper.FrontendContract.Surface.Admin
     , AdminShiftTypesFragment
     , AdminRosterGroupsFragment
     , AdminXeroShellFragment
+    , AdminXeroReferenceSyncFragment
     , AdminVenueSettings
     , AdminInvites
     , AdminExports
     , AdminShiftTypes
     , AdminRosterGroups
     , XeroConnection
+    , XeroReferenceSyncState
     , CreateRosterGroup
     , UpdateRosterGroup
     , MoveRosterGroupUp
@@ -109,6 +111,7 @@ data AdminExportsFragment
 data AdminShiftTypesFragment
 data AdminRosterGroupsFragment
 data AdminXeroShellFragment
+data AdminXeroReferenceSyncFragment
 
 data CreateRosterGroup
 data UpdateRosterGroup
@@ -164,6 +167,7 @@ data AdminXeroFragment
 
 data AdminVenueSettings
 data XeroConnection
+data XeroReferenceSyncState
 
 type AdminVenueSettingsResource = Resource AdminVenueSettings '[ Field VenueId 'WireUUID ]
 type AdminInvitesResource = Resource AdminInvites '[ Field VenueId 'WireUUID ]
@@ -171,6 +175,7 @@ type AdminExportsResource = Resource AdminExports '[ Field VenueId 'WireUUID ]
 type AdminShiftTypesResource = Resource AdminShiftTypes '[ Field VenueId 'WireUUID ]
 type AdminRosterGroupsResource = Resource AdminRosterGroups '[ Field VenueId 'WireUUID ]
 type XeroConnectionResource = Resource XeroConnection '[ Field VenueId 'WireUUID ]
+type XeroReferenceSyncStateResource = Resource XeroReferenceSyncState '[ Field VenueId 'WireUUID ]
 
 type AdminPageSurface =
     Surface AdminPage
@@ -413,7 +418,8 @@ type AdminRosterGroupsSurface =
 type AdminXeroSurface =
     Surface AdminXero
         '[ Scope AdminXeroScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueOwner '[ VenueId ] ]
-         , Fragment AdminXeroShellFragment '[] '[ 'MountTarget AdminXeroFragment '[], 'Eager, 'Live, 'DependsOn XeroConnectionResource '[ 'FromScope VenueId ] ]
+         , Fragment AdminXeroShellFragment '[] '[ 'MountTarget AdminXeroFragment '[], 'Eager, 'Live, 'DependsOn XeroConnectionResource '[ 'FromScope VenueId ], 'Contains AdminXeroReferenceSyncFragment ]
+         , Fragment AdminXeroReferenceSyncFragment '[] '[ 'MountTarget AdminXeroReferenceSyncFragment '[], 'Eager, 'Live, 'DependsOn XeroReferenceSyncStateResource '[ 'FromScope VenueId ] ]
          , Action SyncXeroPayrollReferenceData
             '[]
             '[ 'HtmxMethod 'HtmxPost

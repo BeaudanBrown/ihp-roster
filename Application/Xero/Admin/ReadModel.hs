@@ -1,6 +1,7 @@
 module Application.Xero.Admin.ReadModel
     ( fetchCurrentVenueXeroAdminSectionData
     , fetchCurrentVenueXeroConnection
+    , fetchCurrentVenueXeroReferenceSyncDiagnostics
     , fetchCurrentVenueXeroEarningsRates
     , fetchCurrentVenueXeroEmployees
     , fetchCurrentVenueXeroPayItemAccountCodeOptions
@@ -201,19 +202,33 @@ fetchCurrentVenueXeroAdminSectionData ::
 fetchCurrentVenueXeroAdminSectionData xeroConnectionActionsAllowed = do
     xeroConnection <- profileActionSpan "admin.xero.fragment.load_connection" fetchCurrentVenueXeroConnection
     let xeroReferenceRefreshAllowed = currentUserIsUnimpersonatedSuperAdmin
-    xeroReferenceSyncDiagnostics <-
-        if not xeroReferenceRefreshAllowed
-            then pure Nothing
-            else forM xeroConnection \connection -> do
-                now <- getCurrentTime
-                trustState <- fetchXeroReferenceTrustState now connection NoMissingPayrollReferenceDemand
-                pure XeroReferenceSyncDiagnostics
-                    { referenceSyncLastSucceededAt = connection.lastSyncAt
-                    , referenceSyncActivity = trustState.syncActivity
-                    , referenceSyncProgress = trustState.syncProgress
-                    , referenceSyncSanitizedError = trustState.syncSanitizedError
-                    }
+    xeroReferenceSyncDiagnostics <- fetchXeroReferenceSyncDiagnostics xeroReferenceRefreshAllowed xeroConnection
     pure XeroAdminSectionData { .. }
+
+fetchCurrentVenueXeroReferenceSyncDiagnostics ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Bool ->
+    IO (Maybe XeroReferenceSyncDiagnostics)
+fetchCurrentVenueXeroReferenceSyncDiagnostics diagnosticsAllowed = do
+    xeroConnection <- fetchCurrentVenueXeroConnection
+    fetchXeroReferenceSyncDiagnostics diagnosticsAllowed xeroConnection
+
+fetchXeroReferenceSyncDiagnostics ::
+    (?modelContext :: ModelContext) =>
+    Bool ->
+    Maybe XeroConnection ->
+    IO (Maybe XeroReferenceSyncDiagnostics)
+fetchXeroReferenceSyncDiagnostics diagnosticsAllowed maybeConnection
+    | not diagnosticsAllowed = pure Nothing
+    | otherwise = forM maybeConnection \connection -> do
+        now <- getCurrentTime
+        trustState <- fetchXeroReferenceTrustState now connection NoMissingPayrollReferenceDemand
+        pure XeroReferenceSyncDiagnostics
+            { referenceSyncLastSucceededAt = connection.lastSyncAt
+            , referenceSyncActivity = trustState.syncActivity
+            , referenceSyncProgress = trustState.syncProgress
+            , referenceSyncSanitizedError = trustState.syncSanitizedError
+            }
 
 fetchCurrentVenueXeroTimesheetPeriodOptions ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

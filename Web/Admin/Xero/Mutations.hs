@@ -193,7 +193,7 @@ completeXeroConnectionMutation now actorUserId xeroConfig oauthState tokenRespon
                 )
         pure connection
     invalidateTouchedResources "xero.connection.complete" $
-        liveMutationResult connection (xeroConnectionTouchedResources currentVenueId)
+        liveMutationResult connection (xeroConnectionTouchedResources currentVenueId <> xeroReferenceSyncTouchedResources currentVenueId)
 
 failXeroConnectionAttemptMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Maybe XeroOauthState -> IO (LiveMutationResult ())
 failXeroConnectionAttemptMutation message maybeState = do
@@ -220,8 +220,9 @@ importXeroEarningsRatesMutation connection now fetchedRates selectedRateIds = do
 syncXeroReferenceDataMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => XeroConnection -> IO (LiveMutationResult (Either Text XeroReferenceDataSyncResult))
 syncXeroReferenceDataMutation connection = do
     result <- runXeroReferenceDataSyncRequest (Just currentUser.id) connection
-    invalidateTouchedResources "xero.reference_sync" $
-        liveMutationResult result (xeroReferenceSyncTouchedResources currentVenueId)
+    -- The request/job boundary publishes passive transitions. Retain the same
+    -- typed resource here for actor-local response planning without rebroadcast.
+    pure (liveMutationResult result (xeroReferenceSyncTouchedResources currentVenueId))
 
 -- Xero timesheet service modules own their internal writes; this wrapper owns passive invalidation.
 recordXeroTimesheetsMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> a -> IO (LiveMutationResult a)
@@ -281,4 +282,4 @@ xeroTimesheetsTouchedResources = []
 
 xeroReferenceSyncTouchedResources :: Id Venue -> [SurfaceResourceValue]
 xeroReferenceSyncTouchedResources venueId =
-    [xeroConnectionResource (unpackId venueId)]
+    [xeroReferenceSyncStateResource (unpackId venueId)]

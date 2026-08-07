@@ -18,6 +18,7 @@ module Web.Admin.FrontendSurface
     , adminShiftTypesFragment
     , adminRosterGroupsFragment
     , adminXeroShellFragment
+    , adminXeroReferenceSyncFragment
     , adminRosterGroupsFragmentKeys
     , adminXeroFragmentKeys
     ) where
@@ -103,7 +104,7 @@ adminXeroSurfaceImpl scope =
         "primary"
         (adminVenueScopeFields scope)
         noSurfaceFields
-        [adminXeroShellFragment]
+        [adminXeroShellFragment, adminXeroReferenceSyncFragment]
 
 adminVenueScopeFields :: AdminVenueScopeValue -> SurfaceFields '[ 'Field Surface.VenueId 'WireUUID]
 adminVenueScopeFields scope =
@@ -181,6 +182,14 @@ adminXeroShellFragment =
         noSurfaceFields
         noSurfaceFields
         (pathTo ShowadminXeroShellLiveFragmentAction)
+        FrontendSurfaceReplace
+
+adminXeroReferenceSyncFragment :: FrontendSurfaceMountedFragment
+adminXeroReferenceSyncFragment =
+    frontendSurfaceMountedFragmentFor @Surface.AdminXeroSurface @Surface.AdminXeroReferenceSyncFragment
+        noSurfaceFields
+        noSurfaceFields
+        (pathTo ShowadminXeroReferenceSyncLiveFragmentAction)
         FrontendSurfaceReplace
 
 

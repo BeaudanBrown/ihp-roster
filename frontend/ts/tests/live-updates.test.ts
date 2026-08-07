@@ -93,6 +93,63 @@ test("modular invalidation owner routes passive and actor keys through mounted d
     assertEqual(resyncCount, 0);
 });
 
+test("Admin Xero reconnect and version gaps refetch the canonical reference-sync fragment", () => {
+    const xeroScope: SurfaceScope = {
+        surface: "admin-xero",
+        scope: { venueId: "00000000-0000-0000-0000-000000000001" },
+    };
+    const xeroFragment: FrontendSurfaceMountedFragmentConfig = {
+        fragmentKey: { surface: "admin-xero", kind: "admin-xero-reference-sync", params: null },
+        targetId: "admin-xero-reference-sync-fragment",
+        url: "/ShowadminXeroReferenceSyncLiveFragment",
+        protection: { kind: "replace" },
+    };
+    const requested: FrontendSurfaceMountedFragmentConfig[] = [];
+    const refresher: LiveFragmentRefresher = {
+        request: (candidate) => { requested.push(candidate); },
+        flushInteractionDeferredFragmentsWithoutActiveSessions: () => undefined,
+        flushFocusedFragmentsWithoutActiveInputs: () => undefined,
+        stop: () => undefined,
+    };
+    const subscription: SurfaceSubscription = {
+        scope: xeroScope,
+        scopeKey: "admin-xero:00000000-0000-0000-0000-000000000001",
+        path: "/live-updates",
+        resyncFragments: [xeroFragment],
+        decorateRequestsWithin: [],
+        ownerEls: [],
+        resync: (current) => current.resyncFragments.forEach(refresher.request),
+    };
+    const runtime = createLiveUpdateInvalidationRuntime({
+        activeSubscriptions: new Map([[subscription.scopeKey, subscription]]),
+        activeClientId: () => "viewer-client",
+        refresher,
+        diagnostics: {
+            beginPerfSpan: () => null,
+            endPerfSpan: () => null,
+            emitDebugEvent: () => undefined,
+        },
+    });
+
+    runtime.handleMessage({
+        type: "subscribed",
+        scope: xeroScope,
+        scopeKey: subscription.scopeKey,
+        currentVersion: 1,
+        resync: true,
+    });
+    runtime.handleMessage({
+        type: "invalidate",
+        scope: xeroScope,
+        scopeKey: subscription.scopeKey,
+        version: 3,
+        fragments: [xeroFragment.fragmentKey],
+        sourceClientId: null,
+    });
+
+    assertDeepEqual(requested, [xeroFragment, xeroFragment]);
+});
+
 test("connection cleanup resets versions when the mounted subscription set becomes empty", () => {
     const subscription: SurfaceSubscription = {
         scope,

@@ -64,6 +64,7 @@ withFastXeroReferenceSyncRuntime action =
             { currentReferenceSyncTime = getCurrentTime
             , sleepForReferenceSyncMicros = const (pure ())
             , referenceSyncJitterSeconds = pure 0
+            , publishReferenceSyncTransition = \_ _ -> pure ()
             }
         (withInlineXeroReferenceSyncRequestsForTest (action ()))
 
@@ -191,6 +192,51 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         |> filterWhereIn (#status, [JobStatusNotStarted, JobStatusRunning, JobStatusRetry])
                         |> fetchCount
                 activeJobCount `shouldBe` 1
+
+        it "serves canonical reference-sync state through an owner-scoped read-only fragment" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Reference Sync Fragment Venue"
+                founder <- createUserRecordWithPlatformRole "xero-reference-fragment@example.com" "staff" (Just SuperAdmin) True
+                connection <- createSyncableXeroConnection venue founder
+                EnqueuedAppJob job <- enqueueXeroReferenceSyncJob Nothing connection
+                _ <- job
+                    |> set #status JobStatusRunning
+                    |> set #progress (Aeson.object ["phase" Aeson..= ("pay_items" :: Text), "completedPayItemsPage" Aeson..= (3 :: Int)])
+                    |> updateRecord
+                otherVenue <- createVenueWithConfig "Other Xero Reference Sync Fragment Venue"
+                otherConnection <- createSyncableXeroConnection otherVenue founder
+                EnqueuedAppJob otherJob <- enqueueXeroReferenceSyncJob Nothing otherConnection
+                _ <- otherJob
+                    |> set #status JobStatusRunning
+                    |> set #progress (Aeson.object ["phase" Aeson..= ("accounts" :: Text)])
+                    |> updateRecord
+                jobCountBeforeObservation <- query @AppJob |> fetchCount
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    callAction ShowadminXeroReferenceSyncLiveFragmentAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "id=\"admin-xero-reference-sync-fragment\""
+                response `responseBodyShouldContain` "Reference sync diagnostics"
+                response `responseBodyShouldContain` "Running"
+                response `responseBodyShouldContain` "Completed earnings-rate page 3"
+                response `responseBodyShouldNotContain` "Fetching Xero accounts"
+                response `responseBodyShouldNotContain` "Upload timesheets"
+                query @AppJob |> fetchCount >>= (`shouldBe` jobCountBeforeObservation)
+
+                owner <- createUserRecord "xero-reference-fragment-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner VenueOwner
+                ownerResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    callAction ShowadminXeroReferenceSyncLiveFragmentAction
+                ownerResponse `responseStatusShouldBe` status200
+                ownerResponse `responseBodyShouldContain` "id=\"admin-xero-reference-sync-fragment\""
+                ownerResponse `responseBodyShouldNotContain` "Reference sync diagnostics"
+
+                manager <- createUserRecord "xero-reference-fragment-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                managerResponse <- withPasskeyVerifiedUserAndCurrentVenue manager venue.id do
+                    callAction ShowadminXeroReferenceSyncLiveFragmentAction
+                managerResponse `responseStatusShouldBe` status302
 
         it "opens pay-item import from a fresh local snapshot without calling Xero" $ withContext do
             withCleanDb do
@@ -407,7 +453,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
 
                 Set.fromList (xeroReferenceSyncTouchedResources venue.id)
                     `shouldBe` Set.fromList
-                        [xeroConnectionResource (unpackId venue.id)]
+                        [xeroReferenceSyncStateResource (unpackId venue.id)]
 
         it "decodes Xero payroll calendar dates from API date wrappers" $ withContext do
             let decoded =
@@ -941,7 +987,8 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 response `responseBodyShouldContain` "Synced Xero payroll reference data"
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
-                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-xero-shell")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-xero-reference-sync")
+                triggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "admin-xero-shell")
                 triggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "admin-xero-fragment")
                 triggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "/ShowadminXeroShellLiveFragment")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf ("admin-xero:" <> tshow (unpackId venue.id)))

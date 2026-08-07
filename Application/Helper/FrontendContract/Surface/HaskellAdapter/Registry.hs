@@ -136,6 +136,7 @@ type RegisteredSurfaceFragmentAdapterHomes =
      , SurfaceFragmentAdapterHome AdminShiftTypesAdapterFamily Admin.AdminShiftTypesFragment
      , SurfaceFragmentAdapterHome AdminRosterGroupsAdapterFamily Admin.AdminRosterGroupsFragment
      , SurfaceFragmentAdapterHome AdminXeroAdapterFamily Admin.AdminXeroShellFragment
+     , SurfaceFragmentAdapterHome AdminXeroAdapterFamily Admin.AdminXeroReferenceSyncFragment
      ]
 
 type RegisteredSurfaceResourceAdapterHomes =
@@ -169,6 +170,7 @@ type RegisteredSurfaceResourceAdapterHomes =
      , SurfaceResourceAdapterHome AdminShiftTypesAdapterFamily Admin.AdminShiftTypes
      , SurfaceResourceAdapterHome AdminRosterGroupsAdapterFamily Admin.AdminRosterGroups
      , SurfaceResourceAdapterHome AdminXeroAdapterFamily Admin.XeroConnection
+     , SurfaceResourceAdapterHome AdminXeroAdapterFamily Admin.XeroReferenceSyncState
      ]
 
 -- The inventory contains every Action as either a generated registration or a

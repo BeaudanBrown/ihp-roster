@@ -154,6 +154,7 @@ tests = describe "LiveUpdate runtime types" do
                 , AdminLive.adminShiftTypesLiveFragment
                 , AdminLive.adminRosterGroupsLiveFragment
                 , AdminLive.adminXeroShellLiveFragment
+                , AdminLive.adminXeroReferenceSyncLiveFragment
                 , BillingLive.billingStatusLiveFragment
                 , ProfileLive.profileDetailsSectionLiveFragment
                 , SupportLive.supportAwardRatesLiveFragment

@@ -37,7 +37,7 @@ runXeroReferenceDataSyncRequest maybeActorUserId connection
     | connection.connectionStatus /= "active" =
         pure (Left "Reconnect Xero before syncing payroll reference data.")
     | otherwise =
-        enqueueXeroReferenceSyncJob maybeActorUserId connection >>= \case
+        requestXeroReferenceSyncJob maybeActorUserId connection >>= \case
             ExistingActiveAppJob _ ->
                 pure (Left "Xero payroll reference data is already syncing in the background.")
             EnqueuedAppJob appJob -> do

@@ -14,7 +14,9 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Resource
     , matchAdminShiftTypesResource
     , matchAdminVenueSettingsResource
     , matchXeroConnectionResource
+    , matchXeroReferenceSyncStateResource
     , xeroConnectionResource
+    , xeroReferenceSyncStateResource
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.Admin as Types1
@@ -129,3 +131,20 @@ matchXeroConnectionResource =
     matchFrontendSurfaceResource
         @(AdapterFamilySurface Types2.AdminXeroAdapterFamily)
         @Types1.XeroConnection
+
+xeroReferenceSyncStateResource ::
+    UUID.UUID ->
+    SurfaceResourceValue
+xeroReferenceSyncStateResource venueId =
+    frontendSurfaceResource
+        @(AdapterFamilySurface Types2.AdminXeroAdapterFamily)
+        @Types1.XeroReferenceSyncState
+        ( surfaceField @Types1.VenueId venueId
+            &: noSurfaceFields
+        )
+
+matchXeroReferenceSyncStateResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
+matchXeroReferenceSyncStateResource =
+    matchFrontendSurfaceResource
+        @(AdapterFamilySurface Types2.AdminXeroAdapterFamily)
+        @Types1.XeroReferenceSyncState

@@ -13,8 +13,8 @@ import Application.Helper.SurfaceResource
 import Application.Helper.Xero
 import Application.Xero.Connection
 import Application.Xero.ReferenceSyncJob (acquireXeroReferenceSyncLease,
-                                          enqueueXeroReferenceSyncJob,
-                                          releaseXeroReferenceSyncLease)
+                                          releaseXeroReferenceSyncLease,
+                                          requestXeroReferenceSyncJob)
 import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -61,7 +61,7 @@ enqueueDueXeroMaintenanceJobsAt now = do
     let keepaliveDueConnections = filter (xeroConnectionDueForKeepalive keepaliveDueBefore) activeConnections
     let referenceSyncDueConnections = filter (xeroConnectionDueForReferenceSync referenceSyncDueBefore) activeConnections
     keepaliveResults <- forM keepaliveDueConnections enqueueXeroConnectionKeepaliveJob
-    referenceSyncResults <- forM referenceSyncDueConnections (enqueueXeroReferenceSyncJob Nothing)
+    referenceSyncResults <- forM referenceSyncDueConnections (requestXeroReferenceSyncJob Nothing)
     pure XeroKeepaliveSweepSummary
         { dueConnectionCount = length keepaliveDueConnections
         , enqueuedJobCount = countEnqueuedJobs keepaliveResults

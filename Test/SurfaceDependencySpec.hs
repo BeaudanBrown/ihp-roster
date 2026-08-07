@@ -178,21 +178,32 @@ tests = do
 
             map targetFragments targets `shouldBe` [[AdminLive.adminXeroShellLiveFragment]]
 
-        it "keeps the retained Admin Xero refetch descriptor local to the mount" do
-            let mountedFragments = [AdminSurface.adminXeroShellFragment]
+        it "keeps Admin Xero reconnect/resync descriptors local to the authorized mount" do
+            let venueId = fromWords 3 0 0 0
+            let scope = AdminSurface.AdminVenueScopeValue venueId Nothing
+            let mountedFragments = (AdminSurface.adminXeroSurfaceImpl scope).surfaceImplMountConfig.mountFragments
 
-            AdminSurface.adminXeroFragmentKeys mountedFragments `shouldBe` [AdminLive.adminXeroShellLiveFragment]
-            map (.mountedFragmentTargetId) mountedFragments `shouldBe` ["admin-xero-fragment"]
-            map (.mountedFragmentUrl) mountedFragments `shouldBe` [pathTo ShowadminXeroShellLiveFragmentAction]
+            AdminSurface.adminXeroFragmentKeys mountedFragments
+                `shouldBe` [AdminLive.adminXeroShellLiveFragment, AdminLive.adminXeroReferenceSyncLiveFragment]
+            map (.mountedFragmentTargetId) mountedFragments
+                `shouldBe` ["admin-xero-fragment", "admin-xero-reference-sync-fragment"]
+            map (.mountedFragmentUrl) mountedFragments
+                `shouldBe` [pathTo ShowadminXeroShellLiveFragmentAction, pathTo ShowadminXeroReferenceSyncLiveFragmentAction]
+            (AdminSurface.adminXeroSurfaceImpl scope).surfaceImplMountConfig.mountSubscription `shouldSatisfy` isJust
 
-        it "maps only Xero connection changes to the retained shell" do
+        it "maps Xero connection and reference-sync state changes to separate fragments" do
             let venueId = fromWords 3 0 0 0
             let scope = AdminLive.adminXeroLiveScope venueId
-            let fragmentKeys = AdminSurface.adminXeroFragmentKeys [AdminSurface.adminXeroShellFragment]
-            let subscription = liveTestSubscription scope fragmentKeys
-            let plannedFor resource = map (.targetFragments) (planSurfaceInvalidationsWithoutContext (Set.fromList [resource venueId]) [subscription])
+            let otherVenueId = fromWords 4 0 0 0
+            let otherScope = AdminLive.adminXeroLiveScope otherVenueId
+            let fragmentKeys = AdminSurface.adminXeroFragmentKeys [AdminSurface.adminXeroShellFragment, AdminSurface.adminXeroReferenceSyncFragment]
+            let subscriptions = [liveTestSubscription scope fragmentKeys, liveTestSubscription otherScope fragmentKeys]
+            let targetsFor resource = planSurfaceInvalidationsWithoutContext (Set.fromList [resource venueId]) subscriptions
+            let plannedFor resource = map (.targetFragments) (targetsFor resource)
 
             plannedFor xeroConnectionResource `shouldBe` [[AdminLive.adminXeroShellLiveFragment]]
+            plannedFor xeroReferenceSyncStateResource `shouldBe` [[AdminLive.adminXeroReferenceSyncLiveFragment]]
+            map (.targetScope) (targetsFor xeroReferenceSyncStateResource) `shouldBe` [scope]
             plannedFor adminShiftTypesResource `shouldBe` []
             plannedFor billingResource `shouldBe` []
             plannedFor timesheetWeekBoundaryConfigResource `shouldBe` []

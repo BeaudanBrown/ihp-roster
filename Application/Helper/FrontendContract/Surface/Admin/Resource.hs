@@ -5,6 +5,7 @@ module Application.Helper.FrontendContract.Surface.Admin.Resource
     , adminShiftTypesResource
     , adminVenueSettingsResource
     , xeroConnectionResource
+    , xeroReferenceSyncStateResource
     ) where
 
 import Application.Helper.FrontendContract.Surface.Admin.Generated.Resource (adminExportsResource,
@@ -12,4 +13,5 @@ import Application.Helper.FrontendContract.Surface.Admin.Generated.Resource (adm
                                                                              adminRosterGroupsResource,
                                                                              adminShiftTypesResource,
                                                                              adminVenueSettingsResource,
-                                                                             xeroConnectionResource)
+                                                                             xeroConnectionResource,
+                                                                             xeroReferenceSyncStateResource)

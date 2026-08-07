@@ -3,7 +3,7 @@ module Application.Xero.ReferenceTrust.Service
     ) where
 
 import Application.Xero.ReferenceDemand (fetchXeroMissingReferenceDemand)
-import Application.Xero.ReferenceSyncJob (enqueueXeroReferenceSyncJob)
+import Application.Xero.ReferenceSyncJob (requestXeroReferenceSyncJob)
 import Application.Xero.ReferenceTrust
 import Application.Xero.ReferenceTrust.ReadModel
 import Generated.Types
@@ -24,6 +24,6 @@ requestTrustedXeroReferenceData now maybeActorUserId connection requestedDemand 
     initialState <- fetchXeroReferenceTrustState now currentConnection currentDemand
     case initialState.trustDecision of
         StartOrJoinXeroReferenceSync -> do
-            _ <- enqueueXeroReferenceSyncJob maybeActorUserId currentConnection
+            _ <- requestXeroReferenceSyncJob maybeActorUserId currentConnection
             fetchXeroReferenceTrustState now currentConnection currentDemand
         _ -> pure initialState

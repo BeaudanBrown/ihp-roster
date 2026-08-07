@@ -14,7 +14,8 @@ Payroll AU timesheets. Web request and response behavior belongs under
 - `Keepalive.hs` - daily maintenance scheduling for independent six-day
   reference refresh and seven-day token/connection health work.
 - `ReferenceSyncJob.hs` - durable connection-deduplicated, tenant-leased,
-  paced reference refresh with Xero-specific retry scheduling.
+  paced reference refresh with Xero-specific retry scheduling and typed
+  transition publication through the background-job seam.
 - `ReferenceSyncRequest.hs` - background-safe demand request/coalescing boundary.
 - `ReferenceTrust.hs` and `ReferenceTrust/` - typed seven-day snapshot trust,
   retry-chain/progress read model, and enqueue-or-join service.
@@ -30,7 +31,8 @@ Payroll AU timesheets. Web request and response behavior belongs under
   WageEngine source identities.
 - `WorkflowState.hs` - exhaustive capability and presentation projections over
   generated app-owned Xero workflow enums.
-- `Admin/ReadModel.hs` - connection-shell and preparation read models.
+- `Admin/ReadModel.hs` - connection-shell, read-only reference-sync fragment,
+  and preparation read models.
 - `Timesheets/Prepare.hs` - the authoritative preparation workflow.
 - `Timesheets/Preview.hs` and `Timesheets/Submission.hs` - internal payload and
   API orchestration used through preparation.

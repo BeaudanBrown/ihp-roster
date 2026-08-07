@@ -4,6 +4,7 @@ module Web.Controller.Admin.Xero.Responses
     , requireCurrentVenueOwnerForXero
     , respondWithXeroSectionActorInvalidationAndToast
     , respondWithXeroSectionFragment
+    , respondWithXeroReferenceSyncFragment
     , respondWithXeroToast
     , respondWithXeroTimesheetMutationAndCloseDialog
     , xeroErrorToast
@@ -36,6 +37,14 @@ respondWithXeroSectionFragment = do
         pure (renderXeroSectionFragment xeroSectionData)
     respondHtmlProfiled fragmentHtml
 
+respondWithXeroReferenceSyncFragment ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO ()
+respondWithXeroReferenceSyncFragment = do
+    diagnostics <- profileActionSpan "admin.xero.reference_sync_fragment.fetch" $
+        fetchCurrentVenueXeroReferenceSyncDiagnostics currentUserIsUnimpersonatedSuperAdmin
+    respondHtmlProfiled (renderXeroReferenceSyncFragment diagnostics)
+
 fetchCurrentVenueXeroAdminSectionData ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     IO XeroAdminSectionData
@@ -48,7 +57,10 @@ respondWithXeroSectionActorInvalidationAndToast ::
     Maybe ToastOverlayConfig ->
     IO ()
 respondWithXeroSectionActorInvalidationAndToast touchedResources maybeToast = do
-    setActorLiveResourcesRefresh (adminXeroLiveScope (unpackId currentVenueId)) touchedResources [AdminSurface.adminXeroShellFragment]
+    setActorLiveResourcesRefresh
+        (adminXeroLiveScope (unpackId currentVenueId))
+        touchedResources
+        [AdminSurface.adminXeroShellFragment, AdminSurface.adminXeroReferenceSyncFragment]
     respondWithXeroToast maybeToast
 
 respondWithXeroToast ::

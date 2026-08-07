@@ -4,6 +4,7 @@ module Web.View.Admin.Xero
     ( XeroView (..)
     , renderXeroSection
     , renderXeroSectionFragment
+    , renderXeroReferenceSyncFragment
     ) where
 
 {-# LANGUAGE TypeApplications #-}
@@ -99,6 +100,7 @@ renderXeroConnectionBody XeroAdminSectionData { xeroConnection = Nothing, xeroCo
         <section class={appSurfaceClasses "p-3"}>
             {renderXeroDisconnectedConnectionDetails xeroConnectionActionsAllowed}
         </section>
+        {renderXeroReferenceSyncFragment Nothing}
     </div>
 |]
 renderXeroConnectionBody XeroAdminSectionData { xeroConnection = Just connection, .. } = [hsx|
@@ -107,9 +109,16 @@ renderXeroConnectionBody XeroAdminSectionData { xeroConnection = Just connection
             <div class="d-flex flex-column gap-3">
                 {renderXeroConnectionDetails connection}
                 {renderXeroActionControls connection xeroConnectionActionsAllowed xeroReferenceRefreshAllowed}
-                {maybe mempty renderXeroReferenceSyncDiagnostics xeroReferenceSyncDiagnostics}
             </div>
         </section>
+        {renderXeroReferenceSyncFragment xeroReferenceSyncDiagnostics}
+    </div>
+|]
+
+renderXeroReferenceSyncFragment :: Maybe XeroReferenceSyncDiagnostics -> Html
+renderXeroReferenceSyncFragment maybeDiagnostics = [hsx|
+    <div id={surfaceFragmentTargetId @Surface.AdminXeroSurface @Surface.AdminXeroReferenceSyncFragment noSurfaceFields}>
+        {maybe mempty renderXeroReferenceSyncDiagnostics maybeDiagnostics}
     </div>
 |]
 
