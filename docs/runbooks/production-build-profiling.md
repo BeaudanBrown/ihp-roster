@@ -76,7 +76,10 @@ bash ./bin/in-env node scripts/production-build-budget.mjs \
 
 Measured-memory enforcement fails unless the profile is clean, forced, locally
 successful on hostname `nas`, uses eight effective GHC cores, and stays at or
-below 8 GiB sampled builder-process RSS. Retain the resulting profile and a
+below the reviewed 13 GiB sampled builder-process RSS ceiling. The original
+8 GiB target failed at 11.80 GiB on the clean final representative-load run;
+the operator approved 13 GiB (about 10% headroom) rather than lowering builder
+cores or hiding the measured swap growth. Retain the resulting profile and a
 bounded issue summary; do not commit raw logs.
 
 Use `--no-rebuild` only to inspect an already-present historical output; it

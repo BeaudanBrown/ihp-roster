@@ -54,10 +54,13 @@ per-file ceilings because GHC 9.10 serializes canonical promoted/runtime surface
 authority into those interfaces; new paths do not inherit an exception.
 
 Machine memory is deliberately not part of routine verification: process RSS
-is sampled and builder-specific. Release evidence opts into the NAS-only 8 GiB
+is sampled and builder-specific. Release evidence opts into the NAS-only 13 GiB
 ceiling with `production-build-budget.mjs --enforce-measured-memory`; that mode
 also requires hostname `nas`, eight effective GHC cores, a clean revision, and
-a forced clean successful profile. This prevents a cached inspection or a
+a forced clean successful profile. The original 8 GiB target was revised with
+operator approval after the clean final build measured 11.80 GiB RSS under
+representative service load; the failed 8 GiB gate and 1.68 GiB swap growth are
+retained rather than hidden. This prevents a cached inspection or a
 machine-global reading from masquerading as release evidence.
 
 After intentionally adding or changing a module or script:
