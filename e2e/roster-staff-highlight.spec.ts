@@ -87,7 +87,8 @@ async function gridSlotMetrics(page: Page, staffKey: string): Promise<GridSlotMe
 
 test.describe('Roster staff shift highlight', () => {
     test.use({ viewport: { width: 1440, height: 900 } });
-    test.afterEach(() => {
+
+    const restoreAssignedShiftFixture = () => {
         runSql(`
             UPDATE roster_weeks
             SET is_live = FALSE, updated_at = NOW()
@@ -99,7 +100,10 @@ test.describe('Roster staff shift highlight', () => {
                 updated_at = NOW()
             WHERE id = 'a1000000-0000-0000-0000-000000000071';
         `);
-    });
+    };
+
+    test.beforeEach(restoreAssignedShiftFixture);
+    test.afterEach(restoreAssignedShiftFixture);
 
     test('highlights the assigned slot outline in the row grid without changing cell borders', async ({ page }) => {
         await openRoster(page, { email: 'e2e-test@example.com' });
