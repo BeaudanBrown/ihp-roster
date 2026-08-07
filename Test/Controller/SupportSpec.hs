@@ -563,6 +563,27 @@ tests = aroundAll withDatabaseTestContext do
                     Aeson.Object fields -> AesonKeyMap.lookup "reason" fields == Just (Aeson.String "selected_venue_unavailable")
                     _ -> False
 
+        it "auto-exits when the selected venue no longer exists" $ withContext do
+            withCleanDb do
+                fallbackVenue <- createVenueWithConfig "Fallback After Deleted Impersonation Venue"
+                superAdmin <- createUserRecordWithPlatformRole "impersonation-deleted-venue@example.com" "staff" (Just SuperAdmin) True
+                targetUser <- createUserRecord "impersonation-deleted-venue-target@example.com" "staff" True
+                let deletedVenueId = Id UUID.nil
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue superAdmin deletedVenueId do
+                    setSession effectiveUserSessionKey targetUser.id
+                    setSession impersonationSessionIdSessionKey (UUID.toText UUID.nil)
+
+                    callAction SupportAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Support impersonation ended because the selected venue is no longer available."
+                expiry <- query @AuditEvent
+                    |> filterWhere (#eventType, "support_impersonation_expired")
+                    |> fetchOne
+                expiry.venueId `shouldBe` unpackId fallbackVenue.id
+                expiry.targetId `shouldBe` unpackId targetUser.id
+
         it "clears effective identity on manual exit and venue switch" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Impersonation Lifecycle Venue"

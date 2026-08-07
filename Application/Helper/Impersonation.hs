@@ -261,8 +261,16 @@ recordImpersonationExpiry ::
     Aeson.Value ->
     Text ->
     IO ()
-recordImpersonationExpiry targetUserId effectiveUserIdValue sessionIdValue reason =
-    forM_ (currentVenueSelection.requestedVenueId <|> fmap (.id) currentVenueOrNothing) \auditVenueId ->
+recordImpersonationExpiry targetUserId effectiveUserIdValue sessionIdValue reason = do
+    maybeRequestedAuditVenueId <-
+        case currentVenueSelection.requestedVenueId of
+            Nothing -> pure Nothing
+            Just requestedVenueId ->
+                query @Venue
+                    |> filterWhere (#id, requestedVenueId)
+                    |> fetchOneOrNothing
+                    |> fmap (fmap (.id))
+    forM_ (maybeRequestedAuditVenueId <|> fmap (.id) currentVenueOrNothing) \auditVenueId ->
         void $
             recordAuditEvent
                 (unpackId auditVenueId)
