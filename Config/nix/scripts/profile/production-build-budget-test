@@ -32,7 +32,7 @@ cat >"$fixture_root/budget.json" <<EOF
       { "path": "Application/Large.hi", "bytes_max": 33554432, "reason": "fixture compiler limitation" }
     ],
     "required_artifacts": {
-      ".hi": { "count_max": 2 },
+      ".hi": { "count_max": 2, "bytes_max": 32000000 },
       ".a": { "count_max": 1 }
     },
     "forbidden_artifacts": [".dyn_hi", ".so"],
@@ -108,6 +108,14 @@ expect_failure 'profile interface Application/Large.hi bytes must be a non-negat
 jq '.app_library.artifacts[".hi"].count = -1' "$fixture_root/pass.json" >"$fixture_root/negative-artifact.json"
 expect_failure 'profile .hi artifact count must be a non-negative safe integer' \
   node "$repo_root/scripts/production-build-budget.mjs" --budget "$fixture_root/budget.json" --profile "$fixture_root/negative-artifact.json"
+
+jq '.app_library.artifacts[".hi"].bytes = 32000001' "$fixture_root/pass.json" >"$fixture_root/large-interface-total.json"
+expect_failure '.hi artifact bytes 32000001 exceeds budget 32000000' \
+  node "$repo_root/scripts/production-build-budget.mjs" --budget "$fixture_root/budget.json" --profile "$fixture_root/large-interface-total.json"
+
+jq '.app_library.largest_interfaces[1].kind = ".dyn_hi"' "$fixture_root/pass.json" >"$fixture_root/wrong-interface-kind.json"
+expect_failure 'profile largest interface Application/Small.hi has unexpected kind .dyn_hi; expected .hi' \
+  node "$repo_root/scripts/production-build-budget.mjs" --budget "$fixture_root/budget.json" --profile "$fixture_root/wrong-interface-kind.json"
 
 profile "$fixture_root/large-interface.json" 900000000 33554433
 expect_failure 'Application/Large.hi is 33554433 bytes; exception budget is 33554432' \

@@ -95,10 +95,15 @@ function validateArtifacts(profile, budget, errors) {
         observedInteger(row?.bytes, `profile ${kind} artifact bytes`, errors);
     }
     for (const [kind, bounds] of Object.entries(budget.required_artifacts ?? {})) {
+        for (const key of ["count", "count_min", "count_max", "bytes_max"]) {
+            if (bounds[key] !== undefined) positiveInteger(bounds[key], `${kind} artifact ${key} budget`);
+        }
         const count = artifacts[kind]?.count ?? 0;
+        const bytes = artifacts[kind]?.bytes ?? 0;
         if (bounds.count !== undefined && count !== bounds.count) errors.push(`${kind} artifact count ${count} does not equal budget ${bounds.count}`);
         if (bounds.count_min !== undefined && count < bounds.count_min) errors.push(`${kind} artifact count ${count} is below required ${bounds.count_min}`);
         if (bounds.count_max !== undefined && count > bounds.count_max) errors.push(`${kind} artifact count ${count} exceeds budget ${bounds.count_max}`);
+        if (bounds.bytes_max !== undefined && bytes > bounds.bytes_max) errors.push(`${kind} artifact bytes ${bytes} exceeds budget ${bounds.bytes_max}`);
     }
     for (const kind of budget.forbidden_artifacts ?? []) {
         const count = artifacts[kind]?.count ?? 0;
@@ -117,10 +122,16 @@ function validateInterfaces(profile, budget, errors) {
     const interfaces = profile.app_library?.largest_interfaces ?? [];
     if (interfaces.length === 0) fail("profile lacks largest interface evidence");
     const malformedBefore = errors.length;
+    const observedPaths = new Set();
     for (const row of interfaces) {
         const path = normalizeInterfacePath(row.path);
         observedInteger(row.bytes, `profile interface ${path} bytes`, errors);
+        if (row.kind !== ".hi") errors.push(`profile largest interface ${path} has unexpected kind ${row.kind ?? "missing"}; expected .hi`);
+        if (observedPaths.has(path)) errors.push(`profile largest interface path is duplicated: ${path}`);
+        observedPaths.add(path);
     }
+    const installedCount = profile.app_library?.artifacts?.[".hi"]?.count ?? 0;
+    if (interfaces.length > installedCount) errors.push(`profile has ${interfaces.length} largest interface rows but only ${installedCount} installed .hi artifacts`);
     if (errors.length > malformedBefore) return;
     for (let index = 1; index < interfaces.length; index += 1) {
         if (interfaces[index - 1].bytes < interfaces[index].bytes) fail("profile largest_interfaces must be sorted by descending bytes");
@@ -149,7 +160,6 @@ function validateInterfaces(profile, budget, errors) {
     for (const path of exceptions.keys()) {
         if (!observed.has(path)) errors.push(`interface exception is stale or absent from bounded profile evidence: ${path}`);
     }
-    const installedCount = profile.app_library?.artifacts?.[".hi"]?.count ?? 0;
     const last = interfaces.at(-1);
     if (interfaces.length < installedCount && last.bytes > defaultMaximum) {
         errors.push(`bounded interface evidence ends at ${last.bytes} bytes above default budget ${defaultMaximum}; omitted interfaces cannot be validated`);

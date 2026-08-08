@@ -94,6 +94,7 @@
     "app_library_self_size_bytes_max": 1073741824,
     "app_library_module_count_max": 472,
     "default_interface_bytes_max": 16777216,
+    "installed_interface_bytes_max": 629145600,
     "reason_bearing_interface_exceptions": 12,
     "production_module_rows_max": 473,
     "production_dependency_packages_max": 41,

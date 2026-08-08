@@ -69,7 +69,7 @@
       }
     ],
     "required_artifacts": {
-      ".hi": { "count": 472 },
+      ".hi": { "count": 472, "bytes_max": 629145600 },
       ".a": { "count": 1 },
       ".conf": { "count": 1 },
       "[no extension]": { "count": 1 }
