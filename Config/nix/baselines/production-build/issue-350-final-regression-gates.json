@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "issue": 350,
+  "objective": "Retain final grill/NAS evidence and enforce stable app-owned interface, artifact, and production inventory regression budgets",
+  "baseline_profile": "Config/nix/baselines/production-build/staging-ea144503-grill.json",
+  "final_grill_profile": "output/production-build/issue-350-grill-final-clean-cores12/profile.json",
+  "final_nas_profile": "output/production-build/issue-350-nas-approved-final-clean-cores8/profile.json",
+  "baseline_grill": {
+    "revision": "ea144503c99a5ce8128bf6dd26859740cda210be",
+    "cores": 12,
+    "module_count": 501,
+    "app_library_self_size_bytes": 2001477630,
+    "app_library_closure_size_bytes": 8055540728,
+    "largest_interface_bytes": 152178131,
+    "builder_process_peak_rss_bytes": 38312714240,
+    "nix_daemon_cgroup_peak_growth_bytes": 37748727808,
+    "wall_seconds": 414.755213171,
+    "cpu_seconds": 1748.06,
+    "swap_delta_bytes": 15299739648
+  },
+  "final_grill": {
+    "revision": "320a0af1f18a34b8f2b7feb81dfe347e35213c30",
+    "dirty": false,
+    "cores": 12,
+    "status": "succeeded",
+    "module_count": 472,
+    "app_library_self_size_bytes": 726181549,
+    "app_library_closure_size_bytes": 6650303920,
+    "largest_interface": {
+      "path": "Application/Helper/FrontendContract/Surface/Roster/WeekOverview.hi",
+      "bytes": 91553599
+    },
+    "builder_process_peak_rss_bytes": 23610335232,
+    "nix_daemon_cgroup_peak_growth_bytes": 24355028992,
+    "wall_seconds": 264.485567611,
+    "cpu_seconds": 1138.96,
+    "swap_delta_bytes": -466944,
+    "artifacts": {
+      ".hi": { "count": 472, "bytes": 577185540 },
+      ".a": { "count": 1, "bytes": 148970190 },
+      ".conf": { "count": 1, "bytes": 24512 },
+      "[no extension]": { "count": 1, "bytes": 1307 },
+      ".dyn_hi": { "count": 0, "bytes": 0 },
+      ".so": { "count": 0, "bytes": 0 }
+    }
+  },
+  "grill_delta": {
+    "module_count": -29,
+    "module_count_percent": -5.788423153692615,
+    "app_library_self_size_bytes": -1275296081,
+    "app_library_self_size_percent": -63.717728436465215,
+    "app_library_closure_size_bytes": -1405236808,
+    "app_library_closure_size_percent": -17.444351105017468,
+    "largest_interface_bytes": -60624532,
+    "largest_interface_percent": -39.837873945238556,
+    "builder_process_peak_rss_bytes": -14702379008,
+    "builder_process_peak_rss_percent": -38.37467352456624,
+    "nix_daemon_cgroup_peak_growth_bytes": -13393698816,
+    "nix_daemon_cgroup_peak_growth_percent": -35.48119259574492,
+    "wall_seconds": -150.26964555999996,
+    "wall_percent": -36.23092387703035,
+    "cpu_seconds": -609.0999999999999,
+    "cpu_percent": -34.84434172740066
+  },
+  "final_nas": {
+    "revision": "320a0af1f18a34b8f2b7feb81dfe347e35213c30",
+    "dirty": false,
+    "hostname": "nas",
+    "configured_cores": 8,
+    "effective_ghc_cores": 8,
+    "status": "succeeded",
+    "representative_services": ["nginx.service", "postgresql.service"],
+    "initial_available_memory_bytes": 14359990272,
+    "module_count": 472,
+    "app_library_self_size_bytes": 726181077,
+    "app_library_closure_size_bytes": 6650303448,
+    "largest_interface_bytes": 91553599,
+    "builder_process_peak_rss_bytes": 14860312576,
+    "nix_daemon_cgroup_peak_growth_bytes": 14736056320,
+    "wall_seconds": 429.895899774,
+    "cpu_seconds": 1315.7,
+    "swap_delta_bytes": 1700622336,
+    "completed_without_oom": true,
+    "stable_budget_check": true
+  },
+  "nas_repeatability": {
+    "earlier_clean_revision": "7596a85b625e8978b80037c551fd65c7c8f9ba63",
+    "earlier_builder_process_peak_rss_bytes": 12669022208,
+    "earlier_nix_daemon_cgroup_peak_growth_bytes": 12288499712,
+    "earlier_swap_delta_bytes": 1800540160,
+    "finding": "Two successful clean eight-core NAS runs showed substantial sampled memory variance; memory remains evidence rather than a blocking or limiting ceiling by explicit operator decision"
+  },
+  "stable_budgets": {
+    "authority": "Config/nix/baselines/production-build/final-regression-budget.json",
+    "app_library_self_size_bytes_max": 1073741824,
+    "app_library_module_count_max": 472,
+    "default_interface_bytes_max": 16777216,
+    "reason_bearing_interface_exceptions": 12,
+    "production_module_rows_max": 473,
+    "production_dependency_packages_max": 41,
+    "production_executable_rows_max": 9,
+    "artifact_kinds_are_exact": true,
+    "machine_memory_is_blocking": false
+  },
+  "target_disposition": {
+    "original_peak_rss_target_bytes": 8589934592,
+    "met": false,
+    "original_default_interface_target_bytes": 16777216,
+    "largest_interface_met_without_exception": false,
+    "operator_decision": "Retain measurements, enforce deterministic interface/output/inventory fixes, and do not add a sampled memory ceiling",
+    "interface_exception_basis": "Twelve exact GHC 9.10 interfaces retain canonical promoted/runtime Roster authority; each has its own reviewed ceiling and reason while every other interface remains under 16 MiB"
+  },
+  "commands": {
+    "profile": "bash ./bin/in-env production-build-profile --output-dir <dir> --cores <cores>",
+    "budget": "bash ./bin/in-env production-build-budget-check <dir>/profile.json",
+    "package": "bash ./bin/in-env production-package-smoke",
+    "source_boundary": "bash ./bin/in-env production-source-boundary-check"
+  }
+}

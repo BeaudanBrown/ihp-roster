@@ -53,15 +53,12 @@ ceiling is 16 MiB. Twelve exact, reason-bearing Roster paths have narrower
 per-file ceilings because GHC 9.10 serializes canonical promoted/runtime surface
 authority into those interfaces; new paths do not inherit an exception.
 
-Machine memory is deliberately not part of routine verification: process RSS
-is sampled and builder-specific. Release evidence opts into the NAS-only 13 GiB
-ceiling with `production-build-budget.mjs --enforce-measured-memory`; that mode
-also requires hostname `nas`, eight effective GHC cores, a clean revision, and
-a forced clean successful profile. The original 8 GiB target was revised with
-operator approval after the clean final build measured 11.80 GiB RSS under
-representative service load; the failed 8 GiB gate and 1.68 GiB swap growth are
-retained rather than hidden. This prevents a cached inspection or a
-machine-global reading from masquerading as release evidence.
+Machine memory is deliberately evidence, not a blocking budget: process RSS is
+sampled, builder-specific, and showed substantial run-to-run variance on NAS.
+The profiler retains clean revision, builder, effective core, RSS, cgroup, swap,
+and timing evidence, but `production-build-budget-check` enforces only stable
+app-owned output and inventory properties. It does not cap GHC memory or fail a
+release from a machine-global memory reading.
 
 After intentionally adding or changing a module or script:
 

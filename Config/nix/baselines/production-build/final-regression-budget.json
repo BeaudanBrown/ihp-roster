@@ -84,10 +84,5 @@
     "module_inventory": "../../production-module-inventory.tsv",
     "dependency_inventory": "../../production-package-dependency-inventory.tsv",
     "executable_inventory": "../../production-executable-inventory.tsv"
-  },
-  "measured_build": {
-    "builder": "nas",
-    "cores": 8,
-    "builder_process_peak_rss_bytes_max": 13958643712
   }
 }

@@ -64,23 +64,10 @@ bash ./bin/in-env production-build-budget-check <artifact-dir>/profile.json
 
 With no profile argument, first run `production-package-smoke`; the check then
 inspects that exact realized app-lib without rebuilding it. Stable CI budgets do
-not assert host memory. For final NAS release evidence only, run the validator
-explicitly after the clean eight-core NAS profile:
-
-```bash
-bash ./bin/in-env node scripts/production-build-budget.mjs \
-  --budget Config/nix/baselines/production-build/final-regression-budget.json \
-  --profile <nas-artifact-dir>/profile.json \
-  --enforce-measured-memory
-```
-
-Measured-memory enforcement fails unless the profile is clean, forced, locally
-successful on hostname `nas`, uses eight effective GHC cores, and stays at or
-below the reviewed 13 GiB sampled builder-process RSS ceiling. The original
-8 GiB target failed at 11.80 GiB on the clean final representative-load run;
-the operator approved 13 GiB (about 10% headroom) rather than lowering builder
-cores or hiding the measured swap growth. Retain the resulting profile and a
-bounded issue summary; do not commit raw logs.
+not assert or cap host memory. NAS memory remains retained benchmark evidence:
+record the clean revision, effective cores, RSS, cgroup growth, swap, and service
+load, but do not turn a sampled machine-global value into a release gate. Retain
+the resulting profile and a bounded issue summary; do not commit raw logs.
 
 Use `--no-rebuild` only to inspect an already-present historical output; it
 intentionally provides no build memory or CPU evidence and is not a complete

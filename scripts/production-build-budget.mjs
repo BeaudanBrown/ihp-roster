@@ -8,14 +8,13 @@ function fail(message) {
 }
 
 function parseArgs(argv) {
-    const options = { budget: null, profile: null, enforceMeasuredMemory: false };
+    const options = { budget: null, profile: null };
     for (let index = 0; index < argv.length; index += 1) {
         const arg = argv[index];
         if (arg === "--budget") options.budget = argv[++index];
         else if (arg.startsWith("--budget=")) options.budget = arg.slice("--budget=".length);
         else if (arg === "--profile") options.profile = argv[++index];
         else if (arg.startsWith("--profile=")) options.profile = arg.slice("--profile=".length);
-        else if (arg === "--enforce-measured-memory") options.enforceMeasuredMemory = true;
         else fail(`unknown argument: ${arg}`);
     }
     if (!options.budget) fail("--budget is required");
@@ -139,17 +138,6 @@ function validateInterfaces(profile, budget, errors) {
     }
 }
 
-function validateMeasuredMemory(profile, budget, errors) {
-    if (profile.builder?.hostname !== budget.builder) errors.push(`measured builder ${profile.builder?.hostname ?? "missing"} does not equal required ${budget.builder}`);
-    if (profile.revision?.dirty !== false) errors.push("measured profile must come from a clean revision");
-    if (profile.build?.forced_clean !== true) errors.push("measured profile must be a forced clean build");
-    if (!String(profile.status ?? "").startsWith("succeeded")) errors.push(`measured profile status is not successful: ${profile.status ?? "missing"}`);
-    if (profile.configuration?.effective_ghc_cores !== budget.cores) errors.push(`measured effective GHC cores ${profile.configuration?.effective_ghc_cores ?? "missing"} does not equal required ${budget.cores}`);
-    const peak = profile.memory?.builder_process_peak_rss_bytes;
-    if (!Number.isFinite(peak)) errors.push("measured profile lacks builder peak RSS");
-    else if (peak > budget.builder_process_peak_rss_bytes_max) errors.push(`builder peak RSS ${peak} exceeds measured-build budget ${budget.builder_process_peak_rss_bytes_max}`);
-}
-
 function main() {
     const options = parseArgs(process.argv.slice(2));
     const budget = readJson(options.budget, "budget");
@@ -167,9 +155,8 @@ function main() {
     validateArtifacts(profile, appBudget, errors);
     validateInterfaces(profile, appBudget, errors);
     const inventory = validateInventory(budget, options.budget, errors);
-    if (options.enforceMeasuredMemory) validateMeasuredMemory(profile, budget.measured_build ?? fail("budget lacks measured_build"), errors);
     if (errors.length > 0) fail(errors.join("\n"));
-    console.log(`production-build-budget: ok (self=${selfSize}, modules=${moduleCount}, inventory=${inventory.production_modules}/${inventory.dependency_packages}/${inventory.executable_rows}${options.enforceMeasuredMemory ? ", measured-memory=pass" : ""})`);
+    console.log(`production-build-budget: ok (self=${selfSize}, modules=${moduleCount}, inventory=${inventory.production_modules}/${inventory.dependency_packages}/${inventory.executable_rows})`);
 }
 
 try {

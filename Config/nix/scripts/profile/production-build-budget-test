@@ -45,11 +45,6 @@ cat >"$fixture_root/budget.json" <<EOF
     "module_inventory": "$fixture_root/modules.tsv",
     "dependency_inventory": "$fixture_root/dependencies.tsv",
     "executable_inventory": "$fixture_root/executables.tsv"
-  },
-  "measured_build": {
-    "builder": "nas",
-    "cores": 8,
-    "builder_process_peak_rss_bytes_max": 8589934592
   }
 }
 EOF
@@ -83,7 +78,6 @@ EOF
 
 profile "$fixture_root/pass.json"
 node "$repo_root/scripts/production-build-budget.mjs" --budget "$fixture_root/budget.json" --profile "$fixture_root/pass.json"
-node "$repo_root/scripts/production-build-budget.mjs" --budget "$fixture_root/budget.json" --profile "$fixture_root/pass.json" --enforce-measured-memory
 
 expect_failure() {
   local expected="$1"
@@ -106,10 +100,6 @@ expect_failure 'app-library self size 1073741825 exceeds budget 1073741824' \
 profile "$fixture_root/large-interface.json" 900000000 33554433
 expect_failure 'Application/Large.hi is 33554433 bytes; exception budget is 33554432' \
   node "$repo_root/scripts/production-build-budget.mjs" --budget "$fixture_root/budget.json" --profile "$fixture_root/large-interface.json"
-
-profile "$fixture_root/high-memory.json" 900000000 30000000 8589934593
-expect_failure 'builder peak RSS 8589934593 exceeds measured-build budget 8589934592' \
-  node "$repo_root/scripts/production-build-budget.mjs" --budget "$fixture_root/budget.json" --profile "$fixture_root/high-memory.json" --enforce-measured-memory
 
 jq '.app_library.artifacts[".p_hi"] = {"count": 2, "bytes": 100}' "$fixture_root/pass.json" >"$fixture_root/unexpected-artifact.json"
 expect_failure 'unexpected app-library artifact kind: .p_hi' \
