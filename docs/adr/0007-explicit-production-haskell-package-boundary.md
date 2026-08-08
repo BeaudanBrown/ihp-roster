@@ -1,7 +1,5 @@
 # ADR 0007: Explicit Production Haskell Package Boundary
 
-Status: accepted
-
 Date: 2026-08-08
 
 ## Context
