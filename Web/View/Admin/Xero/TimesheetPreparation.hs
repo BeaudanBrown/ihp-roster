@@ -4,6 +4,8 @@
 module Web.View.Admin.Xero.TimesheetPreparation
     ( renderXeroTimesheetPreparationDialog
     , renderXeroTimesheetPreparationReferenceSyncWaitingDialog
+    , renderXeroTimesheetPreparationReferenceSyncWaitFragment
+    , renderXeroTimesheetPreparationReferenceSyncWaitFragmentError
     , renderXeroTimesheetPreparationStaffMappingsFragment
     , renderXeroTimesheetPreparationSubmittingDialog
     ) where
@@ -13,8 +15,6 @@ import Application.Helper.FrontendContract.AppShell (AccountCodeField,
                                                      ConfirmXeroTimesheetPreparationSubmissionOverlay,
                                                      ContinueXeroTimesheetPreparationStaffOverlay,
                                                      PeriodKeyField,
-                                                     ReferenceDemandField,
-                                                     ReferenceWaitStartedAtField,
                                                      RefreshXeroTimesheetPreparationOverlay,
                                                      RunXeroTimesheetPreparationOverlay,
                                                      RunXeroTimesheetPreparationSubmissionOverlay,
@@ -23,22 +23,24 @@ import Application.Helper.FrontendContract.AppShell (AccountCodeField,
 import Application.Helper.FrontendContract.AppShell.Request (AppShellActionFields,
                                                              appShellActionFields,
                                                              appShellActionFor,
-                                                             appShellActionRouteFieldValues,
                                                              noAppShellActionFields)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             appShellActionByMarker,
                                                              renderAppShellActionForm)
+import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
+import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.View.Overlay
 import Application.Helper.XeroAdminTypes
-import Application.Xero.ReferenceTrust (XeroMissingReferenceDemand (..),
-                                        XeroReferenceSyncProgressFacts (..))
+import Application.Xero.ReferenceTrust (XeroReferenceSyncProgressFacts (..))
 import Application.Xero.ReferenceTrust.Presentation
 import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..))
 import Application.Xero.WorkflowState
 import Control.Monad (guard)
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, diffDays)
-import Data.Time.Format (defaultTimeLocale, formatTime)
+import Data.Time.Calendar (Day)
+import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
+                                  adminXeroTimesheetPreparationWaitSurfaceImpl)
 import Web.View.Admin.Xero.TimesheetPreparation.Review
 import Web.View.Admin.Xero.TimesheetPreparation.StaffMappings
 import Web.View.Prelude
@@ -72,41 +74,60 @@ renderXeroTimesheetPreparationDialog view
 
 
 
-renderXeroTimesheetPreparationReferenceSyncWaitingDialog :: UTCTime -> UTCTime -> XeroMissingReferenceDemand -> XeroReferenceTrustState -> Html
-renderXeroTimesheetPreparationReferenceSyncWaitingDialog now waitStartedAt missingReferenceDemand trustState =
-    renderDialogOverlayBodyOnly "Prepare Xero draft timesheets" "" [hsx|
-        <div class="d-flex align-items-start gap-3" data-xero-reference-sync-waiting="true">
-            <div id="xero-timesheet-preparation-modal-loading-indicator" class="spinner-border text-primary mt-1" role="status" aria-hidden="true"></div>
-            <div class="d-flex flex-column gap-1">
-                <div class="fw-semibold">Refreshing Xero reference data</div>
-                <div>{xeroReferenceSyncActivityText trustState.syncActivity}</div>
-                {renderPreparationReferenceSyncPhase trustState.syncProgress.progressPhase}
-                {renderPreparationCompletedPayItemsPage trustState.syncProgress.progressCompletedPayItemsPage}
-                {renderPreparationReferenceWaitNotice now waitStartedAt}
+renderXeroTimesheetPreparationReferenceSyncWaitingDialog :: UUID -> XeroReferenceTrustState -> Html
+renderXeroTimesheetPreparationReferenceSyncWaitingDialog venueId trustState =
+    renderDialogOverlayBodyOnly "Prepare Xero draft timesheets" "" $
+        renderFrontendSurfaceMount
+            (adminXeroTimesheetPreparationWaitSurfaceImpl AdminVenueScopeValue { adminVenueId = venueId, adminRosterGroupId = Nothing })
+            (renderXeroTimesheetPreparationReferenceSyncWaitFragment trustState)
+
+renderXeroTimesheetPreparationReferenceSyncWaitFragment :: XeroReferenceTrustState -> Html
+renderXeroTimesheetPreparationReferenceSyncWaitFragment trustState = [hsx|
+    <div id={surfaceFragmentTargetId @Surface.AdminXeroSurface @Surface.AdminXeroTimesheetPreparationWaitFragment noSurfaceFields}>
+        {renderPreparationReferenceSyncState trustState}
+    </div>
+|]
+
+renderXeroTimesheetPreparationReferenceSyncWaitFragmentError :: Text -> Html
+renderXeroTimesheetPreparationReferenceSyncWaitFragmentError message = [hsx|
+    <div id={surfaceFragmentTargetId @Surface.AdminXeroSurface @Surface.AdminXeroTimesheetPreparationWaitFragment noSurfaceFields}>
+        {renderPreparationReferenceError message}
+    </div>
+|]
+
+renderPreparationReferenceSyncState :: XeroReferenceTrustState -> Html
+renderPreparationReferenceSyncState trustState =
+    case xeroPreparationReferencePresentation trustState.trustDecision of
+        XeroPreparationReferenceReady -> [hsx|
+            <div class="d-flex align-items-start gap-3">
+                <div id="xero-timesheet-preparation-modal-loading-indicator" class="spinner-border text-primary mt-1" role="status" aria-hidden="true"></div>
+                <div class="fw-semibold">Opening Xero timesheet preparation</div>
+                {renderXeroPreparationReferenceReadyForm}
             </div>
-            {renderXeroPreparationReferenceWaitForm (Just waitStartedAt) (Just missingReferenceDemand)}
-        </div>
-    |]
+        |]
+        XeroPreparationReferenceBlocked message -> renderPreparationReferenceError message
+        XeroPreparationReferenceWaiting _ -> [hsx|
+            <div class="d-flex align-items-start gap-3" data-xero-reference-sync-waiting="true">
+                <div id="xero-timesheet-preparation-modal-loading-indicator" class="spinner-border text-primary mt-1" role="status" aria-hidden="true"></div>
+                <div class="d-flex flex-column gap-1">
+                    <div class="fw-semibold">Refreshing Xero reference data</div>
+                    <div>{xeroReferenceSyncActivityText trustState.syncActivity}</div>
+                    {renderPreparationReferenceSyncPhase trustState.syncProgress.progressPhase}
+                    {renderPreparationCompletedPayItemsPage trustState.syncProgress.progressCompletedPayItemsPage}
+                    <div class="small app-muted">This dialog will continue automatically when trusted reference data is ready.</div>
+                </div>
+            </div>
+        |]
 
-renderXeroPreparationReferenceWaitForm :: Maybe UTCTime -> Maybe XeroMissingReferenceDemand -> Html
-renderXeroPreparationReferenceWaitForm maybeWaitStartedAt maybeMissingReferenceDemand =
+renderXeroPreparationReferenceReadyForm :: Html
+renderXeroPreparationReferenceReadyForm =
     renderAppShellActionForm
-        (appShellActionFor fields)
+        (appShellActionByMarker @RunXeroTimesheetPreparationOverlay)
         (xeroPreparationAppShellActionRoute (pathTo RunXeroTimesheetPreparationAction))
-            { appShellActionRouteFields = appShellActionRouteFieldValues fields
-            }
         mempty
-  where
-    fields =
-        appShellActionFields @RunXeroTimesheetPreparationOverlay
-            (surfaceOptionalField @ReferenceWaitStartedAtField (cs . formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" <$> maybeWaitStartedAt))
-            ( surfaceOptionalField @ReferenceDemandField (Just (maybe "detect" referenceDemandFieldValue maybeMissingReferenceDemand))
-                &: noSurfaceFields
-            )
 
-referenceDemandFieldValue :: XeroMissingReferenceDemand -> Text
-referenceDemandFieldValue MissingPayrollEligibleStaffReference = "missing_payroll_staff"
-referenceDemandFieldValue _ = "snapshot"
+renderPreparationReferenceError :: Text -> Html
+renderPreparationReferenceError message = [hsx|<div class="alert alert-danger mb-0">{message}</div>|]
 
 renderPreparationReferenceSyncPhase :: Maybe Text -> Html
 renderPreparationReferenceSyncPhase Nothing = mempty
@@ -115,11 +136,6 @@ renderPreparationReferenceSyncPhase (Just phase) = [hsx|<div class="small app-mu
 renderPreparationCompletedPayItemsPage :: Maybe Int -> Html
 renderPreparationCompletedPayItemsPage Nothing = mempty
 renderPreparationCompletedPayItemsPage (Just page) = [hsx|<div class="small app-muted">Completed page {page}</div>|]
-
-renderPreparationReferenceWaitNotice :: UTCTime -> UTCTime -> Html
-renderPreparationReferenceWaitNotice now waitStartedAt
-    | xeroReferenceWaitIsLongRunning now waitStartedAt = [hsx|<div class="small app-muted"><strong>Taking longer than usual.</strong> The refresh continues in the background and this dialog will keep checking for trusted data.</div>|]
-    | otherwise = [hsx|<div class="small app-muted">This dialog will continue automatically when trusted reference data is ready.</div>|]
 
 renderXeroTimesheetPreparationStaffStep :: XeroTimesheetPreparationView -> Html
 renderXeroTimesheetPreparationStaffStep view =

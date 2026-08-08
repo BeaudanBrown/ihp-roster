@@ -20,6 +20,7 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Live
     , adminXeroPageLiveScope
     , adminXeroReferenceSyncLiveFragment
     , adminXeroShellLiveFragment
+    , adminXeroTimesheetPreparationWaitLiveFragment
     , matchAdminExportsLiveFragment
     , matchAdminExportsLiveScope
     , matchAdminInvitesLiveFragment
@@ -37,6 +38,7 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Live
     , matchAdminXeroPageLiveScope
     , matchAdminXeroReferenceSyncLiveFragment
     , matchAdminXeroShellLiveFragment
+    , matchAdminXeroTimesheetPreparationWaitLiveFragment
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.Admin as Types1
@@ -305,3 +307,16 @@ matchAdminXeroShellLiveFragment =
     matchFrontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.AdminXeroAdapterFamily)
         @Types1.AdminXeroShellFragment
+
+adminXeroTimesheetPreparationWaitLiveFragment :: SurfaceFragmentKey
+adminXeroTimesheetPreparationWaitLiveFragment =
+    frontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.AdminXeroAdapterFamily)
+        @Types1.AdminXeroTimesheetPreparationWaitFragment
+        noSurfaceFields
+
+matchAdminXeroTimesheetPreparationWaitLiveFragment :: SurfaceFragmentKey -> Maybe ()
+matchAdminXeroTimesheetPreparationWaitLiveFragment =
+    matchFrontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.AdminXeroAdapterFamily)
+        @Types1.AdminXeroTimesheetPreparationWaitFragment

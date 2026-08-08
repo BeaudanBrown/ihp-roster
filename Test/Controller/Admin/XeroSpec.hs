@@ -434,7 +434,10 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 venue <- createVenueWithConfig "Xero Connection Touch Venue"
 
                 Set.fromList (xeroConnectionTouchedResources venue.id)
-                    `shouldBe` Set.fromList [xeroConnectionResource (unpackId venue.id)]
+                    `shouldBe` Set.fromList
+                        [ xeroConnectionResource (unpackId venue.id)
+                        , xeroReferenceSyncStateResource (unpackId venue.id)
+                        ]
 
         it "records touched resources for Xero pay item mutations" $ withContext do
             withCleanDb do
@@ -1233,7 +1236,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams OpenXeroTimesheetPreparationAction [("referenceDemand", "snapshot")]
+                        callAction OpenXeroTimesheetPreparationAction
 
                 response `responseBodyShouldContain` "Refreshing Xero reference data"
                 jobCount <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount
@@ -1346,7 +1349,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 response <- withXeroConfigForTest (Left "Xero must not be called while using a fresh snapshot") do
                     withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
-                            callActionWithParams OpenXeroTimesheetPreparationAction [("referenceDemand", "missing_payroll_staff")]
+                            callAction OpenXeroTimesheetPreparationAction
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Prepare Xero draft timesheets"
@@ -1354,7 +1357,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 appJobCount <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount
                 appJobCount `shouldBe` 1
 
-        it "waits for stale preparation references and resumes after the durable sync" $ withContext do
+        it "waits for stale preparation references through a read-only live fragment and resumes once" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                 now <- getCurrentTime
@@ -1365,26 +1368,58 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         callAction OpenXeroTimesheetPreparationAction
                 waitingResponse `responseBodyShouldContain` "Refreshing Xero reference data"
                 waitingResponse `responseBodyShouldContain` "Queued"
-                waitingResponse `responseBodyShouldContain` "hx-trigger=\"load delay:1s\""
+                waitingResponse `responseBodyShouldContain` "admin-xero-timesheet-preparation-wait"
+                waitingResponse `responseBodyShouldNotContain` "load delay:1s"
                 [job] <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetch
                 _ <- job
                     |> set #status JobStatusRunning
                     |> set #progress (Aeson.object ["phase" Aeson..= ("payroll_calendars" :: Text), "completedPayItemsPage" Aeson..= (4 :: Int)])
                     |> updateRecord
 
-                progressResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callAction RunXeroTimesheetPreparationAction
-                progressResponse `responseBodyShouldContain` "Fetching Xero payroll calendars"
-                progressResponse `responseBodyShouldContain` "Completed page 4"
+                forM_ [1 .. 2 :: Int] \_ -> do
+                    progressResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callAction ShowadminXeroTimesheetPreparationWaitLiveFragmentAction
+                    progressResponse `responseBodyShouldContain` "Fetching Xero payroll calendars"
+                    progressResponse `responseBodyShouldContain` "Completed page 4"
+                query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount >>= (`shouldBe` 1)
+
+                _ <- job
+                    |> set #status JobStatusRetry
+                    |> set #runAt (addUTCTime 60 now)
+                    |> updateRecord
+                retryResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    callAction ShowadminXeroTimesheetPreparationWaitLiveFragmentAction
+                retryResponse `responseBodyShouldContain` "Retry scheduled for"
+                retryResponse `responseBodyShouldContain` "admin-xero-timesheet-preparation-wait-fragment"
+
+                _ <- job
+                    |> set #status JobStatusFailed
+                    |> set #lastError (Just "unsafe provider response")
+                    |> updateRecord
+                failureResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    callAction ShowadminXeroTimesheetPreparationWaitLiveFragmentAction
+                failureResponse `responseBodyShouldContain` "Contact support before preparing draft timesheets"
+                failureResponse `responseBodyShouldNotContain` "unsafe provider response"
+                query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount >>= (`shouldBe` 1)
 
                 _ <- fixture.connection |> set #lastSyncAt (Just now) |> updateRecord
+                readyResponse <- withXeroConfigForTest (Left "Xero must not be called from the read-only fragment") do
+                    withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callAction ShowadminXeroTimesheetPreparationWaitLiveFragmentAction
+                readyResponse `responseBodyShouldContain` "hx-trigger=\"load\""
+                readyResponse `responseBodyShouldContain` "RunXeroTimesheetPreparation"
+                readyResponse `responseBodyShouldNotContain` "Xero must not be called"
+                query @XeroTimesheetPreparationRun |> fetchCount >>= (`shouldBe` 0)
+
                 resumedResponse <- withXeroConfigForTest (Left "Xero must not be called after preparation resumes") do
                     withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
                             callAction RunXeroTimesheetPreparationAction
                 resumedResponse `responseBodyShouldContain` "Prepare Xero draft timesheets"
                 resumedResponse `responseBodyShouldNotContain` "Xero must not be called"
+                query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount >>= (`shouldBe` 1)
 
         it "opens the guided Xero preparation modal for a selected pay period" $ withContext do
             withCleanDb do
@@ -2068,12 +2103,6 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         , ("xeroEmployeeSelection", "employee-1")
                         ]
                         (ApplyXeroTimesheetPreparationStaffDecisionAction run.id)
-                malformedReferenceWait <-
-                    callWith
-                        [ ("referenceWaitStartedAt", "not-a-timestamp")
-                        , ("referenceDemand", "detect")
-                        ]
-                        RunXeroTimesheetPreparationAction
                 repeatedAccountCode <-
                     callWith
                         [("accountCode", "200"), ("accountCode", "477")]
@@ -2085,8 +2114,6 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 malformedStaff `responseBodyShouldContain` "staffId must be a UUID"
                 missingStaff `responseStatusShouldBe` status200
                 missingStaff `responseBodyShouldContain` "staffId is required by the Surface request contract"
-                malformedReferenceWait `responseStatusShouldBe` status200
-                malformedReferenceWait `responseBodyShouldContain` "referenceWaitStartedAt must be a UTC timestamp"
                 repeatedAccountCode `responseStatusShouldBe` status200
                 repeatedAccountCode `responseBodyShouldContain` "accountCode must be submitted once"
                 refreshedRun <- fetch run.id
@@ -2149,15 +2176,16 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue manager fixture.venue.id do
                     callAction XeroAction
                 openPreparationResponse <- withPasskeyVerifiedUserAndCurrentVenue manager fixture.venue.id do
-                    callActionWithParams OpenXeroTimesheetPreparationAction
-                        [("periodKey", fixturePeriodKey fixture)]
+                    callAction OpenXeroTimesheetPreparationAction
                 runPreparationResponse <- withPasskeyVerifiedUserAndCurrentVenue manager fixture.venue.id do
-                    callActionWithParams RunXeroTimesheetPreparationAction
-                        [("periodKey", fixturePeriodKey fixture)]
+                    callAction RunXeroTimesheetPreparationAction
+                waitFragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue manager fixture.venue.id do
+                    callAction ShowadminXeroTimesheetPreparationWaitLiveFragmentAction
 
                 pageResponse `responseStatusShouldBe` status302
                 openPreparationResponse `responseStatusShouldBe` status302
                 runPreparationResponse `responseStatusShouldBe` status302
+                waitFragmentResponse `responseStatusShouldBe` status302
                 runCount <- query @XeroSubmissionRun |> fetchCount
                 runCount `shouldBe` 0
                 preparationRunCount <- query @XeroTimesheetPreparationRun |> fetchCount

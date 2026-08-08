@@ -13,12 +13,14 @@ module Web.Admin.FrontendSurface
     , adminShiftTypesSurfaceImpl
     , adminRosterGroupsSurfaceImpl
     , adminXeroSurfaceImpl
+    , adminXeroTimesheetPreparationWaitSurfaceImpl
     , adminVenueSettingsFragment
     , adminInvitesFragment
     , adminShiftTypesFragment
     , adminRosterGroupsFragment
     , adminXeroShellFragment
     , adminXeroReferenceSyncFragment
+    , adminXeroTimesheetPreparationWaitFragment
     , adminRosterGroupsFragmentKeys
     , adminXeroFragmentKeys
     ) where
@@ -106,6 +108,14 @@ adminXeroSurfaceImpl scope =
         noSurfaceFields
         [adminXeroShellFragment, adminXeroReferenceSyncFragment]
 
+adminXeroTimesheetPreparationWaitSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminXeroSurface
+adminXeroTimesheetPreparationWaitSurfaceImpl scope =
+    mkSurfaceImplFromValues @Surface.AdminXeroSurface @Surface.AdminXeroScope
+        "timesheet-preparation-wait"
+        (adminVenueScopeFields scope)
+        noSurfaceFields
+        [adminXeroTimesheetPreparationWaitFragment]
+
 adminVenueScopeFields :: AdminVenueScopeValue -> SurfaceFields '[ 'Field Surface.VenueId 'WireUUID]
 adminVenueScopeFields scope =
     surfaceField @Surface.VenueId scope.adminVenueId &: noSurfaceFields
@@ -190,6 +200,14 @@ adminXeroReferenceSyncFragment =
         noSurfaceFields
         noSurfaceFields
         (pathTo ShowadminXeroReferenceSyncLiveFragmentAction)
+        FrontendSurfaceReplace
+
+adminXeroTimesheetPreparationWaitFragment :: FrontendSurfaceMountedFragment
+adminXeroTimesheetPreparationWaitFragment =
+    frontendSurfaceMountedFragmentFor @Surface.AdminXeroSurface @Surface.AdminXeroTimesheetPreparationWaitFragment
+        noSurfaceFields
+        noSurfaceFields
+        (pathTo ShowadminXeroTimesheetPreparationWaitLiveFragmentAction)
         FrontendSurfaceReplace
 
 

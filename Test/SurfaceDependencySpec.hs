@@ -182,6 +182,8 @@ tests = do
             let venueId = fromWords 3 0 0 0
             let scope = AdminSurface.AdminVenueScopeValue venueId Nothing
             let mountedFragments = (AdminSurface.adminXeroSurfaceImpl scope).surfaceImplMountConfig.mountFragments
+            let waitMount = AdminSurface.adminXeroTimesheetPreparationWaitSurfaceImpl scope
+            let waitFragments = waitMount.surfaceImplMountConfig.mountFragments
 
             AdminSurface.adminXeroFragmentKeys mountedFragments
                 `shouldBe` [AdminLive.adminXeroShellLiveFragment, AdminLive.adminXeroReferenceSyncLiveFragment]
@@ -190,19 +192,27 @@ tests = do
             map (.mountedFragmentUrl) mountedFragments
                 `shouldBe` [pathTo ShowadminXeroShellLiveFragmentAction, pathTo ShowadminXeroReferenceSyncLiveFragmentAction]
             (AdminSurface.adminXeroSurfaceImpl scope).surfaceImplMountConfig.mountSubscription `shouldSatisfy` isJust
+            AdminSurface.adminXeroFragmentKeys waitFragments
+                `shouldBe` [AdminLive.adminXeroTimesheetPreparationWaitLiveFragment]
+            map (.mountedFragmentTargetId) waitFragments
+                `shouldBe` ["admin-xero-timesheet-preparation-wait-fragment"]
+            map (.mountedFragmentUrl) waitFragments
+                `shouldBe` [pathTo ShowadminXeroTimesheetPreparationWaitLiveFragmentAction]
+            waitMount.surfaceImplMountConfig.mountSubscription `shouldSatisfy` isJust
 
         it "maps Xero connection and reference-sync state changes to separate fragments" do
             let venueId = fromWords 3 0 0 0
             let scope = AdminLive.adminXeroLiveScope venueId
             let otherVenueId = fromWords 4 0 0 0
             let otherScope = AdminLive.adminXeroLiveScope otherVenueId
-            let fragmentKeys = AdminSurface.adminXeroFragmentKeys [AdminSurface.adminXeroShellFragment, AdminSurface.adminXeroReferenceSyncFragment]
+            let fragmentKeys = AdminSurface.adminXeroFragmentKeys [AdminSurface.adminXeroShellFragment, AdminSurface.adminXeroReferenceSyncFragment, AdminSurface.adminXeroTimesheetPreparationWaitFragment]
             let subscriptions = [liveTestSubscription scope fragmentKeys, liveTestSubscription otherScope fragmentKeys]
             let targetsFor resource = planSurfaceInvalidationsWithoutContext (Set.fromList [resource venueId]) subscriptions
             let plannedFor resource = map (.targetFragments) (targetsFor resource)
 
             plannedFor xeroConnectionResource `shouldBe` [[AdminLive.adminXeroShellLiveFragment]]
-            plannedFor xeroReferenceSyncStateResource `shouldBe` [[AdminLive.adminXeroReferenceSyncLiveFragment]]
+            plannedFor xeroReferenceSyncStateResource
+                `shouldBe` [[AdminLive.adminXeroReferenceSyncLiveFragment, AdminLive.adminXeroTimesheetPreparationWaitLiveFragment]]
             map (.targetScope) (targetsFor xeroReferenceSyncStateResource) `shouldBe` [scope]
             plannedFor adminShiftTypesResource `shouldBe` []
             plannedFor billingResource `shouldBe` []

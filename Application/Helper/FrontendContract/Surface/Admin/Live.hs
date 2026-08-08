@@ -12,6 +12,7 @@ module Application.Helper.FrontendContract.Surface.Admin.Live
     , adminXeroLiveScope
     , adminXeroShellLiveFragment
     , adminXeroReferenceSyncLiveFragment
+    , adminXeroTimesheetPreparationWaitLiveFragment
     ) where
 
 import Application.Helper.FrontendContract.Surface.Admin.Generated.Live (adminExportsLiveFragment,
@@ -26,4 +27,5 @@ import Application.Helper.FrontendContract.Surface.Admin.Generated.Live (adminEx
                                                                          adminVenueSettingsLiveFragment,
                                                                          adminXeroLiveScope,
                                                                          adminXeroReferenceSyncLiveFragment,
-                                                                         adminXeroShellLiveFragment)
+                                                                         adminXeroShellLiveFragment,
+                                                                         adminXeroTimesheetPreparationWaitLiveFragment)

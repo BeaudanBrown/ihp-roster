@@ -73,8 +73,8 @@ issue and, when cross-system design remains unresolved, a new workstream.
   unresolved staff mappings as checked. When no mapping row exists yet, or an
   unresolved placeholder is created after that snapshot, the newer of the
   mapping refresh and connection snapshot times proves whether the approval has
-  already been checked and prevents preparation polling from enqueueing the same
-  refresh repeatedly. Approval times, not later mutable staff edits, determine
+  already been checked and prevents repeated preparation observations from
+  enqueueing the same refresh. Approval times, not later mutable staff edits, determine
   whether another mapping refresh is required. Effective
   `roster_only` work does not request Xero data or block eligible payroll work.
   Suggested staff matches remain pending until explicit owner approval.
@@ -189,10 +189,14 @@ their focused/golden tests.
 - Background reference-sync requests and jobs publish the dedicated typed
   reference-sync-state resource for queued, progress, retry, skipped, success,
   and failure transitions without requiring request or current-user context.
-  The retained shell depends only on its connection resource; its nested
-  read-only reference-sync fragment depends on the sync-state resource and
-  reconnect/version-gap resync refetches the same canonical venue-scoped state.
-  Guided preparation remains dialog-local.
+  The retained shell depends only on its connection resource. Its nested
+  read-only diagnostics fragment and dialog-local preparation wait fragment both
+  depend on the sync-state resource; reconnect/version-gap resync refetches the
+  same canonical venue-scoped state. Opening preparation may request sync once,
+  while every later wait-fragment read remains side-effect-free. Progress,
+  retry, failure, and trusted completion replace the mounted dialog fragment;
+  trusted completion performs one separate preparation mutation without periodic
+  HTTP polling.
 
 ## Provider Contracts
 

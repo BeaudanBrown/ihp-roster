@@ -82,7 +82,6 @@ module Application.Helper.FrontendContract.AppShell
     , ConfirmDeletePopulatedRowField
     , LoadCandidatesField
     , ReferenceWaitStartedAtField
-    , ReferenceDemandField
     , PeriodKeyField
     , XeroEmployeeSelectionField
     , XeroEarningsRateIdField
@@ -178,7 +177,6 @@ data ShiftPreferenceKeysField
 data ConfirmDeletePopulatedRowField
 data LoadCandidatesField
 data ReferenceWaitStartedAtField
-data ReferenceDemandField
 data PeriodKeyField
 data XeroEmployeeSelectionField
 data XeroEarningsRateIdField
@@ -249,14 +247,14 @@ type AppShellContract =
              , Field ReasonField 'WireText
              ]
             DialogSubmitOptions
-         , AppShellAction OpenXeroTimesheetPreparationOverlay XeroReferenceWaitFields DialogSubmitOptions
+         , AppShellAction OpenXeroTimesheetPreparationOverlay '[] DialogSubmitOptions
          , AppShellAction RunXeroTimesheetPreparationOverlay
-            XeroReferenceWaitFields
+            '[]
             '[ AppShellHtmxMethod 'AppShellPost
              , AppShellHtmxTarget DialogOverlayMount
              , AppShellHtmxSwap "innerHTML"
              , AppShellHtmxPushUrl 'AppShellPushUrlFalse
-             , AppShellHtmxTrigger "load delay:1s"
+             , AppShellHtmxTrigger "load"
              , AppShellHtmxIndicator "#xero-timesheet-preparation-modal-loading-indicator"
              ]
          , AppShellAction ContinueXeroTimesheetPreparationStaffOverlay '[] DialogSubmitOptions
@@ -347,11 +345,6 @@ type AppShellContract =
          ]
 
 type DialogLauncherFields = '[]
-
-type XeroReferenceWaitFields =
-    '[ OptionalField ReferenceWaitStartedAtField 'WireText
-     , OptionalField ReferenceDemandField 'WireText
-     ]
 
 type DialogLauncherOptions =
     '[ AppShellHtmxMethod 'AppShellGet

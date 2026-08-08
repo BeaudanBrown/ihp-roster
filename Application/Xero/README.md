@@ -31,9 +31,11 @@ Payroll AU timesheets. Web request and response behavior belongs under
   WageEngine source identities.
 - `WorkflowState.hs` - exhaustive capability and presentation projections over
   generated app-owned Xero workflow enums.
-- `Admin/ReadModel.hs` - connection-shell, read-only reference-sync fragment,
+- `Admin/ReadModel.hs` - connection-shell, read-only reference-sync fragments,
   and preparation read models.
-- `Timesheets/Prepare.hs` - the authoritative preparation workflow.
+- `Timesheets/Prepare.hs` - the authoritative preparation workflow; its waiting
+  dialog observes venue-scoped sync state through a live, side-effect-free
+  fragment before one explicit transition into preparation.
 - `Timesheets/Preview.hs` and `Timesheets/Submission.hs` - internal payload and
   API orchestration used through preparation.
 

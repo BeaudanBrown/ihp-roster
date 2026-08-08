@@ -268,7 +268,9 @@ submitXeroTimesheetPreparationMutation runId maybeAccountCode =
 
 xeroConnectionTouchedResources :: Id Venue -> [SurfaceResourceValue]
 xeroConnectionTouchedResources venueId =
-    [xeroConnectionResource (unpackId venueId)]
+    [ xeroConnectionResource (unpackId venueId)
+    , xeroReferenceSyncStateResource (unpackId venueId)
+    ]
 
 xeroPayItemsTouchedResources :: Id Venue -> [SurfaceResourceValue]
 xeroPayItemsTouchedResources venueId =

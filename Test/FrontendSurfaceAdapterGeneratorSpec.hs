@@ -423,6 +423,7 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
                         , ("admin-roster-groups", "admin-roster-groups")
                         , ("admin-xero", "admin-xero-shell")
                         , ("admin-xero", "admin-xero-reference-sync")
+                        , ("admin-xero", "admin-xero-timesheet-preparation-wait")
                         ]
 
     it "registers exactly one production home for every checked Live declaration" do

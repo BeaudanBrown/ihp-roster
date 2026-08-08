@@ -28,7 +28,8 @@ import Application.Xero.Admin.ReadModel
 import Application.Xero.Admin.ReferenceData
 import Application.Xero.Connection
 import Application.Xero.ReferenceDemand (fetchXeroMissingReferenceDemand)
-import Application.Xero.ReferenceTrust
+import Application.Xero.ReferenceTrust.Presentation (XeroPreparationReferencePresentation (..),
+                                                     xeroPreparationReferencePresentation)
 import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..))
 import Application.Xero.ReferenceTrust.Service
 import Application.Xero.Timesheets.Buckets
@@ -89,12 +90,10 @@ refreshCurrentVenueXeroReferenceDataForPreparation connection = do
     now <- getCurrentTime
     missingReferenceDemand <- fetchXeroMissingReferenceDemand connection
     trustState <- requestTrustedXeroReferenceData now (Just currentUser.id) connection missingReferenceDemand
-    pure case trustState.trustDecision of
-        UseTrustedXeroReferenceSnapshot -> Right connection
-        StartOrJoinXeroReferenceSync -> Left "Xero payroll reference data is starting in the background."
-        WaitForTrustedXeroReferenceSnapshot _ -> Left "Xero payroll reference data is syncing in the background."
-        ReconnectXeroForReferenceData -> Left "Reconnect Xero before preparing draft timesheets."
-        BlockStaleXeroReferenceData _ -> Left "Xero reference data is out of date and could not be refreshed. Contact support before preparing draft timesheets."
+    pure case xeroPreparationReferencePresentation trustState.trustDecision of
+        XeroPreparationReferenceReady           -> Right connection
+        XeroPreparationReferenceWaiting message -> Left message
+        XeroPreparationReferenceBlocked message -> Left message
 
 refreshXeroTimesheetPreparation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

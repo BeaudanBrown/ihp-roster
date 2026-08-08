@@ -1,11 +1,27 @@
 module Application.Xero.ReferenceTrust.Presentation
-    ( xeroReferenceSyncActivityText
+    ( XeroPreparationReferencePresentation (..)
+    , xeroPreparationReferencePresentation
+    , xeroReferenceSyncActivityText
     , xeroReferenceSyncPhaseText
     , xeroReferenceWaitIsLongRunning
     ) where
 
 import Application.Xero.ReferenceTrust
 import IHP.Prelude
+
+data XeroPreparationReferencePresentation
+    = XeroPreparationReferenceReady
+    | XeroPreparationReferenceWaiting !Text
+    | XeroPreparationReferenceBlocked !Text
+    deriving (Eq, Show)
+
+xeroPreparationReferencePresentation :: XeroReferenceTrustDecision -> XeroPreparationReferencePresentation
+xeroPreparationReferencePresentation = \case
+    UseTrustedXeroReferenceSnapshot -> XeroPreparationReferenceReady
+    StartOrJoinXeroReferenceSync -> XeroPreparationReferenceWaiting "Xero payroll reference data is starting in the background."
+    WaitForTrustedXeroReferenceSnapshot _ -> XeroPreparationReferenceWaiting "Xero payroll reference data is syncing in the background."
+    ReconnectXeroForReferenceData -> XeroPreparationReferenceBlocked "Reconnect Xero before preparing draft timesheets."
+    BlockStaleXeroReferenceData _ -> XeroPreparationReferenceBlocked "Xero reference data is out of date and could not be refreshed. Contact support before preparing draft timesheets."
 
 xeroReferenceSyncActivityText :: XeroReferenceSyncActivity -> Text
 xeroReferenceSyncActivityText = \case

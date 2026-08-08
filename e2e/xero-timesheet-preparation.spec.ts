@@ -232,8 +232,13 @@ test.describe('Xero timesheet preparation', () => {
         resetXeroTimesheetPreparationFixture();
     });
 
-    test('waits with honest progress, transitions after five minutes, and resumes automatically', async ({ page }) => {
+    test('advances the waiting dialog by live invalidation without periodic preparation requests', async ({ page }) => {
         seedRunningReferenceSync();
+        const preparationRequests: string[] = [];
+        page.on('request', (request) => {
+            const url = new URL(request.url());
+            if (url.pathname.includes('XeroTimesheetPreparation')) preparationRequests.push(`${request.method()} ${url.pathname}`);
+        });
         await loginAsPrivilegedUserWithSeededPasskeySession(page, 'e2e-admin@example.com', 'test-password-123');
         await openXeroPage(page);
 
@@ -242,23 +247,48 @@ test.describe('Xero timesheet preparation', () => {
         await expect(waitingDialog).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
         await expect(waitingDialog).toContainText('Fetching Xero earnings rates');
         await expect(waitingDialog).toContainText('Completed page 4');
-
-        await waitingDialog.locator('input[name="referenceWaitStartedAt"]').evaluate((input) => {
-            const startedAt = new Date(Date.now() - 6 * 60 * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
-            (input as HTMLInputElement).value = startedAt;
-        });
-        await expect(waitingDialog).toContainText('Taking longer than usual', { timeout: E2E_TIMEOUT.assertion });
-        await expect(waitingDialog).toContainText('continues in the background');
+        await expect(waitingDialog.locator('[hx-trigger*="delay"]')).toHaveCount(0);
+        expect(preparationRequests).toEqual(['POST /OpenXeroTimesheetPreparation']);
 
         runSql(`
             UPDATE xero_connections SET last_sync_at = NOW(), updated_at = NOW() WHERE id = '${xeroConnectionId}';
             UPDATE app_jobs
-            SET status = 'job_status_succeeded', progress = '{"phase":"payroll_settings","completedPayItemsPage":4}'::jsonb, updated_at = NOW()
+            SET run_at = NOW(), status = 'job_status_not_started', updated_at = NOW()
             WHERE id = 'b1000000-0000-0000-0000-000000000302';
         `);
 
         await expect(page.locator('[data-xero-timesheet-preparation-dialog="true"]')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
         await expect(waitingDialog).toHaveCount(0);
+        expect(preparationRequests).toEqual([
+            'POST /OpenXeroTimesheetPreparation',
+            'GET /ShowadminXeroTimesheetPreparationWaitLiveFragment',
+            'POST /RunXeroTimesheetPreparation',
+        ]);
+    });
+
+    test('closing the waiting dialog removes its live fragment subscription', async ({ page }) => {
+        seedRunningReferenceSync();
+        const sentCommands: unknown[] = [];
+        page.on('websocket', (socket) => {
+            socket.on('framesent', ({ payload }) => {
+                if (typeof payload !== 'string') return;
+                try { sentCommands.push(JSON.parse(payload)); } catch { /* ignore non-contract frames */ }
+            });
+        });
+        await loginAsPrivilegedUserWithSeededPasskeySession(page, 'e2e-admin@example.com', 'test-password-123');
+        await openXeroPage(page);
+
+        await page.locator('[data-xero-timesheet-preparation-form="true"]').getByRole('button', { name: 'Upload timesheets' }).click();
+        await expect(page.locator('[data-xero-reference-sync-waiting="true"]')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+        await page.keyboard.press('Escape');
+        await expect(page.locator('[data-xero-reference-sync-waiting="true"]')).toHaveCount(0);
+
+        await expect.poll(() => sentCommands.some((command) => {
+            if (!command || typeof command !== 'object') return false;
+            const candidate = command as { type?: string; subscription?: { fragments?: Array<{ kind?: string }> } };
+            return candidate.type === 'unsubscribe'
+                && candidate.subscription?.fragments?.some((fragment) => fragment.kind === 'admin-xero-timesheet-preparation-wait') === true;
+        }), { timeout: E2E_TIMEOUT.assertion }).toBe(true);
     });
 
     test('opens the guided preparation modal from a selected Xero pay period', async ({ page }) => {

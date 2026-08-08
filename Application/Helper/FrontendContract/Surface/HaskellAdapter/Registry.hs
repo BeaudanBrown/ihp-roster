@@ -137,6 +137,7 @@ type RegisteredSurfaceFragmentAdapterHomes =
      , SurfaceFragmentAdapterHome AdminRosterGroupsAdapterFamily Admin.AdminRosterGroupsFragment
      , SurfaceFragmentAdapterHome AdminXeroAdapterFamily Admin.AdminXeroShellFragment
      , SurfaceFragmentAdapterHome AdminXeroAdapterFamily Admin.AdminXeroReferenceSyncFragment
+     , SurfaceFragmentAdapterHome AdminXeroAdapterFamily Admin.AdminXeroTimesheetPreparationWaitFragment
      ]
 
 type RegisteredSurfaceResourceAdapterHomes =

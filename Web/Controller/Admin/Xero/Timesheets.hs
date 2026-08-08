@@ -7,6 +7,7 @@ module Web.Controller.Admin.Xero.Timesheets
     , refreshXeroTimesheetPreparationAction
     , runXeroTimesheetPreparationAction
     , runXeroTimesheetPreparationSubmissionAction
+    , showXeroTimesheetPreparationWaitFragmentAction
     , selectXeroTimesheetPreparationPeriodAction
     , showXeroTimesheetPreparationStaffMappingsFragmentAction
     , showXeroTimesheetPreparationSummaryAction
@@ -20,8 +21,6 @@ import Application.Helper.FrontendContract.AppShell (AccountCodeField,
                                                      ContinueXeroTimesheetPreparationStaffOverlay,
                                                      OpenXeroTimesheetPreparationOverlay,
                                                      PeriodKeyField,
-                                                     ReferenceDemandField,
-                                                     ReferenceWaitStartedAtField,
                                                      RefreshXeroTimesheetPreparationOverlay,
                                                      RunXeroTimesheetPreparationOverlay,
                                                      RunXeroTimesheetPreparationSubmissionOverlay,
@@ -42,14 +41,14 @@ import Application.Helper.XeroAdminTypes (XeroTimesheetPreparationState (XeroPre
                                           XeroTimesheetPreparationView (..))
 import Application.Xero.Admin.ReadModel
 import Application.Xero.ReferenceDemand (fetchXeroMissingReferenceDemand)
-import Application.Xero.ReferenceTrust
+import Application.Xero.ReferenceTrust.Presentation (XeroPreparationReferencePresentation (..),
+                                                     xeroPreparationReferencePresentation)
 import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..),
                                                   fetchXeroReferenceTrustState)
 import Application.Xero.ReferenceTrust.Service
 import Application.Xero.Timesheets.Prepare (XeroPreparationStaffDecision (..),
                                             loadXeroTimesheetPreparationView)
 import qualified Data.Text as Text
-import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Web.Admin.Xero.Mutations (applyXeroTimesheetPreparationStaffDecisionMutation,
                                  approveXeroTimesheetPreparationPayItemsMutation,
                                  approveXeroTimesheetPreparationStaffStepMutation,
@@ -69,13 +68,7 @@ openXeroTimesheetPreparationAction ::
 openXeroTimesheetPreparationAction =
     case parseAppShellActionParams @OpenXeroTimesheetPreparationOverlay of
         Left errors -> respondWithPreparationDialog (Left (surfaceRequestFieldErrorsMessage errors))
-        Right fields ->
-            case parseReferenceWaitStartedAt (surfaceFieldValue @ReferenceWaitStartedAtField fields) of
-                Left message -> respondWithPreparationDialog (Left message)
-                Right maybeWaitStartedAt ->
-                    startOrWaitForXeroTimesheetPreparation
-                        maybeWaitStartedAt
-                        (surfaceFieldValue @ReferenceDemandField fields)
+        Right _ -> startOrWaitForXeroTimesheetPreparation
 
 runXeroTimesheetPreparationAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -83,71 +76,67 @@ runXeroTimesheetPreparationAction ::
 runXeroTimesheetPreparationAction =
     case parseAppShellActionParams @RunXeroTimesheetPreparationOverlay of
         Left errors -> respondWithPreparationDialog (Left (surfaceRequestFieldErrorsMessage errors))
-        Right fields ->
-            case parseReferenceWaitStartedAt (surfaceFieldValue @ReferenceWaitStartedAtField fields) of
-                Left message -> respondWithPreparationDialog (Left message)
-                Right maybeWaitStartedAt ->
-                    startOrWaitForXeroTimesheetPreparation
-                        maybeWaitStartedAt
-                        (surfaceFieldValue @ReferenceDemandField fields)
+        Right _ -> observeXeroTimesheetPreparationReferenceState >>= respondToPreparationReferenceState
 
 startOrWaitForXeroTimesheetPreparation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Maybe UTCTime ->
-    Maybe Text ->
     IO ()
-startOrWaitForXeroTimesheetPreparation maybeWaitStartedAt maybeReferenceDemand = do
+startOrWaitForXeroTimesheetPreparation = do
     maybeConnection <- fetchCurrentVenueXeroConnection
     case maybeConnection of
         Nothing -> respondWithPreparationErrorToast "Connect Xero before preparing draft timesheets."
         Just connection -> do
             now <- getCurrentTime
-            currentTrustState <- fetchXeroReferenceTrustState now connection NoMissingPayrollReferenceDemand
-            missingReferenceDemand <-
-                case maybeReferenceDemand of
-                    Just "snapshot" | referenceSnapshotStillBlocks currentTrustState.trustDecision -> pure NoMissingPayrollReferenceDemand
-                    Just "missing_payroll_staff"
-                        | referenceSnapshotStillBlocks currentTrustState.trustDecision
-                        , referenceSyncActivityIsActive currentTrustState.syncActivity -> pure MissingPayrollEligibleStaffReference
-                    _ -> fetchXeroMissingReferenceDemand connection
+            missingReferenceDemand <- fetchXeroMissingReferenceDemand connection
             trustState <- requestTrustedXeroReferenceData now (Just currentUser.id) connection missingReferenceDemand
-            case trustState.trustDecision of
-                UseTrustedXeroReferenceSnapshot -> do
-                    result <- liveMutationValue <$> runXeroTimesheetPreparationMutation
-                    respondWithPreparationDialog result
-                StartOrJoinXeroReferenceSync -> respondWithPreparationReferenceWait now maybeWaitStartedAt missingReferenceDemand trustState
-                WaitForTrustedXeroReferenceSnapshot _ -> respondWithPreparationReferenceWait now maybeWaitStartedAt missingReferenceDemand trustState
-                ReconnectXeroForReferenceData -> respondWithPreparationErrorToast "Reconnect Xero before preparing draft timesheets."
-                BlockStaleXeroReferenceData _ -> respondWithPreparationErrorToast "Xero reference data is out of date and could not be refreshed. Contact support before preparing draft timesheets."
+            respondToPreparationReferenceState (Right trustState)
+
+observeXeroTimesheetPreparationReferenceState ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO (Either Text XeroReferenceTrustState)
+observeXeroTimesheetPreparationReferenceState = do
+    fetchCurrentVenueXeroConnection >>= \case
+        Nothing -> pure (Left "Connect Xero before preparing draft timesheets.")
+        Just connection -> do
+            now <- getCurrentTime
+            missingReferenceDemand <- fetchXeroMissingReferenceDemand connection
+            Right <$> fetchXeroReferenceTrustState now connection missingReferenceDemand
+
+respondToPreparationReferenceState ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Either Text XeroReferenceTrustState ->
+    IO ()
+respondToPreparationReferenceState = \case
+    Left message -> respondWithPreparationErrorToast message
+    Right trustState ->
+        case xeroPreparationReferencePresentation trustState.trustDecision of
+            XeroPreparationReferenceReady -> do
+                result <- liveMutationValue <$> runXeroTimesheetPreparationMutation
+                respondWithPreparationDialog result
+            XeroPreparationReferenceWaiting _ -> respondWithPreparationReferenceWait trustState
+            XeroPreparationReferenceBlocked message -> respondWithPreparationErrorToast message
 
 respondWithPreparationReferenceWait ::
     (?context :: ControllerContext, ?request :: Request) =>
-    UTCTime ->
-    Maybe UTCTime ->
-    XeroMissingReferenceDemand ->
     XeroReferenceTrustState ->
     IO ()
-respondWithPreparationReferenceWait now maybeWaitStartedAt missingReferenceDemand trustState =
+respondWithPreparationReferenceWait trustState =
     if isHtmxRequest
-        then respondHtml (renderXeroTimesheetPreparationReferenceSyncWaitingDialog now (fromMaybe now maybeWaitStartedAt) missingReferenceDemand trustState)
+        then respondHtml (renderXeroTimesheetPreparationReferenceSyncWaitingDialog (unpackId currentVenueId) trustState)
         else do
             setSuccessMessage "Xero payroll reference data is syncing in the background."
             redirectTo XeroAction
 
-referenceSnapshotStillBlocks :: XeroReferenceTrustDecision -> Bool
-referenceSnapshotStillBlocks = \case
-    StartOrJoinXeroReferenceSync -> True
-    WaitForTrustedXeroReferenceSnapshot _ -> True
-    ReconnectXeroForReferenceData -> True
-    BlockStaleXeroReferenceData _ -> True
-    UseTrustedXeroReferenceSnapshot -> False
-
-referenceSyncActivityIsActive :: XeroReferenceSyncActivity -> Bool
-referenceSyncActivityIsActive = \case
-    XeroReferenceSyncQueued -> True
-    XeroReferenceSyncRunning -> True
-    XeroReferenceSyncRetryWaiting _ -> True
-    _ -> False
+showXeroTimesheetPreparationWaitFragmentAction ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO ()
+showXeroTimesheetPreparationWaitFragmentAction = do
+    trustState <- observeXeroTimesheetPreparationReferenceState
+    respondHtml $
+        either
+            renderXeroTimesheetPreparationReferenceSyncWaitFragmentError
+            renderXeroTimesheetPreparationReferenceSyncWaitFragment
+            trustState
 
 refreshXeroTimesheetPreparationAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -292,14 +281,6 @@ parseStaffDecision fields =
         "" -> Left "Choose a Xero employee or Not paid through Xero before approving."
         "not_applicable" -> Right MarkStaffNotPaidThroughXero
         employeeId -> Right (SelectXeroEmployee employeeId)
-
-parseReferenceWaitStartedAt :: Maybe Text -> Either Text (Maybe UTCTime)
-parseReferenceWaitStartedAt Nothing = Right Nothing
-parseReferenceWaitStartedAt (Just value) =
-    maybe
-        (Left "referenceWaitStartedAt must be a UTC timestamp in YYYY-MM-DDTHH:MM:SSZ format")
-        (Right . Just)
-        (parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" (cs value))
 
 respondWithPreparationDialog ::
     (?context :: ControllerContext, ?request :: Request) =>

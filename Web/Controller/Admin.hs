@@ -396,6 +396,10 @@ instance Controller AdminController where
         profileActionSpan "admin.xero_reference_sync_fragment.respond" do
             requireCurrentVenueOwnerForXero respondWithXeroReferenceSyncFragment
 
+    action currentAction@ShowadminXeroTimesheetPreparationWaitLiveFragmentAction = runBepis currentAction BepisFragmentAction $
+        profileActionSpan "admin.xero_timesheet_preparation_wait_fragment.respond" do
+            requireCurrentVenueOwnerForXero showXeroTimesheetPreparationWaitFragmentAction
+
     action currentAction@CreateVenueInvitationAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")

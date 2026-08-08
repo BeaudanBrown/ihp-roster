@@ -1,4 +1,4 @@
-import { interactionSessionEndEvent, liveFragmentsRefreshEvent, pageReadyEvent } from "../generated/contracts";
+import { dialogDismissedEvent, interactionSessionEndEvent, liveFragmentsRefreshEvent, pageReadyEvent } from "../generated/contracts";
 import { createActiveInteractionSessionTracker } from "../interaction/session-state";
 import { createLiveUpdateConnection, type LiveUpdateConnection } from "./connection";
 import { createLiveUpdateDiagnostics } from "./diagnostics";
@@ -84,6 +84,7 @@ export function enableLiveUpdateRuntime(): void {
     });
     document.addEventListener("htmx:afterSettle", () => window.setTimeout(syncRuntime, 0));
     document.addEventListener("htmx:responseError", refresher.flushInteractionDeferredFragmentsWithoutActiveSessions);
+    document.addEventListener(dialogDismissedEvent, () => window.setTimeout(syncRuntime, 0));
 
     const scheduleFocusedFlush = () => window.setTimeout(refresher.flushFocusedFragmentsWithoutActiveInputs, 0);
     document.addEventListener("focusout", scheduleFocusedFlush);
