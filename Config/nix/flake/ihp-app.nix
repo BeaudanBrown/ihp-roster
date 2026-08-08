@@ -56,6 +56,7 @@
                         base
                         crypton
                         hourglass
+                        hasql
                         hs-opentelemetry-api
                         hs-opentelemetry-exporter-otlp
                         hs-opentelemetry-instrumentation-wai
