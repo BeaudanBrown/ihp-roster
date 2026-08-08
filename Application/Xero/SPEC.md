@@ -66,8 +66,8 @@ issue and, when cross-system design remains unresolved, a new workstream.
   durable job. When that attempt receives a provider `Retry-After`, a still-trusted
   snapshot opens the mapping workflow rather than making preparation wait for the
   delayed background retry. Subscribed live waiting dialogs show canonical
-  phase/page facts and resume from local reference rows after success without
-  periodic workflow requests.
+  phase/page facts and resume from local reference rows only after typed
+  sync-state invalidation.
 - Missing-staff demand resolves approval-pinned pay versions through the
   canonical explicit pay-assignment resolver. Successful snapshots stamp
   unresolved staff mappings as checked. When no mapping row exists yet, or an
@@ -195,9 +195,9 @@ their focused/golden tests.
   refetches the same canonical venue-scoped state. Opening either workflow may
   request sync once, while every later wait-fragment read remains side-effect-free.
   Progress, retry, failure, and trusted completion replace the mounted dialog
-  fragment without periodic HTTP polling. Trusted preparation completion performs
-  one separate preparation mutation; trusted import completion renders candidates
-  directly from local reference rows.
+  fragment only after sync-state invalidation. Trusted preparation completion
+  performs one separate preparation mutation; trusted import completion renders
+  candidates directly from local reference rows.
 
 ## Provider Contracts
 
@@ -209,7 +209,8 @@ than tokens or payloads.
 ## Verification
 
 ```bash
+bash ./bin/in-env http-polling-policy-check
 bash ./bin/in-env typecheck
 bash ./bin/in-env hspec-test --match "Xero"
-bash ./bin/in-env e2e e2e/xero-timesheet-preparation.spec.ts e2e/xero-import-filter.spec.ts
+bash ./bin/in-env e2e e2e/xero-timesheet-preparation.spec.ts e2e/xero-pay-item-import.spec.ts e2e/xero-import-filter.spec.ts
 ```

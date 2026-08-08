@@ -7,6 +7,9 @@ devenv-script-freshness-check
 echo "verify-full: explicit production module and script inventory"
 production-inventory-check
 
+echo "verify-full: production HTTP polling policy"
+http-polling-policy-check
+
 # Reuse the isolated package for every generator/freshness command below.
 export FRONTEND_CONTRACT_USE_PACKAGE=1
 echo "verify-full: isolated frontend-contract tooling package"

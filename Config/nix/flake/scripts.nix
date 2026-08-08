@@ -160,6 +160,7 @@ in
         verify-fast = script ../scripts/verification/fast;
         verify-full = script ../scripts/verification/full;
         billing-production-readiness = script ../scripts/verification/billing-production-readiness;
+        http-polling-policy-check = script ../scripts/verification/http-polling-policy;
         production-inventory-check = script ../scripts/verification/production-inventory;
         production-package-smoke = script ../scripts/verification/production-package-smoke;
         frontend-contract-package-check = script ../scripts/verification/frontend-contract-package;
