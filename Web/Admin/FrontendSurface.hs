@@ -14,6 +14,7 @@ module Web.Admin.FrontendSurface
     , adminRosterGroupsSurfaceImpl
     , adminXeroSurfaceImpl
     , adminXeroTimesheetPreparationWaitSurfaceImpl
+    , adminXeroPayItemImportWaitSurfaceImpl
     , adminVenueSettingsFragment
     , adminInvitesFragment
     , adminShiftTypesFragment
@@ -21,6 +22,7 @@ module Web.Admin.FrontendSurface
     , adminXeroShellFragment
     , adminXeroReferenceSyncFragment
     , adminXeroTimesheetPreparationWaitFragment
+    , adminXeroPayItemImportWaitFragment
     , adminRosterGroupsFragmentKeys
     , adminXeroFragmentKeys
     ) where
@@ -116,6 +118,14 @@ adminXeroTimesheetPreparationWaitSurfaceImpl scope =
         noSurfaceFields
         [adminXeroTimesheetPreparationWaitFragment]
 
+adminXeroPayItemImportWaitSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminXeroSurface
+adminXeroPayItemImportWaitSurfaceImpl scope =
+    mkSurfaceImplFromValues @Surface.AdminXeroSurface @Surface.AdminXeroScope
+        "pay-item-import-wait"
+        (adminVenueScopeFields scope)
+        noSurfaceFields
+        [adminXeroPayItemImportWaitFragment]
+
 adminVenueScopeFields :: AdminVenueScopeValue -> SurfaceFields '[ 'Field Surface.VenueId 'WireUUID]
 adminVenueScopeFields scope =
     surfaceField @Surface.VenueId scope.adminVenueId &: noSurfaceFields
@@ -208,6 +218,14 @@ adminXeroTimesheetPreparationWaitFragment =
         noSurfaceFields
         noSurfaceFields
         (pathTo ShowadminXeroTimesheetPreparationWaitLiveFragmentAction)
+        FrontendSurfaceReplace
+
+adminXeroPayItemImportWaitFragment :: FrontendSurfaceMountedFragment
+adminXeroPayItemImportWaitFragment =
+    frontendSurfaceMountedFragmentFor @Surface.AdminXeroSurface @Surface.AdminXeroPayItemImportWaitFragment
+        noSurfaceFields
+        noSurfaceFields
+        (pathTo ShowadminXeroPayItemImportWaitLiveFragmentAction)
         FrontendSurfaceReplace
 
 

@@ -46,7 +46,6 @@ module Application.Helper.FrontendContract.AppShell
     , RefreshXeroTimesheetPreparationOverlay
     , SubmitXeroTimesheetPreparationOverlay
     , OpenXeroPayItemImportOverlay
-    , LoadXeroPayItemImportOverlay
     , ImportXeroPayItemsOverlay
     , OpenRosterShiftDialog
     , OpenRosterStaffCreateDialog
@@ -80,8 +79,6 @@ module Application.Helper.FrontendContract.AppShell
     , RosterGroupIdField
     , ShiftPreferenceKeysField
     , ConfirmDeletePopulatedRowField
-    , LoadCandidatesField
-    , ReferenceWaitStartedAtField
     , PeriodKeyField
     , XeroEmployeeSelectionField
     , XeroEarningsRateIdField
@@ -141,7 +138,6 @@ data ApplyXeroTimesheetPreparationStaffDecisionOverlay
 data RefreshXeroTimesheetPreparationOverlay
 data SubmitXeroTimesheetPreparationOverlay
 data OpenXeroPayItemImportOverlay
-data LoadXeroPayItemImportOverlay
 data ImportXeroPayItemsOverlay
 data OpenRosterShiftDialog
 data OpenRosterStaffCreateDialog
@@ -175,8 +171,6 @@ data RosterGroupIdsField
 data RosterGroupIdField
 data ShiftPreferenceKeysField
 data ConfirmDeletePopulatedRowField
-data LoadCandidatesField
-data ReferenceWaitStartedAtField
 data PeriodKeyField
 data XeroEmployeeSelectionField
 data XeroEarningsRateIdField
@@ -289,17 +283,6 @@ type AppShellContract =
              , AppShellHtmxConfirm "Submit draft timesheets to Xero?"
              ]
          , AppShellAction OpenXeroPayItemImportOverlay DialogLauncherFields DialogLauncherOptions
-         , AppShellAction LoadXeroPayItemImportOverlay
-            '[ Field LoadCandidatesField 'WireText
-             , Field ReferenceWaitStartedAtField 'WireText
-             ]
-            '[ AppShellHtmxMethod 'AppShellGet
-             , AppShellHtmxTarget DialogOverlayMount
-             , AppShellHtmxSwap "innerHTML"
-             , AppShellHtmxPushUrl 'AppShellPushUrlFalse
-             , AppShellHtmxTrigger "load delay:1s"
-             , AppShellHtmxIndicator "#xero-import-pay-items-loading-indicator"
-             ]
          , AppShellAction ImportXeroPayItemsOverlay
             '[ Field XeroEarningsRateIdField 'WireText
              ]

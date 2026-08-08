@@ -3,16 +3,19 @@
 module Web.View.Admin.Xero.ImportedPayItems
     ( renderXeroImportedPayItemImportDialog
     , renderXeroImportedPayItemImportErrorDialog
-    , renderXeroImportedPayItemImportLoadingDialog
     , renderXeroImportedPayItemImportWaitingDialog
+    , renderXeroImportedPayItemImportWaitFragment
+    , renderXeroImportedPayItemImportCandidatesWaitFragment
+    , renderXeroImportedPayItemImportErrorWaitFragment
     ) where
 
-import Application.Helper.FrontendContract.AppShell (ImportXeroPayItemsOverlay,
-                                                     LoadXeroPayItemImportOverlay)
+import Application.Helper.FrontendContract.AppShell (ImportXeroPayItemsOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
-                                                             AppShellFieldValue (..),
                                                              appShellActionByMarker,
                                                              renderAppShellActionForm)
+import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
+import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.FrontendContract.XeroCandidateFilter.Runtime
 import Application.Helper.Xero (XeroEarningsRateRef (..))
 import Application.Xero.Admin.ImportedPayItems (XeroImportedPayItemCandidate (..))
@@ -21,7 +24,8 @@ import Application.Xero.ReferenceTrust.Presentation
 import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..))
 import Data.Scientific (FPFormat (Fixed), Scientific, formatScientific)
 import qualified Data.Text as Text
-import Data.Time.Format (defaultTimeLocale, formatTime)
+import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
+                                  adminXeroPayItemImportWaitSurfaceImpl)
 import Web.View.Prelude
 
 xeroPayItemAppShellActionRoute :: Text -> AppShellActionRoute
@@ -34,28 +38,16 @@ xeroPayItemAppShellActionRoute actionUrl =
         , appShellActionRouteExtraAttrs = []
         }
 
-renderXeroImportedPayItemImportLoadingDialog :: Html
-renderXeroImportedPayItemImportLoadingDialog =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Import Xero pay items"
-        , dialogOverlayBody = [hsx|
-            <div class="d-flex align-items-center gap-3">
-                <div id="xero-import-pay-items-loading-indicator" class="spinner-border text-primary" role="status" aria-hidden="true"></div>
-                <div>
-                    <div class="fw-semibold">Fetching Xero pay items...</div>
-                    <div class="small app-muted">Bepis is checking trusted Xero reference data before loading supported hourly earnings rates.</div>
-                </div>
-                {renderLoadXeroPayItemImportForm Nothing}
-            </div>
-        |]
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons = []
-        , dialogOverlayDialogClass = ""
-        }
+renderXeroImportedPayItemImportWaitingDialog :: UUID -> XeroReferenceTrustState -> Html
+renderXeroImportedPayItemImportWaitingDialog venueId trustState =
+    renderFrontendSurfaceMount
+        (adminXeroPayItemImportWaitSurfaceImpl AdminVenueScopeValue { adminVenueId = venueId, adminRosterGroupId = Nothing })
+        (renderXeroImportedPayItemImportWaitFragment trustState)
 
-renderXeroImportedPayItemImportWaitingDialog :: UTCTime -> UTCTime -> XeroReferenceTrustState -> Html
-renderXeroImportedPayItemImportWaitingDialog now waitStartedAt trustState =
-    renderDialogOverlay DialogOverlayConfig
+renderXeroImportedPayItemImportWaitFragment :: XeroReferenceTrustState -> Html
+renderXeroImportedPayItemImportWaitFragment trustState =
+    renderXeroImportedPayItemImportWaitFragmentRoot $
+        renderDialogOverlay DialogOverlayConfig
         { dialogOverlayTitle = "Import Xero pay items"
         , dialogOverlayBody = [hsx|
             <div class="d-flex align-items-start gap-3" data-xero-reference-sync-waiting="true">
@@ -65,9 +57,8 @@ renderXeroImportedPayItemImportWaitingDialog now waitStartedAt trustState =
                     <div>{xeroReferenceSyncActivityText trustState.syncActivity}</div>
                     {renderReferenceSyncPhase trustState.syncProgress.progressPhase}
                     {renderCompletedPayItemsPage trustState.syncProgress.progressCompletedPayItemsPage}
-                    {renderReferenceWaitDurationNotice now waitStartedAt}
+                    <div class="small app-muted">This dialog will continue automatically when trusted reference data is ready.</div>
                 </div>
-                {renderLoadXeroPayItemImportForm (Just waitStartedAt)}
             </div>
         |]
         , dialogOverlayStartButtons = []
@@ -81,12 +72,20 @@ renderXeroImportedPayItemImportWaitingDialog now waitStartedAt trustState =
         , dialogOverlayDialogClass = ""
         }
 
-renderReferenceWaitDurationNotice :: UTCTime -> UTCTime -> Html
-renderReferenceWaitDurationNotice now waitStartedAt
-    | xeroReferenceWaitIsLongRunning now waitStartedAt = [hsx|
-        <div class="small app-muted"><strong>Taking longer than usual.</strong> The refresh continues in the background and this dialog will keep checking for trusted data.</div>
-    |]
-    | otherwise = [hsx|<div class="small app-muted">This dialog will continue automatically when trusted reference data is ready.</div>|]
+renderXeroImportedPayItemImportCandidatesWaitFragment :: [XeroImportedPayItemCandidate] -> Html
+renderXeroImportedPayItemImportCandidatesWaitFragment candidates =
+    renderXeroImportedPayItemImportWaitFragmentRoot (renderXeroImportedPayItemImportDialog candidates)
+
+renderXeroImportedPayItemImportErrorWaitFragment :: Text -> Html
+renderXeroImportedPayItemImportErrorWaitFragment message =
+    renderXeroImportedPayItemImportWaitFragmentRoot (renderXeroImportedPayItemImportErrorDialog message)
+
+renderXeroImportedPayItemImportWaitFragmentRoot :: Html -> Html
+renderXeroImportedPayItemImportWaitFragmentRoot content = [hsx|
+    <div id={surfaceFragmentTargetId @Surface.AdminXeroSurface @Surface.AdminXeroPayItemImportWaitFragment noSurfaceFields}>
+        {content}
+    </div>
+|]
 
 renderReferenceSyncPhase :: Maybe Text -> Html
 renderReferenceSyncPhase Nothing = mempty
@@ -95,17 +94,6 @@ renderReferenceSyncPhase (Just phase) = [hsx|<div class="small app-muted">{xeroR
 renderCompletedPayItemsPage :: Maybe Int -> Html
 renderCompletedPayItemsPage Nothing = mempty
 renderCompletedPayItemsPage (Just page) = [hsx|<div class="small app-muted">Completed page {page}</div>|]
-
-renderLoadXeroPayItemImportForm :: Maybe UTCTime -> Html
-renderLoadXeroPayItemImportForm maybeWaitStartedAt =
-    renderAppShellActionForm
-        (appShellActionByMarker @LoadXeroPayItemImportOverlay)
-        (xeroPayItemAppShellActionRoute (pathTo OpenXeroPayItemImportAction))
-            { appShellActionRouteFields =
-                [AppShellFieldValue ("loadCandidates", "true")]
-                    <> maybe [] (\waitStartedAt -> [AppShellFieldValue ("referenceWaitStartedAt", cs (formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" waitStartedAt))]) maybeWaitStartedAt
-            }
-        mempty
 
 renderXeroImportedPayItemImportErrorDialog :: Text -> Html
 renderXeroImportedPayItemImportErrorDialog message =

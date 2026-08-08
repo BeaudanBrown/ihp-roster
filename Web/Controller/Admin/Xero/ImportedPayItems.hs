@@ -1,6 +1,7 @@
 module Web.Controller.Admin.Xero.ImportedPayItems
     ( importXeroPayItemsAction
     , openXeroPayItemImportAction
+    , showXeroPayItemImportWaitFragmentAction
     ) where
 
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
@@ -11,31 +12,47 @@ import Application.Helper.Xero (XeroEarningsRateRef (..))
 import Application.Xero.Admin.ImportedPayItems
 import Application.Xero.Admin.ReadModel (fetchCurrentVenueXeroConnection)
 import Application.Xero.ReferenceTrust
-import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..))
+import Application.Xero.ReferenceTrust.Presentation (XeroPayItemImportReferencePresentation (..),
+                                                     xeroPayItemImportReferencePresentation)
+import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..),
+                                                  fetchXeroReferenceTrustState)
 import Application.Xero.ReferenceTrust.Service
 import Web.Admin.Xero.Mutations
 import Web.Controller.Admin.Xero.Responses (xeroErrorToast, xeroSuccessToast)
 import Web.Controller.Prelude
-import Web.View.Admin.Xero.ImportedPayItems (renderXeroImportedPayItemImportDialog,
+import Web.View.Admin.Xero.ImportedPayItems (renderXeroImportedPayItemImportCandidatesWaitFragment,
+                                             renderXeroImportedPayItemImportDialog,
                                              renderXeroImportedPayItemImportErrorDialog,
-                                             renderXeroImportedPayItemImportLoadingDialog,
+                                             renderXeroImportedPayItemImportErrorWaitFragment,
+                                             renderXeroImportedPayItemImportWaitFragment,
                                              renderXeroImportedPayItemImportWaitingDialog)
 
 openXeroPayItemImportAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
-openXeroPayItemImportAction = do
-    let shouldLoadCandidates = paramOrDefault @Bool False "loadCandidates"
-    let maybeWaitStartedAt = paramOrNothing @UTCTime "referenceWaitStartedAt"
-    if isHtmxRequest && not shouldLoadCandidates
-        then respondHtml renderXeroImportedPayItemImportLoadingDialog
-        else
-            withTrustedXeroEarningsRates respondImportedPayItemDialogError (respondImportedPayItemWaiting maybeWaitStartedAt) \connection _now fetchedRates -> do
-                activeImports <- fetchActiveImportedXeroPayItems connection
-                respondHtml (renderXeroImportedPayItemImportDialog (viableImportedPayItemCandidates activeImports fetchedRates))
+openXeroPayItemImportAction =
+    withTrustedXeroEarningsRates respondImportedPayItemDialogError respondImportedPayItemWaiting \connection _now fetchedRates -> do
+        candidates <- fetchXeroImportedPayItemCandidates connection fetchedRates
+        respondHtml (renderXeroImportedPayItemImportDialog candidates)
+
+showXeroPayItemImportWaitFragmentAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+showXeroPayItemImportWaitFragmentAction = do
+    maybeConnection <- fetchCurrentVenueXeroConnection
+    case maybeConnection of
+        Nothing -> respondHtml (renderXeroImportedPayItemImportErrorWaitFragment "Connect Xero before importing pay items.")
+        Just connection -> do
+            now <- getCurrentTime
+            trustState <- fetchXeroReferenceTrustState now connection NoMissingPayrollReferenceDemand
+            case xeroPayItemImportReferencePresentation trustState.trustDecision of
+                XeroPayItemImportReferenceReady -> do
+                    fetchedRates <- fetchSyncedXeroEarningsRateRefs connection
+                    candidates <- fetchXeroImportedPayItemCandidates connection fetchedRates
+                    respondHtml (renderXeroImportedPayItemImportCandidatesWaitFragment candidates)
+                XeroPayItemImportReferenceWaiting -> respondHtml (renderXeroImportedPayItemImportWaitFragment trustState)
+                XeroPayItemImportReferenceBlocked message -> respondHtml (renderXeroImportedPayItemImportErrorWaitFragment message)
 
 importXeroPayItemsAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 importXeroPayItemsAction = do
     let selectedRateIds = paramList @Text "xeroEarningsRateId"
-    withTrustedXeroEarningsRates respondImportedPayItemDialogToast (\_ _ -> respondImportedPayItemDialogToast (xeroErrorToast "Xero payroll reference data is syncing in the background.")) \connection now fetchedRates -> do
+    withTrustedXeroEarningsRates respondImportedPayItemDialogToast (\_ -> respondImportedPayItemDialogToast (xeroErrorToast "Xero payroll reference data is syncing in the background.")) \connection now fetchedRates -> do
         let availableRateIds = map (.xeroEarningsRateId) fetchedRates
             submittedUnavailableRateIds = filter (`notElem` availableRateIds) selectedRateIds
         if null selectedRateIds
@@ -46,7 +63,7 @@ importXeroPayItemsAction = do
                     LiveMutationResult { liveMutationValue = imported } <- importXeroEarningsRatesMutation connection now fetchedRates selectedRateIds
                     respondImportedPayItemImportSuccess (Just (xeroSuccessToast ("Imported " <> tshow (length imported) <> " Xero pay item" <> pluralSuffix imported <> ".")))
 
-withTrustedXeroEarningsRates :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => (ToastOverlayConfig -> IO ()) -> (UTCTime -> XeroReferenceTrustState -> IO ()) -> (XeroConnection -> UTCTime -> [XeroEarningsRateRef] -> IO ()) -> IO ()
+withTrustedXeroEarningsRates :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => (ToastOverlayConfig -> IO ()) -> (XeroReferenceTrustState -> IO ()) -> (XeroConnection -> UTCTime -> [XeroEarningsRateRef] -> IO ()) -> IO ()
 withTrustedXeroEarningsRates respondError respondWaiting action = do
     maybeConnection <- fetchCurrentVenueXeroConnection
     case maybeConnection of
@@ -54,14 +71,17 @@ withTrustedXeroEarningsRates respondError respondWaiting action = do
         Just connection -> do
             now <- getCurrentTime
             trustState <- requestTrustedXeroReferenceData now (Just currentUser.id) connection NoMissingPayrollReferenceDemand
-            case trustState.trustDecision of
-                UseTrustedXeroReferenceSnapshot -> do
+            case xeroPayItemImportReferencePresentation trustState.trustDecision of
+                XeroPayItemImportReferenceReady -> do
                     syncedRates <- fetchSyncedXeroEarningsRateRefs connection
                     action connection now syncedRates
-                StartOrJoinXeroReferenceSync -> respondWaiting now trustState
-                WaitForTrustedXeroReferenceSnapshot _ -> respondWaiting now trustState
-                ReconnectXeroForReferenceData -> respondError (xeroErrorToast "Reconnect Xero before importing pay items.")
-                BlockStaleXeroReferenceData _ -> respondError (xeroErrorToast "Xero reference data is out of date and could not be refreshed. Contact support before importing pay items.")
+                XeroPayItemImportReferenceWaiting -> respondWaiting trustState
+                XeroPayItemImportReferenceBlocked message -> respondError (xeroErrorToast message)
+
+fetchXeroImportedPayItemCandidates :: (?context :: ControllerContext, ?modelContext :: ModelContext) => XeroConnection -> [XeroEarningsRateRef] -> IO [XeroImportedPayItemCandidate]
+fetchXeroImportedPayItemCandidates connection fetchedRates = do
+    activeImports <- fetchActiveImportedXeroPayItems connection
+    pure (viableImportedPayItemCandidates activeImports fetchedRates)
 
 respondImportValidationError ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -70,13 +90,13 @@ respondImportValidationError ::
     Text ->
     IO ()
 respondImportValidationError connection fetchedRates message = do
-    activeImports <- fetchActiveImportedXeroPayItems connection
-    respondImportedPayItemDialog (viableImportedPayItemCandidates activeImports fetchedRates) (Just (xeroErrorToast message))
+    candidates <- fetchXeroImportedPayItemCandidates connection fetchedRates
+    respondImportedPayItemDialog candidates (Just (xeroErrorToast message))
 
-respondImportedPayItemWaiting :: (?context :: ControllerContext, ?request :: Request) => Maybe UTCTime -> UTCTime -> XeroReferenceTrustState -> IO ()
-respondImportedPayItemWaiting maybeWaitStartedAt now trustState =
+respondImportedPayItemWaiting :: (?context :: ControllerContext, ?request :: Request) => XeroReferenceTrustState -> IO ()
+respondImportedPayItemWaiting trustState =
     if isHtmxRequest
-        then respondHtml (renderXeroImportedPayItemImportWaitingDialog now (fromMaybe now maybeWaitStartedAt) trustState)
+        then respondHtml (renderXeroImportedPayItemImportWaitingDialog (unpackId currentVenueId) trustState)
         else do
             setSuccessMessage "Xero payroll reference data is syncing in the background."
             redirectTo XeroAction

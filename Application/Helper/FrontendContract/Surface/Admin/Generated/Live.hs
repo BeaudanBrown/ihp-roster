@@ -18,6 +18,7 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Live
     , adminXeroLiveScope
     , adminXeroPageContentLiveFragment
     , adminXeroPageLiveScope
+    , adminXeroPayItemImportWaitLiveFragment
     , adminXeroReferenceSyncLiveFragment
     , adminXeroShellLiveFragment
     , adminXeroTimesheetPreparationWaitLiveFragment
@@ -36,6 +37,7 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Live
     , matchAdminXeroLiveScope
     , matchAdminXeroPageContentLiveFragment
     , matchAdminXeroPageLiveScope
+    , matchAdminXeroPayItemImportWaitLiveFragment
     , matchAdminXeroReferenceSyncLiveFragment
     , matchAdminXeroShellLiveFragment
     , matchAdminXeroTimesheetPreparationWaitLiveFragment
@@ -281,6 +283,19 @@ matchAdminXeroPageLiveScope =
     matchFrontendSurfaceScope
         @(AdapterFamilySurface Types2.AdminXeroPageAdapterFamily)
         @Types1.AdminXeroPageScope
+
+adminXeroPayItemImportWaitLiveFragment :: SurfaceFragmentKey
+adminXeroPayItemImportWaitLiveFragment =
+    frontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.AdminXeroAdapterFamily)
+        @Types1.AdminXeroPayItemImportWaitFragment
+        noSurfaceFields
+
+matchAdminXeroPayItemImportWaitLiveFragment :: SurfaceFragmentKey -> Maybe ()
+matchAdminXeroPayItemImportWaitLiveFragment =
+    matchFrontendSurfaceFragmentKey
+        @(AdapterFamilySurface Types2.AdminXeroAdapterFamily)
+        @Types1.AdminXeroPayItemImportWaitFragment
 
 adminXeroReferenceSyncLiveFragment :: SurfaceFragmentKey
 adminXeroReferenceSyncLiveFragment =

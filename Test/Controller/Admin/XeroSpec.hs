@@ -33,7 +33,6 @@ import qualified Data.Text as Text
 import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.Clock (NominalDiffTime, addUTCTime, diffUTCTime,
                         getCurrentTime)
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
@@ -265,7 +264,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 response <- withXeroConfigForTest (Left "Xero must not be called for a fresh snapshot") do
                     withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
-                            callActionWithParams OpenXeroPayItemImportAction [("loadCandidates", "true")]
+                            callAction OpenXeroPayItemImportAction
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Trusted Ordinary Hours"
@@ -314,23 +313,25 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
 
                 waitingResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams OpenXeroPayItemImportAction [("loadCandidates", "true")]
+                        callAction OpenXeroPayItemImportAction
 
                 waitingResponse `responseStatusShouldBe` status200
+                waitingResponse `responseBodyShouldContain` "id=\"admin-xero-pay-item-import-wait-fragment\""
                 waitingResponse `responseBodyShouldContain` "Refreshing Xero reference data"
                 waitingResponse `responseBodyShouldContain` "Queued"
-                waitingResponse `responseBodyShouldContain` "hx-trigger=\"load delay:1s\""
+                waitingResponse `responseBodyShouldNotContain` "hx-trigger=\"load delay:1s\""
                 [job] <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetch
                 _ <- job
                     |> set #status JobStatusRunning
                     |> set #progress (Aeson.object ["phase" Aeson..= ("pay_items" :: Text), "completedPayItemsPage" Aeson..= (3 :: Int)])
                     |> updateRecord
 
-                progressResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams OpenXeroPayItemImportAction [("loadCandidates", "true")]
-                progressResponse `responseBodyShouldContain` "Fetching Xero earnings rates"
-                progressResponse `responseBodyShouldContain` "Completed page 3"
+                forM_ [1 .. 2 :: Int] \_ -> do
+                    progressResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callAction ShowadminXeroPayItemImportWaitLiveFragmentAction
+                    progressResponse `responseBodyShouldContain` "Fetching Xero earnings rates"
+                    progressResponse `responseBodyShouldContain` "Completed page 3"
                 joinedJobCount <- query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount
                 joinedJobCount `shouldBe` 1
 
@@ -351,31 +352,39 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                     |> updateRecord
                 resumedResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams OpenXeroPayItemImportAction [("loadCandidates", "true")]
+                        callAction ShowadminXeroPayItemImportWaitLiveFragmentAction
+                resumedResponse `responseBodyShouldContain` "id=\"admin-xero-pay-item-import-wait-fragment\""
                 resumedResponse `responseBodyShouldContain` "Resumed Ordinary Hours"
 
-        it "keeps polling after the five-minute dialog transition" $ withContext do
+        it "renders pay-item import retry and sanitized failure through read-only live fragments" $ withContext do
             withCleanDb do
-                venue <- createVenueWithConfig "Xero Long Running Import Venue"
-                owner <- createUserRecord "xero-long-running-import@example.com" "staff" True
+                venue <- createVenueWithConfig "Xero Import Retry Venue"
+                owner <- createUserRecord "xero-import-retry@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue owner VenueOwner
                 now <- getCurrentTime
                 connection <- createSyncableXeroConnection venue owner >>= \record ->
                     record |> set #lastSyncAt (Just (addUTCTime (negate (8 * 24 * 60 * 60)) now)) |> updateRecord
                 EnqueuedAppJob job <- enqueueXeroReferenceSyncJob Nothing connection
-                _ <- job |> set #status JobStatusRunning |> set #progress (Aeson.object ["phase" Aeson..= ("employees" :: Text)]) |> updateRecord
+                _ <- job |> set #status JobStatusRetry |> set #runAt (addUTCTime 60 now) |> updateRecord
 
-                response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams OpenXeroPayItemImportAction
-                            [ ("loadCandidates", "true")
-                            , ("referenceWaitStartedAt", cs (formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" (addUTCTime (-301) now)))
-                            ]
+                retryResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    callAction ShowadminXeroPayItemImportWaitLiveFragmentAction
+                retryResponse `responseBodyShouldContain` "Retry scheduled for"
+                retryResponse `responseBodyShouldContain` "admin-xero-pay-item-import-wait-fragment"
+                retryResponse `responseBodyShouldNotContain` "load delay:1s"
 
-                response `responseBodyShouldContain` "Taking longer than usual"
-                response `responseBodyShouldContain` "continues in the background"
-                response `responseBodyShouldContain` "Fetching Xero employees"
-                response `responseBodyShouldContain` "hx-trigger=\"load delay:1s\""
+                _ <- job |> set #status JobStatusFailed |> set #lastError (Just "unsafe provider response") |> updateRecord
+                failureResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    callAction ShowadminXeroPayItemImportWaitLiveFragmentAction
+                failureResponse `responseBodyShouldContain` "Contact support before importing pay items"
+                failureResponse `responseBodyShouldNotContain` "unsafe provider response"
+                query @AppJob |> filterWhere (#jobKind, xeroReferenceSyncJobKind) |> fetchCount >>= (`shouldBe` 1)
+
+                manager <- createUserRecord "xero-import-wait-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                managerResponse <- withPasskeyVerifiedUserAndCurrentVenue manager venue.id do
+                    callAction ShowadminXeroPayItemImportWaitLiveFragmentAction
+                managerResponse `responseStatusShouldBe` status302
 
         it "blocks stale import and preparation after retry exhaustion with safe support guidance" $ withContext do
             withCleanDb do
@@ -393,7 +402,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
 
                 importResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams OpenXeroPayItemImportAction [("loadCandidates", "true")]
+                        callAction OpenXeroPayItemImportAction
                 preparationResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callAction OpenXeroTimesheetPreparationAction
@@ -419,7 +428,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
 
                 importResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams OpenXeroPayItemImportAction [("loadCandidates", "true")]
+                        callAction OpenXeroPayItemImportAction
                 preparationResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callAction OpenXeroTimesheetPreparationAction

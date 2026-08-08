@@ -65,9 +65,9 @@ issue and, when cross-system design remains unresolved, a new workstream.
   stale, or newly payroll-eligible missing-staff demand enqueues or joins the
   durable job. When that attempt receives a provider `Retry-After`, a still-trusted
   snapshot opens the mapping workflow rather than making preparation wait for the
-  delayed background retry. Polling dialogs show canonical phase/page facts,
-  transition copy after five minutes, and resume from local reference rows after
-  success.
+  delayed background retry. Subscribed live waiting dialogs show canonical
+  phase/page facts and resume from local reference rows after success without
+  periodic workflow requests.
 - Missing-staff demand resolves approval-pinned pay versions through the
   canonical explicit pay-assignment resolver. Successful snapshots stamp
   unresolved staff mappings as checked. When no mapping row exists yet, or an
@@ -190,13 +190,14 @@ their focused/golden tests.
   reference-sync-state resource for queued, progress, retry, skipped, success,
   and failure transitions without requiring request or current-user context.
   The retained shell depends only on its connection resource. Its nested
-  read-only diagnostics fragment and dialog-local preparation wait fragment both
-  depend on the sync-state resource; reconnect/version-gap resync refetches the
-  same canonical venue-scoped state. Opening preparation may request sync once,
-  while every later wait-fragment read remains side-effect-free. Progress,
-  retry, failure, and trusted completion replace the mounted dialog fragment;
-  trusted completion performs one separate preparation mutation without periodic
-  HTTP polling.
+  read-only diagnostics fragment and dialog-local preparation and pay-item import
+  wait fragments depend on the sync-state resource; reconnect/version-gap resync
+  refetches the same canonical venue-scoped state. Opening either workflow may
+  request sync once, while every later wait-fragment read remains side-effect-free.
+  Progress, retry, failure, and trusted completion replace the mounted dialog
+  fragment without periodic HTTP polling. Trusted preparation completion performs
+  one separate preparation mutation; trusted import completion renders candidates
+  directly from local reference rows.
 
 ## Provider Contracts
 

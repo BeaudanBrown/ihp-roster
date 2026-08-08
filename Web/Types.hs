@@ -161,6 +161,7 @@ data AdminController
     | ShowadminXeroShellLiveFragmentAction
     | ShowadminXeroReferenceSyncLiveFragmentAction
     | ShowadminXeroTimesheetPreparationWaitLiveFragmentAction
+    | ShowadminXeroPayItemImportWaitLiveFragmentAction
     | CreateVenueInvitationAction
     | RevokeVenueInvitationAction { venueInvitationId :: !(Id VenueInvitation) }
     | RenewVenueInvitationAction { venueInvitationId :: !(Id VenueInvitation) }

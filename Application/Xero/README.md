@@ -25,7 +25,9 @@ Payroll AU timesheets. Web request and response behavior belongs under
   service and atomic provider-availability reconciliation used by every sync path.
 - `Admin/ReferenceSyncPolicy.hs` - Payroll AU v2 Earnings Rates pagination,
   request pacing, runtime page-limit safety, and bounded retry policy.
-- `Admin/ImportedPayItems.hs` - the pay-item import boundary.
+- `Admin/ImportedPayItems.hs` - the pay-item import boundary; its dialog observes
+  venue-scoped sync state through a live, side-effect-free fragment before
+  rendering candidates from local reference rows.
 - `Admin/PayItems.hs` - managed pay item behavior used by preparation.
 - `PayrollSourceKey.hs` - exact Xero source/rate key suffix policy over typed
   WageEngine source identities.

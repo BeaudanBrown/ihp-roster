@@ -1,9 +1,10 @@
 module Application.Xero.ReferenceTrust.Presentation
     ( XeroPreparationReferencePresentation (..)
+    , XeroPayItemImportReferencePresentation (..)
     , xeroPreparationReferencePresentation
+    , xeroPayItemImportReferencePresentation
     , xeroReferenceSyncActivityText
     , xeroReferenceSyncPhaseText
-    , xeroReferenceWaitIsLongRunning
     ) where
 
 import Application.Xero.ReferenceTrust
@@ -14,6 +15,20 @@ data XeroPreparationReferencePresentation
     | XeroPreparationReferenceWaiting !Text
     | XeroPreparationReferenceBlocked !Text
     deriving (Eq, Show)
+
+data XeroPayItemImportReferencePresentation
+    = XeroPayItemImportReferenceReady
+    | XeroPayItemImportReferenceWaiting
+    | XeroPayItemImportReferenceBlocked !Text
+    deriving (Eq, Show)
+
+xeroPayItemImportReferencePresentation :: XeroReferenceTrustDecision -> XeroPayItemImportReferencePresentation
+xeroPayItemImportReferencePresentation = \case
+    UseTrustedXeroReferenceSnapshot -> XeroPayItemImportReferenceReady
+    StartOrJoinXeroReferenceSync -> XeroPayItemImportReferenceWaiting
+    WaitForTrustedXeroReferenceSnapshot _ -> XeroPayItemImportReferenceWaiting
+    ReconnectXeroForReferenceData -> XeroPayItemImportReferenceBlocked "Reconnect Xero before importing pay items."
+    BlockStaleXeroReferenceData _ -> XeroPayItemImportReferenceBlocked "Xero reference data is out of date and could not be refreshed. Contact support before importing pay items."
 
 xeroPreparationReferencePresentation :: XeroReferenceTrustDecision -> XeroPreparationReferencePresentation
 xeroPreparationReferencePresentation = \case
@@ -42,7 +57,3 @@ xeroReferenceSyncPhaseText phase =
         "payroll_settings"  -> "Fetching Xero payroll settings"
         "retry_wait"        -> "Waiting to retry"
         _                   -> "Refreshing Xero reference data"
-
-xeroReferenceWaitIsLongRunning :: UTCTime -> UTCTime -> Bool
-xeroReferenceWaitIsLongRunning now waitStartedAt =
-    diffUTCTime now waitStartedAt >= 5 * 60

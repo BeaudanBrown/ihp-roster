@@ -30,6 +30,7 @@ module Application.Helper.FrontendContract.Surface.Admin
     , AdminXeroShellFragment
     , AdminXeroReferenceSyncFragment
     , AdminXeroTimesheetPreparationWaitFragment
+    , AdminXeroPayItemImportWaitFragment
     , AdminVenueSettings
     , AdminInvites
     , AdminExports
@@ -114,6 +115,7 @@ data AdminRosterGroupsFragment
 data AdminXeroShellFragment
 data AdminXeroReferenceSyncFragment
 data AdminXeroTimesheetPreparationWaitFragment
+data AdminXeroPayItemImportWaitFragment
 
 data CreateRosterGroup
 data UpdateRosterGroup
@@ -423,6 +425,7 @@ type AdminXeroSurface =
          , Fragment AdminXeroShellFragment '[] '[ 'MountTarget AdminXeroFragment '[], 'Eager, 'Live, 'DependsOn XeroConnectionResource '[ 'FromScope VenueId ], 'Contains AdminXeroReferenceSyncFragment ]
          , Fragment AdminXeroReferenceSyncFragment '[] '[ 'MountTarget AdminXeroReferenceSyncFragment '[], 'Eager, 'Live, 'DependsOn XeroReferenceSyncStateResource '[ 'FromScope VenueId ] ]
          , Fragment AdminXeroTimesheetPreparationWaitFragment '[] '[ 'MountTarget AdminXeroTimesheetPreparationWaitFragment '[], 'Eager, 'Live, 'DependsOn XeroReferenceSyncStateResource '[ 'FromScope VenueId ] ]
+         , Fragment AdminXeroPayItemImportWaitFragment '[] '[ 'MountTarget AdminXeroPayItemImportWaitFragment '[], 'Eager, 'Live, 'DependsOn XeroReferenceSyncStateResource '[ 'FromScope VenueId ] ]
          , Action SyncXeroPayrollReferenceData
             '[]
             '[ 'HtmxMethod 'HtmxPost
