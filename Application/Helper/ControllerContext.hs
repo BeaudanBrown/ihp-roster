@@ -155,10 +155,6 @@ currentSupportImpersonationOptions =
         Just (SupportImpersonationOptions userOptions) -> userOptions
 {-# NOINLINE currentSupportImpersonationOptions #-}
 
-currentVenueRole :: (?context :: ControllerContext) => VenueRoleEnum
-currentVenueRole =
-    fromMaybe (error "currentVenueRole: no active venue role in controller context") currentVenueRoleOrNothing
-
 currentUserPlatformRoleOrNothing :: (?context :: ControllerContext) => Maybe PlatformRoleEnum
 currentUserPlatformRoleOrNothing =
     currentUserOrNothing @User >>= \user ->

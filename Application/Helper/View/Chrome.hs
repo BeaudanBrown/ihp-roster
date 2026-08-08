@@ -11,7 +11,6 @@ module Application.Helper.View.Chrome
     , renderAppAccordionItem
     , renderAppPage
     , renderAppPanel
-    , renderAppSettingsMenuButton
     , renderPartialNavigationLink
     , simpleAppPanel
     ) where
@@ -217,20 +216,6 @@ accordionCollapseClass isOpen =
     if isOpen
         then "accordion-collapse collapse show"
         else "accordion-collapse collapse"
-
-renderAppSettingsMenuButton :: Text -> Text -> Html
-renderAppSettingsMenuButton buttonId ariaLabel = [hsx|
-    <button class="btn btn-outline-secondary app-settings-menu-button"
-            type="button"
-            id={buttonId}
-            data-bs-toggle="dropdown"
-            data-bs-auto-close="outside"
-            aria-expanded="false"
-            aria-label={ariaLabel}
-            title={ariaLabel}>
-        <i class="bi bi-gear" aria-hidden="true"></i>
-    </button>
-|]
 
 renderPartialNavigationLink :: PartialNavigationLink -> Html
 renderPartialNavigationLink PartialNavigationLink { partialNavigationLabel, partialNavigationUrl, partialNavigationTargetId, partialNavigationSelectId, partialNavigationClass, partialNavigationSwap, partialNavigationSync, partialNavigationPushUrl } =

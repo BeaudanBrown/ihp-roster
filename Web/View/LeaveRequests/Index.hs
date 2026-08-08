@@ -74,10 +74,6 @@ leaveStaffPeriodsLinkedHighlight :: SurfaceIR.LinkedHighlightIR
 leaveStaffPeriodsLinkedHighlight =
     surfaceLinkedHighlightValue @Surface.LeaveRequestsSurface @Surface.LeaveStaffPeriodsHighlight
 
-leaveSectionCountFragmentKind, leaveSectionListFragmentKind :: Text
-leaveSectionCountFragmentKind = "leave-section-count"
-leaveSectionListFragmentKind = "leave-section-list"
-
 leavePendingSection, leaveApprovedSection, leaveDeniedSection, leaveArchiveSection :: LeaveSectionValue
 leavePendingSection = LeavePendingSection
 leaveApprovedSection = LeaveApprovedSection

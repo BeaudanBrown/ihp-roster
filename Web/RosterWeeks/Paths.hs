@@ -11,7 +11,6 @@ module Web.RosterWeeks.Paths
     , rosterWarningPreferenceUrl
     , rosterWageEstimatePreferenceUrl
     , rosterOwnLiveShiftHighlightPreferenceUrl
-    , rosterOverviewFragmentUrl
     , rosterDayTimelineUrl
     , rosterDayTimelineContentFragmentUrl
     , rosterWeekContentFragmentUrl
@@ -93,10 +92,6 @@ rosterDayTimelineContentFragmentUrl weekOffset rosterGroupId rosterDayId =
     appendQueryParams
         (pathTo ShowRosterDayTimelineContentFragmentAction { weekOffset, rosterDayId })
         [("rosterGroupId", tshow rosterGroupId)]
-
-rosterOverviewFragmentUrl :: Int -> Id RosterGroup -> Text
-rosterOverviewFragmentUrl weekOffset rosterGroupId =
-    appendQueryParams (pathTo ShowRosterWeekOverviewFragmentAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
 
 rosterWeekContentFragmentUrl :: Int -> Id RosterGroup -> Text
 rosterWeekContentFragmentUrl weekOffset rosterGroupId =
