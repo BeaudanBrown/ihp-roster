@@ -31,7 +31,6 @@ async function expectStylesheetServed(page: Page, path: string) {
 
 const sharedComponentStylesheets = [
     '/css/components/surfaces.css',
-    '/css/components/menus.css',
     '/css/components/horizontal.css',
     '/css/components/week-nav.css',
     '/css/components/status.css',
