@@ -50,6 +50,10 @@ build-system responsibilities. Machine-memory regressions require comparable
 profiling and diagnosis rather than a single portable threshold; deterministic
 artifact and inventory growth remains blocking.
 
+Accepting this architecture does not close its GitHub epic, integrate its
+branch, or clean up its worktree. Those remain separate explicit operator
+approval boundaries.
+
 ## Alternatives Considered
 
 - Keep IHP's ambient source/package discovery: rejected because development and

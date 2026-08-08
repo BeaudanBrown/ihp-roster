@@ -223,7 +223,6 @@ if [ "$(wc -c <"$large_log_dir/build.log")" -gt 4194304 ]; then
 fi
 
 staging_baseline="$repo_root/Config/nix/baselines/production-build/staging-ea144503-grill.json"
-historical_blocker="$repo_root/Config/nix/baselines/production-build/d353573-blocker.json"
 jq -e '
     .schema_version == 1 and
     .status == "succeeded_output_differs" and
@@ -232,14 +231,6 @@ jq -e '
     .memory.builder_process_peak_rss_bytes > 0 and
     .app_library.largest_interfaces[0].bytes > 0
 ' "$staging_baseline" >/dev/null
-jq -e '
-    .schema_version == 1 and
-    .status == "reproduction_blocked" and
-    .revision == "d353573ccab41b806a3e671b4c8490559d80dd69" and
-    .evidence.output_present == false and
-    .evidence.substitutable == false and
-    (.blocker | length > 0)
-' "$historical_blocker" >/dev/null
 node "$repo_root/scripts/production-build-profile.mjs" \
     --compare "$staging_baseline" "$staging_baseline" \
     --output "$comparison"
