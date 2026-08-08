@@ -97,6 +97,10 @@ profile "$fixture_root/large-output.json" 1073741825
 expect_failure 'app-library self size 1073741825 exceeds budget 1073741824' \
   node "$repo_root/scripts/production-build-budget.mjs" --budget "$fixture_root/budget.json" --profile "$fixture_root/large-output.json"
 
+jq 'del(.app_library.self_size_bytes_max)' "$fixture_root/budget.json" >"$fixture_root/missing-self-budget.json"
+expect_failure 'app-library self size budget must be a non-negative safe integer' \
+  node "$repo_root/scripts/production-build-budget.mjs" --budget "$fixture_root/missing-self-budget.json" --profile "$fixture_root/pass.json"
+
 jq '.app_library.self_size_bytes = -1' "$fixture_root/pass.json" >"$fixture_root/negative-size.json"
 expect_failure 'profile app-library self size must be a non-negative safe integer' \
   node "$repo_root/scripts/production-build-budget.mjs" --budget "$fixture_root/budget.json" --profile "$fixture_root/negative-size.json"

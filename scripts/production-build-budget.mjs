@@ -173,11 +173,13 @@ function main() {
     if (budget.schema_version !== 1) fail(`unsupported budget schema_version: ${budget.schema_version}`);
     if (profile.schema_version !== 1) fail(`unsupported profile schema_version: ${profile.schema_version}`);
     const appBudget = budget.app_library ?? fail("budget lacks app_library");
+    const selfSizeMaximum = positiveInteger(appBudget.self_size_bytes_max, "app-library self size budget");
+    const moduleCountMaximum = positiveInteger(appBudget.module_count_max, "app-library module count budget");
     const errors = [];
     const selfSize = observedInteger(profile.app_library?.self_size_bytes, "profile app-library self size", errors);
-    if (selfSize !== null && selfSize > appBudget.self_size_bytes_max) errors.push(`app-library self size ${selfSize} exceeds budget ${appBudget.self_size_bytes_max}`);
+    if (selfSize !== null && selfSize > selfSizeMaximum) errors.push(`app-library self size ${selfSize} exceeds budget ${selfSizeMaximum}`);
     const moduleCount = observedInteger(profile.app_library?.module_count, "profile app-library module count", errors);
-    if (moduleCount !== null && moduleCount > appBudget.module_count_max) errors.push(`app-library module count ${moduleCount} exceeds budget ${appBudget.module_count_max}`);
+    if (moduleCount !== null && moduleCount > moduleCountMaximum) errors.push(`app-library module count ${moduleCount} exceeds budget ${moduleCountMaximum}`);
     validateArtifacts(profile, appBudget, errors);
     validateInterfaces(profile, appBudget, errors);
     const inventory = validateInventory(budget, options.budget, errors);
