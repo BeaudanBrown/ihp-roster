@@ -115,7 +115,7 @@ function walk(root) {
         for (const entry of readdirSync(current, { withFileTypes: true })) {
             const path = join(current, entry.name);
             if (entry.isDirectory()) stack.push(path);
-            else if (entry.isFile()) files.push(path);
+            else if (entry.isFile() || entry.isSymbolicLink()) files.push(path);
         }
     }
     return files;

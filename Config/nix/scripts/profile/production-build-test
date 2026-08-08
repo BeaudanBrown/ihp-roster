@@ -137,6 +137,17 @@ fi
 static_only_dir="$fixture_root/static-only"
 rm "$app_output/lib/Application/Helper/One.dyn_hi" "$app_output/lib/libHSapp-lib.so"
 sed -i 's/--enable-shared/--disable-shared/' "$fake_bin/nix"
+ln -s libHSapp-lib.a "$app_output/lib/libHSapp-lib.so.1"
+if PATH="$fake_bin:$PATH" \
+BEPIS_PROFILE_BUILDER_UIDS="$(id -u)" \
+node "$repo_root/scripts/production-build-profile.mjs" \
+    --output-dir "$fixture_root/static-symlink" \
+    --cores 2 >"$fixture_root/static-symlink.log" 2>&1; then
+    echo "production-build-profile-test: static profile accepted a symlinked shared object" >&2
+    exit 1
+fi
+grep -F 'static-only configuration without .dyn_hi/.so artifacts' "$fixture_root/static-symlink.log" >/dev/null
+rm "$app_output/lib/libHSapp-lib.so.1"
 PATH="$fake_bin:$PATH" \
 BEPIS_PROFILE_BUILDER_UIDS="$(id -u)" \
 node "$repo_root/scripts/production-build-profile.mjs" \
