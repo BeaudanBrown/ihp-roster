@@ -97,6 +97,18 @@ profile "$fixture_root/large-output.json" 1073741825
 expect_failure 'app-library self size 1073741825 exceeds budget 1073741824' \
   node "$repo_root/scripts/production-build-budget.mjs" --budget "$fixture_root/budget.json" --profile "$fixture_root/large-output.json"
 
+jq '.app_library.self_size_bytes = -1' "$fixture_root/pass.json" >"$fixture_root/negative-size.json"
+expect_failure 'profile app-library self size must be a non-negative safe integer' \
+  node "$repo_root/scripts/production-build-budget.mjs" --budget "$fixture_root/budget.json" --profile "$fixture_root/negative-size.json"
+
+jq '.app_library.largest_interfaces[0].bytes = "unknown"' "$fixture_root/pass.json" >"$fixture_root/malformed-interface.json"
+expect_failure 'profile interface Application/Large.hi bytes must be a non-negative safe integer' \
+  node "$repo_root/scripts/production-build-budget.mjs" --budget "$fixture_root/budget.json" --profile "$fixture_root/malformed-interface.json"
+
+jq '.app_library.artifacts[".hi"].count = -1' "$fixture_root/pass.json" >"$fixture_root/negative-artifact.json"
+expect_failure 'profile .hi artifact count must be a non-negative safe integer' \
+  node "$repo_root/scripts/production-build-budget.mjs" --budget "$fixture_root/budget.json" --profile "$fixture_root/negative-artifact.json"
+
 profile "$fixture_root/large-interface.json" 900000000 33554433
 expect_failure 'Application/Large.hi is 33554433 bytes; exception budget is 33554432' \
   node "$repo_root/scripts/production-build-budget.mjs" --budget "$fixture_root/budget.json" --profile "$fixture_root/large-interface.json"

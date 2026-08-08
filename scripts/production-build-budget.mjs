@@ -35,6 +35,14 @@ function positiveInteger(value, label) {
     return value;
 }
 
+function observedInteger(value, label, errors) {
+    if (!Number.isSafeInteger(value) || value < 0) {
+        errors.push(`${label} must be a non-negative safe integer`);
+        return null;
+    }
+    return value;
+}
+
 function normalizeInterfacePath(path) {
     const normalized = String(path).replaceAll("\\", "/");
     const marker = normalized.match(/(?:^|\/)(Application|Web|Config)\/.+\.hi$/);
@@ -82,6 +90,10 @@ function validateInventory(budget, budgetPath, errors) {
 
 function validateArtifacts(profile, budget, errors) {
     const artifacts = profile.app_library?.artifacts ?? {};
+    for (const [kind, row] of Object.entries(artifacts)) {
+        observedInteger(row?.count, `profile ${kind} artifact count`, errors);
+        observedInteger(row?.bytes, `profile ${kind} artifact bytes`, errors);
+    }
     for (const [kind, bounds] of Object.entries(budget.required_artifacts ?? {})) {
         const count = artifacts[kind]?.count ?? 0;
         if (bounds.count !== undefined && count !== bounds.count) errors.push(`${kind} artifact count ${count} does not equal budget ${bounds.count}`);
@@ -104,6 +116,12 @@ function validateInterfaces(profile, budget, errors) {
     const defaultMaximum = positiveInteger(budget.default_interface_bytes_max, "default interface budget");
     const interfaces = profile.app_library?.largest_interfaces ?? [];
     if (interfaces.length === 0) fail("profile lacks largest interface evidence");
+    const malformedBefore = errors.length;
+    for (const row of interfaces) {
+        const path = normalizeInterfacePath(row.path);
+        observedInteger(row.bytes, `profile interface ${path} bytes`, errors);
+    }
+    if (errors.length > malformedBefore) return;
     for (let index = 1; index < interfaces.length; index += 1) {
         if (interfaces[index - 1].bytes < interfaces[index].bytes) fail("profile largest_interfaces must be sorted by descending bytes");
     }
@@ -146,12 +164,10 @@ function main() {
     if (profile.schema_version !== 1) fail(`unsupported profile schema_version: ${profile.schema_version}`);
     const appBudget = budget.app_library ?? fail("budget lacks app_library");
     const errors = [];
-    const selfSize = profile.app_library?.self_size_bytes;
-    if (!Number.isFinite(selfSize)) errors.push("profile lacks app-library self size");
-    else if (selfSize > appBudget.self_size_bytes_max) errors.push(`app-library self size ${selfSize} exceeds budget ${appBudget.self_size_bytes_max}`);
-    const moduleCount = profile.app_library?.module_count;
-    if (!Number.isSafeInteger(moduleCount)) errors.push("profile lacks app-library module count");
-    else if (moduleCount > appBudget.module_count_max) errors.push(`app-library module count ${moduleCount} exceeds budget ${appBudget.module_count_max}`);
+    const selfSize = observedInteger(profile.app_library?.self_size_bytes, "profile app-library self size", errors);
+    if (selfSize !== null && selfSize > appBudget.self_size_bytes_max) errors.push(`app-library self size ${selfSize} exceeds budget ${appBudget.self_size_bytes_max}`);
+    const moduleCount = observedInteger(profile.app_library?.module_count, "profile app-library module count", errors);
+    if (moduleCount !== null && moduleCount > appBudget.module_count_max) errors.push(`app-library module count ${moduleCount} exceeds budget ${appBudget.module_count_max}`);
     validateArtifacts(profile, appBudget, errors);
     validateInterfaces(profile, appBudget, errors);
     const inventory = validateInventory(budget, options.budget, errors);
