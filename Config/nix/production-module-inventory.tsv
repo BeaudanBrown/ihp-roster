@@ -343,6 +343,10 @@ Application/Xero/Timesheets/Buckets.hs	production	runtime	Main	Reachable from Ma
 Application/Xero/Timesheets/Prepare.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Timesheets/Prepare/Helpers.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Timesheets/Preview.hs	production	runtime	Main	Reachable from Main
+Application/Xero/Timesheets/ProviderWrite.hs	production	runtime	Main	Reachable from Main
+Application/Xero/Timesheets/Reconciliation.hs	production	runtime	Main	Reachable from Main
+Application/Xero/Timesheets/ReconciliationReview.hs	production	runtime	Main	Reachable from Main
+Application/Xero/Timesheets/Reservation.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Timesheets/Submission.hs	production	runtime	Main	Reachable from Main
 Application/Xero/WorkflowState.hs	production	runtime	Main	Reachable from Main
 Config/Config.hs	production	runtime	Main	Reachable from Main
