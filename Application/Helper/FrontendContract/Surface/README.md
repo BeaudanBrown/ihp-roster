@@ -830,23 +830,13 @@ back to JSON, a generated carrier record, or a handwritten type. The generator
 uses normal Haskell type-level reflection plus `Typeable` module/type metadata;
 it does not parse source or compiler syntax trees.
 
-The matched 12-core #346 production pilot is retained at
-`Config/nix/baselines/production-build/issue-346-operation-local-roster.json`.
-Roster `Generated.Action.hi` changed from 152,178,127 to 178,099 bytes and
-`.dyn_hi` from 152,178,131 to 178,103 bytes (99.88% reductions and below the
-16 MiB budget). The 15-module Roster `.hi`/`.dyn_hi` subtrees each fell 23.99%;
-complete app interfaces fell 19.22%, app-lib self size 17.09%, peak RSS 36.45%,
-and matched-core wall time fell 20.88%. Generated TypeScript remained
-byte-identical, and the private proof was absent from the installed 502-module
-library.
-
-The matched 12-core #347 all-request rollout is retained at
-`Config/nix/baselines/production-build/issue-347-operation-local-all-requests.json`.
-Every generated Action/Intent `.hi` and `.dyn_hi` is below 200 KB, well under the
-16 MiB request-interface budget. Against staging, complete `.hi`/`.dyn_hi`
-totals fell 31.33%, app-lib self size 27.78%, peak RSS 35.42%, cgroup growth
-30.84%, swap delta fell 100.47%, CPU 28.53%, and wall time 38.33%. The final forced
-build compiled all 502 modules and reproduced its output.
+`docs/adr/0006-operation-local-frontend-contract-evidence.md` records why
+request callers use operation-local evidence while whole-Surface equality proofs
+remain private. Current interface and package
+limits are owned by
+`Config/nix/baselines/production-build/final-regression-budget.json`; historical
+pilot and rollout measurements remain in the adjacent reviewed baseline files,
+not as a second living contract.
 
 The Timesheets family was the representative migration checkpoint. Its
 handwritten `Resource` module moved from 35 lines to a 9-line curated facade,
@@ -1117,8 +1107,7 @@ wall-clock samples are compile-impact records, not benchmarks; the exact
 feature-owned two-module caller increase and bounded facade closure are the
 acceptance signals.
 
-#196 split generated request metadata from the mount/live runtime. The focused
-`Surface.Request.Runtime` module owns only the opaque `FrontendSurfaceAction`,
+The focused `Surface.Request.Runtime` module owns only the opaque `FrontendSurfaceAction`,
 `FrontendSurfaceIntentForm`, and `FrontendSurfaceHtmxRequest` metadata types and
 the marker-indexed Action/Intent metadata constructors. `Surface.Runtime`
 consumes their read-only selectors for HTML rendering but does not re-export the
@@ -1128,106 +1117,19 @@ directly. Separately, production-registry binding moved out of
 request metadata can use the shared reflection evaluator without loading the
 registered Surface catalog.
 
-The deterministic cold-compile capture used a fresh build and log directory for
-every target/run. Run the function at baseline fixed point `ba13567d` and again
-at the #196 candidate; use separate worktrees when retaining both trees:
-
-```bash
-capture_surface_request_closure() {
-    run="$1"
-    target="$2"
-    out="$PWD/.pi/tmp/issue-196-closures/$run"
-    rm -rf "$out"
-    mkdir -p "$out"
-    TYPECHECK_BUILD_DIR="$out/build" \
-        bash ./bin/in-env typecheck "$target" >"$out/typecheck.log" 2>&1
-    sed -nE \
-        's/^\[[^]]+\][[:space:]]+Compiling[[:space:]]+(Application\.[^[:space:]]+).*/\1/p' \
-        "$out/typecheck.log" | sort -u | tee "$out/application-modules.txt"
-}
-
-capture_surface_request_closure \
-    profile \
-    Application/Helper/FrontendContract/Surface/Profile/Action.hs
-capture_surface_request_closure \
-    roster-intent \
-    Application/Helper/FrontendContract/Surface/Roster/Intent.hs
-```
-
-The post-#193/#195 baseline was 50 `Application.*` modules for each target. Its
-exact 47-module common set was:
-
-- `Application.Bepis.{Action,Fact,Response}`;
-- `Application.Helper.FrontendContract.{App,AppShell,AppValues,Core,DSL,Htmx,IR,Interaction,LiveUpdate,LiveUpdateValues,Naming,Reflect,Registry,UiRegion,Values}`;
-- `Application.Helper.FrontendContract.Surface.{Admin,Billing,ContractIR,Contracts,DSL,Diagnostics,Identity,Interaction,LeaveRequests,Live,Profile,Reflect,Registry,Request,Roster,Runtime,SemanticIR,Support,Timesheets,Values}` plus
-  `Surface.HaskellAdapter.Association`;
-- `Application.Helper.FrontendContract.Wire.{Carrier,Json,LiveUpdate}`; and
-- `Application.Helper.{LiveUpdate.Internal,Profiling,Telemetry,UiRegion,Url}`.
-
-Profile added only `Surface.Profile.{Action,Generated.Action,HaskellAdapter}`;
-Roster Intent added only
-`Surface.Roster.{Generated.Intent,HaskellAdapter,Intent}`.
-
-The current compiler-observed closures are 20 modules for operation-local Roster
-Action, 21 for Profile Action, and 22 for Roster Intent. The latter two retain
-their exact 17-module common set:
-
-- `Application.Helper.FrontendContract.{ClosedScalar,Core,DSL,Interaction,Naming}`;
-- `Application.Helper.FrontendContract.Surface.{ContractIR,DSL,Diagnostics,LeaveRequests,Reflect,Request,Request.Runtime,Request.Runtime.Internal,SelfServiceLeave,SemanticIR,Values}`; and
-- `Application.Helper.FrontendContract.Surface.HaskellAdapter.Association`.
-
-Profile retains only `Surface.Profile` plus
-`Surface.Profile.{Action,Generated.Action,HaskellAdapter}`. Roster Intent
-retains `Surface.Interaction`, `Surface.Roster`, and
-`Surface.Roster.{Generated.Intent,HaskellAdapter,Intent}`. Relative to the
-recorded baseline, both targets add `ClosedScalar`, `Surface.Request.Runtime`,
-and the shared `Surface.SelfServiceLeave` declaration module. Both remove the shared 31-module
-set:
-
-- `Application.Bepis.{Action,Fact,Response}`;
-- `Application.Helper.FrontendContract.{App,AppShell,AppValues,Htmx,IR,LiveUpdate,LiveUpdateValues,Reflect,Registry,UiRegion,Values}`;
-- `Application.Helper.FrontendContract.Surface.{Admin,Billing,Contracts,Identity,Live,Registry,Runtime,Support,Timesheets}`;
-- `Application.Helper.FrontendContract.Wire.{Carrier,Json,LiveUpdate}`; and
-- `Application.Helper.{LiveUpdate.Internal,Profiling,Telemetry,UiRegion,Url}`.
-
-Profile additionally removes `Surface.Interaction` and `Surface.Roster` (33
-removed, three added, 50 to 20); Roster Intent additionally removes
-`Surface.Profile` (32 removed, three added, 50 to 21). Operation-local Roster
-Action has no `HaskellAdapter.Association`; its compact additions are
-`Surface.Roster.{Action,Generated.Action}`; the shared
-`Surface.Request.Runtime.Internal` owns opaque constructors without exporting
-them through the public runtime.
-
-Every retained dependency has one request-facade role:
-
-- `ClosedScalar` owns the canonical finite-value projection/parser without
-  importing the production scalar registry or generated enum catalog;
-- `Surface.DSL`, `Surface.Diagnostics`, and `Surface.Values` own declaration
-  lookup, nominal field construction, diagnostics, and read-only serialization;
-- `Surface.Request` owns exact parsers and structured field errors;
-- `Surface.Request.Runtime`, its constructor-owning `Runtime.Internal` sibling,
-  `Surface.Reflect`, and `Naming` own opaque metadata construction and
-  marker-derived names;
-- `Surface.ContractIR`, `Surface.SemanticIR`, `Core`, and the global
-  `DSL`/`Interaction` modules are the canonical reflected metadata model rather
-  than a request-specific duplicate IR;
-- `HaskellAdapter.Association` supplies the feature family's nominal Surface;
-- `Surface.LeaveRequests` and `Surface.SelfServiceLeave` supply the shared leave
-  declaration bundles; and
-- the Profile or Roster feature modules supply only the selected declarations,
-  generated operations, curated facade, and Roster's shared interaction aliases.
-
-The architecture regression check computes transitive membership from generated
-source facts and compares these exact sets, not just counts:
+`architecture-surface-request-closure` computes request-facade transitive
+membership from generated source facts and compares exact policy-owned sets,
+not only counts:
 
 ```bash
 bash ./bin/in-env architecture-surface-request-closure --print-modules
 ```
 
-It is also part of `architecture-check-fresh`. All three closures exclude the
-registered Surface catalog, `Surface.Runtime`, mount/live/wire implementation,
-and `Surface.HaskellAdapter.{Core,Family,Generator,Registry,Request}`; Roster
-Action also excludes the family association and temporary proof.
+It is part of `architecture-check-fresh`. The focused closures must exclude the
+registered Surface catalog, mount/live/wire implementations, private authority
+proofs, and `Surface.HaskellAdapter` generator/registry machinery. Keep exact
+module sets in the deterministic policy rather than preserving compile logs or
+historical lists here.
 
 Write and verify output with:
 

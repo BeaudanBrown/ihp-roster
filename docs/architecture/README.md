@@ -80,6 +80,23 @@ is a separate platform role. Payroll-adjacent history must remain reproducible.
 See root and subsystem `AGENTS.md` files for mandatory safety and verification
 rules.
 
+## Production Build Boundary
+
+Production Haskell source, scripts, executable roots, and direct package
+ownership are explicit inventories under `Config/nix/`; ambient source files or
+packages in the development GHC environment are not production authority.
+Frontend-contract generators are a separate build output, while shared checked
+Haskell declarations remain the single runtime/tooling authority. Production
+app-library output is static-only and deterministic output/inventory budgets are
+blocking; builder RSS, cgroup memory, and swap are comparative evidence rather
+than release ceilings.
+
+See ADRs
+`docs/adr/0006-operation-local-frontend-contract-evidence.md` and
+`docs/adr/0007-explicit-production-haskell-package-boundary.md` for rationale,
+`Config/nix/README.md` for ownership and maintenance, and
+`docs/runbooks/production-build-profiling.md` for clean-builder diagnosis.
+
 Current observability boundaries are summarized in `observability.md`; exact
 profiling procedures live in `docs/runbooks/performance-profiling.md`, while
 unresolved production intent lives in

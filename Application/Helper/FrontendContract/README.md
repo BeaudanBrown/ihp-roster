@@ -220,44 +220,18 @@ permit only those generated edges plus the compatibility runtime and reject ever
 feature caller. Field construction remains in `Surface.Values`, exact parsing in
 `Surface.Request`, and HTML rendering in `Surface.Runtime`.
 
-The exact source-derived closure contract is checked by
-`architecture-surface-request-closure`: Roster Action retains 22
-`Application.*` modules, Profile Action 21, and Roster Intent 22, with no
-registered Surface catalog, mount/live/wire runtime, private proof, or Haskell
-adapter generator implementation in those closures.
-The compiler-observed baseline, candidate sets, deltas, and retained-dependency
-classification are recorded in `Surface/README.md`. The #346 matched 12-core
-pilot evidence is retained at
-`Config/nix/baselines/production-build/issue-346-operation-local-roster.json`:
-Roster `Generated.Action.hi`/`.dyn_hi` fell 99.88% to about 178 KB each,
-builder peak RSS fell 36.45%, and matched-core wall time fell 20.88%. The
-matched 12-core #347 rollout evidence is retained at
-`Config/nix/baselines/production-build/issue-347-operation-local-all-requests.json`:
-all generated Action/Intent interfaces are below 200 KB (well under 16 MiB),
-complete `.hi`/`.dyn_hi` totals fell 31.33%, app-lib self size 27.78%, peak RSS
-35.42%, cgroup growth 30.84%, and wall time 38.33% versus staging.
+`architecture-surface-request-closure` derives the focused request-facade
+closures from source and rejects registered Surface catalogs, mount/live/wire
+runtime, private proofs, and adapter-generator machinery in those closures. Its
+policy file owns the exact expected module sets; do not duplicate generated
+counts in prose.
 
-The production operation inventory covers all 62 actions and six intents. It
-marks 57 actions as adapter-eligible, with builders/render metadata for 56 and
-exact parsers for 42. The hidden roster-week-start compatibility mutation is
-parser-only with typed builder/metadata exclusions; five same-named
-intent-backed actions are excluded from adapter eligibility, while 15 parser
-operations retain typed reasons. Exactly one inventory registration owns the
-home and operation decisions for every Action and Intent. Seven private
-feature-adjacent `.Generated.Action` modules sit behind seven curated
-`Surface.<Feature>.Action` facades, while the six Roster intents share one
-private `Surface.Roster.Generated.Intent` module behind `Surface.Roster.Intent`.
-Production callers contain no generic Action or Intent parser/metadata calls.
-Raw field constructors are hidden behind construction-only builders. Nominal
-construction accepts only the declared first field plus its exact typed tail (or
-an explicit zero-field constructor), so the compiler exposes no raw bundle
-split/re-indexing path. The 59-fixture compile matrix includes nine direct Roster
-operation-local owner/field/operation/opacity/completeness/order/presence/wire
-checks; all retain focused diagnostics without expanding the Surface. The #191 and #187 independent request-adapter checkpoints pin production
-bundles, literal DOM-owned metadata, structured parsing, and diagnostics across
-the migrated Profile/Staff Actions and Roster Intents. Nullable and nested-list
-request shapes remain owned by the compiled #185 fixture rather than invented
-production declarations.
+`HaskellAdapter.Registry` is the single typed authority for Action/Intent homes
+and operation eligibility, including explicit parser-only or excluded
+operations. `frontend-operation-evidence-matrix.tsv` owns compile-failure
+coverage and provenance. Generated modules remain private behind feature
+facades, production callers cannot use generic parser/metadata calls, and raw
+field constructors expose no bundle split or re-indexing path.
 
 `generateSurfaceAdapterModules` is the mandatory all-kind composer used by the
 write/drift workflow. It accumulates Resource, Live, Action, and Intent focused
@@ -317,13 +291,9 @@ closure, precompiles generated/framework dependencies, then applies curated
 warning errors only to reachable app-owned sources. Generated IHP source warnings
 are not an application authority failure.
 
-Final #338 topology is 8 generator-foundation files / 2,923 LOC, 8 family
-association files / 161 LOC, 24 generated Haskell adapter files / 3,749 LOC, 24
-curated facades / 671 LOC, and one generated TypeScript file / 1,773 LOC. The
-exact Profile Action and Roster Intent closures remain 20 and 21
-`Application.*` modules. Verify final authority with
+Verify current authority and generated ownership with
 `typed-contract-authority-check`, `frontend-check`, `weeder-check`, and
-`verify-full`.
+`verify-full`; source-derived checks own current file, line, and closure counts.
 #151 is separately approved live-data schema-retirement work, not a
 FrontendContract compatibility exception. The historical audit and closeout
 evidence are archived at `docs/archive/frontend-contract-authority-hardening.md`.

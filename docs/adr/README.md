@@ -26,3 +26,5 @@ Use `docs/templates/adr.md` for new ADRs.
   staff/Open assignment state rather than interpreting missing staff as Open.
 - `0006-operation-local-frontend-contract-evidence.md` - generated request callers
   use compact nominal operation evidence while whole-Surface proofs stay private.
+- `0007-explicit-production-haskell-package-boundary.md` - production source,
+  dependency, tooling, and artifact ownership is explicit and fail-closed.

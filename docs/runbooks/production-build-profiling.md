@@ -22,8 +22,9 @@ Artifacts are bounded and written under
 - `build.log` — final 4 MiB of build output at most.
 
 `Config/nix/baselines/production-build/` retains reviewed baseline summaries;
-`staging-ea144503-grill.json` is the current staging baseline for this work.
-Do not commit raw logs or output links.
+`staging-ea144503-grill.json` is the historical pre-boundary comparison point,
+while `issue-350-final-regression-gates.json` records the accepted closeout
+profiles and target disposition. Do not commit raw logs or output links.
 
 ## Safe NAS And Grill Procedure
 
@@ -84,6 +85,30 @@ memory, file cache, and any concurrent daemon work; it is not process RSS.
 Use both values. Do not infer process RSS from host used memory, because Linux
 page cache can remain after a build. A nonzero `swap_delta_bytes` means memory
 pressure affected the run and must remain part of the comparison.
+
+## Diagnosing A Killed Or OOM Build
+
+1. Preserve the profile directory and bounded `build.log`; do not immediately
+   rerun with different core settings and overwrite the failed context.
+2. Record `hostname`, revision, dirty state, configured/effective cores,
+   `free -b`, `/proc/swaps`, `uptime`, active customer services, and whether
+   another Nix build shared the daemon cgroup.
+3. Check the build exit status and the end of `build.log` for `Killed`, signal 9,
+   exit 137, or `./Setup build` termination. Correlate the build window with
+   privileged host OOM logs (`journalctl -k` or the operator's equivalent);
+   absence of accessible kernel logs is not proof that no OOM occurred.
+4. Compare RSS, cgroup growth, swap delta, wall/CPU time, derivation identity,
+   and effective cores with a same-builder clean profile. Treat concurrent work,
+   changed services, changed cores, or output/configuration differences as
+   non-comparable evidence.
+5. First run the deterministic budget and package checks. If they pass, diagnose
+   machine pressure separately from app-owned output growth. Lower parallelism
+   may be tested as an operational mitigation only in a new named profile; it
+   does not revise the accepted build architecture or erase the failed run.
+
+Never delete store paths, stop customer services, switch NixOS configuration,
+or reset data as part of diagnosis. Escalate repeated unexplained kills with the
+retained profile, service context, and kernel evidence.
 
 Nix may complete the forced compile and then report that the rebuilt output
 differs from the existing output. The command records this as
