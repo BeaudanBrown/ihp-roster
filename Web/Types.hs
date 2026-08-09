@@ -75,6 +75,7 @@ data TimesheetsController
     | ShowTimesheetDaySectionFragmentAction { weekOffset :: !Int, dayOffset :: !Int }
     | ToggleTimesheetHideApprovedAction
     | ToggleTimesheetShowSuggestionsAction
+    | ToggleTimesheetWageEstimatesAction
     | NewTimesheetEntryAction
     | CreateTimesheetEntryAction
     | NewTimesheetEntryFromSuggestionAction { rosterSlotId :: !(Id RosterSlot) }

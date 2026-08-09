@@ -74,8 +74,18 @@ only their own; managers see their normal venue scope.
 - Staff cannot reassign roster-derived entries. Managers may correct staff in
   scope, but source identity and worked date remain immutable.
 
-## Approval And Payroll
+## Wage Estimates, Approval And Payroll
 
+- Wage estimates are an independent global per-user preference, disabled by
+  default. Workers may view their own estimates; venue admins and owners may
+  view authorized staff estimates; supervisors and managers do not receive the
+  control or amounts.
+- The week summary and each day summary aggregate only currently visible cards,
+  so staff filtering, Hide approved, and Show suggestions all change the total.
+  Approved entries consume sealed immutable ledger facts; unapproved entries
+  and transient suggestions use canonical draft evaluation. Failed calculations
+  remain unavailable and are excluded from the clearly partial total rather
+  than becoming zero. Only platform super admins see draft source warnings.
 - Approval status, actor, timestamp, staff pay version, and shift-type pay
   version change consistently. Fixtures and migrations must never assert only an
   approval boolean.

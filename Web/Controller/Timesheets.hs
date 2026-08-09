@@ -11,7 +11,8 @@ import Application.Helper.TimeRules (defaultShiftTimesForVenueConfig,
                                      venueTimePickerFinalSelectableTimeText,
                                      venueTimePickerStartTimeText)
 import Application.Helper.UserPreferences (upsertCurrentUserTimesheetHideApproved,
-                                           upsertCurrentUserTimesheetShowSuggestions)
+                                           upsertCurrentUserTimesheetShowSuggestions,
+                                           upsertCurrentUserTimesheetShowWageEstimates)
 import Application.VenueTime.Model
 import Web.Controller.Prelude
 import Web.Timesheets.Mutations
@@ -27,6 +28,7 @@ import Web.Timesheets.Responses
 import Web.Timesheets.Suggestion (newTimesheetEntryFromSuggestion,
                                   timesheetSuggestionWorkedOn)
 import Web.Timesheets.Validation
+import Web.Timesheets.WageEstimates (canViewTimesheetWageEstimates)
 import Web.View.Timesheets.Edit
 import Web.View.Timesheets.New
 import Web.View.Timesheets.SuggestedNew
@@ -149,6 +151,20 @@ instance Controller TimesheetsController where
                 let weekOffset = surfaceFieldValue @Surface.WeekOffset fields
                 selectedStaffFilterId <- canonicalTimesheetStaffFilter (surfaceFieldValue @Surface.StaffFilterId fields)
                 upsertCurrentUserTimesheetShowSuggestions (surfaceFieldValue @Surface.ShowTimesheetSuggestions fields)
+                if isHtmxRequest
+                    then respondWithTimesheetPreferenceUpdate weekOffset selectedStaffFilterId
+                    else redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
+
+    action currentAction@ToggleTimesheetWageEstimatesAction = runBepis currentAction BepisMutationAction do
+        accessDeniedUnless canViewTimesheetWageEstimates
+        case TimesheetsAction.parseToggleTimesheetWageEstimatesActionParams of
+            Left errors -> do
+                reportTimesheetSurfaceRequestErrors errors
+                redirectTo TimesheetsAction
+            Right fields -> do
+                let weekOffset = surfaceFieldValue @Surface.WeekOffset fields
+                selectedStaffFilterId <- canonicalTimesheetStaffFilter (surfaceFieldValue @Surface.StaffFilterId fields)
+                upsertCurrentUserTimesheetShowWageEstimates (surfaceFieldValue @Surface.ShowTimesheetWageEstimates fields)
                 if isHtmxRequest
                     then respondWithTimesheetPreferenceUpdate weekOffset selectedStaffFilterId
                     else redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)

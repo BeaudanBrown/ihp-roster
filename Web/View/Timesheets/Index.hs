@@ -4,7 +4,8 @@
 
 module Web.View.Timesheets.Index where
 
-import Application.Helper.Controller (currentVenueId, isWithinEditWindow)
+import Application.Helper.Controller (currentUserIsSuperAdmin, currentVenueId,
+                                      isWithinEditWindow)
 import Application.Helper.FrontendContract.AppShell (EditTimesheetEntryDialog,
                                                      OpenRosterStaffEditDialog,
                                                      OpenTimesheetEntryDialog)
@@ -31,6 +32,7 @@ import Application.Helper.FrontendContract.Surface.Timesheets.StaffPanel (Timesh
                                                                           timesheetStaffPanelSortRootAttrs,
                                                                           timesheetStaffPanelSortRowAttrs)
 import Application.Helper.FrontendContract.Surface.Values
+import Application.Helper.RosterWagePrediction (formatMoneyAmount)
 import Application.Helper.Url (appendQueryParams)
 import Application.PayAssignment (StaffPayAssignment (..),
                                   staffAssignmentAllowsTimesheets)
@@ -50,6 +52,7 @@ import Web.Timesheets.Paths (createTimesheetEntryFromSuggestionUrl,
                              newTimesheetEntryUrl, timesheetWeekResetUrl,
                              timesheetWeekUrl)
 import Web.Timesheets.Suggestion
+import Web.Timesheets.WageEstimates
 import Web.View.Prelude
 
 data TimesheetStaffPanelEntry = TimesheetStaffPanelEntry
@@ -71,6 +74,8 @@ data IndexView = IndexView
     , weekEndDate              :: Day
     , hideApproved             :: Bool
     , showTimesheetSuggestions :: Bool
+    , showTimesheetWageEstimates :: Bool
+    , wageEstimates            :: Maybe TimesheetWageEstimates
     , selectedStaffFilterId    :: Maybe UUID
     , currentViewerStaffId     :: Maybe UUID
     , staffPanelEntries        :: [TimesheetStaffPanelEntry]
@@ -91,6 +96,7 @@ data TimesheetDayRenderModel = TimesheetDayRenderModel
     , daySuggestions    :: [TimesheetSuggestion]
     , dayStaffMembers   :: [Staff]
     , dayShiftTypes     :: [ShiftType]
+    , dayWageEstimates  :: Maybe TimesheetWageEstimates
     , dayToday          :: Day
     , dayEditWindowDays :: Int
     , dayWeekOffset     :: Int
@@ -173,10 +179,10 @@ renderTimesheetWeekToolbar =
     renderTimesheetWeekToolbarWithSwap Nothing
 
 renderTimesheetWeekToolbarWithSwap :: (?context :: ControllerContext) => Maybe Text -> IndexView -> Html
-renderTimesheetWeekToolbarWithSwap maybeSwapOob IndexView { weekOffset, weekStartDate, hideApproved, showTimesheetSuggestions, selectedStaffFilterId, staffMembers } = [hsx|
+renderTimesheetWeekToolbarWithSwap maybeSwapOob IndexView { weekOffset, weekStartDate, hideApproved, showTimesheetSuggestions, showTimesheetWageEstimates, wageEstimates, selectedStaffFilterId, staffMembers } = [hsx|
     <div id={timesheetWeekToolbarId}
          hx-swap-oob={maybeSwapOob}>
-        {renderTimesheetWeekHeader weekOffset weekStartDate hideApproved showTimesheetSuggestions selectedStaffFilterId staffMembers}
+        {renderTimesheetWeekHeader weekOffset weekStartDate hideApproved showTimesheetSuggestions showTimesheetWageEstimates wageEstimates selectedStaffFilterId staffMembers}
     </div>
 |]
 
@@ -206,8 +212,8 @@ renderTimesheetWeekNavigationLink label url targetWeekOffset selectedStaffFilter
             }
         [hsx|{label}|]
 
-renderTimesheetWeekHeader :: (?context :: ControllerContext) => Int -> Day -> Bool -> Bool -> Maybe UUID -> [Staff] -> Html
-renderTimesheetWeekHeader weekOffset weekStartDate hideApproved showTimesheetSuggestions selectedStaffFilterId staffMembers =
+renderTimesheetWeekHeader :: (?context :: ControllerContext) => Int -> Day -> Bool -> Bool -> Bool -> Maybe TimesheetWageEstimates -> Maybe UUID -> [Staff] -> Html
+renderTimesheetWeekHeader weekOffset weekStartDate hideApproved showTimesheetSuggestions showTimesheetWageEstimates wageEstimates selectedStaffFilterId staffMembers =
     renderWeekToolbar WeekToolbarConfig
         { weekToolbarVariant = WeekToolbarTimesheets
         , weekToolbarAriaLabel = "Timesheet week controls"
@@ -223,8 +229,52 @@ renderTimesheetWeekHeader weekOffset weekStartDate hideApproved showTimesheetSug
             , weekNavigationNext = renderTimesheetWeekNavigationLink ">" (timesheetWeekUrl (weekOffset + 1) selectedStaffFilterId) (weekOffset + 1) selectedStaffFilterId
             }
         , weekToolbarSettings = renderSidePanelToggle timesheetSidePanelRenderAttrs
-        , weekToolbarAuxiliary = mempty
+        , weekToolbarAuxiliary = renderTimesheetWeekWageEstimate wageEstimates
         }
+
+renderTimesheetWeekWageEstimate :: (?context :: ControllerContext) => Maybe TimesheetWageEstimates -> Html
+renderTimesheetWeekWageEstimate Nothing = mempty
+renderTimesheetWeekWageEstimate (Just estimates) = [hsx|
+    <div class="timesheet-wage-summary" aria-label="Week estimated gross wage">
+        <span class="timesheet-wage-summary-label">Estimated gross wage:</span>
+        <span class="timesheet-wage-summary-total">{formatMoneyAmount summary.wageEstimateAmount}</span>
+        {renderTimesheetWageEstimateAvailability summary}
+        {renderTimesheetWageSourceWarning summary}
+    </div>
+|]
+  where
+    summary = estimates.timesheetWeekWageEstimate
+
+renderTimesheetDayWageEstimate :: (?context :: ControllerContext) => Day -> Maybe TimesheetWageEstimates -> Html
+renderTimesheetDayWageEstimate _ Nothing = mempty
+renderTimesheetDayWageEstimate day (Just estimates) = [hsx|
+    <div class="timesheet-day-wage-summary" aria-label="Day estimated gross wage">
+        <span class="timesheet-day-wage-summary-label">Estimated gross wage</span>
+        <span class="timesheet-day-wage-summary-total">{formatMoneyAmount summary.wageEstimateAmount}</span>
+        {renderTimesheetWageEstimateAvailability summary}
+        {renderTimesheetWageSourceWarning summary}
+    </div>
+|]
+  where
+    summary = lookupTimesheetDayWageEstimate estimates day
+
+renderTimesheetWageEstimateAvailability :: TimesheetWageEstimateSummary -> Html
+renderTimesheetWageEstimateAvailability summary
+    | summary.wageEstimateUnavailableCount == 0 = mempty
+    | otherwise = [hsx|
+        <span class="timesheet-wage-unavailable" role="status">
+            ({tshow summary.wageEstimateUnavailableCount} unavailable)
+        </span>
+    |]
+
+renderTimesheetWageSourceWarning :: (?context :: ControllerContext) => TimesheetWageEstimateSummary -> Html
+renderTimesheetWageSourceWarning summary
+    | not currentUserIsSuperAdmin || summary.wageEstimateSourceWarningCount == 0 = mempty
+    | otherwise = [hsx|
+        <span class="timesheet-wage-source-warning text-warning" role="status" title="Draft estimate uses wage sources requiring attention">
+            Wage source warning
+        </span>
+    |]
 
 renderTimesheetSidePanel :: (?context :: ControllerContext) => IndexView -> Html
 renderTimesheetSidePanel = renderTimesheetSidePanelWithSwap Nothing
@@ -272,10 +322,11 @@ renderWorkerTimesheetSettings view = [hsx|
 |]
 
 renderTimesheetSettings :: (?context :: ControllerContext) => IndexView -> Html
-renderTimesheetSettings IndexView { weekOffset, hideApproved, showTimesheetSuggestions, selectedStaffFilterId, staffMembers } = [hsx|
+renderTimesheetSettings IndexView { weekOffset, hideApproved, showTimesheetSuggestions, showTimesheetWageEstimates, selectedStaffFilterId, staffMembers } = [hsx|
     <div class="timesheet-settings-toggle-grid mb-2">
         {renderTimesheetHideApprovedPreferenceForm weekOffset selectedStaffFilterId hideApproved}
         {renderTimesheetShowSuggestionsPreferenceForm weekOffset selectedStaffFilterId showTimesheetSuggestions}
+        {when canViewTimesheetWageEstimates (renderTimesheetShowWageEstimatesPreferenceForm weekOffset selectedStaffFilterId showTimesheetWageEstimates)}
     </div>
     {when currentUserIsManager (renderTimesheetStaffFilterForm weekOffset selectedStaffFilterId staffMembers)}
 |]
@@ -360,6 +411,22 @@ renderTimesheetShowSuggestionsPreferenceForm weekOffset selectedStaffFilterId sh
   where
     fields = TimesheetsAction.toggleTimesheetShowSuggestionsActionFields weekOffset showTimesheetSuggestions selectedStaffFilterId
 
+renderTimesheetShowWageEstimatesPreferenceForm :: Int -> Maybe UUID -> Bool -> Html
+renderTimesheetShowWageEstimatesPreferenceForm weekOffset selectedStaffFilterId showTimesheetWageEstimates =
+    renderFrontendSurfaceActionForm
+        (TimesheetsAction.toggleTimesheetWageEstimatesAction fields)
+        (timesheetsActionRoute (pathTo ToggleTimesheetWageEstimatesAction))
+            { actionRouteStandardUrl = Just (pathTo ToggleTimesheetWageEstimatesAction)
+            , actionRouteExtraAttrs = [("class", "mb-0")]
+            }
+        [hsx|
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.WeekOffset fields} value={tshow weekOffset} />
+            {renderOptionalStaffFilterField (surfaceFieldNameFrom @Surface.StaffFilterId fields) selectedStaffFilterId}
+            {renderTimesheetPreferenceToggle "timesheet-show-wage-estimates-toggle" (surfaceToggleScalarField @Surface.ShowTimesheetWageEstimates fields True False) showTimesheetWageEstimates "Show wage estimates"}
+        |]
+  where
+    fields = TimesheetsAction.toggleTimesheetWageEstimatesActionFields weekOffset showTimesheetWageEstimates selectedStaffFilterId
+
 renderOptionalStaffFilterField :: Text -> Maybe UUID -> Html
 renderOptionalStaffFilterField fieldName selectedStaffFilterId =
     forEach selectedStaffFilterId \staffFilterId -> [hsx|
@@ -427,12 +494,13 @@ renderTimesheetWeekLabel weekStartDate =
     "Week of " <> Text.pack (formatTime defaultTimeLocale "%-d %b" weekStartDate)
 
 timesheetDayRenderModel :: IndexView -> Int -> TimesheetDayRenderModel
-timesheetDayRenderModel IndexView { entries, suggestions, staffMembers, shiftTypes, today, editWindowDays, weekOffset, weekStartDate, selectedStaffFilterId } dayOffset =
+timesheetDayRenderModel IndexView { entries, suggestions, staffMembers, shiftTypes, wageEstimates, today, editWindowDays, weekOffset, weekStartDate, selectedStaffFilterId } dayOffset =
     TimesheetDayRenderModel
         { dayEntries = entries
         , daySuggestions = suggestions
         , dayStaffMembers = staffMembers
         , dayShiftTypes = shiftTypes
+        , dayWageEstimates = wageEstimates
         , dayToday = today
         , dayEditWindowDays = editWindowDays
         , dayWeekOffset = weekOffset
@@ -446,7 +514,7 @@ renderDaySection =
     renderDaySectionWithSwap Nothing
 
 renderDaySectionWithSwap :: (?context :: ControllerContext) => Maybe Text -> TimesheetDayRenderModel -> Html
-renderDaySectionWithSwap maybeSwapOob model@TimesheetDayRenderModel { dayEntries, daySuggestions, dayWeekStartDate, dayWeekOffset, dayStaffFilterId, dayOffset } = [hsx|
+renderDaySectionWithSwap maybeSwapOob model@TimesheetDayRenderModel { dayEntries, daySuggestions, dayWageEstimates, dayWeekStartDate, dayWeekOffset, dayStaffFilterId, dayOffset } = [hsx|
     <section id={timesheetDaySectionDomId dayOffset}
              class="timesheet-day-panel app-horizontal-panel"
              data-timesheet-day-offset={tshow dayOffset}
@@ -454,6 +522,8 @@ renderDaySectionWithSwap maybeSwapOob model@TimesheetDayRenderModel { dayEntries
         <header class="timesheet-day-header">
             {renderNewEntryOverlayLink newEntryUrl weekdayLabel weekdayShortLabel dayDate}
         </header>
+
+        {renderTimesheetDayWageEstimate dayDate dayWageEstimates}
 
         <div class="timesheet-day-body">
             {renderDayEntries model dayEntriesForDate suggestionsForDate}

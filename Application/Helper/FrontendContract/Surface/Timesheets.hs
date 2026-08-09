@@ -5,6 +5,7 @@ module Application.Helper.FrontendContract.Surface.Timesheets
     ( DayOffset
     , HideApproved
     , ShowTimesheetSuggestions
+    , ShowTimesheetWageEstimates
     , StaffFilterId
     , TimesheetDay
     , TimesheetDayColumns
@@ -47,6 +48,7 @@ module Application.Helper.FrontendContract.Surface.Timesheets
     , NavigateTimesheetWeek
     , ToggleTimesheetHideApproved
     , ToggleTimesheetShowSuggestions
+    , ToggleTimesheetWageEstimates
     , UpdateTimesheetFilters
     , ApproveTimesheetEntry
     , CreateTimesheetEntryFromSuggestion
@@ -69,6 +71,7 @@ data WeekOffset
 data TimesheetsMountState
 data HideApproved
 data ShowTimesheetSuggestions
+data ShowTimesheetWageEstimates
 data StaffFilterId
 
 data TimesheetToolbar
@@ -85,6 +88,7 @@ data NavigateTimesheetWeek
 data UpdateTimesheetFilters
 data ToggleTimesheetHideApproved
 data ToggleTimesheetShowSuggestions
+data ToggleTimesheetWageEstimates
 data ApproveTimesheetEntry
 data CreateTimesheetEntryFromSuggestion
 data UnapproveTimesheetEntry
@@ -173,6 +177,15 @@ type TimesheetActionBundle =
      , Action ToggleTimesheetShowSuggestions
         '[ Field WeekOffset 'WireInt
          , Field ShowTimesheetSuggestions 'WireBool
+         , OptionalField StaffFilterId 'WireUUID
+         ]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxSwap 'HtmxNoSwap
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         ]
+     , Action ToggleTimesheetWageEstimates
+        '[ Field WeekOffset 'WireInt
+         , Field ShowTimesheetWageEstimates 'WireBool
          , OptionalField StaffFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxPost

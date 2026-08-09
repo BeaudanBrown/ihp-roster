@@ -450,6 +450,7 @@ Web/Timesheets/Projection.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/Responses.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/Suggestion.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/Validation.hs	production	runtime	Main	Reachable from Main
+Web/Timesheets/WageEstimates.hs	production	runtime	Main	Reachable from Main
 Web/Types.hs	production	runtime	Main	Reachable from Main
 Web/Users/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Common.hs	production	runtime	Main	Reachable from Main

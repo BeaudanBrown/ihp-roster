@@ -40,7 +40,8 @@ import Application.Helper.Profiling
 import Application.Helper.RosterTimesheetBoundaries (projectRosterSlotTimesheetBoundaries)
 import Application.Helper.UserPreferences (fetchCurrentUserTimesheetPreferences,
                                            userTimesheetHideApproved,
-                                           userTimesheetShowSuggestions)
+                                           userTimesheetShowSuggestions,
+                                           userTimesheetShowWageEstimates)
 import Application.Helper.VenueScopedQueries (fetchLinkedActiveVenueStaff)
 import Application.Helper.WeekBoundaries (venueWeekOffsetForDay)
 import Application.PayAssignment (ShiftPayAssignment (..),
@@ -62,6 +63,7 @@ import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        TimesheetsMountStateValue (..),
                                        timesheetsSurfaceImpl)
 import Web.Timesheets.Suggestion
+import Web.Timesheets.WageEstimates
 import Web.View.Timesheets.Index
 
 data TimesheetWeekProjection = TimesheetWeekProjection
@@ -76,6 +78,8 @@ data TimesheetWeekProjection = TimesheetWeekProjection
     , timesheetWeekEndDate          :: Day
     , timesheetHideApproved         :: Bool
     , timesheetSuggestionsVisible   :: Bool
+    , timesheetShowWageEstimates    :: Bool
+    , timesheetWageEstimates        :: !(Maybe TimesheetWageEstimates)
     , timesheetStaffFilterId        :: Maybe UUID.UUID
     , timesheetCurrentViewerStaffId :: Maybe UUID.UUID
     , timesheetStaffPanelEntries    :: [TimesheetStaffPanelEntry]
@@ -337,6 +341,7 @@ fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset =
     preferences <- fetchCurrentUserTimesheetPreferences
     let hideApproved = preferences.userTimesheetHideApproved
     let showTimesheetSuggestions = preferences.userTimesheetShowSuggestions
+    let showWageEstimates = canViewTimesheetWageEstimates && preferences.userTimesheetShowWageEstimates
     let weekStartDate = venueWeekStartDate venueConfig weekOffset
     let weekEndDate = addDays 6 weekStartDate
 
@@ -346,6 +351,10 @@ fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset =
             then profileActionSpan "timesheets.fetch_suggestions" (fetchTimesheetSuggestionsForWeek venueConfig weekOffset validStaffFilterId staffMembers currentViewerStaffId)
             else pure []
     shiftTypes <- profileActionSpan "timesheets.fetch_shift_types" fetchShiftTypesForProjection
+    wageEstimates <-
+        if showWageEstimates
+            then Just <$> profileActionSpan "timesheets.calculate_wage_estimates" (evaluateTimesheetWageEstimates entries suggestions)
+            else pure Nothing
     today <- utctDay <$> getCurrentTime
     let editWindowDays = venueConfig.staffTimesheetEditWindowDays
 
@@ -362,6 +371,8 @@ fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset =
             , timesheetWeekEndDate = weekEndDate
             , timesheetHideApproved = hideApproved
             , timesheetSuggestionsVisible = showTimesheetSuggestions
+            , timesheetShowWageEstimates = showWageEstimates
+            , timesheetWageEstimates = wageEstimates
             , timesheetStaffFilterId = validStaffFilterId
             , timesheetCurrentViewerStaffId = currentViewerStaffId
             , timesheetStaffPanelEntries = staffPanelEntries
@@ -461,6 +472,7 @@ timesheetDayRenderModelFromProjection projection dayOffset =
         , daySuggestions = projection.timesheetSuggestions
         , dayStaffMembers = projection.timesheetStaffMembers
         , dayShiftTypes = projection.timesheetShiftTypes
+        , dayWageEstimates = projection.timesheetWageEstimates
         , dayToday = projection.timesheetToday
         , dayEditWindowDays = projection.timesheetEditWindowDays
         , dayWeekOffset = projection.timesheetWeekOffset
@@ -470,7 +482,7 @@ timesheetDayRenderModelFromProjection projection dayOffset =
         }
 
 timesheetIndexView :: (?context :: ControllerContext) => TimesheetWeekProjection -> IndexView
-timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetSuggestions, timesheetStaffMembers, timesheetShiftTypes, timesheetToday, timesheetEditWindowDays, timesheetWeekOffset, timesheetWeekStartDate, timesheetWeekEndDate, timesheetHideApproved, timesheetSuggestionsVisible, timesheetStaffFilterId, timesheetCurrentViewerStaffId, timesheetStaffPanelEntries } =
+timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetSuggestions, timesheetStaffMembers, timesheetShiftTypes, timesheetToday, timesheetEditWindowDays, timesheetWeekOffset, timesheetWeekStartDate, timesheetWeekEndDate, timesheetHideApproved, timesheetSuggestionsVisible, timesheetShowWageEstimates, timesheetWageEstimates, timesheetStaffFilterId, timesheetCurrentViewerStaffId, timesheetStaffPanelEntries } =
     IndexView
         { entries = timesheetEntries
         , suggestions = timesheetSuggestions
@@ -483,6 +495,8 @@ timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetSuggesti
         , weekEndDate = timesheetWeekEndDate
         , hideApproved = timesheetHideApproved
         , showTimesheetSuggestions = timesheetSuggestionsVisible
+        , showTimesheetWageEstimates = timesheetShowWageEstimates
+        , wageEstimates = timesheetWageEstimates
         , selectedStaffFilterId = timesheetStaffFilterId
         , currentViewerStaffId = timesheetCurrentViewerStaffId
         , staffPanelEntries = timesheetStaffPanelEntries

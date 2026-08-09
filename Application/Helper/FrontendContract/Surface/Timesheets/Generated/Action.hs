@@ -12,6 +12,7 @@ module Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action
     , NavigateTimesheetWeekActionOperation
     , ToggleTimesheetHideApprovedActionOperation
     , ToggleTimesheetShowSuggestionsActionOperation
+    , ToggleTimesheetWageEstimatesActionOperation
     , UnapproveTimesheetEntryActionOperation
     , UpdateTimesheetFiltersActionOperation
     , approveTimesheetEntryAction
@@ -24,11 +25,14 @@ module Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action
     , parseCreateTimesheetEntryFromSuggestionActionParams
     , parseToggleTimesheetHideApprovedActionParams
     , parseToggleTimesheetShowSuggestionsActionParams
+    , parseToggleTimesheetWageEstimatesActionParams
     , parseUnapproveTimesheetEntryActionParams
     , toggleTimesheetHideApprovedAction
     , toggleTimesheetHideApprovedActionFields
     , toggleTimesheetShowSuggestionsAction
     , toggleTimesheetShowSuggestionsActionFields
+    , toggleTimesheetWageEstimatesAction
+    , toggleTimesheetWageEstimatesActionFields
     , unapproveTimesheetEntryAction
     , unapproveTimesheetEntryActionFields
     , updateTimesheetFiltersAction
@@ -234,6 +238,44 @@ parseToggleTimesheetShowSuggestionsActionParams ::
 parseToggleTimesheetShowSuggestionsActionParams =
     parseActionParams
         @ToggleTimesheetShowSuggestionsActionOperation
+
+data ToggleTimesheetWageEstimatesActionOperation
+
+type instance ActionSurface ToggleTimesheetWageEstimatesActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.TimesheetsAdapterFamily)
+type instance ActionMarker ToggleTimesheetWageEstimatesActionOperation = Types1.ToggleTimesheetWageEstimates
+type instance ActionFieldSpecs ToggleTimesheetWageEstimatesActionOperation =
+    '[ 'Field Types1.WeekOffset 'WireInt
+     , 'Field Types1.ShowTimesheetWageEstimates 'WireBool
+     , 'OptionalField Types1.StaffFilterId 'WireUUID
+     ]
+
+toggleTimesheetWageEstimatesActionFields ::
+    Int ->
+    Bool ->
+    Maybe UUID.UUID ->
+    ActionFields ToggleTimesheetWageEstimatesActionOperation
+toggleTimesheetWageEstimatesActionFields weekOffset showTimesheetWageEstimates staffFilterId =
+    actionFields
+        (surfaceField @Types1.WeekOffset weekOffset)
+        ( surfaceField @Types1.ShowTimesheetWageEstimates showTimesheetWageEstimates
+            &: surfaceOptionalField @Types1.StaffFilterId staffFilterId
+            &: noSurfaceFields
+        )
+
+toggleTimesheetWageEstimatesActionEvidence :: ActionEvidence ToggleTimesheetWageEstimatesActionOperation
+toggleTimesheetWageEstimatesActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "ToggleTimesheetWageEstimates" "toggle-timesheet-wage-estimates" [SurfaceIR.FieldIR "WeekOffset" "weekOffset" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ShowTimesheetWageEstimates" "showTimesheetWageEstimates" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaffFilterId" "staffFilterId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+
+toggleTimesheetWageEstimatesAction :: ActionFields ToggleTimesheetWageEstimatesActionOperation -> FrontendSurfaceAction
+toggleTimesheetWageEstimatesAction =
+    frontendSurfaceActionFromEvidence toggleTimesheetWageEstimatesActionEvidence
+
+parseToggleTimesheetWageEstimatesActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields ToggleTimesheetWageEstimatesActionOperation)
+parseToggleTimesheetWageEstimatesActionParams =
+    parseActionParams
+        @ToggleTimesheetWageEstimatesActionOperation
 
 data UnapproveTimesheetEntryActionOperation
 

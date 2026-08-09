@@ -762,16 +762,16 @@ builder, marker-indexed metadata (`FrontendSurfaceAction` or
 `parseSurfaceActionParams` or `parseSurfaceIntentParams`. Every exclusion
 requires a non-empty reason.
 
-The production inventory contains all 62 checked actions and all six checked
-intents. Fifty-seven actions have Haskell adapter consumers; the five action
+The production inventory contains all 68 checked actions and all six checked
+intents. Sixty-three actions have Haskell adapter consumers; the five action
 declarations backing the same-named interaction intents remain typed,
 reason-bearing declaration exclusions. Exactly one inventory registration owns
 each action across the Admin, LeaveRequests, Profile, Roster,
-SelfServiceLeave, Support, and Timesheets families. Fifty-six provide
+SelfServiceLeave, Support, and Timesheets families. Sixty-two provide
 generated field-builder and render-metadata operations; the hidden
 roster-week-start compatibility mutation is parser-only with typed exclusions
-for its inactive rendering operations. Forty-two provide exact parsers and the
-other 15 retain typed, operation-specific no-parser reasons. Production callers
+for its inactive rendering operations. Forty-six provide exact parsers and the
+other 17 retain typed, operation-specific no-parser reasons. Production callers
 use the seven curated `Action` facades: generic parser and metadata calls under
 `Web/` are both zero, enforced by source guardrails.
 

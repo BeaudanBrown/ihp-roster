@@ -112,9 +112,12 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"navigate-timesheet-week\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-timesheet-hide-approved\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-timesheet-show-suggestions\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-timesheet-wage-estimates\""
                 response `responseBodyShouldNotContain` "timesheet-week-shell-sync-custom-htmx"
                 response `responseBodyShouldNotContain` "Pay preview"
                 response `responseBodyShouldNotContain` "timesheet-wage-preview"
+                response `responseBodyShouldNotContain` "class=\"timesheet-wage-summary\""
+                response `responseBodyShouldNotContain` "class=\"timesheet-day-wage-summary\""
 
         it "resets This week navigation canonically" $ withContext do
             withCleanDb do
@@ -185,6 +188,15 @@ tests = aroundAll withDatabaseTestContext do
                     `shouldBe` Nothing
                 suggestionResponse `responseBodyShouldNotContain` "id=\"timesheet-week-toolbar\""
                 suggestionResponse `responseBodyShouldNotContain` "id=\"timesheet-day-columns\""
+
+                wageResponse <- withUserAndCurrentVenue user venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams ToggleTimesheetWageEstimatesAction
+                            [("weekOffset", "2"), ("showTimesheetWageEstimates", "true")]
+                wageResponse `responseStatusShouldBe` status200
+                wageResponse `responseBodyShouldNotContain` "id=\"timesheet-week-toolbar\""
+                wageResponse `responseBodyShouldNotContain` "id=\"timesheet-day-columns\""
+
                 let preferenceRefreshHeader = cs <$> lookup "HX-Trigger" (responseHeaders suggestionResponse)
                 preferenceRefreshHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
                 preferenceRefreshHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"timesheet-toolbar\"")
@@ -195,12 +207,173 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetchOne
                 preferences.hideApproved `shouldBe` False
                 preferences.showTimesheetSuggestions `shouldBe` False
+                preferences.showTimesheetWageEstimates `shouldBe` True
 
                 reloaded <- withUserAndCurrentVenue user venue.id do
                     callAction ShowTimesheetWeekAction { weekOffset = 2 }
                 reloaded `responseStatusShouldBe` status200
                 reloaded `responseBodyShouldContain` "name=\"hideApproved\" value=\"false\""
                 reloaded `responseBodyShouldContain` "name=\"showTimesheetSuggestions\" value=\"false\""
+                reloaded `responseBodyShouldContain` "name=\"showTimesheetWageEstimates\" value=\"true\""
+                reloaded `responseBodyShouldContain` "class=\"timesheet-wage-summary\""
+                reloaded `responseBodyShouldContain` "class=\"timesheet-day-wage-summary\""
+
+        it "shows filtered wage totals to workers and venue admins but not ordinary managers" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Wage Visibility Venue"
+                admin <- createUserRecord "timesheet-wage-admin@example.com" "staff" True
+                manager <- createUserRecord "timesheet-wage-manager@example.com" "staff" True
+                workerAUser <- createUserRecord "timesheet-wage-worker-a@example.com" "staff" True
+                workerBUser <- createUserRecord "timesheet-wage-worker-b@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue workerAUser Worker
+                _ <- createVenueMembershipRecord venue workerBUser Worker
+                workerA <- createStaffRecord venue (Just workerAUser) "Ada" "Wages"
+                workerB <- createStaffRecord venue (Just workerBUser) "Bea" "Wages"
+                importedPayItem <- createImportedXeroPayItemRecord venue admin "Timesheet wage fixture" "timesheet-wage-fixture" 10
+                workerA <- workerA
+                    |> set #payAssignmentMode XeroRate
+                    |> set #defaultAwardLevelId Nothing
+                    |> set #importedXeroPayItemId (Just importedPayItem.id)
+                    |> updateRecord
+                workerB <- workerB
+                    |> set #payAssignmentMode XeroRate
+                    |> set #defaultAwardLevelId Nothing
+                    |> set #importedXeroPayItemId (Just importedPayItem.id)
+                    |> updateRecord
+                _ <- createTimesheetEntryRecord venue workerA (fromGregorian 2025 1 7)
+                _ <- createTimesheetEntryRecord venue workerB (fromGregorian 2025 1 7)
+                shiftType <- query @ShiftType |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- shiftType
+                    |> set #payAssignmentMode XeroRate
+                    |> set #overrideAwardLevelId Nothing
+                    |> set #importedXeroPayItemId (Just importedPayItem.id)
+                    |> updateRecord
+                forM_ [admin, manager, workerAUser] \viewer ->
+                    newRecord @UserPreference
+                        |> set #userId (unpackId viewer.id)
+                        |> set #showTimesheetWageEstimates True
+                        |> createRecord
+
+                allStaffResponse <- withUserAndCurrentVenue admin venue.id do
+                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
+                filteredResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
+                        [("staffFilterId", idToParam workerA.id)]
+                workerResponse <- withUserAndCurrentVenue workerAUser venue.id do
+                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
+                managerResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
+                deniedManagerToggle <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ToggleTimesheetWageEstimatesAction
+                        [("weekOffset", "0"), ("showTimesheetWageEstimates", "true")]
+
+                allStaffResponse `responseBodyShouldContain` "Estimated gross wage:"
+                allStaffResponse `responseBodyShouldContain` "$160.00"
+                filteredResponse `responseBodyShouldContain` "$80.00"
+                filteredResponse `responseBodyShouldContain` "Ada Wages"
+                workerResponse `responseBodyShouldContain` "$80.00"
+                managerResponse `responseBodyShouldNotContain` "timesheet-wage-summary"
+                managerResponse `responseBodyShouldNotContain` "timesheet-day-wage-summary"
+                managerResponse `responseBodyShouldNotContain` "toggle-timesheet-wage-estimates"
+                deniedManagerToggle `responseStatusShouldBe` status403
+
+        it "keeps partial wage totals when one visible entry is unavailable" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Partial Wage Venue"
+                admin <- createUserRecord "timesheet-partial-wage-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                validStaff <- createStaffRecord venue Nothing "Valid" "Wage"
+                invalidStaff <- createStaffRecord venue Nothing "Unavailable" "Wage"
+                importedPayItem <- createImportedXeroPayItemRecord venue admin "Partial wage fixture" "partial-wage-fixture" 10
+                validStaff <- validStaff
+                    |> set #payAssignmentMode XeroRate
+                    |> set #defaultAwardLevelId Nothing
+                    |> set #importedXeroPayItemId (Just importedPayItem.id)
+                    |> updateRecord
+                invalidStaff <- invalidStaff
+                    |> set #payAssignmentMode LegacyUnresolved
+                    |> set #defaultAwardLevelId Nothing
+                    |> set #importedXeroPayItemId Nothing
+                    |> updateRecord
+                _ <- createTimesheetEntryRecord venue validStaff (fromGregorian 2025 1 7)
+                validShiftType <- query @ShiftType |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- validShiftType
+                    |> set #payAssignmentMode XeroRate
+                    |> set #overrideAwardLevelId Nothing
+                    |> set #importedXeroPayItemId (Just importedPayItem.id)
+                    |> updateRecord
+                invalidEntry <- createTimesheetEntryRecord venue invalidStaff (fromGregorian 2025 1 7)
+                payLevel <- createPayLevelRecord venue "Partial unavailable"
+                invalidShiftType <- createShiftTypeRecord venue payLevel "Unresolved"
+                    >>= updateRecord . set #payAssignmentMode StaffDefault . set #overrideAwardLevelId Nothing
+                _ <- invalidEntry |> set #shiftTypeId (unpackId invalidShiftType.id) |> updateRecord
+                _ <- newRecord @UserPreference
+                    |> set #userId (unpackId admin.id)
+                    |> set #showTimesheetWageEstimates True
+                    |> createRecord
+
+                response <- withUserAndCurrentVenue admin venue.id do
+                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
+
+                response `responseBodyShouldContain` "$80.00"
+                response `responseBodyShouldContain` "(1 unavailable)"
+
+        it "recalculates combined daily and weekly totals from visible approved, draft, and suggested shifts" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Wage Composition Venue"
+                admin <- createUserRecord "timesheet-wage-composition-admin@example.com" "staff" True
+                workerUser <- createUserRecord "timesheet-wage-composition-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- createVenueMembershipRecord venue workerUser Worker
+                worker <- createStaffRecord venue (Just workerUser) "Casey" "Combined"
+                importedPayItem <- createImportedXeroPayItemRecord venue admin "Combined wage fixture" "combined-wage-fixture" 10
+                worker <- worker
+                    |> set #payAssignmentMode XeroRate
+                    |> set #defaultAwardLevelId Nothing
+                    |> set #importedXeroPayItemId (Just importedPayItem.id)
+                    |> updateRecord
+                _ <- createTimesheetEntryRecord venue worker (fromGregorian 2025 1 7)
+                shiftType <- query @ShiftType |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                shiftType <- shiftType
+                    |> set #payAssignmentMode XeroRate
+                    |> set #overrideAwardLevelId Nothing
+                    |> set #importedXeroPayItemId (Just importedPayItem.id)
+                    |> updateRecord
+                _ <- createApprovedTimesheetEntryRecord venue worker admin (fromGregorian 2025 1 7)
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 1
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just worker) 0
+                _ <- rosterSlot
+                    |> setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
+                    |> setTestDurationMinutes (Just 480)
+                    |> set #shiftTypeId (Just (unpackId shiftType.id))
+                    |> updateRecord
+                preferences <- newRecord @UserPreference
+                    |> set #userId (unpackId workerUser.id)
+                    |> set #hideApproved False
+                    |> set #showTimesheetSuggestions True
+                    |> set #showTimesheetWageEstimates True
+                    |> createRecord
+
+                allResponse <- withUserAndCurrentVenue workerUser venue.id do
+                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
+                _ <- preferences |> set #hideApproved True |> updateRecord
+                withoutApprovedResponse <- withUserAndCurrentVenue workerUser venue.id do
+                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
+                refreshedPreferences <- query @UserPreference |> filterWhere (#userId, unpackId workerUser.id) |> fetchOne
+                _ <- refreshedPreferences |> set #showTimesheetSuggestions False |> updateRecord
+                draftOnlyResponse <- withUserAndCurrentVenue workerUser venue.id do
+                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
+
+                allResponse `responseBodyShouldContain` "$235.00"
+                allResponse `responseBodyShouldContain` "class=\"timesheet-wage-summary\""
+                allResponse `responseBodyShouldContain` "class=\"timesheet-day-wage-summary\""
+                withoutApprovedResponse `responseBodyShouldContain` "$155.00"
+                draftOnlyResponse `responseBodyShouldContain` "$80.00"
+                draftOnlyResponse `responseBodyShouldNotContain` "timesheet-suggestion-card"
 
         it "builds typed FrontendSurface mount metadata for the current timesheet query state" $ withContext do
             withCurrentControllerContext do
