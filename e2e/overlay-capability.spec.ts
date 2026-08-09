@@ -46,10 +46,26 @@ test.describe('Generated overlay capability', () => {
         expect(JSON.parse(rawSubmitConfig!)).toEqual({ loadingLabel: 'Working...' });
 
         await page.locator('#feedback-content').fill(uniqueE2EValue('overlay-capability'));
+        let releaseRequest: () => void = () => undefined;
+        const requestGate = new Promise<void>((resolve) => {
+            releaseRequest = resolve;
+        });
+        await page.route('**/CreateFeedback', async (route) => {
+            await requestGate;
+            await route.continue();
+        });
+        const requestPromise = page.waitForRequest((request) =>
+            request.method() === 'POST' && request.url().includes('/CreateFeedback'),
+        );
         const responsePromise = page.waitForResponse((response) =>
             response.request().method() === 'POST' && response.url().includes('/CreateFeedback'),
         );
         await submit.click();
+        await requestPromise;
+        await expect(dialog).toHaveAttribute('aria-busy', 'true');
+        await expect(dialog.getByRole('status')).toContainText('Working...');
+        await expect(dialog.getByRole('button')).toHaveCount(0);
+        releaseRequest();
         const response = await responsePromise;
         expect(response.status(), await response.text()).toBe(200);
 
@@ -81,5 +97,35 @@ test.describe('Generated overlay capability', () => {
         await page.keyboard.press('Escape');
         await expect(page.locator(dialogHostSelector)).toBeEmpty({ timeout: E2E_TIMEOUT.action });
         await expect(page.locator('body')).not.toHaveClass(/modal-open/);
+    });
+
+    test('reveals and re-hides out-of-window select options from a controlling checkbox', async ({ page }) => {
+        await openFeedbackDialog(page);
+        const dialog = page.locator(dialogSelector);
+        await dialog.locator('.modal-body').evaluate((body) => {
+            body.insertAdjacentHTML('beforeend', `
+                <label><input type="checkbox" aria-controls="period-window-fixture">Show past and future periods</label>
+                <select id="period-window-fixture">
+                    <option value="">Choose a period</option>
+                    <option value="current">Current period</option>
+                    <option value="past" hidden>Past period</option>
+                </select>
+            `);
+        });
+
+        const toggle = dialog.getByRole('checkbox', { name: 'Show past and future periods' });
+        const select = dialog.locator('#period-window-fixture');
+        const pastOption = select.locator('option[value="past"]');
+        await expect(pastOption).toHaveAttribute('hidden', '');
+
+        await toggle.check();
+        await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+        await expect(pastOption).not.toHaveAttribute('hidden', '');
+        await select.selectOption('past');
+
+        await toggle.uncheck();
+        await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+        await expect(pastOption).toHaveAttribute('hidden', '');
+        await expect(select).toHaveValue('');
     });
 });

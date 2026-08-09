@@ -177,14 +177,23 @@ renderXeroPreparationPeriodForm view =
         (pathTo (SelectXeroTimesheetPreparationPeriodAction view.preparationRun.id))
         [("id", "xero-preparation-period-form")]
         [hsx|
-            <select name={surfaceFieldNameFrom @PeriodKeyField fields}
-                    id="xero-preparation-period-select"
-                    class="form-select"
-                    aria-label="Xero pay period"
-                    disabled={null view.preparationPeriodOptions}>
-                {renderEmptyPreparationPeriodOption view}
-                {forEach view.preparationPeriodOptions renderPreparationPeriodOption}
-            </select>
+            <div class="d-flex flex-column gap-2">
+                <div class="form-check">
+                    <input type="checkbox"
+                           id="xero-preparation-show-all-periods"
+                           class="form-check-input"
+                           aria-controls="xero-preparation-period-select"/>
+                    <label class="form-check-label" for="xero-preparation-show-all-periods">Show past and future periods</label>
+                </div>
+                <select name={surfaceFieldNameFrom @PeriodKeyField fields}
+                        id="xero-preparation-period-select"
+                        class="form-select"
+                        aria-label="Xero pay period"
+                        disabled={null view.preparationPeriodOptions}>
+                    {renderEmptyPreparationPeriodOption view}
+                    {forEach view.preparationPeriodOptions renderPreparationPeriodOption}
+                </select>
+            </div>
         |]
   where
     fields =
@@ -377,7 +386,9 @@ renderEmptyPreparationPeriodOption view
 
 renderPreparationPeriodOption :: XeroTimesheetPeriodOption -> Html
 renderPreparationPeriodOption option = [hsx|
-    <option value={option.periodOptionKey} disabled={option.periodOptionBlocked}>{preparationPeriodOptionLabel option}</option>
+    <option value={option.periodOptionKey}
+            disabled={option.periodOptionBlocked}
+            hidden={not option.periodOptionWithinDefaultWindow}>{preparationPeriodOptionLabel option}</option>
 |]
 
 preparationPeriodOptionLabel :: XeroTimesheetPeriodOption -> Text

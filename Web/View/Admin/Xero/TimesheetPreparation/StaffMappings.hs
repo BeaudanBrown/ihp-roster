@@ -15,6 +15,7 @@ import Application.Helper.FrontendContract.AppShell.Request (AppShellActionField
                                                              appShellActionFor)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              renderAppShellActionForm)
+import Application.Helper.FrontendContract.Overlay.Runtime (dialogSubmitAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
@@ -134,7 +135,7 @@ renderStaffEmployeeEditForm view row =
         [hsx|
             <input type="hidden" name={surfaceFieldNameFrom @Surface.ShowMatched fields} value="true" />
             <input type="hidden" name={surfaceFieldNameFrom @Surface.EditStaffId fields} value={tshow row.preparationStaffMappingRow.mappingRowStaff.id} />
-            <button type="submit" class="btn btn-sm btn-outline-secondary">Edit</button>
+            <button type="submit" class="btn btn-sm btn-outline-secondary" {...dialogSubmitAttrs "Working..."}>Edit</button>
         |]
   where
     fields = AdminAction.showXeroTimesheetPreparationStaffMappingsActionFields True (Just (unpackId row.preparationStaffMappingRow.mappingRowStaff.id))
@@ -245,8 +246,8 @@ xeroEmployeeLabel employee =
 
 renderStaffSelectionSubmitButton :: XeroPreparationStaffRow -> Text -> Html
 renderStaffSelectionSubmitButton row currentSelection
-    | staffRowHasPendingAutoMatch row = [hsx|<button class="btn btn-sm btn-primary" type="submit">Confirm match</button>|]
-    | Text.null currentSelection = [hsx|<button class="btn btn-sm btn-primary" type="submit">Save</button>|]
+    | staffRowHasPendingAutoMatch row = [hsx|<button class="btn btn-sm btn-primary" type="submit" {...dialogSubmitAttrs "Working..."}>Confirm match</button>|]
+    | Text.null currentSelection = [hsx|<button class="btn btn-sm btn-primary" type="submit" {...dialogSubmitAttrs "Working..."}>Save</button>|]
     | otherwise = mempty
 
 staffRowIsConfirmed :: XeroPreparationStaffRow -> Bool

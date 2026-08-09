@@ -29,6 +29,36 @@ const dialogCloseSelector = `[${dialogCloseDomAttr}]`;
 const navigationLoadingSelector = `form[${navigationLoadingDomAttr}]`;
 const autoSubmittedForms = new WeakSet<HTMLFormElement>();
 const originalSubmitHtml = new WeakMap<HTMLButtonElement, string>();
+interface DialogLoadingState {
+    contentChildren: Array<{ element: HTMLElement; hidden: boolean }>;
+    loadingPanel: HTMLElement;
+    previousAriaBusy: string | null;
+    wasBlocking: boolean;
+}
+const dialogLoadingStates = new WeakMap<HTMLElement, DialogLoadingState>();
+const checkboxControlledHiddenOptions = new WeakMap<HTMLInputElement, HTMLOptionElement[]>();
+
+export function syncCheckboxControlledHiddenSelectOptions(checkbox: HTMLInputElement): void {
+    if (checkbox.type !== "checkbox") return;
+    const controlledId = checkbox.getAttribute("aria-controls")?.trim();
+    if (controlledId === undefined || controlledId.length === 0 || /\s/.test(controlledId)) return;
+    const controlled = checkbox.ownerDocument.getElementById(controlledId);
+    if (!(controlled instanceof HTMLSelectElement)) return;
+
+    let hiddenOptions = checkboxControlledHiddenOptions.get(checkbox);
+    if (hiddenOptions === undefined) {
+        hiddenOptions = Array.from(controlled.options).filter((option) => option.hidden);
+        checkboxControlledHiddenOptions.set(checkbox, hiddenOptions);
+    }
+
+    hiddenOptions.forEach((option) => {
+        option.hidden = !checkbox.checked;
+    });
+    if (!checkbox.checked && hiddenOptions.some((option) => option.selected)) {
+        controlled.value = "";
+    }
+    checkbox.setAttribute("aria-expanded", checkbox.checked ? "true" : "false");
+}
 
 export function dialogSubmitLoadingHtml(label: string): string {
     return '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span><span>' + label + "</span>";
@@ -79,6 +109,60 @@ function dialogSubmitConfiguration(submitter: HTMLButtonElement): DialogSubmitCo
         });
         return null;
     }
+}
+
+function showDialogSubmitLoading(dialog: HTMLElement, config: DialogSubmitConfig): void {
+    if (dialogLoadingStates.has(dialog)) return;
+    const content = dialog.querySelector(":scope > .modal-dialog > .modal-content");
+    if (!(content instanceof HTMLElement)) return;
+
+    const contentChildren = Array.from(content.children)
+        .filter(isHTMLElement)
+        .map((element) => ({ element, hidden: element.hidden }));
+    contentChildren.forEach(({ element }) => {
+        element.hidden = true;
+    });
+
+    const loadingPanel = document.createElement("div");
+    loadingPanel.className = "modal-body d-flex align-items-center justify-content-center gap-3 py-5";
+    loadingPanel.setAttribute("role", "status");
+    loadingPanel.setAttribute("aria-live", "polite");
+    const spinner = document.createElement("span");
+    spinner.className = "spinner-border text-primary";
+    spinner.setAttribute("aria-hidden", "true");
+    const label = document.createElement("span");
+    label.className = "fw-semibold";
+    label.textContent = config.loadingLabel;
+    loadingPanel.append(spinner, label);
+    content.append(loadingPanel);
+
+    const state: DialogLoadingState = {
+        contentChildren,
+        loadingPanel,
+        previousAriaBusy: dialog.getAttribute("aria-busy"),
+        wasBlocking: dialog.hasAttribute(dialogBlockingDomAttr),
+    };
+    dialogLoadingStates.set(dialog, state);
+    dialog.setAttribute("aria-busy", "true");
+    dialog.setAttribute(dialogBlockingDomAttr, "true");
+    dialog.focus({ preventScroll: true });
+}
+
+function restoreDialogSubmitLoading(dialog: HTMLElement): void {
+    const state = dialogLoadingStates.get(dialog);
+    if (state === undefined) return;
+
+    state.loadingPanel.remove();
+    state.contentChildren.forEach(({ element, hidden }) => {
+        element.hidden = hidden;
+    });
+    if (state.previousAriaBusy === null) {
+        dialog.removeAttribute("aria-busy");
+    } else {
+        dialog.setAttribute("aria-busy", state.previousAriaBusy);
+    }
+    if (!state.wasBlocking) dialog.removeAttribute(dialogBlockingDomAttr);
+    dialogLoadingStates.delete(dialog);
 }
 
 // Shared workflow dialog mount for HTMX-driven form overlays.
@@ -321,6 +405,11 @@ function dialogSubmitConfiguration(submitter: HTMLButtonElement): DialogSubmitCo
         if (!activeDialog.hasAttribute(dialogBlockingDomAttr)) clearDialog(activeDialog);
     });
 
+    document.addEventListener("change", function (event) {
+        const target = event.target;
+        if (target instanceof HTMLInputElement) syncCheckboxControlledHiddenSelectOptions(target);
+    });
+
     document.addEventListener("submit", function (event) {
         if (event.defaultPrevented) return;
         const submittedForm = event.target;
@@ -355,7 +444,8 @@ function dialogSubmitConfiguration(submitter: HTMLButtonElement): DialogSubmitCo
         }
         submitter.innerHTML = dialogSubmitLoadingHtml(config.loadingLabel);
         submitter.classList.add("d-inline-flex", "align-items-center", "gap-2");
-    });
+        showDialogSubmitLoading(activeDialog, config);
+    }, true);
 
     document.addEventListener("htmx:afterRequest", function (event) {
         const activeDialog = getActiveDialog();
@@ -364,6 +454,7 @@ function dialogSubmitConfiguration(submitter: HTMLButtonElement): DialogSubmitCo
         if (!isHTMLElement(elt)) return;
         if (!activeDialog.contains(elt)) return;
 
+        restoreDialogSubmitLoading(activeDialog);
         activeDialog.querySelectorAll("button, a.btn").forEach(function (control) {
             if (control instanceof HTMLButtonElement) {
                 control.disabled = false;
