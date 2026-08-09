@@ -2,6 +2,7 @@ module Test.Controller.PasskeysSpec where
 
 import Application.Helper.Controller (currentVenueSessionKey,
                                       formatPasskeyVerifiedAt,
+                                      passkeyManagementPath,
                                       passkeyRecoveryVerifiedAtSessionKey,
                                       passkeyRecoveryVerifiedUserSessionKey,
                                       passkeyStepUpRedirectSessionKey,
@@ -439,6 +440,20 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 lookup HTTP.hContentType (responseHeaders response) `shouldBe` Just "application/json"
                 response `responseBodyShouldContain` "\"challenge\""
+
+        it "returns super-admin add-passkey step-up to Support" $ withContext do
+            withCleanDb do
+                founder <- createUserRecordWithPlatformRole "support-add-passkey-step-up@example.com" "staff" (Just SuperAdmin) True
+                _ <- createTestPasskeyRecord founder "Existing support passkey"
+
+                response <- withUser founder do
+                    withCurrentControllerContext do
+                        passkeyManagementPath `shouldBe` "/Support"
+                    callAction BeginPasskeyRegistrationAction
+
+                response `responseStatusShouldBe` status403
+                response `responseBodyShouldContain` "Verify with your passkey before adding another passkey."
+                response `responseBodyShouldContain` "/PasskeyStepUp"
 
         it "requires fresh passkey verification before sending a new-device setup link" $ withContext do
             withCleanDb do

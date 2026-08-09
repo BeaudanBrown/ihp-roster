@@ -1,25 +1,17 @@
-{-# LANGUAGE PackageImports #-}
-
 module Application.Helper.PasswordResetTokens
     ( activePasswordResetTokenById
     , findActivePasswordResetToken
     , issuePasswordResetToken
+    , issuePasswordResetTokenWith
     , passwordResetTokenLifetime
     , sendPasswordResetTokenEmail
     ) where
 
 import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
 import Application.Helper.Mail
+import Application.Helper.OpaqueToken (generateOpaqueToken, hashOpaqueToken)
 import Application.Helper.Url (appendQueryParams)
 import Application.PasswordReset.Mutations (withPasswordResetUserLock)
-import qualified "crypton" Crypto.Hash as Hash
-import "crypton" Crypto.Random (getRandomBytes)
-import qualified Data.ByteArray as ByteArray
-import qualified Data.ByteString as ByteString
-import qualified Data.ByteString.Base64 as Base64
-import qualified Data.Char as Char
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as TextEncoding
 import IHP.EnvVar
 import IHP.Mail
 import Web.Controller.Prelude
@@ -35,8 +27,18 @@ issuePasswordResetToken ::
     Id User ->
     Id Venue ->
     IO (PasswordResetToken, Text)
-issuePasswordResetToken targetUser requestedByUserId venueId = do
-    rawToken <- generatePasswordResetToken
+issuePasswordResetToken targetUser requestedByUserId venueId =
+    issuePasswordResetTokenWith targetUser requestedByUserId venueId (const (pure ()))
+
+issuePasswordResetTokenWith ::
+    (?modelContext :: ModelContext) =>
+    User ->
+    Id User ->
+    Id Venue ->
+    (PasswordResetToken -> IO ()) ->
+    IO (PasswordResetToken, Text)
+issuePasswordResetTokenWith targetUser requestedByUserId venueId afterIssue = do
+    rawToken <- generateOpaqueToken
     now <- getCurrentTime
     maybeToken <- withPasswordResetUserLock (unpackId targetUser.id) do
         existingTokens <- query @PasswordResetToken
@@ -51,10 +53,11 @@ issuePasswordResetToken targetUser requestedByUserId venueId = do
             |> set #userId (unpackId targetUser.id)
             |> set #requestedByUserId (Just (unpackId requestedByUserId))
             |> set #venueId (unpackId venueId)
-            |> set #tokenHash (hashPasswordResetToken rawToken)
+            |> set #tokenHash (hashOpaqueToken rawToken)
             |> set #sentToEmail targetUser.email
             |> set #expiresAt (addUTCTime passwordResetTokenLifetime now)
             |> createRecord
+        afterIssue token
         pure token
     case maybeToken of
         Just token -> pure (token, rawToken)
@@ -82,7 +85,7 @@ sendPasswordResetTokenEmail targetUser rawToken = do
 findActivePasswordResetToken :: (?modelContext :: ModelContext) => Text -> IO (Maybe PasswordResetToken)
 findActivePasswordResetToken rawToken =
     query @PasswordResetToken
-        |> filterWhere (#tokenHash, hashPasswordResetToken rawToken)
+        |> filterWhere (#tokenHash, hashOpaqueToken rawToken)
         |> filterWhere (#consumedAt, Nothing)
         |> filterWhereFuture #expiresAt
         |> fetchOneOrNothing
@@ -94,25 +97,3 @@ activePasswordResetTokenById tokenId =
         |> filterWhere (#consumedAt, Nothing)
         |> filterWhereFuture #expiresAt
         |> fetchOneOrNothing
-
-generatePasswordResetToken :: IO Text
-generatePasswordResetToken = do
-    randomBytes <- getRandomBytes 32 :: IO ByteString.ByteString
-    pure (TextEncoding.decodeUtf8 (Base64.encode randomBytes))
-
-hashPasswordResetToken :: Text -> Text
-hashPasswordResetToken rawToken =
-    bytesToHex (ByteArray.convert (Hash.hash (TextEncoding.encodeUtf8 rawToken) :: Hash.Digest Hash.SHA256))
-
-bytesToHex :: ByteString.ByteString -> Text
-bytesToHex =
-    Text.concat . map byteToHex . ByteString.unpack
-  where
-    byteToHex byte =
-        let high = fromIntegral byte `div` (16 :: Int)
-            low = fromIntegral byte `mod` (16 :: Int)
-         in Text.pack [hexDigit high, hexDigit low]
-
-    hexDigit value
-        | value < 10 = Char.chr (Char.ord '0' + value)
-        | otherwise = Char.chr (Char.ord 'a' + value - 10)

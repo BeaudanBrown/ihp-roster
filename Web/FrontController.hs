@@ -3,7 +3,8 @@ module Web.FrontController where
 import Application.Billing.Stripe (StripeDeploymentControls (..),
                                    StripeOwnerNavigationVisibility (..),
                                    readStripeDeploymentControls)
-import Application.Helper.Controller (currentUserIsSuperAdmin,
+import Application.Helper.Controller (clearCurrentUserPasskeyVerification,
+                                      currentUserIsSuperAdmin,
                                       currentVenueSessionKey)
 import Application.Helper.Feedback (SupportUnreadFeedbackCount (..),
                                     fetchSupportUnreadFeedbackCount)
@@ -99,6 +100,7 @@ clearAuthenticatedSessionContext :: (?context :: ControllerContext, ?request :: 
 clearAuthenticatedSessionContext = do
     deleteSession (sessionKey @User)
     clearAuthenticatedSessionVersion
+    clearCurrentUserPasskeyVerification
     deleteSession currentVenueSessionKey
     deleteSession effectiveUserSessionKey
     deleteSession impersonationSessionIdSessionKey

@@ -102,13 +102,15 @@ sendStaffPasskeySetupLink staffId purpose successMessage = do
     case maybeTarget of
         Nothing -> rejectStaffCredentialTarget
         Just targetUser -> do
-            (_, rawToken) <- issuePasskeySetupToken purpose targetUser (Just currentUser.id) (Just currentVenueId)
-            void $
-                recordCurrentUserAuditEvent
-                    (passkeySetupAuditEvent purpose)
-                    "users"
-                    (unpackId targetUser.id)
-                    (Aeson.object ["staffId" Aeson..= staffId])
+            (_, rawToken) <- withTransaction do
+                issuedToken <- issuePasskeySetupToken purpose targetUser (Just currentUser.id) (Just currentVenueId)
+                void $
+                    recordCurrentUserAuditEvent
+                        (passkeySetupAuditEvent purpose)
+                        "users"
+                        (unpackId targetUser.id)
+                        (Aeson.object ["staffId" Aeson..= staffId])
+                pure issuedToken
             sendPasskeySetupTokenEmail targetUser purpose rawToken
             setSuccessMessage successMessage
             redirectToPath staffPasskeyReturnPath
@@ -122,13 +124,13 @@ sendStaffPasswordResetLink staffId = do
     fetchCurrentVenueStaffUser staffId >>= \case
         Nothing -> rejectStaffCredentialTarget
         Just targetUser -> do
-            (_, rawToken) <- issuePasswordResetToken targetUser currentUser.id currentVenueId
-            void $
-                recordCurrentUserAuditEvent
-                    StaffPasswordResetRequestedAudit
-                    "users"
-                    (unpackId targetUser.id)
-                    (Aeson.object ["staffId" Aeson..= staffId])
+            (_, rawToken) <- issuePasswordResetTokenWith targetUser currentUser.id currentVenueId \_ ->
+                void $
+                    recordCurrentUserAuditEvent
+                        StaffPasswordResetRequestedAudit
+                        "users"
+                        (unpackId targetUser.id)
+                        (Aeson.object ["staffId" Aeson..= staffId])
             sendPasswordResetTokenEmail targetUser rawToken
             setSuccessMessage "Password reset email sent."
             redirectToPath staffPasskeyReturnPath

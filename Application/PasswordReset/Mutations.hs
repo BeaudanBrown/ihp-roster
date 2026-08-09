@@ -1,7 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 
 module Application.PasswordReset.Mutations
-    ( withPasswordResetTokenLock
+    ( withPasswordResetCompletionLock
     , withPasswordResetUserLock
     ) where
 
@@ -26,17 +26,19 @@ withPasswordResetUserLock userId action =
             []  -> pure Nothing
             _   -> error "Password reset user lock returned multiple rows"
 
-withPasswordResetTokenLock ::
+withPasswordResetCompletionLock ::
     (?modelContext :: ModelContext) =>
+    UUID ->
     UUID ->
     ((?modelContext :: ModelContext) => IO result) ->
     IO (Maybe result)
-withPasswordResetTokenLock tokenId action =
-    withTransaction do
+withPasswordResetCompletionLock userId tokenId action = do
+    nestedResult <- withPasswordResetUserLock userId do
         lockedIds :: [PG.Only UUID] <- sqlQuery
-            "SELECT id FROM password_reset_tokens WHERE id = ? FOR UPDATE"
-            (PG.Only tokenId)
+            "SELECT id FROM password_reset_tokens WHERE id = ? AND user_id = ? FOR UPDATE"
+            (tokenId, userId)
         case lockedIds of
             [_] -> Just <$> action
             []  -> pure Nothing
-            _   -> error "Password reset token lock returned multiple rows"
+            _   -> error "Password reset completion lock returned multiple rows"
+    pure (join nestedResult)

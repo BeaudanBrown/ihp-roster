@@ -278,10 +278,13 @@ currentRequestPath =
 profileSecurityPath :: Text
 profileSecurityPath = pathTo EditProfileAction <> "?section=security"
 
-mandatoryPasskeySetupPath :: (?context :: ControllerContext) => Text
-mandatoryPasskeySetupPath
+passkeyManagementPath :: (?context :: ControllerContext) => Text
+passkeyManagementPath
     | currentUserIsSuperAdmin = pathTo SupportAction
     | otherwise = profileSecurityPath
+
+mandatoryPasskeySetupPath :: (?context :: ControllerContext) => Text
+mandatoryPasskeySetupPath = passkeyManagementPath
 
 formatPasskeyVerifiedAt :: UTCTime -> Text
 formatPasskeyVerifiedAt =

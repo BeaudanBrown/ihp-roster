@@ -116,11 +116,6 @@ safeLocalRedirect value
     | "/" `Text.isPrefixOf` value && not ("//" `Text.isPrefixOf` value) = value
     | otherwise = profileSecurityPath
 
-passkeyManagementPath :: (?context :: ControllerContext) => Text
-passkeyManagementPath
-    | currentUserIsSuperAdmin = pathTo SupportAction
-    | otherwise = profileSecurityPath
-
 ensureFreshPasskeyForManagement :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> IO ()
 ensureFreshPasskeyForManagement managementPath = do
     verified <- isCurrentUserPasskeyVerified

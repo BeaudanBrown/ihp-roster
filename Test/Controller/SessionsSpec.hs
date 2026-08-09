@@ -2,7 +2,9 @@
 
 module Test.Controller.SessionsSpec where
 
-import Application.Helper.Controller (currentVenueSessionKey)
+import Application.Helper.Controller (currentVenueSessionKey,
+                                      passkeyVerifiedAtSessionKey,
+                                      passkeyVerifiedUserSessionKey)
 import Application.Helper.FrontendContract.Passkey.Runtime (PasskeyDom (..),
                                                             canonicalPasskeyDom)
 import Application.Helper.SessionVersion (sessionVersionSessionKey)
@@ -52,9 +54,14 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withSessionValues
                     [ (cs (LoginSupport.sessionKey @User), Serialize.encode user.id)
                     , (currentVenueSessionKey, Serialize.encode venue.id)
+                    , (passkeyVerifiedUserSessionKey, Serialize.encode (inputValue user.id :: Text))
+                    , (passkeyVerifiedAtSessionKey, Serialize.encode ("9999999999" :: Text))
                     ]
                     do
-                        callAction EditProfileAction
+                        response <- callAction EditProfileAction
+                        getSession @Text passkeyVerifiedUserSessionKey `shouldReturn` Nothing
+                        getSession @Text passkeyVerifiedAtSessionKey `shouldReturn` Nothing
+                        pure response
 
                 response `responseStatusShouldBe` status302
                 lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/NewSession"

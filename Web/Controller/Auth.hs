@@ -44,7 +44,7 @@ instance Controller AuthController where
             verified <- isCurrentUserPasskeyVerified
             recoveryVerified <- isCurrentUserPasskeyRecoveryVerified
             unless (verified || recoveryVerified) do
-                setSession passkeyStepUpRedirectSessionKey profileSecurityPath
+                setSession passkeyStepUpRedirectSessionKey passkeyManagementPath
                 jsonRedirectError status403 "Verify with your passkey before adding another passkey." (pathTo PasskeyStepUpAction)
         challenge <- liftIO generateChallenge
         setSession registrationChallengeSessionKey (unChallenge challenge)
@@ -84,7 +84,7 @@ instance Controller AuthController where
             recoveryVerified <- isCurrentUserPasskeyRecoveryVerified
             unless (verified || recoveryVerified) do
                 clearRegistrationSession
-                setSession passkeyStepUpRedirectSessionKey profileSecurityPath
+                setSession passkeyStepUpRedirectSessionKey passkeyManagementPath
                 jsonRedirectError status403 "Verify with your passkey before adding another passkey." (pathTo PasskeyStepUpAction)
         currentDateTime <- liftIO (timeConvert <$> getCurrentTime)
         let verification =

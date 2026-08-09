@@ -2,7 +2,7 @@ module Web.Controller.PasswordResets where
 
 import Application.Helper.Audit
 import Application.Helper.PasswordResetTokens
-import Application.PasswordReset.Mutations (withPasswordResetTokenLock)
+import Application.PasswordReset.Mutations (withPasswordResetCompletionLock)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
@@ -36,7 +36,7 @@ instance Controller PasswordResetsController where
                         setErrorMessage errorMessage
                         render EditView { targetEmail = user.email, .. }
             Nothing -> do
-                maybeCompleted <- withPasswordResetTokenLock (unpackId resetToken.id) do
+                maybeCompleted <- withPasswordResetCompletionLock resetToken.userId (unpackId resetToken.id) do
                     activePasswordResetTokenById resetToken.id >>= \case
                         Nothing -> pure False
                         Just lockedToken -> do
