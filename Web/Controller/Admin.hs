@@ -102,15 +102,7 @@ sendStaffPasskeySetupLink staffId purpose successMessage = do
     case maybeTarget of
         Nothing -> rejectStaffCredentialTarget
         Just targetUser -> do
-            (_, rawToken) <- withTransaction do
-                issuedToken <- issuePasskeySetupToken purpose targetUser (Just currentUser.id) (Just currentVenueId)
-                void $
-                    recordCurrentUserAuditEvent
-                        (passkeySetupAuditEvent purpose)
-                        "users"
-                        (unpackId targetUser.id)
-                        (Aeson.object ["staffId" Aeson..= staffId])
-                pure issuedToken
+            (_, rawToken) <- issueStaffPasskeySetupLinkMutation staffId purpose targetUser
             sendPasskeySetupTokenEmail targetUser purpose rawToken
             setSuccessMessage successMessage
             redirectToPath staffPasskeyReturnPath
@@ -150,11 +142,6 @@ rejectStaffCredentialTarget = do
     setErrorMessage "Choose an active linked staff login from this venue."
     redirectTo AdminAction
     error "unreachable"
-
-passkeySetupAuditEvent :: PasskeySetupTokenPurpose -> AuditEventType
-passkeySetupAuditEvent StaffNewDevicePasskeySetup = StaffPasskeySetupRequestedAudit
-passkeySetupAuditEvent StaffPasskeyRecovery = StaffPasskeyRecoveryRequestedAudit
-passkeySetupAuditEvent SelfNewDevicePasskeySetup = error "Self passkey setup cannot use the staff credential action"
 
 staffPasskeyReturnPath :: (?request :: Request) => Text
 staffPasskeyReturnPath =

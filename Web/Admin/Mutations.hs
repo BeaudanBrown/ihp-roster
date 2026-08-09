@@ -5,6 +5,7 @@ module Web.Admin.Mutations
     , createShiftTypeMutation
     , createVenueInvitationMutation
     , ensureAdminRosterGroupsNormalizedMutation
+    , issueStaffPasskeySetupLinkMutation
     , moveRosterGroupMutation
     , moveShiftTypeMutation
     , revokeVenueInvitationMutation
@@ -24,6 +25,7 @@ module Web.Admin.Mutations
     , updateShiftTypeMutation
     ) where
 
+import Application.Helper.Audit
 import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (leaveAvailabilityWarningsResource)
 import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
@@ -31,6 +33,7 @@ import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWeekScopes)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource
 import Application.Helper.InvitationStatus (invitationStatusAllowsRenewal)
+import Application.Helper.PasskeySetupTokens
 import Application.Helper.Pay (ensureShiftTypePayVersionForShiftType)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureDefaultRosterSlots,
@@ -48,12 +51,35 @@ import Application.PayAssignment (selectableShiftAssignmentMode)
 import Application.VenueInvitation.Mutations (withVenueInvitationEmailLock,
                                               withVenueInvitationRenewalLock)
 import Control.Monad (void)
+import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
 import Web.Controller.Admin.Support
 import Web.Controller.Prelude
 import Web.SurfaceInvalidation (invalidateTouchedResources)
+
+issueStaffPasskeySetupLinkMutation ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Id Staff ->
+    PasskeySetupTokenPurpose ->
+    User ->
+    IO (PasskeySetupToken, Text)
+issueStaffPasskeySetupLinkMutation staffId purpose targetUser =
+    withTransaction do
+        issuedToken <- issuePasskeySetupToken purpose targetUser (Just currentUser.id) (Just currentVenueId)
+        void $
+            recordCurrentUserAuditEvent
+                (staffPasskeySetupAuditEvent purpose)
+                "users"
+                (unpackId targetUser.id)
+                (Aeson.object ["staffId" Aeson..= staffId])
+        pure issuedToken
+
+staffPasskeySetupAuditEvent :: PasskeySetupTokenPurpose -> AuditEventType
+staffPasskeySetupAuditEvent StaffNewDevicePasskeySetup = StaffPasskeySetupRequestedAudit
+staffPasskeySetupAuditEvent StaffPasskeyRecovery = StaffPasskeyRecoveryRequestedAudit
+staffPasskeySetupAuditEvent SelfNewDevicePasskeySetup = error "Self passkey setup cannot use the staff credential mutation"
 
 data AdminShiftTypeMutationResult = AdminShiftTypeMutationResult
     { adminShiftTypeMutationShiftType         :: !ShiftType
