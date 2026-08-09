@@ -1035,8 +1035,12 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
                 _ <- createVenueMembershipRecord venue manager Manager
                 awardLevel <- createPayLevelRecordWithRates venue "Default Staff Level" 32.75 3.25 6.50 1 1.25 1.50
-                unavailableLevel <- createPayLevelRecord venue "Unavailable Staff Level"
-                _ <- unavailableLevel |> set #isActive False |> updateRecord
+                unavailableLevel <- createPayLevelRecordWithRates venue "Permanent-only Staff Level" 32.75 3.25 6.50 1 1.25 1.50
+                unavailableCasualRates <- query @AwardLevelBaseRate
+                    |> filterWhere (#awardLevelId, unpackId unavailableLevel.id)
+                    |> filterWhere (#employmentBasis, Casual)
+                    |> fetch
+                deleteRecords unavailableCasualRates
 
                 awardResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams UpdateDefaultStaffPayRateAction

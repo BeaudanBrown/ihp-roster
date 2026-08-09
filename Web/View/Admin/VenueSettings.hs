@@ -17,6 +17,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.TimeRules (venueTimePickerFinalSelectableTimeText,
                                      venueTimePickerStartTimeText)
+import Application.StaffDefaults (staffAwardRateIsAvailable)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminVenueSettingsSurfaceImpl)
 import Web.View.Admin.Common
@@ -85,14 +86,11 @@ renderDefaultStaffPayRateForm venueConfig awardLevels awardLevelBaseRates =
         case venueConfig.defaultStaffPayAssignmentMode of
             AwardRate -> venueConfig.defaultStaffAwardLevelId
             _         -> Nothing
-    activeAwardLevelIds = map (.id) awardLevels
     defaultNeedsRepair =
         case venueConfig.defaultStaffPayAssignmentMode of
             AwardRate ->
                 case venueConfig.defaultStaffAwardLevelId of
-                    Just awardLevelId ->
-                        awardLevelId `notElem` activeAwardLevelIds
-                            || not (any ((== unpackId awardLevelId) . (.awardLevelId)) awardLevelBaseRates)
+                    Just awardLevelId -> not (staffAwardRateIsAvailable awardLevels awardLevelBaseRates Casual awardLevelId)
                     Nothing -> True
             _ -> False
     fields = AdminAction.updateDefaultStaffPayRateActionFields (unpackId <$> selectedAwardLevelId)

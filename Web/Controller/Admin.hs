@@ -27,6 +27,7 @@ import Application.Helper.WeekBoundaries (weekdayIndexLabel)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
+import Application.StaffDefaults (staffAwardRateIsAvailable)
 import Application.Xero.Connection
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -358,9 +359,8 @@ instance Controller AdminController where
                     Just awardLevelId -> do
                         activeAwardLevels <- fetchActiveAwardLevels
                         currentBaseRates <- fetchCurrentAwardLevelBaseRates
-                        let awardIsActive = awardLevelId `elem` map (.id) activeAwardLevels
-                        let awardHasCurrentRate = any ((== unpackId awardLevelId) . (.awardLevelId)) currentBaseRates
-                        if awardIsActive && awardHasCurrentRate
+                        let awardIsAvailable = staffAwardRateIsAvailable activeAwardLevels currentBaseRates Casual awardLevelId
+                        if awardIsAvailable
                             then do
                                 _ <- setDefaultStaffPayRateMutation venueConfig AwardRate (Just awardLevelId)
                                 setSuccessMessage "Default staff award rate updated."

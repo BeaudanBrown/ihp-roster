@@ -1,5 +1,6 @@
 module Application.StaffDefaults
     ( applyVenueDefaultStaffPayAssignment
+    , staffAwardRateIsAvailable
     , validateStaffAwardRateAvailability
     ) where
 
@@ -14,6 +15,20 @@ applyVenueDefaultStaffPayAssignment venueConfig staff =
         |> set #defaultAwardLevelId venueConfig.defaultStaffAwardLevelId
         |> set #importedXeroPayItemId Nothing
 
+staffAwardRateIsAvailable ::
+    [AwardLevel] ->
+    [AwardLevelBaseRate] ->
+    StaffEmploymentBasisEnum ->
+    Id AwardLevel ->
+    Bool
+staffAwardRateIsAvailable activeAwardLevels currentBaseRates employmentBasis awardLevelId =
+    awardLevelId `Set.member` Set.fromList (map (.id) activeAwardLevels)
+        && any rateApplies currentBaseRates
+  where
+    rateApplies rate =
+        rate.awardLevelId == unpackId awardLevelId
+            && rate.employmentBasis == employmentBasis
+
 validateStaffAwardRateAvailability ::
     [AwardLevel] ->
     [AwardLevelBaseRate] ->
@@ -23,12 +38,6 @@ validateStaffAwardRateAvailability ::
 validateStaffAwardRateAvailability activeAwardLevels currentBaseRates failureMessage staff =
     case (staff.payAssignmentMode, staff.defaultAwardLevelId) of
         (AwardRate, Just awardLevelId)
-            | awardLevelId `Set.member` activeAwardLevelIds
-                && any (rateApplies awardLevelId staff.employmentBasis) currentBaseRates -> staff
+            | staffAwardRateIsAvailable activeAwardLevels currentBaseRates staff.employmentBasis awardLevelId -> staff
             | otherwise -> staff |> attachFailure #defaultAwardLevelId failureMessage
         _ -> staff
-  where
-    activeAwardLevelIds = Set.fromList (map (.id) activeAwardLevels)
-    rateApplies awardLevelId employmentBasis rate =
-        rate.awardLevelId == unpackId awardLevelId
-            && rate.employmentBasis == employmentBasis
