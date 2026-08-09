@@ -23,7 +23,9 @@ than every non-test source file.
 `production-inventory-check` is blocking. It rejects unclassified or stale
 modules/scripts, missing deployment consumers, disagreement between deployed
 NixOS executable references and the production script list, or leakage through
-the filtered production source. `production-package-smoke` builds the optimized
+the filtered production source. The default `typecheck` also checks inventory
+freshness before compiling `Main.hs`; this prevents the unfiltered development
+source from hiding a production-filter omission. `production-package-smoke` builds the optimized
 package, checks its exact `bin/` set, enters every binary through the non-mutating
 GHC RTS boundary, and evaluates wage-cutover and billing deployment modules.
 

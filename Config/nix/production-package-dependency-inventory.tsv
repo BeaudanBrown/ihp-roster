@@ -12,7 +12,7 @@ Crypto.Cipher.Types	crypton	Application/Helper/Xero.hs via Main
 Crypto.Error	crypton	Application/Helper/Xero.hs via Main
 Crypto.Hash	crypton	Application/Billing/Stripe.hs via Main
 Crypto.MAC.HMAC	crypton	Application/Billing/Stripe.hs via Main
-Crypto.Random	crypton	Application/Helper/PasskeySetupTokens.hs via Main
+Crypto.Random	crypton	Application/Helper/Xero.hs via Main
 Crypto.WebAuthn.Cose.SignAlg	webauthn	Application/Helper/FrontendContract/Wire/Passkey.hs via Main
 Crypto.WebAuthn.Encoding.Internal.WebAuthnJson	webauthn	Application/Helper/FrontendContract/Wire/Passkey.hs via Main
 Crypto.WebAuthn.Encoding.Strings	webauthn	Application/Helper/FrontendContract/Wire/Passkey.hs via Main

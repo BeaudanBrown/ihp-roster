@@ -217,9 +217,11 @@ Application/Helper/LiveUpdate.hs	production	runtime	Main	Reachable from Main
 Application/Helper/LiveUpdate/Internal.hs	production	runtime	Main	Reachable from Main
 Application/Helper/LiveUpdate/Runtime.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Mail.hs	production	runtime	Main	Reachable from Main
+Application/Helper/OpaqueToken.hs	production	runtime	Main	Reachable from Main
 Application/Helper/PasskeyRecoveryCodes.hs	production	runtime	Main	Reachable from Main
 Application/Helper/PasskeySetupTokens.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Passkeys.hs	production	runtime	Main	Reachable from Main
+Application/Helper/PasswordResetTokens.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Pay.hs	production	runtime	Main	Reachable from Main
 Application/Helper/ProfileLeave.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Profiling.hs	production	runtime	Main	Reachable from Main
@@ -228,6 +230,7 @@ Application/Helper/RosterGroups.hs	production	runtime	Main	Reachable from Main
 Application/Helper/RosterTemplateScale.hs	production	runtime	Main	Reachable from Main
 Application/Helper/RosterTimesheetBoundaries.hs	production	runtime	Main	Reachable from Main
 Application/Helper/RosterWagePrediction.hs	production	runtime	Main	Reachable from Main
+Application/Helper/SessionVersion.hs	production	runtime	Main	Reachable from Main
 Application/Helper/ShiftTypeColours.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Staff.hs	production	runtime	Main	Reachable from Main
 Application/Helper/StaffShiftPreferences.hs	production	runtime	Main	Reachable from Main
@@ -273,6 +276,7 @@ Application/Helper/XeroTimesheetReadiness.hs	production	runtime	Main	Reachable f
 Application/InvitationDelivery/Job.hs	production	runtime	Main	Reachable from Main
 Application/Job/App.hs	production	runtime	Main	Reachable from Main
 Application/Legal/Documents.hs	production	runtime	Main	Reachable from Main
+Application/PasswordReset/Mutations.hs	production	runtime	Main	Reachable from Main
 Application/PayAssignment.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/Coverage.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/Job.hs	production	runtime	Main	Reachable from Main
@@ -373,6 +377,7 @@ Web/Controller/Help.hs	production	runtime	Main	Reachable from Main
 Web/Controller/LeaveRequests.hs	production	runtime	Main	Reachable from Main
 Web/Controller/LiveUpdates.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Passkeys.hs	production	runtime	Main	Reachable from Main
+Web/Controller/PasswordResets.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Prelude.hs	production	runtime	Main	Reachable from Main
 Web/Controller/Profiles.hs	production	runtime	Main	Reachable from Main
 Web/Controller/RosterTemplates.hs	production	runtime	Main	Reachable from Main
@@ -401,6 +406,7 @@ Web/Mail/Shared.hs	production	runtime	Main	Reachable from Main
 Web/Mail/StaffDocuments/RsaReminder.hs	production	runtime	Main	Reachable from Main
 Web/Mail/Users/EmailVerification.hs	production	runtime	Main	Reachable from Main
 Web/Mail/Users/PasskeySetupLink.hs	production	runtime	Main	Reachable from Main
+Web/Mail/Users/PasswordReset.hs	production	runtime	Main	Reachable from Main
 Web/Mail/Users/VenueInvitation.hs	production	runtime	Main	Reachable from Main
 Web/Mail/Users/VenueOnboardingInvitation.hs	production	runtime	Main	Reachable from Main
 Web/Mail/WageSourceDrift.hs	production	runtime	Main	Reachable from Main
@@ -469,6 +475,7 @@ Web/View/Passkeys/Management.hs	production	runtime	Main	Reachable from Main
 Web/View/Passkeys/NewSetup.hs	production	runtime	Main	Reachable from Main
 Web/View/Passkeys/SetupModal.hs	production	runtime	Main	Reachable from Main
 Web/View/Passkeys/StepUp.hs	production	runtime	Main	Reachable from Main
+Web/View/PasswordResets/Edit.hs	production	runtime	Main	Reachable from Main
 Web/View/Prelude.hs	production	runtime	Main	Reachable from Main
 Web/View/Profiles/Edit.hs	production	runtime	Main	Reachable from Main
 Web/View/RosterTemplates/ApplicationConfirmation.hs	production	runtime	Main	Reachable from Main

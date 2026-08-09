@@ -6,6 +6,13 @@ ihp_roster_configure_compiler_tmpdir
 TARGET="${1:-Main.hs}"
 GHC_OPTS="$(ihp_roster_ghc_opts) -iTest"
 TYPECHECK_DIR="${TYPECHECK_BUILD_DIR:-$(ihp_roster_verification_build_dir)}"
+# Development compilation sees the unfiltered working tree, while production
+# compiles only inventoried modules. Keep the production closure fresh whenever
+# the canonical Main target is checked so a new reachable module cannot pass
+# locally and disappear from the Nix production source.
+if [ "$TARGET" = "Main.hs" ]; then
+    node scripts/production-inventory.mjs --check
+fi
 if [ -f "@scriptsRoot@/haskell/module-name-check" ]; then
     bash "@scriptsRoot@/haskell/module-name-check"
 else
