@@ -39,6 +39,13 @@ tests = aroundAll withDatabaseTestContext do
             response `responseBodyShouldNotContain` "/FinishPasskeyAuthentication"
             response `responseBodyShouldContain` "Billing and support information"
 
+        it "routes public dev livereload through the HTTPS tunnel without changing localhost" $ withContext do
+            publicResponse <- withRequestHeaders [("Host", "dev.bepis.lol")] (callAction WelcomeAction)
+            publicResponse `responseBodyShouldContain` "data-ws=\"wss://dev.bepis.lol/__ihp-livereload\""
+
+            localResponse <- withRequestHeaders [("Host", "localhost:8000")] (callAction WelcomeAction)
+            localResponse `responseBodyShouldContain` "data-ws=\"ws://localhost:8001\""
+
         it "renders generated PWA install roles with server-owned result copy and native accessibility state" $ withContext do
             response <- callAction InstallAppAction
             response `responseStatusShouldBe` status200

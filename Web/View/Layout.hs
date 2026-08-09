@@ -20,7 +20,7 @@ import Application.Helper.View
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import Generated.Types
-import IHP.ControllerSupport (getRequestPathAndQuery)
+import IHP.ControllerSupport (getHeader, getRequestPathAndQuery)
 import IHP.Environment
 import IHP.ViewPrelude
 import qualified Text.Blaze.Html5 as Html5
@@ -367,8 +367,18 @@ scripts = [hsx|
 
 devScripts :: Html
 devScripts = [hsx|
-        <script id="livereload-script" src={assetPath "/livereload.js"} data-ws={liveReloadWebsocketUrl}></script>
+        <script id="livereload-script" src={assetPath "/livereload.js"} data-ws={developmentLiveReloadWebsocketUrl}></script>
     |]
+
+developmentLiveReloadWebsocketUrl :: (?request :: Request) => Text
+developmentLiveReloadWebsocketUrl =
+    case requestHost of
+        Just "dev.bepis.lol" -> "wss://dev.bepis.lol/__ihp-livereload"
+        _                    -> liveReloadWebsocketUrl
+  where
+    requestHost =
+        getHeader "Host"
+            |> fmap (Text.takeWhile (/= ':') . Text.toCaseFold . TextEncoding.decodeUtf8)
 
 isPublicLegalPage :: (?context :: ControllerContext, ?request :: Request) => Bool
 isPublicLegalPage =
