@@ -1163,7 +1163,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- forM ["Early", "Mid", "Late"] (fetchSlotNameRecord venueB)
 
                 response <- withUser manager do
-                    callAction CreateRosterWeekAction
+                    callActionWithParams CreateRosterWeekAction (rosterMutationParams 0)
 
                 response `responseStatusShouldBe` status302
 

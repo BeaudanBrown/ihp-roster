@@ -161,12 +161,15 @@ withRosterWindowPublicationAccess rosterGroupId weekOffset requiredAccess action
         window <- fetchRosterWindow currentVenueId rosterGroupId (venueWeekStartDate venueConfig weekOffset)
         let hasPublishedDay = any (maybe False ((== Published) . (.publicationState)) . (.persistedRosterDay)) window.rosterWindowProjectedDays
             isPublishedWindow = rosterWindowIsPublished window
-        case requiredAccess of
-            RequireDraftWindow
-                | hasPublishedDay -> pure (Left publishedRosterReadOnlyMessage)
-            RequirePublishedWindow
-                | not isPublishedWindow -> pure (Left rosterSlotStaffUnavailableMessage)
-            _ -> action
+        case requestRosterCalendarRevisionError venueConfig of
+            Just message -> pure (Left message)
+            Nothing ->
+                case requiredAccess of
+                    RequireDraftWindow
+                        | hasPublishedDay -> pure (Left publishedRosterReadOnlyMessage)
+                    RequirePublishedWindow
+                        | not isPublishedWindow -> pure (Left rosterSlotStaffUnavailableMessage)
+                    _ -> action
 
 draftRosterWindowErrorUnderLock :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe Text)
 draftRosterWindowErrorUnderLock rosterGroupId weekOffset = do

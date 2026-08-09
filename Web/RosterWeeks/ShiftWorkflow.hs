@@ -113,6 +113,8 @@ rosterShiftDialogForCreateHtml rosterDay rosterWeek slotDefinition rowIndex valu
         , rosterShiftDialogTimePickerStep = venueShiftTimeIntervalMinutes venueConfig
         , rosterShiftDialogValues = values
         , rosterShiftDialogAssignmentOnly = False
+        , rosterShiftDialogAnchorDate = venueWeekStartDate venueConfig rosterWeek.weekOffset
+        , rosterShiftDialogCalendarRevision = venueConfig.rosterCalendarRevision
         }
 
 rosterShiftDialogForEditHtml :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterSlot -> RosterWeek -> RosterShiftDialogValues -> IO Blaze.Html
@@ -133,6 +135,8 @@ rosterShiftDialogForEditHtml rosterSlot rosterWeek values = do
         , rosterShiftDialogTimePickerStep = venueShiftTimeIntervalMinutes venueConfig
         , rosterShiftDialogValues = values
         , rosterShiftDialogAssignmentOnly = rosterWeek.isLive
+        , rosterShiftDialogAnchorDate = venueWeekStartDate venueConfig rosterWeek.weekOffset
+        , rosterShiftDialogCalendarRevision = venueConfig.rosterCalendarRevision
         }
 
 defaultRosterShiftDialogValuesForVenue :: VenueConfig -> RosterShiftDialogValues

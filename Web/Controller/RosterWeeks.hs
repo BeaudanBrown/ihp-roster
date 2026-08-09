@@ -464,7 +464,7 @@ instance Controller RosterWeeksController where
                 respondHtmlProfiled mempty
 
     action currentAction@CreateRosterWeekAction = runBepis currentAction BepisMutationAction do
-        weekOffset <- rosterActionWeekOffset
+        weekOffset <- rosterMutationWeekOffset
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
@@ -1440,19 +1440,22 @@ redirectToRosterWindow weekOffset rosterGroupId =
 rosterActionWeekOffset :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Int
 rosterActionWeekOffset = do
     venueConfig <- fetchVenueConfig
-    case paramOrNothing @Calendar.Day "anchorDate" of
-        Just anchorDate -> pure (venueWeekOffsetForDay venueConfig (startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate))
-        Nothing -> pure (paramOrDefault @Int 0 "weekOffset")
+    let anchorDate = param @Calendar.Day "anchorDate"
+    pure (venueWeekOffsetForDay venueConfig (startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate))
+
+rosterMutationWeekOffset :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Int
+rosterMutationWeekOffset = do
+    let calendarRevision = param @Int "rosterCalendarRevision"
+    calendarRevision `seq` rosterActionWeekOffset
 
 rosterCopyActionWeekOffsets :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Int, Int)
 rosterCopyActionWeekOffsets = do
     venueConfig <- fetchVenueConfig
-    let resolve dateParam offsetParam =
-            maybe
-                (paramOrDefault @Int 0 offsetParam)
-                (venueWeekOffsetForDay venueConfig . startOfWeekFor venueConfig.rosterWeekStartsOn)
-                (paramOrNothing @Calendar.Day dateParam)
-    pure (resolve "sourceAnchorDate" "sourceWeekOffset", resolve "targetAnchorDate" "targetWeekOffset")
+    let sourceAnchorDate = param @Calendar.Day "sourceAnchorDate"
+    let targetAnchorDate = param @Calendar.Day "targetAnchorDate"
+    let calendarRevision = param @Int "rosterCalendarRevision"
+    let resolve = venueWeekOffsetForDay venueConfig . startOfWeekFor venueConfig.rosterWeekStartsOn
+    calendarRevision `seq` pure (resolve sourceAnchorDate, resolve targetAnchorDate)
 
 rosterWeekOffsetForAnchor :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Calendar.Day -> IO Int
 rosterWeekOffsetForAnchor anchorDate = do

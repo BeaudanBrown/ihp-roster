@@ -40,15 +40,15 @@ tests = aroundAll withDatabaseTestContext do
                 , ("content fragment", callAction (ShowRosterWeekContentFragmentAction (testAnchorForOffset 0)))
                 , ("staff panel fragment", callAction (ShowRosterWeekStaffPanelFragmentAction (testAnchorForOffset 0)))
                 , ("row fragment", callAction (ShowRosterWeekRowFragmentAction (testAnchorForOffset 0) "11111111-1111-1111-1111-111111111111" 0))
-                , ("create week", callAction (CreateRosterWeekAction))
-                , ("copy week", callAction (CopyRosterWeekAction))
+                , ("create week", callActionWithParams CreateRosterWeekAction (rosterMutationParams 0))
+                , ("copy week", callActionWithParams CopyRosterWeekAction (rosterCopyParams 0 1))
                 , ("notification confirmation", callAction (ShowRosterNotificationConfirmationAction "11111111-1111-1111-1111-111111111111"))
                 , ("create notification run", callAction (CreateRosterNotificationRunAction "11111111-1111-1111-1111-111111111111"))
-                , ("toggle day", callAction (ToggleRosterDayClosedAction "11111111-1111-1111-1111-111111111111"))
+                , ("toggle day", callActionWithParams (ToggleRosterDayClosedAction "11111111-1111-1111-1111-111111111111") (rosterMutationParams 0))
                 , ("add row", callAction (AddRosterRowAction "11111111-1111-1111-1111-111111111111"))
-                , ("remove row", callAction (RemoveRosterRowAction "11111111-1111-1111-1111-111111111111"))
-                , ("update slot", callAction (UpdateRosterSlotAction "22222222-2222-2222-2222-222222222222"))
-                , ("create slot", callAction (CreateRosterSlotAction "11111111-1111-1111-1111-111111111111" "22222222-2222-2222-2222-222222222222" 0))
+                , ("remove row", callActionWithParams (RemoveRosterRowAction "11111111-1111-1111-1111-111111111111") (rosterMutationParams 0))
+                , ("update slot", callActionWithParams (UpdateRosterSlotAction "22222222-2222-2222-2222-222222222222") (rosterMutationParams 0))
+                , ("create slot", callActionWithParams (CreateRosterSlotAction "11111111-1111-1111-1111-111111111111" "22222222-2222-2222-2222-222222222222" 0) (rosterMutationParams 0))
                 ]
 
         it "redirects venue-less super-admins from roster weeks to support" $ withContext do

@@ -292,8 +292,8 @@ tests = aroundAll withDatabaseTestContext do
                         StartSupportImpersonationAction
                         [("userId", cs (inputValue worker.id))]
                     callActionWithParams
-                        (UpdateRosterLayoutPreferenceAction)
-                        [("rosterLayoutMode", "day_columns")]
+                        UpdateRosterLayoutPreferenceAction
+                        [("anchorDate", "2025-01-06"), ("rosterLayoutMode", "day_columns")]
 
                 response `responseStatusShouldBe` status302
                 venueConfig <- query @VenueConfig

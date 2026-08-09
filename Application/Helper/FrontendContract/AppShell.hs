@@ -62,6 +62,8 @@ module Application.Helper.FrontendContract.AppShell
     , UpdateStaffShiftPreferencesOverlay
     , CreateTrialStaffInvitationOverlay
     , RemoveStaffOverlay
+    , AnchorDateField
+    , RosterCalendarRevisionField
     , StartDateField
     , EndDateField
     , ReasonField
@@ -155,6 +157,8 @@ data UpdateStaffProfileOverlay
 data UpdateStaffShiftPreferencesOverlay
 data CreateTrialStaffInvitationOverlay
 data RemoveStaffOverlay
+data AnchorDateField
+data RosterCalendarRevisionField
 data StartDateField
 data EndDateField
 data ReasonField
@@ -298,7 +302,9 @@ type AppShellContract =
          , AppShellAction CreateRosterShiftOverlay RosterShiftFields DialogSubmitOptions
          , AppShellAction UpdateRosterShiftOverlay RosterShiftFields DialogSubmitOptions
          , AppShellAction DeleteRosterSlotOverlay
-            '[]
+            '[ Field AnchorDateField 'WireText
+             , Field RosterCalendarRevisionField 'WireText
+             ]
             '[ AppShellHtmxMethod 'AppShellDelete
              , AppShellHtmxTarget DialogOverlayMount
              , AppShellHtmxSwap "innerHTML"
@@ -358,6 +364,8 @@ type RosterShiftFields =
      , Field ShiftTypeIdField 'WireText
      , Field StartTimeField 'WireText
      , Field EndTimeField 'WireText
+     , Field AnchorDateField 'WireText
+     , Field RosterCalendarRevisionField 'WireText
      ]
 
 type StaffProfileFields =
