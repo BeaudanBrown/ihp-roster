@@ -68,23 +68,24 @@ instance Controller PasskeysController where
                 redirectTo PasskeyStepUpAction
 
     action currentAction@SendNewDevicePasskeySetupEmailAction = runBepis currentAction BepisMutationAction do
+        let managementPath = passkeyManagementPath
         passkeys <- fetchCurrentUserPasskeys
         when (null passkeys) do
             setErrorMessage "Add your first passkey before sending a new-device setup link."
-            redirectToPath profileSecurityPath
+            redirectToPath managementPath
         verified <- isCurrentUserPasskeyVerified
         unless verified do
-            setSession passkeyStepUpRedirectSessionKey profileSecurityPath
+            setSession passkeyStepUpRedirectSessionKey managementPath
             setErrorMessage "Verify with your passkey before sending a new-device setup link."
             strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
             if strongAuthenticationRequired
                 then redirectTo PasskeyStepUpAction
-                else redirectToPath profileSecurityPath
+                else redirectToPath managementPath
         let venueId = (.id) <$> currentVenueOrNothing
         (_, rawToken) <- issuePasskeySetupToken SelfNewDevicePasskeySetup currentUser (Just currentUser.id) venueId
         sendPasskeySetupTokenEmail currentUser SelfNewDevicePasskeySetup rawToken
         setSuccessMessage "New-device passkey setup email sent. Open it on the device you want to add."
-        redirectToPath profileSecurityPath
+        redirectToPath managementPath
 
     action currentAction@DeletePasskeyAction { passkeyId } = runBepis currentAction BepisMutationAction do
         passkey <- fetch passkeyId
@@ -94,16 +95,15 @@ instance Controller PasskeysController where
                 |> filterWhere (#userId, unpackId currentUser.id)
                 |> fetchCount
         strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
+        let managementPath = passkeyManagementPath
         when (strongAuthenticationRequired && passkeyCount <= 1) do
             setErrorMessage "Venue admins and owners must keep at least one passkey on their account."
-            redirectToPath profileSecurityPath
-        ensureFreshPasskeyForProfileSecurity
+            redirectToPath managementPath
+        ensureFreshPasskeyForManagement managementPath
 
         deleteRecord passkey
         setSuccessMessage "Passkey removed."
-        if currentUserIsSuperAdmin
-            then redirectTo SupportAction
-            else redirectTo EditProfileAction
+        redirectToPath managementPath
 
 nonEmptyText :: Text -> Maybe Text
 nonEmptyText value =
@@ -116,11 +116,16 @@ safeLocalRedirect value
     | "/" `Text.isPrefixOf` value && not ("//" `Text.isPrefixOf` value) = value
     | otherwise = profileSecurityPath
 
-ensureFreshPasskeyForProfileSecurity :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
-ensureFreshPasskeyForProfileSecurity = do
+passkeyManagementPath :: (?context :: ControllerContext) => Text
+passkeyManagementPath
+    | currentUserIsSuperAdmin = pathTo SupportAction
+    | otherwise = profileSecurityPath
+
+ensureFreshPasskeyForManagement :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> IO ()
+ensureFreshPasskeyForManagement managementPath = do
     verified <- isCurrentUserPasskeyVerified
     unless verified do
         withRequestContext do
-            setSession passkeyStepUpRedirectSessionKey profileSecurityPath
+            setSession passkeyStepUpRedirectSessionKey managementPath
             setErrorMessage "Verify with your passkey before changing passkey settings."
             redirectTo PasskeyStepUpAction

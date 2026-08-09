@@ -4,6 +4,7 @@ import Application.Helper.Controller (currentVenueSessionKey,
                                       formatPasskeyVerifiedAt,
                                       passkeyRecoveryVerifiedAtSessionKey,
                                       passkeyRecoveryVerifiedUserSessionKey,
+                                      passkeyStepUpRedirectSessionKey,
                                       passkeyVerifiedAtSessionKey,
                                       passkeyVerifiedUserSessionKey)
 import Application.Helper.FrontendContract.Overlay.Runtime (OverlayDom (..),
@@ -468,6 +469,53 @@ tests = aroundAll withDatabaseTestContext do
                 setupToken.requestedByUserId `shouldBe` Just (unpackId user.id)
                 setupToken.venueId `shouldBe` Just (unpackId venue.id)
                 setupToken.purpose `shouldBe` "self_new_device"
+
+        it "returns a verified super admin to Support after sending a new-device setup link" $ withContext do
+            withCleanDb do
+                setEnv "DISABLE_EMAIL_DELIVERY" "1"
+                venue <- createVenueWithConfig "Support New Device Setup Venue"
+                founder <- createUserRecordWithPlatformRole "support-new-device@example.com" "staff" (Just SuperAdmin) True
+                _ <- createTestPasskeyRecord founder "Existing support passkey"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    callAction SendNewDevicePasskeySetupEmailAction
+
+                response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/Support"
+                setupToken <- query @PasskeySetupToken |> fetchOne
+                setupToken.userId `shouldBe` unpackId founder.id
+                setupToken.venueId `shouldBe` Just (unpackId venue.id)
+
+        it "returns an unverified super admin to Support after passkey step-up" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Support New Device Step Up Venue"
+                founder <- createUserRecordWithPlatformRole "support-new-device-step-up@example.com" "staff" (Just SuperAdmin) True
+                _ <- createTestPasskeyRecord founder "Existing support passkey"
+
+                response <- withUserAndCurrentVenue founder venue.id do
+                    response <- callAction SendNewDevicePasskeySetupEmailAction
+                    getSession @Text passkeyStepUpRedirectSessionKey `shouldReturn` Just "/Support"
+                    pure response
+
+                response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/PasskeyStepUp"
+                query @PasskeySetupToken |> fetchCount `shouldReturn` 0
+
+        it "returns super-admin passkey deletion step-up to Support" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Support Passkey Delete Step Up Venue"
+                founder <- createUserRecordWithPlatformRole "support-passkey-delete-step-up@example.com" "staff" (Just SuperAdmin) True
+                passkey <- createTestPasskeyRecord founder "Support passkey"
+                _ <- createTestPasskeyRecord founder "Support backup passkey"
+
+                response <- withUserAndCurrentVenue founder venue.id do
+                    response <- callAction (DeletePasskeyAction passkey.id)
+                    getSession @Text passkeyStepUpRedirectSessionKey `shouldReturn` Just "/Support"
+                    pure response
+
+                response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/PasskeyStepUp"
+                query @Passkey |> filterWhere (#id, passkey.id) |> fetchExists `shouldReturn` True
 
         it "renders an active passkey setup link" $ withContext do
             withCleanDb do
