@@ -22,6 +22,7 @@ import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, readMVar, takeMVar)
 import Control.Exception (SomeException, try)
 import Control.Monad (zipWithM)
+import Data.Coerce (coerce)
 import qualified Data.Serialize as Serialize
 import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
@@ -1152,7 +1153,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "roster-staff-panel"
                 response `responseBodyShouldNotContain` "Beta Crew"
 
-        it "uses only current-venue slot names when creating a roster week" $ withContext do
+        it "uses only current-venue slot names when materializing a roster window" $ withContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
@@ -1166,20 +1167,20 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status302
 
-                rosterWeek <- query @RosterWeek
-                    |> filterWhere (#venueId, unpackId venueA.id)
-                    |> filterWhere (#weekOffset, 0)
-                    |> fetchOne
                 rosterDays <- query @RosterDay
-                    |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+                    |> filterWhere (#venueId, unpackId venueA.id)
                     |> fetch
-                slotDefinitions <- query @RosterWeekSlotDefinition
-                    |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+                rosterLanes <- query @RosterLane
+                    |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
                     |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
+                otherVenueDays <- query @RosterDay
+                    |> filterWhere (#venueId, unpackId venueB.id)
                     |> fetch
 
                 length rosterDays `shouldBe` 7
-                map (.name) slotDefinitions `shouldMatchList` ["Early", "Mid", "Late"]
+                nub (map (.name) rosterLanes) `shouldMatchList` ["Early", "Mid", "Late"]
+                otherVenueDays `shouldBe` []
 
 runConcurrentVenueAccessActions :: Int -> IO a -> IO [Either SomeException a]
 runConcurrentVenueAccessActions count action =

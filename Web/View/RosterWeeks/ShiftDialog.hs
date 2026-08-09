@@ -40,7 +40,7 @@ import Web.View.Prelude
 data RosterShiftDialogMode
     = NewRosterShiftDialog
         { dialogRosterDayId                :: !(Id RosterDay)
-        , dialogRosterWeekSlotDefinitionId :: !(Id RosterWeekSlotDefinition)
+        , dialogRosterWeekSlotDefinitionId :: !(Id RosterLane)
         , dialogRowIndex                   :: !Int
         }
     | EditRosterShiftDialog

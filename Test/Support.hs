@@ -27,6 +27,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as ByteString
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
 import qualified Data.Map.Strict as Map
+import Data.Maybe (fromJust)
 import Data.Scientific (Scientific)
 import qualified Data.Serialize as Serialize
 import qualified Data.Text as Text
@@ -443,9 +444,17 @@ createRosterSlotRecord rosterDay slotName maybeStaff rowIndex =
   where
     assignment = maybe OpenAssignment (StaffAssignment . (.id)) maybeStaff
 
+fetchRosterLaneForDefinition :: (?modelContext :: ModelContext) => RosterDay -> RosterWeekSlotDefinition -> IO RosterLane
+fetchRosterLaneForDefinition rosterDay slotDefinition =
+    query @RosterLane
+        |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+        |> filterWhere (#legacyRosterWeekSlotDefinitionId, Just (unpackId slotDefinition.id))
+        |> filterWhere (#deletedAt, Nothing)
+        |> fetchOne
+
 createCompleteRosterSlotRecord :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> Staff -> Int -> IO RosterSlot
 createCompleteRosterSlotRecord rosterDay slotName staff rowIndex = do
-    rosterWeek <- fetch (Id rosterDay.rosterWeekId :: Id RosterWeek)
+    rosterWeek <- fetch (Id (fromJust rosterDay.rosterWeekId) :: Id RosterWeek)
     venue <- fetch (Id rosterWeek.venueId :: Id Venue)
     shiftType <- ensureVenueDefaultShiftType venue
     createRosterSlotRecord rosterDay slotName (Just staff) rowIndex

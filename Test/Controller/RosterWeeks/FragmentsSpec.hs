@@ -26,6 +26,8 @@ import Config
 import Control.Monad (guard)
 import Data.ByteString (ByteString)
 import Data.Char (isDigit)
+import Data.Coerce (coerce)
+import Data.Maybe (fromJust)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (addDays, fromGregorian)
@@ -401,7 +403,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("hideStaffOnApprovedLeave", "false")
                         , ("hideStaffAlreadyAssignedToday", "false")
                         ]
-                    callAction (NewRosterSlotDialogAction mondayRosterDay.id slotDefinition.id 0)
+                    callAction (NewRosterSlotDialogAction mondayRosterDay.id (coerce slotDefinition.id) 0)
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` ">CrossGroup</option>"
@@ -432,10 +434,9 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-roster-timeline-minute=\"780\""
                 response `responseBodyShouldContain` ("data-bepis-roster-day-timeline-shift-group-highlight-source=\"existing:" <> cs (tshow timelineSlot.id) <> "\"")
                 response `responseBodyShouldContain` ("data-bepis-roster-day-timeline-shift-group-highlight-member=\"existing:" <> cs (tshow timelineSlot.id) <> "\"")
+                response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"drag-dropzone\""
                 response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"day-template-dropzone\""
                 response `responseBodyShouldContain` "data-bepis-roster-template-day-target=\"true\""
-                response `responseBodyShouldNotContain` "data-bepis-dropzone-ref=\"week-template-dropzone\""
-                response `responseBodyShouldNotContain` "data-roster-timeline-minute=\"360\""
 
         it "renders an equal-clock repeated shift on the roster timeline" $ withContext do
             withCleanDb do
@@ -487,7 +488,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- updateRecord (venueConfig |> set #timePickerStartMinuteOfDay 540 |> set #timePickerFinalSelectableMinuteOfDay 780)
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (NewRosterSlotDialogAction mondayRosterDay.id slotDefinition.id 0)
+                    callAction (NewRosterSlotDialogAction mondayRosterDay.id (coerce slotDefinition.id) 0)
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "name=\"startTime\" value=\"09:00\""
@@ -531,7 +532,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("hideStaffOnApprovedLeave", "true")
                         , ("hideStaffAlreadyAssignedToday", "false")
                         ]
-                    callAction (NewRosterSlotDialogAction mondayRosterDay.id slotDefinition.id 0)
+                    callAction (NewRosterSlotDialogAction mondayRosterDay.id (coerce slotDefinition.id) 0)
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` ">Approved</option>"
@@ -553,6 +554,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 firstSlot <- createRosterSlotRecord rosterDay early (Just staffMember) 0
                 lateDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay late
+                lateLane <- fetchRosterLaneForDefinition rosterDay lateDefinition
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekRowFragmentAction 0 rosterDay.id 0)
@@ -562,7 +564,7 @@ tests = aroundAll withDatabaseTestContext do
                 let bodyText = cs body :: String
                 let bodyTextValue = cs body :: Text
                 let existingGroupKey = "existing:" <> tshow firstSlot.id
-                let createGroupKey = "new:" <> tshow rosterDay.id <> ":" <> tshow lateDefinition.id <> ":0"
+                let createGroupKey = "new:" <> tshow rosterDay.id <> ":" <> tshow lateLane.id <> ":0"
                 bodyText `shouldContain` ("class=\"roster-shift-unit roster-shift-launcher\"")
                 bodyText `shouldContain` ("class=\"roster-shift-unit roster-shift-launcher roster-shift-create-unit\"")
                 bodyText `shouldContain` ("data-bepis-roster-shift-group-highlight-source=\"" <> cs existingGroupKey <> "\"")
@@ -570,7 +572,7 @@ tests = aroundAll withDatabaseTestContext do
                 bodyText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow firstSlot.id) <> "\"")
                 bodyText `shouldContain` ("data-bepis-roster-shift-group-highlight-source=\"" <> cs createGroupKey <> "\"")
                 bodyText `shouldContain` ("data-bepis-roster-shift-group-highlight-member=\"" <> cs createGroupKey <> "\"")
-                bodyText `shouldContain` ("hx-get=\"/NewRosterSlotDialog?rosterDayId=" <> cs (tshow rosterDay.id) <> "&amp;rosterWeekSlotDefinitionId=" <> cs (tshow lateDefinition.id) <> "&amp;rowIndex=0\"")
+                bodyText `shouldContain` ("hx-get=\"/NewRosterSlotDialog?rosterDayId=" <> cs (tshow rosterDay.id) <> "&amp;rosterWeekSlotDefinitionId=" <> cs (tshow lateLane.id) <> "&amp;rowIndex=0&amp;rosterGroupId=" <> cs (tshow rosterDay.rosterGroupId) <> "&amp;operationalDate=" <> cs (tshow rosterDay.operationalDate) <> "\"")
                 countText ("data-bepis-roster-shift-group-highlight-source=\"" <> existingGroupKey <> "\"") bodyTextValue `shouldBe` 1
                 countText ("data-bepis-roster-shift-group-highlight-member=\"" <> existingGroupKey <> "\"") bodyTextValue `shouldBe` 1
                 countText ("data-bepis-roster-shift-group-highlight-source=\"" <> createGroupKey <> "\"") bodyTextValue `shouldBe` 1
@@ -586,6 +588,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay early
+                rosterLane <- fetchRosterLaneForDefinition rosterDay slotDefinition
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekRowFragmentAction 0 rosterDay.id 0)
@@ -599,8 +602,8 @@ tests = aroundAll withDatabaseTestContext do
                 bodyText `shouldNotContain` "data-bepis-dropzone-ref=\"staff-create-dropzone\""
                 bodyText `shouldContain` "roster-shift-unit-cell slot-empty-cell"
                 bodyText `shouldContain` "roster-shift-create-plus-overlay"
-                bodyText `shouldContain` ("data-bepis-roster-shift-group-highlight-source=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
-                bodyText `shouldContain` ("data-bepis-roster-shift-group-highlight-member=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
+                bodyText `shouldContain` ("data-bepis-roster-shift-group-highlight-source=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow rosterLane.id) <> ":0\"")
+                bodyText `shouldContain` ("data-bepis-roster-shift-group-highlight-member=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow rosterLane.id) <> ":0\"")
                 bodyText `shouldContain` ">+</div>"
                 bodyText `shouldNotContain` ">Add</div>"
 
@@ -613,6 +616,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay early
+                rosterLane <- fetchRosterLaneForDefinition rosterDay slotDefinition
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -629,10 +633,10 @@ tests = aroundAll withDatabaseTestContext do
                 bodyText `shouldContain` "roster-shift-card-empty roster-shift-card-create roster-shift-launcher roster-shift-create-plus-card"
                 bodyText `shouldContain` "<span class=\"roster-shift-create-plus\" aria-hidden=\"true\">+</span>"
                 bodyText `shouldContain` "<span class=\"visually-hidden\">Add shift</span>"
-                bodyText `shouldContain` ("data-bepis-roster-shift-group-highlight-source=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
-                bodyText `shouldContain` ("data-bepis-roster-shift-group-highlight-member=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
+                bodyText `shouldContain` ("data-bepis-roster-shift-group-highlight-source=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow rosterLane.id) <> ":0\"")
+                bodyText `shouldContain` ("data-bepis-roster-shift-group-highlight-member=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow rosterLane.id) <> ":0\"")
                 bodyText `shouldContain` "data-bepis-dropzone-ref=\"staff-create-dropzone\""
-                bodyText `shouldContain` ("data-bepis-dropzone-key=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
+                bodyText `shouldContain` ("data-bepis-dropzone-key=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow rosterLane.id) <> ":0\"")
                 bodyText `shouldNotContain` ">Add shift</div>"
 
         it "preserves full shift-type names for accessible roster labels while marking only row-grid export text for end ellipsis" $ withContext do
@@ -688,7 +692,7 @@ tests = aroundAll withDatabaseTestContext do
                 body <- responseBody fragmentResponse
                 let bodyText = cs body :: String
                 let sourceGroupKey = "existing:" <> tshow sourceSlot.id
-                let targetGroupKey = "new:" <> tshow rosterDay.id <> ":" <> tshow sourceSlot.rosterWeekSlotDefinitionId <> ":1"
+                let targetGroupKey = "new:" <> tshow rosterDay.id <> ":" <> tshow sourceSlot.rosterLaneId <> ":1"
                 bodyText `shouldContain` "roster-day-columns"
                 bodyText `shouldContain` "data-bepis-source-ref=\"shift-drag-source\""
                 bodyText `shouldContain` ("data-bepis-source-key=\"" <> cs sourceGroupKey <> "\"")
@@ -699,7 +703,7 @@ tests = aroundAll withDatabaseTestContext do
                 bodyText `shouldContain` "data-bepis-dropzone-ref=\"staff-create-dropzone\""
                 bodyText `shouldContain` ("data-bepis-dropzone-key=\"" <> cs targetGroupKey <> "\"")
                 bodyText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow sourceSlot.id) <> "\"")
-                bodyText `shouldContain` ("hx-get=\"/NewRosterSlotDialog?rosterDayId=" <> cs (tshow rosterDay.id) <> "&amp;rosterWeekSlotDefinitionId=" <> cs (tshow sourceSlot.rosterWeekSlotDefinitionId) <> "&amp;rowIndex=1\"")
+                bodyText `shouldContain` ("hx-get=\"/NewRosterSlotDialog?rosterDayId=" <> cs (tshow rosterDay.id) <> "&amp;rosterWeekSlotDefinitionId=" <> cs (tshow sourceSlot.rosterLaneId) <> "&amp;rowIndex=1&amp;rosterGroupId=" <> cs (tshow rosterDay.rosterGroupId) <> "&amp;operationalDate=" <> cs (tshow rosterDay.operationalDate) <> "\"")
 
         it "does not render empty day-row create markers for live rosters" $ withContext do
             withCleanDb do
@@ -886,13 +890,13 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (CreateRosterSlotAction rosterDay.id slotDefinition.id 2)
+                            (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 2)
                             (fullShiftParams staffMember shiftType)
 
                 response `responseStatusShouldBe` status200
                 createdSlot <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId rosterDay.id)
-                    |> filterWhere (#rosterWeekSlotDefinitionId, unpackId slotDefinition.id)
+                    |> filterWhere (#rosterWeekSlotDefinitionId, Just (unpackId slotDefinition.id))
                     |> filterWhere (#rowIndex, 2)
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetchOne
@@ -920,7 +924,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (CreateRosterSlotAction rosterDay.id slotDefinition.id 5)
+                            (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 5)
                             (fullShiftParams staffMember shiftType)
 
                 response `responseStatusShouldBe` status200
@@ -1175,7 +1179,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 sourceSlot <- createCompleteRosterSlotRecord rosterDay slotName staffMember 0
                 let sourceToken = "existing:" <> tshow sourceSlot.id
-                let targetToken = "new:" <> tshow rosterDay.id <> ":" <> tshow sourceSlot.rosterWeekSlotDefinitionId <> ":1"
+                let targetToken = "new:" <> tshow rosterDay.id <> ":" <> tshow sourceSlot.rosterLaneId <> ":1"
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -1206,7 +1210,9 @@ tests = aroundAll withDatabaseTestContext do
                     >>= updateRecord
                         . setTestRosterSlotBoundaries (fromGregorian 2026 4 3) (TimeOfDay 2 30 0) (TimeOfDay 4 0 0)
                 let sourceToken = "existing:" <> tshow sourceSlot.id
-                let targetToken = "new:" <> tshow targetDay.id <> ":" <> tshow sourceSlot.rosterWeekSlotDefinitionId <> ":0"
+                targetDefinition <- fetch (Id (fromJust sourceSlot.rosterWeekSlotDefinitionId) :: Id RosterWeekSlotDefinition)
+                targetLane <- fetchRosterLaneForDefinition targetDay targetDefinition
+                let targetToken = "new:" <> tshow targetDay.id <> ":" <> tshow targetLane.id <> ":0"
                 let coreParams =
                         [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                         , ("sourceItemKey", cs sourceToken)
@@ -1253,7 +1259,9 @@ tests = aroundAll withDatabaseTestContext do
                     >>= updateRecord
                         . setTestRosterSlotBoundaries (fromGregorian 2026 4 3) (TimeOfDay 2 30 0) (TimeOfDay 4 0 0)
                 let sourceToken = "existing:" <> tshow sourceSlot.id
-                let targetToken = "new:" <> tshow targetDay.id <> ":" <> tshow sourceSlot.rosterWeekSlotDefinitionId <> ":0"
+                targetDefinition <- fetch (Id (fromJust sourceSlot.rosterWeekSlotDefinitionId) :: Id RosterWeekSlotDefinition)
+                targetLane <- fetchRosterLaneForDefinition targetDay targetDefinition
+                let targetToken = "new:" <> tshow targetDay.id <> ":" <> tshow targetLane.id <> ":0"
                 let coreParams =
                         [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                         , ("sourceItemKey", cs sourceToken)
@@ -1305,7 +1313,9 @@ tests = aroundAll withDatabaseTestContext do
                         . set #shiftTypeId (Just (unpackId shiftType.id))
                         . setTestRosterSlotBoundaries (fromGregorian 2026 4 3) (TimeOfDay 17 45 0) (TimeOfDay 5 45 0)
                 let sourceToken = "existing:" <> tshow sourceSlot.id
-                let targetToken = "new:" <> tshow targetDay.id <> ":" <> tshow sourceSlot.rosterWeekSlotDefinitionId <> ":0"
+                targetDefinition <- fetch (Id (fromJust sourceSlot.rosterWeekSlotDefinitionId) :: Id RosterWeekSlotDefinition)
+                targetLane <- fetchRosterLaneForDefinition targetDay targetDefinition
+                let targetToken = "new:" <> tshow targetDay.id <> ":" <> tshow targetLane.id <> ":0"
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -1337,7 +1347,9 @@ tests = aroundAll withDatabaseTestContext do
                     >>= updateRecord
                         . setTestRosterSlotBoundaries (fromGregorian 2026 4 3) (TimeOfDay 8 0 0) (TimeOfDay 9 0 0)
                 let sourceToken = "existing:" <> tshow sourceSlot.id
-                let targetToken = "time:" <> tshow targetDay.id <> ":" <> tshow sourceSlot.rosterWeekSlotDefinitionId <> ":1590"
+                targetDefinition <- fetch (Id (fromJust sourceSlot.rosterWeekSlotDefinitionId) :: Id RosterWeekSlotDefinition)
+                targetLane <- fetchRosterLaneForDefinition targetDay targetDefinition
+                let targetToken = "time:" <> tshow targetDay.id <> ":" <> tshow targetLane.id <> ":1590"
                 let coreParams =
                         [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                         , ("rosterView", "timeline")
@@ -1397,8 +1409,10 @@ tests = aroundAll withDatabaseTestContext do
                         Right value -> pure value
                 sourceSlot <- updateRecord (applyRosterSlotBoundaries boundaries sourceSlot)
                 let sourceToken = "existing:" <> tshow sourceSlot.id
-                let sameTargetToken = "time:" <> tshow sourceDay.id <> ":" <> tshow sourceSlot.rosterWeekSlotDefinitionId <> ":1590"
-                let targetToken = "time:" <> tshow targetDay.id <> ":" <> tshow sourceSlot.rosterWeekSlotDefinitionId <> ":540"
+                let sameTargetToken = "time:" <> tshow sourceDay.id <> ":" <> tshow sourceSlot.rosterLaneId <> ":1590"
+                targetDefinition <- fetch (Id (fromJust sourceSlot.rosterWeekSlotDefinitionId) :: Id RosterWeekSlotDefinition)
+                targetLane <- fetchRosterLaneForDefinition targetDay targetDefinition
+                let targetToken = "time:" <> tshow targetDay.id <> ":" <> tshow targetLane.id <> ":540"
                 let moveParams targetDropzoneKey dayOffset =
                         [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                         , ("rosterView", "timeline")
@@ -1472,7 +1486,9 @@ tests = aroundAll withDatabaseTestContext do
                     `shouldSatisfy` maybe False (\actualWidth -> abs (actualWidth - exactWidthPercent) < 1e-12)
 
                 let sourceToken = "existing:" <> tshow sourceSlot.id
-                let targetToken = "time:" <> tshow targetDay.id <> ":" <> tshow sourceSlot.rosterWeekSlotDefinitionId <> ":540"
+                targetDefinition <- fetch (Id (fromJust sourceSlot.rosterWeekSlotDefinitionId) :: Id RosterWeekSlotDefinition)
+                targetLane <- fetchRosterLaneForDefinition targetDay targetDefinition
+                let targetToken = "time:" <> tshow targetDay.id <> ":" <> tshow targetLane.id <> ":540"
                 moveResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams MoveRosterTimelineShiftAction { weekOffset = 0 }

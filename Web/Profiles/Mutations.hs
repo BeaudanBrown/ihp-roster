@@ -126,7 +126,7 @@ fetchProfileRosterInvalidationTargetsForScopes venueId staff activeScopes = do
                     then pure []
                     else
                         query @RosterDay
-                            |> filterWhereIn (#rosterWeekId, map (unpackId . (.id)) activeRosterWeeks)
+                            |> filterWhereIn (#rosterWeekId, map (Just . unpackId . (.id)) activeRosterWeeks)
                             |> fetch
             assignedSlots <-
                 if null rosterDays
@@ -145,7 +145,8 @@ fetchProfileRosterInvalidationTargetsForScopes venueId staff activeScopes = do
                         [ ((Id rosterWeek.rosterGroupId :: Id RosterGroup, rosterWeek.weekOffset), [(rosterSlot.rosterDayId, rosterSlot.rowIndex)])
                         | rosterSlot <- assignedSlots
                         , Just rosterDay <- [Map.lookup rosterSlot.rosterDayId rosterDayById]
-                        , Just rosterWeek <- [Map.lookup rosterDay.rosterWeekId rosterWeekById]
+                        , Just rosterWeekId <- [rosterDay.rosterWeekId]
+                        , Just rosterWeek <- [Map.lookup rosterWeekId rosterWeekById]
                         ]
 
             pure

@@ -73,6 +73,13 @@ import Web.Controller.Prelude
 import Web.Controller.RosterWeeks.Validation
 import Web.Controller.Sessions (passkeySetupPromptSessionKey)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
+import Web.RosterWeeks.DateRange (RosterDayRowRemovalPreview (..),
+                                  RosterWindow (..), RosterWindowLane (..),
+                                  fetchRosterWindow,
+                                  previewRemoveRosterDayRowByLanes,
+                                  projectedRosterDayId,
+                                  resolveRosterLaneReference,
+                                  rosterPlanningWeekForDay)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.DropWorkflow
 import Web.RosterWeeks.Filters
@@ -266,7 +273,7 @@ instance Controller RosterWeeksController where
                 setErrorMessage "Roster week not found."
                 redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
             Just rosterData -> do
-                let canViewTimeline = rosterData.rosterWeek.isLive || hasRole Manager
+                let canViewTimeline = maybe False (.isLive) rosterData.rosterWeek || hasRole Manager
                 accessDeniedUnless canViewTimeline
                 case find (\rosterDay -> rosterDay.id == rosterDayId) rosterData.rosterDays of
                     Nothing -> do
@@ -281,7 +288,7 @@ instance Controller RosterWeeksController where
         case maybeRosterData of
             Nothing -> respondHtmlProfiled mempty
             Just rosterData -> do
-                let canViewTimeline = rosterData.rosterWeek.isLive || hasRole Manager
+                let canViewTimeline = maybe False (.isLive) rosterData.rosterWeek || hasRole Manager
                 accessDeniedUnless canViewTimeline
                 let maybeRosterDay = find (\rosterDay -> rosterDay.id == rosterDayId) rosterData.rosterDays
                 respondHtmlProfiled (maybe mempty (renderRosterDayTimelineContent Nothing rosterData) maybeRosterDay)
@@ -558,73 +565,69 @@ instance Controller RosterWeeksController where
                                 setSuccessMessage successMessage
                                 redirectToPath targetPath
 
-    action currentAction@CreateRosterWeekSlotDefinitionAction { rosterWeekId } = runBepis currentAction BepisMutationAction do
+    action currentAction@CreateRosterWeekSlotDefinitionAction { weekOffset } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
-        rosterWeek <- fetch rosterWeekId
-        ensureRecordInCurrentVenue rosterWeek.venueId
-        ensureRosterWeekIsDraftForEdit rosterWeek
-
-        let rosterGroupId = coerce rosterWeek.rosterGroupId
-        requestedSlotName <- resolveRosterSlotDefinitionNameForCreate rosterWeek
+        rosterGroup <- resolveRequestedRosterGroup
+        venueConfig <- fetchVenueConfig
+        window <- fetchRosterWindow currentVenueId rosterGroup.id (venueWeekStartDate venueConfig weekOffset)
+        let existingNames = map (.rosterWindowLaneName) window.rosterWindowLanes
+            submittedName = Text.strip (paramOrDefault @Text "" "name")
+            requestedSlotName = if Text.null submittedName
+                then Right (firstAvailableDefaultName existingNames)
+                else normalizeRosterSlotDefinitionName submittedName
         case requestedSlotName of
-            Left errorMessage -> respondToRosterSlotDefinitionError rosterWeek errorMessage
-            Right slotName -> do
-                duplicate <- activeRosterWeekSlotDefinitionWithName rosterWeek slotName
-                case duplicate of
-                    Just _ -> respondToRosterSlotDefinitionError rosterWeek "A column with that name already exists for this week."
-                    Nothing -> do
-                        mutationResult <- appendRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotName
-                        respondToRosterSlotDefinitionSuccess rosterWeek mutationResult "Roster column added."
+            Left errorMessage -> respondToRosterSlotDefinitionError rosterGroup.id weekOffset errorMessage
+            Right laneName -> do
+                result <- appendRosterWindowLaneMutation rosterGroup.id weekOffset laneName
+                case result of
+                    Left errorMessage -> respondToRosterSlotDefinitionError rosterGroup.id weekOffset errorMessage
+                    Right mutationResult -> respondToRosterSlotDefinitionSuccess rosterGroup.id weekOffset mutationResult "Roster column added."
 
     action currentAction@DeleteRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
-        slotDefinition <- fetch rosterWeekSlotDefinitionId
-        rosterWeek <- fetch (Id slotDefinition.rosterWeekId :: Id RosterWeek)
-        ensureRecordInCurrentVenue rosterWeek.venueId
-        ensureRosterWeekIsDraftForEdit rosterWeek
-
-        activeDefinitions <- query @RosterWeekSlotDefinition
-            |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+        rosterLane <- query @RosterLane
+            |> filterWhere (#id, rosterWeekSlotDefinitionId)
             |> filterWhere (#deletedAt, Nothing)
-            |> fetch
-        if length activeDefinitions <= 1
-            then respondToRosterSlotDefinitionError rosterWeek "Roster weeks need at least one column."
-            else do
-                let rosterGroupId = coerce rosterWeek.rosterGroupId
-                mutationResult <- removeRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotDefinition
-                respondToRosterSlotDefinitionSuccess rosterWeek mutationResult "Roster column removed."
+            |> fetchOne
+        rosterDay <- query @RosterDay
+            |> filterWhere (#id, Id rosterLane.rosterDayId)
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> fetchOne
+        accessDeniedUnless (rosterDay.publicationState == Draft)
+        venueConfig <- fetchVenueConfig
+        let weekOffset = venueWeekOffsetForDay venueConfig rosterDay.operationalDate
+            rosterGroupId = Id rosterDay.rosterGroupId
+        result <- removeRosterWindowLaneMutation rosterGroupId weekOffset rosterLane.id
+        case result of
+            Left errorMessage -> respondToRosterSlotDefinitionError rosterGroupId weekOffset errorMessage
+            Right mutationResult -> respondToRosterSlotDefinitionSuccess rosterGroupId weekOffset mutationResult "Roster column removed."
 
-    action currentAction@SortRosterWeekAction { rosterWeekId } = runBepis currentAction BepisMutationAction do
+    action currentAction@SortRosterWeekAction { weekOffset } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
-        rosterWeek <- fetch rosterWeekId
-        ensureRecordInCurrentVenue rosterWeek.venueId
-        ensureRosterWeekIsDraftForEdit rosterWeek
-
-        let rosterGroupId = coerce rosterWeek.rosterGroupId
-        mutationResult <- repackRosterWeekMutation rosterWeek
+        rosterGroup <- resolveRequestedRosterGroup
+        mutationResult <- repackRosterWindowMutation rosterGroup.id weekOffset
 
         if isHtmxRequest
             then
                 respondWithRosterResourceInvalidation
-                    rosterGroupId
-                    rosterWeek.weekOffset
+                    rosterGroup.id
+                    weekOffset
                     mutationResult.liveMutationTouchedResources
                     rosterGridInnerAndStaffPanelFragments
                     clearDialogOverlayOob
             else do
                 setSuccessMessage "Roster sorted."
-                redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+                redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
 
     action currentAction@ToggleRosterDayClosedAction { rosterDayId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
 
-        rosterDay <- fetch rosterDayId
-        let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
-        rosterWeek <- fetch rosterWeekId
+        rosterDay <- fetchRosterDayForMutation rosterDayId
+        rosterWeek <- rosterPlanningWeekForDay rosterDay
         ensureRecordInCurrentVenue rosterWeek.venueId
         ensureRosterWeekIsDraftForEdit rosterWeek
 
@@ -656,9 +659,8 @@ instance Controller RosterWeeksController where
         ensureManagerRole
         ensureVenueWritable
 
-        rosterDay <- fetch rosterDayId
-        let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
-        rosterWeek <- fetch rosterWeekId
+        rosterDay <- fetchRosterDayForMutation rosterDayId
+        rosterWeek <- rosterPlanningWeekForDay rosterDay
         ensureRecordInCurrentVenue rosterWeek.venueId
         ensureRosterWeekIsDraftForEdit rosterWeek
 
@@ -672,9 +674,12 @@ instance Controller RosterWeeksController where
                     redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
         let rosterGroupId = coerce rosterWeek.rosterGroupId
-        slotTemplate <- fetchRosterWeekSlotTemplate rosterWeek
+        activeLanes <- query @RosterLane
+            |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+            |> filterWhere (#deletedAt, Nothing)
+            |> fetch
 
-        if null slotTemplate
+        if null activeLanes
             then do
                 let errorMessage = "Add at least one active slot to the selected roster group before adding roster rows."
                 if isHtmxRequest
@@ -702,9 +707,8 @@ instance Controller RosterWeeksController where
         ensureManagerRole
         ensureVenueWritable
 
-        rosterDay <- fetch rosterDayId
-        let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
-        rosterWeek <- fetch rosterWeekId
+        rosterDay <- fetchRosterDayForMutation rosterDayId
+        rosterWeek <- rosterPlanningWeekForDay rosterDay
         ensureRecordInCurrentVenue rosterWeek.venueId
         ensureRosterWeekIsDraftForEdit rosterWeek
 
@@ -730,12 +734,11 @@ instance Controller RosterWeeksController where
                     redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
         let rosterGroupId = coerce rosterWeek.rosterGroupId
-        activeDefinitions <- fetchRosterWeekOrderedSlotNames rosterWeek
-        preview <- previewRemoveRosterRowPacking rosterDay activeDefinitions
-        if preview.removeRosterRowOverflowCount > 0 && not confirmDeletePopulatedRow
+        preview <- previewRemoveRosterDayRowByLanes rosterDay
+        if preview.laneRowRemovalOverflowCount > 0 && not confirmDeletePopulatedRow
             then respondWithRemoveRosterRowConfirmation rosterDay preview
             else do
-                mutationResult <- removeRosterDayRowMutation rosterGroupId rosterWeek rosterDay activeDefinitions
+                mutationResult <- removeRosterDayRowByLanesMutation rosterGroupId rosterWeek rosterDay
 
                 if isHtmxRequest
                     then do
@@ -816,7 +819,8 @@ instance Controller RosterWeeksController where
                                             RosterDayDropBoundaryReady targetRosterWeek copiedBoundariesSlot -> do
                                                 let updatedSlot = copiedBoundariesSlot
                                                         |> set #rosterDayId (unpackId targetRosterDay.id)
-                                                        |> set #rosterWeekSlotDefinitionId (unpackId targetSlotDefinition.id)
+                                                        |> set #rosterLaneId (unpackId targetSlotDefinition.id)
+                                                        |> set #rosterWeekSlotDefinitionId (targetSlotDefinition.legacyRosterWeekSlotDefinitionId <|> sourceSlot.rosterWeekSlotDefinitionId)
                                                         |> set #slotSortOrder targetSlotDefinition.sortOrder
                                                         |> set #rowIndex targetRowIndex
                                                 mutationResult <- moveRosterSlotMutation rosterGroup.id targetRosterWeek sourceRosterDay targetRosterDay sourceSlot updatedSlot
@@ -853,7 +857,8 @@ instance Controller RosterWeeksController where
                             RosterTimelineDropBoundaryReady rosterWeek boundaries -> do
                                 let updatedSlot = timelineSourceSlot
                                         |> set #rosterDayId (unpackId timelineTargetRosterDay.id)
-                                        |> set #rosterWeekSlotDefinitionId (unpackId timelineTargetSlotDefinition.id)
+                                        |> set #rosterLaneId (unpackId timelineTargetSlotDefinition.id)
+                                        |> set #rosterWeekSlotDefinitionId (timelineTargetSlotDefinition.legacyRosterWeekSlotDefinitionId <|> timelineSourceSlot.rosterWeekSlotDefinitionId)
                                         |> set #slotSortOrder timelineTargetSlotDefinition.sortOrder
                                         |> set #rowIndex timelineTargetRowIndex
                                         |> applyRosterSlotBoundaries boundaries
@@ -901,7 +906,8 @@ instance Controller RosterWeeksController where
                                                     Right assignmentSlot -> do
                                                         let copiedSlot = assignmentSlot
                                                                 |> set #rosterDayId (unpackId targetRosterDay.id)
-                                                                |> set #rosterWeekSlotDefinitionId (unpackId targetSlotDefinition.id)
+                                                                |> set #rosterLaneId (unpackId targetSlotDefinition.id)
+                                                                |> set #rosterWeekSlotDefinitionId (targetSlotDefinition.legacyRosterWeekSlotDefinitionId <|> sourceSlot.rosterWeekSlotDefinitionId)
                                                                 |> set #slotSortOrder targetSlotDefinition.sortOrder
                                                                 |> set #rowIndex targetRowIndex
                                                                 |> set #startsAt copiedBoundariesSlot.startsAt
@@ -995,10 +1001,11 @@ instance Controller RosterWeeksController where
     action currentAction@NewRosterSlotDialogAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = runBepis currentAction BepisDialogAction do
         ensureManagerRole
         ensureVenueWritable
-        (rosterDay, rosterWeek) <- fetchRosterSlotCreateContext rosterDayId
+        rosterDay <- fetchRosterDayForMutation rosterDayId
+        rosterWeek <- rosterPlanningWeekForDay rosterDay
         authorizeRosterSlotCreateContext rosterDay rosterWeek rowIndex
-        slotDefinition <- fetchRosterSlotDefinitionForCreate rosterWeekSlotDefinitionId
-        authorizeRosterSlotDefinitionForCreate rosterWeek slotDefinition
+        slotDefinition <- fetchRosterSlotDefinitionForCreate rosterDayId rosterWeekSlotDefinitionId
+        authorizeRosterSlotDefinitionForCreate rosterDay slotDefinition
         shiftTypes <- fetchCurrentVenueRosterShiftTypesForDialog
         if null shiftTypes
             then respondWithRosterToast "Create at least one shift type in Admin > Shift Types before adding roster shifts." "app-toast-error"
@@ -1018,14 +1025,15 @@ instance Controller RosterWeeksController where
     action currentAction@CreateRosterSlotAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
-        (rosterDay, rosterWeek) <- fetchRosterSlotCreateContext rosterDayId
+        rosterDay <- fetchRosterDayForMutation rosterDayId
+        rosterWeek <- rosterPlanningWeekForDay rosterDay
         authorizeRosterSlotCreateContext rosterDay rosterWeek rowIndex
-        slotDefinition <- fetchRosterSlotDefinitionForCreate rosterWeekSlotDefinitionId
-        authorizeRosterSlotDefinitionForCreate rosterWeek slotDefinition
+        slotDefinition <- fetchRosterSlotDefinitionForCreate rosterDayId rosterWeekSlotDefinitionId
+        authorizeRosterSlotDefinitionForCreate rosterDay slotDefinition
         let rosterGroupId = coerce rosterWeek.rosterGroupId
         existingSlot <- query @RosterSlot
             |> filterWhere (#rosterDayId, unpackId rosterDay.id)
-            |> filterWhere (#rosterWeekSlotDefinitionId, unpackId slotDefinition.id)
+            |> filterWhere (#rosterLaneId, unpackId slotDefinition.id)
             |> filterWhere (#rowIndex, rowIndex)
             |> filterWhere (#deletedAt, Nothing)
             |> fetchOneOrNothing
@@ -1037,7 +1045,8 @@ instance Controller RosterWeeksController where
                         fromMaybe
                             ( newRecord @RosterSlot
                             |> set #rosterDayId (unpackId rosterDay.id)
-                            |> set #rosterWeekSlotDefinitionId (unpackId slotDefinition.id)
+                            |> set #rosterLaneId (unpackId slotDefinition.id)
+                            |> set #rosterWeekSlotDefinitionId slotDefinition.legacyRosterWeekSlotDefinitionId
                             |> set #slotSortOrder slotDefinition.sortOrder
                             |> set #rowIndex rowIndex
                             )
@@ -1123,9 +1132,9 @@ authorizeRosterSlotCreateContext rosterDay rosterWeek rowIndex = do
     accessDeniedUnless (not rosterDay.isClosed)
     accessDeniedUnless (rowIndex >= 0)
 
-authorizeRosterSlotDefinitionForCreate :: (?context :: ControllerContext, ?request :: Request) => RosterWeek -> RosterWeekSlotDefinition -> IO ()
-authorizeRosterSlotDefinitionForCreate rosterWeek slotDefinition = do
-    accessDeniedUnless (slotDefinition.rosterWeekId == unpackId rosterWeek.id)
+authorizeRosterSlotDefinitionForCreate :: (?context :: ControllerContext, ?request :: Request) => RosterDay -> RosterLane -> IO ()
+authorizeRosterSlotDefinitionForCreate rosterDay slotDefinition = do
+    accessDeniedUnless (slotDefinition.rosterDayId == unpackId rosterDay.id)
     accessDeniedUnless (isNothing slotDefinition.deletedAt)
 
 authorizeRosterSlotForEdit :: (?context :: ControllerContext, ?request :: Request) => RosterSlot -> IO ()
@@ -1163,11 +1172,11 @@ respondWithSilentRosterNoOp rosterGroupId weekOffset =
             respondHtmlProfiled mempty
         else redirectToPath (rosterWeekUrl weekOffset rosterGroupId)
 
-renderRosterShiftDialogForCreate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterDay -> RosterWeek -> RosterWeekSlotDefinition -> Int -> RosterShiftDialogValues -> IO ()
+renderRosterShiftDialogForCreate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterDay -> RosterWeek -> RosterLane -> Int -> RosterShiftDialogValues -> IO ()
 renderRosterShiftDialogForCreate rosterDay rosterWeek slotDefinition rowIndex values =
     respondHtmlProfiled =<< rosterShiftDialogForCreateHtml rosterDay rosterWeek slotDefinition rowIndex values
 
-respondWithRosterShiftCreateDialogOob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterDay -> RosterWeek -> RosterWeekSlotDefinition -> Int -> RosterShiftDialogValues -> IO ()
+respondWithRosterShiftCreateDialogOob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterDay -> RosterWeek -> RosterLane -> Int -> RosterShiftDialogValues -> IO ()
 respondWithRosterShiftCreateDialogOob rosterDay rosterWeek slotDefinition rowIndex values = do
     dialog <- rosterShiftDialogForCreateHtml rosterDay rosterWeek slotDefinition rowIndex values
     respondHtmlProfiled [hsx|
@@ -1259,13 +1268,44 @@ redirectToViewableRosterWeek weekOffset rosterGroupId = do
             respondHtmlProfiled mempty
         else redirectToPath targetPath
 
+fetchRosterDayForMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterDay -> IO RosterDay
+fetchRosterDayForMutation rosterDayId = do
+    existing <- query @RosterDay
+        |> filterWhere (#id, rosterDayId)
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> fetchOneOrNothing
+    case existing of
+        Just rosterDay
+            | rosterDay.publicationState == Draft -> do
+                venueConfig <- fetchVenueConfig
+                let rosterGroupId = Id rosterDay.rosterGroupId
+                    weekOffset = venueWeekOffsetForDay venueConfig rosterDay.operationalDate
+                _ <- materializeRosterWindowMutation rosterGroupId weekOffset
+                fetch rosterDayId
+            | otherwise -> pure rosterDay
+        Nothing -> do
+            let rosterGroupId = Id (param @UUID "rosterGroupId")
+            let operationalDate = param @Calendar.Day "operationalDate"
+            rosterGroup <- query @RosterGroup
+                |> filterWhere (#id, rosterGroupId)
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhere (#isActive, True)
+                |> fetchOne
+            accessDeniedUnless (rosterDayId == projectedRosterDayId rosterGroup.id operationalDate)
+            venueConfig <- fetchVenueConfig
+            let weekOffset = venueWeekOffsetForDay venueConfig operationalDate
+            _ <- materializeRosterWindowMutation rosterGroup.id weekOffset
+            rosterDay <- fetch rosterDayId
+            accessDeniedUnless (rosterDay.operationalDate == operationalDate)
+            pure rosterDay
+
 resolveRosterGroupIdForFragmentRosterDay :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Id RosterDay -> IO (Id RosterGroup)
 resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId = do
     rosterDay <- fetch rosterDayId
-    rosterWeek <- fetch (Id rosterDay.rosterWeekId :: Id RosterWeek)
-    ensureRecordInCurrentVenue rosterWeek.venueId
-    accessDeniedUnless (rosterWeek.weekOffset == weekOffset)
-    let rosterGroupId = coerce rosterWeek.rosterGroupId
+    ensureRecordInCurrentVenue rosterDay.venueId
+    venueConfig <- query @VenueConfig |> filterWhere (#venueId, rosterDay.venueId) |> fetchOne
+    accessDeniedUnless (venueWeekOffsetForDay venueConfig rosterDay.operationalDate == weekOffset)
+    let rosterGroupId = coerce rosterDay.rosterGroupId
     viewableRosterGroup <- fetchViewableRosterGroup rosterGroupId
     accessDeniedUnless (isJust viewableRosterGroup)
     pure rosterGroupId
@@ -1312,7 +1352,7 @@ rosterDeleteSlotActionRoute actionUrl =
         , appShellActionRouteExtraAttrs = []
         }
 
-respondWithRemoveRosterRowConfirmation :: (?context :: ControllerContext, ?request :: Request) => RosterDay -> RemoveRosterRowPackingPreview -> IO ()
+respondWithRemoveRosterRowConfirmation :: (?context :: ControllerContext, ?request :: Request) => RosterDay -> RosterDayRowRemovalPreview -> IO ()
 respondWithRemoveRosterRowConfirmation rosterDay preview =
     if isHtmxRequest
         then respondHtmlProfiled [hsx|
@@ -1326,7 +1366,7 @@ respondWithRemoveRosterRowConfirmation rosterDay preview =
             redirectToPath (pathTo RosterWeeksAction)
     where
         confirmFormId = "confirm-remove-roster-row-form" :: Text
-        overflowCount = preview.removeRosterRowOverflowCount
+        overflowCount = preview.laneRowRemovalOverflowCount
         overflowCopy =
             if overflowCount == 1
                 then "1 shift"
@@ -1409,7 +1449,6 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
         setTitle "Roster"
         rosterGroups <- profileActionSpan "roster.page.fetch_roster_groups" fetchViewableRosterGroups
         let currentRosterGroup = fromMaybe (error "authorized roster group missing") (find ((== requestedRosterGroupId) . (.id)) rosterGroups)
-        _ <- profileActionSpan "roster.page.ensure_week_exists" (ensureRosterWeekExists currentRosterGroup.id weekOffset)
         rosterDataOrNothing <- profileActionSpan "roster.page.fetch_read_model" (fetchVisibleRosterReadModel currentRosterGroup.id weekOffset)
         passkeySetupPrompt <- profileActionSpan "roster.page.passkey_prompt" passkeySetupPromptFromSession
         passkeyStrongAuthenticationRequired <- profileActionSpan "roster.page.passkey_policy" currentUserRequiresMandatoryPasskey
@@ -1418,9 +1457,10 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
         case rosterDataOrNothing of
             Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } ->
                 let visibleRosterWeek =
-                        if rosterWeek.isLive || hasRole Manager
-                            then Just rosterWeek
-                            else Nothing
+                        case rosterWeek of
+                            Just legacyRosterWeek
+                                | legacyRosterWeek.isLive || hasRole Manager -> Just legacyRosterWeek
+                            _ -> Nothing
                  in profileActionSpan "roster.page.respond" $
                         respondWithRosterWeekView
                             ShowView
@@ -1460,7 +1500,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
                                 , rosterTimelineTodayUrl = Just timelineTodayUrl
                                 }
             Nothing ->
-                error "Roster week should exist after ensureRosterWeekExists"
+                error "Roster date range could not be projected for the selected roster group"
 
 respondWithRosterWeekView :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => ShowView -> IO ()
 respondWithRosterWeekView showView =
@@ -1487,8 +1527,12 @@ fetchRelatedSlotsForStaffIdsInRosterWeek rosterWeek staffIds =
     if null staffIds
         then pure []
         else do
+            venueConfig <- query @VenueConfig |> filterWhere (#venueId, rosterWeek.venueId) |> fetchOne
+            let weekStartDate = venueWeekStartDate venueConfig rosterWeek.weekOffset
             rosterDays <- query @RosterDay
-                |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+                |> filterWhere (#rosterGroupId, rosterWeek.rosterGroupId)
+                |> filterWhereGreaterThanOrEqualTo (#operationalDate, weekStartDate)
+                |> filterWhereLessThanOrEqualTo (#operationalDate, Calendar.addDays 6 weekStartDate)
                 |> fetch
             if null rosterDays
                 then pure []
@@ -1498,26 +1542,24 @@ fetchRelatedSlotsForStaffIdsInRosterWeek rosterWeek staffIds =
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetch
 
-respondToRosterSlotDefinitionError :: (?context :: ControllerContext, ?request :: Request) => RosterWeek -> Text -> IO ()
-respondToRosterSlotDefinitionError rosterWeek errorMessage =
+respondToRosterSlotDefinitionError :: (?context :: ControllerContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
+respondToRosterSlotDefinitionError rosterGroupId weekOffset errorMessage =
     if isHtmxRequest
         then respondWithRosterToast errorMessage "app-toast-error"
         else do
             setErrorMessage errorMessage
-            redirectToPath (rosterWeekUrl rosterWeek.weekOffset (coerce rosterWeek.rosterGroupId :: Id RosterGroup))
+            redirectToPath (rosterWeekUrl weekOffset rosterGroupId)
 
-respondToRosterSlotDefinitionSuccess :: (?context :: ControllerContext, ?request :: Request) => RosterWeek -> LiveMutationResult value -> Text -> IO ()
-respondToRosterSlotDefinitionSuccess rosterWeek mutationResult successMessage =
+respondToRosterSlotDefinitionSuccess :: (?context :: ControllerContext, ?request :: Request) => Id RosterGroup -> Int -> LiveMutationResult value -> Text -> IO ()
+respondToRosterSlotDefinitionSuccess rosterGroupId weekOffset mutationResult successMessage =
     if isHtmxRequest
         then
             respondWithRosterResourceInvalidation
                 rosterGroupId
-                rosterWeek.weekOffset
+                weekOffset
                 mutationResult.liveMutationTouchedResources
                 rosterGridInnerAndStaffPanelFragments
                 mempty
         else do
             setSuccessMessage successMessage
-            redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
-    where
-        rosterGroupId = coerce rosterWeek.rosterGroupId
+            redirectToPath (rosterWeekUrl weekOffset rosterGroupId)

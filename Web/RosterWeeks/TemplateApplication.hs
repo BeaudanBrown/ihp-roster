@@ -150,7 +150,7 @@ prepareStructurallyValidContent ::
 prepareStructurallyValidContent request saved targetWeek = do
         allTargetDays <-
             query @RosterDay
-                |> filterWhere (#rosterWeekId, unpackId targetWeek.id)
+                |> filterWhere (#rosterWeekId, Just (unpackId targetWeek.id))
                 |> orderByAsc #dayOffset
                 |> fetch
         let targetDays = case request.applicationTargetDayOffset of
@@ -288,7 +288,7 @@ validateAssignments targetWeek = traverse validateAssignment
                                 let candidate =
                                         newRecord @RosterSlot
                                             |> set #rosterDayId (unpackId plan.preparedTargetDay.id)
-                                            |> set #rosterWeekSlotDefinitionId UUID.nil
+                                            |> set #rosterWeekSlotDefinitionId Nothing
                                             |> set #slotSortOrder plan.preparedTemplateColumn.sortOrder
                                             |> set #rowIndex plan.preparedTemplateShift.rowIndex
                                             |> set #startsAt (Just plan.preparedStartsAt)

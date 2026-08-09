@@ -929,7 +929,7 @@ CREATE TABLE roster_weeks (
 );
 CREATE TABLE roster_days (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
-    roster_week_id UUID NOT NULL,
+    roster_week_id UUID DEFAULT NULL,
     venue_id UUID NOT NULL,
     roster_group_id UUID NOT NULL,
     operational_date DATE NOT NULL,
@@ -986,7 +986,7 @@ CREATE TABLE roster_slots (
     roster_lane_id UUID NOT NULL,
     assignment_state TEXT NOT NULL,
     staff_id UUID,
-    roster_week_slot_definition_id UUID NOT NULL,
+    roster_week_slot_definition_id UUID DEFAULT NULL,
     slot_sort_order INT DEFAULT 0 NOT NULL,
     row_index INT NOT NULL,
     starts_at TIMESTAMP WITH TIME ZONE,
@@ -2279,6 +2279,10 @@ BEGIN
         RAISE EXCEPTION 'roster day legacy identity is immutable after date-native projection';
     END IF;
 
+    IF NEW.roster_week_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+
     SELECT
         rw.venue_id,
         rw.roster_group_id,
@@ -2339,9 +2343,9 @@ BEGIN
     ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         sort_order = EXCLUDED.sort_order,
-        deleted_at = EXCLUDED.deleted_at,
-        deleted_by_user_id = EXCLUDED.deleted_by_user_id,
-        delete_reason = EXCLUDED.delete_reason,
+        deleted_at = CASE WHEN roster_lanes.delete_reason = 'roster_window_lane_removed' THEN roster_lanes.deleted_at ELSE EXCLUDED.deleted_at END,
+        deleted_by_user_id = CASE WHEN roster_lanes.delete_reason = 'roster_window_lane_removed' THEN roster_lanes.deleted_by_user_id ELSE EXCLUDED.deleted_by_user_id END,
+        delete_reason = CASE WHEN roster_lanes.delete_reason = 'roster_window_lane_removed' THEN roster_lanes.delete_reason ELSE EXCLUDED.delete_reason END,
         created_at = EXCLUDED.created_at,
         updated_at = EXCLUDED.updated_at
     RETURNING id INTO projected_lane_id;
@@ -2357,6 +2361,9 @@ CREATE OR REPLACE FUNCTION project_legacy_roster_day_lanes()
 RETURNS TRIGGER
 AS $$
 BEGIN
+    IF NEW.roster_week_id IS NULL THEN
+        RETURN NEW;
+    END IF;
     PERFORM project_legacy_roster_lane(NEW.id, definition.id)
     FROM roster_week_slot_definitions definition
     WHERE definition.roster_week_id = NEW.roster_week_id;
@@ -2379,6 +2386,12 @@ CREATE OR REPLACE FUNCTION project_legacy_roster_slot_lane()
 RETURNS TRIGGER
 AS $$
 BEGIN
+    IF NEW.roster_week_slot_definition_id IS NULL THEN
+        IF NEW.roster_lane_id IS NULL THEN
+            RAISE EXCEPTION 'date-native roster slots require a date-local roster lane';
+        END IF;
+        RETURN NEW;
+    END IF;
     NEW.roster_lane_id := project_legacy_roster_lane(
         NEW.roster_day_id,
         NEW.roster_week_slot_definition_id
@@ -2611,50 +2624,87 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION enforce_roster_slot_week_definition_integrity()
+CREATE OR REPLACE FUNCTION validate_roster_day_scope()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM roster_groups roster_group
+        WHERE roster_group.id = NEW.roster_group_id
+          AND roster_group.venue_id = NEW.venue_id
+    ) THEN
+        RAISE EXCEPTION 'roster day venue and roster group must share scope';
+    END IF;
+    IF NEW.roster_week_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM roster_weeks roster_week
+        WHERE roster_week.id = NEW.roster_week_id
+          AND roster_week.venue_id = NEW.venue_id
+          AND roster_week.roster_group_id = NEW.roster_group_id
+    ) THEN
+        RAISE EXCEPTION 'legacy roster week must match roster day scope';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION validate_roster_lane_scope()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    IF NEW.legacy_roster_week_slot_definition_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1
+        FROM roster_days roster_day
+        JOIN roster_week_slot_definitions definition
+          ON definition.id = NEW.legacy_roster_week_slot_definition_id
+        WHERE roster_day.id = NEW.roster_day_id
+          AND roster_day.roster_week_id = definition.roster_week_id
+    ) THEN
+        RAISE EXCEPTION 'legacy roster lane definition must match roster day week';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION validate_roster_slot_integrity()
 RETURNS TRIGGER
 AS $$
 BEGIN
     IF NEW.deleted_at IS NOT NULL THEN
         RETURN NEW;
     END IF;
-
     IF NOT EXISTS (
-        SELECT 1
-        FROM roster_days rd
-        JOIN roster_week_slot_definitions rwsd ON rwsd.id = NEW.roster_week_slot_definition_id
-        WHERE rd.id = NEW.roster_day_id
-            AND rd.roster_week_id = rwsd.roster_week_id
+        SELECT 1 FROM roster_lanes lane
+        WHERE lane.id = NEW.roster_lane_id
+          AND lane.roster_day_id = NEW.roster_day_id
+          AND lane.deleted_at IS NULL
     ) THEN
-        RAISE EXCEPTION 'roster slot day and slot definition must belong to the same roster week';
+        RAISE EXCEPTION 'roster slot lane must be active and belong to its roster day';
     END IF;
-
-    IF NEW.shift_type_id IS NOT NULL
-        AND NOT EXISTS (
-            SELECT 1
-            FROM roster_days rd
-            JOIN roster_weeks rw ON rw.id = rd.roster_week_id
-            JOIN shift_types st ON st.id = NEW.shift_type_id
-            WHERE rd.id = NEW.roster_day_id
-                AND st.venue_id = rw.venue_id
-        )
-    THEN
-        RAISE EXCEPTION 'roster slot shift_type_id must stay within roster week venue';
+    IF NEW.roster_week_slot_definition_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM roster_lanes lane
+        WHERE lane.id = NEW.roster_lane_id
+          AND lane.legacy_roster_week_slot_definition_id = NEW.roster_week_slot_definition_id
+    ) THEN
+        RAISE EXCEPTION 'legacy roster slot definition must match its date-local lane';
     END IF;
-
-    IF NEW.staff_id IS NOT NULL
-        AND NOT EXISTS (
-            SELECT 1
-            FROM roster_days rd
-            JOIN roster_weeks rw ON rw.id = rd.roster_week_id
-            JOIN staff s ON s.id = NEW.staff_id
-            WHERE rd.id = NEW.roster_day_id
-                AND s.venue_id = rw.venue_id
-        )
-    THEN
-        RAISE EXCEPTION 'roster slot staff_id must stay within roster week venue';
+    IF NEW.shift_type_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1
+        FROM roster_days roster_day
+        JOIN shift_types shift_type ON shift_type.id = NEW.shift_type_id
+        WHERE roster_day.id = NEW.roster_day_id
+          AND shift_type.venue_id = roster_day.venue_id
+    ) THEN
+        RAISE EXCEPTION 'roster slot shift type must stay within roster day venue';
     END IF;
-
+    IF NEW.staff_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1
+        FROM roster_days roster_day
+        JOIN staff staff_member ON staff_member.id = NEW.staff_id
+        WHERE roster_day.id = NEW.roster_day_id
+          AND staff_member.venue_id = roster_day.venue_id
+    ) THEN
+        RAISE EXCEPTION 'roster slot staff assignment must stay within roster day venue';
+    END IF;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -2935,13 +2985,15 @@ CREATE TRIGGER enforce_roster_week_venue_integrity BEFORE INSERT OR UPDATE ON ro
 CREATE TRIGGER refresh_legacy_roster_week_day_projections AFTER UPDATE ON roster_weeks FOR EACH ROW EXECUTE FUNCTION refresh_legacy_roster_week_day_projections();
 CREATE TRIGGER advance_roster_calendar_revision BEFORE UPDATE ON venue_config FOR EACH ROW EXECUTE FUNCTION advance_roster_calendar_revision();
 CREATE TRIGGER project_legacy_roster_day BEFORE INSERT OR UPDATE ON roster_days FOR EACH ROW EXECUTE FUNCTION project_legacy_roster_day();
+CREATE TRIGGER validate_roster_day_scope BEFORE INSERT OR UPDATE ON roster_days FOR EACH ROW EXECUTE FUNCTION validate_roster_day_scope();
 CREATE TRIGGER project_legacy_roster_day_lanes AFTER INSERT OR UPDATE ON roster_days FOR EACH ROW EXECUTE FUNCTION project_legacy_roster_day_lanes();
 CREATE TRIGGER prevent_legacy_roster_definition_week_change BEFORE UPDATE ON roster_week_slot_definitions FOR EACH ROW EXECUTE FUNCTION prevent_legacy_roster_definition_week_change();
 CREATE TRIGGER project_legacy_roster_week_definition_lanes AFTER INSERT OR UPDATE ON roster_week_slot_definitions FOR EACH ROW EXECUTE FUNCTION project_legacy_roster_week_definition_lanes();
 CREATE TRIGGER prevent_legacy_roster_lane_identity_change BEFORE UPDATE ON roster_lanes FOR EACH ROW EXECUTE FUNCTION prevent_legacy_roster_lane_identity_change();
+CREATE TRIGGER validate_roster_lane_scope BEFORE INSERT OR UPDATE ON roster_lanes FOR EACH ROW EXECUTE FUNCTION validate_roster_lane_scope();
 CREATE TRIGGER enforce_slot_name_venue_integrity BEFORE INSERT OR UPDATE ON slot_names FOR EACH ROW EXECUTE FUNCTION enforce_slot_name_venue_integrity();
-CREATE TRIGGER enforce_roster_slot_week_definition_integrity BEFORE INSERT OR UPDATE ON roster_slots FOR EACH ROW EXECUTE FUNCTION enforce_roster_slot_week_definition_integrity();
 CREATE TRIGGER project_legacy_roster_slot_lane BEFORE INSERT OR UPDATE ON roster_slots FOR EACH ROW EXECUTE FUNCTION project_legacy_roster_slot_lane();
+CREATE TRIGGER validate_roster_slot_integrity BEFORE INSERT OR UPDATE ON roster_slots FOR EACH ROW EXECUTE FUNCTION validate_roster_slot_integrity();
 CREATE TRIGGER enforce_venue_invitation_staff_venue_integrity BEFORE INSERT OR UPDATE ON venue_invitations FOR EACH ROW EXECUTE FUNCTION enforce_venue_invitation_staff_venue_integrity();
 CREATE TRIGGER enforce_staff_roster_group_venue_integrity BEFORE INSERT OR UPDATE ON staff_roster_groups FOR EACH ROW EXECUTE FUNCTION enforce_staff_roster_group_venue_integrity();
 CREATE TRIGGER enforce_staff_shift_preference_venue_integrity BEFORE INSERT OR UPDATE ON staff_shift_preferences FOR EACH ROW EXECUTE FUNCTION enforce_staff_shift_preference_venue_integrity();

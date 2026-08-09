@@ -191,7 +191,7 @@ fetchRosterTemplateReferenceWeek actor rosterGroup weekOffset
                 })
             Just rosterWeek -> do
                 days <- query @RosterDay
-                    |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+                    |> filterWhere (#rosterWeekId, Just (unpackId rosterWeek.id))
                     |> orderByAsc #dayOffset
                     |> fetch
                 columns <- query @RosterWeekSlotDefinition
@@ -314,7 +314,7 @@ fetchReferenceSource rosterGroup reference = do
         Nothing -> pure Nothing
         Just rosterWeek -> do
             sourceDays <- query @RosterDay
-                |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+                |> filterWhere (#rosterWeekId, Just (unpackId rosterWeek.id))
                 |> orderByAsc #dayOffset
                 |> fetch
             let selectedDays = case selectedDayOffset of
@@ -377,7 +377,8 @@ slotInput ::
     Maybe RosterTemplateShiftInput
 slotInput weekStartDate selectedDayOffset dayById definitionSortById slot = do
     sourceDay <- Map.lookup slot.rosterDayId dayById
-    columnSortOrder <- Map.lookup slot.rosterWeekSlotDefinitionId definitionSortById
+    definitionId <- slot.rosterWeekSlotDefinitionId
+    columnSortOrder <- Map.lookup definitionId definitionSortById
     startsAt <- slot.startsAt
     endsAt <- slot.endsAt
     shiftTypeId <- Id <$> slot.shiftTypeId

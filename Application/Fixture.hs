@@ -13,6 +13,7 @@ import Application.VenueTime.Model
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Char as Char
+import Data.Maybe (fromJust)
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays, fromGregorian)
@@ -200,7 +201,7 @@ createRosterWeekRecordForRosterGroup venue rosterGroup weekOffset isLive =
 createRosterDayRecord :: (?modelContext :: ModelContext) => RosterWeek -> Int -> IO RosterDay
 createRosterDayRecord rosterWeek dayOffset =
     newRecord @RosterDay
-        |> set #rosterWeekId (unpackId (get #id rosterWeek))
+        |> set #rosterWeekId (Just (unpackId (get #id rosterWeek)))
         |> set #dayOffset dayOffset
         |> set #isClosed False
         |> createRecord
@@ -208,7 +209,7 @@ createRosterDayRecord rosterWeek dayOffset =
 createRosterSlotRecord :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> RosterShiftAssignment -> Int -> IO RosterSlot
 createRosterSlotRecord rosterDay slotName assignment rowIndex = do
     slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
-    rosterWeek <- fetch (Id rosterDay.rosterWeekId :: Id RosterWeek)
+    rosterWeek <- fetch (Id (fromJust rosterDay.rosterWeekId) :: Id RosterWeek)
     venue <- fetch (Id rosterWeek.venueId :: Id Venue)
     shiftType <- ensureVenueDefaultShiftType venue
     let rosterDate = addDays (toInteger rosterDay.dayOffset) (fromGregorian 2025 1 6)
@@ -224,7 +225,7 @@ createRosterSlotRecord rosterDay slotName assignment rowIndex = do
                     }
     newRecord @RosterSlot
         |> set #rosterDayId (unpackId (get #id rosterDay))
-        |> set #rosterWeekSlotDefinitionId (unpackId (get #id slotDefinition))
+        |> set #rosterWeekSlotDefinitionId (Just (unpackId (get #id slotDefinition)))
         |> set #slotSortOrder slotDefinition.sortOrder
         |> set #rowIndex rowIndex
         |> set #shiftTypeId (Just (unpackId shiftType.id))
@@ -234,8 +235,9 @@ createRosterSlotRecord rosterDay slotName assignment rowIndex = do
 
 ensureRosterWeekSlotDefinitionForSlotName :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> IO RosterWeekSlotDefinition
 ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName = do
+    let rosterWeekId = fromJust rosterDay.rosterWeekId
     existing <- query @RosterWeekSlotDefinition
-        |> filterWhere (#rosterWeekId, rosterDay.rosterWeekId)
+        |> filterWhere (#rosterWeekId, rosterWeekId)
         |> filterWhere (#name, slotName.name)
         |> filterWhere (#deletedAt, Nothing)
         |> fetchOneOrNothing
@@ -243,7 +245,7 @@ ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName = do
         Just slotDefinition -> pure slotDefinition
         Nothing ->
             newRecord @RosterWeekSlotDefinition
-                |> set #rosterWeekId rosterDay.rosterWeekId
+                |> set #rosterWeekId rosterWeekId
                 |> set #name slotName.name
                 |> set #sortOrder slotName.sortOrder
                 |> createRecord

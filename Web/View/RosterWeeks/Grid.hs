@@ -70,6 +70,9 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay)
 import Data.UUID (UUID)
 import qualified Prelude
+import Web.RosterWeeks.DateRange (RosterWindowLane (..), laneForOperationalDate,
+                                  rosterWindowLaneName,
+                                  rosterWindowLaneRepresentative)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         rosterDayColumnDropzoneRef,
@@ -332,7 +335,7 @@ rosterSlotsHorizontalSnapConfig = HorizontalSnapEqualGroups (HorizontalSnapGroup
     , horizontalSnapGroupScopeSelector = ".roster-slots-scroller"
     })
 
-renderRosterDayRowsGrid :: (?context :: ControllerContext) => Bool -> Bool -> Maybe RosterWeek -> [RosterWeekSlotDefinition] -> RosterDayRenderModel -> [RosterDay] -> Html
+renderRosterDayRowsGrid :: (?context :: ControllerContext) => Bool -> Bool -> Maybe RosterWeek -> [RosterWindowLane] -> RosterDayRenderModel -> [RosterDay] -> Html
 renderRosterDayRowsGrid endTimesEnabled slotColumnsAreEditable maybeRosterWeek slotNames dayModel rosterDays = [hsx|
     {renderrosterDayRailLiveFragment slotColumnsAreEditable dayModel rosterDays}
     {when dayModel.dayShowWageEstimates (renderrosterWageRailLiveFragment dayModel rosterDays)}
@@ -400,11 +403,11 @@ renderHiddenDraftSlotsGridFragmentWithSwap maybeSwapOob _rosterDays = [hsx|
     </div>
 |]
 
-renderrosterSlotsGridLiveFragment :: (?context :: ControllerContext) => Bool -> Bool -> Maybe RosterWeek -> [RosterWeekSlotDefinition] -> RosterDayRenderModel -> [RosterDay] -> Html
+renderrosterSlotsGridLiveFragment :: (?context :: ControllerContext) => Bool -> Bool -> Maybe RosterWeek -> [RosterWindowLane] -> RosterDayRenderModel -> [RosterDay] -> Html
 renderrosterSlotsGridLiveFragment =
     renderrosterSlotsGridLiveFragmentWithSwap Nothing
 
-renderrosterSlotsGridLiveFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Bool -> Bool -> Maybe RosterWeek -> [RosterWeekSlotDefinition] -> RosterDayRenderModel -> [RosterDay] -> Html
+renderrosterSlotsGridLiveFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Bool -> Bool -> Maybe RosterWeek -> [RosterWindowLane] -> RosterDayRenderModel -> [RosterDay] -> Html
 renderrosterSlotsGridLiveFragmentWithSwap maybeSwapOob endTimesEnabled slotColumnsAreEditable maybeRosterWeek slotNames dayModel rosterDays =
     let gridHeaders = profileHtmlComponent "render.roster.slots_grid_headers" [hsx|
             <div class="roster-grid-head" role="rowgroup">
@@ -462,7 +465,7 @@ renderRosterColumnEditDoneButton True = [hsx|
 |]
 renderRosterColumnEditDoneButton False = mempty
 
-renderSlotHeaderGroup :: (?context :: ControllerContext) => Bool -> Maybe RosterWeek -> Bool -> Int -> (Int, RosterWeekSlotDefinition) -> Html
+renderSlotHeaderGroup :: (?context :: ControllerContext) => Bool -> Maybe RosterWeek -> Bool -> Int -> (Int, RosterWindowLane) -> Html
 renderSlotHeaderGroup endTimesEnabled _ False _ (slotIndex, _) = [hsx|
     <div role="columnheader"
          class="roster-block-header"
@@ -490,11 +493,11 @@ renderSlotHeaderGroup endTimesEnabled _ _ _ (slotIndex, _) = [hsx|
          {...rosterImageExportCellAttrs ""}></div>
 |]
 
-renderSlotDeleteForm :: Int -> RosterWeekSlotDefinition -> Html
-renderSlotDeleteForm slotCount slotName =
+renderSlotDeleteForm :: Int -> RosterWindowLane -> Html
+renderSlotDeleteForm slotCount windowLane =
     renderFrontendSurfaceActionForm
         (RosterAction.deleteRosterWeekSlotDefinitionAction RosterAction.deleteRosterWeekSlotDefinitionActionFields)
-        (rosterGridActionRoute (pathTo (DeleteRosterWeekSlotDefinitionAction slotName.id)))
+        (rosterGridActionRoute (pathTo (DeleteRosterWeekSlotDefinitionAction (rosterWindowLaneRepresentative windowLane).id)))
             { actionRouteExtraAttrs = [("class", "mb-0")]
             }
         [hsx|
@@ -516,7 +519,7 @@ renderSlotAddButton :: (?context :: ControllerContext) => RosterWeek -> Bool -> 
 renderSlotAddButton rosterWeek True =
     renderFrontendSurfaceActionForm
         (RosterAction.createRosterWeekSlotDefinitionAction RosterAction.createRosterWeekSlotDefinitionActionFields)
-        (rosterGridActionRoute (pathTo (CreateRosterWeekSlotDefinitionAction rosterWeek.id)))
+        (rosterGridActionRoute (pathTo (CreateRosterWeekSlotDefinitionAction rosterWeek.weekOffset) <> "&rosterGroupId=" <> tshow rosterWeek.rosterGroupId))
             { actionRouteExtraAttrs = [("class", "mb-0 roster-slot-column-add-form")]
             }
         [hsx|
@@ -529,7 +532,7 @@ renderSlotAddButton rosterWeek True =
         |]
 renderSlotAddButton _ False = mempty
 
-renderSlotSubHeaders :: Bool -> RosterWeekSlotDefinition -> Html
+renderSlotSubHeaders :: Bool -> RosterWindowLane -> Html
 renderSlotSubHeaders True _ =
     mconcat
         [ [hsx|<div role="columnheader" class="roster-subhead roster-col-time" {...rosterImageExportCellAttrs "Start"}>Start</div>|]
@@ -724,46 +727,48 @@ renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIs
                 SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDayColumnDropzoneRef dayDropzoneKey columnHtml
             else columnHtml
 
-compactDayColumnSlots :: [RosterWeekSlotDefinition] -> [RosterSlot] -> [RosterSlot]
+compactDayColumnSlots :: [RosterWindowLane] -> [RosterSlot] -> [RosterSlot]
 compactDayColumnSlots slotNames daySlots =
     sortOn slotOrder (filter rosterSlotHasVisibleData daySlots)
   where
     definitionOrderById =
         Map.fromList
-            [ (unpackId slotName.id, slotIndex)
-            | (slotIndex, slotName) <- zip [0 :: Int ..] slotNames
+            [ (unpackId lane.id, slotIndex)
+            | (slotIndex, windowLane) <- zip [0 :: Int ..] slotNames
+            , lane <- Map.elems windowLane.rosterWindowLaneByDate
             ]
     slotOrder slot =
         ( isNothing slot.startsAt
         , rosterSlotStartTime slot
-        , Map.findWithDefault (length slotNames) slot.rosterWeekSlotDefinitionId definitionOrderById
+        , Map.findWithDefault (length slotNames) slot.rosterLaneId definitionOrderById
         , slot.rowIndex
         , slot.createdAt
         , slot.id
         )
 
-firstAvailableDayColumnTarget :: [RosterWeekSlotDefinition] -> RosterDay -> [RosterSlot] -> Maybe RosterSlotCellTarget
+firstAvailableDayColumnTarget :: [RosterWindowLane] -> RosterDay -> [RosterSlot] -> Maybe RosterSlotCellTarget
 firstAvailableDayColumnTarget [] _ _ = Nothing
 firstAvailableDayColumnTarget slotNames rosterDay daySlots =
     let occupiedCells =
             Map.fromList
-                [ ((slot.rosterWeekSlotDefinitionId, slot.rowIndex), ())
+                [ ((slot.rosterLaneId, slot.rowIndex), ())
                 | slot <- daySlots
                 , rosterSlotHasVisibleData slot
                 ]
         rowCount = max minimumOpenRosterRows rosterDay.rowCount
+        dayLanes = mapMaybe (laneForOperationalDate rosterDay.operationalDate) slotNames
         candidateCells =
-            [ (slotName, rowIndex)
-            | slotName <- slotNames
+            [ (lane, rowIndex)
+            | lane <- dayLanes
             , rowIndex <- [0 .. rowCount - 1]
             ]
         firstFree =
             find
                 (\(slotName, rowIndex) -> Map.notMember (unpackId slotName.id, rowIndex) occupiedCells)
                 candidateCells
-     in case firstFree <|> fmap (\slotName -> (slotName, rowCount)) (head slotNames) of
+     in case firstFree <|> fmap (\lane -> (lane, rowCount)) (listToMaybe dayLanes) of
             Nothing -> Nothing
-            Just (slotName, rowIndex) -> Just (NewRosterSlotTarget rosterDay.id slotName.id rowIndex)
+            Just (slotName, rowIndex) -> Just (NewRosterSlotTarget rosterDay.id slotName.id (Id rosterDay.rosterGroupId) rosterDay.operationalDate rowIndex)
 
 rosterSlotHasVisibleData :: RosterSlot -> Bool
 rosterSlotHasVisibleData slot =
@@ -911,7 +916,7 @@ renderToggleClosedButton rosterDay =
             let buttonLabel = if rosterDay.isClosed then ("Reopen day" :: Text) else ("Mark day closed" :: Text)
                 iconClass = if rosterDay.isClosed then ("bi bi-lock-fill" :: Text) else ("bi bi-unlock" :: Text)
                 closedLabel = if rosterDay.isClosed then [hsx|<span class="roster-day-action-label">CLOSED</span>|] else mempty
-             in renderRosterDayActionForm (RosterAction.toggleRosterDayClosedAction RosterAction.toggleRosterDayClosedActionFields) (pathTo (ToggleRosterDayClosedAction rosterDay.id)) [hsx|
+             in renderRosterDayActionForm (RosterAction.toggleRosterDayClosedAction RosterAction.toggleRosterDayClosedActionFields) (rosterDayMutationUrl (ToggleRosterDayClosedAction rosterDay.id) rosterDay) [hsx|
                 <button type="submit"
                         class={classes [("btn btn-sm app-compact-action-button roster-day-action roster-day-action-toggle", True), ("is-active", rosterDay.isClosed)]}
                         aria-label={buttonLabel}
@@ -926,7 +931,7 @@ renderToggleClosedButton rosterDay =
 renderAddRowButton :: (?context :: ControllerContext) => RosterDay -> Html
 renderAddRowButton rosterDay =
     if currentUserIsManager
-        then renderRosterDayActionForm (RosterAction.addRosterRowAction RosterAction.addRosterRowActionFields) (pathTo (AddRosterRowAction rosterDay.id)) [hsx|
+        then renderRosterDayActionForm (RosterAction.addRosterRowAction RosterAction.addRosterRowActionFields) (rosterDayMutationUrl (AddRosterRowAction rosterDay.id) rosterDay) [hsx|
             <button type="submit"
                     class="btn btn-sm app-compact-action-button roster-day-action roster-day-action-add"
                     aria-label="Add shift row"
@@ -942,7 +947,7 @@ renderDeleteLastRowButton rosterDay rowIndex =
     if currentUserIsManager
         then
             let canDelete = rowIndex >= minimumOpenRosterRows
-             in renderRosterDayActionForm (RosterAction.removeRosterRowAction RosterAction.removeRosterRowActionFields) (pathTo (RemoveRosterRowAction rosterDay.id)) [hsx|
+             in renderRosterDayActionForm (RosterAction.removeRosterRowAction RosterAction.removeRosterRowActionFields) (rosterDayMutationUrl (RemoveRosterRowAction rosterDay.id) rosterDay) [hsx|
                 <button type="submit"
                         class="btn btn-sm app-compact-action-button roster-day-action roster-day-action-remove"
                         aria-label={if canDelete then ("Delete last shift row" :: Text) else ("Minimum day size reached" :: Text)}
@@ -953,6 +958,12 @@ renderDeleteLastRowButton rosterDay rowIndex =
                 </button>
             |]
         else [hsx|<span></span>|]
+
+rosterDayMutationUrl :: (?context :: ControllerContext) => RosterWeeksController -> RosterDay -> Text
+rosterDayMutationUrl action rosterDay =
+    pathTo action
+        <> "&rosterGroupId=" <> tshow rosterDay.rosterGroupId
+        <> "&operationalDate=" <> tshow rosterDay.operationalDate
 
 renderRosterDayActionForm :: FrontendSurfaceAction -> Text -> Html -> Html
 renderRosterDayActionForm action actionUrl body =

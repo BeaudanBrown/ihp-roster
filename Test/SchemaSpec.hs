@@ -472,7 +472,7 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_slots_assignment_state_check CHECK (assignment_state = 'staff' OR assignment_state = 'open')"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_slots_active_structure_check CHECK"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "roster slot staff_id must stay within roster week venue"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "roster slot staff assignment must stay within roster day venue"
         runbookExists `shouldBe` True
 
     it "adds and safely backfills explicit pay-assignment modes" do
@@ -570,7 +570,7 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_timesheet_entry_venue_integrity BEFORE INSERT OR UPDATE ON timesheet_entries"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_roster_derived_timesheet_identity_immutable BEFORE UPDATE ON timesheet_entries"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_xero_staff_mappings_venue_integrity BEFORE INSERT OR UPDATE ON xero_staff_mappings"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "roster slot shift_type_id must stay within roster week venue"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "roster slot shift type must stay within roster day venue"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "timesheet entry source_roster_slot_id must stay within entry venue"
 
     it "stores passkeys as user-owned credential records" do

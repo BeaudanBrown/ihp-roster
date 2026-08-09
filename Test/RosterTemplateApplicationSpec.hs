@@ -567,7 +567,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 result <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
                 refreshedDays <- query @RosterDay
-                    |> filterWhere (#rosterWeekId, unpackId targetWeek.id)
+                    |> filterWhere (#rosterWeekId, Just (unpackId targetWeek.id))
                     |> orderByAsc #dayOffset
                     |> fetch
                 activeDefinitions <- query @RosterWeekSlotDefinition
@@ -643,7 +643,7 @@ createSlot rosterDay definition shiftType assignment rowIndex = do
     let endsAt = UTCTime (fromGregorian 2026 3 2) (secondsToDiffTime (8 * 60 * 60))
     newRecord @RosterSlot
         |> set #rosterDayId (unpackId rosterDay.id)
-        |> set #rosterWeekSlotDefinitionId (unpackId definition.id)
+        |> set #rosterWeekSlotDefinitionId (Just (unpackId definition.id))
         |> set #slotSortOrder definition.sortOrder
         |> set #rowIndex rowIndex
         |> set #startsAt (Just startsAt)

@@ -296,7 +296,7 @@ buildRosterSnapshot ::
     IO RosterNotificationSnapshot
 buildRosterSnapshot venue rosterGroup rosterWeek weekStart = do
     rosterDays <- query @RosterDay
-        |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+        |> filterWhere (#rosterWeekId, Just (unpackId rosterWeek.id))
         |> orderByAsc #dayOffset
         |> fetch
     definitions <- query @RosterWeekSlotDefinition
@@ -338,7 +338,8 @@ snapshotShift ::
     Maybe RosterNotificationShiftSnapshot
 snapshotShift weekStart dayById definitionById shiftTypeById slot = do
     rosterDay <- Map.lookup slot.rosterDayId dayById
-    definition <- Map.lookup slot.rosterWeekSlotDefinitionId definitionById
+    definitionId <- slot.rosterWeekSlotDefinitionId
+    definition <- Map.lookup definitionId definitionById
     pure RosterNotificationShiftSnapshot
         { shiftRosterSlotId = unpackId slot.id
         , shiftStaffId = slot.staffId

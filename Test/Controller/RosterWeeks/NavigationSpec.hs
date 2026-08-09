@@ -73,35 +73,25 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status302
                 responseHeaders response `shouldContain` [("Location", "http://localhost/EditProfile")]
 
-        it "visiting a missing week auto-creates an empty draft roster" $ withContext do
+        it "visiting a sparse window does not materialize legacy weeks or dated days" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "roster-auto-create@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user Worker
-                _ <- createStaffRecord venue (Just user) "Auto" "Create"
-                slotNames <- query @SlotName
-                    |> filterWhere (#venueId, unpackId venue.id)
-                    |> filterWhere (#isActive, True)
-                    |> fetch
 
                 response <- withUserAndCurrentVenue user venue.id do
                     callAction (ShowRosterWeekAction 0)
 
                 response `responseStatusShouldBe` status200
-                createdWeek <- query @RosterWeek
+                legacyWeeks <- query @RosterWeek
                     |> filterWhere (#venueId, unpackId venue.id)
                     |> filterWhere (#weekOffset, 0)
-                    |> fetchOne
-                createdWeek.isLive `shouldBe` False
-                createdDays <- query @RosterDay
-                    |> filterWhere (#rosterWeekId, unpackId createdWeek.id)
                     |> fetch
-                length createdDays `shouldBe` 7
-                map (.rowCount) createdDays `shouldBe` replicate 7 4
-                createdSlots <- query @RosterSlot
-                    |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) createdDays)
+                legacyWeeks `shouldBe` []
+                datedDays <- query @RosterDay
+                    |> filterWhere (#venueId, unpackId venue.id)
                     |> fetch
-                length createdSlots `shouldBe` 0
+                datedDays `shouldBe` []
 
         it "staff cannot see draft weeks but still gets the hidden roster shell" $ withContext do
             withCleanDb do
@@ -364,6 +354,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-roster-side-panel-toggle=\"true\""
                 response `responseBodyShouldContain` "data-bepis-roster-side-panel-label=\"true\""
                 response `responseBodyShouldContain` "data-bepis-roster-column-editor=\"true\""
+                response `responseBodyShouldContain` "data-roster-day-add=\"true\""
                 response `responseBodyShouldContain` "data-bepis-roster-column-editing=\"inactive\""
                 response `responseBodyShouldContain` "data-bepis-roster-column-edit-start=\"true\""
                 response `responseBodyShouldContain` "data-bepis-roster-column-edit-done=\"true\""
@@ -372,27 +363,27 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` ("data-bepis-roster-staff-highlight-source=\"staff:" <> cs (tshow panelStaff.id) <> "\"")
                 response `responseBodyShouldContain` ("data-bepis-roster-staff-highlight-pin=\"staff:" <> cs (tshow panelStaff.id) <> "\"")
                 response `responseBodyShouldContain` "Week actions"
-                response `responseBodyShouldContain` "hx-post=\"/CopyRosterWeek?sourceWeekOffset=-1&amp;targetWeekOffset=0&amp;rosterGroupId="
-                response `responseBodyShouldContain` "hx-confirm=\"This will overwrite the current week with the previous week&#39;s roster. Continue?\""
+                response `responseBodyShouldNotContain` "hx-post=\"/CopyRosterWeek?"
+                response `responseBodyShouldNotContain` "hx-confirm=\"This will overwrite the current week with the previous week&#39;s roster. Continue?\""
                 response `responseBodyShouldContain` "Sort shifts"
-                response `responseBodyShouldContain` "hx-post=\"/SortRosterWeek?rosterWeekId="
+                response `responseBodyShouldContain` "hx-post=\"/SortRosterWeek?weekOffset=0&amp;rosterGroupId="
                 response `responseBodyShouldNotContain` "Roster columns"
                 response `responseBodyShouldNotContain` "data-disable-javascript-submission"
-                response `responseBodyShouldContain` "roster-live-toggle-"
+                response `responseBodyShouldNotContain` "roster-live-toggle-"
                 response `responseBodyShouldContain` "btn btn-outline-success app-toggle-button"
-                response `responseBodyShouldContain` "data-bepis-toggle-transport=\"toggle-transport:roster-live-toggle-"
+                response `responseBodyShouldNotContain` "data-bepis-toggle-transport=\"toggle-transport:roster-live-toggle-"
                 response `responseBodyShouldContain` "data-bepis-toggle-config=\""
                 response `responseBodyShouldContain` "aria-pressed=\"false\""
                 response `responseBodyShouldContain` "role=\"switch\" aria-checked=\"false\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"navigate-roster-week\""
-                response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-roster-week-live-status\""
+                response `responseBodyShouldNotContain` "data-bepis-surface-action=\"toggle-roster-week-live-status\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-roster-staff-scope\""
                 response `responseBodyShouldContain` "hx-target=\"#roster-staff-panel-fragment\""
                 response `responseBodyShouldNotContain` "hx-target=\"#roster-staff-panel\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-roster-warnings\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-roster-assignment-filters\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"sort-roster-week\""
-                response `responseBodyShouldContain` "data-bepis-surface-action=\"copy-roster-week\""
+                response `responseBodyShouldNotContain` "data-bepis-surface-action=\"copy-roster-week\""
 
         it "keeps hidden templates and application targets off live rosters" $ withContext do
             withCleanDb do

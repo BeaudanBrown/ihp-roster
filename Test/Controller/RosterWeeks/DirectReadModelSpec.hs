@@ -24,6 +24,7 @@ import IHP.Prelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
+import Web.RosterWeeks.DateRange (RosterWindowLane (..))
 import Web.RosterWeeks.DirectReadModel
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.RenderData
@@ -42,12 +43,12 @@ tests = aroundAll withDatabaseTestContext do
                         fetchRosterBaseFactsDirect fixture.rosterGroup.id 0
 
                 let RosterBaseFacts { baseRosterWeek, baseRosterDays, baseAllSlots, baseVisibleSlots, baseOrderedSlotDefinitions, baseShiftTypes, baseEligibleStaff, baseAssignedStaff, baseStaffMembers } = fromJust facts
-                baseRosterWeek.id `shouldBe` fixture.rosterWeek.id
+                ((.id) <$> baseRosterWeek) `shouldBe` Just fixture.rosterWeek.id
                 map (.dayOffset) baseRosterDays `shouldBe` [0 .. 6]
                 map (.rowIndex) baseVisibleSlots `shouldBe` [3]
                 map (.id) baseAllSlots `shouldContain` [fixture.closedDaySlot.id]
                 map (.id) baseVisibleSlots `shouldNotContain` [fixture.closedDaySlot.id, fixture.otherGroupSlot.id]
-                map (.sortOrder) baseOrderedSlotDefinitions `shouldBe` sort (map (.sortOrder) baseOrderedSlotDefinitions)
+                map (.rosterWindowLaneFirstSeen) baseOrderedSlotDefinitions `shouldBe` sort (map (.rosterWindowLaneFirstSeen) baseOrderedSlotDefinitions)
                 map (.name) baseShiftTypes `shouldBe` ["Breakfast", "Dinner"]
                 map (.id) baseEligibleStaff `shouldContain` [fixture.eligibleStaff.id]
                 map (.id) baseEligibleStaff `shouldNotContain` [fixture.assignedInactiveStaff.id]
@@ -71,10 +72,10 @@ tests = aroundAll withDatabaseTestContext do
                         fetchVisibleRosterReadModel fixture.rosterGroup.id 0
 
                 let rosterData = fromJust renderData
-                rosterData.rosterWeek.id `shouldBe` fixture.rosterWeek.id
+                ((.id) <$> rosterData.rosterWeek) `shouldBe` Just fixture.rosterWeek.id
                 map (.id) rosterData.staffMembers `shouldContain` [fixture.eligibleStaff.id, fixture.assignedInactiveStaff.id]
                 map (.id) rosterData.allSlots `shouldContain` [fixture.visibleSparseSlot.id, fixture.closedDaySlot.id]
-                map (.id) rosterData.orderedSlotNames `shouldBe` map (.id) (sortSlotDefinitions rosterData.orderedSlotNames)
+                map (.rosterWindowLaneFirstSeen) rosterData.orderedSlotNames `shouldBe` sortOn (\value -> value) (map (.rosterWindowLaneFirstSeen) rosterData.orderedSlotNames)
 
         it "reads venue role values for direct staff panel entries" $ withContext do
             withCleanDb do
@@ -207,7 +208,7 @@ addDirectReadModelConflictFacts fixture = do
     initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.rosterGroup.id 0
     openDay <- fetch (Id fixture.visibleSparseSlot.rosterDayId) :: IO RosterDay
     nextDay <- query @RosterDay
-        |> filterWhere (#rosterWeekId, unpackId fixture.rosterWeek.id)
+        |> filterWhere (#rosterWeekId, Just (unpackId fixture.rosterWeek.id))
         |> filterWhere (#dayOffset, 1)
         |> fetchOne
     _ <- nextDay |> set #isClosed False |> updateRecord
@@ -292,9 +293,6 @@ createDirectReadModelFixture = do
     otherGroupSlot <- createRosterSlotRecord otherDay otherSlotName (Just eligibleStaff) 0
 
     pure DirectReadModelFixture { venue, manager, rosterGroup, earlySlotName, rosterWeek, eligibleUser, eligibleStaff, assignedInactiveStaff = assignedInactiveStaff', visibleSparseSlot, closedDaySlot, otherGroupSlot }
-
-sortSlotDefinitions :: [RosterWeekSlotDefinition] -> [RosterWeekSlotDefinition]
-sortSlotDefinitions = sortOn (\slotDefinition -> (slotDefinition.sortOrder, slotDefinition.createdAt))
 
 allAssignmentFilters :: RosterAssignmentFilters
 allAssignmentFilters =

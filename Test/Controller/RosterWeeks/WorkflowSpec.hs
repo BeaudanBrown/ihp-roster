@@ -203,7 +203,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Closed days stay locked at two blank rows until reopened."
 
-        it "manager can create a draft week via HTMX without redirecting" $ withContext do
+        it "manager can materialize a seven-day date-native draft window via HTMX" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-create-htmx@example.com" "staff" True
@@ -221,25 +221,31 @@ tests = aroundAll withDatabaseTestContext do
                 let createWeekTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 createWeekTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterContentFragmentId))
 
-        it "manager can add a row to an auto-created draft week" $ withContext do
+                legacyWeeks <- query @RosterWeek |> filterWhere (#venueId, unpackId venue.id) |> fetch
+                legacyWeeks `shouldBe` []
+                datedDays <- query @RosterDay
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> orderByAsc #operationalDate
+                    |> fetch
+                length datedDays `shouldBe` 7
+                datedDays `shouldSatisfy` all (isNothing . (.rosterWeekId))
+                datedDays `shouldSatisfy` all ((== Draft) . (.publicationState))
+                activeLanes <- query @RosterLane
+                    |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) datedDays)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
+                map (.rosterDayId) activeLanes `shouldSatisfy` (\laneDayIds -> all (`elem` laneDayIds) (map (unpackId . (.id)) datedDays))
+
+        it "manager can add a row to a materialized date-native window" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-add-row@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager Manager
-                slotNames <- query @SlotName
-                    |> filterWhere (#venueId, unpackId venue.id)
-                    |> filterWhere (#isActive, True)
-                    |> fetch
-
                 _ <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekAction 0)
+                    callAction (CreateRosterWeekAction 0)
 
-                rosterWeek <- query @RosterWeek
-                    |> filterWhere (#venueId, unpackId venue.id)
-                    |> filterWhere (#weekOffset, 0)
-                    |> fetchOne
                 rosterDay <- query @RosterDay
-                    |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+                    |> filterWhere (#venueId, unpackId venue.id)
                     |> filterWhere (#dayOffset, 0)
                     |> fetchOne
 
@@ -250,7 +256,6 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
                 let bodyText = cs body :: String
-                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
                 bodyText `shouldContain` "id=\"dialog-overlay-mount\""
                 bodyText `shouldNotContain` ("id=\"" <> cs rosterDayColumnsFragmentId <> "\"" :: String)
                 bodyText `shouldNotContain` ("id=\"" <> cs rosterGridFrameFragmentId <> "\"" :: String)
@@ -392,7 +397,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 createResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (CreateRosterWeekSlotDefinitionAction rosterWeek.id)
+                        callActionWithParams (CreateRosterWeekSlotDefinitionAction rosterWeek.weekOffset)
                             []
                 createResponse `responseStatusShouldBe` status200
                 let createTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders createResponse)
@@ -400,17 +405,16 @@ tests = aroundAll withDatabaseTestContext do
                 createTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-day-rail\"")
                 createTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "\"kind\":\"roster-grid-frame\"")
 
-                newColumn <- query @RosterWeekSlotDefinition
-                    |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+                newColumns <- query @RosterLane
                     |> filterWhere (#name, "New column")
                     |> filterWhere (#deletedAt, Nothing)
-                    |> fetchOne
-                createdSlots <-
-                    query @RosterSlot
-                        |> filterWhere (#rosterDayId, unpackId rosterDay.id)
-                        |> filterWhere (#rosterWeekSlotDefinitionId, unpackId newColumn.id)
-                        |> filterWhere (#deletedAt, Nothing)
-                        |> fetch
+                    |> fetch
+                length newColumns `shouldBe` 7
+                let newColumn = fromJust (find ((== unpackId rosterDay.id) . (.rosterDayId)) newColumns)
+                createdSlots <- query @RosterSlot
+                    |> filterWhere (#rosterLaneId, unpackId newColumn.id)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
                 createdSlots `shouldBe` []
 
                 deleteResponse <- withUserAndCurrentVenue manager venue.id do
@@ -420,13 +424,19 @@ tests = aroundAll withDatabaseTestContext do
                 let deleteTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders deleteResponse)
                 deleteTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-slots-grid\"")
                 deleteTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "\"kind\":\"roster-grid-frame\"")
-                deleted <- fetch newColumn.id
-                deleted.deletedAt `shouldSatisfy` isJust
-                deletedSlots <-
-                    query @RosterSlot
-                        |> filterWhere (#rosterWeekSlotDefinitionId, unpackId newColumn.id)
-                        |> fetch
-                deletedSlots `shouldSatisfy` all (isJust . (.deletedAt))
+                deletedColumns <- query @RosterLane |> filterWhere (#name, "New column") |> fetch
+                deletedColumns `shouldSatisfy` all (isJust . (.deletedAt))
+                preservedEarlySlot <- fetch earlySlot.id
+                preservedEarlySlot.deletedAt `shouldBe` Nothing
+
+                _ <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (CreateRosterWeekSlotDefinitionAction rosterWeek.weekOffset)
+                        [("name", "New column")]
+                restoredColumns <- query @RosterLane
+                    |> filterWhere (#name, "New column")
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
+                length restoredColumns `shouldBe` 7
 
         it "manager can manually sort draft week shifts top-to-bottom then across columns" $ withContext do
             withCleanDb do
@@ -449,7 +459,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callAction (SortRosterWeekAction rosterWeek.id)
+                        callAction (SortRosterWeekAction rosterWeek.weekOffset)
                 response `responseStatusShouldBe` status200
 
                 sortedAlphaSlot <- fetch alphaSlot.id
@@ -467,13 +477,13 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetchOne
 
                 sortedAlphaSlot.id `shouldBe` alphaSlot.id
-                sortedAlphaSlot.rosterWeekSlotDefinitionId `shouldBe` unpackId earlyDefinition.id
+                sortedAlphaSlot.rosterWeekSlotDefinitionId `shouldBe` Just (unpackId earlyDefinition.id)
                 sortedAlphaSlot.rowIndex `shouldBe` 0
                 sortedBravoSlot.id `shouldBe` bravoSlot.id
-                sortedBravoSlot.rosterWeekSlotDefinitionId `shouldBe` unpackId earlyDefinition.id
+                sortedBravoSlot.rosterWeekSlotDefinitionId `shouldBe` Just (unpackId earlyDefinition.id)
                 sortedBravoSlot.rowIndex `shouldBe` 1
                 sortedCharlieSlot.id `shouldBe` charlieSlot.id
-                sortedCharlieSlot.rosterWeekSlotDefinitionId `shouldBe` unpackId lateDefinition.id
+                sortedCharlieSlot.rosterWeekSlotDefinitionId `shouldBe` Just (unpackId lateDefinition.id)
                 sortedCharlieSlot.rowIndex `shouldBe` 0
 
         it "deleting a populated roster column reallocates shifts into remaining columns and adds rows" $ withContext do
@@ -505,18 +515,26 @@ tests = aroundAll withDatabaseTestContext do
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetchOne
 
+                lateLane <- fetchRosterLaneForDefinition rosterDay lateDefinition
+                lateLanes <- query @RosterLane
+                    |> filterWhere (#legacyRosterWeekSlotDefinitionId, Just (unpackId lateDefinition.id))
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callAction (DeleteRosterWeekSlotDefinitionAction lateDefinition.id)
+                        callAction (DeleteRosterWeekSlotDefinitionAction lateLane.id)
                 response `responseStatusShouldBe` status200
 
-                deletedLateDefinition <- fetch lateDefinition.id
-                deletedLateDefinition.deletedAt `shouldSatisfy` isJust
+                deletedLateLanes <- mapM (fetch . (.id)) lateLanes
+                deletedLateLanes `shouldSatisfy` all (isJust . (.deletedAt))
+                _ <- updateRecord (rosterDay |> set #rowCount (rosterDay.rowCount + 1))
+                reprojectedLateLanes <- mapM (fetch . (.id)) lateLanes
+                reprojectedLateLanes `shouldSatisfy` all (isJust . (.deletedAt))
                 packedSlots <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId rosterDay.id)
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetch
-                let packedDataSlots = sortOn (.rowIndex) (filter (\slot -> slot.rosterWeekSlotDefinitionId == unpackId earlyDefinition.id && isJust slot.staffId) packedSlots)
+                let packedDataSlots = sortOn (.rowIndex) (filter (\slot -> slot.rosterWeekSlotDefinitionId == Just (unpackId earlyDefinition.id) && isJust slot.staffId) packedSlots)
                 map (.id) packedDataSlots `shouldBe` [alphaSlot.id, bravoSlot.id, charlieSlot.id]
                 map (.rowIndex) packedDataSlots `shouldBe` [0, 1, 2]
                 map testStartTime packedDataSlots `shouldBe` map (Just . uncurry timeOfDay) [(9, 0), (10, 0), (11, 0)]
@@ -609,14 +627,14 @@ tests = aroundAll withDatabaseTestContext do
                 slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
 
                 dialogResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (NewRosterSlotDialogAction rosterDay.id slotDefinition.id 0)
+                    callAction (NewRosterSlotDialogAction rosterDay.id (coerce slotDefinition.id) 0)
                 dialogResponse `responseStatusShouldBe` status200
                 dialogResponse `responseBodyShouldContain` "<option value=\"open\">Open shift</option>"
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (CreateRosterSlotAction rosterDay.id slotDefinition.id 0)
+                            (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
                             [ ("staffId", "open")
                             , ("startTime", "09:00")
                             , ("endTime", "17:00")
@@ -778,7 +796,7 @@ tests = aroundAll withDatabaseTestContext do
                 createResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (CreateRosterSlotAction rosterDay.id slotDefinition.id 0)
+                            (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
                             [ ("staffId", idToParam staffMember.id)
                             , ("startTime", "09:00")
                             , ("endTime", "08:00")
@@ -836,7 +854,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (CreateRosterSlotAction rosterDay.id slotDefinition.id 0)
+                            (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
                             [ ("staffId", idToParam unresolvedStaff.id)
                             , ("startTime", "09:00")
                             , ("endTime", "17:00")
@@ -868,7 +886,7 @@ tests = aroundAll withDatabaseTestContext do
                         withUserAndCurrentVenue manager venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
                                 callActionWithParams
-                                    (CreateRosterSlotAction rosterDay.id slotDefinition.id rowIndex)
+                                    (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) rowIndex)
                                     [ ("staffId", idToParam staffId)
                                     , ("startTime", "09:00")
                                     , ("endTime", "17:00")
@@ -905,7 +923,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (CreateRosterSlotAction rosterDay.id slotDefinition.id 0)
+                            (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
                             [ ("staffId", idToParam partTimeStaff.id)
                             , ("startTime", "17:30")
                             , ("endTime", "05:45")
@@ -918,7 +936,7 @@ tests = aroundAll withDatabaseTestContext do
                 shiftRosterOnlyResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (CreateRosterSlotAction rosterDay.id slotDefinition.id 1)
+                            (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 1)
                             [ ("staffId", idToParam rateProducingStaff.id)
                             , ("startTime", "17:30")
                             , ("endTime", "05:45")
@@ -944,7 +962,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (CreateRosterSlotAction rosterDay.id slotDefinition.id 0)
+                            (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
                             [ ("staffId", idToParam partTimeStaff.id)
                             , ("startTime", "09:00")
                             , ("endTime", "11:45")
@@ -1101,7 +1119,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 missingOccurrenceResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (CreateRosterSlotAction rosterDay.id slotDefinition.id 0) baseParams
+                        callActionWithParams (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0) baseParams
 
                 missingOccurrenceResponse `responseStatusShouldBe` status200
                 missingOccurrenceResponse `responseBodyShouldContain` "Choose whether this is the first or second occurrence."
@@ -1112,7 +1130,7 @@ tests = aroundAll withDatabaseTestContext do
                 createdResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (CreateRosterSlotAction rosterDay.id slotDefinition.id 0)
+                            (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
                             (baseParams <> [("startOccurrence", "second")])
 
                 createdResponse `responseStatusShouldBe` status200
@@ -1143,7 +1161,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 missingOccurrenceResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (CreateRosterSlotAction rosterDay.id slotDefinition.id 0) baseParams
+                        callActionWithParams (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0) baseParams
 
                 missingOccurrenceResponse `responseStatusShouldBe` status200
                 missingOccurrenceResponse `responseBodyShouldContain` "data-time-occurrence-chooser=\"startOccurrence\""
@@ -1153,7 +1171,7 @@ tests = aroundAll withDatabaseTestContext do
                 createdResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (CreateRosterSlotAction rosterDay.id slotDefinition.id 0)
+                            (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
                             (baseParams <> [("startOccurrence", "first"), ("endOccurrence", "second")])
 
                 createdResponse `responseStatusShouldBe` status200
@@ -1179,7 +1197,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (CreateRosterSlotAction rosterDay.id slotDefinition.id 0)
+                            (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
                             [ ("staffId", idToParam staffMember.id)
                             , ("startTime", "02:30")
                             , ("endTime", "04:00")
@@ -2335,12 +2353,12 @@ tests = aroundAll withDatabaseTestContext do
                 copiedWeek.isLive `shouldBe` False
 
                 copiedDays <- query @RosterDay
-                    |> filterWhere (#rosterWeekId, unpackId copiedWeek.id)
+                    |> filterWhere (#rosterWeekId, Just (unpackId copiedWeek.id))
                     |> fetch
                 length copiedDays `shouldBe` 7
 
                 copiedDay <- query @RosterDay
-                    |> filterWhere (#rosterWeekId, unpackId copiedWeek.id)
+                    |> filterWhere (#rosterWeekId, Just (unpackId copiedWeek.id))
                     |> filterWhere (#dayOffset, 0)
                     |> fetchOne
                 copiedSlots <- query @RosterSlot
@@ -2350,7 +2368,7 @@ tests = aroundAll withDatabaseTestContext do
                 length copiedSlots `shouldBe` 1
 
                 let copiedSlot = fromJust (head copiedSlots)
-                copiedSlotDefinition <- fetch (Id copiedSlot.rosterWeekSlotDefinitionId :: Id RosterWeekSlotDefinition)
+                copiedSlotDefinition <- fetch (Id (fromJust copiedSlot.rosterWeekSlotDefinitionId) :: Id RosterWeekSlotDefinition)
                 copiedSlot.staffId `shouldBe` Just (unpackId staffMember.id)
                 copiedSlotDefinition.name `shouldBe` slotName.name
                 copiedSlot.rowIndex `shouldBe` 0
@@ -2458,7 +2476,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> filterWhere (#weekOffset, 64)
                     |> fetchOne
                 copiedDay <- query @RosterDay
-                    |> filterWhere (#rosterWeekId, unpackId copiedWeek.id)
+                    |> filterWhere (#rosterWeekId, Just (unpackId copiedWeek.id))
                     |> filterWhere (#dayOffset, 5)
                     |> fetchOne
                 copiedSlot <- query @RosterSlot
@@ -2525,7 +2543,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> filterWhere (#weekOffset, 1)
                     |> fetchOne
                 copiedDay <- query @RosterDay
-                    |> filterWhere (#rosterWeekId, unpackId copiedWeek.id)
+                    |> filterWhere (#rosterWeekId, Just (unpackId copiedWeek.id))
                     |> filterWhere (#dayOffset, 0)
                     |> fetchOne
                 copiedSlots <- query @RosterSlot
@@ -2535,7 +2553,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 length copiedSlots `shouldBe` 1
                 let copiedSlot = fromJust (head copiedSlots)
-                copiedSlotDefinition <- fetch (Id copiedSlot.rosterWeekSlotDefinitionId :: Id RosterWeekSlotDefinition)
+                copiedSlotDefinition <- fetch (Id (fromJust copiedSlot.rosterWeekSlotDefinitionId) :: Id RosterWeekSlotDefinition)
                 copiedSlot.staffId `shouldBe` Just (unpackId alpha.id)
                 copiedSlotDefinition.name `shouldBe` early.name
                 testStartTime copiedSlot `shouldBe` Just (timeOfDay 8 0)
@@ -2579,7 +2597,7 @@ tests = aroundAll withDatabaseTestContext do
                 copiedWeek <- fetch targetWeek.id
                 copiedWeek.isLive `shouldBe` False
                 copiedDay <- query @RosterDay
-                    |> filterWhere (#rosterWeekId, unpackId copiedWeek.id)
+                    |> filterWhere (#rosterWeekId, Just (unpackId copiedWeek.id))
                     |> filterWhere (#dayOffset, 0)
                     |> fetchOne
                 activeSlots <- query @RosterSlot
@@ -2589,7 +2607,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 length activeSlots `shouldBe` 1
                 let copiedSlot = fromJust (head activeSlots)
-                copiedSlotDefinition <- fetch (Id copiedSlot.rosterWeekSlotDefinitionId :: Id RosterWeekSlotDefinition)
+                copiedSlotDefinition <- fetch (Id (fromJust copiedSlot.rosterWeekSlotDefinitionId) :: Id RosterWeekSlotDefinition)
                 copiedSlot.staffId `shouldBe` Just (unpackId alpha.id)
                 copiedSlotDefinition.name `shouldBe` early.name
                 testStartTime copiedSlot `shouldBe` Just (timeOfDay 8 0)
@@ -2633,7 +2651,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status302
 
                 frontCopiedDay <- query @RosterDay
-                    |> filterWhere (#rosterWeekId, unpackId frontTargetWeek.id)
+                    |> filterWhere (#rosterWeekId, Just (unpackId frontTargetWeek.id))
                     |> filterWhere (#dayOffset, 0)
                     |> fetchOne
                 frontCopiedSlots <- query @RosterSlot

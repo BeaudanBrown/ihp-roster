@@ -263,7 +263,7 @@ renderRosterAssignmentFilterToggleButton inputId binding isChecked label =
 renderRosterWeekActions :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> Id RosterGroup -> RosterViewCapabilities -> Html
 renderRosterWeekActions maybeRosterWeek weekOffset rosterGroupId viewCapabilities = [hsx|
     <div class="roster-week-action-grid">
-        {renderRosterSortForm maybeRosterWeek viewCapabilities}
+        {renderRosterSortForm maybeRosterWeek rosterGroupId viewCapabilities}
         {when viewCapabilities.canCopyRosterWeek (renderCopyPreviousWeekForm weekOffset rosterGroupId)}
     </div>
 |]
@@ -272,13 +272,13 @@ shouldShowRosterSortForm :: Maybe RosterWeek -> RosterViewCapabilities -> Bool
 shouldShowRosterSortForm (Just rosterWeek) viewCapabilities = viewCapabilities.canManageRosterColumns && not rosterWeek.isLive
 shouldShowRosterSortForm Nothing _ = False
 
-renderRosterSortForm :: (?context :: ControllerContext) => Maybe RosterWeek -> RosterViewCapabilities -> Html
-renderRosterSortForm (Just rosterWeek) viewCapabilities
+renderRosterSortForm :: (?context :: ControllerContext) => Maybe RosterWeek -> Id RosterGroup -> RosterViewCapabilities -> Html
+renderRosterSortForm (Just rosterWeek) rosterGroupId viewCapabilities
     | shouldShowRosterSortForm (Just rosterWeek) viewCapabilities =
         renderFrontendSurfaceActionForm
             (RosterAction.sortRosterWeekAction RosterAction.sortRosterWeekActionFields)
-            (rosterWeekShellSyncRoute (pathTo (SortRosterWeekAction rosterWeek.id)))
-                { actionRouteStandardUrl = Just (pathTo (SortRosterWeekAction rosterWeek.id))
+            (rosterWeekShellSyncRoute sortUrl)
+                { actionRouteStandardUrl = Just sortUrl
                 , actionRouteExtraAttrs = [("class", "mb-0 roster-week-action-form")]
                 }
             [hsx|
@@ -287,7 +287,9 @@ renderRosterSortForm (Just rosterWeek) viewCapabilities
                     Sort shifts
                 </button>
             |]
-renderRosterSortForm _ _ = mempty
+  where
+    sortUrl = pathTo (SortRosterWeekAction rosterWeek.weekOffset) <> "&rosterGroupId=" <> tshow rosterGroupId
+renderRosterSortForm _ _ _ = mempty
 
 renderCopyPreviousWeekForm :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Html
 renderCopyPreviousWeekForm weekOffset rosterGroupId =

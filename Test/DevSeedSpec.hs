@@ -101,7 +101,7 @@ tests = aroundAll withDatabaseTestContext do
                         |> fetch
                 rosterDays <-
                     query @RosterDay
-                        |> filterWhereIn (#rosterWeekId, map (unpackId . (.id)) rosterWeeks)
+                        |> filterWhereIn (#rosterWeekId, map (Just . unpackId . (.id)) rosterWeeks)
                         |> fetch
                 rosterSlots <-
                     query @RosterSlot
@@ -165,7 +165,7 @@ tests = aroundAll withDatabaseTestContext do
                         |> fetch
                 rosterDays <-
                     query @RosterDay
-                        |> filterWhereIn (#rosterWeekId, map (unpackId . (.id)) rosterWeeks)
+                        |> filterWhereIn (#rosterWeekId, map (Just . unpackId . (.id)) rosterWeeks)
                         |> fetch
                 rosterSlots <-
                     query @RosterSlot
@@ -226,7 +226,7 @@ tests = aroundAll withDatabaseTestContext do
                 mondayDays <-
                     query @RosterDay
                         |> filterWhere (#dayOffset, 0)
-                        |> filterWhereIn (#rosterWeekId, map (unpackId . (.id)) mondayWeeks)
+                        |> filterWhereIn (#rosterWeekId, map (Just . unpackId . (.id)) mondayWeeks)
                         |> fetch
                 bobMondayAssignments <-
                     query @RosterSlot
@@ -386,7 +386,7 @@ tests = aroundAll withDatabaseTestContext do
                         |> fetch
                 rosterDays <-
                     query @RosterDay
-                        |> filterWhereIn (#rosterWeekId, map (unpackId . (.id)) rosterWeeks)
+                        |> filterWhereIn (#rosterWeekId, map (Just . unpackId . (.id)) rosterWeeks)
                         |> fetch
                 rosterSlots <-
                     query @RosterSlot
@@ -558,7 +558,7 @@ tests = aroundAll withDatabaseTestContext do
                         |> fetch
                 rosterDays <-
                     query @RosterDay
-                        |> filterWhereIn (#rosterWeekId, map (unpackId . (.id)) rosterWeeks)
+                        |> filterWhereIn (#rosterWeekId, map (Just . unpackId . (.id)) rosterWeeks)
                         |> fetch
                 assignedSlots <-
                     query @RosterSlot
@@ -661,7 +661,7 @@ captureDevSeedOutcome fixture = do
             |> fetch
     rosterDays <-
         query @RosterDay
-            |> filterWhereIn (#rosterWeekId, map (unpackId . (.id)) rosterWeeks)
+            |> filterWhereIn (#rosterWeekId, map (Just . unpackId . (.id)) rosterWeeks)
             |> fetch
     rosterSlots <-
         query @RosterSlot
@@ -683,7 +683,7 @@ captureDevSeedOutcome fixture = do
     let rosterWeekById = Map.fromList [(unpackId row.id, row.weekOffset) | row <- rosterWeeks]
     let rosterDayById =
             Map.fromList
-                [ (unpackId row.id, (Map.lookup row.rosterWeekId rosterWeekById, row.dayOffset))
+                [ (unpackId row.id, (row.rosterWeekId >>= (`Map.lookup` rosterWeekById), row.dayOffset))
                 | row <- rosterDays
                 ]
     let shiftTypeById = Map.fromList [(unpackId row.id, row.name) | row <- shiftTypes]

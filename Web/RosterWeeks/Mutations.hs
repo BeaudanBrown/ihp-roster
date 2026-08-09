@@ -2,11 +2,15 @@ module Web.RosterWeeks.Mutations
     ( RosterSlotMutationResult (..)
     , addRosterDayRowMutation
     , appendRosterWeekSlotDefinitionMutation
+    , appendRosterWindowLaneMutation
     , copyRosterWeekFromSourceMutation
     , ensureRosterWeekExistsMutation
+    , materializeRosterWindowMutation
     , moveRosterSlotMutation
+    , removeRosterDayRowByLanesMutation
     , removeRosterDayRowMutation
     , repackRosterWeekMutation
+    , repackRosterWindowMutation
     , rosterDayTouchedResources
     , rosterSlotMutationTouchedResources
     , rosterSlotTouchedResources
@@ -20,6 +24,7 @@ module Web.RosterWeeks.Mutations
     , updateRosterSlotMutation
     , deleteRosterSlotMutation
     , removeRosterWeekSlotDefinitionMutation
+    , removeRosterWindowLaneMutation
     ) where
 
 import Application.Helper.FrontendContract.Surface.Roster.Resource
@@ -35,6 +40,11 @@ import Data.Traversable (traverse)
 import Data.UUID (UUID)
 import qualified Database.PostgreSQL.Simple as PG
 import Web.Controller.Prelude
+import Web.RosterWeeks.DateRange (appendRosterWindowLane,
+                                  materializeRosterWindow,
+                                  removeRosterDayRowByLanes,
+                                  removeRosterWindowLane, repackRosterWindow,
+                                  rosterPlanningWeekForDay)
 import Web.RosterWeeks.Service
 import Web.SurfaceInvalidation (invalidateTouchedResources)
 
@@ -44,9 +54,17 @@ data RosterSlotMutationResult = RosterSlotMutationResult
     , rosterSlotMutationShouldWarnSourceTimesheetUnchanged :: !Bool
     }
 
+materializeRosterWindowMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ([RosterDay], Bool)
+materializeRosterWindowMutation rosterGroupId weekOffset =
+    withRosterWindowMutationLock rosterGroupId weekOffset $
+        materializeRosterWindow currentVenueId rosterGroupId weekOffset
+
 ensureRosterWeekExistsMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (LiveMutationResult (RosterWeek, Bool))
 ensureRosterWeekExistsMutation rosterGroupId weekOffset = do
-    result@(_, wasCreated) <- ensureRosterWeekExists rosterGroupId weekOffset
+    (days, wasCreated) <- withRosterWindowMutationLock rosterGroupId weekOffset $
+        materializeRosterWindow currentVenueId rosterGroupId weekOffset
+    rosterWeek <- maybe (error "Roster window materialization produced no days") rosterPlanningWeekForDay (listToMaybe days)
+    let result = (rosterWeek, wasCreated)
     let mutationResult = liveMutationResult result (rosterWeekStructuralTouchedResources rosterGroupId weekOffset)
     if wasCreated
         then invalidateTouchedResources "roster.week.ensure" mutationResult
@@ -84,6 +102,33 @@ toggleRosterWeekLiveStatusMutation rosterGroupId rosterWeek nextLiveStatus = do
                 )
             pure (Right mutationResult)
 
+withRosterWindowMutationLock :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO value -> IO value
+withRosterWindowMutationLock rosterGroupId weekOffset action =
+    withTransaction do
+        let lockKey = "roster-window:" <> tshow currentVenueId <> ":" <> tshow rosterGroupId <> ":" <> tshow weekOffset
+        _ :: Bool <- sqlQueryScalar
+            "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS roster_window_lock"
+            (PG.Only lockKey)
+        action
+
+appendRosterWindowLaneMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO (Either Text (LiveMutationResult RosterLane))
+appendRosterWindowLaneMutation rosterGroupId weekOffset laneName = do
+    result <- withRosterWindowMutationLock rosterGroupId weekOffset $
+        appendRosterWindowLane currentVenueId rosterGroupId weekOffset laneName
+    traverse (\lane -> invalidateTouchedResources "roster.lane.append" (liveMutationResult lane (rosterSlotsStructureTouchedResources rosterGroupId weekOffset))) result
+
+removeRosterWindowLaneMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Id RosterLane -> IO (Either Text (LiveMutationResult ()))
+removeRosterWindowLaneMutation rosterGroupId weekOffset laneId = do
+    result <- withRosterWindowMutationLock rosterGroupId weekOffset $
+        removeRosterWindowLane currentVenueId rosterGroupId weekOffset laneId currentUser.id
+    traverse (\() -> invalidateTouchedResources "roster.lane.remove" (liveMutationResult () (rosterSlotsStructureTouchedResources rosterGroupId weekOffset))) result
+
+repackRosterWindowMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (LiveMutationResult ())
+repackRosterWindowMutation rosterGroupId weekOffset = do
+    withRosterWindowMutationLock rosterGroupId weekOffset $
+        repackRosterWindow currentVenueId rosterGroupId weekOffset
+    invalidateTouchedResources "roster.window.repack" (liveMutationResult () (rosterSlotsStructureTouchedResources rosterGroupId weekOffset))
+
 appendRosterWeekSlotDefinitionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> Text -> IO (LiveMutationResult RosterWeekSlotDefinition)
 appendRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotName = do
     slotDefinition <- withTransaction (appendRosterWeekSlotDefinition rosterWeek slotName)
@@ -109,10 +154,18 @@ toggleRosterDayClosedMutation rosterGroupId rosterWeek rosterDay nextClosedState
 
 addRosterDayRowMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> IO (LiveMutationResult RosterDay)
 addRosterDayRowMutation rosterGroupId rosterWeek rosterDay = do
-    updatedDay <- rosterDay
-        |> set #rowCount (rosterDay.rowCount + 1)
-        |> updateRecord
+    updatedDay <- withRosterWindowMutationLock rosterGroupId rosterWeek.weekOffset do
+        currentDay <- fetch rosterDay.id
+        currentDay
+            |> set #rowCount (currentDay.rowCount + 1)
+            |> updateRecord
     invalidateTouchedResources "roster.day.row_add" (liveMutationResult updatedDay (rosterDayTouchedResources rosterGroupId rosterWeek.weekOffset rosterDay))
+
+removeRosterDayRowByLanesMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> IO (LiveMutationResult ())
+removeRosterDayRowByLanesMutation rosterGroupId rosterWeek rosterDay = do
+    withRosterWindowMutationLock rosterGroupId rosterWeek.weekOffset $
+        removeRosterDayRowByLanes rosterDay currentUser.id
+    invalidateTouchedResources "roster.row.remove" (liveMutationResult () (rosterDayTouchedResources rosterGroupId rosterWeek.weekOffset rosterDay))
 
 removeRosterDayRowMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> [RosterWeekSlotDefinition] -> IO (LiveMutationResult ())
 removeRosterDayRowMutation rosterGroupId rosterWeek rosterDay activeDefinitions = do

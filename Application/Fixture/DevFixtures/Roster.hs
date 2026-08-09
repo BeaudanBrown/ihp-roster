@@ -21,6 +21,7 @@ import Application.RosterShiftAssignment (RosterShiftAssignment (..),
 import Application.VenueTime.Model
 import Control.Monad (void)
 import qualified Data.Map.Strict as Map
+import Data.Maybe (fromJust)
 import Data.Time.Calendar (Day, addDays, dayOfWeek)
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -97,7 +98,7 @@ seedPayAssignmentMatrix rosterGroup weekOffset staffModes shiftModes = do
             |> fetchOne
     rosterDays <-
         query @RosterDay
-            |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+            |> filterWhere (#rosterWeekId, Just (unpackId rosterWeek.id))
             |> orderByAsc #dayOffset
             |> fetch
     when (length rosterDays < length shiftModes) $
@@ -540,7 +541,7 @@ rosterDayRecord :: UTCTime -> RosterWeek -> Id RosterDay -> Int -> RosterDay
 rosterDayRecord now rosterWeek rosterDayId dayOffset =
     newRecord @RosterDay
         |> set #id rosterDayId
-        |> set #rosterWeekId (unpackId (get #id rosterWeek))
+        |> set #rosterWeekId (Just (unpackId (get #id rosterWeek)))
         |> set #dayOffset dayOffset
         |> set #isClosed False
         |> set #createdAt now
@@ -554,7 +555,7 @@ createRosterRow ::
     [(Text, DevRosterSlotSeed)] ->
     IO ()
 createRosterRow rosterDay slotNames rowIndex assignments = do
-    rosterWeek <- fetch (Id rosterDay.rosterWeekId :: Id RosterWeek)
+    rosterWeek <- fetch (Id (fromJust rosterDay.rosterWeekId) :: Id RosterWeek)
     venueConfig <- query @VenueConfig
         |> filterWhere (#venueId, rosterWeek.venueId)
         |> fetchOne
@@ -574,7 +575,7 @@ createRosterRow rosterDay slotNames rowIndex assignments = do
                     newRecord @RosterSlot
                         |> set #id rosterSlotId
                         |> set #rosterDayId (unpackId (get #id rosterDay))
-                        |> set #rosterWeekSlotDefinitionId (unpackId (get #id slotDefinition))
+                        |> set #rosterWeekSlotDefinitionId (Just (unpackId (get #id slotDefinition)))
                         |> set #slotSortOrder slotDefinition.sortOrder
                         |> applyRosterShiftAssignment (maybe OpenAssignment (StaffAssignment . (.id)) slotSeed.slotStaff)
                         |> set #shiftTypeId slotSeed.slotShiftTypeId

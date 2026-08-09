@@ -353,20 +353,10 @@ removeCurrentAndFutureRosterAssignments removedAt staff = do
     rosterDays <- if null rosterDayIds
         then pure []
         else query @RosterDay |> filterWhereIn (#id, map Id rosterDayIds) |> fetch
-    let rosterWeekIds = nub (map (.rosterWeekId) rosterDays)
-    rosterWeeks <- if null rosterWeekIds
-        then pure []
-        else query @RosterWeek
-            |> filterWhereIn (#id, map Id rosterWeekIds)
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> fetch
     let rosterDaysById = Map.fromList [(unpackId rosterDay.id, rosterDay) | rosterDay <- rosterDays]
-        rosterWeeksById = Map.fromList [(unpackId rosterWeek.id, rosterWeek) | rosterWeek <- rosterWeeks]
         isCurrentOrFuture slot = do
             rosterDay <- Map.lookup slot.rosterDayId rosterDaysById
-            rosterWeek <- Map.lookup rosterDay.rosterWeekId rosterWeeksById
-            let operationalDate = addDays (toInteger rosterDay.dayOffset) (venueWeekStartDate venueConfig rosterWeek.weekOffset)
-            pure (operationalDate >= operationalToday)
+            pure (rosterDay.operationalDate >= operationalToday)
     let removedSlots = filter (fromMaybe False . isCurrentOrFuture) assignedSlots
     forM_ removedSlots \slot ->
         void $

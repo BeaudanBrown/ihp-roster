@@ -25,6 +25,7 @@ import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, readMVar, takeMVar)
 import Control.Exception.Safe (SomeException, try)
 import Control.Monad (void, zipWithM)
+import Data.Coerce (coerce)
 import qualified Data.List as List
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -1455,7 +1456,7 @@ tests = aroundAll withDatabaseTestContext do
                     , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
                             callActionWithParams
-                                (CreateRosterSlotAction rosterDay.id slotDefinition.id 0)
+                                (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
                                 [ ("staffId", cs (tshow staff.id))
                                 , ("startTime", "09:00")
                                 , ("endTime", "17:00")

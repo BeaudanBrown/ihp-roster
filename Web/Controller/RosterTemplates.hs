@@ -376,7 +376,7 @@ resolveTemplateApplicationRequest rosterTemplateId rosterGroup weekOffset target
             Just (TemplateDayTarget rosterDayId) -> do
                 maybeDay <- query @RosterDay
                     |> filterWhere (#id, rosterDayId)
-                    |> filterWhere (#rosterWeekId, unpackId targetWeek.id)
+                    |> filterWhere (#rosterWeekId, Just (unpackId targetWeek.id))
                     |> fetchOneOrNothing
                 pure (applicationRequest targetWeek . Just . (.dayOffset) <$> maybeDay)
             _ -> pure Nothing

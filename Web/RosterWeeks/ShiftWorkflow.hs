@@ -44,6 +44,8 @@ import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.Controller.RosterWeeks.Validation
+import Web.RosterWeeks.DateRange (resolveRosterLaneReference,
+                                  rosterPlanningWeekForDay)
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.Service (fetchActiveStaffForCurrentVenue)
 import Web.RosterWeeks.StaffOptions (buildRosterStaffOptionStates,
@@ -69,12 +71,13 @@ data ValidatedRosterShift = ValidatedRosterShift
 fetchRosterSlotCreateContext :: (?modelContext :: ModelContext) => Id RosterDay -> IO (RosterDay, RosterWeek)
 fetchRosterSlotCreateContext rosterDayId = do
     rosterDay <- fetch rosterDayId
-    let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
-    rosterWeek <- fetch rosterWeekId
+    rosterWeek <- rosterPlanningWeekForDay rosterDay
     pure (rosterDay, rosterWeek)
 
-fetchRosterSlotDefinitionForCreate :: (?modelContext :: ModelContext) => Id RosterWeekSlotDefinition -> IO RosterWeekSlotDefinition
-fetchRosterSlotDefinitionForCreate = fetch
+fetchRosterSlotDefinitionForCreate :: (?modelContext :: ModelContext) => Id RosterDay -> Id RosterLane -> IO RosterLane
+fetchRosterSlotDefinitionForCreate rosterDayId requestedId =
+    resolveRosterLaneReference (Just rosterDayId) requestedId
+        >>= maybe (error "Roster lane does not exist for the selected Operational date") pure
 
 fetchRosterSlotForEdit :: (?modelContext :: ModelContext) => Id RosterSlot -> IO RosterSlot
 fetchRosterSlotForEdit = fetch
@@ -83,11 +86,10 @@ fetchRosterSlotEditContext :: (?modelContext :: ModelContext) => RosterSlot -> I
 fetchRosterSlotEditContext rosterSlot = do
     let rosterDayId = (coerce rosterSlot.rosterDayId :: Id RosterDay)
     rosterDay <- fetch rosterDayId
-    let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
-    rosterWeek <- fetch rosterWeekId
+    rosterWeek <- rosterPlanningWeekForDay rosterDay
     pure (rosterDay, rosterWeek)
 
-rosterShiftDialogForCreateHtml :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterDay -> RosterWeek -> RosterWeekSlotDefinition -> Int -> RosterShiftDialogValues -> IO Blaze.Html
+rosterShiftDialogForCreateHtml :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterDay -> RosterWeek -> RosterLane -> Int -> RosterShiftDialogValues -> IO Blaze.Html
 rosterShiftDialogForCreateHtml rosterDay rosterWeek slotDefinition rowIndex values = do
     (staffMembers, payInvalidStaffIds) <- fetchRosterShiftDialogStaff (coerce rosterWeek.rosterGroupId) Nothing
     shiftTypes <- fetchCurrentVenueRosterShiftTypesForDialog
@@ -95,7 +97,7 @@ rosterShiftDialogForCreateHtml rosterDay rosterWeek slotDefinition rowIndex valu
     let targetSlot =
             newRecord @RosterSlot
                 |> set #rosterDayId (unpackId rosterDay.id)
-                |> set #rosterWeekSlotDefinitionId (unpackId slotDefinition.id)
+                |> set #rosterLaneId (unpackId slotDefinition.id)
                 |> set #slotSortOrder slotDefinition.sortOrder
                 |> set #rowIndex rowIndex
     staffOptionStates <- buildRosterShiftDialogStaffOptionStates (coerce rosterWeek.rosterGroupId) rosterWeek targetSlot staffMembers
@@ -147,7 +149,9 @@ buildRosterShiftDialogStaffOptionStates rosterGroupId rosterWeek targetSlot staf
     assignmentFilters <- fetchRosterAssignmentFilters
     let weekStartDate = venueWeekStartDate venueConfig rosterWeek.weekOffset
     rosterDays <- query @RosterDay
-        |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+        |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
+        |> filterWhereGreaterThanOrEqualTo (#operationalDate, weekStartDate)
+        |> filterWhereLessThanOrEqualTo (#operationalDate, Calendar.addDays 6 weekStartDate)
         |> fetch
     visibleSlots <-
         if null rosterDays

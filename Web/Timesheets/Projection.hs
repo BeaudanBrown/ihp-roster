@@ -249,7 +249,7 @@ fetchTimesheetSuggestionsForWeek venueConfig weekOffset filters activeRosterGrou
             then pure []
             else
                 query @RosterDay
-                    |> filterWhereIn (#rosterWeekId, liveRosterWeekIds)
+                    |> filterWhereIn (#rosterWeekId, map Just liveRosterWeekIds)
                     |> fetch
     let rosterDayIds = map (unpackId . (.id)) rosterDays
     rosterSlots <-
@@ -436,10 +436,13 @@ fetchTimesheetSuggestionForRosterSlot rosterSlotId = do
                 Nothing -> pure Nothing
                 Just rosterDay -> do
                     maybeRosterWeek <-
-                        query @RosterWeek
-                            |> filterWhere (#id, Id rosterDay.rosterWeekId)
-                            |> filterWhere (#venueId, unpackId currentVenueId)
-                            |> fetchOneOrNothing
+                        case rosterDay.rosterWeekId of
+                            Nothing -> pure Nothing
+                            Just rosterWeekId ->
+                                query @RosterWeek
+                                    |> filterWhere (#id, Id rosterWeekId)
+                                    |> filterWhere (#venueId, unpackId currentVenueId)
+                                    |> fetchOneOrNothing
                     case maybeRosterWeek of
                         Nothing -> pure Nothing
                         Just _rosterWeek ->

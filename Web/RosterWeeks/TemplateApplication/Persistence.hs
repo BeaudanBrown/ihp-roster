@@ -39,7 +39,7 @@ applyPreparedApplication actor prepared = do
         let definition = definitionByName Map.! Text.toCaseFold (Text.strip plan.preparedTemplateColumn.name)
         newRecord @RosterSlot
             |> set #rosterDayId (unpackId plan.preparedTargetDay.id)
-            |> set #rosterWeekSlotDefinitionId (unpackId definition.id)
+            |> set #rosterWeekSlotDefinitionId (Just (unpackId definition.id))
             |> set #slotSortOrder definition.sortOrder
             |> set #rowIndex plan.preparedTemplateShift.rowIndex
             |> set #startsAt (Just plan.preparedStartsAt)

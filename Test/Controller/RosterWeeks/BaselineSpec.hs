@@ -50,7 +50,7 @@ tests = aroundAll withDatabaseTestContext do
                     dayFragment `responseStatusShouldBe` status200
                     staffPanel `responseStatusShouldBe` status200
 
-                    serverTiming coldPage `shouldContainBS` "roster_direct_fetch_slots;dur="
+                    serverTiming coldPage `shouldContainBS` "roster_direct_fetch_dated_slots;dur="
                     serverTiming rowFragment `shouldContainBS` "roster_direct_build_slot_conflicts;dur="
                     serverTiming dayFragment `shouldContainBS` "roster_direct_build_slot_conflicts;dur="
                     serverTiming staffPanel `shouldNotContainBS` "roster_direct_build_staff_option_states;dur="

@@ -34,8 +34,9 @@ import Data.Time.LocalTime (TimeOfDay)
 import qualified Text.Read as TextRead
 import Web.Controller.Prelude
 import Web.Controller.RosterWeeks.Validation (invalidRosterSlotTimingMessage)
+import Web.RosterWeeks.DateRange (resolveRosterLaneReference,
+                                  rosterPlanningWeekForDay)
 import Web.RosterWeeks.Service (copyRosterSlotToDay,
-                                fetchActiveRosterWeekSlotDefinitions,
                                 fetchActiveStaffForCurrentVenue,
                                 resolveRosterTimelineTargetBoundaries,
                                 rosterSlotCopyAmbiguousEndpoints)
@@ -63,19 +64,19 @@ data MoveRosterShiftIntent = MoveRosterShiftIntent
     { sourceSlot           :: !RosterSlot
     , sourceRosterDay      :: !RosterDay
     , targetRosterDay      :: !RosterDay
-    , targetSlotDefinition :: !RosterWeekSlotDefinition
+    , targetSlotDefinition :: !RosterLane
     , targetRowIndex       :: !Int
     , moveIsNoOp           :: !Bool
     }
 
 data RosterShiftDropTarget
-    = PreciseRosterShiftDropTarget !(Id RosterDay) !(Id RosterWeekSlotDefinition) !Int
+    = PreciseRosterShiftDropTarget !(Id RosterDay) !(Id RosterLane) !Int
     | DayRosterShiftDropTarget !(Id RosterDay)
     deriving (Eq, Show)
 
 data TimelineShiftDropTarget = TimelineShiftDropTarget
     { timelineTargetRosterDayId       :: !(Id RosterDay)
-    , timelineTargetSlotDefinitionId  :: !(Id RosterWeekSlotDefinition)
+    , timelineTargetSlotDefinitionId  :: !(Id RosterLane)
     , timelineTargetOperationalMinute :: !Int
     }
     deriving (Eq, Show)
@@ -84,7 +85,7 @@ data MoveRosterTimelineShiftIntent = MoveRosterTimelineShiftIntent
     { timelineSourceSlot           :: !RosterSlot
     , timelineSourceRosterDay      :: !RosterDay
     , timelineTargetRosterDay      :: !RosterDay
-    , timelineTargetSlotDefinition :: !RosterWeekSlotDefinition
+    , timelineTargetSlotDefinition :: !RosterLane
     , timelineTargetRowIndex       :: !Int
     , timelineTargetStartTime      :: !TimeOfDay
     , timelineMoveIsNoOp           :: !Bool
@@ -123,7 +124,7 @@ data RosterStaffDropIntent
         { staffDropStaff          :: !Staff
         , staffDropRosterDay      :: !RosterDay
         , staffDropRosterWeek     :: !RosterWeek
-        , staffDropSlotDefinition :: !RosterWeekSlotDefinition
+        , staffDropSlotDefinition :: !RosterLane
         , staffDropRowIndex       :: !Int
         }
 
@@ -145,8 +146,8 @@ validateMoveRosterTimelineShiftIntent rosterGroupId weekOffset sourceToken targe
 
 resolveRosterDayDropBoundaries :: (?context :: ControllerContext, ?modelContext :: ModelContext) => MoveRosterShiftIntent -> ShiftCopyOccurrenceSelections -> IO RosterDayDropBoundaryResolution
 resolveRosterDayDropBoundaries intent selections = do
-    sourceRosterWeek <- fetch (Id intent.sourceRosterDay.rosterWeekId :: Id RosterWeek)
-    targetRosterWeek <- fetch (Id intent.targetRosterDay.rosterWeekId :: Id RosterWeek)
+    sourceRosterWeek <- rosterPlanningWeekForDay intent.sourceRosterDay
+    targetRosterWeek <- rosterPlanningWeekForDay intent.targetRosterDay
     venueConfig <- fetchVenueConfig
     let repeatedEndpoints =
             rosterSlotCopyAmbiguousEndpoints
@@ -165,7 +166,7 @@ resolveRosterTimelineDropBoundaries intent startOccurrenceValue =
     case parseOccurrenceParam startOccurrenceValue of
         Left message -> pure (RosterTimelineDropInvalid message)
         Right startOccurrence -> do
-            rosterWeek <- fetch (Id intent.timelineTargetRosterDay.rosterWeekId :: Id RosterWeek)
+            rosterWeek <- rosterPlanningWeekForDay intent.timelineTargetRosterDay
             venueConfig <- fetchVenueConfig
             let targetRosterDate = Calendar.addDays (toInteger intent.timelineTargetRosterDay.dayOffset) (venueWeekStartDate venueConfig rosterWeek.weekOffset)
                 targetShiftDate = rosterShiftStartDate targetRosterDate intent.timelineTargetStartTime
@@ -198,7 +199,7 @@ validateRosterShiftDeleteDropIntent rosterGroupId weekOffset sourceToken targetT
                 Nothing -> pure (Left "Drag an editable shift to the delete area.")
                 Just rosterSlot -> do
                     rosterDay <- fetch (Id rosterSlot.rosterDayId :: Id RosterDay)
-                    rosterWeek <- fetch (Id rosterDay.rosterWeekId :: Id RosterWeek)
+                    rosterWeek <- rosterPlanningWeekForDay rosterDay
                     let matchesScope = rosterWeek.rosterGroupId == unpackId rosterGroupId && rosterWeek.weekOffset == weekOffset
                     if matchesScope && not rosterWeek.isLive && not rosterDay.isClosed
                         then pure (Right rosterSlot)
@@ -224,7 +225,7 @@ validateRosterStaffExistingShiftDropTarget rosterGroupId weekOffset staffId rost
     case (maybeStaff, maybeSlot) of
         (Just staff, Just rosterSlot) -> do
             rosterDay <- fetch (Id rosterSlot.rosterDayId :: Id RosterDay)
-            rosterWeek <- fetch (Id rosterDay.rosterWeekId :: Id RosterWeek)
+            rosterWeek <- rosterPlanningWeekForDay rosterDay
             let matchesScope = rosterWeek.rosterGroupId == unpackId rosterGroupId && rosterWeek.weekOffset == weekOffset
             pure do
                 guard matchesScope
@@ -241,7 +242,7 @@ validateRosterStaffCreateShiftDropTarget rosterGroupId weekOffset staffId dropTa
     maybeTargetRosterDay <- fetchOneOrNothing (query @RosterDay |> filterWhere (#id, dropTargetRosterDayId dropTarget))
     case (maybeStaff, maybeTargetRosterDay) of
         (Just staff, Just targetRosterDay) -> do
-            rosterWeek <- fetch (Id targetRosterDay.rosterWeekId :: Id RosterWeek)
+            rosterWeek <- rosterPlanningWeekForDay targetRosterDay
             maybeResolvedTarget <- resolveRosterShiftDropPlacement rosterWeek targetRosterDay dropTarget
             let matchesScope = rosterWeek.rosterGroupId == unpackId rosterGroupId && rosterWeek.weekOffset == weekOffset
             pure do
@@ -260,13 +261,13 @@ validateRosterShiftDropTarget rosterGroupId weekOffset allowSemanticDayNoOp sour
         Nothing -> pure Nothing
         Just sourceSlot -> do
             sourceRosterDay <- fetch (Id sourceSlot.rosterDayId :: Id RosterDay)
-            sourceRosterWeek <- fetch (Id sourceRosterDay.rosterWeekId :: Id RosterWeek)
+            sourceRosterWeek <- rosterPlanningWeekForDay sourceRosterDay
             let targetRosterDayId = dropTargetRosterDayId dropTarget
             maybeTargetRosterDay <- fetchOneOrNothing (query @RosterDay |> filterWhere (#id, targetRosterDayId))
             case maybeTargetRosterDay of
                 Nothing -> pure Nothing
                 Just targetRosterDay -> do
-                    targetRosterWeek <- fetch (Id targetRosterDay.rosterWeekId :: Id RosterWeek)
+                    targetRosterWeek <- rosterPlanningWeekForDay targetRosterDay
                     maybeResolvedTarget <- resolveRosterShiftDropPlacement targetRosterWeek targetRosterDay dropTarget
                     let sourceMatchesScope = sourceRosterWeek.rosterGroupId == unpackId rosterGroupId && sourceRosterWeek.weekOffset == weekOffset
                     let targetMatchesScope = targetRosterWeek.rosterGroupId == unpackId rosterGroupId && targetRosterWeek.weekOffset == weekOffset
@@ -292,18 +293,20 @@ validateRosterTimelineShiftDropTarget rosterGroupId weekOffset sourceSlotId targ
         Nothing -> pure Nothing
         Just sourceSlot -> do
             sourceRosterDay <- fetch (Id sourceSlot.rosterDayId :: Id RosterDay)
-            sourceRosterWeek <- fetch (Id sourceRosterDay.rosterWeekId :: Id RosterWeek)
+            sourceRosterWeek <- rosterPlanningWeekForDay sourceRosterDay
             maybeTargetRosterDay <- fetchOneOrNothing (query @RosterDay |> filterWhere (#id, target.timelineTargetRosterDayId))
-            maybeTargetSlotDefinition <- fetchOneOrNothing (query @RosterWeekSlotDefinition |> filterWhere (#id, target.timelineTargetSlotDefinitionId))
+            maybeTargetSlotDefinition <- case maybeTargetRosterDay of
+                Nothing -> pure Nothing
+                Just targetRosterDay -> resolveRosterLaneReference (Just targetRosterDay.id) target.timelineTargetSlotDefinitionId
             case (maybeTargetRosterDay, maybeTargetSlotDefinition, rosterSlotStartTime sourceSlot, rosterSlotElapsedSeconds sourceSlot) of
                 (Just targetRosterDay, Just targetSlotDefinition, Just sourceStart, Just _) -> do
-                    targetRosterWeek <- fetch (Id targetRosterDay.rosterWeekId :: Id RosterWeek)
+                    targetRosterWeek <- rosterPlanningWeekForDay targetRosterDay
                     let targetStartTime = minuteOfDayToTimeOfDay target.timelineTargetOperationalMinute
                         sourceMatchesScope = sourceRosterWeek.rosterGroupId == unpackId rosterGroupId && sourceRosterWeek.weekOffset == weekOffset
                         targetMatchesScope = targetRosterWeek.rosterGroupId == unpackId rosterGroupId && targetRosterWeek.weekOffset == weekOffset
-                        targetDefinitionMatchesWeek = targetSlotDefinition.rosterWeekId == unpackId targetRosterWeek.id
+                        targetDefinitionMatchesWeek = targetSlotDefinition.rosterDayId == unpackId targetRosterDay.id
                         isNoOp = sourceSlot.rosterDayId == unpackId targetRosterDay.id
-                            && sourceSlot.rosterWeekSlotDefinitionId == unpackId targetSlotDefinition.id
+                            && sourceSlot.rosterLaneId == unpackId targetSlotDefinition.id
                             && sourceStart == targetStartTime
                         validTargetStart = isNoOp
                             || ( isQuarterHourMinutes target.timelineTargetOperationalMinute
@@ -333,11 +336,11 @@ validateRosterTimelineShiftDropTarget rosterGroupId weekOffset sourceSlotId targ
                             }
                 _ -> pure Nothing
 
-resolveTimelineTargetRowIndex :: (?modelContext :: ModelContext) => RosterSlot -> RosterDay -> RosterWeekSlotDefinition -> IO (Maybe Int)
+resolveTimelineTargetRowIndex :: (?modelContext :: ModelContext) => RosterSlot -> RosterDay -> RosterLane -> IO (Maybe Int)
 resolveTimelineTargetRowIndex sourceSlot targetRosterDay targetSlotDefinition = do
     daySlots <- query @RosterSlot
         |> filterWhere (#rosterDayId, unpackId targetRosterDay.id)
-        |> filterWhere (#rosterWeekSlotDefinitionId, unpackId targetSlotDefinition.id)
+        |> filterWhere (#rosterLaneId, unpackId targetSlotDefinition.id)
         |> filterWhere (#deletedAt, Nothing)
         |> fetch
     let occupiedRows = Set.fromList [ slot.rowIndex | slot <- daySlots, slot.id /= sourceSlot.id ]
@@ -394,39 +397,44 @@ isDayDropTarget = \case
     DayRosterShiftDropTarget {} -> True
     _ -> False
 
-resolveRosterShiftDropPlacement :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWeek -> RosterDay -> RosterShiftDropTarget -> IO (Maybe (RosterWeekSlotDefinition, Int))
+resolveRosterShiftDropPlacement :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWeek -> RosterDay -> RosterShiftDropTarget -> IO (Maybe (RosterLane, Int))
 resolveRosterShiftDropPlacement targetRosterWeek targetRosterDay = \case
     PreciseRosterShiftDropTarget _ targetSlotDefinitionId targetRowIndex -> do
-        maybeTargetSlotDefinition <- fetchOneOrNothing (query @RosterWeekSlotDefinition |> filterWhere (#id, targetSlotDefinitionId))
-        targetExists <- rosterSlotCellExists targetRosterDay.id targetSlotDefinitionId targetRowIndex
+        maybeTargetSlotDefinition <- resolveRosterLaneReference (Just targetRosterDay.id) targetSlotDefinitionId
+        targetExists <- maybe (pure False) (\lane -> rosterSlotCellExists targetRosterDay.id lane.id targetRowIndex) maybeTargetSlotDefinition
         pure do
             targetSlotDefinition <- maybeTargetSlotDefinition
             guard (targetRowIndex >= 0)
-            guard (targetSlotDefinition.rosterWeekId == unpackId targetRosterWeek.id)
+            guard (targetSlotDefinition.rosterDayId == unpackId targetRosterDay.id)
             guard (isNothing targetSlotDefinition.deletedAt)
             guard (not targetExists)
             pure (targetSlotDefinition, targetRowIndex)
     DayRosterShiftDropTarget _ -> do
-        targetSlotDefinitions <- fetchActiveRosterWeekSlotDefinitions targetRosterWeek
+        targetSlotDefinitions <- query @RosterLane
+            |> filterWhere (#rosterDayId, unpackId targetRosterDay.id)
+            |> filterWhere (#deletedAt, Nothing)
+            |> orderByAsc #sortOrder
+            |> orderByAsc #createdAt
+            |> fetch
         daySlots <- query @RosterSlot
             |> filterWhere (#rosterDayId, unpackId targetRosterDay.id)
             |> filterWhere (#deletedAt, Nothing)
             |> fetch
         pure (firstAvailableRosterDayPlacement targetRosterDay targetSlotDefinitions daySlots)
 
-firstAvailableRosterDayPlacement :: RosterDay -> [RosterWeekSlotDefinition] -> [RosterSlot] -> Maybe (RosterWeekSlotDefinition, Int)
+firstAvailableRosterDayPlacement :: RosterDay -> [RosterLane] -> [RosterSlot] -> Maybe (RosterLane, Int)
 firstAvailableRosterDayPlacement targetRosterDay targetSlotDefinitions daySlots = do
     firstDefinition <- listToMaybe targetSlotDefinitions
-    let occupiedCells = Set.fromList [(slot.rowIndex, slot.rosterWeekSlotDefinitionId) | slot <- daySlots]
+    let occupiedCells = Set.fromList [(slot.rowIndex, slot.rosterLaneId) | slot <- daySlots]
     let candidateRows = [0 .. max 0 targetRosterDay.rowCount]
     let candidates = [(definition, rowIndex) | rowIndex <- candidateRows, definition <- targetSlotDefinitions, (rowIndex, unpackId definition.id) `Set.notMember` occupiedCells]
     pure (fromMaybe (firstDefinition, max 0 targetRosterDay.rowCount) (listToMaybe candidates))
 
-rosterSlotCellExists :: (?modelContext :: ModelContext) => Id RosterDay -> Id RosterWeekSlotDefinition -> Int -> IO Bool
+rosterSlotCellExists :: (?modelContext :: ModelContext) => Id RosterDay -> Id RosterLane -> Int -> IO Bool
 rosterSlotCellExists rosterDayId targetSlotDefinitionId targetRowIndex =
     query @RosterSlot
         |> filterWhere (#rosterDayId, unpackId rosterDayId)
-        |> filterWhere (#rosterWeekSlotDefinitionId, unpackId targetSlotDefinitionId)
+        |> filterWhere (#rosterLaneId, unpackId targetSlotDefinitionId)
         |> filterWhere (#rowIndex, targetRowIndex)
         |> filterWhere (#deletedAt, Nothing)
         |> fetchExists

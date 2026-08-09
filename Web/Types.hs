@@ -287,9 +287,9 @@ data RosterWeeksController
     | ToggleRosterWeekLiveStatusAction { rosterWeekId :: !(Id RosterWeek) }
     | ShowRosterNotificationConfirmationAction { rosterWeekId :: !(Id RosterWeek) }
     | CreateRosterNotificationRunAction { rosterWeekId :: !(Id RosterWeek) }
-    | CreateRosterWeekSlotDefinitionAction { rosterWeekId :: !(Id RosterWeek) }
-    | DeleteRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId :: !(Id RosterWeekSlotDefinition) }
-    | SortRosterWeekAction { rosterWeekId :: !(Id RosterWeek) }
+    | CreateRosterWeekSlotDefinitionAction { weekOffset :: !Int }
+    | DeleteRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId :: !(Id RosterLane) }
+    | SortRosterWeekAction { weekOffset :: !Int }
     | ToggleRosterDayClosedAction { rosterDayId :: !(Id RosterDay) }
     | AddRosterRowAction { rosterDayId :: !(Id RosterDay) }
     | RemoveRosterRowAction { rosterDayId :: !(Id RosterDay) }
@@ -301,9 +301,9 @@ data RosterWeeksController
     | UpdateRosterWarningPreferenceAction { weekOffset :: !Int }
     | UpdateRosterWageEstimatePreferenceAction { weekOffset :: !Int }
     | UpdateRosterOwnLiveShiftHighlightPreferenceAction { weekOffset :: !Int }
-    | NewRosterSlotDialogAction { rosterDayId :: !(Id RosterDay), rosterWeekSlotDefinitionId :: !(Id RosterWeekSlotDefinition), rowIndex :: !Int }
+    | NewRosterSlotDialogAction { rosterDayId :: !(Id RosterDay), rosterWeekSlotDefinitionId :: !(Id RosterLane), rowIndex :: !Int }
     | EditRosterSlotDialogAction { rosterSlotId :: !(Id RosterSlot) }
-    | CreateRosterSlotAction { rosterDayId :: !(Id RosterDay), rosterWeekSlotDefinitionId :: !(Id RosterWeekSlotDefinition), rowIndex :: !Int }
+    | CreateRosterSlotAction { rosterDayId :: !(Id RosterDay), rosterWeekSlotDefinitionId :: !(Id RosterLane), rowIndex :: !Int }
     | UpdateRosterSlotAction { rosterSlotId :: !(Id RosterSlot) }
     | DeleteRosterSlotAction { rosterSlotId :: !(Id RosterSlot) }
     deriving (Eq, Show, Data)
