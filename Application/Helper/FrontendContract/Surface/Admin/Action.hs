@@ -2,6 +2,7 @@ module Application.Helper.FrontendContract.Surface.Admin.Action
     ( CreateShiftTypeActionOperation
     , ToggleInactiveRosterGroupsActionOperation
     , ToggleInactiveShiftTypesActionOperation
+    , UpdateDefaultStaffPayRateActionOperation
     , UpdateMinutePrecisionShiftTimesEnabledActionOperation
     , UpdateRosterEndTimesEnabledActionOperation
     , autosaveShiftTypeNameAction
@@ -36,6 +37,7 @@ module Application.Helper.FrontendContract.Surface.Admin.Action
     , parseShowXeroTimesheetPreparationStaffMappingsActionParams
     , parseToggleInactiveRosterGroupsActionParams
     , parseToggleInactiveShiftTypesActionParams
+    , parseUpdateDefaultStaffPayRateActionParams
     , parseUpdateMinutePrecisionShiftTimesEnabledActionParams
     , parseUpdateRosterEndTimesEnabledActionParams
     , parseUpdateRosterGroupActionParams
@@ -57,6 +59,8 @@ module Application.Helper.FrontendContract.Surface.Admin.Action
     , toggleInactiveShiftTypesAction
     , toggleInactiveShiftTypesActionFields
     , toggleInactiveShiftTypesActionParamsPresent
+    , updateDefaultStaffPayRateAction
+    , updateDefaultStaffPayRateActionFields
     , updateMinutePrecisionShiftTimesEnabledAction
     , updateMinutePrecisionShiftTimesEnabledActionFields
     , updateRosterEndTimesEnabledAction
@@ -74,6 +78,7 @@ module Application.Helper.FrontendContract.Surface.Admin.Action
 import Application.Helper.FrontendContract.Surface.Admin.Generated.Action (CreateShiftTypeActionOperation,
                                                                            ToggleInactiveRosterGroupsActionOperation,
                                                                            ToggleInactiveShiftTypesActionOperation,
+                                                                           UpdateDefaultStaffPayRateActionOperation,
                                                                            UpdateMinutePrecisionShiftTimesEnabledActionOperation,
                                                                            UpdateRosterEndTimesEnabledActionOperation,
                                                                            autosaveShiftTypeNameAction,
@@ -108,6 +113,7 @@ import Application.Helper.FrontendContract.Surface.Admin.Generated.Action (Creat
                                                                            parseShowXeroTimesheetPreparationStaffMappingsActionParams,
                                                                            parseToggleInactiveRosterGroupsActionParams,
                                                                            parseToggleInactiveShiftTypesActionParams,
+                                                                           parseUpdateDefaultStaffPayRateActionParams,
                                                                            parseUpdateMinutePrecisionShiftTimesEnabledActionParams,
                                                                            parseUpdateRosterEndTimesEnabledActionParams,
                                                                            parseUpdateRosterGroupActionParams,
@@ -129,6 +135,8 @@ import Application.Helper.FrontendContract.Surface.Admin.Generated.Action (Creat
                                                                            toggleInactiveShiftTypesAction,
                                                                            toggleInactiveShiftTypesActionFields,
                                                                            toggleInactiveShiftTypesActionParamsPresent,
+                                                                           updateDefaultStaffPayRateAction,
+                                                                           updateDefaultStaffPayRateActionFields,
                                                                            updateMinutePrecisionShiftTimesEnabledAction,
                                                                            updateMinutePrecisionShiftTimesEnabledActionFields,
                                                                            updateRosterEndTimesEnabledAction,

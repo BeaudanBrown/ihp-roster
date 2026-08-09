@@ -44,6 +44,7 @@ module Application.Helper.FrontendContract.Surface.Admin
     , MoveRosterGroupDown
     , ToggleInactiveRosterGroups
     , UpdateRosterEndTimesEnabled
+    , UpdateDefaultStaffPayRate
     , UpdateMinutePrecisionShiftTimesEnabled
     , UpdateUnavailableStaffWarningThreshold
     , UpdateRosterTimePickerWindow
@@ -123,6 +124,7 @@ data MoveRosterGroupUp
 data MoveRosterGroupDown
 data ToggleInactiveRosterGroups
 data UpdateRosterEndTimesEnabled
+data UpdateDefaultStaffPayRate
 data UpdateMinutePrecisionShiftTimesEnabled
 data UpdateUnavailableStaffWarningThreshold
 data UpdateRosterTimePickerWindow
@@ -216,6 +218,14 @@ type AdminVenueSettingsSurface =
              , 'HtmxSwap 'HtmxNoSwap
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              , 'CustomHtmx ChangeAutosaveCustomHtmx "venue setting toggles submit the containing form on change"
+             ]
+         , Action UpdateDefaultStaffPayRate
+            '[ Field PayRateSelection 'WireText ]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTarget ('HtmxId AdminVenueSettingsFragment)
+             , 'HtmxSwap 'HtmxNoSwap
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
+             , 'CustomHtmx ChangeAutosaveCustomHtmx "venue staff-rate selection submits the containing form on change"
              ]
          , Action UpdateMinutePrecisionShiftTimesEnabled
             '[ Field MinutePrecisionShiftTimesEnabled 'WireBool ]

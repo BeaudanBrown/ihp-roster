@@ -23,6 +23,7 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Action
     , SyncXeroPayrollReferenceDataActionOperation
     , ToggleInactiveRosterGroupsActionOperation
     , ToggleInactiveShiftTypesActionOperation
+    , UpdateDefaultStaffPayRateActionOperation
     , UpdateMinutePrecisionShiftTimesEnabledActionOperation
     , UpdateRosterEndTimesEnabledActionOperation
     , UpdateRosterGroupActionOperation
@@ -62,6 +63,7 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Action
     , parseShowXeroTimesheetPreparationStaffMappingsActionParams
     , parseToggleInactiveRosterGroupsActionParams
     , parseToggleInactiveShiftTypesActionParams
+    , parseUpdateDefaultStaffPayRateActionParams
     , parseUpdateMinutePrecisionShiftTimesEnabledActionParams
     , parseUpdateRosterEndTimesEnabledActionParams
     , parseUpdateRosterGroupActionParams
@@ -83,6 +85,8 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Action
     , toggleInactiveShiftTypesAction
     , toggleInactiveShiftTypesActionFields
     , toggleInactiveShiftTypesActionParamsPresent
+    , updateDefaultStaffPayRateAction
+    , updateDefaultStaffPayRateActionFields
     , updateMinutePrecisionShiftTimesEnabledAction
     , updateMinutePrecisionShiftTimesEnabledActionFields
     , updateRosterEndTimesEnabledAction
@@ -656,6 +660,37 @@ parseToggleInactiveShiftTypesActionParams ::
 parseToggleInactiveShiftTypesActionParams =
     parseActionParams
         @ToggleInactiveShiftTypesActionOperation
+
+data UpdateDefaultStaffPayRateActionOperation
+
+type instance ActionSurface UpdateDefaultStaffPayRateActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.AdminVenueSettingsAdapterFamily)
+type instance ActionMarker UpdateDefaultStaffPayRateActionOperation = Types2.UpdateDefaultStaffPayRate
+type instance ActionFieldSpecs UpdateDefaultStaffPayRateActionOperation =
+    '[ 'Field Types2.PayRateSelection 'WireText
+     ]
+
+updateDefaultStaffPayRateActionFields ::
+    Text ->
+    ActionFields UpdateDefaultStaffPayRateActionOperation
+updateDefaultStaffPayRateActionFields payRateSelection =
+    actionFields
+        (surfaceField @Types2.PayRateSelection payRateSelection)
+        noSurfaceFields
+
+updateDefaultStaffPayRateActionEvidence :: ActionEvidence UpdateDefaultStaffPayRateActionOperation
+updateDefaultStaffPayRateActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "UpdateDefaultStaffPayRate" "update-default-staff-pay-rate" [SurfaceIR.FieldIR "PayRateSelection" "payRateSelection" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-venue-settings-fragment" ["admin-venue-settings-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionCustomHtmxIR "change-autosave-custom-htmx" "venue staff-rate selection submits the containing form on change")])
+
+updateDefaultStaffPayRateAction :: ActionFields UpdateDefaultStaffPayRateActionOperation -> FrontendSurfaceAction
+updateDefaultStaffPayRateAction =
+    frontendSurfaceActionFromEvidence updateDefaultStaffPayRateActionEvidence
+
+parseUpdateDefaultStaffPayRateActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields UpdateDefaultStaffPayRateActionOperation)
+parseUpdateDefaultStaffPayRateActionParams =
+    parseActionParams
+        @UpdateDefaultStaffPayRateActionOperation
 
 data UpdateMinutePrecisionShiftTimesEnabledActionOperation
 

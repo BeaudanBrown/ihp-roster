@@ -1,11 +1,13 @@
 module Application.Helper.FrontendContract.Surface.Roster.Resource
     ( matchRosterEndTimesConfigResource
+    , matchRosterLayoutConfigResource
     , matchRosterTemplateDraftResource
     , matchRosterTemplateLibraryResource
     , matchRosterTemplateResource
     , matchRosterWeekBoundaryConfigResource
     , rosterDayResource
     , rosterEndTimesConfigResource
+    , rosterLayoutConfigResource
     , rosterNotificationStatusResource
     , rosterSlotsContentResource
     , rosterSlotsStructureResource
@@ -21,6 +23,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)
 import Application.Helper.FrontendContract.Surface.Roster.Generated.Resource (rosterDayResource,
                                                                               rosterEndTimesConfigResource,
+                                                                              rosterLayoutConfigResource,
                                                                               rosterNotificationStatusResource,
                                                                               rosterSlotsContentResource,
                                                                               rosterSlotsStructureResource,
@@ -46,6 +49,9 @@ matchRosterTemplateResource = fmap fst . Generated.matchRosterTemplateResource
 
 matchRosterEndTimesConfigResource :: SurfaceResourceValue -> Maybe UUID.UUID
 matchRosterEndTimesConfigResource = fmap fst . Generated.matchRosterEndTimesConfigResource
+
+matchRosterLayoutConfigResource :: SurfaceResourceValue -> Maybe UUID.UUID
+matchRosterLayoutConfigResource = fmap fst . Generated.matchRosterLayoutConfigResource
 
 matchRosterWeekBoundaryConfigResource :: SurfaceResourceValue -> Maybe UUID.UUID
 matchRosterWeekBoundaryConfigResource = fmap fst . Generated.matchRosterWeekBoundaryConfigResource

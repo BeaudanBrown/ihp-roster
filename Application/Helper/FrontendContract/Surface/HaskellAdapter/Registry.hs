@@ -155,6 +155,7 @@ type RegisteredSurfaceResourceAdapterHomes =
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterTemplateDraft
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterDay
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterEndTimesConfig
+     , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterLayoutConfig
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterWeekBoundaryConfig
      , SurfaceResourceAdapterHome RosterDayTimelineAdapterFamily Roster.TimePickerConfig
      , SurfaceResourceAdapterHome LeaveRequestsAdapterFamily LeaveRequests.UnavailabilityBlackouts
@@ -242,6 +243,7 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @StaffAdapterFamily @Profile.UpdateStaffShiftPreferences allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @StaffAdapterFamily @Profile.CreateStaffLeaveRequest allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateRosterEndTimesEnabled allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateDefaultStaffPayRate allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateMinutePrecisionShiftTimesEnabled allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateUnavailableStaffWarningThreshold allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateRosterTimePickerWindow allRequestAdapterOperations

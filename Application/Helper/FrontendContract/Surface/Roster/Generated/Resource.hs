@@ -5,6 +5,7 @@
 module Application.Helper.FrontendContract.Surface.Roster.Generated.Resource
     ( matchRosterDayResource
     , matchRosterEndTimesConfigResource
+    , matchRosterLayoutConfigResource
     , matchRosterNotificationStatusResource
     , matchRosterSlotsContentResource
     , matchRosterSlotsStructureResource
@@ -17,6 +18,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Resource
     , matchTimePickerConfigResource
     , rosterDayResource
     , rosterEndTimesConfigResource
+    , rosterLayoutConfigResource
     , rosterNotificationStatusResource
     , rosterSlotsContentResource
     , rosterSlotsStructureResource
@@ -73,6 +75,23 @@ matchRosterEndTimesConfigResource =
     matchFrontendSurfaceResource
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterEndTimesConfig
+
+rosterLayoutConfigResource ::
+    UUID.UUID ->
+    SurfaceResourceValue
+rosterLayoutConfigResource venueId =
+    frontendSurfaceResource
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
+        @Types1.RosterLayoutConfig
+        ( surfaceField @Types1.VenueId venueId
+            &: noSurfaceFields
+        )
+
+matchRosterLayoutConfigResource :: SurfaceResourceValue -> Maybe (UUID.UUID, ())
+matchRosterLayoutConfigResource =
+    matchFrontendSurfaceResource
+        @(AdapterFamilySurface Types2.RosterAdapterFamily)
+        @Types1.RosterLayoutConfig
 
 rosterNotificationStatusResource ::
     UUID.UUID ->
