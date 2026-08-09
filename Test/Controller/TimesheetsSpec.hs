@@ -223,10 +223,12 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Timesheet Wage Visibility Venue"
                 admin <- createUserRecord "timesheet-wage-admin@example.com" "staff" True
                 manager <- createUserRecord "timesheet-wage-manager@example.com" "staff" True
+                supervisor <- createUserRecord "timesheet-wage-supervisor@example.com" "staff" True
                 workerAUser <- createUserRecord "timesheet-wage-worker-a@example.com" "staff" True
                 workerBUser <- createUserRecord "timesheet-wage-worker-b@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
                 _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue supervisor Supervisor
                 _ <- createVenueMembershipRecord venue workerAUser Worker
                 _ <- createVenueMembershipRecord venue workerBUser Worker
                 workerA <- createStaffRecord venue (Just workerAUser) "Ada" "Wages"
@@ -250,7 +252,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> set #overrideAwardLevelId Nothing
                     |> set #importedXeroPayItemId (Just importedPayItem.id)
                     |> updateRecord
-                forM_ [admin, manager, workerAUser] \viewer ->
+                forM_ [admin, manager, supervisor, workerAUser] \viewer ->
                     newRecord @UserPreference
                         |> set #userId (unpackId viewer.id)
                         |> set #showTimesheetWageEstimates True
@@ -265,7 +267,12 @@ tests = aroundAll withDatabaseTestContext do
                     callAction ShowTimesheetWeekAction { weekOffset = 0 }
                 managerResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction ShowTimesheetWeekAction { weekOffset = 0 }
+                supervisorResponse <- withUserAndCurrentVenue supervisor venue.id do
+                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
                 deniedManagerToggle <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ToggleTimesheetWageEstimatesAction
+                        [("weekOffset", "0"), ("showTimesheetWageEstimates", "true")]
+                deniedSupervisorToggle <- withUserAndCurrentVenue supervisor venue.id do
                     callActionWithParams ToggleTimesheetWageEstimatesAction
                         [("weekOffset", "0"), ("showTimesheetWageEstimates", "true")]
 
@@ -277,7 +284,11 @@ tests = aroundAll withDatabaseTestContext do
                 managerResponse `responseBodyShouldNotContain` "timesheet-wage-summary"
                 managerResponse `responseBodyShouldNotContain` "timesheet-day-wage-summary"
                 managerResponse `responseBodyShouldNotContain` "toggle-timesheet-wage-estimates"
+                supervisorResponse `responseBodyShouldNotContain` "timesheet-wage-summary"
+                supervisorResponse `responseBodyShouldNotContain` "timesheet-day-wage-summary"
+                supervisorResponse `responseBodyShouldNotContain` "toggle-timesheet-wage-estimates"
                 deniedManagerToggle `responseStatusShouldBe` status403
+                deniedSupervisorToggle `responseStatusShouldBe` status403
 
         it "keeps partial wage totals when one visible entry is unavailable" $ withContext do
             withCleanDb do

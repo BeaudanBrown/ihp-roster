@@ -6,7 +6,8 @@ module Web.Timesheets.WageEstimates
     , lookupTimesheetDayWageEstimate
     ) where
 
-import Application.Helper.Controller (hasRole)
+import Application.Helper.Controller (currentUserIsUnimpersonatedSuperAdmin,
+                                      effectiveVenueRoleOrNothing)
 import Application.VenueTime.Model (timesheetEntryWorkedOn)
 import Application.WageEngine (FinalEarningsSummary (..), WageCalculation (..),
                                deriveFinalEarnings)
@@ -43,7 +44,8 @@ data WageEstimateItem = WageEstimateItem
 
 canViewTimesheetWageEstimates :: (?context :: ControllerContext) => Bool
 canViewTimesheetWageEstimates =
-    hasRole VenueAdmin || not (hasRole Manager)
+    currentUserIsUnimpersonatedSuperAdmin
+        || effectiveVenueRoleOrNothing `elem` map Just [Worker, VenueAdmin, VenueOwner]
 
 -- Approved entries consume their sealed calculation. Unapproved entries and
 -- transient roster suggestions use the canonical draft evaluation boundary.
