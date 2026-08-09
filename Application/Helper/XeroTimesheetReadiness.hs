@@ -4,16 +4,21 @@ module Application.Helper.XeroTimesheetReadiness
     , XeroTimesheetReadiness (..)
     , XeroTimesheetReadinessRequest (..)
     , deriveXeroPayrollCalendarPeriod
+    , fetchPreviousConnectionImportedEntryIds
     , readinessBlockerCodes
     , validateXeroTimesheetReadiness
     , xeroReadinessSeverityText
     ) where
 
+import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculations)
 import Application.Helper.VenueScopedQueries
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import Application.VenueTime.Model (requireMelbourneDateRangeUTC)
+import Application.WageEngine (EarningsComponent (sourceCondition),
+                               SourceCondition (ImportedFlatRateCondition),
+                               WageCalculation (earningsComponents))
 import Application.WageSourceEnforcement (WageEntryFailure (..),
                                           enforceFinalWageEntries,
                                           renderWageEntryFailure)
@@ -27,6 +32,7 @@ import Control.Monad (guard)
 import qualified Data.Aeson.Types as AesonTypes
 import Data.Either (fromRight)
 import qualified Data.List as List
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays, diffDays)
 import Generated.Types
@@ -97,11 +103,17 @@ validateXeroTimesheetReadiness request = do
     mappedXeroEmployees <- maybe (pure []) (fetchMappedXeroEmployees staffMappings) maybeConnection
     let calendarSkippedStaffIds = employeePayrollCalendarSkippedStaffIds request approvedEntriesBeforeCalendarFilter staffMappings mappedXeroEmployees
     let effectiveSkippedStaffIds = List.nub (baseSkippedStaffIds <> calendarSkippedStaffIds)
-    let entries = filter (not . staffIsSkipped effectiveSkippedStaffIds . (.staffId)) periodEntries
+    let calendarEligibleEntries = filter (not . staffIsSkipped effectiveSkippedStaffIds . (.staffId)) periodEntries
+    previousConnectionEntryIds <-
+        maybe
+            (pure [])
+            (\connection -> fetchPreviousConnectionImportedEntryIds connection (approvedSubmittableEntries calendarEligibleEntries))
+            maybeConnection
+    let entries = filter (not . (`elem` previousConnectionEntryIds) . unpackId . (.id)) calendarEligibleEntries
     let approvedEntries = approvedSubmittableEntries entries
     let includedStaffIds = List.nub (map (.staffId) approvedEntries)
     wageSourceResult <- enforceFinalWageEntries approvedEntries
-    bucketResult <- fetchPeriodXeroLocalEarningsBuckets request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd effectiveSkippedStaffIds
+    bucketResult <- fetchPeriodXeroLocalEarningsBucketsExcludingEntries request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd effectiveSkippedStaffIds previousConnectionEntryIds
     let buckets = fromRight [] bucketResult
     earningsMappings <- maybe (pure []) (fetchVerifiedEarningsMappings buckets) maybeConnection
     allPayItemRequirements <- maybe (pure []) fetchPayItemRequirements maybeConnection
@@ -125,6 +137,7 @@ validateXeroTimesheetReadiness request = do
     let warnings =
             concat
                 [ entryWarnings entries
+                , previousConnectionImportedEntryWarnings previousConnectionEntryIds
                 , staffMappingWarnings entries staffMappings
                 , duplicateWarnings request entries staffMappings request.readinessRemoteTimesheets
                 ]
@@ -342,6 +355,56 @@ floorDiv :: Integer -> Integer -> Integer
 floorDiv numerator denominator =
     let (quotient, remainder) = numerator `quotRem` denominator
      in if remainder < 0 then quotient - 1 else quotient
+
+fetchPreviousConnectionImportedEntryIds ::
+    (?modelContext :: ModelContext) =>
+    XeroConnection ->
+    [TimesheetEntry] ->
+    IO [UUID]
+fetchPreviousConnectionImportedEntryIds _ [] = pure []
+fetchPreviousConnectionImportedEntryIds connection entries = do
+    currentConnectionItems <-
+        query @XeroImportedPayItem
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> fetch
+    loadedCalculations <- loadApprovedTimesheetPayCalculations entries
+    let currentItemIds = map (tshow . unpackId . (.id)) currentConnectionItems
+    pure
+        [ unpackId entry.id
+        | entry <- entries
+        , entryUsesPreviousConnectionImportedItem currentItemIds loadedCalculations entry
+        ]
+
+entryUsesPreviousConnectionImportedItem ::
+    [Text] ->
+    Map.Map UUID (Either Text (Maybe WageCalculation)) ->
+    TimesheetEntry ->
+    Bool
+entryUsesPreviousConnectionImportedItem currentItemIds loadedCalculations entry =
+    case Map.lookup (unpackId entry.id) loadedCalculations of
+        Just (Right (Just calculation)) -> any usesPreviousConnection calculation.earningsComponents
+        _ -> False
+  where
+    usesPreviousConnection component =
+        case component.sourceCondition of
+            ImportedFlatRateCondition itemId -> itemId `notElem` currentItemIds
+            _                                -> False
+
+previousConnectionImportedEntryWarnings :: [UUID] -> [XeroReadinessBlocker]
+previousConnectionImportedEntryWarnings [] = []
+previousConnectionImportedEntryWarnings entryIds =
+    [ ( blockerWith
+            "imported_pay_item_previous_connection"
+            ( tshow (length entryIds)
+                <> " approved timesheet entr"
+                <> (if length entryIds == 1 then "y uses" else "ies use")
+                <> " an imported pay item from a previous Xero connection and will be excluded from Xero submission."
+            )
+      )
+        { xeroBlockerSeverity = XeroReadinessWarning
+        , xeroBlockerActionHint = Just "Import and assign a pay item from the current Xero connection, then correct and reapprove the affected timesheets to include them."
+        }
+    ]
 
 entryBlockers :: [TimesheetEntry] -> [XeroReadinessBlocker]
 entryBlockers [] = [blocker "missing_approved_entries" "There are no timesheet entries in the selected period."]

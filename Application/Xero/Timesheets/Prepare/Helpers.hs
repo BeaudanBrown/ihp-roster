@@ -282,6 +282,7 @@ periodOptionFromPreparationRun run = do
                     then Just "This Xero pay run is posted."
                     else Nothing
             , periodOptionDerivedFromSyncedXero = isJust run.xeroPayRunId
+            , periodOptionWithinDefaultWindow = True
             , periodOptionLatestSubmissionStatus = Nothing
             , periodOptionLatestSubmissionRunId = Nothing
             }

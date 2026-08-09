@@ -2,6 +2,7 @@ module Application.Xero.Timesheets.Buckets
     ( XeroComponentBucketContext (..)
     , componentBucketKey
     , fetchPeriodXeroLocalEarningsBuckets
+    , fetchPeriodXeroLocalEarningsBucketsExcludingEntries
     ) where
 
 import Application.Helper.Pay (venueEffectiveRateDate)
@@ -36,7 +37,18 @@ fetchPeriodXeroLocalEarningsBuckets ::
     Day ->
     [UUID] ->
     IO (Either Text [XeroLocalEarningsBucket])
-fetchPeriodXeroLocalEarningsBuckets venueId periodStart periodEnd skippedStaffIds = do
+fetchPeriodXeroLocalEarningsBuckets venueId periodStart periodEnd skippedStaffIds =
+    fetchPeriodXeroLocalEarningsBucketsExcludingEntries venueId periodStart periodEnd skippedStaffIds []
+
+fetchPeriodXeroLocalEarningsBucketsExcludingEntries ::
+    (?modelContext :: ModelContext) =>
+    Id Venue ->
+    Day ->
+    Day ->
+    [UUID] ->
+    [UUID] ->
+    IO (Either Text [XeroLocalEarningsBucket])
+fetchPeriodXeroLocalEarningsBucketsExcludingEntries venueId periodStart periodEnd skippedStaffIds excludedEntryIds = do
     let (periodStartsAt, periodEndsAt) = requireMelbourneDateRangeUTC periodStart periodEnd
     approvedEntries <-
         query @TimesheetEntry
@@ -47,7 +59,10 @@ fetchPeriodXeroLocalEarningsBuckets venueId periodStart periodEnd skippedStaffId
             |> filterWhere (#deletedAt, Nothing)
             |> orderBy #startsAt
             |> fetch
-    let entries = filter (not . (`elem` skippedStaffIds) . (.staffId)) approvedEntries
+    let entries =
+            approvedEntries
+                |> filter (not . (`elem` skippedStaffIds) . (.staffId))
+                |> filter (not . (`elem` excludedEntryIds) . unpackId . (.id))
     staffMembers <- query @Staff |> filterWhere (#venueId, unpackId venueId) |> filterWhereIn (#id, map (Id . (.staffId)) entries) |> fetch
     staffPayVersions <- query @StaffPayVersion |> filterWhereIn (#id, mapMaybe (fmap Id . (.staffPayVersionId)) entries) |> fetch
     shiftTypePayVersions <- query @ShiftTypePayVersion |> filterWhereIn (#id, mapMaybe (fmap Id . (.shiftTypePayVersionId)) entries) |> fetch

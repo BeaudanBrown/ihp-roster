@@ -5,11 +5,13 @@ import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import Application.Helper.XeroTimesheetReadiness
+import Application.Xero.Admin.ReadModel (xeroPeriodOverlapsDefaultWindow)
 import Application.Xero.Timesheets.Buckets (fetchPeriodXeroLocalEarningsBuckets)
+import qualified Application.Xero.Timesheets.Preview as Preview
 import qualified Data.Aeson as Aeson
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Data.Time.Calendar (fromGregorian)
+import Data.Time.Calendar (addDays, fromGregorian)
 import Generated.Types hiding (xeroTimesheetId)
 import IHP.ControllerPrelude
 import IHP.Test.Mocking
@@ -28,6 +30,14 @@ tests = do
             xeroPreparationStateFromStatus XeroTimesheetPreparationRunStatusEnumSubmitted `shouldBe` XeroPreparationSubmitted
             xeroPreparationStateFromStatus XeroTimesheetPreparationRunStatusEnumFailed `shouldBe` XeroPreparationFailed
             xeroPreparationStateFromStatus Preparing `shouldBe` XeroPreparationPreparing
+
+    describe "Xero pay-period display window" do
+        it "includes periods overlapping today plus or minus seven days" do
+            let today = fromGregorian 2026 8 9
+            xeroPeriodOverlapsDefaultWindow today (addDays (-14) today) (addDays (-7) today) `shouldBe` True
+            xeroPeriodOverlapsDefaultWindow today (addDays 7 today) (addDays 13 today) `shouldBe` True
+            xeroPeriodOverlapsDefaultWindow today (addDays (-15) today) (addDays (-8) today) `shouldBe` False
+            xeroPeriodOverlapsDefaultWindow today (addDays 8 today) (addDays 14 today) `shouldBe` False
 
     describe "Xero timesheet API parsing" do
         it "parses Timesheets envelopes with Microsoft JSON dates and line units" do
@@ -369,6 +379,68 @@ tests = do
                 map (.xeroBlockerMessage) unavailableReadiness.xeroReadinessBlockers
                     `shouldSatisfy` any (Text.isInfixOf "correct and reapprove")
                 unavailableReadiness.xeroTimesheetReady `shouldBe` False
+
+        it "warns and excludes approved entries pinned to a previous Xero connection" $ withContext do
+            withCleanDb do
+                fixture <- createReadyMappedFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
+                previousConnection <-
+                    newRecord @XeroConnection
+                        |> set #venueId (unpackId fixture.venue.id)
+                        |> set #tenantId ("previous-tenant" :: Text)
+                        |> set #tenantName (Just "Previous Company")
+                        |> set #connectionStatus ("disconnected" :: Text)
+                        |> set #scopes requiredXeroScopesText
+                        |> set #encryptedRefreshToken ("previous-encrypted-token" :: Text)
+                        |> set #connectedByUserId (Just (unpackId fixture.owner.id))
+                        |> createRecord
+                previousPayItem <-
+                    newRecord @XeroImportedPayItem
+                        |> set #venueId (unpackId fixture.venue.id)
+                        |> set #xeroConnectionId (unpackId previousConnection.id)
+                        |> set #xeroEarningsRateId ("previous-earnings" :: Text)
+                        |> set #name ("Previous connection ordinary hours" :: Text)
+                        |> set #earningsType ("ordinarytimeearnings" :: Text)
+                        |> set #rateType ("rateperunit" :: Text)
+                        |> set #typeOfUnits ("hours" :: Text)
+                        |> set #ratePerUnit 34.5
+                        |> set #rawPayload Aeson.Null
+                        |> set #importedByUserId (unpackId fixture.owner.id)
+                        |> createRecord
+                previousUser <- createUserRecord "previous-connection@example.com" "staff" True
+                _ <- createVenueMembershipRecord fixture.venue previousUser Worker
+                previousStaff <- createStaffRecord fixture.venue (Just previousUser) "Previous" "Worker"
+                    >>= updateRecord . set #payAssignmentMode XeroRate . set #importedXeroPayItemId (Just previousPayItem.id)
+                _ <-
+                    newRecord @XeroStaffMapping
+                        |> set #venueId (unpackId fixture.venue.id)
+                        |> set #staffId (unpackId previousStaff.id)
+                        |> set #xeroConnectionId (unpackId fixture.connection.id)
+                        |> set #xeroEmployeeId (Just "employee-previous")
+                        |> set #xeroEmployeeName (Just "Previous Worker")
+                        |> set #mappingStatus XeroStaffMappingStatusEnumVerified
+                        |> createRecord
+                _ <- createReadinessXeroEmployee fixture "employee-previous" (Just "calendar-ready")
+                now <- getCurrentTime
+                _ <- createAndApproveEntry fixture.venue previousStaff (fromGregorian 2026 4 28) () fixture.owner now []
+
+                readiness <- validateXeroTimesheetReadiness fixture.request
+
+                readiness.xeroTimesheetReady `shouldBe` True
+                readiness.xeroReadinessEntryCount `shouldBe` 1
+                map (.xeroBlockerCode) readiness.xeroReadinessWarnings
+                    `shouldSatisfy` elem "imported_pay_item_previous_connection"
+                map (.xeroBlockerMessage) readiness.xeroReadinessWarnings
+                    `shouldSatisfy` any (Text.isInfixOf "excluded from Xero submission")
+                previewInput <- Preview.fetchPreviewInput fixture.request fixture.connection
+                map (.staffId) previewInput.previewTimesheetEntries `shouldBe` [unpackId fixture.staff.id]
+
+                let onlyPreviousConnectionRequest = fixture.request { readinessSkippedStaffIds = [unpackId fixture.staff.id] }
+                onlyPreviousConnection <- validateXeroTimesheetReadiness onlyPreviousConnectionRequest
+                onlyPreviousConnection.xeroTimesheetReady `shouldBe` False
+                onlyPreviousConnection.xeroReadinessEntryCount `shouldBe` 0
+                readinessBlockerCodes onlyPreviousConnection `shouldSatisfy` elem "missing_approved_entries"
+                map (.xeroBlockerCode) onlyPreviousConnection.xeroReadinessWarnings
+                    `shouldSatisfy` elem "imported_pay_item_previous_connection"
 
         it "allows a Xero period to include multiple relational pay versions" $ withContext do
             withCleanDb do

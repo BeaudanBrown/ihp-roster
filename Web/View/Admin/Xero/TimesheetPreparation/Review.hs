@@ -104,15 +104,17 @@ renderReviewRow row = [hsx|
 
 renderReviewReadiness :: XeroTimesheetPreparationView -> Html
 renderReviewReadiness view
-    | null actionableBlockers = mempty
+    | null actionableBlockers && null warnings = mempty
     | otherwise = [hsx|
         <section>
             <h6 class="mb-2">Needs attention</h6>
             {renderIssues "Blockers" actionableBlockers}
+            {renderIssues "Warnings" warnings}
         </section>
     |]
     where
         actionableBlockers = filter reviewActionableBlocker view.preparationReadiness.timesheetReadinessBlockers
+        warnings = view.preparationReadiness.timesheetReadinessWarnings
 
 reviewActionableBlocker :: XeroTimesheetIssueView -> Bool
 reviewActionableBlocker issue =

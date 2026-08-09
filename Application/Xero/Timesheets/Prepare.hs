@@ -468,18 +468,21 @@ reviewXeroTimesheetPreparationSubmission runId =
         Right view
             | not view.preparationCanSubmit ->
                 pure (Left "Resolve Xero preparation blockers before reviewing draft timesheets.")
-            | otherwise -> do
-                let run = view.preparationRun
-                    readinessRequest = preparationReadinessRequest run (remoteTimesheetsFromRun run)
-                reviewXeroDraftTimesheets readinessRequest >>= \case
+            | otherwise ->
+                ensurePreparationPayItemsReady view.preparationRun Nothing >>= \case
                     Left message -> pure (Left message)
-                    Right snapshot -> do
-                        _ <-
-                            run
-                                |> set #proposedActionsJson snapshot
-                                |> set #errorSummary Nothing
-                                |> updateRecord
-                        loadXeroTimesheetPreparationView runId
+                    Right () -> do
+                        refreshedRun <- fetch view.preparationRun.id
+                        let readinessRequest = preparationReadinessRequest refreshedRun (remoteTimesheetsFromRun refreshedRun)
+                        reviewXeroDraftTimesheets readinessRequest >>= \case
+                            Left message -> pure (Left message)
+                            Right snapshot -> do
+                                _ <-
+                                    refreshedRun
+                                        |> set #proposedActionsJson snapshot
+                                        |> set #errorSummary Nothing
+                                        |> updateRecord
+                                loadXeroTimesheetPreparationView runId
 
 submitXeroTimesheetPreparation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

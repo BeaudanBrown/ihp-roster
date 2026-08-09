@@ -11,6 +11,7 @@ module Application.Xero.Admin.ReadModel
     , fetchCurrentVenueXeroStaffMappingRows
     , fetchCurrentVenueXeroTimesheetPeriodOptions
     , xeroEmployeeAvailableForStaff
+    , xeroPeriodOverlapsDefaultWindow
     , xeroTimesheetPreviewRowsFromJson
     , xeroTimesheetReadinessView
     ) where
@@ -292,7 +293,7 @@ derivedPeriodOptions today payRuns approvedWorkedOnDates calendar =
                 periodEnd = addDays (periodLength - 1) periodStart
                 maybePayRun = findPayRun calendar periodStart periodEnd payRuns
             guard (not (maybe False isPostedPayRun maybePayRun))
-            pure (periodOptionFrom calendar periodStart periodEnd maybePayRun True)
+            pure (periodOptionFrom today calendar periodStart periodEnd maybePayRun True)
 
 staffPayrollCalendarAssignments :: [XeroStaffMapping] -> [XeroEmployee] -> Map.Map UUID Text
 staffPayrollCalendarAssignments mappings employees =
@@ -341,8 +342,8 @@ submissionRunMatchesPeriod option run =
                 && run.payPeriodEnd == option.periodOptionEnd
            )
 
-periodOptionFrom :: XeroPayrollCalendar -> Day -> Day -> Maybe XeroPayRun -> Bool -> XeroTimesheetPeriodOption
-periodOptionFrom calendar periodStart periodEnd maybePayRun derivedFromSyncedXero =
+periodOptionFrom :: Day -> XeroPayrollCalendar -> Day -> Day -> Maybe XeroPayRun -> Bool -> XeroTimesheetPeriodOption
+periodOptionFrom today calendar periodStart periodEnd maybePayRun derivedFromSyncedXero =
     XeroTimesheetPeriodOption
         { periodOptionKey = xeroPeriodOptionKey calendar.xeroPayrollCalendarId periodStart periodEnd
         , periodOptionPayrollCalendarId = calendar.xeroPayrollCalendarId
@@ -358,9 +359,14 @@ periodOptionFrom calendar periodStart periodEnd maybePayRun derivedFromSyncedXer
                 then Just "This Xero pay run is posted."
                 else Nothing
         , periodOptionDerivedFromSyncedXero = derivedFromSyncedXero || isJust maybePayRun
+        , periodOptionWithinDefaultWindow = xeroPeriodOverlapsDefaultWindow today periodStart periodEnd
         , periodOptionLatestSubmissionStatus = Nothing
         , periodOptionLatestSubmissionRunId = Nothing
         }
+
+xeroPeriodOverlapsDefaultWindow :: Day -> Day -> Day -> Bool
+xeroPeriodOverlapsDefaultWindow today periodStart periodEnd =
+    periodEnd >= addDays (-7) today && periodStart <= addDays 7 today
 
 findPayRun :: XeroPayrollCalendar -> Day -> Day -> [XeroPayRun] -> Maybe XeroPayRun
 findPayRun calendar periodStart periodEnd =

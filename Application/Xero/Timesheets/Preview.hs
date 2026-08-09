@@ -237,11 +237,15 @@ fetchPreviewInput request connection = do
             |> filterWhereIn (#xeroEmployeeId, List.nub (mapMaybe (.xeroEmployeeId) staffMappings))
             |> filterWhere (#providerAvailable, True)
             |> fetch
-    let entries =
+    let calendarEligibleEntries =
             includedEntries
                 |> filter \entry ->
                     any (mappingIncludesEntry entry) staffMappings
                         && entryMatchesSelectedPayrollCalendar request staffMappings xeroEmployees entry
+    previousConnectionEntryIds <- fetchPreviousConnectionImportedEntryIds connection calendarEligibleEntries
+    let entries =
+            calendarEligibleEntries
+                |> filter (not . (`elem` previousConnectionEntryIds) . unpackId . (.id))
     staffMembers <-
         query @Staff
             |> filterWhere (#venueId, unpackId request.readinessVenueId)

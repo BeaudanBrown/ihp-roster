@@ -150,6 +150,7 @@ data XeroTimesheetPeriodOption = XeroTimesheetPeriodOption
     , periodOptionBlocked                :: Bool
     , periodOptionBlockReason            :: Maybe Text
     , periodOptionDerivedFromSyncedXero  :: Bool
+    , periodOptionWithinDefaultWindow    :: Bool
     , periodOptionLatestSubmissionStatus :: Maybe XeroSubmissionRunStatusEnum
     , periodOptionLatestSubmissionRunId  :: Maybe (Id XeroSubmissionRun)
     }

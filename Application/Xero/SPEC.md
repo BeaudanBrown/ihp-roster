@@ -120,7 +120,11 @@ issue and, when cross-system design remains unresolved, a new workstream.
   the approved staff/shift pay version and require no managed Award mapping.
   Imported-item venue, connection and remote earnings-rate identity are database
   immutable; refresh may update display/rate/freshness metadata but cannot reroute
-  a sealed component to another Xero earning rate.
+  a sealed component to another Xero earning rate. Approved entries pinned to an
+  imported item from a previous venue connection are preserved but excluded from
+  readiness counts, preview, and submission with one visible warning. Other
+  eligible entries continue; a period containing only excluded entries remains
+  blocked from creating an empty submission.
 - Readiness, managed pay-item proposals, preview, and submission resolve overlapping projected rates through the same latest venue-effective-rate rule as payroll calculations. Raw FWC operative dates are normalized to the venue week before constructing bucket keys.
 - Managed award pay-item effective-date keys/names use the Bepis venue-effective
   rate date from the pay engine, not necessarily the raw FWC/MAPD operative
@@ -162,7 +166,11 @@ The exact paging, lease, retry, and trust implementation is authoritative in
 ## Payroll Preparation And Submission
 
 - Each preparation run explicitly selects one synced calendar and period. Only
-  mapped employees assigned by Xero to that calendar are eligible.
+  mapped employees assigned by Xero to that calendar are eligible. The period
+  selector initially shows periods overlapping the inclusive window from seven
+  days before today through seven days after today. The selector checkbox reveals
+  all other eligible past and future periods; this is display
+  filtering only and does not change readiness or submission authority.
 - Readiness, proposals, preview, and submission use the same venue-effective
   rate resolution and strict wage-source boundary. Any included calculation or
   source failure blocks the complete operation.
