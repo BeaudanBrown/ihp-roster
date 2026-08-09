@@ -210,7 +210,18 @@ test.describe('Live fragment multi-view coverage', () => {
         await loginManager(actorPage);
         runSql(`
             UPDATE leave_requests
-            SET status = 'denied', deleted_at = NULL, updated_at = NOW()
+            SET status = 'denied',
+                deleted_at = CASE
+                    WHEN id = (
+                        SELECT id FROM leave_requests
+                        WHERE venue_id = 'a1000000-0000-0000-0000-000000000001'
+                          AND notes = '${note}'
+                        ORDER BY id
+                        LIMIT 1
+                    ) THEN NULL
+                    ELSE NOW()
+                END,
+                updated_at = NOW()
             WHERE venue_id = 'a1000000-0000-0000-0000-000000000001'
               AND notes = '${note}';
         `);
@@ -233,8 +244,13 @@ test.describe('Live fragment multi-view coverage', () => {
                 status = 'pending',
                 deleted_at = NULL,
                 updated_at = NOW()
-            WHERE venue_id = 'a1000000-0000-0000-0000-000000000001'
-              AND notes = '${note}';
+            WHERE id = (
+                SELECT id FROM leave_requests
+                WHERE venue_id = 'a1000000-0000-0000-0000-000000000001'
+                  AND notes = '${note}'
+                ORDER BY id
+                LIMIT 1
+            );
         `);
         await gotoWhenReady(actorPage, '/LeaveRequests', '#leave-requests-content');
 

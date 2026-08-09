@@ -32,7 +32,9 @@ async function staffNamesByKey(root: Locator, target: SidePanelPage) {
     const sortDefinition = FrontendSurfaceCompleteSetSortRegistry[target.surface][0];
     if (!sortDefinition) throw new Error(`Missing staff sort contract for ${target.surface}`);
     const rows = await root.locator(`[${sortDefinition.rowRoleAttribute}]`).evaluateAll((elements, rowAttribute) =>
-        elements.map(element => JSON.parse(element.getAttribute(rowAttribute) ?? '{}') as { staffRowKey: string; staffName: string }),
+        elements
+            .filter(element => !element.querySelector('[aria-label^="Invite "]'))
+            .map(element => JSON.parse(element.getAttribute(rowAttribute) ?? '{}') as { staffRowKey: string; staffName: string }),
         sortDefinition.rowRoleAttribute,
     );
     return new Map(rows.map(row => [row.staffRowKey, row.staffName]));
