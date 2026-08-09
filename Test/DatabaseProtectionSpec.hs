@@ -5,7 +5,7 @@ import Data.Either (isLeft, isRight)
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.IO as TextIO
-import Data.Time.Calendar (fromGregorian)
+import Data.Time.Calendar (Day, fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
@@ -183,6 +183,68 @@ tests = aroundAll withDatabaseTestContext do
                         |> filterWhere (#id, preference.id)
                         |> fetchOneOrNothing
                 deletedPreference `shouldBe` Nothing
+
+    describe "date-native roster foundation migration" do
+        it "projects every legacy day, lane, and retained shift deterministically without changing legacy facts" $ withContext do
+            withCleanDb do
+                predecessorSql <- TextIO.readFile "Test/Fixtures/date-native-roster/pre-foundation-schema.sql"
+                migrationSql <- TextIO.readFile "Application/Migration/1787001000.sql"
+                withTransaction do
+                    case transactionRunner ?modelContext of
+                        Nothing -> error "Date-native roster migration fixture requires a transaction runner"
+                        Just runner -> do
+                            runInTransaction runner (HasqlSession.script predecessorSql)
+                            runInTransaction runner (HasqlSession.script migrationSql)
+
+                    projectedDays :: [(Day, Text)] <- sqlQuery
+                        "SELECT operational_date, publication_state::text FROM date_native_roster_migration_acceptance.roster_days ORDER BY operational_date"
+                        ()
+                    projectedDays `shouldBe`
+                        [ (fromGregorian 2026 8 day, "published")
+                        | day <- [3 .. 9]
+                        ]
+                    laneCount :: Int <- sqlQueryScalar
+                        "SELECT count(*)::int FROM date_native_roster_migration_acceptance.roster_lanes"
+                        ()
+                    retainedLaneCount :: Int <- sqlQueryScalar
+                        "SELECT count(*)::int FROM date_native_roster_migration_acceptance.roster_lanes WHERE deleted_at IS NOT NULL AND delete_reason = 'layout changed'"
+                        ()
+                    laneCount `shouldBe` 14
+                    retainedLaneCount `shouldBe` 7
+
+                    projectedSlotCount :: Int <- sqlQueryScalar
+                        "SELECT count(*)::int FROM date_native_roster_migration_acceptance.roster_slots slot JOIN date_native_roster_migration_acceptance.roster_lanes lane ON lane.id = slot.roster_lane_id WHERE lane.roster_day_id = slot.roster_day_id AND lane.legacy_roster_week_slot_definition_id = slot.roster_week_slot_definition_id"
+                        ()
+                    preservedSlotFacts :: Int <- sqlQueryScalar
+                        "SELECT count(*)::int FROM date_native_roster_migration_acceptance.roster_slots WHERE (id = '90000000-0000-0000-0000-000000000001' AND assignment_state = 'staff' AND staff_id = '70000000-0000-0000-0000-000000000001' AND row_index = 2 AND starts_at = '2026-08-02 23:00:00+00' AND ends_at = '2026-08-03 07:00:00+00' AND created_at = '2026-07-06 00:00:00+00' AND updated_at = '2026-07-07 00:00:00+00' AND deleted_at IS NULL) OR (id = '90000000-0000-0000-0000-000000000002' AND assignment_state = 'open' AND staff_id IS NULL AND row_index = 3 AND deleted_at = '2026-07-08 00:00:00+00' AND delete_reason = 'old plan')"
+                        ()
+                    projectedSlotCount `shouldBe` 2
+                    preservedSlotFacts `shouldBe` 2
+
+                    sqlExecDiscardResult
+                        "UPDATE date_native_roster_migration_acceptance.roster_weeks SET is_live = FALSE WHERE id = '50000000-0000-0000-0000-000000000001'"
+                        ()
+                    draftDayCount :: Int <- sqlQueryScalar
+                        "SELECT count(*)::int FROM date_native_roster_migration_acceptance.roster_days WHERE publication_state = 'draft'"
+                        ()
+                    draftDayCount `shouldBe` 7
+
+                    sqlExecDiscardResult
+                        "UPDATE date_native_roster_migration_acceptance.venue_config SET roster_week_starts_on = 1, week_offset_epoch = '2026-08-04' WHERE id = '40000000-0000-0000-0000-000000000001'"
+                        ()
+                    sqlExecDiscardResult
+                        "UPDATE date_native_roster_migration_acceptance.roster_days SET row_count = row_count + 1 WHERE day_offset = 0"
+                        ()
+                    calendarRevision :: Int <- sqlQueryScalar
+                        "SELECT roster_calendar_revision FROM date_native_roster_migration_acceptance.venue_config"
+                        ()
+                    preservedOperationalDate :: Day <- sqlQueryScalar
+                        "SELECT operational_date FROM date_native_roster_migration_acceptance.roster_days WHERE day_offset = 0"
+                        ()
+                    calendarRevision `shouldBe` 2
+                    preservedOperationalDate `shouldBe` fromGregorian 2026 8 3
+                    sqlExecDiscardResult "SET LOCAL search_path TO public" ()
+                    sqlExecDiscardResult "DROP SCHEMA date_native_roster_migration_acceptance CASCADE" ()
 
     describe "explicit roster shift assignment migration" do
         it "upgrades representative predecessor rows without deleting history or Timesheet provenance" $ withContext do

@@ -58,6 +58,7 @@ applicationTableNames =
     , "roster_weeks"
     , "roster_days"
     , "roster_week_slot_definitions"
+    , "roster_lanes"
     , "roster_slots"
     , "roster_notification_runs"
     , "staff_shift_preferences"

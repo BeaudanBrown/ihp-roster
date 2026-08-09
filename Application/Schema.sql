@@ -47,6 +47,7 @@ CREATE TYPE staff_document_type_enum AS ENUM ('rsa_statement_of_attainment');
 CREATE TYPE staff_document_status_enum AS ENUM ('pending_review', 'verified', 'rejected', 'expired');
 CREATE TYPE award_penalty_kind_enum AS ENUM ('evening_after_7pm', 'late_night_after_midnight', 'saturday_penalty', 'sunday_penalty', 'public_holiday_penalty', 'delayed_meal_break_weekday', 'delayed_meal_break_saturday', 'delayed_meal_break_sunday', 'delayed_meal_break_public_holiday');
 CREATE TYPE roster_layout_mode_enum AS ENUM ('day_rows', 'day_columns');
+CREATE TYPE roster_day_publication_state_enum AS ENUM ('draft', 'published');
 CREATE TYPE roster_template_scale_enum AS ENUM ('day', 'week');
 CREATE TYPE feedback_type_enum AS ENUM ('bug', 'suggestion', 'other');
 CREATE TYPE shift_type_colour_key_enum AS ENUM ('no_colour', 'palette_1', 'palette_2', 'palette_3', 'palette_4', 'palette_5', 'palette_6', 'palette_7', 'palette_8', 'palette_9', 'palette_10');
@@ -437,6 +438,7 @@ CREATE TABLE venue_config (
     timezone TEXT NOT NULL,
     roster_week_starts_on INT NOT NULL,
     week_offset_epoch DATE NOT NULL,
+    roster_calendar_revision INT DEFAULT 1 NOT NULL,
     late_to_early_min_start_gap_minutes INT DEFAULT 0 NOT NULL,
     time_picker_start_minute_of_day INT DEFAULT 360 NOT NULL,
     time_picker_final_selectable_minute_of_day INT DEFAULT 345 NOT NULL,
@@ -454,6 +456,7 @@ CREATE TABLE venue_config (
     UNIQUE(venue_id),
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     CHECK ((roster_week_starts_on >= 0) AND (roster_week_starts_on <= 6)),
+    CHECK (roster_calendar_revision > 0),
     CHECK (late_to_early_min_start_gap_minutes >= 0),
     CHECK ((time_picker_start_minute_of_day >= 0) AND (time_picker_start_minute_of_day < 1440) AND (MOD(time_picker_start_minute_of_day, 15) = 0)),
     CHECK ((time_picker_final_selectable_minute_of_day >= 0) AND (time_picker_final_selectable_minute_of_day < 1440) AND (MOD(time_picker_final_selectable_minute_of_day, 15) = 0)),
@@ -927,13 +930,20 @@ CREATE TABLE roster_weeks (
 CREATE TABLE roster_days (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     roster_week_id UUID NOT NULL,
+    venue_id UUID NOT NULL,
+    roster_group_id UUID NOT NULL,
+    operational_date DATE NOT NULL,
+    publication_state roster_day_publication_state_enum DEFAULT 'draft' NOT NULL,
     day_offset INT NOT NULL,
     is_closed BOOLEAN DEFAULT FALSE NOT NULL,
     row_count INT DEFAULT 4 NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     UNIQUE(roster_week_id, day_offset),
+    UNIQUE(roster_group_id, operational_date),
     FOREIGN KEY (roster_week_id) REFERENCES roster_weeks (id) ON DELETE RESTRICT,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE RESTRICT,
     CHECK ((day_offset >= 0) AND (day_offset <= 6)),
     CHECK (row_count >= 0)
 );
@@ -952,9 +962,28 @@ CREATE TABLE roster_week_slot_definitions (
     CHECK ((char_length(btrim(name)) > 0) AND (char_length(name) <= 120)),
     CHECK (sort_order >= 0)
 );
+CREATE TABLE roster_lanes (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    roster_day_id UUID NOT NULL,
+    legacy_roster_week_slot_definition_id UUID DEFAULT NULL,
+    name TEXT NOT NULL,
+    sort_order INT DEFAULT 0 NOT NULL,
+    deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    deleted_by_user_id UUID DEFAULT NULL,
+    delete_reason TEXT DEFAULT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE(roster_day_id, legacy_roster_week_slot_definition_id),
+    FOREIGN KEY (roster_day_id) REFERENCES roster_days (id) ON DELETE RESTRICT,
+    FOREIGN KEY (legacy_roster_week_slot_definition_id) REFERENCES roster_week_slot_definitions (id) ON DELETE RESTRICT,
+    FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK ((char_length(btrim(name)) > 0) AND (char_length(name) <= 120)),
+    CHECK (sort_order >= 0)
+);
 CREATE TABLE roster_slots (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     roster_day_id UUID NOT NULL,
+    roster_lane_id UUID NOT NULL,
     assignment_state TEXT NOT NULL,
     staff_id UUID,
     roster_week_slot_definition_id UUID NOT NULL,
@@ -984,6 +1013,7 @@ CREATE TABLE roster_slots (
     CHECK (char_length(btrim(timezone)) > 0),
     CHECK (timezone = 'Australia/Melbourne'),
     FOREIGN KEY (roster_day_id) REFERENCES roster_days (id) ON DELETE RESTRICT,
+    FOREIGN KEY (roster_lane_id) REFERENCES roster_lanes (id) ON DELETE RESTRICT,
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
     FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE RESTRICT,
     FOREIGN KEY (roster_week_slot_definition_id) REFERENCES roster_week_slot_definitions (id) ON DELETE RESTRICT,
@@ -1986,13 +2016,17 @@ CREATE UNIQUE INDEX idx_roster_template_shifts_cell ON roster_template_shifts (r
 CREATE INDEX idx_roster_template_shifts_staff ON roster_template_shifts (staff_id) WHERE staff_id IS NOT NULL;
 CREATE INDEX idx_roster_template_shifts_shift_type ON roster_template_shifts (shift_type_id);
 CREATE INDEX idx_roster_weeks_venue_offset ON roster_weeks (venue_id, week_offset);
+CREATE INDEX idx_roster_days_venue_date ON roster_days (venue_id, operational_date);
+CREATE INDEX idx_roster_lanes_day_sort ON roster_lanes (roster_day_id, sort_order);
 CREATE INDEX idx_roster_week_slot_definitions_week_sort ON roster_week_slot_definitions (roster_week_id, sort_order ASC, created_at ASC) WHERE deleted_at IS NULL;
 CREATE UNIQUE INDEX idx_roster_week_slot_definitions_active_name ON roster_week_slot_definitions (roster_week_id, name) WHERE deleted_at IS NULL;
 CREATE INDEX idx_roster_slots_day ON roster_slots (roster_day_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_roster_slots_lane ON roster_slots (roster_lane_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_roster_slots_staff ON roster_slots (staff_id) WHERE staff_id IS NOT NULL AND deleted_at IS NULL;
 CREATE INDEX idx_roster_slots_shift_type ON roster_slots (shift_type_id) WHERE shift_type_id IS NOT NULL AND deleted_at IS NULL;
 CREATE INDEX idx_roster_notification_runs_group_week_created ON roster_notification_runs (roster_group_id, week_offset, created_at DESC);
 CREATE UNIQUE INDEX idx_roster_slots_active_cell ON roster_slots (roster_day_id, row_index, roster_week_slot_definition_id) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX idx_roster_slots_active_lane_cell ON roster_slots (roster_day_id, row_index, roster_lane_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_staff_pay_versions_staff_effective ON staff_pay_versions (staff_id, effective_from DESC, created_at DESC);
 CREATE UNIQUE INDEX idx_staff_pay_versions_one_open ON staff_pay_versions (staff_id) WHERE effective_to IS NULL;
 CREATE INDEX idx_staff_pay_versions_imported_xero_pay_item ON staff_pay_versions (imported_xero_pay_item_id) WHERE imported_xero_pay_item_id IS NOT NULL;
@@ -2201,6 +2235,7 @@ CREATE TRIGGER prevent_locked_shift_pay_version_payroll_label_update BEFORE UPDA
 CREATE TRIGGER prevent_hard_delete_roster_weeks BEFORE DELETE ON roster_weeks FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER enforce_roster_notification_runs_immutable BEFORE UPDATE OR DELETE ON roster_notification_runs FOR EACH ROW EXECUTE FUNCTION enforce_roster_notification_run_immutability();
 CREATE TRIGGER prevent_hard_delete_roster_days BEFORE DELETE ON roster_days FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_roster_lanes BEFORE DELETE ON roster_lanes FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_roster_slots BEFORE DELETE ON roster_slots FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_staff_shift_preferences BEFORE DELETE ON staff_shift_preferences FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_leave_requests BEFORE DELETE ON leave_requests FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
@@ -2231,6 +2266,186 @@ CREATE TRIGGER prevent_hard_delete_xero_timesheet_submissions BEFORE DELETE ON x
 CREATE TRIGGER prevent_hard_delete_xero_timesheet_submission_entries BEFORE DELETE ON xero_timesheet_submission_entries FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 
 -- schema-nav: tenant-integrity-triggers
+-- Transitional projection functions keep the legacy week runtime authoritative
+-- until the date-native mutation cutover removes these triggers.
+CREATE OR REPLACE FUNCTION project_legacy_roster_day()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    IF TG_OP = 'UPDATE'
+        AND (NEW.roster_week_id IS DISTINCT FROM OLD.roster_week_id
+            OR NEW.day_offset IS DISTINCT FROM OLD.day_offset)
+    THEN
+        RAISE EXCEPTION 'roster day legacy identity is immutable after date-native projection';
+    END IF;
+
+    SELECT
+        rw.venue_id,
+        rw.roster_group_id,
+        vc.week_offset_epoch + (rw.week_offset * 7) + NEW.day_offset,
+        (CASE WHEN rw.is_live THEN 'published' ELSE 'draft' END)::roster_day_publication_state_enum
+    INTO STRICT
+        NEW.venue_id,
+        NEW.roster_group_id,
+        NEW.operational_date,
+        NEW.publication_state
+    FROM roster_weeks rw
+    JOIN venue_config vc ON vc.venue_id = rw.venue_id
+    WHERE rw.id = NEW.roster_week_id;
+
+    IF TG_OP = 'UPDATE' THEN
+        NEW.venue_id := OLD.venue_id;
+        NEW.roster_group_id := OLD.roster_group_id;
+        NEW.operational_date := OLD.operational_date;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION project_legacy_roster_lane(projected_day_id UUID, projected_definition_id UUID)
+RETURNS UUID
+AS $$
+DECLARE
+    projected_lane_id UUID;
+BEGIN
+    INSERT INTO roster_lanes (
+        id,
+        roster_day_id,
+        legacy_roster_week_slot_definition_id,
+        name,
+        sort_order,
+        deleted_at,
+        deleted_by_user_id,
+        delete_reason,
+        created_at,
+        updated_at
+    )
+    SELECT
+        md5(day.id::text || ':' || definition.id::text)::uuid,
+        day.id,
+        definition.id,
+        definition.name,
+        definition.sort_order,
+        definition.deleted_at,
+        definition.deleted_by_user_id,
+        definition.delete_reason,
+        definition.created_at,
+        definition.updated_at
+    FROM roster_days day
+    JOIN roster_week_slot_definitions definition
+        ON definition.roster_week_id = day.roster_week_id
+    WHERE day.id = projected_day_id
+      AND definition.id = projected_definition_id
+    ON CONFLICT (id) DO UPDATE SET
+        name = EXCLUDED.name,
+        sort_order = EXCLUDED.sort_order,
+        deleted_at = EXCLUDED.deleted_at,
+        deleted_by_user_id = EXCLUDED.deleted_by_user_id,
+        delete_reason = EXCLUDED.delete_reason,
+        created_at = EXCLUDED.created_at,
+        updated_at = EXCLUDED.updated_at
+    RETURNING id INTO projected_lane_id;
+
+    IF projected_lane_id IS NULL THEN
+        RAISE EXCEPTION 'legacy roster definition cannot be projected to the requested date-local lane';
+    END IF;
+    RETURN projected_lane_id;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION project_legacy_roster_day_lanes()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    PERFORM project_legacy_roster_lane(NEW.id, definition.id)
+    FROM roster_week_slot_definitions definition
+    WHERE definition.roster_week_id = NEW.roster_week_id;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION project_legacy_roster_week_definition_lanes()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    PERFORM project_legacy_roster_lane(day.id, NEW.id)
+    FROM roster_days day
+    WHERE day.roster_week_id = NEW.roster_week_id;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION project_legacy_roster_slot_lane()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    NEW.roster_lane_id := project_legacy_roster_lane(
+        NEW.roster_day_id,
+        NEW.roster_week_slot_definition_id
+    );
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION prevent_legacy_roster_lane_identity_change()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    IF NEW.roster_day_id IS DISTINCT FROM OLD.roster_day_id
+        OR NEW.legacy_roster_week_slot_definition_id IS DISTINCT FROM OLD.legacy_roster_week_slot_definition_id
+    THEN
+        RAISE EXCEPTION 'projected roster lane identity is immutable during legacy compatibility';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION prevent_legacy_roster_definition_week_change()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    IF NEW.roster_week_id IS DISTINCT FROM OLD.roster_week_id THEN
+        RAISE EXCEPTION 'legacy roster definition week identity is immutable after date-native projection';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION refresh_legacy_roster_week_day_projections()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    IF NEW.venue_id IS DISTINCT FROM OLD.venue_id
+        OR NEW.roster_group_id IS DISTINCT FROM OLD.roster_group_id
+        OR NEW.week_offset IS DISTINCT FROM OLD.week_offset
+    THEN
+        RAISE EXCEPTION 'legacy roster week identity is immutable after date-native projection';
+    END IF;
+    IF NEW.is_live IS DISTINCT FROM OLD.is_live THEN
+        UPDATE roster_days
+        SET roster_week_id = roster_week_id
+        WHERE roster_week_id = NEW.id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION advance_roster_calendar_revision()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    IF NEW.roster_week_starts_on IS DISTINCT FROM OLD.roster_week_starts_on THEN
+        IF OLD.roster_calendar_revision = 2147483647 THEN
+            RAISE EXCEPTION 'roster calendar revision exhausted';
+        END IF;
+        NEW.roster_calendar_revision := OLD.roster_calendar_revision + 1;
+    ELSE
+        NEW.roster_calendar_revision := OLD.roster_calendar_revision;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION enforce_roster_week_venue_integrity()
 RETURNS TRIGGER
 AS $$
@@ -2717,8 +2932,16 @@ CREATE TRIGGER enforce_roster_template_design_integrity BEFORE INSERT OR UPDATE 
 CREATE TRIGGER enforce_roster_template_day_integrity BEFORE INSERT OR UPDATE ON roster_template_days FOR EACH ROW EXECUTE FUNCTION enforce_roster_template_integrity();
 CREATE TRIGGER enforce_roster_template_shift_integrity BEFORE INSERT OR UPDATE ON roster_template_shifts FOR EACH ROW EXECUTE FUNCTION enforce_roster_template_integrity();
 CREATE TRIGGER enforce_roster_week_venue_integrity BEFORE INSERT OR UPDATE ON roster_weeks FOR EACH ROW EXECUTE FUNCTION enforce_roster_week_venue_integrity();
+CREATE TRIGGER refresh_legacy_roster_week_day_projections AFTER UPDATE ON roster_weeks FOR EACH ROW EXECUTE FUNCTION refresh_legacy_roster_week_day_projections();
+CREATE TRIGGER advance_roster_calendar_revision BEFORE UPDATE ON venue_config FOR EACH ROW EXECUTE FUNCTION advance_roster_calendar_revision();
+CREATE TRIGGER project_legacy_roster_day BEFORE INSERT OR UPDATE ON roster_days FOR EACH ROW EXECUTE FUNCTION project_legacy_roster_day();
+CREATE TRIGGER project_legacy_roster_day_lanes AFTER INSERT OR UPDATE ON roster_days FOR EACH ROW EXECUTE FUNCTION project_legacy_roster_day_lanes();
+CREATE TRIGGER prevent_legacy_roster_definition_week_change BEFORE UPDATE ON roster_week_slot_definitions FOR EACH ROW EXECUTE FUNCTION prevent_legacy_roster_definition_week_change();
+CREATE TRIGGER project_legacy_roster_week_definition_lanes AFTER INSERT OR UPDATE ON roster_week_slot_definitions FOR EACH ROW EXECUTE FUNCTION project_legacy_roster_week_definition_lanes();
+CREATE TRIGGER prevent_legacy_roster_lane_identity_change BEFORE UPDATE ON roster_lanes FOR EACH ROW EXECUTE FUNCTION prevent_legacy_roster_lane_identity_change();
 CREATE TRIGGER enforce_slot_name_venue_integrity BEFORE INSERT OR UPDATE ON slot_names FOR EACH ROW EXECUTE FUNCTION enforce_slot_name_venue_integrity();
 CREATE TRIGGER enforce_roster_slot_week_definition_integrity BEFORE INSERT OR UPDATE ON roster_slots FOR EACH ROW EXECUTE FUNCTION enforce_roster_slot_week_definition_integrity();
+CREATE TRIGGER project_legacy_roster_slot_lane BEFORE INSERT OR UPDATE ON roster_slots FOR EACH ROW EXECUTE FUNCTION project_legacy_roster_slot_lane();
 CREATE TRIGGER enforce_venue_invitation_staff_venue_integrity BEFORE INSERT OR UPDATE ON venue_invitations FOR EACH ROW EXECUTE FUNCTION enforce_venue_invitation_staff_venue_integrity();
 CREATE TRIGGER enforce_staff_roster_group_venue_integrity BEFORE INSERT OR UPDATE ON staff_roster_groups FOR EACH ROW EXECUTE FUNCTION enforce_staff_roster_group_venue_integrity();
 CREATE TRIGGER enforce_staff_shift_preference_venue_integrity BEFORE INSERT OR UPDATE ON staff_shift_preferences FOR EACH ROW EXECUTE FUNCTION enforce_staff_shift_preference_venue_integrity();
