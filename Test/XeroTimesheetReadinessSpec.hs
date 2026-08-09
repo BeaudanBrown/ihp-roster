@@ -219,6 +219,36 @@ tests = do
                 map (.localBucketKey) buckets `shouldSatisfy` (not . null)
                 map (.localBucketKey) buckets `shouldSatisfy` all (Text.isInfixOf ":effective:2025-07-07:")
 
+        it "keeps a sealed penalty bucket usable after its projection source refreshes" $ withContext do
+            withCleanDb do
+                let periodStart = fromGregorian 2026 5 2
+                    periodEnd = fromGregorian 2026 5 8
+                fixture <- createReadinessFixture "weekly" periodStart periodEnd
+                penaltyRates <-
+                    query @AwardLevelPenaltyRate
+                        |> filterWhere (#employmentBasis, Permanent)
+                        |> filterWhere (#penaltyKind, SaturdayPenalty)
+                        |> fetch
+                refreshedSource <-
+                    newRecord @FwcMapdPenaltyRate
+                        |> set #awardFixedId (9 :: Int)
+                        |> set #classificationFixedId (Just 246)
+                        |> set #classification ("Level 2" :: Text)
+                        |> set #penaltyDescription (Just "Saturday penalty refresh")
+                        |> createRecord
+                forM_ penaltyRates \penaltyRate ->
+                    penaltyRate
+                        |> set #fwcMapdPenaltyRateId (unpackId refreshedSource.id)
+                        |> updateRecord
+                        >>= const (pure ())
+
+                bucketResult <- fetchPeriodXeroLocalEarningsBuckets fixture.venue.id periodStart periodEnd []
+                buckets <- case bucketResult of
+                    Left message -> expectationFailure (cs message) >> error "unreachable"
+                    Right values  -> pure values
+
+                map (.localBucketKey) buckets `shouldSatisfy` any (Text.isInfixOf ":penalty:saturday_penalty:")
+
         it "blocks missing earnings mapping when no managed requirement covers the bucket" $ withContext do
             withCleanDb do
                 fixture <- createReadinessFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)

@@ -36,6 +36,18 @@ tests = do
             forM_ cases \(source, expected) ->
                 projectionRateSourceIdentity source `shouldBe` RateSourceIdentity expected
 
+        it "recognizes a sealed source after the same projection row points at a refreshed raw source" do
+            let projectionId = sourceUuid "11111111-1111-1111-1111-111111111111"
+                sealedSourceId = sourceUuid "22222222-2222-2222-2222-222222222222"
+                refreshedSourceId = sourceUuid "33333333-3333-3333-3333-333333333333"
+                otherProjectionId = sourceUuid "44444444-4444-4444-4444-444444444444"
+                sealedIdentity = projectionRateSourceIdentity (AwardLevelPenaltyRateSource projectionId sealedSourceId)
+
+            rateSourceIdentityReferencesProjection (AwardLevelPenaltyRateSource projectionId refreshedSourceId) sealedIdentity `shouldBe` True
+            rateSourceIdentityReferencesProjection (AwardLevelPenaltyRateSource otherProjectionId sealedSourceId) sealedIdentity `shouldBe` False
+            rateSourceIdentityReferencesProjection (AwardLevelBaseRateSource projectionId sealedSourceId) sealedIdentity `shouldBe` False
+            rateSourceIdentityReferencesProjection (AwardLevelPenaltyRateSource projectionId refreshedSourceId) (RateSourceIdentity "malformed") `shouldBe` False
+
         it "renders exact source/rate suffix bytes for present and missing identities" do
             sourceRateSuffix (Just (RateSourceIdentity "stable-source")) 31.25
                 `shouldBe` ":source:stable-source:rate:31.25"

@@ -125,8 +125,11 @@ issue and, when cross-system design remains unresolved, a new workstream.
 - Managed award pay-item effective-date keys/names use the Bepis venue-effective
   rate date from the pay engine, not necessarily the raw FWC/MAPD operative
   date. Projection provenance comes only from the typed WageEngine source
-  identity renderer; `Application.Xero.PayrollSourceKey` owns the one exact
-  source/rate suffix used by managed pay-item keys and sealed bucket matching.
+  identity renderer. Effective-date recovery matches the stable projection-row
+  portion of a sealed source identity, so a later append-only MAPD refresh may
+  repoint that row without invalidating approved facts; the exact sealed raw
+  source identity and rate remain unchanged in the resulting key.
+  `Application.Xero.PayrollSourceKey` owns that exact source/rate suffix.
 - Xero remains payroll, tax, and STP authority. Bepis does not calculate tax.
 - Readiness, persisted preview, direct submission, retry, and guided preparation
   use the shared strict wage-source enforcement boundary. Any included entry's

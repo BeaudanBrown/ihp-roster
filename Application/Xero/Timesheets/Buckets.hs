@@ -14,7 +14,6 @@ import Application.WagePublication (datedEarningsComponents)
 import Application.Xero.PayrollSourceKey (sourceRateSuffix)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
-import qualified Data.Scientific as Scientific
 import Data.Time.Calendar (Day)
 import Generated.Types
 import IHP.ControllerPrelude
@@ -116,33 +115,28 @@ effectiveDateFor context awardLevel payLevelId employmentBasis component =
   where
     base basis =
         context.bucketAwardLevelBaseRates
-            |> find (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == basis && sourceMatches component (projectionRateSourceIdentity (AwardLevelBaseRateSource (unpackId rate.id) rate.fwcMapdPayRateId)) rate.hourlyRate)
+            |> find (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == basis && sourceProjectionMatches component (AwardLevelBaseRateSource (unpackId rate.id) rate.fwcMapdPayRateId))
             |> fmap (.operativeFrom)
             |> maybeToEither "Missing approval-pinned base-rate source."
     missedBreakBase =
         context.bucketAwardLevelBaseRates
-            |> find (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == Permanent && sourceIdentityMatches component (projectionRateSourceIdentity (AwardLevelBaseRateSource (unpackId rate.id) rate.fwcMapdPayRateId)) && component.ratePerUnit == rate.hourlyRate / 2)
+            |> find (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == Permanent && sourceProjectionMatches component (AwardLevelBaseRateSource (unpackId rate.id) rate.fwcMapdPayRateId))
             |> fmap (.operativeFrom)
             |> maybeToEither "Missing approval-pinned base-rate source."
     penalty kind =
         context.bucketAwardLevelPenalties
-            |> find (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == employmentBasis && rate.penaltyKind == kind && sourceMatches component (projectionRateSourceIdentity (AwardLevelPenaltyRateSource (unpackId rate.id) rate.fwcMapdPenaltyRateId)) rate.hourlyRate)
+            |> find (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == employmentBasis && rate.penaltyKind == kind && sourceProjectionMatches component (AwardLevelPenaltyRateSource (unpackId rate.id) rate.fwcMapdPenaltyRateId))
             |> fmap (.operativeFrom)
             |> maybeToEither "Missing approval-pinned penalty-rate source."
     allowance kind =
         context.bucketTimePenaltyAllowances
-            |> find (\item -> item.awardFixedId == awardLevel.awardFixedId && item.penaltyKind == kind && sourceMatches component (projectionRateSourceIdentity (AwardTimePenaltyAllowanceSource (unpackId item.id) item.fwcMapdWageAllowanceId)) item.hourlyAmount)
+            |> find (\item -> item.awardFixedId == awardLevel.awardFixedId && item.penaltyKind == kind && sourceProjectionMatches component (AwardTimePenaltyAllowanceSource (unpackId item.id) item.fwcMapdWageAllowanceId))
             |> fmap (.operativeFrom)
             |> maybeToEither "Missing approval-pinned fixed-addition source."
 
-sourceMatches :: EarningsComponent -> RateSourceIdentity -> Scientific.Scientific -> Bool
-sourceMatches component candidateIdentity candidateRate =
-    sourceIdentityMatches component candidateIdentity
-        && component.ratePerUnit == candidateRate
-
-sourceIdentityMatches :: EarningsComponent -> RateSourceIdentity -> Bool
-sourceIdentityMatches component candidateIdentity =
-    component.sourceRateIdentity == Just candidateIdentity
+sourceProjectionMatches :: EarningsComponent -> ProjectionRateSource -> Bool
+sourceProjectionMatches component projection =
+    maybe False (rateSourceIdentityReferencesProjection projection) component.sourceRateIdentity
 
 conditionKey :: SourceCondition -> Text
 conditionKey = \case
