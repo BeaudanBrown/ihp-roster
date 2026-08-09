@@ -28,6 +28,8 @@ import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 errorToast, renderDialogOverlay, renderToastOob,
                                 successToast)
 import Application.PayAssignment (selectableStaffAssignmentMode)
+import Application.StaffDefaults (applyVenueDefaultStaffPayAssignment,
+                                  validateStaffAwardRateAvailability)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
@@ -88,6 +90,12 @@ instance Controller StaffController where
         staff <- buildNewTrialStaff
         staff
             |> buildStaff canManageStaffPay maybeSubmittedDefaultAwardLevelId maybeSubmittedImportedXeroPayItemId
+            |> validateStaffAwardRateAvailability
+                awardLevels
+                awardLevelBaseRates
+                (if canManageStaffPay
+                    then "Choose an active award rate with a current rate for this employment basis."
+                    else "The venue default staff rate is unavailable. Ask a venue admin to update Venue Settings.")
             |> ifValid \case
                 Left invalidStaff -> renderNewStaffResponse invalidStaff submittedRosterGroupIds rosterGroups awardLevels awardLevelBaseRates importedPayItems weekOffset maybeRosterGroupId
                 Right validStaff -> do
@@ -403,8 +411,9 @@ ensureCanRemoveStaff =
 emptyStaffPayRateSelection :: SubmittedPayRateSelection
 emptyStaffPayRateSelection = SubmittedPayRateSelection Nothing Nothing True
 
-buildNewTrialStaff :: (?context :: ControllerContext) => IO Staff
-buildNewTrialStaff =
+buildNewTrialStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Staff
+buildNewTrialStaff = do
+    venueConfig <- fetchVenueConfig
     pure $
         newRecord @Staff
             |> set #venueId (unpackId currentVenueId)
@@ -416,8 +425,8 @@ buildNewTrialStaff =
             |> set #emergencyContactPhone "Trial placeholder"
             |> set #idealShiftsPerWeek 0
             |> set #employmentBasis Casual
-            |> set #payAssignmentMode RosterOnly
             |> set #isActive True
+            |> applyVenueDefaultStaffPayAssignment venueConfig
 
 renderNewStaffResponse :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Staff -> [Id RosterGroup] -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Int -> Maybe (Id RosterGroup) -> IO ()
 renderNewStaffResponse staff selectedRosterGroupIds rosterGroups awardLevels awardLevelBaseRates importedPayItems weekOffset maybeRosterGroupId =

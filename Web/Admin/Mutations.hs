@@ -13,6 +13,7 @@ module Web.Admin.Mutations
     , rosterEndTimesTouchedResources
     , rosterTimePickerWindowTouchedResources
     , rosterWeekStartsOnTouchedResources
+    , setDefaultStaffPayRateMutation
     , setMinutePrecisionShiftTimesEnabledMutation
     , setRosterEndTimesEnabledMutation
     , setUnavailableStaffWarningThresholdMutation
@@ -85,6 +86,16 @@ data AdminShiftTypeMutationResult = AdminShiftTypeMutationResult
     { adminShiftTypeMutationShiftType         :: !ShiftType
     , adminShiftTypeMutationShouldRefreshXero :: !Bool
     }
+
+setDefaultStaffPayRateMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> PayAssignmentModeEnum -> Maybe (Id AwardLevel) -> IO (LiveMutationResult VenueConfig)
+setDefaultStaffPayRateMutation venueConfig payAssignmentMode awardLevelId = do
+    updated <- venueConfig
+        |> set #defaultStaffPayAssignmentMode payAssignmentMode
+        |> set #defaultStaffAwardLevelId awardLevelId
+        |> updateRecord
+    invalidateTouchedResources
+        "admin.venue_config.default_staff_pay_rate"
+        (liveMutationResult updated (adminVenueSettingsTouchedResources currentVenueId))
 
 setMinutePrecisionShiftTimesEnabledMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Bool -> IO (LiveMutationResult VenueConfig)
 setMinutePrecisionShiftTimesEnabledMutation venueConfig enabled = do

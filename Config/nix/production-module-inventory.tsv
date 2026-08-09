@@ -306,6 +306,7 @@ Application/Script/SyncFwcMapd.hs	development	operator-development-tool	-	Intera
 Application/Script/XeroKeepaliveSweep.hs	production	operational-script-closure	Application.Script.XeroKeepaliveSweep	Reachable from Application.Script.XeroKeepaliveSweep
 Application/Script/XeroPayItemProbe.hs	development	integration-probe	-	Guarded Xero diagnostic probe only; runnable from the development shell
 Application/Staff/Mutations.hs	production	runtime	Main	Reachable from Main
+Application/StaffDefaults.hs	production	runtime	Main	Reachable from Main
 Application/StaffDocuments/Rsa.hs	production	runtime	Main	Reachable from Main
 Application/StaffDocuments/RsaExtraction.hs	production	runtime	Main	Reachable from Main
 Application/Support/LiveUpdates.hs	production	runtime	Main	Reachable from Main

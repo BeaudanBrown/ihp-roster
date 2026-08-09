@@ -155,6 +155,7 @@ data AdminController
     | RunXeroTimesheetPreparationSubmissionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | SubmitXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | UpdateRosterEndTimesEnabledAction
+    | UpdateDefaultStaffPayRateAction
     | UpdateMinutePrecisionShiftTimesEnabledAction
     | UpdateUnavailableStaffWarningThresholdAction
     | UpdateRosterTimePickerWindowAction

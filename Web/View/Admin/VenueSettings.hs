@@ -17,6 +17,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.TimeRules (venueTimePickerFinalSelectableTimeText,
                                      venueTimePickerStartTimeText)
+import Application.StaffDefaults (venueDefaultStaffPayRateSelectionValue)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminVenueSettingsSurfaceImpl)
 import Web.View.Admin.Common
@@ -31,33 +32,76 @@ currentVenueScopeId =
         Just venue -> unpackId venue.id
         Nothing -> error "Admin venue settings live surface requires a current venue"
 
-renderVenueSettingsSectionFragment :: (?context :: ControllerContext) => VenueConfig -> Html
+renderVenueSettingsSectionFragment :: (?context :: ControllerContext) => VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
 renderVenueSettingsSectionFragment =
     renderVenueSettingsSectionFragmentWithSwap Nothing
 
-renderVenueSettingsSectionFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> VenueConfig -> Html
-renderVenueSettingsSectionFragmentWithSwap maybeSwapOob venueConfig =
+renderVenueSettingsSectionFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
+renderVenueSettingsSectionFragmentWithSwap maybeSwapOob venueConfig awardLevels awardLevelBaseRates =
     renderFrontendSurfaceMount (adminVenueSettingsSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
         <div id={adminVenueSettingsFragmentId}
              hx-swap-oob={maybeSwapOob}>
-            {renderVenueSettingsSection venueConfig}
+            {renderVenueSettingsSection venueConfig awardLevels awardLevelBaseRates}
         </div>
     |]
 
-renderVenueSettingsSection :: VenueConfig -> Html
-renderVenueSettingsSection venueConfig =
+renderVenueSettingsSection :: VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
+renderVenueSettingsSection venueConfig awardLevels awardLevelBaseRates =
     renderConfigSection
         "admin-venue-settings"
         mempty
         mempty
         [hsx|
             <div class="admin-settings-grid">
+                {renderDefaultStaffPayRateForm venueConfig awardLevels awardLevelBaseRates}
                 {renderRosterTimePickerWindowForm venueConfig}
                 {renderMinutePrecisionShiftTimesForm venueConfig}
                 {renderUnavailableStaffWarningThresholdForm venueConfig}
                 {renderRosterEndTimesForm venueConfig}
             </div>
         |]
+
+renderDefaultStaffPayRateForm :: VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
+renderDefaultStaffPayRateForm venueConfig awardLevels awardLevelBaseRates =
+    renderFrontendSurfaceActionForm
+        (AdminAction.updateDefaultStaffPayRateAction fields)
+        defaultStaffPayRateSettingRoute
+        [hsx|
+        <div class="admin-setting-row-copy">
+            <label class="fw-semibold" for="venue-default-staff-pay-rate">Default staff rate</label>
+            <p class="small app-muted mb-0">Applied automatically when managers create staff. Venue admins can override it while creating a staff member.</p>
+        </div>
+        <div class="admin-setting-row-control admin-setting-row-control-wide">
+            <select id="venue-default-staff-pay-rate"
+                    class="form-select form-select-sm"
+                    name={surfaceFieldNameFrom @Surface.PayRateSelection fields}>
+                <option value="roster-only" selected={selectedValue == "roster-only"}>No Timesheets (roster only)</option>
+                {forEach awardLevels renderAwardOption}
+            </select>
+            {when defaultNeedsRepair renderDefaultRepairWarning}
+        </div>
+    |]
+  where
+    selectedValue = venueDefaultStaffPayRateSelectionValue venueConfig
+    activeAwardLevelIds = map (.id) awardLevels
+    defaultNeedsRepair =
+        case venueConfig.defaultStaffPayAssignmentMode of
+            AwardRate ->
+                case venueConfig.defaultStaffAwardLevelId of
+                    Just awardLevelId ->
+                        awardLevelId `notElem` activeAwardLevelIds
+                            || not (any ((== unpackId awardLevelId) . (.awardLevelId)) awardLevelBaseRates)
+                    Nothing -> True
+            _ -> False
+    fields = AdminAction.updateDefaultStaffPayRateActionFields selectedValue
+    renderDefaultRepairWarning = [hsx|
+        <p class="small text-warning mb-0 mt-1" role="alert">The saved default is unavailable. Choose an active award rate or No Timesheets before managers create staff.</p>
+    |]
+    renderAwardOption awardLevel = [hsx|
+        <option value={"award:" <> inputValue awardLevel.id} selected={selectedValue == "award:" <> inputValue awardLevel.id}>
+            {awardLevelOptionLabel awardLevelBaseRates awardLevel}
+        </option>
+    |]
 
 renderRosterTimePickerWindowForm :: VenueConfig -> Html
 renderRosterTimePickerWindowForm venueConfig =
@@ -181,6 +225,14 @@ renderVenueSettingToggle fields inputId isEnabled =
             , appToggleRoleSwitch = True
             , appToggleSubmitPolicy = ToggleSubmitImmediate
             }
+
+defaultStaffPayRateSettingRoute :: FrontendSurfaceActionRoute
+defaultStaffPayRateSettingRoute = FrontendSurfaceActionRoute
+    { actionRouteUrl = pathTo UpdateDefaultStaffPayRateAction
+    , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "change-autosave-custom-htmx" [("hx-trigger", "change")]]
+    , actionRouteStandardUrl = Just (pathTo UpdateDefaultStaffPayRateAction)
+    , actionRouteExtraAttrs = [("class", "admin-setting-row")]
+    }
 
 rosterTimePickerWindowSettingRoute :: FrontendSurfaceActionRoute
 rosterTimePickerWindowSettingRoute = FrontendSurfaceActionRoute

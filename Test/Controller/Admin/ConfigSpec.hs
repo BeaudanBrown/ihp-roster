@@ -993,6 +993,10 @@ tests = aroundAll withDatabaseTestContext do
                 pageResponse `responseBodyShouldContain` "hx-post=\"/UpdateMinutePrecisionShiftTimesEnabled\""
                 pageResponse `responseBodyShouldContain` "hx-post=\"/UpdateUnavailableStaffWarningThreshold\""
                 pageResponse `responseBodyShouldContain` "hx-post=\"/UpdateRosterEndTimesEnabled\""
+                pageResponse `responseBodyShouldContain` "hx-post=\"/UpdateDefaultStaffPayRate\""
+                pageResponse `responseBodyShouldContain` "Default staff rate"
+                pageResponse `responseBodyShouldContain` "name=\"payRateSelection\""
+                pageResponse `responseBodyShouldContain` "No Timesheets (roster only)"
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-venue-settings-fragment\""
                 pageResponse `responseBodyShouldContain` "hx-swap=\"none\""
                 pageResponse `responseBodyShouldContain` "Valid shift window"
@@ -1022,6 +1026,47 @@ tests = aroundAll withDatabaseTestContext do
                 venueConfig.rosterEndTimesEnabled `shouldBe` True
                 versionAfter <- currentLiveUpdateVersion (AdminLive.adminVenueConfigLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore
+
+        it "configures the venue default staff rate and rejects unavailable or unauthorized choices" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Default Staff Rate Venue"
+                admin <- createUserRecord "admin-default-staff-rate@example.com" "staff" True
+                manager <- createUserRecord "manager-default-staff-rate@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- createVenueMembershipRecord venue manager Manager
+                awardLevel <- createPayLevelRecordWithRates venue "Default Staff Level" 32.75 3.25 6.50 1 1.25 1.50
+                unavailableLevel <- createPayLevelRecord venue "Unavailable Staff Level"
+                _ <- unavailableLevel |> set #isActive False |> updateRecord
+
+                awardResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams UpdateDefaultStaffPayRateAction
+                        [("payRateSelection", cs ("award:" <> tshow awardLevel.id))]
+                awardResponse `responseStatusShouldBe` status302
+                awardConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                awardConfig.defaultStaffPayAssignmentMode `shouldBe` AwardRate
+                awardConfig.defaultStaffAwardLevelId `shouldBe` Just awardLevel.id
+
+                unavailableResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams UpdateDefaultStaffPayRateAction
+                        [("payRateSelection", cs ("award:" <> tshow unavailableLevel.id))]
+                unavailableResponse `responseStatusShouldBe` status302
+                unchangedConfig <- fetch awardConfig.id
+                unchangedConfig.defaultStaffAwardLevelId `shouldBe` Just awardLevel.id
+
+                managerResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams UpdateDefaultStaffPayRateAction
+                        [("payRateSelection", "roster-only")]
+                managerResponse `responseStatusShouldBe` status302
+                managerRejectedConfig <- fetch awardConfig.id
+                managerRejectedConfig.defaultStaffPayAssignmentMode `shouldBe` AwardRate
+
+                rosterOnlyResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams UpdateDefaultStaffPayRateAction
+                        [("payRateSelection", "roster-only")]
+                rosterOnlyResponse `responseStatusShouldBe` status302
+                rosterOnlyConfig <- fetch awardConfig.id
+                rosterOnlyConfig.defaultStaffPayAssignmentMode `shouldBe` RosterOnly
+                rosterOnlyConfig.defaultStaffAwardLevelId `shouldBe` Nothing
 
         it "configures, disables, and validates the unavailable-staff warning threshold" $ withContext do
             withCleanDb do

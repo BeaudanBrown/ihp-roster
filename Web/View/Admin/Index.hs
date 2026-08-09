@@ -79,7 +79,7 @@ renderConfigSectionsAccordion :: UTCTime -> [RosterGroup] -> RosterGroup -> Bool
 renderConfigSectionsAccordion currentTime rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes venueConfig awardLevels awardLevelBaseRates importedPayItems invitations exportWeekSelection exportSectionOpen = [hsx|
     <div class="accordion admin-config-accordion" id="admin-config-sections">
         {renderAccordionItem "invites" "Invites" False (renderInvitesSectionFragment currentTime invitations currentRosterGroup.id)}
-        {renderAccordionItem "venue-settings" "Venue Settings" False (renderVenueSettingsSectionFragment venueConfig)}
+        {renderAccordionItem "venue-settings" "Venue Settings" False (renderVenueSettingsSectionFragment venueConfig awardLevels awardLevelBaseRates)}
         {renderAccordionItem "exports" "Exports" exportSectionOpen (renderExportsSectionFragment exportWeekSelection)}
         {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates importedPayItems)}
         {renderAccordionItem "roster-groups" "Roster Groups" False (renderRosterGroupsSectionFragment rosterGroups showInactiveRosterGroups)}

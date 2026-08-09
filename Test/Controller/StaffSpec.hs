@@ -122,6 +122,113 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetch
                 sort (map (.rosterGroupId) assignments) `shouldBe` sort [unpackId frontOfHouse.id, unpackId backOfHouse.id]
 
+        it "silently applies the venue award default when a manager creates staff" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Manager Default Award Venue"
+                manager <- createUserRecord "manager-default-award@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                awardLevel <- createPayLevelRecordWithRates venue "Default Level" 32.75 3.25 6.50 1 1.25 1.50
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- venueConfig
+                    |> set #defaultStaffPayAssignmentMode AwardRate
+                    |> set #defaultStaffAwardLevelId (Just awardLevel.id)
+                    |> updateRecord
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams
+                        CreateStaffAction
+                        [ ("firstName", "Award")
+                        , ("lastName", "Default")
+                        , ("phone", "Trial placeholder")
+                        , ("emergencyContactName", "Trial placeholder")
+                        , ("emergencyContactPhone", "Trial placeholder")
+                        , ("idealShiftsPerWeek", "2")
+                        , ("rosterGroupIds", cs (tshow rosterGroup.id))
+                        ]
+
+                response `responseStatusShouldBe` status302
+                staff <- query @Staff
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#firstName, "Award" :: Text)
+                    |> fetchOne
+                staff.payAssignmentMode `shouldBe` AwardRate
+                staff.defaultAwardLevelId `shouldBe` Just awardLevel.id
+                staff.importedXeroPayItemId `shouldBe` Nothing
+
+        it "blocks manager staff creation when the venue award default is unavailable" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Manager Invalid Default Venue"
+                manager <- createUserRecord "manager-invalid-default@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                awardLevel <- createPayLevelRecordWithRates venue "Inactive Default" 32.75 3.25 6.50 1 1.25 1.50
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- venueConfig
+                    |> set #defaultStaffPayAssignmentMode AwardRate
+                    |> set #defaultStaffAwardLevelId (Just awardLevel.id)
+                    |> updateRecord
+                casualRates <- query @AwardLevelBaseRate
+                    |> filterWhere (#awardLevelId, unpackId awardLevel.id)
+                    |> filterWhere (#employmentBasis, Casual)
+                    |> fetch
+                deleteRecords casualRates
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams
+                        CreateStaffAction
+                        [ ("firstName", "Blocked")
+                        , ("lastName", "Default")
+                        , ("phone", "Trial placeholder")
+                        , ("emergencyContactName", "Trial placeholder")
+                        , ("emergencyContactPhone", "Trial placeholder")
+                        , ("idealShiftsPerWeek", "2")
+                        , ("rosterGroupIds", cs (tshow rosterGroup.id))
+                        ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "The venue default staff rate is unavailable"
+                query @Staff
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#firstName, "Blocked" :: Text)
+                    |> fetchCount
+                    >>= (`shouldBe` 0)
+
+        it "lets venue admins override the venue staff-rate default during creation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Default Override Venue"
+                admin <- createUserRecord "admin-default-override@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                awardLevel <- createPayLevelRecordWithRates venue "Venue Default" 32.75 3.25 6.50 1 1.25 1.50
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- venueConfig
+                    |> set #defaultStaffPayAssignmentMode AwardRate
+                    |> set #defaultStaffAwardLevelId (Just awardLevel.id)
+                    |> updateRecord
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams
+                        CreateStaffAction
+                        [ ("firstName", "Roster")
+                        , ("lastName", "Only")
+                        , ("phone", "Trial placeholder")
+                        , ("emergencyContactName", "Trial placeholder")
+                        , ("emergencyContactPhone", "Trial placeholder")
+                        , ("idealShiftsPerWeek", "2")
+                        , ("employmentBasis", "casual")
+                        , ("payRateSelection", "")
+                        , ("rosterGroupIds", cs (tshow rosterGroup.id))
+                        ]
+
+                response `responseStatusShouldBe` status302
+                staff <- query @Staff
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#firstName, "Roster" :: Text)
+                    |> fetchOne
+                staff.payAssignmentMode `shouldBe` RosterOnly
+                staff.defaultAwardLevelId `shouldBe` Nothing
+
         it "prevents non-managers from creating trial staff placeholders" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Trial Staff Worker Venue"

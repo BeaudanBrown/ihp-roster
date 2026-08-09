@@ -119,6 +119,7 @@ renderNewStaffBody formMode staff rosterGroups awardLevels awardLevelBaseRates i
                     <div class="alert alert-info" role="alert">
                         Create a trial staff placeholder for roster planning. Trial staff have no sign-in access.
                     </div>
+                    {renderNewStaffPayDefaultError staff}
                 |]
                 , staffProfileDetailsFormFieldsHeading = Just "Trial staff details"
                 , staffProfileDetailsFormEmailField = renderPersonalProfileFields
@@ -130,6 +131,10 @@ renderNewStaffBody formMode staff rosterGroups awardLevels awardLevelBaseRates i
             staff
             Nothing
   where
+    renderNewStaffPayDefaultError currentStaff =
+        case getValidationFailure #defaultAwardLevelId currentStaff of
+            Just message -> [hsx|<div class="alert alert-danger" role="alert">{message}</div>|]
+            Nothing -> mempty
     managementFields =
         StaffManagementFieldData
             { managementStaff = staff

@@ -68,7 +68,9 @@ respondToVenueSettingsMutation =
         then do
             setHeader ("HX-Reswap", "none")
             venueConfig <- fetchVenueConfig
-            respondHtml (renderVenueSettingsSectionFragmentWithSwap (Just "outerHTML") venueConfig)
+            awardLevels <- fetchActiveAwardLevels
+            awardLevelBaseRates <- fetchCurrentAwardLevelBaseRates
+            respondHtml (renderVenueSettingsSectionFragmentWithSwap (Just "outerHTML") venueConfig awardLevels awardLevelBaseRates)
         else redirectToAdminFor (paramOrNothing "rosterGroupId")
 
 reportSurfaceRequestErrors ::
@@ -343,6 +345,33 @@ instance Controller AdminController where
                         else "Roster end times hidden from the roster."
         respondToVenueSettingsMutation
 
+    action currentAction@UpdateDefaultStaffPayRateAction = runBepis currentAction BepisMutationAction do
+        ensureVenueWritable
+        venueConfig <- fetchVenueConfig
+        case AdminAction.parseUpdateDefaultStaffPayRateActionParams of
+            Left errors -> reportSurfaceRequestErrors errors
+            Right fields -> do
+                maybeSelection <- parseSubmittedPayRateSelectionValue (surfaceFieldValue @Surface.PayRateSelection fields)
+                case maybeSelection of
+                    Just selection
+                        | selection.submittedRosterOnly -> do
+                            _ <- setDefaultStaffPayRateMutation venueConfig RosterOnly Nothing
+                            setSuccessMessage "New staff will default to No Timesheets."
+                        | Just awardLevelId <- selection.submittedAwardLevelId
+                        , isNothing selection.submittedImportedXeroPayItemId -> do
+                            activeAwardLevels <- fetchActiveAwardLevels
+                            currentBaseRates <- fetchCurrentAwardLevelBaseRates
+                            let awardIsActive = awardLevelId `elem` map (.id) activeAwardLevels
+                            let awardHasCurrentRate = any ((== unpackId awardLevelId) . (.awardLevelId)) currentBaseRates
+                            if awardIsActive && awardHasCurrentRate
+                                then do
+                                    _ <- setDefaultStaffPayRateMutation venueConfig AwardRate (Just awardLevelId)
+                                    setSuccessMessage "Default staff award rate updated."
+                                else setErrorMessage "Choose an active award level with a current rate."
+                        | otherwise -> setErrorMessage "Choose an award rate or No Timesheets."
+                    Nothing -> pure ()
+        respondToVenueSettingsMutation
+
     action currentAction@UpdateMinutePrecisionShiftTimesEnabledAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         venueConfig <- fetchVenueConfig
@@ -409,7 +438,9 @@ instance Controller AdminController where
     action currentAction@ShowAdminVenueSettingsFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.venue_settings_fragment.respond" do
             venueConfig <- profileActionSpan "admin.venue_settings_fragment.fetch_venue_config" fetchVenueConfig
-            profileActionSpan "admin.venue_settings_fragment.render_response" (respondFragmentHtml (renderVenueSettingsSectionFragment venueConfig))
+            awardLevels <- profileActionSpan "admin.venue_settings_fragment.fetch_award_levels" fetchActiveAwardLevels
+            awardLevelBaseRates <- profileActionSpan "admin.venue_settings_fragment.fetch_award_rates" fetchCurrentAwardLevelBaseRates
+            profileActionSpan "admin.venue_settings_fragment.render_response" (respondFragmentHtml (renderVenueSettingsSectionFragment venueConfig awardLevels awardLevelBaseRates))
 
     action currentAction@ShowadminInvitesLiveFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.invites_fragment.respond" do
