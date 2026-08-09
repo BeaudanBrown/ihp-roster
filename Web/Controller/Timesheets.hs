@@ -285,7 +285,7 @@ instance Controller TimesheetsController where
                 Right timesheetEntry -> do
                     ensureStaffAssignmentAllowed timesheetEntry.staffId
                     ensureShiftTypeAllowed timesheetEntry.shiftTypeId
-                    mutationResult <- createTimesheetEntryMutation weekOffset timesheetEntry
+                    mutationResult <- createTimesheetEntryMutation weekOffset (param @Int "rosterCalendarRevision") timesheetEntry
                     let createdEntry = mutationResult.liveMutationValue
                     if isHtmxRequest
                         then respondWithTimesheetMutationUpdate weekOffset selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry created" True
@@ -359,7 +359,7 @@ instance Controller TimesheetsController where
                             ensureShiftTypeAllowed validEntry.shiftTypeId
                             let shouldApproveSuggestion = hasRole Manager && paramOrDefault @Bool False "approveSuggestion"
                             if shouldApproveSuggestion
-                                then materializeAndApproveTimesheetSuggestionMutation weekOffset suggestion validEntry >>= \case
+                                then materializeAndApproveTimesheetSuggestionMutation weekOffset (param @Int "rosterCalendarRevision") suggestion validEntry >>= \case
                                     Left approvalError -> do
                                         setErrorMessage approvalError
                                         redirectToTimesheetWindow weekOffset selectedStaffFilterId
@@ -373,7 +373,7 @@ instance Controller TimesheetsController where
                                                 setSuccessMessage "Rostered timesheet entry approved"
                                                 redirectToTimesheetWindow weekOffset selectedStaffFilterId
                                 else do
-                                    materializationResult <- materializeTimesheetSuggestionMutation weekOffset suggestion validEntry
+                                    materializationResult <- materializeTimesheetSuggestionMutation weekOffset (param @Int "rosterCalendarRevision") suggestion validEntry
                                     case materializationResult of
                                         Nothing -> do
                                             setErrorMessage "That rostered shift changed before the timesheet entry was created. Review the current suggestion and try again."
@@ -449,7 +449,7 @@ instance Controller TimesheetsController where
                             if wasApproved && coreChanged
                                 then "Timesheet entry updated (approval reset)"
                                 else "Timesheet entry updated"
-                    mutationResult <- updateTimesheetEntryMutation weekOffset existingEntry timesheetEntry (wasApproved && coreChanged)
+                    mutationResult <- updateTimesheetEntryMutation weekOffset (param @Int "rosterCalendarRevision") existingEntry timesheetEntry (wasApproved && coreChanged)
                     if isHtmxRequest
                         then respondWithTimesheetMutationUpdate weekOffset selectedStaffFilterId mutationResult.liveMutationTouchedResources successMessage True
                         else do
@@ -467,7 +467,7 @@ instance Controller TimesheetsController where
         weekOffset <- requireCurrentTimesheetMutationCalendar
         selectedStaffFilterId <- canonicalTimesheetStaffFilter timesheetStaffFilterFromRequest
         ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset selectedStaffFilterId
-        mutationResult <- deleteTimesheetEntryMutation weekOffset timesheetEntry
+        mutationResult <- deleteTimesheetEntryMutation weekOffset (param @Int "rosterCalendarRevision") timesheetEntry
         if isHtmxRequest
             then respondWithTimesheetMutationUpdate weekOffset selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry removed" True
             else setSuccessMessage "Timesheet entry removed"
@@ -484,7 +484,7 @@ instance Controller TimesheetsController where
         weekOffset <- requireCurrentTimesheetCalendar state
         selectedStaffFilterId <- canonicalTimesheetStaffFilter state.surfaceRequestStaffFilterId
 
-        approval <- approveTimesheetEntryMutation weekOffset timesheetEntry
+        approval <- approveTimesheetEntryMutation weekOffset (param @Int "rosterCalendarRevision") timesheetEntry
         case approval of
             Left reason -> do
                 setErrorMessage reason
@@ -507,7 +507,7 @@ instance Controller TimesheetsController where
         selectedStaffFilterId <- canonicalTimesheetStaffFilter state.surfaceRequestStaffFilterId
         ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset selectedStaffFilterId
 
-        mutationResult <- unapproveTimesheetEntryMutation weekOffset timesheetEntry
+        mutationResult <- unapproveTimesheetEntryMutation weekOffset (param @Int "rosterCalendarRevision") timesheetEntry
         if isHtmxRequest
             then respondWithTimesheetMutationUpdate weekOffset selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry unapproved" False
             else do

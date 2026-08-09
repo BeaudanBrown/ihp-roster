@@ -230,7 +230,8 @@ type AppShellContract =
          , AppShellAction CreateTimesheetEntryOverlay TimesheetEntryFields TimesheetEntrySubmitOptions
          , AppShellAction UpdateTimesheetEntryOverlay TimesheetEntryFields TimesheetEntrySubmitOptions
          , AppShellAction DeleteTimesheetEntryOverlay
-            '[ Field WeekOffsetField 'WireText
+            '[ Field AnchorDateField 'WireText
+             , Field RosterCalendarRevisionField 'WireText
              , Field StaffFilterIdField 'WireText
              ]
             '[ AppShellHtmxMethod 'AppShellDelete
@@ -393,7 +394,8 @@ type StaffShiftPreferenceFields =
      ]
 
 type TimesheetEntryFields =
-    '[ Field WeekOffsetField 'WireText
+    '[ Field AnchorDateField 'WireText
+     , Field RosterCalendarRevisionField 'WireText
      , Field StaffFilterIdField 'WireText
      , Field StaffIdField 'WireText
      , Field ShiftTypeIdField 'WireText

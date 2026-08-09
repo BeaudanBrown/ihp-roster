@@ -881,7 +881,7 @@ tests = aroundAll withDatabaseTestContext do
                             |> set #shiftTypeId (unpackId rosterOnlyShift.id)
                 lockedRevalidation <- withUserAndCurrentVenue manager venue.id do
                     withCurrentControllerContext do
-                        materializeTimesheetSuggestionMutation 0 eligibleSuggestion tamperedEntry
+                        materializeTimesheetSuggestionMutation 0 1 eligibleSuggestion tamperedEntry
                 lockedRevalidation `shouldBe` Nothing
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
@@ -1509,7 +1509,7 @@ tests = aroundAll withDatabaseTestContext do
                         suggestion <- fetchTimesheetSuggestionForRosterSlot rosterSlot.id >>= maybe (expectationFailure "Expected initial suggestion" >> error "unreachable") pure
                         _ <- updateRecord (rosterSlot |> setTestEndTime (Just (TimeOfDay 18 0 0)) |> setTestDurationMinutes (Just 540))
                         let entry = newTimesheetEntryFromSuggestion (unpackId venue.id) suggestion
-                        materializeTimesheetSuggestionMutation 0 suggestion entry
+                        materializeTimesheetSuggestionMutation 0 1 suggestion entry
 
                 materializationResult `shouldBe` Nothing
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)

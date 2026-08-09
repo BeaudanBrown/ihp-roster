@@ -1454,14 +1454,14 @@
         credentials: "same-origin",
         headers: { "HX-Request": "true" }
       });
-      if (!response.ok) {
-        endPerfSpan(perfSpan, { outcome: "http_error", status: response.status });
-        throw new Error(`Fragment fetch failed with ${response.status}`);
-      }
       if (response.headers.get("HX-Refresh")?.toLowerCase() === "true") {
         endPerfSpan(perfSpan, { outcome: "calendar_revision_reload", status: response.status });
         targetWindow.location.reload();
         return;
+      }
+      if (!response.ok) {
+        endPerfSpan(perfSpan, { outcome: "http_error", status: response.status });
+        throw new Error(`Fragment fetch failed with ${response.status}`);
       }
       const html = await response.text();
       await swapFragmentHtml(fragment.targetId, html);
