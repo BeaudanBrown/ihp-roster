@@ -267,6 +267,9 @@ export function querySql(sql: string) {
 
 export function resetCanonicalRosterAssignedShiftFixture() {
     runSql(`
+        UPDATE venue_config
+        SET roster_layout_mode = 'day_rows', updated_at = NOW()
+        WHERE venue_id = 'a1000000-0000-0000-0000-000000000001';
         UPDATE roster_weeks
         SET is_live = FALSE, updated_at = NOW()
         WHERE id = 'a1000000-0000-0000-0000-000000000051';

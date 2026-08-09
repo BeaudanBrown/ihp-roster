@@ -39,8 +39,7 @@ async function loginAndOpenRoster(page: Page) {
 async function openDayColumnsRoster(page: Page) {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await openRoster(page);
-    await ensureRosterLayout(page, 'day_columns');
+    await openRoster(page, { rosterLayoutMode: 'day_columns', ensureEditable: false });
     await expect(page.locator('#roster-grid-frame')).toBeVisible();
     await expect(page.locator('#roster-day-columns')).toBeVisible();
 }
@@ -263,7 +262,29 @@ test.describe('Roster live fragments', () => {
         await workerViewerContext.close();
     });
 
+    test('applies a manager layout change to another active roster viewer', async ({ browser }) => {
+        const actorContext = await browser.newContext();
+        const viewerContext = await browser.newContext();
+        const actorPage = await actorContext.newPage();
+        const viewerPage = await viewerContext.newPage();
+
+        await openRoster(actorPage, { rosterLayoutMode: 'day_rows', ensureEditable: false });
+        await openRoster(viewerPage, { rosterLayoutMode: 'day_rows', ensureEditable: false });
+        await ensureRosterLayout(actorPage, 'day_columns');
+
+        await expect(actorPage.locator('#roster-grid-frame')).toHaveAttribute('data-roster-layout', 'day_columns');
+        await expect(viewerPage.locator('#roster-grid-frame')).toHaveAttribute('data-roster-layout', 'day_columns', { timeout: E2E_TIMEOUT.liveUpdate });
+
+        await actorContext.close();
+        await viewerContext.close();
+    });
+
     test('preserves day-column and day-row scroll owners for actor and passive shift live refreshes', async ({ browser }) => {
+        runSql(`
+            UPDATE venue_config
+            SET roster_layout_mode = 'day_columns', updated_at = NOW()
+            WHERE venue_id = 'a1000000-0000-0000-0000-000000000001';
+        `);
         const actorContext = await browser.newContext();
         const viewerContext = await browser.newContext();
         const actorPage = await actorContext.newPage();
@@ -281,8 +302,13 @@ test.describe('Roster live fragments', () => {
         await expectRosterScrollOwnerPreserved(actorPage, 'actor-scroll-owner', actorScroll);
         await expectRosterScrollOwnerPreserved(viewerPage, 'viewer-scroll-owner', viewerScroll);
 
-        await ensureRosterLayout(actorPage, 'day_rows');
-        await ensureRosterLayout(viewerPage, 'day_rows');
+        runSql(`
+            UPDATE venue_config
+            SET roster_layout_mode = 'day_rows', updated_at = NOW()
+            WHERE venue_id = 'a1000000-0000-0000-0000-000000000001';
+        `);
+        await openRoster(actorPage, { rosterLayoutMode: 'day_rows', ensureEditable: false, useCurrentSession: true });
+        await openRoster(viewerPage, { rosterLayoutMode: 'day_rows', ensureEditable: false, useCurrentSession: true });
         await expect(actorPage.locator('.roster-slots-scroller')).toBeVisible();
         await expect(viewerPage.locator('.roster-slots-scroller')).toBeVisible();
         const actorDayRowsScroll = await markRosterScrollOwner(actorPage, 'actor-day-rows-scroll-owner', '.roster-slots-scroller');
