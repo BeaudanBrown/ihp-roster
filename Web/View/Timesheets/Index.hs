@@ -289,7 +289,6 @@ renderTimesheetSidePanelWithSwap maybeSwapOob view =
         ( renderSidePanelCard
             SidePanelCardConfig
                 { sidePanelCardClass = "timesheet-side-panel-card"
-                , sidePanelCardBodyClass = "app-side-panel-scroll-body"
                 }
             (if currentUserIsManager then renderManagerTimesheetSidePanel view else renderWorkerTimesheetSettings view)
         )
@@ -317,8 +316,10 @@ renderManagerTimesheetSidePanel view = [hsx|
 
 renderWorkerTimesheetSettings :: (?context :: ControllerContext) => IndexView -> Html
 renderWorkerTimesheetSettings view = [hsx|
-    <h2 class="h5">Settings</h2>
-    {renderTimesheetSettings view}
+    <div class="app-side-panel-settings-pane">
+        <h2 class="h5">Settings</h2>
+        {renderTimesheetSettings view}
+    </div>
 |]
 
 renderTimesheetSettings :: (?context :: ControllerContext) => IndexView -> Html
@@ -375,7 +376,7 @@ renderTimesheetStaffPanelEntry weekOffset staffMembers entry =
         SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightPin timesheetStaffCardsLinkedHighlight staffKey [hsx|
             <button type="button" class="btn btn-sm btn-outline-secondary app-icon-button app-side-panel-locate-button timesheet-staff-locate-button"
                     aria-label={"Locate entries for " <> staffName} aria-pressed="false">
-                <i class="bi bi-eye" aria-hidden="true"></i>
+                {renderSidePanelLocateIcon}
             </button>
         |]
 

@@ -44,11 +44,16 @@ async function managerPanelVisualContract(root: Locator) {
     const firstHeader = panel.locator('table thead th').first();
     const firstRole = panel.locator('table tbody tr').first().locator('td').first();
     const firstLocate = panel.getByRole('button', { name: /^Locate/ }).first();
+    const locateIcon = firstLocate.locator('.app-side-panel-locate-icon');
+    const cardBody = panel.locator('.app-side-panel-card > .app-panel-body');
+    const tableList = panel.locator('.app-side-panel-table-list').first();
 
     await expect(staffTab).toBeVisible();
     await expect(firstHeader).toBeVisible();
     await expect(firstRole).toBeVisible();
     await expect(firstLocate).toBeVisible();
+    await expect(locateIcon).toBeVisible();
+    await expect(cardBody).not.toHaveClass(/app-side-panel-scroll-body/);
 
     return {
         tabs: await staffTab.locator('..').evaluate(element => {
@@ -57,19 +62,47 @@ async function managerPanelVisualContract(root: Locator) {
         }),
         tab: await staffTab.evaluate(element => {
             const style = getComputedStyle(element);
-            return [style.minHeight, style.borderRadius, style.fontSize, style.fontWeight, style.backgroundColor, style.color];
+            return [style.minHeight, style.borderRadius, style.fontFamily, style.fontSize, style.fontWeight, style.lineHeight, style.backgroundColor, style.color];
         }),
         header: await firstHeader.evaluate(element => {
             const style = getComputedStyle(element);
-            return [style.paddingTop, style.paddingBottom, style.fontSize, style.fontWeight, style.letterSpacing, style.textTransform];
+            return [style.paddingTop, style.paddingBottom, style.fontFamily, style.fontSize, style.fontWeight, style.lineHeight, style.letterSpacing, style.textTransform];
         }),
         role: await firstRole.evaluate(element => {
             const style = getComputedStyle(element);
-            return [style.fontSize, style.fontWeight, style.letterSpacing, style.textTransform, style.color];
+            return [style.fontFamily, style.fontSize, style.fontWeight, style.lineHeight, style.letterSpacing, style.textTransform, style.color];
         }),
         locate: await firstLocate.evaluate(element => {
             const style = getComputedStyle(element);
             return [style.width, style.height, style.borderRadius, style.paddingTop, style.paddingRight];
+        }),
+        locateIcon: await locateIcon.evaluate(element => {
+            const style = getComputedStyle(element);
+            const rect = element.getBoundingClientRect();
+            return [element.tagName, style.display, Math.round(rect.width), Math.round(rect.height), style.color];
+        }),
+        geometry: await cardBody.evaluate((body) => {
+            const bodyRect = body.getBoundingClientRect();
+            const tabs = body.querySelector('.app-side-panel-tabs');
+            const header = body.querySelector('.app-side-panel-content-header');
+            if (!tabs || !header) throw new Error('Expected canonical SidePanel tabs and content header');
+            const tabsRect = tabs.getBoundingClientRect();
+            const headerRect = header.getBoundingClientRect();
+            const bodyStyle = getComputedStyle(body);
+            return [
+                bodyStyle.paddingLeft,
+                bodyStyle.paddingRight,
+                Math.round(tabsRect.left - bodyRect.left),
+                Math.round(bodyRect.right - tabsRect.right),
+                Math.round(headerRect.left - bodyRect.left),
+            ];
+        }),
+        scrolling: await tableList.evaluate((element) => {
+            const style = getComputedStyle(element);
+            const body = element.closest('.app-panel-body');
+            if (!body) throw new Error('Expected SidePanel card body');
+            const bodyStyle = getComputedStyle(body);
+            return [bodyStyle.overflowY, style.overflowY, style.scrollbarGutter];
         }),
     };
 }

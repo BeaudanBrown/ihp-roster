@@ -165,7 +165,6 @@ renderLeaveSidePanelWithSwap maybeSwapOob venueToday blackouts leaveRequests sta
         ( renderSidePanelCard
             SidePanelCardConfig
                 { sidePanelCardClass = "leave-side-panel-card"
-                , sidePanelCardBodyClass = "app-side-panel-scroll-body"
                 }
             [hsx|
                 {renderSidePanelTabs "Unavailability side panel" tabs}
@@ -232,7 +231,7 @@ renderLeaveStaffPanelEntry staffMembers entry =
         SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightPin leaveStaffPeriodsLinkedHighlight staffKey [hsx|
             <button type="button" class="btn btn-sm btn-outline-secondary app-icon-button app-side-panel-locate-button leave-staff-locate-button"
                     aria-label={"Locate unavailable periods for " <> staffName} aria-pressed="false">
-                <i class="bi bi-eye" aria-hidden="true"></i>
+                {renderSidePanelLocateIcon}
             </button>
         |]
 
