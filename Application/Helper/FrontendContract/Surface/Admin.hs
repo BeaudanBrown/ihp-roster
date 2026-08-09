@@ -76,6 +76,7 @@ module Application.Helper.FrontendContract.Surface.Admin
     , ShowInactiveShiftTypes
     , Name
     , PayRateSelection
+    , DefaultStaffAwardLevelId
     , ColourKey
     , IsActive
     , EditStaffId
@@ -156,6 +157,7 @@ data ShowInactiveRosterGroups
 data ShowInactiveShiftTypes
 data Name
 data PayRateSelection
+data DefaultStaffAwardLevelId
 data ColourKey
 data IsActive
 data EditStaffId
@@ -220,7 +222,7 @@ type AdminVenueSettingsSurface =
              , 'CustomHtmx ChangeAutosaveCustomHtmx "venue setting toggles submit the containing form on change"
              ]
          , Action UpdateDefaultStaffPayRate
-            '[ Field PayRateSelection 'WireText ]
+            '[ NullableField DefaultStaffAwardLevelId 'WireUUID ]
             '[ 'HtmxMethod 'HtmxPost
              , 'HtmxTarget ('HtmxId AdminVenueSettingsFragment)
              , 'HtmxSwap 'HtmxNoSwap

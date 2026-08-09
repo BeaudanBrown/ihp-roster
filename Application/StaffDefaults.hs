@@ -1,7 +1,6 @@
 module Application.StaffDefaults
     ( applyVenueDefaultStaffPayAssignment
     , validateStaffAwardRateAvailability
-    , venueDefaultStaffPayRateSelectionValue
     ) where
 
 import qualified Data.Set as Set
@@ -33,9 +32,3 @@ validateStaffAwardRateAvailability activeAwardLevels currentBaseRates failureMes
     rateApplies awardLevelId employmentBasis rate =
         rate.awardLevelId == unpackId awardLevelId
             && rate.employmentBasis == employmentBasis
-
-venueDefaultStaffPayRateSelectionValue :: VenueConfig -> Text
-venueDefaultStaffPayRateSelectionValue venueConfig =
-    case (venueConfig.defaultStaffPayAssignmentMode, venueConfig.defaultStaffAwardLevelId) of
-        (AwardRate, Just awardLevelId) -> "award:" <> inputValue awardLevelId
-        _                              -> "roster-only"

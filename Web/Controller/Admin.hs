@@ -350,26 +350,21 @@ instance Controller AdminController where
         venueConfig <- fetchVenueConfig
         case AdminAction.parseUpdateDefaultStaffPayRateActionParams of
             Left errors -> reportSurfaceRequestErrors errors
-            Right fields -> do
-                maybeSelection <- parseSubmittedPayRateSelectionValue (surfaceFieldValue @Surface.PayRateSelection fields)
-                case maybeSelection of
-                    Just selection
-                        | selection.submittedRosterOnly -> do
-                            _ <- setDefaultStaffPayRateMutation venueConfig RosterOnly Nothing
-                            setSuccessMessage "New staff will default to No Timesheets."
-                        | Just awardLevelId <- selection.submittedAwardLevelId
-                        , isNothing selection.submittedImportedXeroPayItemId -> do
-                            activeAwardLevels <- fetchActiveAwardLevels
-                            currentBaseRates <- fetchCurrentAwardLevelBaseRates
-                            let awardIsActive = awardLevelId `elem` map (.id) activeAwardLevels
-                            let awardHasCurrentRate = any ((== unpackId awardLevelId) . (.awardLevelId)) currentBaseRates
-                            if awardIsActive && awardHasCurrentRate
-                                then do
-                                    _ <- setDefaultStaffPayRateMutation venueConfig AwardRate (Just awardLevelId)
-                                    setSuccessMessage "Default staff award rate updated."
-                                else setErrorMessage "Choose an active award level with a current rate."
-                        | otherwise -> setErrorMessage "Choose an award rate or No Timesheets."
-                    Nothing -> pure ()
+            Right fields ->
+                case Id <$> surfaceFieldValue @Surface.DefaultStaffAwardLevelId fields of
+                    Nothing -> do
+                        _ <- setDefaultStaffPayRateMutation venueConfig RosterOnly Nothing
+                        setSuccessMessage "New staff will default to No Timesheets."
+                    Just awardLevelId -> do
+                        activeAwardLevels <- fetchActiveAwardLevels
+                        currentBaseRates <- fetchCurrentAwardLevelBaseRates
+                        let awardIsActive = awardLevelId `elem` map (.id) activeAwardLevels
+                        let awardHasCurrentRate = any ((== unpackId awardLevelId) . (.awardLevelId)) currentBaseRates
+                        if awardIsActive && awardHasCurrentRate
+                            then do
+                                _ <- setDefaultStaffPayRateMutation venueConfig AwardRate (Just awardLevelId)
+                                setSuccessMessage "Default staff award rate updated."
+                            else setErrorMessage "Choose an active award level with a current rate."
         respondToVenueSettingsMutation
 
     action currentAction@UpdateMinutePrecisionShiftTimesEnabledAction = runBepis currentAction BepisMutationAction do

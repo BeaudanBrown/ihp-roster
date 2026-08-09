@@ -995,7 +995,7 @@ tests = aroundAll withDatabaseTestContext do
                 pageResponse `responseBodyShouldContain` "hx-post=\"/UpdateRosterEndTimesEnabled\""
                 pageResponse `responseBodyShouldContain` "hx-post=\"/UpdateDefaultStaffPayRate\""
                 pageResponse `responseBodyShouldContain` "Default staff rate"
-                pageResponse `responseBodyShouldContain` "name=\"payRateSelection\""
+                pageResponse `responseBodyShouldContain` "name=\"defaultStaffAwardLevelId\""
                 pageResponse `responseBodyShouldContain` "No Timesheets (roster only)"
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-venue-settings-fragment\""
                 pageResponse `responseBodyShouldContain` "hx-swap=\"none\""
@@ -1040,7 +1040,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 awardResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams UpdateDefaultStaffPayRateAction
-                        [("payRateSelection", cs ("award:" <> tshow awardLevel.id))]
+                        [("defaultStaffAwardLevelId", cs (tshow awardLevel.id))]
                 awardResponse `responseStatusShouldBe` status302
                 awardConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 awardConfig.defaultStaffPayAssignmentMode `shouldBe` AwardRate
@@ -1048,21 +1048,21 @@ tests = aroundAll withDatabaseTestContext do
 
                 unavailableResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams UpdateDefaultStaffPayRateAction
-                        [("payRateSelection", cs ("award:" <> tshow unavailableLevel.id))]
+                        [("defaultStaffAwardLevelId", cs (tshow unavailableLevel.id))]
                 unavailableResponse `responseStatusShouldBe` status302
                 unchangedConfig <- fetch awardConfig.id
                 unchangedConfig.defaultStaffAwardLevelId `shouldBe` Just awardLevel.id
 
                 managerResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams UpdateDefaultStaffPayRateAction
-                        [("payRateSelection", "roster-only")]
+                        [("defaultStaffAwardLevelId", "")]
                 managerResponse `responseStatusShouldBe` status302
                 managerRejectedConfig <- fetch awardConfig.id
                 managerRejectedConfig.defaultStaffPayAssignmentMode `shouldBe` AwardRate
 
                 rosterOnlyResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams UpdateDefaultStaffPayRateAction
-                        [("payRateSelection", "roster-only")]
+                        [("defaultStaffAwardLevelId", "")]
                 rosterOnlyResponse `responseStatusShouldBe` status302
                 rosterOnlyConfig <- fetch awardConfig.id
                 rosterOnlyConfig.defaultStaffPayAssignmentMode `shouldBe` RosterOnly

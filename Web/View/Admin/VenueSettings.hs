@@ -17,7 +17,6 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.TimeRules (venueTimePickerFinalSelectableTimeText,
                                      venueTimePickerStartTimeText)
-import Application.StaffDefaults (venueDefaultStaffPayRateSelectionValue)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminVenueSettingsSurfaceImpl)
 import Web.View.Admin.Common
@@ -74,15 +73,18 @@ renderDefaultStaffPayRateForm venueConfig awardLevels awardLevelBaseRates =
         <div class="admin-setting-row-control admin-setting-row-control-wide">
             <select id="venue-default-staff-pay-rate"
                     class="form-select form-select-sm"
-                    name={surfaceFieldNameFrom @Surface.PayRateSelection fields}>
-                <option value="roster-only" selected={selectedValue == "roster-only"}>No Timesheets (roster only)</option>
+                    name={surfaceFieldNameFrom @Surface.DefaultStaffAwardLevelId fields}>
+                <option value="" selected={isNothing selectedAwardLevelId}>No Timesheets (roster only)</option>
                 {forEach awardLevels renderAwardOption}
             </select>
             {when defaultNeedsRepair renderDefaultRepairWarning}
         </div>
     |]
   where
-    selectedValue = venueDefaultStaffPayRateSelectionValue venueConfig
+    selectedAwardLevelId =
+        case venueConfig.defaultStaffPayAssignmentMode of
+            AwardRate -> venueConfig.defaultStaffAwardLevelId
+            _         -> Nothing
     activeAwardLevelIds = map (.id) awardLevels
     defaultNeedsRepair =
         case venueConfig.defaultStaffPayAssignmentMode of
@@ -93,12 +95,12 @@ renderDefaultStaffPayRateForm venueConfig awardLevels awardLevelBaseRates =
                             || not (any ((== unpackId awardLevelId) . (.awardLevelId)) awardLevelBaseRates)
                     Nothing -> True
             _ -> False
-    fields = AdminAction.updateDefaultStaffPayRateActionFields selectedValue
+    fields = AdminAction.updateDefaultStaffPayRateActionFields (unpackId <$> selectedAwardLevelId)
     renderDefaultRepairWarning = [hsx|
         <p class="small text-warning mb-0 mt-1" role="alert">The saved default is unavailable. Choose an active award rate or No Timesheets before managers create staff.</p>
     |]
     renderAwardOption awardLevel = [hsx|
-        <option value={"award:" <> inputValue awardLevel.id} selected={selectedValue == "award:" <> inputValue awardLevel.id}>
+        <option value={inputValue awardLevel.id} selected={selectedAwardLevelId == Just awardLevel.id}>
             {awardLevelOptionLabel awardLevelBaseRates awardLevel}
         </option>
     |]
