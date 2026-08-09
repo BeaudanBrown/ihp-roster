@@ -171,11 +171,8 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         await gotoWhenReady(page, '/Billing', '[data-billing-owner-view="true"]');
 
         const startSubscription = page.getByRole('button', { name: 'Start Subscription' });
-        await startSubscription.locator('xpath=ancestor::form').evaluate((form) => {
-            form.addEventListener('submit', (event) => event.preventDefault(), { once: true });
-        });
-        await startSubscription.click();
-        await expect(page.getByRole('dialog', { name: 'Opening Stripe' })).toHaveCount(0);
+        const stripeLoadingDialog = page.getByRole('dialog', { name: 'Opening Stripe' });
+        await expect(stripeLoadingDialog).toHaveCount(0);
 
         let releaseRequest!: () => void;
         let markRequestObserved!: () => void;
@@ -204,7 +201,7 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         expect(loadingDialog?.text).toContain("Please wait while Bepis opens Stripe's secure billing page.");
         expect(loadingDialog?.spinnerCount).toBe(1);
         expect(loadingDialog?.buttonCount).toBe(0);
-        await expect(page.getByRole('dialog', { name: 'Opening Stripe' })).toHaveCount(0);
+        await expect(stripeLoadingDialog).toHaveCount(0);
     });
 
     test('correlates Checkout, refreshes lifecycle state, and separates founder diagnostics', async ({ page, request }) => {

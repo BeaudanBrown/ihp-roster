@@ -643,11 +643,14 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-leave-requests-leave-staff-highlight-pin=\"staff:"
                 body <- responseBody response
                 let bodyText = cs (LByteString.unpack body)
-                    staffPane = fst (Text.breakOn "id=\"leave-settings-pane\"" (snd (Text.breakOn "id=\"leave-staff-pane\"" bodyText)))
-                Text.isInfixOf "Ava Available" staffPane `shouldBe` True
-                Text.isInfixOf "Tia Trial" staffPane `shouldBe` True
-                Text.isInfixOf "Ina Inactive" staffPane `shouldBe` False
-                Text.isInfixOf "Arlo Archived" staffPane `shouldBe` False
+                    staffPane = fst (Text.breakOn "id=\"leave-settings-pane\" role=\"tabpanel\"" (snd (Text.breakOn "id=\"leave-staff-pane\" role=\"tabpanel\"" bodyText)))
+                    hasStaff staff = Text.isInfixOf ("staff:" <> tshow staff.id) staffPane
+                hasStaff worker `shouldBe` True
+                hasStaff trial `shouldBe` True
+                hasStaff inactive `shouldBe` False
+                hasStaff archived `shouldBe` False
+                Text.isInfixOf "&quot;staffName&quot;:&quot;Ava&quot;" staffPane `shouldBe` True
+                Text.isInfixOf "&quot;staffName&quot;:&quot;Tia&quot;" staffPane `shouldBe` True
                 response `responseBodyShouldContain` "leave-staff-count-total\">2</span>"
                 response `responseBodyShouldContain` "leave-staff-count-pending\">(1)</span>"
                 response `responseBodyShouldContain` cs (pathTo (EditStaffAction worker.id))

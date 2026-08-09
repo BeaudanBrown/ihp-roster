@@ -143,7 +143,10 @@ test.describe('Live fragment multi-view coverage', () => {
 
         const managerContent = managerPage.locator('#leave-requests-content');
         await expect(managerContent).not.toContainText(note);
-        const workerSource = managerPage.locator(`[${leaveRequestsLeaveStaffHighlightSourceDomAttr}]`).filter({ hasText: 'Alpha Crew' });
+        const workerSource = managerPage
+            .locator(`[${leaveRequestsLeaveStaffHighlightSourceDomAttr}]`)
+            .filter({ has: managerPage.getByText('Alpha', { exact: true }) });
+        await expect(workerSource).toHaveCount(1);
         const staffKey = await workerSource.getAttribute(leaveRequestsLeaveStaffHighlightSourceDomAttr);
         expect(staffKey).toBeTruthy();
         await workerSource.locator(`[${leaveRequestsLeaveStaffHighlightPinDomAttr}]`).click();
