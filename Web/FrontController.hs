@@ -12,6 +12,8 @@ import Application.Helper.Impersonation (effectiveUserSessionKey,
                                          initImpersonationContext,
                                          initSupportImpersonationOptions)
 import Application.Helper.Profiling (initRequestProfiling, profileActionSpan)
+import Application.Helper.SessionVersion (authenticatedSessionVersionIsCurrent,
+                                          clearAuthenticatedSessionVersion)
 import qualified Control.Exception as Exception
 import qualified Data.Text.IO as TextIO
 import IHP.Controller.Context (putContext)
@@ -79,19 +81,26 @@ instance InitControllerContext WebApplication where
         initRequestProfiling
         authenticationResult <- Exception.try (initAuthentication @User) :: IO (Either Exception.SomeException ())
         case authenticationResult of
-            Right () -> pure ()
+            Right () -> do
+                sessionVersionIsCurrent <- authenticatedSessionVersionIsCurrent
+                unless sessionVersionIsCurrent clearAuthenticatedSessionContext
             Left exception -> do
                 TextIO.putStrLn ("auth_init_failure: " <> cs (Exception.displayException exception))
-                deleteSession (sessionKey @User)
-                deleteSession currentVenueSessionKey
-                deleteSession effectiveUserSessionKey
-                deleteSession impersonationSessionIdSessionKey
-                putContext (Nothing :: Maybe User)
+                clearAuthenticatedSessionContext
         initCurrentVenueContext
         initImpersonationContext
         initSupportImpersonationOptions
         initBillingNavigationContext
         initFeedbackContext
+
+clearAuthenticatedSessionContext :: (?context :: ControllerContext, ?request :: Request) => IO ()
+clearAuthenticatedSessionContext = do
+    deleteSession (sessionKey @User)
+    clearAuthenticatedSessionVersion
+    deleteSession currentVenueSessionKey
+    deleteSession effectiveUserSessionKey
+    deleteSession impersonationSessionIdSessionKey
+    putContext (Nothing :: Maybe User)
 
 initBillingNavigationContext :: (?context :: ControllerContext) => IO ()
 initBillingNavigationContext =

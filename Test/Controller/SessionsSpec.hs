@@ -5,13 +5,16 @@ module Test.Controller.SessionsSpec where
 import Application.Helper.Controller (currentVenueSessionKey)
 import Application.Helper.FrontendContract.Passkey.Runtime (PasskeyDom (..),
                                                             canonicalPasskeyDom)
+import Application.Helper.SessionVersion (sessionVersionSessionKey)
 import Config
 import Data.Time.Clock (addUTCTime, getCurrentTime)
 import Generated.Types
+import qualified Data.Serialize as Serialize
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
+import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import IHP.Prelude
 import IHP.Test.Mocking
 import qualified Network.HTTP.Types as HTTP
@@ -38,6 +41,40 @@ tests = aroundAll withDatabaseTestContext do
 
         it "redirects successful logins to the roster week flow" $ withContext do
             Sessions.afterLoginRedirectPath @User `shouldBe` pathTo RosterWeeksAction
+
+        it "rejects sessions issued before the user's session version changed" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Revoked Session Venue"
+                user <- createUserRecord "revoked-session@example.com" "staff" True
+                    >>= updateRecord . set #sessionVersion 1
+                _ <- createVenueMembershipRecord venue user Worker
+
+                response <- withSessionValues
+                    [ (cs (LoginSupport.sessionKey @User), Serialize.encode user.id)
+                    , (currentVenueSessionKey, Serialize.encode venue.id)
+                    ]
+                    do
+                        callAction EditProfileAction
+
+                response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/NewSession"
+
+        it "accepts a session carrying the user's current session version" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Current Session Version Venue"
+                user <- createUserRecord "current-session-version@example.com" "staff" True
+                    >>= updateRecord . set #sessionVersion 1
+                _ <- createVenueMembershipRecord venue user Worker
+
+                response <- withSessionValues
+                    [ (cs (LoginSupport.sessionKey @User), Serialize.encode user.id)
+                    , (currentVenueSessionKey, Serialize.encode venue.id)
+                    , (sessionVersionSessionKey, Serialize.encode (1 :: Int))
+                    ]
+                    do
+                        callAction EditProfileAction
+
+                response `responseStatusShouldBe` status200
 
         it "verifies a user, signs them in, and redirects to profile editing" $ withContext do
             withCleanDb do

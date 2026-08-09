@@ -7,6 +7,8 @@ import Application.Helper.FrontendContract.Passkey.Runtime (PasskeySetupPromptMo
                                                             passkeySetupPromptModeValue)
 import Application.Helper.Profiling (isRequestProfilingEnabled,
                                      profileActionSpan)
+import Application.Helper.SessionVersion (clearAuthenticatedSessionVersion,
+                                          markAuthenticatedSessionVersion)
 import Control.Exception (evaluate)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -171,6 +173,7 @@ instance Sessions.SessionsControllerConfig User where
     afterLoginRedirectPath = "/RosterWeeks"
 
     beforeLogin user = do
+        markAuthenticatedSessionVersion user
         deleteSession effectiveUserSessionKey
         deleteSession impersonationSessionIdSessionKey
         when (isNothing user.emailVerifiedAt) do
@@ -187,6 +190,7 @@ instance Sessions.SessionsControllerConfig User where
         deleteSession currentVenueSessionKey
         deleteSession effectiveUserSessionKey
         deleteSession impersonationSessionIdSessionKey
+        clearAuthenticatedSessionVersion
         clearCurrentUserPasskeyVerification
 
 defaultLoginRedirectPath :: (?modelContext :: ModelContext) => User -> IO Text

@@ -20,6 +20,7 @@ applicationTableNames =
     , "passkeys"
     , "passkey_recovery_codes"
     , "passkey_setup_tokens"
+    , "password_reset_tokens"
     , "user_preferences"
     , "venue_memberships"
     , "venue_invitations"
