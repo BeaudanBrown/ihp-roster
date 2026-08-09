@@ -64,17 +64,24 @@ materializeRosterWindowMutation rosterGroupId weekOffset =
     withRosterWindowMutationLock rosterGroupId weekOffset $
         materializeRosterWindow currentVenueId rosterGroupId weekOffset
 
-ensureRosterWeekExistsMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (LiveMutationResult (RosterWeek, Bool))
+ensureRosterWeekExistsMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Either Text (LiveMutationResult (RosterWeek, Bool)))
 ensureRosterWeekExistsMutation rosterGroupId weekOffset = do
-    (days, wasCreated) <- withRosterWindowMutationLock rosterGroupId weekOffset $
-        materializeRosterWindow currentVenueId rosterGroupId weekOffset
-    rosterWeek <- maybe (error "Roster window materialization produced no days") rosterPlanningWeekForDay (listToMaybe days)
-    let result = (rosterWeek, wasCreated)
-    touchedResources <- rosterWeekStructuralTouchedResources rosterGroupId weekOffset
-    let mutationResult = liveMutationResult result touchedResources
-    if wasCreated
-        then invalidateTouchedResources "roster.week.ensure" mutationResult
-        else pure mutationResult
+    materialized <- withRosterWindowMutationLock rosterGroupId weekOffset do
+        venueConfig <- fetchVenueConfig
+        case requestRosterCalendarRevisionError venueConfig of
+            Just message -> pure (Left message)
+            Nothing -> Right <$> materializeRosterWindow currentVenueId rosterGroupId weekOffset
+    case materialized of
+        Left message -> pure (Left message)
+        Right (days, wasCreated) -> do
+            rosterWeek <- maybe (error "Roster window materialization produced no days") rosterPlanningWeekForDay (listToMaybe days)
+            let result = (rosterWeek, wasCreated)
+            touchedResources <- rosterWeekStructuralTouchedResources rosterGroupId weekOffset
+            let mutationResult = liveMutationResult result touchedResources
+            Right <$>
+                if wasCreated
+                    then invalidateTouchedResources "roster.week.ensure" mutationResult
+                    else pure mutationResult
 
 copyRosterWeekFromSourceMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftCopyOccurrenceSelections -> Id RosterGroup -> RosterWeek -> Int -> IO (Either RosterWeekCopyError (LiveMutationResult RosterWeek))
 copyRosterWeekFromSourceMutation selections rosterGroupId sourceWeek targetWeekOffset = do

@@ -1641,7 +1641,7 @@ tests = aroundAll withDatabaseTestContext do
                                 ]
                     , withUserAndCurrentVenue manager venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
-                            callAction (DeleteRosterSlotAction rosterSlot.id)
+                            callActionWithParams (DeleteRosterSlotAction rosterSlot.id) (rosterMutationParams 0)
                     ]
 
                 lefts results `shouldSatisfy` null

@@ -11,6 +11,7 @@ import Application.Helper.FrontendContract.AppShell (ConfirmDeleteRosterSlotOver
                                                      ConfirmRemoveRosterRowOverlay,
                                                      DeleteRosterSlotOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             AppShellFieldValue (..),
                                                              appShellActionByMarker,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.Passkey.Runtime (PasskeySetupPromptMode,
@@ -468,21 +469,23 @@ instance Controller RosterWeeksController where
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
-        mutationResult <- ensureRosterWeekExistsMutation rosterGroup.id weekOffset
-        let (rosterWeek, wasCreated) = mutationResult.liveMutationValue
-
-        let successMessage =
-                if wasCreated
-                    then "Roster week created successfully"
-                    else "Roster week already exists."
-        targetPath <- rosterWindowUrlForOffset rosterWeek.weekOffset rosterGroup.id
-        if isHtmxRequest
-            then do
-                setHtmxPushUrl targetPath
-                respondWithRosterContentUpdate rosterGroup.id rosterWeek.weekOffset mutationResult.liveMutationTouchedResources successMessage
-            else do
-                setSuccessMessage successMessage
-                redirectToPath targetPath
+        result <- ensureRosterWeekExistsMutation rosterGroup.id weekOffset
+        case result of
+            Left message -> respondToRosterSlotDefinitionError rosterGroup.id weekOffset message
+            Right mutationResult -> do
+                let (rosterWeek, wasCreated) = mutationResult.liveMutationValue
+                let successMessage =
+                        if wasCreated
+                            then "Roster week created successfully"
+                            else "Roster week already exists."
+                targetPath <- rosterWindowUrlForOffset rosterWeek.weekOffset rosterGroup.id
+                if isHtmxRequest
+                    then do
+                        setHtmxPushUrl targetPath
+                        respondWithRosterContentUpdate rosterGroup.id rosterWeek.weekOffset mutationResult.liveMutationTouchedResources successMessage
+                    else do
+                        setSuccessMessage successMessage
+                        redirectToPath targetPath
 
     action currentAction@CopyRosterWeekAction = runBepis currentAction BepisMutationAction do
         (sourceWeekOffset, targetWeekOffset) <- rosterCopyActionWeekOffsets
@@ -825,7 +828,7 @@ instance Controller RosterWeeksController where
                         result <- validateRosterShiftDeleteDropIntent rosterGroup.id weekOffset sourceToken targetToken
                         case result of
                             Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
-                            Right rosterSlot -> respondWithDeleteRosterSlotDropConfirmation rosterSlot
+                            Right rosterSlot -> respondWithDeleteRosterSlotDropConfirmation rosterSlot (param @Calendar.Day "anchorDate") (param @Int "rosterCalendarRevision")
                     else do
                         result <- validateMoveRosterShiftIntent rosterGroup.id weekOffset sourceToken targetToken
                         case result of
@@ -915,7 +918,7 @@ instance Controller RosterWeeksController where
                         result <- validateRosterShiftDeleteDropIntent rosterGroup.id weekOffset sourceToken targetToken
                         case result of
                             Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
-                            Right rosterSlot -> respondWithDeleteRosterSlotDropConfirmation rosterSlot
+                            Right rosterSlot -> respondWithDeleteRosterSlotDropConfirmation rosterSlot (param @Calendar.Day "anchorDate") (param @Int "rosterCalendarRevision")
                     else do
                         result <- validateDuplicateRosterShiftIntent rosterGroup.id weekOffset sourceToken targetToken
                         case result of
@@ -1144,11 +1147,20 @@ instance Controller RosterWeeksController where
         rosterSlot <- fetchRosterSlotForEdit rosterSlotId
         authorizeRosterSlotForEdit rosterSlot
         (rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlot
+        requireRosterSlotMutationContext rosterWeek
         authorizeRosterSlotDeleteContext rosterDay rosterWeek
         let rosterGroupId = coerce rosterWeek.rosterGroupId
         deleteRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot >>= \case
             Left message -> respondWithMoveRosterShiftFailure rosterGroupId rosterWeek.weekOffset message
             Right mutationResult -> respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult [(rosterSlot.rosterDayId, rosterSlot.rowIndex)] False
+
+requireRosterSlotMutationContext :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWeek -> IO ()
+requireRosterSlotMutationContext rosterWeek = do
+    venueConfig <- fetchVenueConfig
+    let anchorDate = param @Calendar.Day "anchorDate"
+    let calendarRevision = param @Int "rosterCalendarRevision"
+    accessDeniedUnless (venueWeekOffsetForDay venueConfig anchorDate == rosterWeek.weekOffset)
+    calendarRevision `seq` pure ()
 
 rosterShiftDialogSubmissionFromRequest :: (?context :: ControllerContext, ?request :: Request) => RosterShiftDialogSubmission
 rosterShiftDialogSubmissionFromRequest =
@@ -1319,8 +1331,8 @@ resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId = do
     accessDeniedUnless (venueWeekOffsetForDay venueConfig rosterDay.operationalDate == weekOffset)
     pure (coerce rosterDay.rosterGroupId)
 
-respondWithDeleteRosterSlotDropConfirmation :: (?context :: ControllerContext, ?request :: Request) => RosterSlot -> IO ()
-respondWithDeleteRosterSlotDropConfirmation rosterSlot =
+respondWithDeleteRosterSlotDropConfirmation :: (?context :: ControllerContext, ?request :: Request) => RosterSlot -> Calendar.Day -> Int -> IO ()
+respondWithDeleteRosterSlotDropConfirmation rosterSlot anchorDate calendarRevision =
     respondHtmlProfiled [hsx|
         <div id={dialogOverlayMountId} hx-swap-oob="innerHTML">
             {confirmationDialog}
@@ -1343,7 +1355,7 @@ respondWithDeleteRosterSlotDropConfirmation rosterSlot =
                     , overlayButtonClass = "btn btn-danger"
                     , overlayButtonAction = GeneratedDialogFormAction
                         (appShellActionByMarker @ConfirmDeleteRosterSlotOverlay)
-                        (rosterDeleteSlotActionRoute (pathTo (DeleteRosterSlotAction rosterSlot.id)))
+                        (rosterDeleteSlotActionRoute (pathTo (DeleteRosterSlotAction rosterSlot.id)) anchorDate calendarRevision)
                         []
                         Nothing
                     }
@@ -1351,11 +1363,14 @@ respondWithDeleteRosterSlotDropConfirmation rosterSlot =
             , dialogOverlayDialogClass = ""
             }
 
-rosterDeleteSlotActionRoute :: Text -> AppShellActionRoute
-rosterDeleteSlotActionRoute actionUrl =
+rosterDeleteSlotActionRoute :: Text -> Calendar.Day -> Int -> AppShellActionRoute
+rosterDeleteSlotActionRoute actionUrl anchorDate calendarRevision =
     AppShellActionRoute
         { appShellActionRouteUrl = actionUrl
-        , appShellActionRouteFields = []
+        , appShellActionRouteFields =
+            [ AppShellFieldValue ("anchorDate", tshow anchorDate)
+            , AppShellFieldValue ("rosterCalendarRevision", tshow calendarRevision)
+            ]
         , appShellActionRouteCustomHtmx = []
         , appShellActionRouteStandardUrl = Nothing
         , appShellActionRouteExtraAttrs = []

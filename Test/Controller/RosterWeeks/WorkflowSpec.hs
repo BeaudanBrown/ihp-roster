@@ -224,6 +224,22 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetch
                 map (.rosterDayId) activeLanes `shouldSatisfy` (\laneDayIds -> all (`elem` laneDayIds) (map (unpackId . (.id)) datedDays))
 
+        it "rejects stale calendar context before materializing a roster window" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Stale materialization venue"
+                manager <- createUserRecord "stale-materialization-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                initialConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- updateRecord (initialConfig |> set #rosterWeekStartsOn 2)
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateRosterWeekAction (rosterMutationParams 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "The roster calendar changed. Review the refreshed window and try again."
+                query @RosterDay |> filterWhere (#venueId, unpackId venue.id) |> fetchCount >>= (`shouldBe` 0)
+
         it "manager can add a row to a materialized date-native window" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
