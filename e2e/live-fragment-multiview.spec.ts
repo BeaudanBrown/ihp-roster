@@ -300,6 +300,18 @@ test.describe('Live fragment multi-view coverage', () => {
             SET is_live = TRUE, updated_at = NOW()
             WHERE venue_id = 'a1000000-0000-0000-0000-000000000001'
               AND week_offset = 0;
+            INSERT INTO roster_days (roster_week_id, day_offset, is_closed, row_count)
+            SELECT roster_weeks.id, day_offset, FALSE, 2
+            FROM roster_weeks CROSS JOIN generate_series(0, 6) AS day_offset
+            WHERE roster_weeks.venue_id = 'a1000000-0000-0000-0000-000000000001'
+              AND roster_weeks.week_offset = 0
+            ON CONFLICT (roster_group_id, operational_date) DO NOTHING;
+            UPDATE roster_days
+            SET publication_state = 'published'
+            WHERE roster_week_id IN (
+                SELECT id FROM roster_weeks
+                WHERE venue_id = 'a1000000-0000-0000-0000-000000000001' AND week_offset = 0
+            );
 
             INSERT INTO roster_slots (
                 id,

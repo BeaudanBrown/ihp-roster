@@ -128,7 +128,7 @@ test.describe('Roster staff shift highlight', () => {
         const liveToggle = page
             .locator('[data-week-toolbar="roster"]')
             .locator(`[${toggleRootDomAttr}]`)
-            .filter({ hasText: 'Live' });
+            .filter({ hasText: 'Published' });
         await expect(liveToggle.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
         await expect(page.locator(`[${rosterStaffHighlightDefaultDomAttr}]`)).toHaveCount(0);
 

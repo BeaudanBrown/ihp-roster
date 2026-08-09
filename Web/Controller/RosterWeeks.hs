@@ -47,6 +47,7 @@ import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 successToast)
 import Application.Helper.WeekBoundaries (venueWeekStartDate)
 import qualified Application.RosterNotification as Notification
+import Application.RosterPublication (fetchRosterWeekIsPublished)
 import Application.RosterShiftAssignment (RosterShiftAssignment (StaffAssignment),
                                           applyRosterShiftAssignment,
                                           copyRosterShiftAssignment,
@@ -347,7 +348,7 @@ instance Controller RosterWeeksController where
         accessDeniedUnless (surfaceFieldValue @Surface.NotificationRosterWeekId notificationFields == unpackId rosterWeekId)
         rosterWeek <- fetch rosterWeekId
         ensureRecordInCurrentVenue rosterWeek.venueId
-        accessDeniedUnless rosterWeek.isLive
+        accessDeniedUnless =<< fetchRosterWeekIsPublished rosterWeek
         rosterGroup <- query @RosterGroup
             |> filterWhere (#id, Id rosterWeek.rosterGroupId)
             |> filterWhere (#venueId, unpackId currentVenueId)
@@ -368,7 +369,7 @@ instance Controller RosterWeeksController where
         accessDeniedUnless (surfaceFieldValue @Surface.NotificationRosterWeekId notificationFields == unpackId rosterWeekId)
         rosterWeek <- fetch rosterWeekId
         ensureRecordInCurrentVenue rosterWeek.venueId
-        accessDeniedUnless rosterWeek.isLive
+        accessDeniedUnless =<< fetchRosterWeekIsPublished rosterWeek
         let rosterGroupId = Id rosterWeek.rosterGroupId
         runResult <- Notification.createRosterNotificationRunUnlessActive currentUser rosterWeek
         case runResult of
@@ -530,9 +531,23 @@ instance Controller RosterWeeksController where
     action currentAction@ToggleRosterWeekLiveStatusAction { rosterWeekId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
-        rosterWeek <- fetch rosterWeekId
-        ensureRecordInCurrentVenue rosterWeek.venueId
-        let rosterGroupId = coerce rosterWeek.rosterGroupId
+        (rosterWeek, rosterGroupId) <-
+            if unpackId rosterWeekId == UUID.nil
+                then do
+                    rosterGroup <- resolveRequestedRosterGroup
+                    let weekOffset = param @Int "weekOffset"
+                    pure
+                        ( newRecord @RosterWeek
+                            |> set #venueId (unpackId currentVenueId)
+                            |> set #rosterGroupId (unpackId rosterGroup.id)
+                            |> set #weekOffset weekOffset
+                            |> set #isLive False
+                        , rosterGroup.id
+                        )
+                else do
+                    persistedWeek <- fetch rosterWeekId
+                    ensureRecordInCurrentVenue persistedWeek.venueId
+                    pure (persistedWeek, coerce persistedWeek.rosterGroupId)
         case RosterAction.parseToggleRosterWeekLiveStatusActionParams of
             Left errors -> do
                 let errorMessage = rosterSurfaceRequestErrorMessage errors
@@ -554,8 +569,8 @@ instance Controller RosterWeeksController where
                     Right mutationResult -> do
                         let successMessage =
                                 if nextLiveStatus
-                                    then "Roster week is now live. Timesheet suggestions are available immediately."
-                                    else "Roster week moved back to draft. Timesheet suggestions are hidden."
+                                    then "Roster window Published. Timesheet suggestions are available immediately."
+                                    else "Roster window returned to Draft. Timesheet suggestions are hidden."
                         let targetPath = rosterWeekUrl rosterWeek.weekOffset rosterGroupId
                         if isHtmxRequest
                             then do
@@ -608,19 +623,20 @@ instance Controller RosterWeeksController where
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
-        mutationResult <- repackRosterWindowMutation rosterGroup.id weekOffset
-
-        if isHtmxRequest
-            then
-                respondWithRosterResourceInvalidation
-                    rosterGroup.id
-                    weekOffset
-                    mutationResult.liveMutationTouchedResources
-                    rosterGridInnerAndStaffPanelFragments
-                    clearDialogOverlayOob
-            else do
-                setSuccessMessage "Roster sorted."
-                redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+        repackRosterWindowMutation rosterGroup.id weekOffset >>= \case
+            Left errorMessage -> respondToRosterSlotDefinitionError rosterGroup.id weekOffset errorMessage
+            Right mutationResult ->
+                if isHtmxRequest
+                    then
+                        respondWithRosterResourceInvalidation
+                            rosterGroup.id
+                            weekOffset
+                            mutationResult.liveMutationTouchedResources
+                            rosterGridInnerAndStaffPanelFragments
+                            clearDialogOverlayOob
+                    else do
+                        setSuccessMessage "Roster sorted."
+                        redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
 
     action currentAction@ToggleRosterDayClosedAction { rosterDayId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -634,26 +650,27 @@ instance Controller RosterWeeksController where
         let rosterGroupId = coerce rosterWeek.rosterGroupId
         let nextClosedState = not rosterDay.isClosed
 
-        mutationResult <- toggleRosterDayClosedMutation rosterGroupId rosterWeek rosterDay nextClosedState closedRosterDayRows
-
-        let successMessage =
-                if nextClosedState
-                    then "Roster day marked closed."
-                    else "Roster day reopened."
-        let targetPath = rosterWeekUrl rosterWeek.weekOffset rosterGroupId
-        if isHtmxRequest
-            then do
-                mountedProjections <- rosterMutationMountedProjections (RosterDayMutation (unpackId rosterDay.id))
-                setHtmxPushUrl targetPath
-                respondWithRosterResourceInvalidation
-                    rosterGroupId
-                    rosterWeek.weekOffset
-                    mutationResult.liveMutationTouchedResources
-                    mountedProjections
-                    clearDialogOverlayOob
-            else do
-                setSuccessMessage successMessage
-                redirectToPath targetPath
+        toggleRosterDayClosedMutation rosterGroupId rosterWeek rosterDay nextClosedState closedRosterDayRows >>= \case
+            Left errorMessage -> respondToRosterSlotDefinitionError rosterGroupId rosterWeek.weekOffset errorMessage
+            Right mutationResult -> do
+                let successMessage =
+                        if nextClosedState
+                            then "Roster day marked closed."
+                            else "Roster day reopened."
+                let targetPath = rosterWeekUrl rosterWeek.weekOffset rosterGroupId
+                if isHtmxRequest
+                    then do
+                        mountedProjections <- rosterMutationMountedProjections (RosterDayMutation (unpackId rosterDay.id))
+                        setHtmxPushUrl targetPath
+                        respondWithRosterResourceInvalidation
+                            rosterGroupId
+                            rosterWeek.weekOffset
+                            mutationResult.liveMutationTouchedResources
+                            mountedProjections
+                            clearDialogOverlayOob
+                    else do
+                        setSuccessMessage successMessage
+                        redirectToPath targetPath
 
     action currentAction@AddRosterRowAction { rosterDayId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -687,21 +704,22 @@ instance Controller RosterWeeksController where
                     else do
                         setErrorMessage errorMessage
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
-            else do
-                mutationResult <- addRosterDayRowMutation rosterGroupId rosterWeek rosterDay
-
-                if isHtmxRequest
-                    then do
-                        mountedProjections <- rosterMutationMountedProjections (RosterDayMutation (unpackId rosterDay.id))
-                        respondWithRosterResourceInvalidation
-                            rosterGroupId
-                            rosterWeek.weekOffset
-                            mutationResult.liveMutationTouchedResources
-                            mountedProjections
-                            clearDialogOverlayOob
-                    else do
-                        setSuccessMessage "Roster row added."
-                        redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+            else
+                addRosterDayRowMutation rosterGroupId rosterWeek rosterDay >>= \case
+                    Left errorMessage -> respondToRosterSlotDefinitionError rosterGroupId rosterWeek.weekOffset errorMessage
+                    Right mutationResult ->
+                        if isHtmxRequest
+                            then do
+                                mountedProjections <- rosterMutationMountedProjections (RosterDayMutation (unpackId rosterDay.id))
+                                respondWithRosterResourceInvalidation
+                                    rosterGroupId
+                                    rosterWeek.weekOffset
+                                    mutationResult.liveMutationTouchedResources
+                                    mountedProjections
+                                    clearDialogOverlayOob
+                            else do
+                                setSuccessMessage "Roster row added."
+                                redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
     action currentAction@RemoveRosterRowAction { rosterDayId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -737,21 +755,22 @@ instance Controller RosterWeeksController where
         preview <- previewRemoveRosterDayRowByLanes rosterDay
         if preview.laneRowRemovalOverflowCount > 0 && not confirmDeletePopulatedRow
             then respondWithRemoveRosterRowConfirmation rosterDay preview
-            else do
-                mutationResult <- removeRosterDayRowByLanesMutation rosterGroupId rosterWeek rosterDay
-
-                if isHtmxRequest
-                    then do
-                        mountedProjections <- rosterMutationMountedProjections (RosterDayMutation (unpackId rosterDay.id))
-                        respondWithRosterResourceInvalidation
-                            rosterGroupId
-                            rosterWeek.weekOffset
-                            mutationResult.liveMutationTouchedResources
-                            mountedProjections
-                            clearDialogOverlayOob
-                    else do
-                        setSuccessMessage "Roster row removed."
-                        redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+            else
+                removeRosterDayRowByLanesMutation rosterGroupId rosterWeek rosterDay >>= \case
+                    Left errorMessage -> respondToRosterSlotDefinitionError rosterGroupId rosterWeek.weekOffset errorMessage
+                    Right mutationResult ->
+                        if isHtmxRequest
+                            then do
+                                mountedProjections <- rosterMutationMountedProjections (RosterDayMutation (unpackId rosterDay.id))
+                                respondWithRosterResourceInvalidation
+                                    rosterGroupId
+                                    rosterWeek.weekOffset
+                                    mutationResult.liveMutationTouchedResources
+                                    mountedProjections
+                                    clearDialogOverlayOob
+                            else do
+                                setSuccessMessage "Roster row removed."
+                                redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
     action currentAction@UpdateRosterLayoutPreferenceAction { weekOffset } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -934,7 +953,7 @@ instance Controller RosterWeeksController where
                     Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
                     Right RosterStaffExistingShiftDropIntent { staffDropStaff, staffDropSlot, staffDropRosterDay, staffDropRosterWeek } -> do
                         let updatedSlot = staffDropSlot |> applyRosterShiftAssignment (StaffAssignment staffDropStaff.id)
-                        mutationResult <- updateRosterSlotMutation rosterGroup.id staffDropRosterWeek staffDropRosterDay staffDropSlot updatedSlot
+                        mutationResult <- updateRosterSlotMutation rosterGroup.id staffDropRosterWeek staffDropRosterDay staffDropSlot updatedSlot False
                         case mutationResult of
                             Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
                             Right mutationResult -> do
@@ -993,9 +1012,9 @@ instance Controller RosterWeeksController where
             Right fields -> do
                 _ <- upsertCurrentUserHighlightOwnLiveShifts (surfaceFieldValue @Surface.HighlightOwnLiveShifts fields)
                 if isHtmxRequest
-                    then respondWithRosterOwnHighlightPreferenceUpdate rosterGroup.id weekOffset (successToast "Own live-shift highlight preference saved.")
+                    then respondWithRosterOwnHighlightPreferenceUpdate rosterGroup.id weekOffset (successToast "Own Published-shift highlight preference saved.")
                     else do
-                        setSuccessMessage "Own live-shift highlight preference saved."
+                        setSuccessMessage "Own Published-shift highlight preference saved."
                         redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
 
     action currentAction@NewRosterSlotDialogAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = runBepis currentAction BepisDialogAction do
@@ -1075,7 +1094,7 @@ instance Controller RosterWeeksController where
                     Left values -> renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek values
                     Right assignment -> do
                         let updatedSlot = applyRosterShiftAssignment assignment rosterSlot
-                        mutationResult <- updateRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot updatedSlot
+                        mutationResult <- updateRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot updatedSlot True
                         case mutationResult of
                             Left message ->
                                 renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek
@@ -1091,7 +1110,7 @@ instance Controller RosterWeeksController where
                     Left values -> renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek values
                     Right valid -> do
                         let updatedSlot = applyValidatedRosterShift valid rosterSlot
-                        mutationResult <- updateRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot updatedSlot
+                        mutationResult <- updateRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot updatedSlot False
                         case mutationResult of
                             Left message ->
                                 renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek

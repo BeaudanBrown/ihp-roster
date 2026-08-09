@@ -1296,7 +1296,7 @@ tests = aroundAll withDatabaseTestContext do
                 workerResponse `responseBodyShouldNotContain` ">Approve</button>"
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
-        it "shows future live-roster suggestions immediately" $ withContext do
+        it "shows future Published-roster suggestions immediately" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Future Suggestion Venue"
                 workerUser <- createUserRecord "timesheet-future-suggestion-worker@example.com" "staff" True

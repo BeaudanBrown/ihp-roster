@@ -17,7 +17,7 @@ import Web.Types
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "RosterWeeksController.Notification" do
-        it "shows a live roster email confirmation with recipient and skipped counts" $ withContext do
+        it "shows a Published roster email confirmation with recipient and skipped counts" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Confirmation Venue"
                 rosterGroup <- query @RosterGroup
@@ -109,7 +109,7 @@ tests = aroundAll withDatabaseTestContext do
                 runs <- query @RosterNotificationRun |> fetch
                 length runs `shouldBe` 1
 
-        it "keeps Email roster visible but disabled when a live roster has no eligible recipients" $ withContext do
+        it "keeps Email roster visible but disabled when a Published roster has no eligible recipients" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Zero Recipient Venue"
                 rosterGroup <- query @RosterGroup
@@ -211,7 +211,10 @@ tests = aroundAll withDatabaseTestContext do
 
                 workerResponse <- withUserAndCurrentVenue worker venue.id do
                     callAction (ShowRosterWeekAction 0)
-                _ <- rosterWeek |> set #isLive False |> updateRecord
+                rosterDays <- query @RosterDay
+                    |> filterWhere (#rosterGroupId, rosterWeek.rosterGroupId)
+                    |> fetch
+                _ <- mapM (updateRecord . set #publicationState Draft) rosterDays
                 managerResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekAction 0)
 

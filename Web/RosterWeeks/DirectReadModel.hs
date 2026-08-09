@@ -30,7 +30,6 @@ import IHP.ModelSupport (sqlQuery)
 import Web.Controller.Prelude
 import Web.RosterWeeks.DateRange
 import Web.RosterWeeks.Rows
-import Web.RosterWeeks.Service
 import Web.RosterWeeks.StaffOptions
 import Web.RosterWeeks.Types
 
@@ -82,8 +81,9 @@ fetchRosterBaseFactsForOffsetDirect rosterGroupId weekOffset =
                 (\_dayOffset -> projectedRosterDay currentVenueId rosterGroupId (get #id <$> rosterWeekOrNothing) windowStartDate)
                 [0 :: Int ..]
                 window.rosterWindowProjectedDays
+        let windowIsPublished = rosterWindowIsPublished window
         planningWeekOrNothing <- case rosterWeekOrNothing of
-            Just rosterWeek -> pure (Just rosterWeek)
+            Just rosterWeek -> pure (Just (rosterWeek |> set #isLive windowIsPublished))
             Nothing -> case listToMaybe rosterDays of
                 Nothing        -> pure Nothing
                 Just rosterDay -> Just <$> rosterPlanningWeekForDay rosterDay

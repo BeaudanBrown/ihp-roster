@@ -232,24 +232,18 @@ fetchTimesheetSuggestionsForWeek venueConfig weekOffset filters activeRosterGrou
             activeRosterGroups
                 |> map (unpackId . (.id))
                 |> filter (\rosterGroupId -> maybe True (== rosterGroupId) filters.filterRosterGroupId)
-    liveRosterWeeks <-
+    let suggestionStartDate = venueWeekStartDate venueConfig (weekOffset - 1)
+        suggestionEndDate = addDays 6 (venueWeekStartDate venueConfig weekOffset)
+    rosterDays <-
         if null activeRosterGroupIds
             then pure []
             else
-                query @RosterWeek
-                    |> filterWhere (#venueId, unpackId currentVenueId)
-                    |> filterWhereIn (#weekOffset, [weekOffset - 1, weekOffset])
-                    |> filterWhere (#isLive, True)
-                    |> filterWhere (#archivedAt, Nothing)
-                    |> filterWhereIn (#rosterGroupId, activeRosterGroupIds)
-                    |> fetch
-    let liveRosterWeekIds = map (unpackId . (.id)) liveRosterWeeks
-    rosterDays <-
-        if null liveRosterWeekIds
-            then pure []
-            else
                 query @RosterDay
-                    |> filterWhereIn (#rosterWeekId, map Just liveRosterWeekIds)
+                    |> filterWhere (#venueId, unpackId currentVenueId)
+                    |> filterWhereIn (#rosterGroupId, activeRosterGroupIds)
+                    |> filterWhere (#publicationState, Published)
+                    |> filterWhereGreaterThanOrEqualTo (#operationalDate, suggestionStartDate)
+                    |> filterWhereLessThanOrEqualTo (#operationalDate, suggestionEndDate)
                     |> fetch
     let rosterDayIds = map (unpackId . (.id)) rosterDays
     rosterSlots <-
@@ -431,29 +425,20 @@ fetchTimesheetSuggestionForRosterSlot rosterSlotId = do
             maybeRosterDay <-
                 query @RosterDay
                     |> filterWhere (#id, Id rosterSlot.rosterDayId)
+                    |> filterWhere (#venueId, unpackId currentVenueId)
+                    |> filterWhere (#publicationState, Published)
                     |> fetchOneOrNothing
             case maybeRosterDay of
                 Nothing -> pure Nothing
-                Just rosterDay -> do
-                    maybeRosterWeek <-
-                        case rosterDay.rosterWeekId of
-                            Nothing -> pure Nothing
-                            Just rosterWeekId ->
-                                query @RosterWeek
-                                    |> filterWhere (#id, Id rosterWeekId)
-                                    |> filterWhere (#venueId, unpackId currentVenueId)
-                                    |> fetchOneOrNothing
-                    case maybeRosterWeek of
+                Just _rosterDay ->
+                    case rosterSlot.startsAt of
                         Nothing -> pure Nothing
-                        Just _rosterWeek ->
-                            case rosterSlot.startsAt of
-                                Nothing -> pure Nothing
-                                Just startsAt -> do
-                                    venueConfig <- fetchVenueConfig
-                                    let workedOn = (storedInstantLocalTime rosterSlot.timezone startsAt).localDay
-                                    let suggestionWeekOffset = venueWeekOffsetForDay venueConfig workedOn
-                                    suggestions <- fetchAuthorizedTimesheetSuggestionsForWeek suggestionWeekOffset emptyTimesheetViewFilters
-                                    pure (find (\suggestion -> suggestion.suggestionRosterSlotId == rosterSlotId) suggestions)
+                        Just startsAt -> do
+                            venueConfig <- fetchVenueConfig
+                            let workedOn = (storedInstantLocalTime rosterSlot.timezone startsAt).localDay
+                            let suggestionWeekOffset = venueWeekOffsetForDay venueConfig workedOn
+                            suggestions <- fetchAuthorizedTimesheetSuggestionsForWeek suggestionWeekOffset emptyTimesheetViewFilters
+                            pure (find (\suggestion -> suggestion.suggestionRosterSlotId == rosterSlotId) suggestions)
 
 -- Presentation preferences never constrain suggestion authority. This path is
 -- used by form and mutation checks even when suggestion cards are hidden.

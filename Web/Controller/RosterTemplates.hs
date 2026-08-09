@@ -409,7 +409,7 @@ templateApplicationErrorMessage :: RosterTemplateApplicationError -> Text
 templateApplicationErrorMessage RosterTemplateApplicationForbidden = "You cannot apply roster templates."
 templateApplicationErrorMessage RosterTemplateApplicationNotFound = "The template or target roster no longer exists."
 templateApplicationErrorMessage RosterTemplateApplicationScopeMismatch = "The template does not belong to this roster group."
-templateApplicationErrorMessage RosterTemplateApplicationTargetLive = "Templates cannot be applied to a live roster. Move it back to draft first."
+templateApplicationErrorMessage RosterTemplateApplicationTargetLive = "Templates cannot be applied to a Published roster. Return it to Draft first."
 templateApplicationErrorMessage RosterTemplateApplicationInvalidTargetDay = "Choose a valid day in the viewed week."
 templateApplicationErrorMessage RosterTemplateApplicationScaleMismatch = "Choose a target compatible with this template."
 templateApplicationErrorMessage (RosterTemplateApplicationVersionConflict _) = "The template changed before it could be applied. Review it and try again."

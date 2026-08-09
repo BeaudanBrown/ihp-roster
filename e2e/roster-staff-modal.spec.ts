@@ -362,11 +362,19 @@ test.describe('Roster Staff Modal', () => {
             UPDATE roster_days
             SET day_offset = (SELECT EXTRACT(ISODOW FROM operational_day)::int - 1 FROM e2e_staff_removal_operational_day)
             WHERE id = 'a1000000-0000-0000-0000-000000000061';
+            INSERT INTO roster_days (roster_week_id, day_offset, is_closed, row_count)
+            SELECT 'a1000000-0000-0000-0000-000000000051', day_offset, FALSE, 2
+            FROM generate_series(0, 6) AS day_offset
+            ON CONFLICT (roster_group_id, operational_date) DO NOTHING;
+            UPDATE roster_days SET publication_state = 'published'
+            FROM e2e_staff_removal_operational_day
+            WHERE roster_days.roster_group_id = 'a1000000-0000-0000-0000-000000000211'
+              AND roster_days.operational_date = e2e_staff_removal_operational_day.operational_day;
             WITH target_day AS (
                 SELECT roster_days.id
                 FROM roster_days, e2e_staff_removal_operational_day
-                WHERE roster_days.roster_week_id = 'a1000000-0000-0000-0000-000000000051'
-                  AND roster_days.day_offset = EXTRACT(ISODOW FROM operational_day)::int - 1
+                WHERE roster_days.roster_group_id = 'a1000000-0000-0000-0000-000000000211'
+                  AND roster_days.operational_date = e2e_staff_removal_operational_day.operational_day
             ), target_cell AS (
                 SELECT target_day.id AS roster_day_id, COALESCE(MAX(roster_slots.row_index), -1) + 1 AS row_index
                 FROM target_day
@@ -374,12 +382,13 @@ test.describe('Roster Staff Modal', () => {
                 GROUP BY target_day.id
             )
             INSERT INTO roster_slots (
-                id, roster_day_id, staff_id, assignment_state, roster_week_slot_definition_id,
+                id, roster_day_id, roster_lane_id, staff_id, assignment_state,
                 row_index, starts_at, ends_at, timezone, shift_type_id
             )
             SELECT
-                '${rosterSlotId}', target_cell.roster_day_id, '${staffId}', 'staff',
-                'a1000000-0000-0000-0000-000000000081', target_cell.row_index,
+                '${rosterSlotId}', target_cell.roster_day_id,
+                (SELECT roster_lanes.id FROM roster_lanes WHERE roster_lanes.roster_day_id = target_cell.roster_day_id AND roster_lanes.deleted_at IS NULL ORDER BY roster_lanes.sort_order, roster_lanes.id LIMIT 1),
+                '${staffId}', 'staff', target_cell.row_index,
                 (operational_day + TIME '12:00') AT TIME ZONE 'Australia/Melbourne',
                 (operational_day + TIME '16:00') AT TIME ZONE 'Australia/Melbourne',
                 'Australia/Melbourne', 'a1000000-0000-0000-0000-000000000133'
@@ -449,6 +458,7 @@ test.describe('Roster Staff Modal', () => {
                 DELETE FROM users WHERE id = '${userId}';
                 UPDATE roster_weeks SET is_live = FALSE WHERE id = 'a1000000-0000-0000-0000-000000000051';
                 UPDATE roster_days SET day_offset = 0 WHERE id = 'a1000000-0000-0000-0000-000000000061';
+                UPDATE roster_days SET publication_state = 'draft' WHERE roster_week_id = 'a1000000-0000-0000-0000-000000000051';
                 COMMIT;
             `);
         }

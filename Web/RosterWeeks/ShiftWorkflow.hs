@@ -195,7 +195,7 @@ validateLiveOpenShiftFill rosterGroupId rosterSlot submission = do
                 ]
                 || submission.submittedRosterShiftStartOccurrence /= ""
                 || submission.submittedRosterShiftEndOccurrence /= ""
-    let formError = if protectedFieldsSubmitted then Just "Only Staff can be changed while filling a live Open shift." else Nothing
+    let formError = if protectedFieldsSubmitted then Just "Only Staff can be changed while filling a Published Open shift." else Nothing
     let values =
             (rosterShiftDialogValuesFromSlot rosterSlot)
                 { rosterShiftSelectedAssignment = parsedAssignment

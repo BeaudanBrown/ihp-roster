@@ -41,7 +41,6 @@ import Web.RosterWeeks.DirectReadModel
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.Rows
-import Web.RosterWeeks.Service
 import Web.RosterWeeks.StaffOptions
 import Web.RosterWeeks.Types
 import Web.RosterWeeks.WageFilter (filterRosterWageSlots,
@@ -369,7 +368,7 @@ fetchRosterRenderData rosterGroupId weekOffset = do
 
 fetchRosterPanelNotificationData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterGroup -> Maybe RosterWeek -> IO (Maybe Notification.RosterNotificationPanelData)
 fetchRosterPanelNotificationData rosterGroup (Just rosterWeek)
-    | hasRole Manager && rosterWeek.isLive = do
+    | hasRole Manager && rosterWeek.isLive && unpackId rosterWeek.id /= UUID.nil = do
         panelNotificationAudience <- Notification.fetchRosterNotificationAudience currentVenue rosterGroup
         panelLatestNotificationRun <- Notification.fetchLatestRosterNotificationRunSummary rosterWeek
         pure (Just Notification.RosterNotificationPanelData { .. })
@@ -435,16 +434,10 @@ fetchVisibleRosterWeek :: (?context :: ControllerContext, ?modelContext :: Model
 fetchVisibleRosterWeek rosterGroupId weekOffset = do
     rosterGroupIsViewable <- isJust <$> fetchViewableRosterGroup rosterGroupId
     accessDeniedUnless rosterGroupIsViewable
-    rosterWeekOrNothing <-
-        profileActionSpan "roster.visible_week.fetch" do
-            query @RosterWeek
-                |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
-                |> filterWhere (#weekOffset, weekOffset)
-                |> fetchOneOrNothing
-
+    baseFacts <- profileActionSpan "roster.visible_window.fetch" (fetchRosterBaseFactsDirect rosterGroupId weekOffset)
     pure $
-        case rosterWeekOrNothing of
-            Just rosterWeek | get #isLive rosterWeek || hasRole Manager -> Just rosterWeek
+        case baseFacts >>= (.baseRosterWeek) of
+            Just rosterWeek | rosterWeek.isLive || hasRole Manager -> Just rosterWeek
             _ -> Nothing
 
 buildRosterRenderIndexes :: [RosterDay] -> [RosterSlot] -> [Staff] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes

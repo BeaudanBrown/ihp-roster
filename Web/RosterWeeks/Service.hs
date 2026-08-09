@@ -1,10 +1,8 @@
 module Web.RosterWeeks.Service
     ( RosterWeekSlotTemplate
-    , appendRosterWeekSlotDefinition
     , copyRosterSlotToDay
     , copyRosterWeek
     , createEmptyRosterWeek
-    , deleteRosterWeekSlotDefinition
     , ensureRosterDayHasMinimumRows
     , ensureRosterWeekExists
     , fetchRosterWeekSlotTemplate
@@ -12,23 +10,18 @@ module Web.RosterWeeks.Service
     , fetchActiveRosterWeekSlotDefinitions
     , fetchActiveStaffForCurrentVenue
     , fetchRosterWeekOrderedSlotNames
-    , previewRemoveRosterRowPacking
     , replaceRosterWeekFromSource
-    , removeRosterRowWithPacking
-    , repackRosterWeekDays
-    , rosterSlotHasData
     , rosterSlotCopyAmbiguousEndpoints
     , resolveRosterTimelineTargetBoundaries
     , rosterSlotTimesheetSourceChanged
     , rosterWeekCopyAmbiguousEndpoints
-    , RemoveRosterRowPackingPreview (..)
     , RosterWeekCopyError (..)
     , publishRequiredFieldsMessage
     , rosterSlotBlocksPublish
     , rosterSlotHasValidStartEnd
+    , validateRosterDaysCanPublish
     , validateRosterSlotForPersistence
     , validateRosterSlotsForPersistence
-    , validateRosterWeekCanGoLive
     ) where
 
 import qualified Application.Helper.RosterAwardDuration as RosterAwardDuration
@@ -42,43 +35,18 @@ import Application.RosterShiftAssignment (RosterShiftAssignment (..),
 import Application.Staff.Mutations (withStaffOperationalLocksInCurrentTransaction)
 import Application.VenueTime (RepeatedTimeOccurrence)
 import Application.VenueTime.Model
-import Data.Coerce (coerce)
 import Data.Either (isRight)
-import Data.List (nub, sort, sortOn)
+import Data.List (nub)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (catMaybes, fromMaybe, isJust, isNothing, listToMaybe,
-                   mapMaybe)
-import qualified Data.Text as Text
+import Data.Maybe (catMaybes, fromMaybe, isJust, isNothing, mapMaybe)
 import Data.Time (NominalDiffTime, UTCTime, addUTCTime, getCurrentTime, utctDay)
 import qualified Data.Time.Calendar as Calendar
 import Data.Time.LocalTime (TimeOfDay (..))
 import Data.Traversable (traverse)
-import Data.UUID (UUID)
 import qualified Database.PostgreSQL.Simple as PG
 import IHP.ModelSupport (sqlExecDiscardResult)
 import Web.Controller.Prelude
 import Web.RosterWeeks.Dom (closedRosterDayRows, minimumOpenRosterRows)
-
-data RemoveRosterRowPackingPreview = RemoveRosterRowPackingPreview
-    { removeRosterRowLastRowIndex     :: !Int
-    , removeRosterRowOverflowCount    :: !Int
-    , removeRosterRowDeletedDataCount :: !Int
-    }
-
-data RosterSlotPlacement = RosterSlotPlacement
-    { rosterSlotPlacementSlot       :: !RosterSlot
-    , rosterSlotPlacementDefinition :: !RosterWeekSlotDefinition
-    , rosterSlotPlacementRowIndex   :: !Int
-    }
-
-data RemoveRosterRowPackingPlan = RemoveRosterRowPackingPlan
-    { removeRosterRowPlanLastRowIndex  :: !Int
-    , removeRosterRowPlanPlacements    :: ![RosterSlotPlacement]
-    , removeRosterRowPlanOverflowSlots :: ![RosterSlot]
-    , removeRosterRowPlanDeleteSlots   :: ![RosterSlot]
-    , removeRosterRowPlanTargetKeys    :: ![(UUID, Int)]
-    , removeRosterRowPlanActiveDefIds  :: ![UUID]
-    }
 
 fetchCurrentRosterWeekOffset :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Int
 fetchCurrentRosterWeekOffset = do
@@ -251,12 +219,8 @@ data RosterWeekCopyError
     | RosterWeekCopyPersistenceError !Text
     deriving (Eq, Show)
 
-validateRosterWeekCanGoLive :: (?modelContext :: ModelContext) => RosterWeek -> Bool -> IO (Maybe Text)
-validateRosterWeekCanGoLive _ False = pure Nothing
-validateRosterWeekCanGoLive rosterWeek True = do
-    rosterDays <- query @RosterDay
-        |> filterWhere (#rosterWeekId, Just (unpackId rosterWeek.id))
-        |> fetch
+validateRosterDaysCanPublish :: (?modelContext :: ModelContext) => Id Venue -> [RosterDay] -> IO (Maybe Text)
+validateRosterDaysCanPublish venueId rosterDays = do
     rosterSlots <-
         if null rosterDays
             then pure []
@@ -267,10 +231,10 @@ validateRosterWeekCanGoLive rosterWeek True = do
     let blockingSlots = filter rosterSlotBlocksPublish rosterSlots
     if not (null blockingSlots)
         then pure (Just publishRequiredFieldsMessage)
-        else validateRosterSlotsForPersistence (Id rosterWeek.venueId) rosterSlots
+        else validateRosterSlotsForPersistence venueId rosterSlots
 
 publishRequiredFieldsMessage :: Text
-publishRequiredFieldsMessage = "Roster week cannot go live until every shift has a start time, valid end time, and shift type."
+publishRequiredFieldsMessage = "Roster window cannot be Published until every shift has a start time, valid end time, and shift type."
 
 rosterSlotBlocksPublish :: RosterSlot -> Bool
 rosterSlotBlocksPublish slot =
@@ -588,17 +552,6 @@ copyRosterWeekSlotDefinitionsAndSlots sourceWeek targetWeek plans = do
                             |> createRecord
                         pure ()
 
-appendRosterWeekSlotDefinition :: (?modelContext :: ModelContext) => RosterWeek -> Text -> IO RosterWeekSlotDefinition
-appendRosterWeekSlotDefinition rosterWeek slotName = do
-    existingDefinitions <- fetchActiveRosterWeekSlotDefinitions rosterWeek
-    let nextSortOrder = maybe 0 ((+ 1) . (.sortOrder)) (last existingDefinitions)
-    newRecord @RosterWeekSlotDefinition
-        |> set #rosterWeekId (unpackId rosterWeek.id)
-        |> set #name slotName
-        |> set #sortOrder nextSortOrder
-        |> createRecord
-
-
 rosterSlotHasData :: RosterSlot -> Bool
 rosterSlotHasData slot =
     isRight (rosterShiftAssignment slot)
@@ -606,238 +559,3 @@ rosterSlotHasData slot =
         || isJust slot.endsAt
         || isJust slot.shiftTypeId
 
-previewRemoveRosterRowPacking :: (?modelContext :: ModelContext) => RosterDay -> [RosterWeekSlotDefinition] -> IO RemoveRosterRowPackingPreview
-previewRemoveRosterRowPacking rosterDay activeDefinitions = do
-    activeSlots <- fetchActiveSlotsForDay rosterDay
-    let plan = buildRemoveRosterRowPackingPlan rosterDay activeDefinitions activeSlots
-    pure RemoveRosterRowPackingPreview
-        { removeRosterRowLastRowIndex = removeRosterRowPlanLastRowIndex plan
-        , removeRosterRowOverflowCount = length (removeRosterRowPlanOverflowSlots plan)
-        , removeRosterRowDeletedDataCount = length (filter rosterSlotHasData (removeRosterRowPlanDeleteSlots plan))
-        }
-
-removeRosterRowWithPacking :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterDay -> [RosterWeekSlotDefinition] -> IO ()
-removeRosterRowWithPacking rosterDay activeDefinitions = do
-    activeSlots <- fetchActiveSlotsForDay rosterDay
-    let plan = buildRemoveRosterRowPackingPlan rosterDay activeDefinitions activeSlots
-    temporarilyMoveDataSlots activeSlots (map rosterSlotPlacementSlot (removeRosterRowPlanPlacements plan)) 1
-    softDeleteRemoveRosterRowSlots plan activeSlots
-    forM_ (removeRosterRowPlanPlacements plan) \placement -> do
-        _ <- rosterSlotPlacementSlot placement
-            |> set #rosterWeekSlotDefinitionId (Just (unpackId (get #id (rosterSlotPlacementDefinition placement))))
-            |> set #slotSortOrder (rosterSlotPlacementDefinition placement).sortOrder
-            |> set #rowIndex (rosterSlotPlacementRowIndex placement)
-            |> updateRecord
-        pure ()
-    _ <- rosterDay
-        |> set #rowCount (max 0 (rosterDay.rowCount - 1))
-        |> updateRecord
-    pure ()
-
-buildRemoveRosterRowPackingPlan :: RosterDay -> [RosterWeekSlotDefinition] -> [RosterSlot] -> RemoveRosterRowPackingPlan
-buildRemoveRosterRowPackingPlan rosterDay activeDefinitions activeSlots =
-    RemoveRosterRowPackingPlan
-        { removeRosterRowPlanLastRowIndex = lastRowIndex
-        , removeRosterRowPlanPlacements = retainedPlacements <> incomingPlacements
-        , removeRosterRowPlanOverflowSlots = overflowSlots
-        , removeRosterRowPlanDeleteSlots = deletedRowSlots
-        , removeRosterRowPlanTargetKeys = map (\placement -> (unpackId (get #id (rosterSlotPlacementDefinition placement)), rosterSlotPlacementRowIndex placement)) (retainedPlacements <> incomingPlacements)
-        , removeRosterRowPlanActiveDefIds = activeDefinitionIds
-        }
-    where
-        activeDefinitionIds = map (unpackId . (.id)) activeDefinitions
-        activeTemplateSlots = filter (\slot -> slot.rosterWeekSlotDefinitionId `elem` map Just activeDefinitionIds) activeSlots
-        lastRowIndex = rosterDay.rowCount - 1
-        targetRowCount = max 0 lastRowIndex
-        deletedRowSlots =
-            filter (\slot -> slot.rowIndex == lastRowIndex && slot.rosterWeekSlotDefinitionId `elem` map Just activeDefinitionIds) activeTemplateSlots
-        incomingSlots =
-            sortOn (definitionOrderKey activeDefinitions) (filter rosterSlotHasData deletedRowSlots)
-        retainedPlacements =
-            concatMap retainedPlacementsForDefinition activeDefinitions
-        freeCells =
-            concatMap freeCellsForDefinition activeDefinitions
-        incomingPlacements =
-            zipWith
-                (\slot (slotDefinition, rowIndex) -> RosterSlotPlacement slot slotDefinition rowIndex)
-                incomingSlots
-                freeCells
-        overflowSlots = drop (length freeCells) incomingSlots
-        retainedPlacementsForDefinition slotDefinition =
-            zipWith
-                (\rowIndex slot -> RosterSlotPlacement slot slotDefinition rowIndex)
-                [0 ..]
-                (retainedDataSlotsForDefinition slotDefinition)
-        retainedDataSlotsForDefinition slotDefinition =
-            activeTemplateSlots
-                |> filter (\slot -> slot.rowIndex < lastRowIndex && slot.rosterWeekSlotDefinitionId == Just (unpackId slotDefinition.id) && rosterSlotHasData slot)
-                |> sortOn (.rowIndex)
-        freeCellsForDefinition slotDefinition =
-            let retainedCount = length (retainedDataSlotsForDefinition slotDefinition)
-             in [ (slotDefinition, rowIndex)
-                | rowIndex <- [retainedCount .. targetRowCount - 1]
-                ]
-
-definitionOrderKey :: [RosterWeekSlotDefinition] -> RosterSlot -> (Int, Int, UTCTime, Id RosterSlot)
-definitionOrderKey activeDefinitions slot =
-    ( maybe slot.slotSortOrder (\definitionId -> Map.findWithDefault slot.slotSortOrder definitionId definitionSortOrderById) slot.rosterWeekSlotDefinitionId
-    , slot.rowIndex
-    , slot.createdAt
-    , slot.id
-    )
-    where
-        definitionSortOrderById =
-            Map.fromList
-                [ (unpackId slotDefinition.id, slotDefinition.sortOrder)
-                | slotDefinition <- activeDefinitions
-                ]
-
-softDeleteRemoveRosterRowSlots :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RemoveRosterRowPackingPlan -> [RosterSlot] -> IO ()
-softDeleteRemoveRosterRowSlots plan activeSlots = do
-    now <- getCurrentTime
-    let placementSlotIds = map (unpackId . get #id . rosterSlotPlacementSlot) (removeRosterRowPlanPlacements plan)
-    let overflowSlotIds = map (unpackId . get #id) (removeRosterRowPlanOverflowSlots plan)
-    let activeDefinitionIds = removeRosterRowPlanActiveDefIds plan
-    let lastRowIndex = removeRosterRowPlanLastRowIndex plan
-    let shouldDelete slot =
-            unpackId slot.id `elem` overflowSlotIds
-                || ( slot.rosterWeekSlotDefinitionId `elem` map Just activeDefinitionIds
-                    && slot.rowIndex >= lastRowIndex
-                    && unpackId slot.id `notElem` placementSlotIds
-                   )
-                || not (rosterSlotHasData slot)
-    forM_ (filter shouldDelete activeSlots) \slot -> do
-        _ <- slot
-            |> set #deletedAt (Just now)
-            |> set #deletedByUserId (Just (unpackId currentUser.id))
-            |> set #deleteReason (Just "roster_row_removed")
-            |> updateRecord
-        pure ()
-
-repackRosterWeekDays :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWeek -> IO ()
-repackRosterWeekDays rosterWeek = do
-    activeDefinitions <- fetchActiveRosterWeekSlotDefinitions rosterWeek
-    unless (null activeDefinitions) do
-        rosterDays <- query @RosterDay
-            |> filterWhere (#rosterWeekId, Just (unpackId rosterWeek.id))
-            |> orderByAsc #dayOffset
-            |> fetch
-        forM_ rosterDays (repackRosterDay activeDefinitions)
-
-repackRosterDay :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => [RosterWeekSlotDefinition] -> RosterDay -> IO ()
-repackRosterDay activeDefinitions rosterDay = do
-    initialSlots <- fetchActiveSlotsForDay rosterDay
-    let activeDefinitionIds = map (unpackId . (.id)) activeDefinitions
-    let minimumRows =
-            if rosterDay.isClosed
-                then closedRosterDayRows
-                else minimumOpenRosterRows
-    let requiredRows =
-            max
-                minimumRows
-                (ceilingDiv (length (filter rosterSlotHasData initialSlots)) (length activeDefinitions))
-
-    _ <- rosterDay
-        |> set #rowCount requiredRows
-        |> updateRecord
-    activeSlots <- fetchActiveSlotsForDay rosterDay
-    staffById <- fetchStaffLabelsById activeSlots
-    let definitionSortOrderById =
-            Map.fromList
-                [ (unpackId slotDefinition.id, slotDefinition.sortOrder)
-                | slotDefinition <- activeDefinitions
-                ]
-    let dataSlots = sortOn (slotPackingKey definitionSortOrderById staffById) (filter rosterSlotHasData activeSlots)
-    let targetCells =
-            [ (slotDefinition, rowIndex)
-            | slotDefinition <- activeDefinitions
-            , rowIndex <- [0 .. requiredRows - 1]
-            ]
-    let placements = zip dataSlots targetCells
-
-    temporarilyMoveDataSlots activeSlots dataSlots requiredRows
-    softDeleteDisplacedBlankSlots activeDefinitionIds (map snd placements) activeSlots
-    forM_ placements \(slot, (slotDefinition, rowIndex)) -> do
-        _ <- slot
-            |> set #rosterWeekSlotDefinitionId (Just (unpackId slotDefinition.id))
-            |> set #slotSortOrder slotDefinition.sortOrder
-            |> set #rowIndex rowIndex
-            |> updateRecord
-        pure ()
-
-fetchActiveSlotsForDay :: (?modelContext :: ModelContext) => RosterDay -> IO [RosterSlot]
-fetchActiveSlotsForDay rosterDay =
-    query @RosterSlot
-        |> filterWhere (#rosterDayId, unpackId rosterDay.id)
-        |> filterWhere (#deletedAt, Nothing)
-        |> fetch
-
-fetchStaffLabelsById :: (?modelContext :: ModelContext) => [RosterSlot] -> IO (Map.Map UUID Text)
-fetchStaffLabelsById slots = do
-    let staffIds = nub (mapMaybe (.staffId) (filter rosterShiftIsStaffAssigned slots))
-    if null staffIds
-        then pure Map.empty
-        else do
-            staffMembers <- query @Staff
-                |> filterWhereIn (#id, map Id staffIds)
-                |> fetch
-            pure (Map.fromList (map (\staff -> (unpackId staff.id, staffSortLabel staff)) staffMembers))
-
-staffSortLabel :: Staff -> Text
-staffSortLabel staff =
-    Text.toCaseFold (fromMaybe staff.firstName staff.preferredName <> " " <> staff.lastName)
-
-slotPackingKey :: Map.Map UUID Int -> Map.Map UUID Text -> RosterSlot -> (Bool, TimeOfDay, Text, Int, Int, UTCTime, Id RosterSlot)
-slotPackingKey definitionSortOrderById staffById slot =
-    ( isNothing slot.startsAt
-    , fromMaybe (TimeOfDay 23 59 59) (rosterSlotStartTime slot)
-    , fromMaybe "\xffff" (slot.staffId >>= (`Map.lookup` staffById))
-    , slot.rowIndex
-    , maybe slot.slotSortOrder (\definitionId -> Map.findWithDefault slot.slotSortOrder definitionId definitionSortOrderById) slot.rosterWeekSlotDefinitionId
-    , slot.createdAt
-    , slot.id
-    )
-
-temporarilyMoveDataSlots :: (?modelContext :: ModelContext) => [RosterSlot] -> [RosterSlot] -> Int -> IO ()
-temporarilyMoveDataSlots activeSlots dataSlots requiredRows = do
-    let maxExistingRowIndex = fromMaybe 0 (nonEmptyMaximum (map (.rowIndex) activeSlots))
-    let temporaryRowStart = maxExistingRowIndex + requiredRows + length dataSlots + 100
-    forM_ (zip [0 :: Int ..] dataSlots) \(index, slot) -> do
-        _ <- slot
-            |> set #rowIndex (temporaryRowStart + index)
-            |> updateRecord
-        pure ()
-
-nonEmptyMaximum :: Ord a => [a] -> Maybe a
-nonEmptyMaximum []     = Nothing
-nonEmptyMaximum values = Just (maximum values)
-
-softDeleteDisplacedBlankSlots :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => [UUID] -> [(RosterWeekSlotDefinition, Int)] -> [RosterSlot] -> IO ()
-softDeleteDisplacedBlankSlots activeDefinitionIds _ activeSlots = do
-    now <- getCurrentTime
-    let shouldDelete slot =
-            not (rosterSlotHasData slot)
-                && slot.rosterWeekSlotDefinitionId `notElem` map Just activeDefinitionIds
-    forM_ (filter shouldDelete activeSlots) \slot -> do
-        _ <- slot
-            |> set #deletedAt (Just now)
-            |> set #deletedByUserId (Just (unpackId currentUser.id))
-            |> set #deleteReason (Just "roster_slots_repacked")
-            |> updateRecord
-        pure ()
-
-ceilingDiv :: Int -> Int -> Int
-ceilingDiv _ 0 = 0
-ceilingDiv numerator denominator =
-    (numerator + denominator - 1) `div` denominator
-
-deleteRosterWeekSlotDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWeekSlotDefinition -> IO ()
-deleteRosterWeekSlotDefinition slotDefinition = do
-    now <- getCurrentTime
-    _ <- slotDefinition
-        |> set #deletedAt (Just now)
-        |> set #deletedByUserId (Just (unpackId currentUser.id))
-        |> set #deleteReason (Just "roster_slot_definition_removed")
-        |> updateRecord
-    rosterWeek <- fetch (Id slotDefinition.rosterWeekId :: Id RosterWeek)
-    repackRosterWeekDays rosterWeek

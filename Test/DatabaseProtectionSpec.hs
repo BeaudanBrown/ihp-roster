@@ -189,12 +189,14 @@ tests = aroundAll withDatabaseTestContext do
             withCleanDb do
                 predecessorSql <- TextIO.readFile "Test/Fixtures/date-native-roster/pre-foundation-schema.sql"
                 migrationSql <- TextIO.readFile "Application/Migration/1787001000.sql"
+                publicationMigrationSql <- TextIO.readFile "Application/Migration/1787003000.sql"
                 withTransaction do
                     case transactionRunner ?modelContext of
                         Nothing -> error "Date-native roster migration fixture requires a transaction runner"
                         Just runner -> do
                             runInTransaction runner (HasqlSession.script predecessorSql)
                             runInTransaction runner (HasqlSession.script migrationSql)
+                            runInTransaction runner (HasqlSession.script publicationMigrationSql)
 
                     projectedDays :: [(Day, Text)] <- sqlQuery
                         "SELECT operational_date, publication_state::text FROM date_native_roster_migration_acceptance.roster_days ORDER BY operational_date"
@@ -227,10 +229,10 @@ tests = aroundAll withDatabaseTestContext do
                     draftDayCount :: Int <- sqlQueryScalar
                         "SELECT count(*)::int FROM date_native_roster_migration_acceptance.roster_days WHERE publication_state = 'draft'"
                         ()
-                    draftDayCount `shouldBe` 7
+                    draftDayCount `shouldBe` 0
 
                     sqlExecDiscardResult
-                        "UPDATE date_native_roster_migration_acceptance.venue_config SET roster_week_starts_on = 1, week_offset_epoch = '2026-08-04' WHERE id = '40000000-0000-0000-0000-000000000001'"
+                        "UPDATE date_native_roster_migration_acceptance.venue_config SET roster_week_starts_on = 2, week_offset_epoch = '2026-08-04' WHERE id = '40000000-0000-0000-0000-000000000001'"
                         ()
                     sqlExecDiscardResult
                         "UPDATE date_native_roster_migration_acceptance.roster_days SET row_count = row_count + 1 WHERE day_offset = 0"

@@ -28,7 +28,7 @@ async function rosterLiveRoot(page: Page) {
     const root = page
         .locator('[data-week-toolbar="roster"]')
         .locator(`[${toggleRootDomAttr}]`)
-        .filter({ hasText: 'Live' });
+        .filter({ hasText: 'Published' });
     await expect(root).toHaveCount(1);
     await expect(root).toBeVisible();
     return root;
@@ -56,7 +56,7 @@ async function exerciseRosterLivePersistence(page: Page, viewport: { width: numb
     await expect(input).not.toBeChecked();
 
     await expectRosterLiveRequest(page, 'true', () => root.click());
-    await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Roster week is now live', { timeout: E2E_TIMEOUT.assertion });
+    await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Roster window Published', { timeout: E2E_TIMEOUT.assertion });
     root = await rosterLiveRoot(page);
     input = root.locator(`[${toggleInputDomAttr}]`);
     await expect(input).toBeChecked({ timeout: E2E_TIMEOUT.liveUpdate });
@@ -67,7 +67,7 @@ async function exerciseRosterLivePersistence(page: Page, viewport: { width: numb
     await expect(input).toBeChecked();
 
     await expectRosterLiveRequest(page, 'false', () => root.click());
-    await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Roster week moved back to draft', { timeout: E2E_TIMEOUT.assertion });
+    await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Roster window returned to Draft', { timeout: E2E_TIMEOUT.assertion });
     root = await rosterLiveRoot(page);
     input = root.locator(`[${toggleInputDomAttr}]`);
     await expect(input).not.toBeChecked({ timeout: E2E_TIMEOUT.liveUpdate });
@@ -85,11 +85,11 @@ test.describe('Generated toggle capability', () => {
         resetTimesheetDisplayPreferences('e2e-worker@example.com');
     });
 
-    test('persists roster live state in both directions from the desktop control', async ({ page }) => {
+    test('persists roster Published state in both directions from the desktop control', async ({ page }) => {
         await exerciseRosterLivePersistence(page, { width: 1280, height: 900 }, 11);
     });
 
-    test('persists roster live state in both directions from the canonical mobile-visible control', async ({ page }) => {
+    test('persists roster Published state in both directions from the canonical mobile-visible control', async ({ page }) => {
         await exerciseRosterLivePersistence(page, { width: 390, height: 844 }, 12);
     });
 

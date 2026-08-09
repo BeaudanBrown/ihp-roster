@@ -430,13 +430,24 @@ fetchSlotNameRecordForRosterGroup rosterGroup slotName =
         |> fetchOne
 
 createRosterWeekRecord :: (?modelContext :: ModelContext) => Venue -> Int -> Bool -> IO RosterWeek
-createRosterWeekRecord = ApplicationFixture.createRosterWeekRecord
+createRosterWeekRecord venue weekOffset isPublished = do
+    rosterWeek <- ApplicationFixture.createRosterWeekRecord venue weekOffset isPublished
+    when isPublished (void (mapM (ApplicationFixture.createRosterDayRecord rosterWeek) [0 .. 6]))
+    pure rosterWeek
 
 createRosterWeekRecordForRosterGroup :: (?modelContext :: ModelContext) => Venue -> RosterGroup -> Int -> Bool -> IO RosterWeek
-createRosterWeekRecordForRosterGroup = ApplicationFixture.createRosterWeekRecordForRosterGroup
+createRosterWeekRecordForRosterGroup venue rosterGroup weekOffset isPublished = do
+    rosterWeek <- ApplicationFixture.createRosterWeekRecordForRosterGroup venue rosterGroup weekOffset isPublished
+    when isPublished (void (mapM (ApplicationFixture.createRosterDayRecord rosterWeek) [0 .. 6]))
+    pure rosterWeek
 
 createRosterDayRecord :: (?modelContext :: ModelContext) => RosterWeek -> Int -> IO RosterDay
-createRosterDayRecord = ApplicationFixture.createRosterDayRecord
+createRosterDayRecord rosterWeek dayOffset = do
+    existing <- query @RosterDay
+        |> filterWhere (#rosterWeekId, Just (unpackId rosterWeek.id))
+        |> filterWhere (#dayOffset, dayOffset)
+        |> fetchOneOrNothing
+    maybe (ApplicationFixture.createRosterDayRecord rosterWeek dayOffset) pure existing
 
 createRosterSlotRecord :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> Maybe Staff -> Int -> IO RosterSlot
 createRosterSlotRecord rosterDay slotName maybeStaff rowIndex =

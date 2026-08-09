@@ -49,6 +49,8 @@ import Application.Helper.VenueInvitation
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Application.InvitationDelivery.Enqueue (enqueueVenueInvitationEmail)
 import Application.PayAssignment (selectableShiftAssignmentMode)
+import Application.RosterPublication.Mutations (normalizePublishedRosterWindows,
+                                                withRosterCalendarLock)
 import Application.VenueInvitation.Mutations (withVenueInvitationEmailLock,
                                               withVenueInvitationRenewalLock)
 import Control.Monad (void)
@@ -124,7 +126,8 @@ setUnavailableStaffWarningThresholdMutation venueConfig threshold = do
 
 setRosterWeekStartsOnMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Int -> IO (LiveMutationResult VenueConfig)
 setRosterWeekStartsOnMutation venueConfig rosterWeekStartsOn = do
-    updated <- withTransaction do
+    updated <- withRosterCalendarLock currentVenueId do
+        normalizePublishedRosterWindows currentVenueId rosterWeekStartsOn
         venueConfig
             |> set #rosterWeekStartsOn rosterWeekStartsOn
             |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay rosterWeekStartsOn)

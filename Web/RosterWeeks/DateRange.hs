@@ -16,12 +16,14 @@ module Web.RosterWeeks.DateRange
     , projectedRosterDayId
     , rosterPlanningWeekForDay
     , rosterWindowDates
+    , rosterWindowIsPublished
     , rosterWindowLaneRepresentative
     , fetchRosterWindow
     ) where
 
 import Application.Helper.WeekBoundaries (venueWeekOffsetForDay,
                                           venueWeekStartDate)
+import Application.RosterPublication (rosterDaysArePublished)
 import Control.Monad (void)
 import qualified "crypton" Crypto.Hash as Hash
 import Data.List (foldl', sortOn)
@@ -68,6 +70,10 @@ data RosterWindowLane = RosterWindowLane
 
 rosterWindowDates :: Day -> [Day]
 rosterWindowDates startDate = map (`addDays` startDate) [0 .. 6]
+
+rosterWindowIsPublished :: RosterWindow -> Bool
+rosterWindowIsPublished window =
+    rosterDaysArePublished (mapMaybe (.persistedRosterDay) window.rosterWindowProjectedDays)
 
 projectRosterWindow :: Day -> [RosterDay] -> [RosterLane] -> RosterWindow
 projectRosterWindow startDate persistedDays persistedLanes =
@@ -132,19 +138,25 @@ projectedRosterDay venueId rosterGroupId maybeRosterWeekId windowStartDate windo
                 |> set #dayOffset (fromInteger (diffDays windowDay.operationalDate windowStartDate))
 
 rosterPlanningWeekForDay :: (?modelContext :: ModelContext) => RosterDay -> IO RosterWeek
-rosterPlanningWeekForDay rosterDay =
+rosterPlanningWeekForDay rosterDay = do
+    venueConfig <- query @VenueConfig
+        |> filterWhere (#venueId, rosterDay.venueId)
+        |> fetchOne
+    let weekOffset = venueWeekOffsetForDay venueConfig rosterDay.operationalDate
+        windowStartDate = venueWeekStartDate venueConfig weekOffset
+    window <- fetchRosterWindow (Id rosterDay.venueId) (Id rosterDay.rosterGroupId) windowStartDate
+    let published = rosterWindowIsPublished window
     case rosterDay.rosterWeekId of
-        Just rosterWeekId -> fetch (Id rosterWeekId :: Id RosterWeek)
-        Nothing -> do
-            venueConfig <- query @VenueConfig
-                |> filterWhere (#venueId, rosterDay.venueId)
-                |> fetchOne
+        Just rosterWeekId -> do
+            legacyWeek <- fetch (Id rosterWeekId :: Id RosterWeek)
+            pure (legacyWeek |> set #isLive published)
+        Nothing ->
             pure $
                 newRecord @RosterWeek
                     |> set #venueId rosterDay.venueId
                     |> set #rosterGroupId rosterDay.rosterGroupId
-                    |> set #weekOffset (venueWeekOffsetForDay venueConfig rosterDay.operationalDate)
-                    |> set #isLive False
+                    |> set #weekOffset weekOffset
+                    |> set #isLive published
 
 projectedRosterDayId :: Id RosterGroup -> Day -> Id RosterDay
 projectedRosterDayId rosterGroupId operationalDate =

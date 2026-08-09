@@ -17,8 +17,8 @@ buildRosterViewCapabilities maybeRosterWeek =
         draftWeek = maybe False (not . (.isLive)) maybeRosterWeek
         persistedWeek = maybe False ((/= UUID.nil) . unpackId . (.id)) maybeRosterWeek
      in RosterViewCapabilities
-            { canToggleRosterLive = managerAudience && persistedWeek
-            , canCopyRosterWeek = managerAudience && persistedWeek
+            { canToggleRosterLive = managerAudience && isJust maybeRosterWeek
+            , canCopyRosterWeek = managerAudience && persistedWeek && draftWeek
             , canExportRosterImage = managerAudience
             , canManageAssignmentFilter = managerAudience
             , canManageRosterColumns = managerAudience && draftWeek

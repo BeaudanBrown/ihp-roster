@@ -34,7 +34,7 @@ tests = do
             rendered `shouldSatisfy` any (Text.isInfixOf "drag")
             rendered `shouldSatisfy` any (Text.isInfixOf "Ctrl")
             rendered `shouldSatisfy` any (Text.isInfixOf "Option, or Alt")
-            rendered `shouldSatisfy` any (Text.isInfixOf "Turn Live on")
+            rendered `shouldSatisfy` any (Text.isInfixOf "Publish when the roster is ready")
             rendered `shouldSatisfy` any (Text.isInfixOf "hide the Staff/Settings panel temporarily")
             rendered `shouldSatisfy` all (not . Text.isInfixOf "Templates side-panel tab")
             rendered `shouldSatisfy` any (Text.isInfixOf "press Escape")
@@ -46,7 +46,7 @@ tests = do
             roster <- maybe (expectationFailure "missing roster topic" >> error "missing roster topic") pure (lookupPageHelpTopic (PageHelpTopicId "roster"))
             let rendered = flattenHelpText (filterPageHelpTopic defaultPageHelpContext roster)
             rendered `shouldSatisfy` all (not . Text.isInfixOf "drag")
-            rendered `shouldSatisfy` all (not . Text.isInfixOf "Turn Live on")
+            rendered `shouldSatisfy` all (not . Text.isInfixOf "Publish when the roster is ready")
             rendered `shouldSatisfy` all (not . Text.isInfixOf "Staff/Settings panel")
             rendered `shouldSatisfy` any (Text.isInfixOf "future roster")
 

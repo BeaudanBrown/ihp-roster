@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import {
     rosterColumnEditorDomAttr,
     rosterColumnEditStartDomAttr,
+    toggleRootDomAttr,
 } from '../frontend/ts/generated/contracts';
 import {
     ensureRosterLayout,
@@ -53,12 +54,14 @@ test.describe('Roster mobile baseline', () => {
         await expect(page.locator('.roster-grid')).toBeVisible();
     });
 
-    test('fits the live roster email confirmation within the viewport', async ({ page }) => {
-        const weekOffset = Number.parseInt(new URL(page.url()).searchParams.get('weekOffset') ?? '0', 10);
-        runSql(`UPDATE roster_weeks SET is_live = TRUE WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND week_offset = ${weekOffset};`);
+    test('fits the Published roster email confirmation within the viewport', async ({ page }) => {
+        const publishToggleRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Published' });
+        const publishToggle = publishToggleRoot.getByRole('switch');
+        await publishToggleRoot.click();
+        await expect(publishToggle).toBeChecked();
+        await page.reload();
+        await expect(page.locator('#roster-week-shell')).toBeVisible();
         try {
-            await page.reload();
-            await expect(page.locator('#roster-week-shell')).toBeVisible();
             await openRosterSettings(page);
             const emailRoster = page.locator('#roster-email-button');
             await expect(emailRoster).toBeVisible();
@@ -72,7 +75,8 @@ test.describe('Roster mobile baseline', () => {
             expect(dialogBox!.x).toBeGreaterThanOrEqual(0);
             expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
         } finally {
-            runSql(`UPDATE roster_weeks SET is_live = FALSE WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND week_offset = ${weekOffset};`);
+            await page.keyboard.press('Escape');
+            if (await publishToggle.isChecked()) await publishToggleRoot.click();
         }
     });
 

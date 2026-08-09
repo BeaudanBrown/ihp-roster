@@ -304,6 +304,8 @@ Application/PublicHolidays/Sync.hs	production	runtime	Main	Reachable from Main
 Application/RosterNotification.hs	production	runtime	Main	Reachable from Main
 Application/RosterNotification/Email.hs	production	runtime	Main	Reachable from Main
 Application/RosterNotification/Mutations.hs	production	runtime	Main	Reachable from Main
+Application/RosterPublication.hs	production	runtime	Main	Reachable from Main
+Application/RosterPublication/Mutations.hs	production	runtime	Main	Reachable from Main
 Application/RosterShiftAssignment.hs	production	runtime	Main	Reachable from Main
 Application/RosterTemplates.hs	production	runtime	Main	Reachable from Main
 Application/RosterTemplates/Mutations.hs	production	runtime	Main	Reachable from Main
@@ -446,6 +448,7 @@ Web/RosterTemplates/FrontendSurface.hs	production	runtime	Main	Reachable from Ma
 Web/RosterTemplates/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/AvailabilityInputs.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/Capabilities.hs	production	runtime	Main	Reachable from Main
+Web/RosterWeeks/DateRange.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/DirectReadModel.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/Dom.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/DropWorkflow.hs	production	runtime	Main	Reachable from Main

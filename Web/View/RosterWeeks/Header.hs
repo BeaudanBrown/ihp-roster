@@ -41,7 +41,7 @@ renderRosterGridHeader maybeRosterWeek weekOffset currentRosterGroup weekStartDa
             { weekToolbarVariant = WeekToolbarRoster
             , weekToolbarAriaLabel = "Roster week controls"
             , weekToolbarExtraClass = "roster-grid-header app-side-panel-header"
-            , weekToolbarPrimary = renderLiveToggle maybeRosterWeek viewCapabilities
+            , weekToolbarPrimary = renderLiveToggle maybeRosterWeek weekOffset currentRosterGroup viewCapabilities
             , weekToolbarReset = renderThisWeekButton gridViewMode currentRosterGroup timelineTodayUrl
             , weekToolbarNavigation = renderRosterWeekControls weekOffset currentRosterGroup weekStartDate gridViewMode
             , weekToolbarSettings = when canToggleSidePanel renderRosterSidePanelToggle
@@ -136,10 +136,10 @@ renderWeekNavigationLink iconClass ariaLabel url targetWeekOffset rosterGroupId 
             }
         [hsx|<i class={"bi " <> iconClass} aria-hidden="true"></i>|]
 
-renderLiveToggle :: (?context :: ControllerContext) => Maybe RosterWeek -> RosterViewCapabilities -> Html
-renderLiveToggle (Just rosterWeek) viewCapabilities
-    | viewCapabilities.canToggleRosterLive = renderLiveToggleForm rosterWeek
-renderLiveToggle _ _ = mempty
+renderLiveToggle :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> RosterGroup -> RosterViewCapabilities -> Html
+renderLiveToggle (Just rosterWeek) weekOffset rosterGroup viewCapabilities
+    | viewCapabilities.canToggleRosterLive = renderLiveToggleForm rosterWeek weekOffset rosterGroup
+renderLiveToggle _ _ _ _ = mempty
 
 renderThisWeekButton :: (?context :: ControllerContext) => RosterGridViewMode -> RosterGroup -> Maybe Text -> Html
 renderThisWeekButton gridViewMode currentRosterGroup timelineTodayUrl =
@@ -162,8 +162,8 @@ renderThisWeekButton gridViewMode currentRosterGroup timelineTodayUrl =
             RosterDayTimelineGridView _ -> fromMaybe (appendQueryParams (pathTo RosterWeeksAction) [("rosterGroupId", tshow currentRosterGroup.id), ("rosterView", "timeline")]) timelineTodayUrl
             RosterWeekGridView -> pathTo RosterWeeksAction
 
-renderLiveToggleForm :: RosterWeek -> Html
-renderLiveToggleForm rosterWeek =
+renderLiveToggleForm :: RosterWeek -> Int -> RosterGroup -> Html
+renderLiveToggleForm rosterWeek weekOffset rosterGroup =
     renderFrontendSurfaceActionForm
         (RosterAction.toggleRosterWeekLiveStatusAction fields)
         (rosterActionRoute actionUrl)
@@ -172,7 +172,9 @@ renderLiveToggleForm rosterWeek =
             }
         (renderLiveToggleButton fields rosterWeek)
   where
-    actionUrl = pathTo (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+    actionUrl = appendQueryParams
+        (pathTo (ToggleRosterWeekLiveStatusAction rosterWeek.id))
+        [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow rosterGroup.id)]
     fields = RosterAction.toggleRosterWeekLiveStatusActionFields rosterWeek.isLive
 
 renderLiveToggleButton :: ActionFields RosterAction.ToggleRosterWeekLiveStatusActionOperation -> RosterWeek -> Html
@@ -182,7 +184,7 @@ renderLiveToggleButton fields rosterWeek =
             (liveToggleInputId rosterWeek.id)
             (surfaceToggleScalarField @Surface.IsLive fields True False)
             rosterWeek.isLive
-            [hsx|<span class="fw-semibold">Live</span>|]
+            [hsx|<span class="fw-semibold">Published</span>|]
         )
             { appToggleButtonClass = "app-week-live-toggle"
             , appToggleRoleSwitch = True

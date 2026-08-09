@@ -21,6 +21,8 @@ import Application.Helper.RosterTemplateScale (rosterTemplateScaleIsWeek)
 import Application.Helper.SurfaceResource (LiveMutationResult,
                                            liveMutationResult)
 import Application.Helper.WeekBoundaries (venueWeekStartDate)
+import Application.RosterPublication (fetchRosterWeekHasPublishedDay)
+import Application.RosterPublication.Mutations (withRosterWindowLock)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           applyRosterShiftAssignment)
 import Application.RosterTemplates
@@ -69,27 +71,39 @@ applyRosterTemplateApplication ::
     Int ->
     Text ->
     IO (Either RosterTemplateApplicationError RosterTemplateApplicationResult)
-applyRosterTemplateApplication actor request expectedVersion expectedTargetRevision =
-    withTransaction do
-        lockRosterTemplateApplicationRows request.applicationTemplateId request.applicationTargetWeekId request.applicationTargetDayOffset
-        preparedResult <- prepareRosterTemplateApplication actor request
-        case preparedResult of
-            Left failure -> pure (Left failure)
-            Right prepared
-                | prepared.preparedSaved.savedTemplate.currentVersion /= expectedVersion ->
-                    pure (Left (RosterTemplateApplicationVersionConflict prepared.preparedSaved.savedTemplate.currentVersion))
-                | targetRevision prepared /= expectedTargetRevision ->
-                    pure (Left RosterTemplateApplicationTargetConflict)
-                | otherwise -> do
-                    appliedVersion <- applyPreparedApplication actor prepared
-                    refreshedWeek <- fetch prepared.preparedTargetWeek.id
-                    let preview = toPreview prepared
-                    pure (Right RosterTemplateApplicationResult
-                        { appliedRosterWeek = refreshedWeek
-                        , appliedTemplateVersion = appliedVersion
-                        , appliedWarnings = preview.applicationWarnings
-                        , appliedTouchedResources = preview.applicationTouchedResources
-                        })
+applyRosterTemplateApplication actor request expectedVersion expectedTargetRevision = do
+    lockTarget <- query @RosterWeek
+        |> filterWhere (#id, request.applicationTargetWeekId)
+        |> filterWhere (#venueId, unpackId (rosterTemplateActorVenueId actor))
+        |> filterWhere (#archivedAt, Nothing)
+        |> fetchOneOrNothing
+    case lockTarget of
+        Nothing -> pure (Left RosterTemplateApplicationNotFound)
+        Just targetWeek ->
+            withRosterWindowLock (rosterTemplateActorVenueId actor) (Id targetWeek.rosterGroupId) targetWeek.weekOffset do
+                targetHasPublishedDay <- fetchRosterWeekHasPublishedDay targetWeek
+                if targetHasPublishedDay
+                    then pure (Left RosterTemplateApplicationTargetLive)
+                    else do
+                        lockRosterTemplateApplicationRows request.applicationTemplateId request.applicationTargetWeekId request.applicationTargetDayOffset
+                        preparedResult <- prepareRosterTemplateApplication actor request
+                        case preparedResult of
+                            Left failure -> pure (Left failure)
+                            Right prepared
+                                | prepared.preparedSaved.savedTemplate.currentVersion /= expectedVersion ->
+                                    pure (Left (RosterTemplateApplicationVersionConflict prepared.preparedSaved.savedTemplate.currentVersion))
+                                | targetRevision prepared /= expectedTargetRevision ->
+                                    pure (Left RosterTemplateApplicationTargetConflict)
+                                | otherwise -> do
+                                    appliedVersion <- applyPreparedApplication actor prepared
+                                    refreshedWeek <- fetch prepared.preparedTargetWeek.id
+                                    let preview = toPreview prepared
+                                    pure (Right RosterTemplateApplicationResult
+                                        { appliedRosterWeek = refreshedWeek
+                                        , appliedTemplateVersion = appliedVersion
+                                        , appliedWarnings = preview.applicationWarnings
+                                        , appliedTouchedResources = preview.applicationTouchedResources
+                                        })
 
 prepareRosterTemplateApplication ::
     (?modelContext :: ModelContext) =>
@@ -111,10 +125,13 @@ prepareRosterTemplateApplication actor request
                 | targetWeek.venueId /= unpackId (rosterTemplateActorVenueId actor)
                     || targetWeek.rosterGroupId /= saved.savedTemplate.rosterGroupId ->
                     pure (Left RosterTemplateApplicationScopeMismatch)
-                | targetWeek.isLive -> pure (Left RosterTemplateApplicationTargetLive)
                 | not (requestMatchesScale saved.savedTemplate.scale request.applicationTargetDayOffset) ->
                     pure (Left RosterTemplateApplicationScaleMismatch)
-                | otherwise -> prepareContent request saved targetWeek
+                | otherwise -> do
+                    targetHasPublishedDay <- fetchRosterWeekHasPublishedDay targetWeek
+                    if targetHasPublishedDay
+                        then pure (Left RosterTemplateApplicationTargetLive)
+                        else prepareContent request saved (targetWeek |> set #isLive False)
 
 requestMatchesScale :: RosterTemplateScaleEnum -> Maybe Int -> Bool
 requestMatchesScale Day (Just dayOffset) = dayOffset >= 0 && dayOffset <= 6

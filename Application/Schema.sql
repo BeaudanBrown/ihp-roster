@@ -2266,8 +2266,8 @@ CREATE TRIGGER prevent_hard_delete_xero_timesheet_submissions BEFORE DELETE ON x
 CREATE TRIGGER prevent_hard_delete_xero_timesheet_submission_entries BEFORE DELETE ON xero_timesheet_submission_entries FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 
 -- schema-nav: tenant-integrity-triggers
--- Transitional projection functions keep the legacy week runtime authoritative
--- until the date-native mutation cutover removes these triggers.
+-- Transitional projection functions retain legacy identity compatibility while
+-- roster-day operational dates and publication remain authoritative.
 CREATE OR REPLACE FUNCTION project_legacy_roster_day()
 RETURNS TRIGGER
 AS $$
@@ -2286,18 +2286,21 @@ BEGIN
     SELECT
         rw.venue_id,
         rw.roster_group_id,
-        vc.week_offset_epoch + (rw.week_offset * 7) + NEW.day_offset,
-        (CASE WHEN rw.is_live THEN 'published' ELSE 'draft' END)::roster_day_publication_state_enum
+        vc.week_offset_epoch + (rw.week_offset * 7) + NEW.day_offset
     INTO STRICT
         NEW.venue_id,
         NEW.roster_group_id,
-        NEW.operational_date,
-        NEW.publication_state
+        NEW.operational_date
     FROM roster_weeks rw
     JOIN venue_config vc ON vc.venue_id = rw.venue_id
     WHERE rw.id = NEW.roster_week_id;
 
-    IF TG_OP = 'UPDATE' THEN
+    IF TG_OP = 'INSERT' THEN
+        SELECT (CASE WHEN rw.is_live THEN 'published' ELSE 'draft' END)::roster_day_publication_state_enum
+        INTO STRICT NEW.publication_state
+        FROM roster_weeks rw
+        WHERE rw.id = NEW.roster_week_id;
+    ELSE
         NEW.venue_id := OLD.venue_id;
         NEW.roster_group_id := OLD.roster_group_id;
         NEW.operational_date := OLD.operational_date;
@@ -2433,11 +2436,6 @@ BEGIN
         OR NEW.week_offset IS DISTINCT FROM OLD.week_offset
     THEN
         RAISE EXCEPTION 'legacy roster week identity is immutable after date-native projection';
-    END IF;
-    IF NEW.is_live IS DISTINCT FROM OLD.is_live THEN
-        UPDATE roster_days
-        SET roster_week_id = roster_week_id
-        WHERE roster_week_id = NEW.id;
     END IF;
     RETURN NEW;
 END;

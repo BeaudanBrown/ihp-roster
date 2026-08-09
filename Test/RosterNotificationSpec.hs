@@ -124,7 +124,10 @@ tests = aroundAll withDatabaseTestContext do
                     |> set #assignmentState "staff"
                     |> set #staffId (Just (unpackId recipientStaff.id))
                     |> updateRecord
-                _ <- rosterWeek |> set #isLive False |> updateRecord
+                rosterDays <- query @RosterDay
+                    |> filterWhere (#rosterGroupId, rosterWeek.rosterGroupId)
+                    |> fetch
+                _ <- mapM (updateRecord . set #publicationState Draft) rosterDays
                 jobs <- query @AppJob |> filterWhere (#relatedId, Just (unpackId run.id)) |> fetch
                 delivered <- newIORef []
 

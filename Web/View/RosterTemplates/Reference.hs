@@ -129,7 +129,7 @@ renderDayOffsetInput dayOffset = [hsx|<input type="hidden" name="dayOffset" valu
 visibilityLabel :: Maybe RosterWeek -> Text
 visibilityLabel Nothing = "Unavailable"
 visibilityLabel (Just rosterWeek)
-    | rosterWeek.isLive = "Live roster"
+    | rosterWeek.isLive = "Published roster"
     | otherwise = "Draft roster"
 
 formatDate :: Day -> Text

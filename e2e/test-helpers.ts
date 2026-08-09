@@ -323,6 +323,13 @@ export function resetCanonicalRosterAssignedShiftFixture() {
         UPDATE roster_weeks
         SET is_live = FALSE, updated_at = NOW()
         WHERE id = 'a1000000-0000-0000-0000-000000000051';
+        UPDATE roster_days
+        SET publication_state = 'draft', updated_at = NOW()
+        WHERE venue_id = 'a1000000-0000-0000-0000-000000000001'
+          AND roster_group_id = 'a1000000-0000-0000-0000-000000000211'
+          AND operational_date BETWEEN
+              (SELECT week_offset_epoch FROM venue_config WHERE venue_id = 'a1000000-0000-0000-0000-000000000001')
+              AND (SELECT week_offset_epoch + 6 FROM venue_config WHERE venue_id = 'a1000000-0000-0000-0000-000000000001');
         UPDATE roster_slots
         SET assignment_state = 'staff',
             staff_id = 'a1000000-0000-0000-0000-000000000031',
@@ -868,7 +875,7 @@ async function rosterDayActionButton(scope: Page | Locator, action: 'add' | 'rem
         const rosterDayId = await rosterDayIdForSection(scope);
         return scope
             .page()
-            .locator(`form[action$="${rosterDayId}"] [${attribute}="true"]`)
+            .locator(`form[action*="${rosterDayId}"] [${attribute}="true"]`)
             .first();
     }
 

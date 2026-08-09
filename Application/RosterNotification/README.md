@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This subsystem emails one explicitly selected live roster-group week. It owns the
+This subsystem emails one explicitly selected Published roster-group window. It owns the
 immutable communication snapshot, recipient selection, durable domain reference,
 and per-recipient mail projection. Roster UI and authorization remain under
 `Web/RosterWeeks/`; transport and terminal outcomes belong to
@@ -22,7 +22,7 @@ and per-recipient mail projection. Roster UI and authorization remain under
 
 ## Run And Delivery Contract
 
-A run is created only for a live roster week with at least one eligible linked,
+A run is created only for a Published roster window with at least one eligible linked,
 active group staff member. Creation locks the roster week, rejects any active
 notification delivery for that week, and captures the roster, recipients, and
 skipped recipients in one transaction. One permanently deduplicated

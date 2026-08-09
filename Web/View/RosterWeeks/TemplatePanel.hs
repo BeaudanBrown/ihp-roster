@@ -47,7 +47,7 @@ renderRosterTemplatePanel weekOffset rosterGroup maybeRosterWeek library = [hsx|
 renderLiveRosterTemplateMessage :: Maybe RosterWeek -> Html
 renderLiveRosterTemplateMessage (Just rosterWeek)
     | rosterWeek.isLive = [hsx|
-        <div class="alert alert-info small" role="status">Templates cannot be applied to a live roster. Move this week back to draft to apply one.</div>
+        <div class="alert alert-info small" role="status">Templates cannot be applied to a Published roster. Return this window to Draft to apply one.</div>
     |]
 renderLiveRosterTemplateMessage _ = mempty
 

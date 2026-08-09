@@ -397,7 +397,7 @@ renderHiddenDraftSlotsGridFragmentWithSwap maybeSwapOob _rosterDays = [hsx|
              aria-label="Roster visibility">
             <div class="roster-hidden-draft-grid-head" aria-hidden="true"></div>
             <div class="roster-hidden-draft-grid-body" role="status" aria-live="polite">
-                <div class="roster-hidden-draft-message">This roster isn't live yet.</div>
+                <div class="roster-hidden-draft-message">This roster is still Draft.</div>
             </div>
         </div>
     </div>

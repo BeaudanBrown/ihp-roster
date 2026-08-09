@@ -81,22 +81,22 @@ a registered `WireClosed` scalar; generated TypeScript owns the `"day" |
 - The shared SidePanel owns only visibility and responsive mechanics. Roster
   owns Staff/Settings content, permissions, and linked highlighting. Template
   functionality remains implemented but is intentionally hidden for the next release.
-- Emailing a live roster is an explicit editor action. One immutable run
+- Emailing a Published roster is an explicit editor action. One immutable run
   snapshots its audience and roster; each recipient sees only their own assigned
   shifts and the snapshot's Open shifts. Durable jobs continue if the roster
   later changes or returns to draft.
 
-Creation selects Day/Week and blank/reference. Reference mode reads only existing live or draft weeks, supports previous/next/this-week navigation, renders native keyboard/touch targets with a generated compatibility role/state, and confirms before copying. Confirmation proof is session-bound to the exact request, source-content revision, and occupied-draft revision; stale or replayed replacement attempts fail before changing the draft. Hover/focus alone shows the green compatible-target treatment. One private draft slot offers Continue, Discard and start new, or Cancel.
+Creation selects Day/Week and blank/reference. Reference mode reads only existing Published or Draft windows, supports previous/next/this-week navigation, renders native keyboard/touch targets with a generated compatibility role/state, and confirms before copying. Confirmation proof is session-bound to the exact request, source-content revision, and occupied-draft revision; stale or replayed replacement attempts fail before changing the draft. Hover/focus alone shows the green compatible-target treatment. One private draft slot offers Continue, Discard and start new, or Cancel.
 
 The designer clearly identifies Template design. Complete day, column, and shift mutations autosave through typed draft content; incomplete shifts and stale Shift types/Staff/pay references do not persist. Saved edits retain immutable versions, optimistic conflicts, reload-latest/save-as-new recovery, and soft deletion. Source roster rows are never changed.
 
 ## Template Application Contract
 
-Template application targets one explicitly scoped, non-live roster-group week. Day templates replace one day while matching columns case-insensitively by name, adding missing columns, and preserving unrelated columns and days. Week templates replace all seven day states/rows, columns/order, and shifts.
+Template application targets one explicitly scoped, Draft roster-group window. Day templates replace one day while matching columns case-insensitively by name, adding missing columns, and preserving unrelated columns and days. Week templates replace all seven day states/rows, columns/order, and shifts.
 
 Preview returns authoritative template and target revisions, resolved shift instants, destructive and Timesheet warnings, assignment-cleanup reasons, and typed touched resources. It intentionally confirms scope and consequences without a Before/After visual comparison. Confirmation locks the template, target week structure/content, Timesheet snapshots, Shift types, Staff rows, and group memberships; revalidates both revisions, and performs all source-template cleanup and target replacement in one transaction. Replaced roster shifts are soft-deleted, so materialized Timesheet snapshots retain their source and values.
 
-The editor-only roster side panel exposes `Staff | Settings` for the next release. Template functionality and its authoritative user-specific library fragment remain implemented but hidden; the library separates Day and Week cards, private-draft recovery, and isolated Edit/Delete controls. Day activation enters cancellable compatible-day target mode; Week activation targets the complete viewed week immediately. The same generated source/dropzone contracts drive mouse drag, while keyboard and touch activation use the server-rendered confirmation form. Live or incomplete targets expose no compatible application target. Library, delete, save, draft, and application resources invalidate mounted fragments for actor and passive viewers.
+The editor-only roster side panel exposes `Staff | Settings` for the next release. Template functionality and its authoritative user-specific library fragment remain implemented but hidden; the library separates Day and Week cards, private-draft recovery, and isolated Edit/Delete controls. Day activation enters cancellable compatible-day target mode; Week activation targets the complete viewed week immediately. The same generated source/dropzone contracts drive mouse drag, while keyboard and touch activation use the server-rendered confirmation form. Published or incomplete targets expose no compatible application target. Library, delete, save, draft, and application resources invalidate mounted fragments for actor and passive viewers.
 
 Template local minutes resolve on the target operational date under current `Australia/Melbourne` rules. Nonexistent spring clocks fail; repeated autumn endpoints require explicit first/second choices and are never guessed.
 
@@ -110,14 +110,14 @@ single-wrapper shape, keep unmerged empty visual cells by default, and show a
 centered merged `+` affordance only on hover/focus/highlight.
 
 Read-only row-grid shifts intentionally use separate non-launcher cells and must
-not emit edit/create launcher attributes. The sole live exception is an explicit
+not emit edit/create launcher attributes. The sole Published-state exception is an explicit
 Open shift for roster editors: it renders one assignment-only dialog launcher
-without drag/drop refs. Staffed live shifts and every ordinary-staff projection
+without drag/drop refs. Staffed Published shifts and every ordinary-staff projection
 remain non-launchers.
 
 Open shifts use the exact `OPEN` label and `is-roster-shift-open` treatment in
 row-grid, day-column, and timeline projections. Draft dialogs may transition
-Staff/Open either way; live dialogs permit only atomic Open-to-valid-Staff fill.
+Staff/Open either way; Published dialogs permit only atomic Open-to-valid-Staff fill.
 
 ## Linked-Highlight Contract
 
@@ -178,7 +178,7 @@ prohibited.
 
 ## Image Export Contract
 
-Live manager row-grid rosters expose a generated JPG trigger with a
+Published manager row-grid rosters expose a generated JPG trigger with a
 Haskell-resolved filename and exact format/copy policy. Day-column and timeline
 layouts omit the trigger because they do not render the row-grid export
 projection. The projection, rows, and every visual cell carry generated Surface
@@ -203,7 +203,7 @@ this capability remains disabled and is not fetched during normal navigation.
 `Application.Helper.View.WeekToolbar` renders each supplied control exactly
 once. Its wrappers are layout slots only; `static/css/components/week-toolbar.css`
 repositions the same primary, reset, navigation, auxiliary, and settings nodes
-at responsive breakpoints. In particular, the roster live switch has one form,
+at responsive breakpoints. In particular, the roster Published switch has one form,
 one input id, and one generated form-local transport on every viewport.
 
 ## Drag/Drop Interaction Contract

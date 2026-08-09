@@ -35,7 +35,7 @@ ensureRosterWeekIsDraftForEdit rosterWeek =
     when rosterWeek.isLive do
         let rosterGroupId = coerce rosterWeek.rosterGroupId
         let targetPath = rosterWeekUrl rosterWeek.weekOffset rosterGroupId
-        let errorMessage = "Live roster weeks are read-only. Move it back to draft to make changes."
+        let errorMessage = "Published roster windows are read-only. Return it to Draft to make changes."
         if isHtmxRequest
             then respondWithRosterToast errorMessage "app-toast-error"
             else do

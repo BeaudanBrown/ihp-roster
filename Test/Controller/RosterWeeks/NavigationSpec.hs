@@ -110,7 +110,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "roster-hidden-draft-grid"
-                response `responseBodyShouldContain` "This roster isn't live yet."
+                response `responseBodyShouldContain` "This roster is still Draft."
                 response `responseBodyShouldNotContain` "Crew, Alpha"
                 response `responseBodyShouldNotContain` "roster-day-closed-label"
                 response `responseBodyShouldNotContain` "slot-closed-cell"
@@ -290,9 +290,9 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` ">Alpha</div>"
                 response `responseBodyShouldContain` "hx-get=\"/EditRosterSlotDialog?rosterSlotId="
                 response `responseBodyShouldContain` "hx-post=\"/ToggleRosterWeekLiveStatus?rosterWeekId="
-                response `responseBodyShouldContain` ">Live</span></label>"
+                response `responseBodyShouldContain` ">Published</span></label>"
 
-        it "does not render conflict highlights on live roster weeks" $ withContext do
+        it "does not render conflict highlights on Published roster windows" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-live-no-conflicts@example.com" "staff" True
@@ -369,14 +369,15 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "hx-post=\"/SortRosterWeek?weekOffset=0&amp;rosterGroupId="
                 response `responseBodyShouldNotContain` "Roster columns"
                 response `responseBodyShouldNotContain` "data-disable-javascript-submission"
-                response `responseBodyShouldNotContain` "roster-live-toggle-"
+                response `responseBodyShouldContain` "roster-live-toggle-"
                 response `responseBodyShouldContain` "btn btn-outline-success app-toggle-button"
-                response `responseBodyShouldNotContain` "data-bepis-toggle-transport=\"toggle-transport:roster-live-toggle-"
+                response `responseBodyShouldContain` "data-bepis-toggle-transport=\"toggle-transport:roster-live-toggle-"
                 response `responseBodyShouldContain` "data-bepis-toggle-config=\""
                 response `responseBodyShouldContain` "aria-pressed=\"false\""
                 response `responseBodyShouldContain` "role=\"switch\" aria-checked=\"false\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"navigate-roster-week\""
-                response `responseBodyShouldNotContain` "data-bepis-surface-action=\"toggle-roster-week-live-status\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-roster-week-live-status\""
+                response `responseBodyShouldContain` ("weekOffset=0&amp;rosterGroupId=" <> cs (tshow rosterGroup.id))
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-roster-staff-scope\""
                 response `responseBodyShouldContain` "hx-target=\"#roster-staff-panel-fragment\""
                 response `responseBodyShouldNotContain` "hx-target=\"#roster-staff-panel\""
@@ -385,7 +386,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"sort-roster-week\""
                 response `responseBodyShouldNotContain` "data-bepis-surface-action=\"copy-roster-week\""
 
-        it "keeps hidden templates and application targets off live rosters" $ withContext do
+        it "keeps templates and application targets hidden on Published rosters" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Live template target"
                 manager <- createUserRecord "live-template-target@example.com" "staff" True
@@ -403,6 +404,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "data-bepis-roster-staff-panel-tab=\"templates\""
                 response `responseBodyShouldNotContain` "roster-template-library-mount-"
+                response `responseBodyShouldNotContain` "Templates cannot be applied to a Published roster"
                 response `responseBodyShouldNotContain` "aria-label=\"Apply Lunch service\""
                 response `responseBodyShouldNotContain` "data-bepis-source-ref=\"day-template-drag-source\""
                 response `responseBodyShouldNotContain` "data-bepis-dropzone-ref=\"day-template-dropzone\""

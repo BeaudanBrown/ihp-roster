@@ -241,7 +241,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-roster-visibility=\"hidden-draft\""
-                response `responseBodyShouldContain` "This roster isn't live yet."
+                response `responseBodyShouldContain` "This roster is still Draft."
                 response `responseBodyShouldNotContain` "Crew, Alpha"
                 response `responseBodyShouldNotContain` "roster-day-closed-label"
                 response `responseBodyShouldNotContain` "slot-closed-cell"
@@ -705,7 +705,7 @@ tests = aroundAll withDatabaseTestContext do
                 bodyText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow sourceSlot.id) <> "\"")
                 bodyText `shouldContain` ("hx-get=\"/NewRosterSlotDialog?rosterDayId=" <> cs (tshow rosterDay.id) <> "&amp;rosterWeekSlotDefinitionId=" <> cs (tshow sourceSlot.rosterLaneId) <> "&amp;rowIndex=1&amp;rosterGroupId=" <> cs (tshow rosterDay.rosterGroupId) <> "&amp;operationalDate=" <> cs (tshow rosterDay.operationalDate) <> "\"")
 
-        it "does not render empty day-row create markers for live rosters" $ withContext do
+        it "does not render empty day-row create markers for Published rosters" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-live-empty-create@example.com" "staff" True
@@ -746,7 +746,7 @@ tests = aroundAll withDatabaseTestContext do
                 bodyText `shouldNotContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow slot.id) <> "\"")
                 bodyText `shouldNotContain` "data-roster-shift-launcher=\"true\""
 
-        it "renders live Open shifts prominently and launchable only for roster editors" $ withContext do
+        it "renders Published Open shifts prominently and launchable only for roster editors" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Open Shift Live Render Venue"
                 manager <- createUserRecord "open-shift-live-render-manager@example.com" "staff" True
@@ -825,7 +825,7 @@ tests = aroundAll withDatabaseTestContext do
                 updatedSlot <- fetch slot.id
                 updatedSlot.staffId `shouldBe` Just (unpackId alpha.id)
 
-        it "rejects adding rows to a live week via HTMX" $ withContext do
+        it "rejects adding rows to a Published window via HTMX" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-live-add-row@example.com" "staff" True
@@ -840,13 +840,13 @@ tests = aroundAll withDatabaseTestContext do
                         callAction (AddRosterRowAction rosterDay.id)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Live roster weeks are read-only. Move it back to draft to make changes."
+                response `responseBodyShouldContain` "Published roster windows are read-only. Return it to Draft to make changes."
                 slotsForDay <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId rosterDay.id)
                     |> fetch
                 length slotsForDay `shouldBe` 1
 
-        it "rejects updating slot assignments on a live week via HTMX" $ withContext do
+        it "rejects updating slot assignments on a Published window via HTMX" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-live-update@example.com" "staff" True
@@ -868,7 +868,7 @@ tests = aroundAll withDatabaseTestContext do
                         callActionWithParams (UpdateRosterSlotAction slot.id) (fullShiftParams bravo shiftType)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Live roster weeks are read-only. Move it back to draft to make changes."
+                response `responseBodyShouldContain` "Published roster windows are read-only. Return it to Draft to make changes."
                 unchangedSlot <- fetch slot.id
                 unchangedSlot.staffId `shouldBe` Just (unpackId alpha.id)
 
@@ -1710,7 +1710,7 @@ tests = aroundAll withDatabaseTestContext do
                 updatedSlot.staffId `shouldBe` Just (unpackId replacementStaff.id)
                 response `responseBodyShouldContain` "Staff assigned."
 
-        it "rejects dragged staff assignment on live roster weeks" $ withContext do
+        it "rejects dragged staff assignment on Published roster windows" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-staff-drop-live@example.com" "staff" True

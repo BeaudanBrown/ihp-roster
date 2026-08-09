@@ -24,6 +24,8 @@ import Application.Async.Queue (activeAppJobStatuses)
 import Application.EmailDelivery.Enqueue
 import Application.Helper.WeekBoundaries (venueWeekStartDate)
 import qualified Application.RosterNotification.Mutations as Mutations
+import Application.RosterPublication (fetchRosterWeekIsPublished)
+import Application.RosterPublication.Mutations (withRosterWindowLock)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
@@ -35,7 +37,6 @@ import Data.Time.Calendar (Day, addDays)
 import Generated.Types hiding (createRosterNotificationRun)
 import IHP.ControllerPrelude
 import IHP.Job.Types (JobStatus (..))
-import IHP.ModelSupport (withTransaction)
 
 rosterNotificationMailKind :: Text
 rosterNotificationMailKind = "roster_notification_v1"
@@ -220,7 +221,7 @@ createRosterNotificationRunUnlessActive ::
     RosterWeek ->
     IO CreateRosterNotificationRunResult
 createRosterNotificationRunUnlessActive actor rosterWeek =
-    withTransaction do
+    withRosterWindowLock (Id rosterWeek.venueId) (Id rosterWeek.rosterGroupId) rosterWeek.weekOffset do
         Mutations.lockRosterNotificationWeek rosterWeek.id
         runs <- query @RosterNotificationRun
             |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
@@ -246,7 +247,8 @@ createRosterNotificationRun ::
     RosterWeek ->
     IO RosterNotificationRun
 createRosterNotificationRun actor suppliedRosterWeek =
-    withTransaction do
+    withRosterWindowLock (Id suppliedRosterWeek.venueId) (Id suppliedRosterWeek.rosterGroupId) suppliedRosterWeek.weekOffset do
+        Mutations.lockRosterNotificationWeek suppliedRosterWeek.id
         createdRun <- createRosterNotificationRunInCurrentTransaction actor suppliedRosterWeek
         maybe (fail "Roster notification runs require at least one eligible recipient") pure createdRun
 
@@ -258,7 +260,8 @@ createRosterNotificationRunInCurrentTransaction ::
 createRosterNotificationRunInCurrentTransaction actor suppliedRosterWeek = do
     persistedActor <- fetch actor.id
     rosterWeek <- fetch suppliedRosterWeek.id
-    unless rosterWeek.isLive (fail "Roster notification runs require a live roster")
+    rosterWindowIsPublished <- fetchRosterWeekIsPublished rosterWeek
+    unless rosterWindowIsPublished (fail "Roster notification runs require a Published roster window")
     venue <- fetch (Id rosterWeek.venueId :: Id Venue)
     rosterGroup <- fetch (Id rosterWeek.rosterGroupId :: Id RosterGroup)
     unless (rosterGroup.venueId == unpackId venue.id) (fail "Roster notification roster group is outside the venue")

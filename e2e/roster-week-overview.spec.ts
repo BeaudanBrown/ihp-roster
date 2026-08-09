@@ -8,8 +8,9 @@ import {
     rosterImageExportTriggerDomAttr,
     rosterWeekOverviewDayDomAttr,
     rosterWeekOverviewPanelDomAttr,
+    toggleRootDomAttr,
 } from '../frontend/ts/generated/contracts';
-import { gotoWhenReady, loginAs, openRoster, openRosterSettings, runSql } from './test-helpers';
+import { gotoWhenReady, loginAs, openRoster, openRosterSettings } from './test-helpers';
 
 const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
@@ -23,37 +24,30 @@ test.describe('Roster week overview', () => {
         await expect(page.locator('.roster-week-nav-label')).toContainText('Week of');
     });
 
-    test('exports the live roster as a jpg from the roster actions menu', async ({ page }) => {
-        runSql(`
-            UPDATE roster_weeks SET is_live = TRUE WHERE id = 'a1000000-0000-0000-0000-000000000053';
-            UPDATE roster_slots
-            SET staff_id = NULL, assignment_state = 'open'
-            WHERE id = 'a1000000-0000-0000-0000-000000000074';
-            INSERT INTO roster_days (id, roster_week_id, day_offset, is_closed, row_count)
-            VALUES ('a1000000-0000-0000-0000-000000000064', 'a1000000-0000-0000-0000-000000000053', 1, FALSE, 1)
-            ON CONFLICT (id) DO UPDATE
-            SET roster_week_id = EXCLUDED.roster_week_id, day_offset = EXCLUDED.day_offset, is_closed = EXCLUDED.is_closed, row_count = EXCLUDED.row_count;
-            INSERT INTO roster_week_slot_definitions (id, roster_week_id, name, sort_order)
-            VALUES ('a1000000-0000-0000-0000-000000000084', 'a1000000-0000-0000-0000-000000000053', 'Late', 1)
-            ON CONFLICT (id) DO UPDATE
-            SET roster_week_id = EXCLUDED.roster_week_id, name = EXCLUDED.name, sort_order = EXCLUDED.sort_order, deleted_at = NULL;
-        `);
-        await openRoster(page, { weekOffset: 1, ensureDraft: false, ensureEditable: false });
+    test('exports the Published roster as colour and print PNGs from the roster actions menu', async ({ page }) => {
+        await openRoster(page, { weekOffset: 1 });
+        const publishToggleRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Published' });
+        const publishToggle = publishToggleRoot.getByRole('switch');
+        await publishToggleRoot.click();
+        await expect(publishToggle).toBeChecked();
+        await page.reload();
+        await expect(page.locator('#roster-week-shell')).toBeVisible();
 
-        await openRosterSettings(page);
-        const exportButtons = page.locator(`[${rosterImageExportTriggerDomAttr}="true"]`);
-        await expect(exportButtons).toHaveCount(2);
-        const colourExportButton = exportButtons.nth(0);
-        const printExportButton = exportButtons.nth(1);
-        await expect(colourExportButton).toHaveText('Export colour PNG');
-        await expect(printExportButton).toHaveText('Export print PNG');
-        const colourConfig = parseRosterImageExportConfig(JSON.parse(await colourExportButton.getAttribute(rosterImageExportConfigDomAttr) ?? '{}'));
-        const config = parseRosterImageExportConfig(JSON.parse(await printExportButton.getAttribute(rosterImageExportConfigDomAttr) ?? '{}'));
-        expect(colourConfig.imageExportStyle).toBe('colour');
-        expect(colourConfig.imageExportMaximumWidth).toBe(1240);
-        expect(config.imageExportStyle).toBe('print');
-        expect(config.imageExportMinimumWidth).toBe(920);
-        expect(config.imageExportMaximumWidth).toBe(1240);
+        try {
+            await openRosterSettings(page);
+            const exportButtons = page.locator(`[${rosterImageExportTriggerDomAttr}="true"]`);
+            await expect(exportButtons).toHaveCount(2);
+            const colourExportButton = exportButtons.nth(0);
+            const printExportButton = exportButtons.nth(1);
+            await expect(colourExportButton).toHaveText('Export colour PNG');
+            await expect(printExportButton).toHaveText('Export print PNG');
+            const colourConfig = parseRosterImageExportConfig(JSON.parse(await colourExportButton.getAttribute(rosterImageExportConfigDomAttr) ?? '{}'));
+            const config = parseRosterImageExportConfig(JSON.parse(await printExportButton.getAttribute(rosterImageExportConfigDomAttr) ?? '{}'));
+            expect(colourConfig.imageExportStyle).toBe('colour');
+            expect(colourConfig.imageExportMaximumWidth).toBe(1240);
+            expect(config.imageExportStyle).toBe('print');
+            expect(config.imageExportMinimumWidth).toBe(920);
+            expect(config.imageExportMaximumWidth).toBe(1240);
         const renderedDayCellCount = await page.locator('.roster-day-rail-section').count();
         expect(renderedDayCellCount).toBeGreaterThan(0);
 
@@ -149,17 +143,22 @@ test.describe('Roster week overview', () => {
         const downloadPath = await download.path();
         expect(downloadPath).not.toBeNull();
         const bytes = readFileSync(downloadPath ?? '');
-        expect(Array.from(bytes.subarray(0, 8))).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-        expect(bytes.length).toBeGreaterThan(1000);
+            expect(Array.from(bytes.subarray(0, 8))).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+            expect(bytes.length).toBeGreaterThan(1000);
 
-        const colourDownloadPromise = page.waitForEvent('download');
-        await colourExportButton.click();
-        const colourDownload = await colourDownloadPromise;
-        expect(colourDownload.suggestedFilename()).toBe(colourConfig.imageExportFilename);
-        await expect(colourExportButton).toHaveText('Export colour PNG');
+            const colourDownloadPromise = page.waitForEvent('download');
+            await colourExportButton.click();
+            const colourDownload = await colourDownloadPromise;
+            expect(colourDownload.suggestedFilename()).toBe(colourConfig.imageExportFilename);
+            await expect(colourExportButton).toHaveText('Export colour PNG');
+        } finally {
+            await page.reload();
+            await expect(page.locator('#roster-week-shell')).toBeVisible();
+            if (await publishToggle.isChecked()) await publishToggleRoot.click();
+        }
     });
 
-    test('does not show roster PNG exports on draft weeks', async ({ page }) => {
+    test('does not show roster PNG exports on Draft windows', async ({ page }) => {
         await openRoster(page, { weekOffset: 2 });
 
         await openRosterSettings(page);

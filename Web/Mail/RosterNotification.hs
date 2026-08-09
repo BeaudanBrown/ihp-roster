@@ -66,7 +66,7 @@ renderMailHtml = Html.pre . Html.toHtml . renderMailText
 renderMailText :: RosterNotificationMail -> Text
 renderMailText mail =
     Text.intercalate "\n"
-        [ "Your live roster is ready."
+        [ "Your Published roster is ready."
         , ""
         , "Venue: " <> mail.notificationSnapshot.snapshotVenueName
         , "Roster group: " <> mail.notificationSnapshot.snapshotRosterGroupName
@@ -78,7 +78,7 @@ renderMailText mail =
         , "Open shifts"
         , renderShiftListText "There are no Open shifts in this roster." (openShifts mail)
         , ""
-        , "View the full live roster:"
+        , "View the full Published roster:"
         , mail.rosterUrl
         ]
         <> supportFooterText mail.supportEmail

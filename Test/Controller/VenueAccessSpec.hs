@@ -98,7 +98,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status403
 
-        it "denies toggling a roster week from another venue" $ withContext do
+        it "denies Publishing a roster window from another venue" $ withContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"

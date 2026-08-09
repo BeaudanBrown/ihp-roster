@@ -43,6 +43,7 @@ import Web.Admin.Mutations (adminVenueSettingsTouchedResources,
                             rosterEndTimesTouchedResources,
                             rosterTimePickerWindowTouchedResources,
                             rosterWeekStartsOnTouchedResources,
+                            setRosterWeekStartsOnMutation,
                             shiftTypePayResources)
 import Web.Controller.Admin ()
 import Web.FrontController ()
@@ -1166,6 +1167,74 @@ tests = aroundAll withDatabaseTestContext do
                 updatedShiftType.name `shouldBe` "Kitchen Updated"
                 updatedShiftType.overrideAwardLevelId `shouldBe` Just overrideLevel.id
                 updatedShiftType.isActive `shouldBe` False
+
+        it "normalizes partial Published windows to Draft under a proposed start day" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Publication normalization venue"
+                admin <- createUserRecord "publication-normalization-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                rosterGroup <- query @RosterGroup
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> fetchOne
+                secondGroup <- createVenueRosterGroupWithDefaults venue "Second publication group" 1 False
+                otherVenue <- createVenueWithConfig "Other publication venue"
+                otherGroup <- query @RosterGroup
+                    |> filterWhere (#venueId, unpackId otherVenue.id)
+                    |> fetchOne
+                forM_ (zip [0 :: Int ..] [fromGregorian 2025 1 6 .. fromGregorian 2025 1 13]) \(dayOffset, operationalDate) ->
+                    newRecord @RosterDay
+                        |> set #venueId (unpackId venue.id)
+                        |> set #rosterGroupId (unpackId rosterGroup.id)
+                        |> set #operationalDate operationalDate
+                        |> set #publicationState Published
+                        |> set #dayOffset (dayOffset `mod` 7)
+                        |> createRecord
+                _ <- newRecord @RosterDay
+                    |> set #venueId (unpackId venue.id)
+                    |> set #rosterGroupId (unpackId secondGroup.id)
+                    |> set #operationalDate (fromGregorian 2025 1 7)
+                    |> set #publicationState Published
+                    |> createRecord
+                otherPublishedDay <- newRecord @RosterDay
+                    |> set #venueId (unpackId otherVenue.id)
+                    |> set #rosterGroupId (unpackId otherGroup.id)
+                    |> set #operationalDate (fromGregorian 2025 1 6)
+                    |> set #publicationState Published
+                    |> createRecord
+
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withCurrentControllerContext do
+                        setRosterWeekStartsOnMutation venueConfig 2
+
+                normalizedDays <- query @RosterDay
+                    |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+                    |> orderByAsc #operationalDate
+                    |> fetch
+                map (\day -> (day.operationalDate, day.publicationState)) normalizedDays
+                    `shouldBe` [ (fromGregorian 2025 1 6, Draft)
+                               , (fromGregorian 2025 1 7, Published)
+                               , (fromGregorian 2025 1 8, Published)
+                               , (fromGregorian 2025 1 9, Published)
+                               , (fromGregorian 2025 1 10, Published)
+                               , (fromGregorian 2025 1 11, Published)
+                               , (fromGregorian 2025 1 12, Published)
+                               , (fromGregorian 2025 1 13, Published)
+                               ]
+                normalizedSecondGroup <- query @RosterDay
+                    |> filterWhere (#rosterGroupId, unpackId secondGroup.id)
+                    |> fetchOne
+                normalizedSecondGroup.publicationState `shouldBe` Draft
+                fetch otherPublishedDay.id >>= (\day -> day.publicationState `shouldBe` Published)
+
+                updatedConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withCurrentControllerContext do
+                        setRosterWeekStartsOnMutation updatedConfig 1
+                reversedDays <- query @RosterDay
+                    |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+                    |> fetch
+                reversedDays `shouldSatisfy` all ((== Draft) . (.publicationState))
 
         it "updates the roster week start before venue history exists" $ withContext do
             withCleanDb do
