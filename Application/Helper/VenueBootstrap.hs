@@ -46,6 +46,9 @@ createVenueWithBootstrapConfigInCurrentTransaction bootstrapConfig = do
             |> set #rosterWeekStartsOn bootstrapConfig.venueBootstrapRosterWeekStartsOn
             |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay bootstrapConfig.venueBootstrapRosterWeekStartsOn)
             |> set #rosterEndTimesEnabled bootstrapConfig.venueBootstrapRosterEndTimesEnabled
+            |> set #rosterLayoutMode DayColumns
+            |> set #defaultStaffPayAssignmentMode RosterOnly
+            |> set #defaultStaffAwardLevelId Nothing
             |> set #lateToEarlyMinStartGapMinutes 600
             |> set #staffTimesheetEditWindowDays 7
             |> createRecord

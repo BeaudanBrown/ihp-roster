@@ -437,6 +437,9 @@ CREATE TABLE venue_config (
     time_picker_final_selectable_minute_of_day INT DEFAULT 345 NOT NULL,
     minute_precision_shift_times_enabled BOOLEAN DEFAULT FALSE NOT NULL,
     roster_end_times_enabled BOOLEAN DEFAULT TRUE NOT NULL,
+    roster_layout_mode roster_layout_mode_enum DEFAULT 'day_columns' NOT NULL,
+    default_staff_pay_assignment_mode pay_assignment_mode_enum DEFAULT 'roster_only' NOT NULL,
+    default_staff_award_level_id UUID DEFAULT NULL,
     auto_timesheet_creation_enabled BOOLEAN DEFAULT FALSE NOT NULL,
     staff_timesheet_edit_window_days INT DEFAULT 7 NOT NULL,
     unavailable_staff_warning_threshold INT DEFAULT NULL,
@@ -451,7 +454,11 @@ CREATE TABLE venue_config (
     CHECK ((time_picker_final_selectable_minute_of_day >= 0) AND (time_picker_final_selectable_minute_of_day < 1440) AND (MOD(time_picker_final_selectable_minute_of_day, 15) = 0)),
     CHECK (time_picker_start_minute_of_day <> time_picker_final_selectable_minute_of_day),
     CHECK (staff_timesheet_edit_window_days >= 0),
-    CHECK (unavailable_staff_warning_threshold IS NULL OR ((unavailable_staff_warning_threshold >= 1) AND (unavailable_staff_warning_threshold <= 100)))
+    CHECK (unavailable_staff_warning_threshold IS NULL OR ((unavailable_staff_warning_threshold >= 1) AND (unavailable_staff_warning_threshold <= 100))),
+    CHECK (
+        (default_staff_pay_assignment_mode = 'award_rate' AND default_staff_award_level_id IS NOT NULL)
+        OR (default_staff_pay_assignment_mode = 'roster_only' AND default_staff_award_level_id IS NULL)
+    )
 );
 
 -- schema-nav: pay-reference
@@ -667,6 +674,9 @@ ALTER TABLE staff
 ALTER TABLE shift_types
     ADD CONSTRAINT shift_types_override_award_level_id_fk
     FOREIGN KEY (override_award_level_id) REFERENCES award_levels (id) ON DELETE SET NULL;
+ALTER TABLE venue_config
+    ADD CONSTRAINT venue_config_default_staff_award_level_id_fk
+    FOREIGN KEY (default_staff_award_level_id) REFERENCES award_levels (id) ON DELETE RESTRICT;
 CREATE TABLE award_level_base_rates (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     award_level_id UUID NOT NULL,

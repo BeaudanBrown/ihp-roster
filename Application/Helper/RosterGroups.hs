@@ -255,6 +255,9 @@ ensureVenueConfigRecord venue =
                     |> set #timezone "Australia/Melbourne"
                     |> set #rosterWeekStartsOn defaultRosterWeekStartsOn
                     |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay defaultRosterWeekStartsOn)
+                    |> set #rosterLayoutMode DayColumns
+                    |> set #defaultStaffPayAssignmentMode RosterOnly
+                    |> set #defaultStaffAwardLevelId Nothing
                     |> set #lateToEarlyMinStartGapMinutes 600
                     |> set #staffTimesheetEditWindowDays 7
                     |> createRecord

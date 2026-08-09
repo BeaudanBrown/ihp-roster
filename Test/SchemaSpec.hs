@@ -541,7 +541,7 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE INDEX idx_passkeys_user_id ON passkeys (user_id);"
 
-    it "stores typed per-user display preferences" do
+    it "stores typed personal display preferences and venue roster layout" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         let preferences = newRecord @UserPreference
         inputValue (get #rosterLayoutMode preferences) `shouldBe` "day_rows"
@@ -554,6 +554,9 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TYPE roster_layout_mode_enum AS ENUM ('day_rows', 'day_columns');"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE user_preferences"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_layout_mode roster_layout_mode_enum DEFAULT 'day_rows' NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_layout_mode roster_layout_mode_enum DEFAULT 'day_columns' NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "default_staff_pay_assignment_mode pay_assignment_mode_enum DEFAULT 'roster_only' NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "venue_config_default_staff_award_level_id_fk"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "show_shift_type_highlights BOOLEAN DEFAULT TRUE NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "show_wage_estimates BOOLEAN DEFAULT FALSE NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "show_timesheet_wage_estimates BOOLEAN DEFAULT FALSE NOT NULL"
