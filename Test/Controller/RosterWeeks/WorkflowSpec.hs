@@ -186,7 +186,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callAction (AddRosterRowAction rosterDay.id)
+                        callActionWithParams (AddRosterRowAction rosterDay.id) (rosterMutationParams 0)
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Closed days stay locked at two blank rows until reopened."
@@ -255,7 +255,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callAction (AddRosterRowAction rosterDay.id)
+                        callActionWithParams (AddRosterRowAction rosterDay.id) (rosterMutationParams 0)
 
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
@@ -378,7 +378,7 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (RemoveRosterRowAction rosterDayWithRows.id)
-                            [("confirmDeletePopulatedRow", "true")]
+                            ([("confirmDeletePopulatedRow", "true")] <> rosterMutationParams 0)
                 confirmResponse `responseStatusShouldBe` status200
 
                 preservedFirst <- fetch early2.id
@@ -526,7 +526,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetch
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callAction (DeleteRosterWeekSlotDefinitionAction lateLane.id)
+                        callActionWithParams (DeleteRosterWeekSlotDefinitionAction lateLane.id) (rosterMutationParams 0)
                 response `responseStatusShouldBe` status200
 
                 deletedLateLanes <- mapM (fetch . (.id)) lateLanes
@@ -637,7 +637,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
+                        callRosterSlotActionWithParams
                             (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
                             [ ("staffId", "open")
                             , ("startTime", "09:00")
@@ -668,7 +668,7 @@ tests = aroundAll withDatabaseTestContext do
                 let submit assignment =
                         withUserAndCurrentVenue manager venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
-                                callActionWithParams
+                                callRosterSlotActionWithParams
                                     (UpdateRosterSlotAction slot.id)
                                     [ ("staffId", assignment)
                                     , ("startTime", "09:00")
@@ -718,7 +718,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 fillResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (UpdateRosterSlotAction openSlot.id) [("staffId", idToParam staffMember.id)]
+                        callRosterSlotActionWithParams (UpdateRosterSlotAction openSlot.id) [("staffId", idToParam staffMember.id)]
 
                 fillResponse `responseStatusShouldBe` status200
                 filledSlot <- fetch openSlot.id
@@ -753,24 +753,24 @@ tests = aroundAll withDatabaseTestContext do
 
                 tampered <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
+                        callRosterSlotActionWithParams
                             (UpdateRosterSlotAction openSlot.id)
                             [("staffId", idToParam staffMember.id), ("startTime", "10:00")]
                 tampered `responseBodyShouldContain` "Only Staff can be changed while filling a Published Open shift."
 
                 invalidPay <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (UpdateRosterSlotAction openSlot.id) [("staffId", idToParam unresolvedStaff.id)]
+                        callRosterSlotActionWithParams (UpdateRosterSlotAction openSlot.id) [("staffId", idToParam unresolvedStaff.id)]
                 invalidPay `responseBodyShouldContain` "Resolve pay configuration for the selected staff member or shift type before saving this roster shift."
 
                 _ <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (UpdateRosterSlotAction openSlot.id) [("staffId", "open")]
+                    callRosterSlotActionWithParams (UpdateRosterSlotAction openSlot.id) [("staffId", "open")]
                 _ <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (DeleteRosterSlotAction openSlot.id) (rosterMutationParams 0)
                 _ <- withUserAndCurrentVenue worker venue.id do
-                    callActionWithParams (UpdateRosterSlotAction openSlot.id) [("staffId", idToParam staffMember.id)]
+                    callRosterSlotActionWithParams (UpdateRosterSlotAction openSlot.id) [("staffId", idToParam staffMember.id)]
                 _ <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (UpdateRosterSlotAction assignedSlot.id) [("staffId", "open")]
+                    callRosterSlotActionWithParams (UpdateRosterSlotAction assignedSlot.id) [("staffId", "open")]
 
                 unchangedOpen <- fetch openSlot.id
                 unchangedOpen.assignmentState `shouldBe` "open"
@@ -797,7 +797,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 createResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
+                        callRosterSlotActionWithParams
                             (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
                             [ ("staffId", idToParam staffMember.id)
                             , ("startTime", "09:00")
@@ -824,7 +824,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 updateResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
+                        callRosterSlotActionWithParams
                             (UpdateRosterSlotAction completeSlot.id)
                             [ ("staffId", idToParam staffMember.id)
                             , ("startTime", "09:00")
@@ -855,7 +855,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
+                        callRosterSlotActionWithParams
                             (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
                             [ ("staffId", idToParam unresolvedStaff.id)
                             , ("startTime", "09:00")
@@ -887,7 +887,7 @@ tests = aroundAll withDatabaseTestContext do
                 let submit rowIndex staffId shiftTypeId =
                         withUserAndCurrentVenue manager venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
-                                callActionWithParams
+                                callRosterSlotActionWithParams
                                     (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) rowIndex)
                                     [ ("staffId", idToParam staffId)
                                     , ("startTime", "09:00")
@@ -924,7 +924,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
+                        callRosterSlotActionWithParams
                             (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
                             [ ("staffId", idToParam partTimeStaff.id)
                             , ("startTime", "17:30")
@@ -937,7 +937,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 shiftRosterOnlyResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
+                        callRosterSlotActionWithParams
                             (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 1)
                             [ ("staffId", idToParam rateProducingStaff.id)
                             , ("startTime", "17:30")
@@ -963,7 +963,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
+                        callRosterSlotActionWithParams
                             (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
                             [ ("staffId", idToParam partTimeStaff.id)
                             , ("startTime", "09:00")
@@ -991,7 +991,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
+                        callRosterSlotActionWithParams
                             (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
                             [ ("anchorDate", "2025-01-06")
                             , ("rosterCalendarRevision", cs (tshow initialConfig.rosterCalendarRevision))
@@ -1002,6 +1002,7 @@ tests = aroundAll withDatabaseTestContext do
                             ]
 
                 response `responseStatusShouldBe` status200
+                lookup "HX-Refresh" (responseHeaders response) `shouldBe` Just "true"
                 response `responseBodyShouldContain` "The roster calendar changed. Review the refreshed window and try again."
                 query @RosterSlot |> fetchCount >>= (`shouldBe` 0)
 
@@ -1024,7 +1025,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
+                        callRosterSlotActionWithParams
                             (UpdateRosterSlotAction slot.id)
                             [ ("staffId", idToParam partTimeStaff.id)
                             , ("startTime", "09:00")
@@ -1251,7 +1252,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 missingOccurrenceResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0) baseParams
+                        callRosterSlotActionWithParams (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0) baseParams
 
                 missingOccurrenceResponse `responseStatusShouldBe` status200
                 missingOccurrenceResponse `responseBodyShouldContain` "Choose whether this is the first or second occurrence."
@@ -1261,7 +1262,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 createdResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
+                        callRosterSlotActionWithParams
                             (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
                             (baseParams <> [("startOccurrence", "second")])
 
@@ -1293,7 +1294,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 missingOccurrenceResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0) baseParams
+                        callRosterSlotActionWithParams (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0) baseParams
 
                 missingOccurrenceResponse `responseStatusShouldBe` status200
                 missingOccurrenceResponse `responseBodyShouldContain` "data-time-occurrence-chooser=\"startOccurrence\""
@@ -1302,7 +1303,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 createdResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
+                        callRosterSlotActionWithParams
                             (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
                             (baseParams <> [("startOccurrence", "first"), ("endOccurrence", "second")])
 
@@ -1328,7 +1329,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
+                        callRosterSlotActionWithParams
                             (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
                             [ ("staffId", idToParam staffMember.id)
                             , ("startTime", "02:30")
@@ -2112,7 +2113,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- mapM (updateRecord . set #publicationState Draft) publishedDays
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
+                        callRosterSlotActionWithParams
                             (UpdateRosterSlotAction completeSlot.id)
                             [ ("staffId", idToParam bravo.id)
                             , ("startTime", "23:00")
@@ -2145,7 +2146,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
+                        callRosterSlotActionWithParams
                             (UpdateRosterSlotAction slot.id)
                             [ ("staffId", idToParam staffMember.id)
                             , ("startTime", "22:00")
@@ -2177,7 +2178,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
+                        callRosterSlotActionWithParams
                             (UpdateRosterSlotAction slot.id)
                             [ ("staffId", idToParam staffMember.id)
                             , ("startTime", "22:00")
@@ -2881,6 +2882,9 @@ tests = aroundAll withDatabaseTestContext do
                     |> filterWhere (#weekOffset, 8)
                     |> fetchOneOrNothing
                 targetWeek `shouldBe` Nothing
+
+callRosterSlotActionWithParams action params =
+    callActionWithParams action (params <> rosterMutationParams 0)
 
 timeOfDay :: Int -> Int -> TimeOfDay
 timeOfDay hour minute = TimeOfDay hour minute 0

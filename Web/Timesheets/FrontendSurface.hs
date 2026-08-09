@@ -23,6 +23,7 @@ import Application.Helper.FrontendContract.Surface.Runtime
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as SurfaceLive
 import Application.Helper.FrontendContract.Surface.Values
+import Application.Helper.Url (appendQueryParams)
 import Data.Time.Calendar (Day, addDays)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
@@ -87,10 +88,17 @@ timesheetStaffCardsLinkedHighlight =
 
 timesheetsCandidateMountedFragments :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> [FrontendSurfaceMountedFragment]
 timesheetsCandidateMountedFragments scope mountState =
-    [ timesheetToolbarMountedFragment mountState scope.timesheetWindowStart
-    , timesheetDayColumnsMountedFragment mountState scope.timesheetWindowStart
-    , timesheetSidePanelMountedFragment mountState scope.timesheetWindowStart
-    ] <> map (\dayOffset -> timesheetDaySectionMountedFragment mountState scope.timesheetWindowStart (addDays dayOffset scope.timesheetWindowStart)) [0 .. 6]
+    map (withTimesheetCalendarRevision scope.timesheetCalendarRevision) $
+        [ timesheetToolbarMountedFragment mountState scope.timesheetWindowStart
+        , timesheetDayColumnsMountedFragment mountState scope.timesheetWindowStart
+        , timesheetSidePanelMountedFragment mountState scope.timesheetWindowStart
+        ] <> map (\dayOffset -> timesheetDaySectionMountedFragment mountState scope.timesheetWindowStart (addDays dayOffset scope.timesheetWindowStart)) [0 .. 6]
+
+withTimesheetCalendarRevision :: Int -> FrontendSurfaceMountedFragment -> FrontendSurfaceMountedFragment
+withTimesheetCalendarRevision calendarRevision fragment =
+    fragment
+        { mountedFragmentUrl = appendQueryParams fragment.mountedFragmentUrl [("rosterCalendarRevision", tshow calendarRevision)]
+        }
 
 timesheetWeekScopeFields :: TimesheetWeekScopeValue -> SurfaceFields (SurfaceScopeFieldSpecs Surface.TimesheetsSurface Surface.TimesheetWeek)
 timesheetWeekScopeFields scope =

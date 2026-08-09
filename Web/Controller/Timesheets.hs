@@ -82,6 +82,14 @@ requireCurrentTimesheetMutationCalendar :: (?context :: ControllerContext, ?mode
 requireCurrentTimesheetMutationCalendar =
     requireCurrentTimesheetCalendarValues (param @Day "anchorDate") (param @Int "rosterCalendarRevision")
 
+markStaleTimesheetCalendarResponseForRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+markStaleTimesheetCalendarResponseForRefresh =
+    when isHtmxRequest $
+        forM_ (paramOrNothing @Int "rosterCalendarRevision") \expectedRevision -> do
+            venueConfig <- fetchVenueConfig
+            when (expectedRevision /= venueConfig.rosterCalendarRevision) $
+                setHeader ("HX-Refresh", "true")
+
 requireCurrentTimesheetCalendarValues :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Day -> Int -> IO Int
 requireCurrentTimesheetCalendarValues anchorDate expectedRevision = do
     venueConfig <- fetchVenueConfig
@@ -110,6 +118,7 @@ instance Controller TimesheetsController where
         ensureIsUser
         ensureCurrentVenueOrSupportRedirect
         ensureProfileCompleted
+        markStaleTimesheetCalendarResponseForRefresh
 
     action currentAction@TimesheetsAction = runBepis currentAction BepisPageAction do
         venueConfig <- fetchVenueConfig

@@ -98,7 +98,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 shiftType <- ensureVenueDefaultShiftType venue
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (UpdateRosterSlotAction slot.id) (fullShiftParams staffB shiftType)
+                    callRosterSlotActionWithParams (UpdateRosterSlotAction slot.id) (fullShiftParams staffB shiftType)
 
                 response `responseStatusShouldBe` status200
 
@@ -268,7 +268,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 shiftType <- ensureVenueDefaultShiftType venue
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (UpdateRosterSlotAction currentSlot.id) (fullShiftParams staffB shiftType)
+                    callRosterSlotActionWithParams (UpdateRosterSlotAction currentSlot.id) (fullShiftParams staffB shiftType)
 
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
@@ -819,7 +819,7 @@ tests = aroundAll withDatabaseTestContext do
                 shiftType <- ensureVenueDefaultShiftType venue
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (UpdateRosterSlotAction slot.id) (fullShiftParams alpha shiftType)
+                    callRosterSlotActionWithParams (UpdateRosterSlotAction slot.id) (fullShiftParams alpha shiftType)
 
                 response `responseStatusShouldBe` status200
                 updatedSlot <- fetch slot.id
@@ -865,7 +865,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (UpdateRosterSlotAction slot.id) (fullShiftParams bravo shiftType)
+                        callRosterSlotActionWithParams (UpdateRosterSlotAction slot.id) (fullShiftParams bravo shiftType)
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Published roster windows are read-only. Return it to Draft to make changes."
@@ -889,7 +889,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
+                        callRosterSlotActionWithParams
                             (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 2)
                             (fullShiftParams staffMember shiftType)
 
@@ -923,7 +923,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
+                        callRosterSlotActionWithParams
                             (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 5)
                             (fullShiftParams staffMember shiftType)
 
@@ -973,7 +973,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (UpdateRosterSlotAction slot.id) (fullShiftParams bravo shiftType)
+                        callRosterSlotActionWithParams (UpdateRosterSlotAction slot.id) (fullShiftParams bravo shiftType)
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "That staff member is not applicable to this roster group."
@@ -1002,7 +1002,7 @@ tests = aroundAll withDatabaseTestContext do
                 shiftType <- ensureVenueDefaultShiftType venue
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (UpdateRosterSlotAction slot.id) (fullShiftParams bravo shiftType)
+                    callRosterSlotActionWithParams (UpdateRosterSlotAction slot.id) (fullShiftParams bravo shiftType)
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "That staff member is not applicable to this roster group."
@@ -1049,7 +1049,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- updateRecord (firstSlot |> setTestStartTime (Just (timeOfDay 9 0)))
 
                 _ <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (UpdateRosterSlotAction secondSlot.id) (fullShiftParamsAt staffMember shiftType "13:00")
+                    callRosterSlotActionWithParams (UpdateRosterSlotAction secondSlot.id) (fullShiftParamsAt staffMember shiftType "13:00")
 
                 firstRowResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekRowFragmentAction (testAnchorForOffset 0) rosterDay.id 0)
@@ -1589,7 +1589,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 correctionResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
+                        callRosterSlotActionWithParams
                             (UpdateRosterSlotAction sourceSlot.id)
                             [ ("staffId", idToParam correctedStaff.id)
                             , ("startTime", "09:00")
@@ -1915,6 +1915,9 @@ fullShiftParamsAt staff shiftType startTime =
     , ("endTime", "17:00")
     , ("shiftTypeId", idToParam shiftType.id)
     ]
+
+callRosterSlotActionWithParams action params =
+    callActionWithParams action (params <> rosterMutationParams 0)
 
 timeOfDay :: Int -> Int -> TimeOfDay
 timeOfDay hour minute = TimeOfDay hour minute 0

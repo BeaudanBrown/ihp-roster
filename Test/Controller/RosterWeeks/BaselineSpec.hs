@@ -76,7 +76,7 @@ tests = aroundAll withDatabaseTestContext do
 
                     mutationResponse <- withUserAndCurrentVenue brManager brVenue.id do
                         withRequestHeaders [("HX-Request", "true")] do
-                            callActionWithParams
+                            callRosterSlotActionWithParams
                                 (UpdateRosterSlotAction brMutableSlot.id)
                                 [ ("staffId", idToParam brAlternateStaff.id)
                                 , ("startTime", "08:00")
@@ -149,6 +149,9 @@ shouldNotContainBS haystack needle =
     haystack `shouldNotSatisfy` ByteString.isInfixOf needle
 
 dumpBaselineTimings :: [(String, Response)] -> IO ()
+callRosterSlotActionWithParams action params =
+    callActionWithParams action (params <> rosterMutationParams 0)
+
 dumpBaselineTimings responses = do
     shouldPrint <- Environment.lookupEnv "IHP_ROSTER_BASELINE_PRINT"
     when (shouldPrint == Just "1") do

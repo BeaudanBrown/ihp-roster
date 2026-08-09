@@ -229,9 +229,10 @@ rosterSurfaceFragmentKeys = map (.mountedFragmentKey)
 
 rosterCandidateMountedFragments :: RosterWeekScopeValue -> RosterMountedFragmentPlan -> [FrontendSurfaceMountedFragment]
 rosterCandidateMountedFragments scope plan =
-    case scope.rosterWeekTimelineDayOffset of
-        Just _  -> rosterTimelineModeMountedFragments scope plan
-        Nothing -> rosterWeekGridMountedFragments scope plan
+    map (withRosterCalendarRevision scope.rosterWeekCalendarRevision) $
+        case scope.rosterWeekTimelineDayOffset of
+            Just _  -> rosterTimelineModeMountedFragments scope plan
+            Nothing -> rosterWeekGridMountedFragments scope plan
 
 rosterTimelineModeMountedFragments :: RosterWeekScopeValue -> RosterMountedFragmentPlan -> [FrontendSurfaceMountedFragment]
 rosterTimelineModeMountedFragments scope plan =
@@ -257,7 +258,14 @@ rosterWeekGridMountedFragments scope plan =
 
 rosterDayTimelineCandidateMountedFragments :: RosterDayTimelineScopeValue -> [FrontendSurfaceMountedFragment]
 rosterDayTimelineCandidateMountedFragments scope =
-    [rosterDayTimelineContentMountedFragment scope]
+    map (withRosterCalendarRevision scope.rosterDayTimelineCalendarRevision)
+        [rosterDayTimelineContentMountedFragment scope]
+
+withRosterCalendarRevision :: Int -> FrontendSurfaceMountedFragment -> FrontendSurfaceMountedFragment
+withRosterCalendarRevision calendarRevision fragment =
+    fragment
+        { mountedFragmentUrl = appendQueryParams fragment.mountedFragmentUrl [("rosterCalendarRevision", tshow calendarRevision)]
+        }
 
 rosterMountedFragmentForProjection :: RosterWeekScopeValue -> RosterProjectionFragment -> FrontendSurfaceMountedFragment
 rosterMountedFragmentForProjection scope = \case

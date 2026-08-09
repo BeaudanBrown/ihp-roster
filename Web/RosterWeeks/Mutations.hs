@@ -189,10 +189,13 @@ draftRosterWindowErrorUnderLock rosterGroupId weekOffset = do
                 else Nothing
 
 requestRosterCalendarRevisionError :: (?request :: Request) => VenueConfig -> Maybe Text
-requestRosterCalendarRevisionError venueConfig = do
-    expectedRevision <- paramOrNothing @Int "rosterCalendarRevision"
-    guard (expectedRevision /= venueConfig.rosterCalendarRevision)
-    pure "The roster calendar changed. Review the refreshed window and try again."
+requestRosterCalendarRevisionError venueConfig =
+    case paramOrNothing @Int "rosterCalendarRevision" of
+        Nothing -> Just "The roster calendar context is missing. Review the refreshed window and try again."
+        Just expectedRevision
+            | expectedRevision /= venueConfig.rosterCalendarRevision ->
+                Just "The roster calendar changed. Review the refreshed window and try again."
+        _ -> Nothing
 
 publishedRosterReadOnlyMessage :: Text
 publishedRosterReadOnlyMessage = "Published roster windows are read-only. Return it to Draft to make changes."

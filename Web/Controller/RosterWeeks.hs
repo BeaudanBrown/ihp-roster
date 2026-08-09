@@ -217,6 +217,7 @@ instance Controller RosterWeeksController where
         ensureIsUser
         ensureCurrentVenueOrSupportRedirect
         ensureProfileCompleted
+        markStaleRosterCalendarResponseForRefresh
 
     action currentAction@RosterWeeksAction = runBepis currentAction BepisPageAction do
         venueConfig <- fetchVenueConfig
@@ -1443,6 +1444,14 @@ rosterWindowStartForOffset :: (?context :: ControllerContext, ?modelContext :: M
 rosterWindowStartForOffset weekOffset = do
     venueConfig <- fetchVenueConfig
     pure (venueWeekStartDate venueConfig weekOffset)
+
+markStaleRosterCalendarResponseForRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+markStaleRosterCalendarResponseForRefresh =
+    when isHtmxRequest $
+        forM_ (paramOrNothing @Int "rosterCalendarRevision") \expectedRevision -> do
+            venueConfig <- fetchVenueConfig
+            when (expectedRevision /= venueConfig.rosterCalendarRevision) $
+                setHeader ("HX-Refresh", "true")
 
 rosterWindowUrlForOffset :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Id RosterGroup -> IO Text
 rosterWindowUrlForOffset weekOffset rosterGroupId =
