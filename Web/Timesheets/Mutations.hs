@@ -16,6 +16,7 @@ import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
 import Application.Helper.Staff (isLinkedActiveStaff)
 import Application.Helper.SurfaceResource
 import Application.Helper.TimesheetPayLedger (persistApprovedTimesheetPayCalculation)
+import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.PayAssignment (ShiftPayAssignment (..),
                                   StaffPayAssignment (..),
                                   shiftAssignmentAllowsTimesheets,
@@ -27,7 +28,7 @@ import Control.Exception (IOException, try)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
-import Data.Time.Calendar (diffDays)
+import Data.Time.Calendar (addDays)
 import Data.Time.Clock (getCurrentTime)
 import Data.Tuple.Only (Only (..))
 import IHP.ModelSupport (sqlQuery)
@@ -316,13 +317,8 @@ timesheetEntryTouchedResources venueConfig =
     where
         entryResources entry =
             let workedOn = timesheetEntryWorkedOn entry
-                weekOffset = venueWeekOffsetForDay venueConfig workedOn
-                dayOffset = timesheetEntryDayOffset venueConfig entry
-             in [ timesheetWeekResource entry.venueId weekOffset
-                , timesheetDayResource entry.venueId weekOffset dayOffset
+                windowStart = startOfWeekFor venueConfig.rosterWeekStartsOn workedOn
+                windowEnd = addDays 7 windowStart
+             in [ timesheetWeekResource entry.venueId windowStart windowEnd
+                , timesheetDayResource entry.venueId workedOn
                 ]
-
-timesheetEntryDayOffset :: VenueConfig -> TimesheetEntry -> Int
-timesheetEntryDayOffset venueConfig entry =
-    let workedOn = timesheetEntryWorkedOn entry
-     in fromIntegral (diffDays workedOn (venueWeekStartDate venueConfig (venueWeekOffsetForDay venueConfig workedOn)))

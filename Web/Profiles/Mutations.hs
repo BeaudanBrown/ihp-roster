@@ -8,16 +8,18 @@ module Web.Profiles.Mutations
 
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (leaveAvailabilityWarningsResource)
 import Application.Helper.FrontendContract.Surface.Profile.Resource
-import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
+import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWindowScopes)
 import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         fetchStaffRosterGroupIds,
                                         syncStaffRosterGroupAssignments)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection,
                                                  replaceStaffShiftPreferences)
 import Application.Helper.SurfaceResource
+import Application.Helper.WeekBoundaries (venueWeekOffsetForDay)
 import Application.Staff.Mutations (withStaffOperationalLock)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import Data.Time.Calendar (Day)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 import Web.SurfaceInvalidation (invalidateTouchedResources)
@@ -90,21 +92,22 @@ upsertCurrentUserStaff staff = do
 
 fetchProfileRosterInvalidationTargets :: (?modelContext :: ModelContext) => Id Venue -> Staff -> IO [(Id RosterGroup, Int, [(UUID.UUID, Int)])]
 fetchProfileRosterInvalidationTargets venueId staff = do
-    activeScopes <- activeRosterWeekScopes
+    activeScopes <- activeRosterWindowScopes
     fetchProfileRosterInvalidationTargetsForScopes venueId staff activeScopes
 
 fetchProfileRosterInvalidationTargetsForScopes ::
     (?modelContext :: ModelContext) =>
     Id Venue ->
     Staff ->
-    [(UUID.UUID, UUID.UUID, Int)] ->
+    [(UUID.UUID, UUID.UUID, Day, Day, Int)] ->
     IO [(Id RosterGroup, Int, [(UUID.UUID, Int)])]
 fetchProfileRosterInvalidationTargetsForScopes venueId staff activeScopes = do
     rosterGroupIds <- fetchStaffRosterGroupIds staff
+    venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venueId) |> fetchOne
     let activeWeekKeys =
             Set.fromList
-                [ (rosterGroupUuid, weekOffset)
-                | (venueUuid, rosterGroupUuid, weekOffset) <- activeScopes
+                [ (rosterGroupUuid, venueWeekOffsetForDay venueConfig windowStart)
+                | (venueUuid, rosterGroupUuid, windowStart, _windowEnd, _calendarRevision) <- activeScopes
                 , venueUuid == unpackId venueId
                 , rosterGroupUuid `elem` map unpackId rosterGroupIds
                 ]

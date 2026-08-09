@@ -229,7 +229,7 @@ tests = aroundAll withDatabaseTestContext do
                         ]
                     loginResponse `responseStatusShouldBe` status302
 
-                    rosterResponse <- callAction (ShowRosterWeekAction 0)
+                    rosterResponse <- callAction (ShowRosterWindowAction (testAnchorForOffset 0))
                     rosterResponse `responseStatusShouldBe` status200
                     rosterResponse `responseBodyShouldContain` cs canonicalPasskeyDom.passkeySetupPromptAttribute
                     rosterResponse `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyFlowConfigAttribute
@@ -255,7 +255,7 @@ tests = aroundAll withDatabaseTestContext do
                             ]
                         loginResponse `responseStatusShouldBe` status302
 
-                        rosterResponse <- callAction (ShowRosterWeekAction 0)
+                        rosterResponse <- callAction (ShowRosterWindowAction (testAnchorForOffset 0))
                         rosterResponse `responseStatusShouldBe` status200
                         rosterResponse `responseBodyShouldContain` "Set up faster sign-in"
                         rosterResponse `responseBodyShouldContain` "You can skip this for now."
@@ -276,7 +276,7 @@ tests = aroundAll withDatabaseTestContext do
                         ]
                     loginResponse `responseStatusShouldBe` status302
 
-                    rosterResponse <- callAction (ShowRosterWeekAction 0)
+                    rosterResponse <- callAction (ShowRosterWindowAction (testAnchorForOffset 0))
                     rosterResponse `responseStatusShouldBe` status200
                     rosterResponse `responseBodyShouldContain` cs canonicalPasskeyDom.passkeySetupPromptAttribute
                     rosterResponse `responseBodyShouldContain` cs canonicalPasskeyDom.passkeyFlowConfigAttribute

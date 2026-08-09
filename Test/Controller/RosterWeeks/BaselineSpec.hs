@@ -31,17 +31,17 @@ tests = aroundAll withDatabaseTestContext do
                     BaselineRoster { brVenue, brManager, brRosterDay } <- createBaselineRoster
 
                     coldPage <- withUserAndCurrentVenue brManager brVenue.id do
-                        callAction (ShowRosterWeekAction 0)
+                        callAction (ShowRosterWindowAction (testAnchorForOffset 0))
                     warmPage <- withUserAndCurrentVenue brManager brVenue.id do
-                        callAction (ShowRosterWeekAction 0)
+                        callAction (ShowRosterWindowAction (testAnchorForOffset 0))
                     contentFragment <- withUserAndCurrentVenue brManager brVenue.id do
-                        callAction (ShowRosterWeekContentFragmentAction 0)
+                        callAction (ShowRosterWeekContentFragmentAction (testAnchorForOffset 0))
                     rowFragment <- withUserAndCurrentVenue brManager brVenue.id do
-                        callAction (ShowRosterWeekRowFragmentAction 0 brRosterDay.id 0)
+                        callAction (ShowRosterWeekRowFragmentAction (testAnchorForOffset 0) brRosterDay.id 0)
                     dayFragment <- withUserAndCurrentVenue brManager brVenue.id do
-                        callAction (ShowRosterWeekDaySectionFragmentAction 0 brRosterDay.id)
+                        callAction (ShowRosterWeekDaySectionFragmentAction (testAnchorForOffset 0) brRosterDay.id)
                     staffPanel <- withUserAndCurrentVenue brManager brVenue.id do
-                        callAction (ShowRosterWeekStaffPanelFragmentAction 0)
+                        callAction (ShowRosterWeekStaffPanelFragmentAction (testAnchorForOffset 0))
 
                     coldPage `responseStatusShouldBe` status200
                     warmPage `responseStatusShouldBe` status200
@@ -83,7 +83,7 @@ tests = aroundAll withDatabaseTestContext do
                                 , ("shiftTypeId", idToParam shiftType.id)
                                 ]
                     passiveRefetch <- withUserAndCurrentVenue brManager brVenue.id do
-                        callAction (ShowRosterWeekRowFragmentAction 0 brRosterDay.id 0)
+                        callAction (ShowRosterWeekRowFragmentAction (testAnchorForOffset 0) brRosterDay.id 0)
 
                     mutationResponse `responseStatusShouldBe` status200
                     passiveRefetch `responseStatusShouldBe` status200

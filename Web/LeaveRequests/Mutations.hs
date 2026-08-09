@@ -9,7 +9,7 @@ module Web.LeaveRequests.Mutations
 
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource
 import Application.Helper.FrontendContract.Surface.Profile.Resource (staffLeaveRequestsResource)
-import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
+import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWindowScopes)
 import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsContentResource,
                                                                     rosterWeekResource)
 import Application.Helper.SurfaceResource
@@ -110,7 +110,7 @@ reviewLeaveRequest decision leaveRequest = do
 
     forM maybeReviewResult \(updatedLeaveRequest, previousStatus, wasApproved) -> do
         venueConfig <- fetchVenueConfig
-        activeRosterScopes <- activeRosterWeekScopes
+        activeRosterScopes <- activeRosterWindowScopes
         today <- utctDay <$> getCurrentTime
         let touchedResources = leaveReviewTouchedResources today decision previousStatus updatedLeaveRequest <> leaveReviewRosterWeekResources activeRosterScopes venueConfig decision wasApproved updatedLeaveRequest
         invalidateTouchedResources "leave.review" $
@@ -143,19 +143,19 @@ leaveRequestStatusSectionResource venueId LeaveRequestStatusEnumApproved = appro
 leaveRequestStatusSectionResource venueId LeaveRequestStatusEnumDenied = deniedLeaveRequestsResource venueId
 leaveRequestStatusSectionResource venueId LeaveRequestStatusEnumPending = pendingLeaveRequestsResource venueId
 
-leaveReviewRosterWeekResources :: [(UUID, UUID, Int)] -> VenueConfig -> LeaveReviewDecision -> Bool -> LeaveRequest -> [SurfaceResourceValue]
-leaveReviewRosterWeekResources activeScopes venueConfig decision wasApproved leaveRequest
+leaveReviewRosterWeekResources :: [(UUID, UUID, Day, Day, Int)] -> VenueConfig -> LeaveReviewDecision -> Bool -> LeaveRequest -> [SurfaceResourceValue]
+leaveReviewRosterWeekResources activeScopes _venueConfig decision wasApproved leaveRequest
     | not (reviewDecisionChangesRoster decision wasApproved) = []
     | otherwise =
         Set.toList $ Set.fromList
             [ resource
-            | weekOffset <- affectedVenueWeekOffsetsForDateRange venueConfig leaveRequest.startDate leaveRequest.endDate
-            , (activeVenueId, rosterGroupId, activeWeekOffset) <- activeScopes
+            | (activeVenueId, rosterGroupId, windowStart, windowEnd, _calendarRevision) <- activeScopes
             , activeVenueId == leaveRequest.venueId
-            , activeWeekOffset == weekOffset
+            , windowStart < leaveRequest.endDate
+            , windowEnd > leaveRequest.startDate
             , resource <-
-                [ rosterWeekResource rosterGroupId weekOffset
-                , rosterSlotsContentResource rosterGroupId weekOffset
+                [ rosterWeekResource rosterGroupId windowStart windowEnd
+                , rosterSlotsContentResource rosterGroupId windowStart windowEnd
                 ]
             ]
 

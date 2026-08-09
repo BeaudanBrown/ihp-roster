@@ -12,6 +12,6 @@ import IHP.Prelude
 incompleteAction =
     frontendSurfaceAction @Timesheets.TimesheetsSurface @Timesheets.NavigateTimesheetWeek
         ( surfaceActionFields
-            (surfaceField @Timesheets.WeekOffset 0)
+            (surfaceField @Timesheets.AnchorDate (error "fixture date"))
             noSurfaceFields
         )

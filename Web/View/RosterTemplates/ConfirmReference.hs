@@ -35,7 +35,8 @@ instance View ConfirmReferenceView where
                             <div class="alert alert-info">No roster data will be changed. The reference is copied once into your private template draft.</div>
                             <div class="d-flex flex-wrap justify-content-end gap-2">
                                 <a class="btn btn-outline-secondary" href={backPath}>Back</a>
-                                <form method="POST" action={CreateRosterTemplateFromReferenceAction rosterGroup.id weekOffset}>
+                                <form method="POST" action={CreateRosterTemplateFromReferenceAction rosterGroup.id}>
+                                    <input type="hidden" name="anchorDate" value={tshow referenceWeek.referenceWeekStart} />
                                     <input type="hidden" name="name" value={templateName} />
                                     <input type="hidden" name="scale" value={rosterTemplateScaleValue templateScale} />
                                     <input type="hidden" name="confirmationToken" value={confirmationToken} />
@@ -55,8 +56,8 @@ instance View ConfirmReferenceView where
                 let date = addDays (toInteger dayOffset) referenceWeek.referenceWeekStart
                  in cs (formatTime defaultTimeLocale "%A %d %b %Y" date)
         backPath = appendQueryParams
-            (pathTo ShowRosterTemplateReferenceAction { rosterGroupId = rosterGroup.id, weekOffset })
-            [("name", templateName), ("scale", rosterTemplateScaleValue templateScale)]
+            (pathTo ShowRosterTemplateReferenceAction { rosterGroupId = rosterGroup.id })
+            [("anchorDate", tshow referenceWeek.referenceWeekStart), ("name", templateName), ("scale", rosterTemplateScaleValue templateScale)]
 
 renderDayOffsetInput :: Int -> Html
 renderDayOffsetInput dayOffset = [hsx|<input type="hidden" name="dayOffset" value={tshow dayOffset} />|]

@@ -45,7 +45,7 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
-import Data.Time (fromGregorian)
+import Data.Time (addDays, fromGregorian)
 import qualified Data.UUID as UUID
 import qualified Data.Vault.Lazy as Vault
 import Generated.Types (RosterDay, RosterGroup, RosterLayoutModeEnum (..),
@@ -55,6 +55,7 @@ import IHP.Prelude
 import qualified Network.Wai as Wai
 import qualified System.Directory as Directory
 import Test.Hspec
+import Test.Support (testAnchorForOffset)
 import qualified Test.Support.FrontendSurfaceAdapterFixture as Fixture
 import qualified Test.Support.FrontendSurfaceAdapterFixture.Action as FixtureAction
 import qualified Test.Support.FrontendSurfaceAdapterFixture.Intent as FixtureIntent
@@ -475,7 +476,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                  in RosterAction.navigateRosterWeekActionParamsPresent
         absent `shouldBe` False
         let present =
-                let ?request = requestWithParams [("weekOffset", Just "2")]
+                let ?request = requestWithParams [("anchorDate", Just "2025-01-20")]
                  in RosterAction.navigateRosterWeekActionParamsPresent
         present `shouldBe` True
 
@@ -510,14 +511,14 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 RosterWeekScopeValue
                     { rosterWeekVenueId = venueId
                     , rosterWeekGroupId = rosterGroupId
-                    , rosterWeekWeekOffset = 3
+                    , rosterWeekWeekOffset = 3, rosterWeekWindowStart = testAnchorForOffset (3), rosterWeekWindowEnd = addDays 7 (testAnchorForOffset (3)), rosterWeekCalendarRevision = 1
                     , rosterWeekTimelineDayOffset = Nothing
                     }
         let timelineScope =
                 RosterDayTimelineScopeValue
                     { rosterDayTimelineVenueId = venueId
                     , rosterDayTimelineGroupId = rosterGroupId
-                    , rosterDayTimelineWeekOffset = 3
+                    , rosterDayTimelineWeekOffset = 3, rosterDayTimelineWindowStart = testAnchorForOffset (3), rosterDayTimelineWindowEnd = addDays 7 (testAnchorForOffset (3)), rosterDayTimelineCalendarRevision = 1
                     , rosterDayTimelineDayOffset = 2
                     , rosterDayTimelineDayId = rosterDayId
                     }
@@ -535,12 +536,12 @@ tests = describe "FrontendSurfaceRequestAdapter" do
 
         let renderedForms = map renderIntentFormText (rosterForms <> timelineForms)
         let expectedFormMetadata =
-                [ ("set-roster-layout-mode", "/UpdateRosterLayoutPreference?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 1)
-                , ("move-roster-shift-to-slot", "/MoveRosterShiftToSlot?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 13)
-                , ("duplicate-roster-shift-to-day", "/DuplicateRosterShiftToDay?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 13)
-                , ("drop-roster-staff", "/DropRosterStaff?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 11)
-                , ("preview-roster-template-application", "/PreviewRosterTemplateDrop?rosterGroupId=00000000-0000-0000-0000-000000000222&amp;weekOffset=3", 11)
-                , ("move-roster-timeline-shift", "/MoveRosterTimelineShift?weekOffset=3&amp;rosterGroupId=00000000-0000-0000-0000-000000000222&amp;rosterView=timeline&amp;dayOffset=2", 12)
+                [ ("set-roster-layout-mode", "/UpdateRosterLayoutPreference?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 1)
+                , ("move-roster-shift-to-slot", "/MoveRosterShiftToSlot?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 14)
+                , ("duplicate-roster-shift-to-day", "/DuplicateRosterShiftToDay?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 14)
+                , ("drop-roster-staff", "/DropRosterStaff?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 12)
+                , ("preview-roster-template-application", "/PreviewRosterTemplateDrop?rosterGroupId=00000000-0000-0000-0000-000000000222&amp;anchorDate=2025-01-27", 11)
+                , ("move-roster-timeline-shift", "/MoveRosterTimelineShift?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222&amp;rosterView=timeline&amp;dayDate=2025-01-29", 13)
                 ]
         forM_ (zip expectedFormMetadata renderedForms) \(metadata, html) ->
             assertRosterIntentFormMetadata metadata html
@@ -562,7 +563,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
 
     it "parses every production Roster Intent shape through the canonical facade" do
         let parsedCopyOccurrences =
-                let ?request = requestWithParams [("copyStartOccurrence", Just "second")]
+                let ?request = requestWithParams [("rosterCalendarRevision", Just "1"), ("copyStartOccurrence", Just "second")]
                  in RosterAction.parseCopyRosterWeekActionParams
         case parsedCopyOccurrences of
             Left errors -> expectationFailure (cs (show errors))
@@ -604,10 +605,10 @@ tests = describe "FrontendSurfaceRequestAdapter" do
         let missingDragIntentChecks =
                 let ?request = requestWithParams []
                  in do
-                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey"] MissingSurfaceRequestField RosterIntent.parseMoveRosterShiftToSlotIntentParams
-                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey"] MissingSurfaceRequestField RosterIntent.parseDuplicateRosterShiftToDayIntentParams
-                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey"] MissingSurfaceRequestField RosterIntent.parseDropRosterStaffIntentParams
-                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey"] MissingSurfaceRequestField RosterIntent.parseMoveRosterTimelineShiftIntentParams
+                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey", "rosterCalendarRevision"] MissingSurfaceRequestField RosterIntent.parseMoveRosterShiftToSlotIntentParams
+                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey", "rosterCalendarRevision"] MissingSurfaceRequestField RosterIntent.parseDuplicateRosterShiftToDayIntentParams
+                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey", "rosterCalendarRevision"] MissingSurfaceRequestField RosterIntent.parseDropRosterStaffIntentParams
+                    assertRequestErrors ["sourceItemKey", "targetDropzoneKey", "rosterCalendarRevision"] MissingSurfaceRequestField RosterIntent.parseMoveRosterTimelineShiftIntentParams
         missingDragIntentChecks
 
         let malformedDragIntentChecks =
@@ -806,6 +807,7 @@ validRosterDragIntentParams =
     , ("currentClientY", Just "250")
     , ("deltaX", Just "40")
     , ("deltaY", Just "50")
+    , ("rosterCalendarRevision", Just "1")
     , ("unrelated-route-context", Just "ignored")
     ]
 
@@ -816,6 +818,7 @@ invalidRosterDragIntentParams :: [(ByteString.ByteString, Maybe ByteString.ByteS
 invalidRosterDragIntentParams =
     [ ("sourceItemKey", Just invalidUtf8)
     , ("targetDropzoneKey", Just invalidUtf8)
+    , ("rosterCalendarRevision", Just "1")
     ]
 
 assertRosterDragIntentFields ::

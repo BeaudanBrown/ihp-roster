@@ -549,18 +549,18 @@ tests = aroundAll withDatabaseTestContext do
                             ]
                 activeTargets `shouldBe` [(rosterGroupA.id, 0), (rosterGroupA.id, 1)]
 
-                versionA0Before <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) 0)
-                versionA1Before <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) 1)
-                versionB0Before <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueB.id) (unpackId rosterGroupB.id) 0)
+                versionA0Before <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
+                versionA1Before <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) (testAnchorForOffset 1) (addDays 7 (testAnchorForOffset 1)) 1)
+                versionB0Before <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueB.id) (unpackId rosterGroupB.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
 
                 response <- withUserAndCurrentVenue manager venueA.id do
                     callAction ApproveLeaveRequestAction { leaveRequestId = leaveRequest.id }
 
                 response `responseStatusShouldBe` status302
 
-                versionA0After <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) 0)
-                versionA1After <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) 1)
-                versionB0After <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueB.id) (unpackId rosterGroupB.id) 0)
+                versionA0After <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
+                versionA1After <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) (testAnchorForOffset 1) (addDays 7 (testAnchorForOffset 1)) 1)
+                versionB0After <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venueB.id) (unpackId rosterGroupB.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
                 refreshedWeekA <- fetch rosterWeekA.id
                 refreshedWeekA1 <- fetch rosterWeekA1.id
                 refreshedWeekB <- fetch rosterWeekB.id
@@ -933,14 +933,14 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createRosterWeekRecord venue 0 False
                 leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 8) (fromGregorian 2025 1 10) LeaveRequestStatusEnumApproved
 
-                versionBefore <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) 0)
+                versionBefore <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction DenyLeaveRequestAction { leaveRequestId = leaveRequest.id }
 
                 response `responseStatusShouldBe` status302
 
-                versionAfter <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) 0)
+                versionAfter <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
                 versionAfter `shouldBe` versionBefore
 
         it "plans manager leave-page actor keys from the same rendered-section resource as passive viewers" $ withContext do

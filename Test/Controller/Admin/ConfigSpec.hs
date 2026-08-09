@@ -115,17 +115,17 @@ tests = aroundAll withDatabaseTestContext do
                 otherGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId otherVenue.id) |> fetchOne
                 let venueId = unpackId venue.id
                     resources = shiftTypePayResources venueId
-                        [ (venueId, unpackId rosterGroup.id, 0)
-                        , (unpackId otherVenue.id, unpackId otherGroup.id, 0)
+                        [ (venueId, unpackId rosterGroup.id, testAnchorForOffset 0, addDays 7 (testAnchorForOffset 0), 1)
+                        , (unpackId otherVenue.id, unpackId otherGroup.id, testAnchorForOffset 0, addDays 7 (testAnchorForOffset 0), 1)
                         ]
-                        [ (venueId, 0)
-                        , (unpackId otherVenue.id, 0)
+                        [ (venueId, testAnchorForOffset 0, addDays 7 (testAnchorForOffset 0), 1)
+                        , (unpackId otherVenue.id, testAnchorForOffset 0, addDays 7 (testAnchorForOffset 0), 1)
                         ]
 
                 Set.fromList resources `shouldBe` Set.fromList
-                    [ rosterWeekResource (unpackId rosterGroup.id) 0
-                    , rosterSlotsContentResource (unpackId rosterGroup.id) 0
-                    , timesheetWeekResource venueId 0
+                    [ rosterWeekResource (unpackId rosterGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0))
+                    , rosterSlotsContentResource (unpackId rosterGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0))
+                    , timesheetWeekResource venueId (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0))
                     ]
 
         it "plans non-overlapping roster refreshes for roster-affecting venue config resources" $ withContext do
@@ -135,7 +135,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 let venueId = unpackId venue.id
-                let scope = RosterLive.rosterWeekLiveScope venueId (unpackId rosterGroup.id) 0
+                let scope = RosterLive.rosterWeekLiveScope venueId (unpackId rosterGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1
                 let mountedFragments =
                         [ RosterLive.rosterContentLiveFragment
                         , RosterLive.rosterGridToolbarLiveFragment

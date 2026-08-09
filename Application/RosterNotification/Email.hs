@@ -12,10 +12,11 @@ import Application.Helper.SurfaceResource (liveMutationResult)
 import Application.RosterNotification
 import Control.Monad (void)
 import Data.List (find)
+import Data.Time.Calendar (addDays)
 import Generated.Types
 import IHP.ControllerPrelude
 import Web.Mail.RosterNotification
-import Web.RosterWeeks.Paths (rosterWeekUrl)
+import Web.RosterWeeks.Paths (rosterWindowUrl)
 import Web.SurfaceInvalidation (publishTouchedResourcesWithoutContext)
 
 isRosterNotificationMailKind :: Text -> Bool
@@ -51,7 +52,7 @@ loadRosterNotificationMail mailKind recipientAccountId recipientAddress runId jo
                 pure $ RosterNotificationMailReady RosterNotificationMail
                     { notificationSnapshot = snapshot
                     , notificationRecipient = recipient
-                    , rosterUrl = appBaseUrl <> rosterWeekUrl snapshot.snapshotWeekOffset (Id snapshot.snapshotRosterGroupId)
+                    , rosterUrl = appBaseUrl <> rosterWindowUrl snapshot.snapshotWeekStart (Id snapshot.snapshotRosterGroupId)
                     , fromAddress = settings.mailFromAddress
                     , replyToAddress = settings.mailReplyToAddress
                     , supportEmail = settings.mailSupportEmail
@@ -91,4 +92,4 @@ publishRosterNotificationStatusResource label runId = do
     forM_ maybeRun \run ->
         void $
             publishTouchedResourcesWithoutContext label $
-                liveMutationResult () [rosterNotificationStatusResource run.rosterGroupId run.weekOffset]
+                liveMutationResult () [rosterNotificationStatusResource run.rosterGroupId run.weekStart (addDays 7 run.weekStart)]

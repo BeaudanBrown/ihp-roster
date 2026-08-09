@@ -290,20 +290,20 @@ expect_compile_failure \
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceIncompleteResource.hs" \
     "FrontendSurface field list is incomplete" \
-    "Missing next field: Timesheets.DayOffset :: required WireInt" \
-    "Expected remaining fields: [Timesheets.DayOffset :: required WireInt]"
+    "Missing next field: Timesheets.WindowEndDate :: required WireDay" \
+    "Expected remaining fields: [Timesheets.WindowEndDate :: required WireDay]"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceExtraResourceField.hs" \
     "FrontendSurface field list has an extra field" \
-    "Received field: Timesheets.DayOffset :: required (no declared wire)" \
+    "Received field: Timesheets.OperationalDate :: required (no declared wire)" \
     "Expected remaining fields: []"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongResourceFieldOrder.hs" \
     "FrontendSurface field order mismatch" \
-    "Expected next field: Timesheets.WeekOffset :: required WireInt" \
-    "Received field: Timesheets.DayOffset :: required WireInt"
+    "Expected next field: Timesheets.VenueId :: required WireUUID" \
+    "Received field: Timesheets.OperationalDate :: required WireUUID"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongFieldPresence.hs" \
@@ -365,7 +365,7 @@ expect_compile_failure \
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceRosterActionExtraField.hs" \
     "FrontendSurface field list has an extra field" \
-    "Received field: Roster.WeekOffset :: required (no declared wire)"
+    "Received field: Roster.AnchorDate :: required (no declared wire)"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceRosterActionWrongFieldOrder.hs" \
@@ -376,13 +376,13 @@ expect_compile_failure \
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceRosterActionWrongFieldPresence.hs" \
     "FrontendSurface field presence mismatch" \
-    "Expected next field: Roster.WeekOffset :: required WireInt" \
-    "Received field: Roster.WeekOffset :: optional WireInt"
+    "Expected next field: Roster.AnchorDate :: required WireDay" \
+    "Received field: Roster.AnchorDate :: optional WireDay"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceRosterActionWrongWireType.hs" \
     "FrontendSurface field wire mismatch" \
-    "Declared field: Roster.WeekOffset :: required WireInt" \
+    "Declared field: Roster.AnchorDate :: required WireDay" \
     "Received Haskell value: Text"
 
 expect_compile_failure \
@@ -393,7 +393,7 @@ expect_compile_failure \
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongActionWireType.hs" \
     "FrontendSurface field wire mismatch" \
-    "Declared field: Timesheets.WeekOffset :: required WireInt" \
+    "Declared field: Timesheets.AnchorDate :: required WireDay" \
     "Received Haskell value: Text"
 
 expect_compile_failure \

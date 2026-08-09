@@ -23,7 +23,7 @@ import Application.Helper.ControllerContext (currentVenueOrNothing)
 import Application.Helper.FrontendContract.Surface.Authorization (authorizeFrontendSurfaceScope)
 import Application.Helper.FrontendContract.Surface.DependencyPlanner (SurfaceInvalidationTarget (..),
                                                                       planFrontendSurfaceInvalidations)
-import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
+import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWindowScopes)
 import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
 import Application.Helper.LiveUpdate.DurableCodec (DurableResource (..))
 import Application.Helper.LiveUpdate.DurablePublisher (DurablePublication (..),
@@ -36,6 +36,7 @@ import Control.Monad (forM_)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
+import Data.Time.Calendar (Day)
 import Data.UUID (UUID)
 import GHC.Clock (getMonotonicTimeNSec)
 import qualified System.Environment as Environment
@@ -49,7 +50,7 @@ dispatchDurableInvalidation = dispatchDurableInvalidationWithBus Nothing
 dispatchDurableInvalidationWithBus :: Maybe LiveBus -> Int -> [DurableResource] -> IO ()
 dispatchDurableInvalidationWithBus maybeBus eventSequence resources = do
     activeSubscriptions <- maybe activeSurfaceSubscriptions activeSurfaceSubscriptionsWithBus maybeBus
-    activeRosterScopes <- maybe activeRosterWeekScopes RosterLive.activeRosterWeekScopesWithBus maybeBus
+    activeRosterScopes <- maybe activeRosterWindowScopes RosterLive.activeRosterWindowScopesWithBus maybeBus
     let touchedResources = Set.fromList (map (.durableResourceValue) resources)
     let expandedResources = expandSurfaceResourcesWithoutContext activeRosterScopes touchedResources
     let targets = planSurfaceInvalidationsWithoutContext expandedResources activeSubscriptions
@@ -77,12 +78,12 @@ performSurfaceInvalidationTargetAtVersion version sourceClientId target =
 
 expandSurfaceResources ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    [(UUID, UUID, Int)] ->
+    [(UUID, UUID, Day, Day, Int)] ->
     Set.Set SurfaceResourceValue ->
     IO (Set.Set SurfaceResourceValue)
 expandSurfaceResources = expandRosterSurfaceResources
 
-expandSurfaceResourcesWithoutContext :: [(UUID, UUID, Int)] -> Set.Set SurfaceResourceValue -> Set.Set SurfaceResourceValue
+expandSurfaceResourcesWithoutContext :: [(UUID, UUID, Day, Day, Int)] -> Set.Set SurfaceResourceValue -> Set.Set SurfaceResourceValue
 expandSurfaceResourcesWithoutContext = expandRosterSurfaceResourcesWithoutContext
 
 invalidateTouchedResources :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> LiveMutationResult a -> IO (LiveMutationResult a)
@@ -95,7 +96,7 @@ invalidateTouchedResources label result =
         publication <- publishDurableInvalidation label observed.liveMutationTouchedResources `Exception.onException` emitDurablePublicationFailure label
         emitDurablePublicationLog label publication
         (activeSubscriptions, activeSubscriptionDurationMs) <- measureDuration activeSurfaceSubscriptions
-        (activeRosterScopes, activeRosterDurationMs) <- measureDuration activeRosterWeekScopes
+        (activeRosterScopes, activeRosterDurationMs) <- measureDuration activeRosterWindowScopes
         let activeDurationMs = activeSubscriptionDurationMs + activeRosterDurationMs
         let activeScopes = coalesceScopes (map (.subscriptionScope) activeSubscriptions)
         (expandedResources, expandDurationMs) <- measureDuration $

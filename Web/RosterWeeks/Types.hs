@@ -44,6 +44,7 @@ data ShowView = ShowView
     , currentRosterGroup     :: RosterGroup
     , weekStartDate          :: Day
     , weekEndDate            :: Day
+    , rosterCalendarRevision :: Int
     , assignmentFilters      :: RosterAssignmentFilters
     , staffMembers           :: [Staff]
     , panelStaff             :: [RosterStaffPanelEntry]
@@ -121,6 +122,7 @@ data RosterStaffPanelRenderModel = RosterStaffPanelRenderModel
     { staffPanelRosterWeek             :: Maybe RosterWeek
     , staffPanelWeekOffset             :: Int
     , staffPanelWeekStartDate          :: Day
+    , staffPanelCalendarRevision       :: Int
     , staffPanelRosterGroups           :: [RosterGroup]
     , staffPanelCurrentRosterGroup     :: RosterGroup
     , staffPanelAssignmentFilters      :: RosterAssignmentFilters
@@ -149,6 +151,7 @@ data RosterStaffSelfServicePanel = RosterStaffSelfServicePanel
     , quickToolsOperationalDay          :: Day
     , quickToolsTimesheetWeekOffset     :: Int
     , quickToolsTimesheetWeekStartDate  :: Day
+    , quickToolsCalendarRevision        :: Int
     , quickToolsTimesheetEditWindowDays :: Int
     , quickToolsHighlightOwnLiveShifts  :: Bool
     }
@@ -176,6 +179,7 @@ data RosterRenderData = RosterRenderData
     , currentRosterGroup    :: RosterGroup
     , rosterDays            :: [RosterDay]
     , weekStartDate         :: Day
+    , rosterCalendarRevision :: Int
     , assignmentFilters     :: RosterAssignmentFilters
     , staffMembers          :: [Staff]
     , panelStaff            :: [RosterStaffPanelEntry]
@@ -216,6 +220,7 @@ data RosterGridRenderModel = RosterGridRenderModel
     , gridSlotNames             :: [RosterWindowLane]
     , gridShiftTypes            :: [ShiftType]
     , gridWeekStartDate         :: Day
+    , gridRosterCalendarRevision :: Int
     , gridAllSlots              :: [RosterSlot]
     , gridSlotConflicts         :: [(Id RosterSlot, [RosterConflict])]
     , gridRenderIndexes         :: RosterRenderIndexes
@@ -242,6 +247,7 @@ data RosterDayRenderModel = RosterDayRenderModel
     , dayStaffMembers          :: [Staff]
     , dayShiftTypes            :: [ShiftType]
     , dayWeekStartDate         :: Day
+    , dayCalendarRevision      :: Int
     , dayTimelineContext       :: Maybe (Int, Id RosterGroup)
     , dayAllSlots              :: [RosterSlot]
     , daySlotConflicts         :: [(Id RosterSlot, [RosterConflict])]

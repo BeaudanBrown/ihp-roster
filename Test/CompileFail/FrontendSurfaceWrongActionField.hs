@@ -13,7 +13,7 @@ import IHP.Prelude
 -- Roster-only field marker. Field ownership must fail at compile time.
 fields :: SurfaceFields (SurfaceActionFieldSpecs Timesheets.TimesheetsSurface Timesheets.NavigateTimesheetWeek)
 fields =
-    surfaceField @Timesheets.WeekOffset 0
+    surfaceField @Timesheets.AnchorDate (error "fixture date")
         &: surfaceOptionalField @Timesheets.StaffFilterId Nothing
         &: noSurfaceFields
 

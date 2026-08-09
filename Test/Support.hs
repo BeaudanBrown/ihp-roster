@@ -681,6 +681,22 @@ withRequestHeaders headers callback = do
 defaultWeekEpoch :: Day
 defaultWeekEpoch = ApplicationFixture.defaultWeekEpoch
 
+testAnchorForOffset :: Int -> Day
+testAnchorForOffset weekOffset = addDays (toInteger (weekOffset * 7)) defaultWeekEpoch
+
+rosterCopyParams :: Int -> Int -> [(ByteString.ByteString, ByteString.ByteString)]
+rosterCopyParams sourceOffset targetOffset =
+    [ ("sourceAnchorDate", cs (show (testAnchorForOffset sourceOffset)))
+    , ("targetAnchorDate", cs (show (testAnchorForOffset targetOffset)))
+    , ("rosterCalendarRevision", "1")
+    ]
+
+rosterMutationParams :: Int -> [(ByteString.ByteString, ByteString.ByteString)]
+rosterMutationParams weekOffset =
+    [ ("anchorDate", cs (show (testAnchorForOffset weekOffset)))
+    , ("rosterCalendarRevision", "1")
+    ]
+
 testPassword :: Text
 testPassword = "test-password-123"
 

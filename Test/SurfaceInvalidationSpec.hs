@@ -11,9 +11,11 @@ import Application.Helper.FrontendContract.Surface.Timesheets.Resource
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
 import qualified Data.Set as Set
+import Data.Time.Calendar (addDays)
 import Data.UUID (fromWords)
 import IHP.Prelude
 import Test.Hspec
+import Test.Support (testAnchorForOffset)
 import Web.SurfaceInvalidation
 
 tests :: Spec
@@ -24,19 +26,23 @@ tests = do
             let otherVenueId = fromWords 2 0 0 0
             let rosterGroupId = fromWords 4 0 0 0
             let otherRosterGroupId = fromWords 5 0 0 0
-            let activeScopes = [(venueId, rosterGroupId, 0), (venueId, rosterGroupId, 1), (otherVenueId, otherRosterGroupId, 0)]
+            let activeScopes =
+                    [ (venueId, rosterGroupId, testAnchorForOffset 0, addDays 7 (testAnchorForOffset 0), 1)
+                    , (venueId, rosterGroupId, testAnchorForOffset 1, addDays 7 (testAnchorForOffset 1), 1)
+                    , (otherVenueId, otherRosterGroupId, testAnchorForOffset 0, addDays 7 (testAnchorForOffset 0), 1)
+                    ]
 
             expandSurfaceResourcesWithoutContext activeScopes (Set.singleton (rosterEndTimesConfigResource venueId))
                 `shouldBe` Set.fromList
                     [ rosterEndTimesConfigResource venueId
-                    , rosterWeekResource rosterGroupId 0
-                    , rosterWeekResource rosterGroupId 1
+                    , rosterWeekResource rosterGroupId (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0))
+                    , rosterWeekResource rosterGroupId (testAnchorForOffset 1) (addDays 7 (testAnchorForOffset 1))
                     ]
             expandSurfaceResourcesWithoutContext activeScopes (Set.singleton (rosterWeekBoundaryConfigResource venueId))
                 `shouldBe` Set.fromList
                     [ rosterWeekBoundaryConfigResource venueId
-                    , rosterWeekResource rosterGroupId 0
-                    , rosterWeekResource rosterGroupId 1
+                    , rosterWeekResource rosterGroupId (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0))
+                    , rosterWeekResource rosterGroupId (testAnchorForOffset 1) (addDays 7 (testAnchorForOffset 1))
                     ]
 
         it "leaves direct resources for dependency-derived live surface matching" do
@@ -46,9 +52,9 @@ tests = do
             let directResources =
                     Set.fromList
                         [ staffLeaveRequestsResource staffId
-                        , rosterWeekResource rosterGroupId 0
-                        , timesheetWeekResource venueId 0
-                        , timesheetDayResource venueId 0 2
+                        , rosterWeekResource rosterGroupId (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0))
+                        , timesheetWeekResource venueId (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0))
+                        , timesheetDayResource venueId (addDays 2 (testAnchorForOffset 0))
                         , adminVenueSettingsResource venueId
                         , rosterEndTimesConfigResource venueId
                         , rosterWeekBoundaryConfigResource venueId

@@ -4,6 +4,7 @@ import Application.Helper.Controller (currentUserIsImpersonating)
 import qualified Application.Helper.FrontendContract.Passkey.Runtime as Passkey
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.Profiling (profileHtmlComponent)
+import Data.Time.Calendar (addDays)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
@@ -70,6 +71,7 @@ renderRosterWeekShell ShowView { .. } =
                         , gridSlotNames = slotNames
                         , gridShiftTypes = shiftTypes
                         , gridWeekStartDate = weekStartDate
+                        , gridRosterCalendarRevision = rosterCalendarRevision
                         , gridAllSlots = allSlots
                         , gridSlotConflicts = slotConflicts
                         , gridRenderIndexes = renderIndexes
@@ -94,6 +96,9 @@ renderRosterWeekShell ShowView { .. } =
             { rosterWeekVenueId = currentRosterGroup.venueId
             , rosterWeekGroupId = currentRosterGroup.id
             , rosterWeekWeekOffset = weekOffset
+            , rosterWeekWindowStart = weekStartDate
+            , rosterWeekWindowEnd = addDays 1 weekEndDate
+            , rosterWeekCalendarRevision = rosterCalendarRevision
             , rosterWeekTimelineDayOffset = case rosterGridViewMode of
                 RosterDayTimelineGridView dayOffset -> Just dayOffset
                 RosterWeekGridView                  -> Nothing

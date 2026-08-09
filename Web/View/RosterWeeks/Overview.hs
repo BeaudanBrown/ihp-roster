@@ -30,7 +30,7 @@ import Web.View.Prelude
 
 
 renderWeekOverviewPanelFragment :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Day -> Day -> [RosterWeekOverviewDay] -> RosterViewCapabilities -> Html
-renderWeekOverviewPanelFragment weekOffset rosterGroupId currentWeekStartDate todayDate weekOverviewDays viewCapabilities =
+renderWeekOverviewPanelFragment _weekOffset rosterGroupId currentWeekStartDate todayDate weekOverviewDays viewCapabilities =
     let
         initialDate = initialOverviewDate currentWeekStartDate todayDate weekOverviewDays
         monthDays = buildOverviewMonthDays currentWeekStartDate initialDate
@@ -60,7 +60,7 @@ renderWeekOverviewPanelFragment weekOffset rosterGroupId currentWeekStartDate to
                             {forEach (weekdayLabels currentWeekStartDate) renderOverviewWeekdayLabel}
                         </div>
                         <div class="roster-week-overview-grid">
-                            {forEach monthDays (renderOverviewDayCell weekOffset rosterGroupId currentWeekStartDate weekOverviewDays initialDate todayDate viewCapabilities)}
+                            {forEach monthDays (renderOverviewDayCell rosterGroupId currentWeekStartDate weekOverviewDays initialDate todayDate viewCapabilities)}
                         </div>
                         <div class="roster-week-overview-legend">
                             {leaveLegend}
@@ -68,7 +68,7 @@ renderWeekOverviewPanelFragment weekOffset rosterGroupId currentWeekStartDate to
                             <span><span class="roster-week-overview-legend-today"></span> Today</span>
                         </div>
                     </div>
-                    {renderWeekOverviewDetailsCard weekOffset rosterGroupId currentWeekStartDate initialDate initialOverviewDay viewCapabilities}
+                    {renderWeekOverviewDetailsCard rosterGroupId currentWeekStartDate initialDate initialOverviewDay viewCapabilities}
                 </div>
             </div>
         |]
@@ -94,9 +94,9 @@ renderMonthLabel date = Text.pack (formatTime defaultTimeLocale "%B %Y" date)
 renderOverviewWeekdayLabel :: Text -> Html
 renderOverviewWeekdayLabel label = [hsx|<div class="roster-week-overview-weekday">{label}</div>|]
 
-renderOverviewDayCell :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Day -> [RosterWeekOverviewDay] -> Day -> Day -> RosterViewCapabilities -> Maybe Day -> Html
-renderOverviewDayCell _ _ _ _ _ _ _ Nothing = [hsx|<div class="roster-week-overview-day-spacer" aria-hidden="true"></div>|]
-renderOverviewDayCell weekOffset rosterGroupId referenceWeekStart weekOverviewDays initialDate todayDate viewCapabilities (Just date) =
+renderOverviewDayCell :: (?context :: ControllerContext) => Id RosterGroup -> Day -> [RosterWeekOverviewDay] -> Day -> Day -> RosterViewCapabilities -> Maybe Day -> Html
+renderOverviewDayCell _ _ _ _ _ _ Nothing = [hsx|<div class="roster-week-overview-day-spacer" aria-hidden="true"></div>|]
+renderOverviewDayCell rosterGroupId referenceWeekStart weekOverviewDays initialDate todayDate viewCapabilities (Just date) =
     let
         maybeOverviewDay = find (\daySummary -> overviewDate daySummary == date) weekOverviewDays
         detailsAvailable = isJust maybeOverviewDay
@@ -123,7 +123,7 @@ renderOverviewDayCell weekOffset rosterGroupId referenceWeekStart weekOverviewDa
             , weekOverviewHoursDisplay = hoursDisplay
             , weekOverviewSummaryText = detailSummary
             , weekOverviewWeekLabel = "In Week of " <> Text.pack (formatTime defaultTimeLocale "%-d %b" (startOfWeek date referenceWeekStart))
-            , weekOverviewNavigationUrl = rosterWeekWithDateUrl weekOffset rosterGroupId date
+            , weekOverviewNavigationUrl = rosterWeekWithDateUrl rosterGroupId date
             , weekOverviewAvailability = availability
             , weekOverviewClosure = closure
             }
@@ -142,10 +142,10 @@ renderOverviewDayCell weekOffset rosterGroupId referenceWeekStart weekOverviewDa
             </button>
         |]
 
-renderWeekOverviewDetailsCard :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Day -> Day -> Maybe RosterWeekOverviewDay -> RosterViewCapabilities -> Html
-renderWeekOverviewDetailsCard weekOffset rosterGroupId weekStartDate initialDate initialOverviewDay viewCapabilities =
+renderWeekOverviewDetailsCard :: (?context :: ControllerContext) => Id RosterGroup -> Day -> Day -> Maybe RosterWeekOverviewDay -> RosterViewCapabilities -> Html
+renderWeekOverviewDetailsCard rosterGroupId weekStartDate initialDate initialOverviewDay viewCapabilities =
     let
-        navigateUrl = rosterWeekWithDateUrl weekOffset rosterGroupId initialDate
+        navigateUrl = rosterWeekWithDateUrl rosterGroupId initialDate
         closedState = maybe False overviewIsClosed initialOverviewDay
         availability = maybe RosterWeekOverviewUnloaded (const RosterWeekOverviewLoaded) initialOverviewDay
         closure = if closedState then RosterWeekOverviewClosed else RosterWeekOverviewOpen

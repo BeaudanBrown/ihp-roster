@@ -24,12 +24,14 @@ import Application.Support.LiveUpdates (supportCandidateMountedFragments,
                                         supportSurfaceScope)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import Data.Time.Calendar (addDays)
 import Data.UUID (fromWords)
 import Generated.Types (RosterDay, RosterGroup, User)
 import IHP.ControllerPrelude (pathTo)
 import IHP.ModelSupport.Types (Id' (..))
 import IHP.Prelude
 import Test.Hspec
+import Test.Support (testAnchorForOffset)
 import qualified Web.Admin.FrontendSurface as AdminSurface
 import Web.Billing.FrontendSurface (BillingCheckoutReturnState (..),
                                     BillingScopeValue (..),
@@ -92,23 +94,23 @@ tests = do
     describe "generated FrontendSurface resource dependencies" do
         it "selects affected timesheet fragments from generated dependencies" do
             let venueId = fromWords 1 0 0 0
-            let scopeValue = TimesheetWeekScopeValue venueId 2
-            let mountState = TimesheetsMountStateValue Nothing Nothing
+            let scopeValue = TimesheetWeekScopeValue venueId 2 (testAnchorForOffset 2) (addDays 7 (testAnchorForOffset 2)) 1
+            let mountState = TimesheetsMountStateValue Nothing
             let candidates = timesheetsCandidateMountedFragments scopeValue mountState
-            let affectedByDay = planMountedFragments (Set.fromList [timesheetDayResource venueId 2 4]) (timesheetsSurfaceScope scopeValue) candidates
-            let affectedByWeek = planMountedFragments (Set.fromList [timesheetWeekResource venueId 2]) (timesheetsSurfaceScope scopeValue) candidates
+            let affectedByDay = planMountedFragments (Set.fromList [timesheetDayResource venueId (addDays 4 (testAnchorForOffset 2))]) (timesheetsSurfaceScope scopeValue) candidates
+            let affectedByWeek = planMountedFragments (Set.fromList [timesheetWeekResource venueId (testAnchorForOffset 2) (addDays 7 (testAnchorForOffset 2))]) (timesheetsSurfaceScope scopeValue) candidates
 
-            map (.mountedFragmentTargetId) affectedByDay `shouldBe` ["timesheet-day-section-4"]
+            map (.mountedFragmentTargetId) affectedByDay `shouldBe` ["timesheet-day-section-2025-01-24"]
             map (.mountedFragmentTargetId) affectedByWeek `shouldBe` ["timesheet-week-toolbar", "timesheet-day-columns", "timesheet-side-panel-content"]
 
         it "coalesces actor mount keys through the same dependency plan as passive subscriptions" do
             let venueId = fromWords 1 0 0 0
-            let scopeValue = TimesheetWeekScopeValue venueId 2
-            let mountState = TimesheetsMountStateValue Nothing Nothing
+            let scopeValue = TimesheetWeekScopeValue venueId 2 (testAnchorForOffset 2) (addDays 7 (testAnchorForOffset 2)) 1
+            let mountState = TimesheetsMountStateValue Nothing
             let scope = timesheetsSurfaceScope scopeValue
             let mountedFragments = timesheetsCandidateMountedFragments scopeValue mountState
             let duplicatedMount = mountedFragments <> mountedFragments
-            let resources = Set.fromList [timesheetDayResource venueId 2 4]
+            let resources = Set.fromList [timesheetDayResource venueId (addDays 4 (testAnchorForOffset 2))]
             let actorFragmentKeys = actorLiveFragmentsRefreshKeys scope resources duplicatedMount
             let passiveTargets =
                     planSurfaceInvalidationsWithoutContext
@@ -116,7 +118,7 @@ tests = do
                         [liveTestSubscription scope (timesheetsSurfaceFragmentKeys duplicatedMount)]
 
             actorFragmentKeys `shouldBe` concatMap (.targetFragments) passiveTargets
-            actorFragmentKeys `shouldBe` [TimesheetsLive.timesheetDaySectionLiveFragment 4]
+            actorFragmentKeys `shouldBe` [TimesheetsLive.timesheetDaySectionLiveFragment (addDays 4 (testAnchorForOffset 2))]
 
         it "selects parameterized leave section fragments from generated dependencies" do
             let venueId = fromWords 10 0 0 0
@@ -161,12 +163,12 @@ tests = do
 
         it "plans affected semantic fragment keys from generated dependencies" do
             let venueId = fromWords 1 0 0 0
-            let scope = TimesheetsLive.timesheetWeekLiveScope venueId 2
-            let subscription = liveTestSubscription scope [TimesheetsLive.timesheetDaySectionLiveFragment 4]
-            let targets = planSurfaceInvalidationsWithoutContext (Set.fromList [timesheetDayResource venueId 2 4]) [subscription]
+            let scope = TimesheetsLive.timesheetWeekLiveScope venueId (testAnchorForOffset 2) (addDays 7 (testAnchorForOffset 2)) 1
+            let subscription = liveTestSubscription scope [TimesheetsLive.timesheetDaySectionLiveFragment (addDays 4 (testAnchorForOffset 2))]
+            let targets = planSurfaceInvalidationsWithoutContext (Set.fromList [timesheetDayResource venueId (addDays 4 (testAnchorForOffset 2))]) [subscription]
 
             map targetFragments targets
-                `shouldBe` [[TimesheetsLive.timesheetDaySectionLiveFragment 4]]
+                `shouldBe` [[TimesheetsLive.timesheetDaySectionLiveFragment (addDays 4 (testAnchorForOffset 2))]]
 
         it "keeps generated dependency planning precise across surface resources" do
             let venueId = fromWords 2 0 0 0
@@ -186,8 +188,6 @@ tests = do
             let mountedFragments = (AdminSurface.adminXeroSurfaceImpl scope).surfaceImplMountConfig.mountFragments
             let waitMount = AdminSurface.adminXeroTimesheetPreparationWaitSurfaceImpl scope
             let waitFragments = waitMount.surfaceImplMountConfig.mountFragments
-            let importWaitMount = AdminSurface.adminXeroPayItemImportWaitSurfaceImpl scope
-            let importWaitFragments = importWaitMount.surfaceImplMountConfig.mountFragments
 
             AdminSurface.adminXeroFragmentKeys mountedFragments
                 `shouldBe` [AdminLive.adminXeroShellLiveFragment, AdminLive.adminXeroReferenceSyncLiveFragment]
@@ -203,27 +203,20 @@ tests = do
             map (.mountedFragmentUrl) waitFragments
                 `shouldBe` [pathTo ShowadminXeroTimesheetPreparationWaitLiveFragmentAction]
             waitMount.surfaceImplMountConfig.mountSubscription `shouldSatisfy` isJust
-            AdminSurface.adminXeroFragmentKeys importWaitFragments
-                `shouldBe` [AdminLive.adminXeroPayItemImportWaitLiveFragment]
-            map (.mountedFragmentTargetId) importWaitFragments
-                `shouldBe` ["admin-xero-pay-item-import-wait-fragment"]
-            map (.mountedFragmentUrl) importWaitFragments
-                `shouldBe` [pathTo ShowadminXeroPayItemImportWaitLiveFragmentAction]
-            importWaitMount.surfaceImplMountConfig.mountSubscription `shouldSatisfy` isJust
 
         it "maps Xero connection and reference-sync state changes to separate fragments" do
             let venueId = fromWords 3 0 0 0
             let scope = AdminLive.adminXeroLiveScope venueId
             let otherVenueId = fromWords 4 0 0 0
             let otherScope = AdminLive.adminXeroLiveScope otherVenueId
-            let fragmentKeys = AdminSurface.adminXeroFragmentKeys [AdminSurface.adminXeroShellFragment, AdminSurface.adminXeroReferenceSyncFragment, AdminSurface.adminXeroTimesheetPreparationWaitFragment, AdminSurface.adminXeroPayItemImportWaitFragment]
+            let fragmentKeys = AdminSurface.adminXeroFragmentKeys [AdminSurface.adminXeroShellFragment, AdminSurface.adminXeroReferenceSyncFragment, AdminSurface.adminXeroTimesheetPreparationWaitFragment]
             let subscriptions = [liveTestSubscription scope fragmentKeys, liveTestSubscription otherScope fragmentKeys]
             let targetsFor resource = planSurfaceInvalidationsWithoutContext (Set.fromList [resource venueId]) subscriptions
             let plannedFor resource = map (.targetFragments) (targetsFor resource)
 
             plannedFor xeroConnectionResource `shouldBe` [[AdminLive.adminXeroShellLiveFragment]]
             plannedFor xeroReferenceSyncStateResource
-                `shouldBe` [[AdminLive.adminXeroReferenceSyncLiveFragment, AdminLive.adminXeroTimesheetPreparationWaitLiveFragment, AdminLive.adminXeroPayItemImportWaitLiveFragment]]
+                `shouldBe` [[AdminLive.adminXeroReferenceSyncLiveFragment, AdminLive.adminXeroTimesheetPreparationWaitLiveFragment]]
             map (.targetScope) (targetsFor xeroReferenceSyncStateResource) `shouldBe` [scope]
             plannedFor adminShiftTypesResource `shouldBe` []
             plannedFor billingResource `shouldBe` []
@@ -233,7 +226,7 @@ tests = do
             let venueId = fromWords 7 0 0 0
             let rosterGroupId = Id (fromWords 8 0 0 0) :: Id RosterGroup
             let rosterDayId = Id (fromWords 9 0 0 0) :: Id RosterDay
-            let scope = RosterWeekScopeValue venueId rosterGroupId 3 Nothing
+            let scope = RosterWeekScopeValue venueId rosterGroupId 3 (testAnchorForOffset 3) (addDays 7 (testAnchorForOffset 3)) 1 Nothing
             let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 2)], rosterMountedTemplateUserId = Nothing }
             let candidates = rosterCandidateMountedFragments scope plan
             map (.mountedFragmentTargetId) candidates
@@ -263,7 +256,7 @@ tests = do
             let userUuid = fromWords 23 0 0 0
             let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
             let userId = Id userUuid :: Id User
-            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 3 Nothing
+            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 3 (testAnchorForOffset 3) (addDays 7 (testAnchorForOffset 3)) 1 Nothing
             let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [], rosterMountedRows = [], rosterMountedTemplateUserId = Just userId }
             let candidates = rosterCandidateMountedFragments scopeValue plan
 
@@ -278,11 +271,11 @@ tests = do
             let rosterDayUuid = fromWords 9 0 0 0
             let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
             let rosterDayId = Id rosterDayUuid :: Id RosterDay
-            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 3 Nothing
+            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 3 (testAnchorForOffset 3) (addDays 7 (testAnchorForOffset 3)) 1 Nothing
             let scope = rosterSurfaceScope scopeValue
             let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 2)], rosterMountedTemplateUserId = Nothing }
             let resources = Set.fromList
-                    [ rosterWeekResource rosterGroupUuid 3
+                    [ rosterWeekResource rosterGroupUuid (testAnchorForOffset 3) (addDays 7 (testAnchorForOffset 3))
                     , rosterDayResource rosterDayUuid
                     ]
 
@@ -302,11 +295,11 @@ tests = do
             let rosterDayUuid = fromWords 12 0 0 0
             let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
             let rosterDayId = Id rosterDayUuid :: Id RosterDay
-            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 4 Nothing
+            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 4 (testAnchorForOffset 4) (addDays 7 (testAnchorForOffset 4)) 1 Nothing
             let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)], rosterMountedTemplateUserId = Nothing }
             let resources = Set.fromList
-                    [ rosterWeekResource rosterGroupUuid 4
-                    , rosterSlotsStructureResource rosterGroupUuid 4
+                    [ rosterWeekResource rosterGroupUuid (testAnchorForOffset 4) (addDays 7 (testAnchorForOffset 4))
+                    , rosterSlotsStructureResource rosterGroupUuid (testAnchorForOffset 4) (addDays 7 (testAnchorForOffset 4))
                     ]
 
             passiveFragmentKeys resources (rosterSurfaceScope scopeValue) (rosterCandidateMountedFragments scopeValue plan)
@@ -325,11 +318,11 @@ tests = do
             let rosterDayUuid = fromWords 15 0 0 0
             let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
             let rosterDayId = Id rosterDayUuid :: Id RosterDay
-            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 4 Nothing
+            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 4 (testAnchorForOffset 4) (addDays 7 (testAnchorForOffset 4)) 1 Nothing
             let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)], rosterMountedTemplateUserId = Nothing }
             let resources = Set.fromList
-                    [ rosterWeekResource rosterGroupUuid 4
-                    , rosterSlotsContentResource rosterGroupUuid 4
+                    [ rosterWeekResource rosterGroupUuid (testAnchorForOffset 4) (addDays 7 (testAnchorForOffset 4))
+                    , rosterSlotsContentResource rosterGroupUuid (testAnchorForOffset 4) (addDays 7 (testAnchorForOffset 4))
                     ]
 
             passiveFragmentKeys resources (rosterSurfaceScope scopeValue) (rosterCandidateMountedFragments scopeValue plan)
@@ -348,11 +341,11 @@ tests = do
             let rosterDayUuid = fromWords 13 0 0 0
             let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
             let rosterDayId = Id rosterDayUuid :: Id RosterDay
-            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 4 Nothing
+            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 4 (testAnchorForOffset 4) (addDays 7 (testAnchorForOffset 4)) 1 Nothing
             let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)], rosterMountedTemplateUserId = Nothing }
             let resources = Set.fromList
-                    [ rosterWeekResource rosterGroupUuid 4
-                    , rosterWeekStructureResource rosterGroupUuid 4
+                    [ rosterWeekResource rosterGroupUuid (testAnchorForOffset 4) (addDays 7 (testAnchorForOffset 4))
+                    , rosterWeekStructureResource rosterGroupUuid (testAnchorForOffset 4) (addDays 7 (testAnchorForOffset 4))
                     ]
 
             passiveFragmentKeys resources (rosterSurfaceScope scopeValue) (rosterCandidateMountedFragments scopeValue plan)
@@ -368,7 +361,7 @@ tests = do
             let childDayUuid = fromWords 20 0 0 0
             let ancestorDayId = Id ancestorDayUuid :: Id RosterDay
             let childDayId = Id childDayUuid :: Id RosterDay
-            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 3 Nothing
+            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 3 (testAnchorForOffset 3) (addDays 7 (testAnchorForOffset 3)) 1 Nothing
             let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [ancestorDayId], rosterMountedRows = [(childDayId, 2)], rosterMountedTemplateUserId = Nothing }
 
             passiveFragmentKeys

@@ -5,9 +5,11 @@ module Web.Timesheets.Validation
     , ensureShiftTypeAllowedForExisting
     , ensureStaffAssignmentAllowed
     , ensureStaffAssignmentAllowedForExisting
+    , ensureTimesheetEntryNotPayrollLocked
     , ensureTimesheetVisibility
     , resetApprovalOnEdit
     , timesheetCoreChanged
+    , timesheetEntryHasPayrollProvenance
     ) where
 
 import Application.Helper.Staff (isLinkedActiveStaff)
@@ -23,6 +25,37 @@ import Data.Time.Calendar (addDays)
 import Data.Time.LocalTime (LocalTime (..), TimeOfDay)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
+import Web.Timesheets.Paths (timesheetWindowUrl)
+import Web.Timesheets.Responses (respondWithTimesheetDaySectionUpdate)
+
+ensureTimesheetEntryNotPayrollLocked ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    TimesheetEntry ->
+    Int ->
+    Maybe UUID.UUID ->
+    IO ()
+ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset staffFilterId = do
+    locked <- timesheetEntryHasPayrollProvenance timesheetEntry
+    when locked do
+        let message = "This approved timesheet entry is locked because it has been exported or submitted to Xero."
+        if isHtmxRequest
+            then respondWithTimesheetDaySectionUpdate weekOffset (timesheetEntryWorkedOn timesheetEntry) staffFilterId message True
+            else do
+                setErrorMessage message
+                redirectToPath (timesheetWindowUrl (timesheetEntryWorkedOn timesheetEntry) staffFilterId)
+
+timesheetEntryHasPayrollProvenance :: (?modelContext :: ModelContext) => TimesheetEntry -> IO Bool
+timesheetEntryHasPayrollProvenance timesheetEntry = do
+    exportEntryCount <-
+        query @ExportJobEntry
+            |> filterWhere (#timesheetEntryId, unpackId (get #id timesheetEntry))
+            |> fetchCount
+    xeroEntryCount <-
+        query @XeroTimesheetSubmissionEntry
+            |> filterWhere (#timesheetEntryId, unpackId (get #id timesheetEntry))
+            |> fetchCount
+    pure (exportEntryCount > 0 || xeroEntryCount > 0)
+
 ensureTimesheetVisibility :: (?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetEntry -> IO ()
 ensureTimesheetVisibility entry =
     if isJust entry.deletedAt

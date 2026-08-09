@@ -48,7 +48,7 @@ renderRosterDayTimelinePanel :: (?context :: ControllerContext) => RosterGridRen
 renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Nothing } _ = [hsx|
     <div class="alert alert-info mb-0">This draft roster is not visible.</div>
 |]
-renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Just rosterWeek, gridWeekOffset, gridRosterDays, gridCurrentRosterGroup, gridWeekStartDate, gridAssignmentFilters, gridStaffMembers, gridPanelStaff, gridTemplateLibrary, gridTemplateLibraryUserId, gridNotificationPanelData, gridStaffSelfServicePanel, gridSlotNames, gridShiftTypes, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterTimePickerStartMinute, gridRosterTimePickerFinalSelectableMinute, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridHighlightOwnLiveShifts, gridCurrentViewerStaffKey, gridPublicHolidays } rosterDay =
+renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Just rosterWeek, gridWeekOffset, gridRosterDays, gridCurrentRosterGroup, gridWeekStartDate, gridRosterCalendarRevision, gridAssignmentFilters, gridStaffMembers, gridPanelStaff, gridTemplateLibrary, gridTemplateLibraryUserId, gridNotificationPanelData, gridStaffSelfServicePanel, gridSlotNames, gridShiftTypes, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterTimePickerStartMinute, gridRosterTimePickerFinalSelectableMinute, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridHighlightOwnLiveShifts, gridCurrentViewerStaffKey, gridPublicHolidays } rosterDay =
     let rosterData = RosterRenderData
             { rosterWeek = Just rosterWeek
             , weekOffset = gridWeekOffset
@@ -56,6 +56,7 @@ renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Just roste
             , rosterGroups = []
             , currentRosterGroup = gridCurrentRosterGroup
             , weekStartDate = gridWeekStartDate
+            , rosterCalendarRevision = gridRosterCalendarRevision
             , assignmentFilters = gridAssignmentFilters
             , staffMembers = gridStaffMembers
             , panelStaff = gridPanelStaff
@@ -82,11 +83,14 @@ renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Just roste
      in renderRosterDayTimelineMounted rosterData rosterDay (renderRosterDayTimelineContent Nothing rosterData rosterDay)
 
 renderRosterDayTimelineMounted :: RosterRenderData -> RosterDay -> Html -> Html
-renderRosterDayTimelineMounted RosterRenderData { weekOffset, currentRosterGroup } rosterDay body =
+renderRosterDayTimelineMounted RosterRenderData { weekOffset, weekStartDate, rosterCalendarRevision, currentRosterGroup } rosterDay body =
     let timelineSurfaceScope = RosterDayTimelineScopeValue
             { rosterDayTimelineVenueId = currentRosterGroup.venueId
             , rosterDayTimelineGroupId = currentRosterGroup.id
             , rosterDayTimelineWeekOffset = weekOffset
+            , rosterDayTimelineWindowStart = weekStartDate
+            , rosterDayTimelineWindowEnd = Calendar.addDays 7 weekStartDate
+            , rosterDayTimelineCalendarRevision = rosterCalendarRevision
             , rosterDayTimelineDayOffset = rosterDay.dayOffset
             , rosterDayTimelineDayId = rosterDay.id
             }

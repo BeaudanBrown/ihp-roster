@@ -22,6 +22,7 @@ import qualified Data.Aeson.Key as AesonKey
 import Data.Either (isRight)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import Data.Time.Calendar (fromGregorian)
 import Data.UUID (nil)
 import IHP.Prelude
 import System.Environment (unsetEnv)
@@ -95,13 +96,12 @@ tests = do
             let resourceValue =
                     frontendSurfaceResource @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetDay
                         ( surfaceField @TimesheetsSurface.VenueId nil
-                            &: surfaceField @TimesheetsSurface.WeekOffset 2
-                            &: surfaceField @TimesheetsSurface.DayOffset 4
+                            &: surfaceField @TimesheetsSurface.OperationalDate (fromGregorian 2025 1 10)
                             &: noSurfaceFields
                         )
 
             matchFrontendSurfaceResource @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetDay resourceValue
-                `shouldBe` Just (nil, (2, (4, ())))
+                `shouldBe` Just (nil, (fromGregorian 2025 1 10, ()))
             matchFrontendSurfaceResource @RosterSurface.RosterSurface @RosterSurface.RosterDay resourceValue
                 `shouldBe` Nothing
 

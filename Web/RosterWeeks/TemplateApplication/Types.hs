@@ -42,9 +42,11 @@ data RosterTemplateApplicationPreview = RosterTemplateApplicationPreview
     { applicationPreviewTemplateName     :: !Text
     , applicationPreviewScale            :: !RosterTemplateScaleEnum
     , applicationPreviewTargetWeekOffset :: !Int
+    , applicationPreviewTargetAnchorDate :: !Day
     , applicationPreviewTargetDayOffset  :: !(Maybe Int)
     , applicationExpectedVersion         :: !Int
     , applicationExpectedTargetRevision  :: !Text
+    , applicationRosterCalendarRevision  :: !Int
     , applicationReplacementShiftCount   :: !Int
     , applicationExistingShiftCount      :: !Int
     , applicationResolvedShifts          :: ![RosterTemplateApplicationResolvedShift]
@@ -75,6 +77,7 @@ data RosterTemplateApplicationError
     | RosterTemplateApplicationScaleMismatch
     | RosterTemplateApplicationVersionConflict !Int
     | RosterTemplateApplicationTargetConflict
+    | RosterTemplateApplicationCalendarConflict
     | RosterTemplateApplicationInvalidShiftTypes ![Id ShiftType]
     | RosterTemplateApplicationBoundaryError !(Id RosterTemplateShift) !RosterTemplateApplicationBoundary !BoundaryModelError
     | RosterTemplateApplicationInvalidStructure !Text
@@ -89,6 +92,7 @@ data PreparedApplication = PreparedApplication
     , preparedExistingSlots     :: ![RosterSlot]
     , preparedTargetDefinitions :: ![RosterWeekSlotDefinition]
     , preparedTimesheetEntries  :: ![TimesheetEntry]
+    , preparedCalendarRevision  :: !Int
     }
 
 data PreparedShift = PreparedShift

@@ -8,8 +8,8 @@ module Web.Users.Mutations
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
 import Application.Helper.FrontendContract.Surface.Profile.Resource (staffPreferencesResource,
                                                                      staffProfileResource)
-import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
-import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWeekScopes)
+import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWindowScopes)
+import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWindowScopes)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
 import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)
 import Application.Helper.SurfaceResource
@@ -18,6 +18,7 @@ import Application.Helper.VenueBootstrap (ensureLinkedStaffRecord,
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
+import Data.Time.Calendar (Day)
 import Data.UUID (UUID)
 import Web.Controller.Prelude
 import Web.RosterWeeks.SurfaceInvalidation (activeRosterResourcesForStaffGroups)
@@ -74,8 +75,8 @@ acceptVenueInvitationInCurrentTransaction acceptedAt invitation user hashedPassw
     touchedResources <- case adoptedStaff of
         Nothing -> pure (acceptedVenueInvitationTouchedResources invitation)
         Just staff -> do
-            activeRosterScopes <- activeRosterWeekScopes
-            activeTimesheetScopes <- activeTimesheetWeekScopes
+            activeRosterScopes <- activeRosterWindowScopes
+            activeTimesheetScopes <- activeTimesheetWindowScopes
             rosterGroupIds <- fetchStaffRosterGroupIds staff
             pure (acceptedVenueInvitationTouchedResourcesForScopes invitation activeRosterScopes activeTimesheetScopes rosterGroupIds)
     pure (liveMutationResult acceptedUser touchedResources)
@@ -121,8 +122,8 @@ acceptedVenueInvitationTouchedResources invitation =
 
 acceptedVenueInvitationTouchedResourcesForScopes ::
     VenueInvitation ->
-    [(UUID, UUID, Int)] ->
-    [(UUID, Int)] ->
+    [(UUID, UUID, Day, Day, Int)] ->
+    [(UUID, Day, Day, Int)] ->
     [Id RosterGroup] ->
     [SurfaceResourceValue]
 acceptedVenueInvitationTouchedResourcesForScopes invitation activeRosterScopes activeTimesheetScopes rosterGroupIds =
@@ -136,8 +137,8 @@ acceptedVenueInvitationTouchedResourcesForScopes invitation activeRosterScopes a
                     <> activeRosterResourcesForStaffGroups invitation.venueId activeRosterScopes rosterGroupIds
                     <> Set.toList
                         ( Set.fromList
-                            [ timesheetWeekResource venueId weekOffset
-                            | (venueId, weekOffset) <- activeTimesheetScopes
+                            [ timesheetWeekResource venueId windowStart windowEnd
+                            | (venueId, windowStart, windowEnd, _calendarRevision) <- activeTimesheetScopes
                             , venueId == invitation.venueId
                             ]
                         )

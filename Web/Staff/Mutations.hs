@@ -22,8 +22,8 @@ import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (archi
                                                                            leaveAvailabilityWarningsResource,
                                                                            pendingLeaveRequestsResource)
 import Application.Helper.FrontendContract.Surface.Profile.Resource
-import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
-import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWeekScopes)
+import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWindowScopes)
+import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWindowScopes)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
 import Application.Helper.InvitationStatus (invitationStatusAllowsRenewal)
 import Application.Helper.Pay (ensureStaffPayVersionForStaff)
@@ -46,7 +46,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Time.Calendar (addDays)
+import Data.Time.Calendar (Day, addDays)
 import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
 import Data.UUID (UUID)
 import Web.Controller.Prelude
@@ -284,12 +284,12 @@ removeStaffMember staff
             Nothing -> pure (Left "That staff member is no longer available.")
             Just (Left message) -> pure (Left message)
             Just (Right removedStaff) -> do
-                activeRosterScopes <- activeRosterWeekScopes
-                activeTimesheetScopes <- activeTimesheetWeekScopes
+                activeRosterScopes <- activeRosterWindowScopes
+                activeTimesheetScopes <- activeTimesheetWindowScopes
                 let activeVenueRosterGroupIds =
                         nub
                             [ Id rosterGroupId
-                            | (venueId, rosterGroupId, _) <- activeRosterScopes
+                            | (venueId, rosterGroupId, _windowStart, _windowEnd, _calendarRevision) <- activeRosterScopes
                             , venueId == unpackId currentVenueId
                             ]
                     touchedResources =
@@ -373,7 +373,7 @@ createTrialStaffMember staff selectedRosterGroupIds = do
         createdStaff <- staff |> createRecord
         syncStaffRosterGroupAssignments createdStaff selectedRosterGroupIds
         pure createdStaff
-    activeRosterScopes <- activeRosterWeekScopes
+    activeRosterScopes <- activeRosterWindowScopes
     invalidateTouchedResources "staff.create_trial" (liveMutationResult createdStaff (staffCreateTouchedResources createdStaff <> staffRosterGroupResources (unpackId currentVenueId) activeRosterScopes selectedRosterGroupIds))
 
 staffCreateTouchedResources :: Staff -> [SurfaceResourceValue]
@@ -405,8 +405,8 @@ updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections
                         (Aeson.object ["staffId" Aeson..= tshow staff.id])
                 pure (Just updatedStaff)
     forM maybeUpdatedStaff \updatedStaff -> do
-        activeRosterScopes <- activeRosterWeekScopes
-        activeTimesheetScopes <- activeTimesheetWeekScopes
+        activeRosterScopes <- activeRosterWindowScopes
+        activeTimesheetScopes <- activeTimesheetWindowScopes
         let affectedRosterGroupIds = nub (previousRosterGroupIds <> selectedRosterGroupIds)
             payResources =
                 if staffPayDispositionChanged originalStaff updatedStaff
@@ -421,14 +421,14 @@ staffUpdateTouchedResources staff =
     , staffPreferencesResource (unpackId staff.id)
     ]
 
-staffRosterGroupResources :: UUID -> [(UUID, UUID, Int)] -> [Id RosterGroup] -> [SurfaceResourceValue]
+staffRosterGroupResources :: UUID -> [(UUID, UUID, Day, Day, Int)] -> [Id RosterGroup] -> [SurfaceResourceValue]
 staffRosterGroupResources = activeRosterResourcesForStaffGroups
 
-staffTimesheetResources :: UUID -> [(UUID, Int)] -> [SurfaceResourceValue]
+staffTimesheetResources :: UUID -> [(UUID, Day, Day, Int)] -> [SurfaceResourceValue]
 staffTimesheetResources venueId activeScopes =
     Set.toList $ Set.fromList
-        [ timesheetWeekResource activeVenueId weekOffset
-        | (activeVenueId, weekOffset) <- activeScopes
+        [ timesheetWeekResource activeVenueId windowStart windowEnd
+        | (activeVenueId, windowStart, windowEnd, _calendarRevision) <- activeScopes
         , activeVenueId == venueId
         ]
 

@@ -29,9 +29,9 @@ module Web.Admin.Mutations
 import Application.Helper.Audit
 import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (leaveAvailabilityWarningsResource)
-import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
+import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWindowScopes)
 import Application.Helper.FrontendContract.Surface.Roster.Resource
-import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWeekScopes)
+import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWindowScopes)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource
 import Application.Helper.InvitationStatus (invitationStatusAllowsRenewal)
 import Application.Helper.PasskeySetupTokens
@@ -57,6 +57,7 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import Data.Time.Calendar (Day)
 import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
 import Web.Controller.Admin.Support
 import Web.Controller.Prelude
@@ -294,8 +295,8 @@ createShiftTypeMutation name isActive overrideAwardLevelId importedXeroPayItemId
         _ <- ensureShiftTypePayVersionForShiftType currentUser.id shiftType (utctDay now)
         pure shiftType
     let shouldRefreshXero = shiftTypeAffectsXeroPayItems shiftType
-    activeRosterScopes <- activeRosterWeekScopes
-    activeTimesheetScopes <- activeTimesheetWeekScopes
+    activeRosterScopes <- activeRosterWindowScopes
+    activeTimesheetScopes <- activeTimesheetWindowScopes
     let payResources = shiftTypePayResources (unpackId currentVenueId) activeRosterScopes activeTimesheetScopes
     invalidateTouchedResources "admin.shift_type.create" (liveMutationResult (AdminShiftTypeMutationResult shiftType shouldRefreshXero) (shiftTypeTouchedResources <> payResources))
 
@@ -323,8 +324,8 @@ updateShiftTypeMutation shiftType name isActive overrideAwardLevelId importedXer
             pure ()
         pure updated
     let shouldRefreshXero = shiftTypeXeroPayItemScopeChanged shiftType updatedShiftType
-    activeRosterScopes <- activeRosterWeekScopes
-    activeTimesheetScopes <- activeTimesheetWeekScopes
+    activeRosterScopes <- activeRosterWindowScopes
+    activeTimesheetScopes <- activeTimesheetWindowScopes
     let payResources =
             if shiftTypePayDispositionChanged shiftType updatedShiftType
                 then shiftTypePayResources (unpackId currentVenueId) activeRosterScopes activeTimesheetScopes
@@ -348,19 +349,19 @@ shiftTypeTouchedResources :: (?context :: ControllerContext) => [SurfaceResource
 shiftTypeTouchedResources =
     [adminShiftTypesResource (unpackId currentVenueId)]
 
-shiftTypePayResources :: UUID -> [(UUID, UUID, Int)] -> [(UUID, Int)] -> [SurfaceResourceValue]
+shiftTypePayResources :: UUID -> [(UUID, UUID, Day, Day, Int)] -> [(UUID, Day, Day, Int)] -> [SurfaceResourceValue]
 shiftTypePayResources venueId activeRosterScopes activeTimesheetScopes =
     Set.toList $ Set.fromList
         ( [ resource
-          | (activeVenueId, rosterGroupId, weekOffset) <- activeRosterScopes
+          | (activeVenueId, rosterGroupId, windowStart, windowEnd, _calendarRevision) <- activeRosterScopes
           , activeVenueId == venueId
           , resource <-
-                [ rosterWeekResource rosterGroupId weekOffset
-                , rosterSlotsContentResource rosterGroupId weekOffset
+                [ rosterWeekResource rosterGroupId windowStart windowEnd
+                , rosterSlotsContentResource rosterGroupId windowStart windowEnd
                 ]
           ]
-            <> [ timesheetWeekResource activeVenueId weekOffset
-               | (activeVenueId, weekOffset) <- activeTimesheetScopes
+            <> [ timesheetWeekResource activeVenueId windowStart windowEnd
+               | (activeVenueId, windowStart, windowEnd, _calendarRevision) <- activeTimesheetScopes
                , activeVenueId == venueId
                ]
         )

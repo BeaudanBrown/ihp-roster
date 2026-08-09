@@ -9,6 +9,7 @@ import qualified Application.Helper.FrontendContract.Surface.Roster.Resource as 
 import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)
 import Application.Helper.SurfaceResource
 import qualified Data.Set as Set
+import Data.Time.Calendar (Day)
 import Data.UUID (UUID)
 import Web.Controller.Prelude
 
@@ -17,7 +18,7 @@ import Web.Controller.Prelude
 -- typed feature matchers rather than reflected resource names or field text.
 expandRosterSurfaceResources ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    [(UUID, UUID, Int)] ->
+    [(UUID, UUID, Day, Day, Int)] ->
     Set.Set SurfaceResourceValue ->
     IO (Set.Set SurfaceResourceValue)
 expandRosterSurfaceResources activeRosterScopes resources = do
@@ -33,7 +34,7 @@ expandRosterSurfaceResources activeRosterScopes resources = do
             pure Set.empty
 
 expandRosterSurfaceResourcesWithoutContext ::
-    [(UUID, UUID, Int)] ->
+    [(UUID, UUID, Day, Day, Int)] ->
     Set.Set SurfaceResourceValue ->
     Set.Set SurfaceResourceValue
 expandRosterSurfaceResourcesWithoutContext activeRosterScopes resources =
@@ -56,17 +57,17 @@ rosterStaffResourceStaffId resourceValue =
     ProfileResource.matchStaffProfileResource resourceValue
         <|> ProfileResource.matchStaffPreferencesResource resourceValue
 
-activeVenueRosterWeekResources :: [(UUID, UUID, Int)] -> UUID -> Set.Set SurfaceResourceValue
+activeVenueRosterWeekResources :: [(UUID, UUID, Day, Day, Int)] -> UUID -> Set.Set SurfaceResourceValue
 activeVenueRosterWeekResources activeRosterScopes venueId =
     Set.fromList
-        [ RosterResource.rosterWeekResource rosterGroupId weekOffset
-        | (activeVenueId, rosterGroupId, weekOffset) <- activeRosterScopes
+        [ RosterResource.rosterWeekResource rosterGroupId windowStart windowEnd
+        | (activeVenueId, rosterGroupId, windowStart, windowEnd, _calendarRevision) <- activeRosterScopes
         , activeVenueId == venueId
         ]
 
 activeRosterWeekResourcesForStaff ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    [(UUID, UUID, Int)] ->
+    [(UUID, UUID, Day, Day, Int)] ->
     UUID ->
     IO (Set.Set SurfaceResourceValue)
 activeRosterWeekResourcesForStaff activeRosterScopes staffId = do
@@ -79,29 +80,29 @@ activeRosterWeekResourcesForStaff activeRosterScopes staffId = do
             pure $
                 Set.fromList
                     [ resource
-                    | (venueId, rosterGroupId, weekOffset) <- activeRosterScopes
+                    | (venueId, rosterGroupId, windowStart, windowEnd, _calendarRevision) <- activeRosterScopes
                     , venueId == unpackId currentVenueId
                     , rosterGroupId `Set.member` rosterGroupIdSet
                     , resource <-
-                        [ RosterResource.rosterWeekResource rosterGroupId weekOffset
-                        , RosterResource.rosterSlotsContentResource rosterGroupId weekOffset
+                        [ RosterResource.rosterWeekResource rosterGroupId windowStart windowEnd
+                        , RosterResource.rosterSlotsContentResource rosterGroupId windowStart windowEnd
                         ]
                     ]
 
 activeRosterResourcesForStaffGroups ::
     UUID ->
-    [(UUID, UUID, Int)] ->
+    [(UUID, UUID, Day, Day, Int)] ->
     [Id RosterGroup] ->
     [SurfaceResourceValue]
 activeRosterResourcesForStaffGroups venueId activeRosterScopes rosterGroupIds =
     Set.toList $ Set.fromList
         [ resource
-        | (activeVenueId, rosterGroupId, weekOffset) <- activeRosterScopes
+        | (activeVenueId, rosterGroupId, windowStart, windowEnd, _calendarRevision) <- activeRosterScopes
         , activeVenueId == venueId
         , rosterGroupId `Set.member` rosterGroupIdSet
         , resource <-
-            [ RosterResource.rosterWeekResource rosterGroupId weekOffset
-            , RosterResource.rosterSlotsContentResource rosterGroupId weekOffset
+            [ RosterResource.rosterWeekResource rosterGroupId windowStart windowEnd
+            , RosterResource.rosterSlotsContentResource rosterGroupId windowStart windowEnd
             ]
         ]
   where

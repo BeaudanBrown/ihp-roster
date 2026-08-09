@@ -2,7 +2,7 @@ module Application.Script.SeedProfile where
 
 import Application.Fixture.Seed.Calendar (currentWeekOffsetForDay,
                                           weekStartForOffset)
-import Application.Helper.Url (appendQueryParams)
+import Application.Helper.Url (appendQueryParams, replaceQueryParams)
 import Application.VenueTime (melbourneTimeZoneName)
 import Application.VenueTime.Model (resolveBoundaryInstant)
 import Control.Monad (foldM)
@@ -23,8 +23,8 @@ import Web.Routes ()
 import Web.Types (AdminController (AdminAction, ShowadminInvitesLiveFragmentAction, ShowadminRosterGroupsLiveFragmentAction, ShowadminShiftTypesLiveFragmentAction, ShowadminXeroShellLiveFragmentAction, XeroAction),
                   LeaveRequestsController (LeaveRequestsAction, ShowleaveRequestsContentLiveFragmentAction),
                   ProfilesController (EditProfileAction, ShowprofileContentLiveFragmentAction),
-                  RosterWeeksController (ShowRosterWeekAction, ShowRosterWeekContentFragmentAction, ShowRosterWeekOverviewFragmentAction, ShowRosterWeekStaffPanelFragmentAction),
-                  TimesheetsController (ShowTimesheetDaySectionFragmentAction, ShowTimesheetWeekAction, TimesheetsAction))
+                  RosterWeeksController (ShowRosterWeekAction, ShowRosterWeekContentFragmentAction, ShowRosterWeekOverviewFragmentAction, ShowRosterWeekStaffPanelFragmentAction, ShowRosterWindowAction),
+                  TimesheetsController (ShowTimesheetDaySectionFragmentAction, ShowTimesheetWeekAction, ShowTimesheetWindowAction, TimesheetsAction))
 
 run :: IO ()
 run = do
@@ -264,31 +264,43 @@ profileSectionPath section =
 
 rosterWeekPath :: Int -> Int -> Int -> Text
 rosterWeekPath weekOffset venueIndex groupIndex =
-    appendQueryParams
-        (pathTo (ShowRosterWeekAction weekOffset))
-        [("rosterGroupId", rosterGroupId venueIndex groupIndex)]
+    replaceQueryParams
+        (pathTo (ShowRosterWindowAction anchorDate))
+        [("anchorDate", tshow anchorDate), ("rosterGroupId", rosterGroupId venueIndex groupIndex)]
+  where
+    anchorDate = weekStartForOffset weekOffset
 
 rosterWeekContentFragmentPath :: Int -> Int -> Int -> Text
 rosterWeekContentFragmentPath weekOffset venueIndex groupIndex =
-    appendQueryParams
-        (pathTo (ShowRosterWeekContentFragmentAction weekOffset))
-        [("rosterGroupId", rosterGroupId venueIndex groupIndex)]
+    replaceQueryParams
+        (pathTo (ShowRosterWeekContentFragmentAction anchorDate))
+        [("anchorDate", tshow anchorDate), ("rosterGroupId", rosterGroupId venueIndex groupIndex)]
+  where
+    anchorDate = weekStartForOffset weekOffset
 
 rosterWeekStaffPanelFragmentPath :: Int -> Int -> Int -> Text
 rosterWeekStaffPanelFragmentPath weekOffset venueIndex groupIndex =
-    appendQueryParams
-        (pathTo (ShowRosterWeekStaffPanelFragmentAction weekOffset))
-        [("rosterGroupId", rosterGroupId venueIndex groupIndex)]
+    replaceQueryParams
+        (pathTo (ShowRosterWeekStaffPanelFragmentAction anchorDate))
+        [("anchorDate", tshow anchorDate), ("rosterGroupId", rosterGroupId venueIndex groupIndex)]
+  where
+    anchorDate = weekStartForOffset weekOffset
 
 rosterWeekOverviewFragmentPath :: Int -> Int -> Int -> Text
 rosterWeekOverviewFragmentPath weekOffset venueIndex groupIndex =
-    appendQueryParams
-        (pathTo (ShowRosterWeekOverviewFragmentAction weekOffset))
-        [("rosterGroupId", rosterGroupId venueIndex groupIndex)]
+    replaceQueryParams
+        (pathTo (ShowRosterWeekOverviewFragmentAction anchorDate))
+        [("anchorDate", tshow anchorDate), ("rosterGroupId", rosterGroupId venueIndex groupIndex)]
+  where
+    anchorDate = weekStartForOffset weekOffset
 
 timesheetWeekPath :: Int -> Text
 timesheetWeekPath weekOffset =
-    pathTo (ShowTimesheetWeekAction weekOffset)
+    replaceQueryParams
+        (pathTo (ShowTimesheetWindowAction anchorDate))
+        [("anchorDate", tshow anchorDate)]
+  where
+    anchorDate = weekStartForOffset weekOffset
 
 timesheetResetPath :: Int -> Text
 timesheetResetPath _weekOffset =
@@ -300,7 +312,8 @@ timesheetStaffFilterPath weekOffset staffUuid =
 
 timesheetDayFragmentPath :: Int -> Int -> Text
 timesheetDayFragmentPath weekOffset dayOffset =
-    pathTo (ShowTimesheetDaySectionFragmentAction weekOffset dayOffset)
+    let windowStart = weekStartForOffset weekOffset
+     in pathTo (ShowTimesheetDaySectionFragmentAction windowStart (addDays (toInteger dayOffset) windowStart))
 
 adminInvitesFragmentPath :: Int -> Int -> Text
 adminInvitesFragmentPath venueIndex groupIndex =

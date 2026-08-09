@@ -281,17 +281,17 @@ tests = aroundAll withDatabaseTestContext do
                         ]
 
                 let rosterGroupId = Id (unpackId venue.id) :: Id RosterGroup
-                let activeRosterScopes = [(unpackId venue.id, unpackId rosterGroupId, 3)]
-                let activeTimesheetScopes = [(unpackId venue.id, 3)]
+                let activeRosterScopes = [(unpackId venue.id, unpackId rosterGroupId, testAnchorForOffset 3, addDays 7 (testAnchorForOffset 3), 1)]
+                let activeTimesheetScopes = [(unpackId venue.id, testAnchorForOffset 3, addDays 7 (testAnchorForOffset 3), 1)]
                 Set.fromList (acceptedVenueInvitationTouchedResourcesForScopes adoptionInvitation activeRosterScopes activeTimesheetScopes [rosterGroupId])
                     `shouldBe`
                         Set.fromList
                             [ adminInvitesResource (unpackId venue.id)
                             , staffProfileResource (unpackId staff.id)
                             , staffPreferencesResource (unpackId staff.id)
-                            , rosterWeekResource (unpackId rosterGroupId) 3
-                            , rosterSlotsContentResource (unpackId rosterGroupId) 3
-                            , timesheetWeekResource (unpackId venue.id) 3
+                            , rosterWeekResource (unpackId rosterGroupId) (testAnchorForOffset 3) (addDays 7 (testAnchorForOffset 3))
+                            , rosterSlotsContentResource (unpackId rosterGroupId) (testAnchorForOffset 3) (addDays 7 (testAnchorForOffset 3))
+                            , timesheetWeekResource (unpackId venue.id) (testAnchorForOffset 3) (addDays 7 (testAnchorForOffset 3))
                             ]
 
         it "creates a verified user and venue membership from a pending invitation" $ withContext do

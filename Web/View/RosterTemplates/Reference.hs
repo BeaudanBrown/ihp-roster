@@ -61,8 +61,8 @@ instance View ReferenceView where
             }
         referenceUrl targetOffset =
             appendQueryParams
-                (pathTo ShowRosterTemplateReferenceAction { rosterGroupId = rosterGroup.id, weekOffset = targetOffset })
-                [("name", templateName), ("scale", rosterTemplateScaleValue templateScale)]
+                (pathTo ShowRosterTemplateReferenceAction { rosterGroupId = rosterGroup.id })
+                [("anchorDate", tshow (addDays (toInteger ((targetOffset - weekOffset) * 7)) referenceWeek.referenceWeekStart)), ("name", templateName), ("scale", rosterTemplateScaleValue templateScale)]
 
 renderReferenceContent :: ReferenceView -> Html
 renderReferenceContent view@ReferenceView { referenceWeek = RosterTemplateReferenceWeek { referenceRosterWeek = Nothing } } = [hsx|
@@ -73,7 +73,7 @@ renderReferenceContent view@ReferenceView { referenceWeek = RosterTemplateRefere
         <div class="alert alert-secondary mb-0">This roster week is incomplete and cannot be used as a Week template reference.</div>
     |]
     | otherwise = [hsx|
-        <form method="GET" action={ConfirmRosterTemplateReferenceAction view.rosterGroup.id view.weekOffset}
+        <form method="GET" action={ConfirmRosterTemplateReferenceAction view.rosterGroup.id}
               class="roster-template-reference-target roster-template-reference-week"
               {...rosterTemplateReferenceTargetAttrs}>
             {referenceHiddenFields view Nothing}
@@ -98,7 +98,7 @@ renderReferenceContent view@ReferenceView { referenceWeek = RosterTemplateRefere
             shiftCount = length (filter (\slot -> slot.rosterDayId == unpackId rosterDay.id) referenceRosterSlots)
          in [hsx|
             <div class="col-12 col-md">
-                <form method="GET" action={ConfirmRosterTemplateReferenceAction view.rosterGroup.id view.weekOffset}
+                <form method="GET" action={ConfirmRosterTemplateReferenceAction view.rosterGroup.id}
                       class="roster-template-reference-target h-100"
                       {...rosterTemplateReferenceTargetAttrs}>
                     {referenceHiddenFields view (Just rosterDay.dayOffset)}
@@ -116,7 +116,7 @@ renderReferenceContent view@ReferenceView { referenceWeek = RosterTemplateRefere
 referenceHiddenFields :: ReferenceView -> Maybe Int -> Html
 referenceHiddenFields ReferenceView { .. } maybeDayOffset = [hsx|
     <input type="hidden" name="rosterGroupId" value={tshow rosterGroup.id} />
-    <input type="hidden" name="weekOffset" value={tshow weekOffset} />
+    <input type="hidden" name="anchorDate" value={tshow referenceWeek.referenceWeekStart} />
     <input type="hidden" name="name" value={templateName} />
     <input type="hidden" name="scale" value={rosterTemplateScaleValue templateScale} />
     {forEach maybeDayOffset renderDayOffsetInput}

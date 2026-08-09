@@ -21,14 +21,16 @@ const scope: SurfaceScope = {
     surface: "timesheets",
     scope: {
         venueId: "00000000-0000-0000-0000-000000000001",
-        weekOffset: 0,
+        windowStartDate: "2025-01-06",
+        windowEndDate: "2025-01-13",
+        rosterCalendarRevision: 1,
     },
 };
 
 const fragment: FrontendSurfaceMountedFragmentConfig = {
-    fragmentKey: { surface: "timesheets", kind: "timesheet-day-section", params: { dayOffset: 1 } },
-    targetId: "timesheet-day-1",
-    url: "/ShowTimesheetDay?dayOffset=1",
+    fragmentKey: { surface: "timesheets", kind: "timesheet-day-section", params: { operationalDate: "2025-01-07" } },
+    targetId: "timesheet-day-2025-01-07",
+    url: "/ShowTimesheetDaySectionFragment?operationalDate=2025-01-07",
     protection: {
         kind: "focused-field",
         activeSelector: "input:focus",
@@ -46,7 +48,7 @@ test("modular invalidation owner routes passive and actor keys through mounted d
         scopeKey: "timesheets:v:0",
         path: "/live-updates",
         resyncFragments: [fragment],
-        decorateRequestsWithin: ["#timesheet-day-1"],
+        decorateRequestsWithin: ["#timesheet-day-2025-01-07"],
         renderedDependencyWatermark: 7,
         ownerEls: [],
         resync: () => { resyncCount += 1; },
@@ -262,7 +264,7 @@ test("HTMX actor event adaptation strips only its verified dispatch element", ()
 test("live update fragment merge key includes structural fragment key and target", () => {
     assertEqual(
         liveUpdateFragmentMergeKey(fragment),
-        '["timesheets","timesheet-day-section",{"dayOffset":1}]:timesheet-day-1'
+        '["timesheets","timesheet-day-section",{"operationalDate":"2025-01-07"}]:timesheet-day-2025-01-07'
     );
     assertEqual(liveUpdateFragmentMergeKey({ ...fragment, targetId: "" }), null);
 });
@@ -290,7 +292,7 @@ test("semantic invalidation keys resolve only through descriptors on local mount
     };
     const reorderedIncomingKey = {
         kind: "timesheet-day-section",
-        params: { dayOffset: 1 },
+        params: { operationalDate: "2025-01-07" },
         surface: "timesheets",
     } as const;
     const unknownKey = { surface: "roster", kind: "roster-content", params: {} } as const;

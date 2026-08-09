@@ -1,7 +1,7 @@
 module Application.Helper.FrontendContract.Surface.Roster.Live
-    ( activeRosterWeekScopes
-    , activeRosterWeekScopesWithBus
-    , matchRosterWeekLiveScope
+    ( activeRosterWindowScopes
+    , activeRosterWindowScopesWithBus
+    , matchRosterWindowLiveScope
     , rosterContentLiveFragment
     , rosterDayColumnsLiveFragment
     , rosterDayRailLiveFragment
@@ -35,18 +35,19 @@ import qualified Application.Helper.FrontendContract.Surface.Roster.Generated.Li
 import Application.Helper.LiveUpdate.Runtime (LiveBus,
                                               activeSurfaceScopeMatches,
                                               activeSurfaceScopeMatchesWithBus)
+import Data.Time.Calendar (Day)
 import qualified Data.UUID as UUID
 import IHP.Prelude
 
--- | Recover the domain-shaped roster scope used by active-scope expansion.
-matchRosterWeekLiveScope :: SurfaceScope -> Maybe (UUID.UUID, UUID.UUID, Int)
-matchRosterWeekLiveScope scope = do
-    (venueId, (rosterGroupId, (weekOffset, ()))) <- Generated.matchRosterWeekLiveScope scope
-    pure (venueId, rosterGroupId, weekOffset)
+-- | Recover explicit date range and calendar revision identity for active windows.
+matchRosterWindowLiveScope :: SurfaceScope -> Maybe (UUID.UUID, UUID.UUID, Day, Day, Int)
+matchRosterWindowLiveScope scope = do
+    (venueId, (rosterGroupId, (windowStart, (windowEnd, (calendarRevision, ()))))) <- Generated.matchRosterWeekLiveScope scope
+    pure (venueId, rosterGroupId, windowStart, windowEnd, calendarRevision)
 
-activeRosterWeekScopes :: IO [(UUID.UUID, UUID.UUID, Int)]
-activeRosterWeekScopes = activeSurfaceScopeMatches matchRosterWeekLiveScope
+activeRosterWindowScopes :: IO [(UUID.UUID, UUID.UUID, Day, Day, Int)]
+activeRosterWindowScopes = activeSurfaceScopeMatches matchRosterWindowLiveScope
 
-activeRosterWeekScopesWithBus :: LiveBus -> IO [(UUID.UUID, UUID.UUID, Int)]
-activeRosterWeekScopesWithBus bus =
-    activeSurfaceScopeMatchesWithBus bus matchRosterWeekLiveScope
+activeRosterWindowScopesWithBus :: LiveBus -> IO [(UUID.UUID, UUID.UUID, Day, Day, Int)]
+activeRosterWindowScopesWithBus bus =
+    activeSurfaceScopeMatchesWithBus bus matchRosterWindowLiveScope

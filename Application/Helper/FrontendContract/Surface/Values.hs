@@ -126,7 +126,8 @@ import Application.Helper.FrontendContract.ClosedScalar (KnownClosedScalar,
                                                          closedScalarLiteral,
                                                          parseClosedScalarLiteral)
 import qualified Application.Helper.FrontendContract.Naming as Naming
-import Application.Helper.FrontendContract.Surface.ContractIR hiding (intentFields)
+import Application.Helper.FrontendContract.Surface.ContractIR hiding
+                                                              (intentFields)
 import Application.Helper.FrontendContract.Surface.Diagnostics
 import Application.Helper.FrontendContract.Surface.DSL
 import Application.Helper.FrontendContract.Surface.Reflect

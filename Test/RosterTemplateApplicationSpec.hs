@@ -66,7 +66,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 preview <- previewRosterTemplateApplication actor request
                 let Right confirmation = preview
-                applied <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
+                applied <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision confirmation.applicationRosterCalendarRevision
                 refreshedTargetDay <- fetch targetDay.id
                 activeTargetSlots <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId targetDay.id)
@@ -90,11 +90,11 @@ tests = aroundAll withDatabaseTestContext do
                 confirmation.applicationReplacementShiftCount `shouldBe` 1
                 confirmation.applicationExistingShiftCount `shouldBe` 1
                 Set.fromList confirmation.applicationTouchedResources `shouldBe` Set.fromList
-                    [ rosterWeekResource (unpackId rosterGroup.id) targetWeek.weekOffset
-                    , rosterWeekStructureResource (unpackId rosterGroup.id) targetWeek.weekOffset
-                    , rosterSlotsStructureResource (unpackId rosterGroup.id) targetWeek.weekOffset
-                    , rosterSlotsContentResource (unpackId rosterGroup.id) targetWeek.weekOffset
-                    , timesheetWeekResource (unpackId venue.id) targetWeek.weekOffset
+                    [ rosterWeekResource (unpackId rosterGroup.id) confirmation.applicationPreviewTargetAnchorDate (addDays 7 confirmation.applicationPreviewTargetAnchorDate)
+                    , rosterWeekStructureResource (unpackId rosterGroup.id) confirmation.applicationPreviewTargetAnchorDate (addDays 7 confirmation.applicationPreviewTargetAnchorDate)
+                    , rosterSlotsStructureResource (unpackId rosterGroup.id) confirmation.applicationPreviewTargetAnchorDate (addDays 7 confirmation.applicationPreviewTargetAnchorDate)
+                    , rosterSlotsContentResource (unpackId rosterGroup.id) confirmation.applicationPreviewTargetAnchorDate (addDays 7 confirmation.applicationPreviewTargetAnchorDate)
+                    , timesheetWeekResource (unpackId venue.id) confirmation.applicationPreviewTargetAnchorDate (addDays 7 confirmation.applicationPreviewTargetAnchorDate)
                     ]
                 applied `shouldSatisfy` isRight
                 (refreshedTargetDay.isClosed, refreshedTargetDay.rowCount) `shouldBe` (True, 2)
@@ -245,7 +245,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 preview <- previewRosterTemplateApplication actor request
                 let Right confirmation = preview
-                applied <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
+                applied <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision confirmation.applicationRosterCalendarRevision
                 refreshedEntry <- fetch entry.id
                 activeTargetSlots <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId targetDay.id)
@@ -349,12 +349,12 @@ tests = aroundAll withDatabaseTestContext do
                         pure entry
                 let confirmAfterMaterializationStarts = do
                         takeMVar materializationStarted
-                        applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
+                        applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision confirmation.applicationRosterCalendarRevision
 
                 (entry, staleApply) <- concurrently materialize confirmAfterMaterializationStarts
                 refreshedConfirmation <- previewRosterTemplateApplication actor request
                 let Right currentConfirmation = refreshedConfirmation
-                applied <- applyRosterTemplateApplication actor request currentConfirmation.applicationExpectedVersion currentConfirmation.applicationExpectedTargetRevision
+                applied <- applyRosterTemplateApplication actor request currentConfirmation.applicationExpectedVersion currentConfirmation.applicationExpectedTargetRevision currentConfirmation.applicationRosterCalendarRevision
                 refreshedEntry <- fetch entry.id
 
                 staleApply `shouldBe` Left RosterTemplateApplicationTargetConflict
@@ -395,7 +395,7 @@ tests = aroundAll withDatabaseTestContext do
                         threadDelay 200000
                 let confirmAfterPayChangeStarts = do
                         takeMVar payChangeStarted
-                        applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
+                        applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision confirmation.applicationRosterCalendarRevision
 
                 (_, applied) <- concurrently deactivatePayReference confirmAfterPayChangeStarts
                 let Right result = applied
@@ -442,7 +442,7 @@ tests = aroundAll withDatabaseTestContext do
                         threadDelay 200000
                 let confirmAfterRemovalStarts = do
                         takeMVar removalStarted
-                        applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
+                        applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision confirmation.applicationRosterCalendarRevision
 
                 (_, applied) <- concurrently removeMembership confirmAfterRemovalStarts
                 let Right result = applied
@@ -474,8 +474,8 @@ tests = aroundAll withDatabaseTestContext do
                 Right confirmation <- previewRosterTemplateApplication actor request
 
                 (firstResult, secondResult) <- concurrently
-                    (applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision)
-                    (applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision)
+                    (applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision confirmation.applicationRosterCalendarRevision)
+                    (applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision confirmation.applicationRosterCalendarRevision)
                 let results = [firstResult, secondResult]
                 refreshedTemplate <- fetch saved.savedTemplate.id
                 activeSlots <- query @RosterSlot |> filterWhere (#deletedAt, Nothing) |> fetch
@@ -504,7 +504,7 @@ tests = aroundAll withDatabaseTestContext do
                 Right confirmation <- previewRosterTemplateApplication actor request
                 _ <- targetDay |> set #rowCount 9 |> updateRecord
 
-                applied <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
+                applied <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision confirmation.applicationRosterCalendarRevision
                 refreshedSlot <- fetch oldSlot.id
 
                 applied `shouldBe` Left RosterTemplateApplicationTargetConflict
@@ -531,7 +531,7 @@ tests = aroundAll withDatabaseTestContext do
                 Right editDraft <- startRosterTemplateEditDraft secondActor saved.savedTemplate.id
                 Right _ <- saveRosterTemplateDraft secondActor editDraft.draftDesign.id
 
-                applied <- applyRosterTemplateApplication firstActor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
+                applied <- applyRosterTemplateApplication firstActor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision confirmation.applicationRosterCalendarRevision
                 refreshedSlot <- fetch oldSlot.id
 
                 applied `shouldBe` Left (RosterTemplateApplicationVersionConflict 2)
@@ -565,7 +565,7 @@ tests = aroundAll withDatabaseTestContext do
                 let request = RosterTemplateApplicationRequest saved.savedTemplate.id targetWeek.id Nothing noShiftCopyOccurrenceSelections
                 Right confirmation <- previewRosterTemplateApplication actor request
 
-                result <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision
+                result <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision confirmation.applicationRosterCalendarRevision
                 refreshedDays <- query @RosterDay
                     |> filterWhere (#rosterWeekId, Just (unpackId targetWeek.id))
                     |> orderByAsc #dayOffset

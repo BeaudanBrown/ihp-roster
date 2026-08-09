@@ -44,6 +44,7 @@ import qualified Data.UUID as UUID
 import IHP.ModelSupport (InputValue (..))
 import IHP.Prelude
 import Test.Hspec
+import Test.Support (testAnchorForOffset)
 import qualified Test.Support.FrontendSurfaceFixture as SurfaceFixture
 import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
 import qualified Text.Blaze.Html5 as Html5
@@ -343,7 +344,7 @@ tests = describe "FrontendSurface DSL foundation" do
         (surfaceScopeValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetWeek).scopeName `shouldBe` "timesheet-week"
         (surfaceScopeFieldName @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetWeek @TimesheetsSurface.VenueId) `shouldBe` "venueId"
         (surfaceFragmentValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetDaySection).fragmentName `shouldBe` "timesheet-day-section"
-        (surfaceFragmentFieldName @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetDaySection @TimesheetsSurface.DayOffset) `shouldBe` "dayOffset"
+        (surfaceFragmentFieldName @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetDaySection @TimesheetsSurface.OperationalDate) `shouldBe` "operationalDate"
         surfaceActionNameValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.NavigateTimesheetWeek `shouldBe` "navigate-timesheet-week"
         (surfaceResourceValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetDay).resourceName `shouldBe` "timesheet-day"
         (surfaceResourceValue @RosterSurface.RosterSurface @RosterSurface.RosterTemplateLibrary).resourceName `shouldBe` "roster-template-library"
@@ -610,17 +611,21 @@ tests = describe "FrontendSurface DSL foundation" do
         let fields =
                 surfaceField @TimesheetsSurface.VenueId
                     (fromMaybe (error "invalid fixture UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111"))
-                    &: surfaceField @TimesheetsSurface.WeekOffset (2 :: Int)
+                    &: surfaceField @TimesheetsSurface.WindowStartDate (fromGregorian 2025 1 20)
+                    &: surfaceField @TimesheetsSurface.WindowEndDate (fromGregorian 2025 1 27)
+                    &: surfaceField @TimesheetsSurface.RosterCalendarRevision (2 :: Int)
                     &: noSurfaceFields
         let scopeFields = fields :: SurfaceFields (SurfaceScopeFieldSpecs TimesheetsSurface.TimesheetsSurface TimesheetsSurface.TimesheetWeek)
 
         surfaceFieldsJson scopeFields
             `shouldBe` Aeson.object
                 [ "venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text)
-                , "weekOffset" Aeson..= (2 :: Int)
+                , "windowStartDate" Aeson..= ("2025-01-20" :: Text)
+                , "windowEndDate" Aeson..= ("2025-01-27" :: Text)
+                , "rosterCalendarRevision" Aeson..= (2 :: Int)
                 ]
         surfaceFieldsText scopeFields
-            `shouldBe` [("venueId", "11111111-1111-1111-1111-111111111111"), ("weekOffset", "2")]
+            `shouldBe` [("venueId", "11111111-1111-1111-1111-111111111111"), ("windowStartDate", "2025-01-20"), ("windowEndDate", "2025-01-27"), ("rosterCalendarRevision", "2")]
         let absentOptionalFields :: SurfaceFields '[ 'OptionalField TimesheetsSurface.StaffFilterId 'WireUUID]
             absentOptionalFields = surfaceOptionalField @TimesheetsSurface.StaffFilterId Nothing &: noSurfaceFields
         surfaceFieldsJson absentOptionalFields `shouldBe` Aeson.object []
@@ -632,12 +637,12 @@ tests = describe "FrontendSurface DSL foundation" do
             nestedOptionalFields = surfaceOptionalField @NestedOptionalTestField (Just Nothing) &: noSurfaceFields
         surfaceFieldValue @NestedOptionalTestField nestedOptionalFields `shouldBe` Just Nothing
         let actionFields =
-                surfaceField @TimesheetsSurface.WeekOffset 0
+                surfaceField @TimesheetsSurface.AnchorDate (fromGregorian 2025 1 20)
                     &: surfaceOptionalField @TimesheetsSurface.StaffFilterId Nothing
                     &: surfaceOptionalField @TimesheetsSurface.RosterGroupFilterId Nothing
                     &: noSurfaceFields
                 :: SurfaceFields (SurfaceActionFieldSpecs TimesheetsSurface.TimesheetsSurface TimesheetsSurface.NavigateTimesheetWeek)
-        surfaceFieldNameFrom @TimesheetsSurface.WeekOffset actionFields `shouldBe` "weekOffset"
+        surfaceFieldNameFrom @TimesheetsSurface.AnchorDate actionFields `shouldBe` "anchorDate"
 
     it "parses complete typed action fields and exposes only marker-indexed values" do
         let filterId = fromMaybe (error "invalid fixture filter UUID") (UUID.fromString "33333333-3333-3333-3333-333333333333")
@@ -750,7 +755,9 @@ tests = describe "FrontendSurface DSL foundation" do
                 mkSurfaceImplFromValues @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetWeek
                     "primary"
                     ( surfaceField @TimesheetsSurface.VenueId venueId
-                        &: surfaceField @TimesheetsSurface.WeekOffset (0 :: Int)
+                        &: surfaceField @TimesheetsSurface.WindowStartDate (fromGregorian 2025 1 6)
+                        &: surfaceField @TimesheetsSurface.WindowEndDate (fromGregorian 2025 1 13)
+                        &: surfaceField @TimesheetsSurface.RosterCalendarRevision (1 :: Int)
                         &: noSurfaceFields
                     )
                     ( surfaceField @TimesheetsSurface.StaffFilterId Nothing
@@ -917,7 +924,7 @@ tests = describe "FrontendSurface DSL foundation" do
             |> find (\fragment -> fragment.fragmentName == "timesheet-day-section")
             |> fmap (.fragmentParams)
             |> fmap (map (.fieldName))
-            `shouldBe` Just ["dayOffset"]
+            `shouldBe` Just ["operationalDate"]
         surface.surfaceMountStates
             |> listToMaybe
             |> fmap (.mountStateFields)
@@ -1243,7 +1250,7 @@ tests = describe "FrontendSurface DSL foundation" do
 
     it "renders minimal live, interaction, and DOM-token contracts for the roster surface" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterSurfaceFragmentKey ="
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterRosterWeekScope = { venueId: FrontendContractUuid; rosterGroupId: FrontendContractUuid; weekOffset: number };"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterRosterWeekScope = { venueId: FrontendContractUuid; rosterGroupId: FrontendContractUuid; windowStartDate: FrontendContractDay; windowEndDate: FrontendContractDay; rosterCalendarRevision: number };"
         frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"roster-row\"; params: RosterRosterRowFragmentParams }"
         frontendSurfaceContractsTypeScript `shouldNotContainText` "export const rosterContentDomToken"
         frontendSurfaceContractsTypeScript `shouldNotContainText` "export const rosterWeekShellDomToken"
@@ -1334,10 +1341,10 @@ tests = describe "FrontendSurface DSL foundation" do
 
     it "constructs generated FrontendSurface resource values" do
         let venueId = fromMaybe (error "invalid UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111")
-        let resourceValue = TimesheetsResource.timesheetDayResource venueId 0 2
+        let resourceValue = TimesheetsResource.timesheetDayResource venueId (Calendar.addDays 2 (testAnchorForOffset 0))
 
         matchFrontendSurfaceResource @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetDay resourceValue
-            `shouldBe` Just (venueId, (0, (2, ())))
+            `shouldBe` Just (venueId, (Calendar.addDays 2 (testAnchorForOffset 0), ()))
 
     it "renders generated role-specific interaction refs" do
         let surface = expectSurface "roster" registeredFrontendSurfaceContractIR

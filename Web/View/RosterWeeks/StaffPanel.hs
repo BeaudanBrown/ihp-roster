@@ -43,6 +43,7 @@ import Web.RosterWeeks.Dom (rosterStaffPanelFragmentClasses,
                             rosterStaffPanelTemplatesTabId)
 import Web.RosterWeeks.FrontendSurface (rosterStaffDragSourceRef,
                                         rosterStaffLinkedHighlight)
+import Web.RosterWeeks.Paths (rosterWeekStaffPanelFragmentUrl)
 import Web.RosterWeeks.Types (RosterStaffPanelEntry (..),
                               RosterStaffPanelRenderModel (..),
                               RosterStaffPanelScope (..))
@@ -79,13 +80,13 @@ renderRosterStaffPanel panelModel@RosterStaffPanelRenderModel { staffPanelWeekOf
         panelStaffMembers = map (.staff) staffPanelEntries
         renderedPanelStaff = sortRosterStaffPanelEntries panelStaffMembers staffPanelEntries
         staffPanelContent = [hsx|
-            {renderRosterStaffPanelHeader staffPanelWeekOffset staffPanelCurrentRosterGroup.id hasMultipleRosterGroups staffPanelScope}
+            {renderRosterStaffPanelHeader staffPanelWeekOffset panelModel.staffPanelWeekStartDate staffPanelCurrentRosterGroup.id hasMultipleRosterGroups staffPanelScope}
             {renderRosterStaffPanelTable panelStaffMembers staffPanelWeekOffset staffPanelCurrentRosterGroup.id renderedPanelStaff}
         |]
         templatePanelContent = do
             templateUserId <- panelModel.staffPanelTemplateUserId
             templateLibrary <- panelModel.staffPanelTemplateLibrary
-            pure (renderRosterTemplateLibraryFragment templateUserId staffPanelWeekOffset staffPanelCurrentRosterGroup panelModel.staffPanelRosterWeek templateLibrary)
+            pure (renderRosterTemplateLibraryFragment templateUserId staffPanelWeekOffset panelModel.staffPanelWeekStartDate panelModel.staffPanelCalendarRevision staffPanelCurrentRosterGroup panelModel.staffPanelRosterWeek templateLibrary)
         settingsPanelContent = renderRosterSettingsPanel panelModel
 
 
@@ -134,15 +135,15 @@ renderRosterTemplatesPane templateContent = [hsx|
     </div>
 |]
 
-renderRosterStaffPanelHeader :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Bool -> RosterStaffPanelScope -> Html
-renderRosterStaffPanelHeader weekOffset currentRosterGroupId hasMultipleRosterGroups panelScope = [hsx|
+renderRosterStaffPanelHeader :: (?context :: ControllerContext) => Int -> Day -> Id RosterGroup -> Bool -> RosterStaffPanelScope -> Html
+renderRosterStaffPanelHeader weekOffset anchorDate currentRosterGroupId hasMultipleRosterGroups panelScope = [hsx|
     <div class="app-side-panel-content-header roster-staff-panel-header">
         <div>
             <h2 class="h5 mb-0">Staff</h2>
         </div>
         <div class="app-side-panel-content-header-actions roster-staff-panel-header-actions">
             {renderOpenRosterStaffCreateDialogButton weekOffset currentRosterGroupId}
-            {when hasMultipleRosterGroups (renderStaffScopeToggle weekOffset currentRosterGroupId panelScope)}
+            {when hasMultipleRosterGroups (renderStaffScopeToggle anchorDate currentRosterGroupId panelScope)}
         </div>
     </div>
 |]
@@ -237,8 +238,8 @@ sortRosterStaffPanelEntries panelStaffMembers =
     where
         sortName entry = Text.toCaseFold (staffDisplayName panelStaffMembers entry.staff)
 
-renderStaffScopeToggle :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterStaffPanelScope -> Html
-renderStaffScopeToggle weekOffset currentRosterGroupId panelScope =
+renderStaffScopeToggle :: (?context :: ControllerContext) => Day -> Id RosterGroup -> RosterStaffPanelScope -> Html
+renderStaffScopeToggle anchorDate currentRosterGroupId panelScope =
     renderFrontendSurfaceActionForm
         (RosterAction.toggleRosterStaffScopeAction fields)
         FrontendSurfaceActionRoute
@@ -252,7 +253,7 @@ renderStaffScopeToggle weekOffset currentRosterGroupId panelScope =
             {renderStaffScopeToggleButton fields currentRosterGroupId panelScope}
         |]
   where
-    actionUrl = pathTo (ShowRosterWeekStaffPanelFragmentAction weekOffset)
+    actionUrl = rosterWeekStaffPanelFragmentUrl anchorDate currentRosterGroupId
     fields = RosterAction.toggleRosterStaffScopeActionFields (if panelScope == RosterStaffPanelAllVenue then RosterStaffAllVenue else RosterStaffCurrentGroup)
 
 renderStaffScopeToggleButton :: ActionFields RosterAction.ToggleRosterStaffScopeActionOperation -> Id RosterGroup -> RosterStaffPanelScope -> Html

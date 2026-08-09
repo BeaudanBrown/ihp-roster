@@ -23,7 +23,7 @@ import Application.Helper.RosterGroups
 import Application.Helper.SurfaceResource
 import Application.Helper.TimeRules (parseQuarterHourMinuteOfDay)
 import Application.Helper.Url (appendQueryParams)
-import Application.Helper.WeekBoundaries (weekdayIndexLabel)
+import Application.Helper.WeekBoundaries (startOfWeekFor, weekdayIndexLabel)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
@@ -33,6 +33,7 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.List as List
 import qualified Data.Text as Text
+import Data.Time.Calendar (addDays)
 import Data.Time.Clock (utctDay)
 import qualified Web.Admin.FrontendSurface as AdminSurface
 import Web.Admin.Mutations
@@ -241,11 +242,15 @@ instance Controller AdminController where
     action currentAction@ProfileLiveInvalidateXeroAction = runBepis currentAction BepisPageAction $
         respondToProfileLiveInvalidation "xero" [xeroConnectionResource (unpackId currentVenueId)]
 
-    action currentAction@ProfileLiveInvalidateTimesheetWeekAction { weekOffset } = runBepis currentAction BepisPageAction $
-        respondToProfileLiveInvalidation "timesheet_week" [timesheetWeekResource (unpackId currentVenueId) weekOffset]
+    action currentAction@ProfileLiveInvalidateTimesheetWindowAction { anchorDate } = runBepis currentAction BepisPageAction do
+        venueConfig <- fetchVenueConfig
+        let windowStart = startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate
+        respondToProfileLiveInvalidation "timesheet_window" [timesheetWeekResource (unpackId currentVenueId) windowStart (addDays 7 windowStart)]
 
-    action currentAction@ProfileLiveInvalidateRosterWeekAction { rosterGroupId, weekOffset } = runBepis currentAction BepisPageAction $
-        respondToProfileLiveInvalidation "roster_week" [rosterWeekResource (unpackId rosterGroupId) weekOffset]
+    action currentAction@ProfileLiveInvalidateRosterWindowAction { rosterGroupId, anchorDate } = runBepis currentAction BepisPageAction do
+        venueConfig <- fetchVenueConfig
+        let windowStart = startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate
+        respondToProfileLiveInvalidation "roster_window" [rosterWeekResource (unpackId rosterGroupId) windowStart (addDays 7 windowStart)]
 
     action currentAction@ProfileLiveInvalidateLeaveRequestsAction = runBepis currentAction BepisPageAction $
         respondToProfileLiveInvalidation "leave_requests" [pendingLeaveRequestsResource (unpackId currentVenueId)]

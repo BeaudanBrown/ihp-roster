@@ -244,7 +244,7 @@ tests = aroundAll withDatabaseTestContext do
                         [("userId", cs (inputValue worker.id))]
                     adminResponse <- callAction AdminAction
                     profileResponse <- callAction EditProfileAction
-                    rosterResponse <- callAction (ShowRosterWeekAction 0)
+                    rosterResponse <- callAction (ShowRosterWindowAction (testAnchorForOffset 0))
                     pure (adminResponse, profileResponse, rosterResponse)
 
                 adminResponse `responseStatusShouldBe` status302
@@ -292,7 +292,7 @@ tests = aroundAll withDatabaseTestContext do
                         StartSupportImpersonationAction
                         [("userId", cs (inputValue worker.id))]
                     callActionWithParams
-                        (UpdateRosterLayoutPreferenceAction 0)
+                        (UpdateRosterLayoutPreferenceAction)
                         [("rosterLayoutMode", "day_columns")]
 
                 response `responseStatusShouldBe` status302

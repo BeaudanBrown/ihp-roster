@@ -129,17 +129,17 @@ tests = aroundAll withDatabaseTestContext do
                 warningResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (UpdateRosterWarningPreferenceAction 0)
+                            (UpdateRosterWarningPreferenceAction)
                             [("showRosterWarnings", "true")]
                 wageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (UpdateRosterWageEstimatePreferenceAction 0)
+                            (UpdateRosterWageEstimatePreferenceAction)
                             [("showWageEstimates", "true")]
                 layoutResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (UpdateRosterLayoutPreferenceAction 0)
+                            (UpdateRosterLayoutPreferenceAction)
                             [("rosterLayoutMode", "day_columns")]
 
                 let refreshesPersonalRosterSettings response = do
@@ -164,8 +164,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 targets <- withUserAndCurrentVenue manager venue.id do
                     withCurrentControllerContext do
-                        let scope = RosterLive.rosterWeekLiveScope (unpackId venue.id) rosterWeek.rosterGroupId rosterWeek.weekOffset
-                        let scopeValue = RosterWeekScopeValue { rosterWeekVenueId = unpackId venue.id, rosterWeekGroupId = Id rosterWeek.rosterGroupId, rosterWeekWeekOffset = rosterWeek.weekOffset, rosterWeekTimelineDayOffset = Nothing }
+                        let scope = RosterLive.rosterWeekLiveScope (unpackId venue.id) rosterWeek.rosterGroupId (testAnchorForOffset rosterWeek.weekOffset) (addDays 7 (testAnchorForOffset rosterWeek.weekOffset)) 1
+                        let scopeValue = RosterWeekScopeValue { rosterWeekVenueId = unpackId venue.id, rosterWeekGroupId = Id rosterWeek.rosterGroupId, rosterWeekWeekOffset = rosterWeek.weekOffset, rosterWeekWindowStart = testAnchorForOffset (rosterWeek.weekOffset), rosterWeekWindowEnd = addDays 7 (testAnchorForOffset (rosterWeek.weekOffset)), rosterWeekCalendarRevision = 1, rosterWeekTimelineDayOffset = Nothing }
                         let mountedPlan = RosterMountedFragmentPlan { rosterMountedDayIds = [], rosterMountedRows = [], rosterMountedTemplateUserId = Nothing }
                         let subscription =
                                 SurfaceSubscription
@@ -175,7 +175,7 @@ tests = aroundAll withDatabaseTestContext do
                                     , subscriptionRenderedDependencyWatermark = 0
                                     }
                         pure $ planSurfaceInvalidations
-                            (Set.singleton (rosterWeekResource rosterWeek.rosterGroupId rosterWeek.weekOffset))
+                            (Set.singleton (rosterWeekResource rosterWeek.rosterGroupId (testAnchorForOffset rosterWeek.weekOffset) (addDays 7 (testAnchorForOffset rosterWeek.weekOffset))))
                             [subscription]
 
                 targetFragmentKeys targets
@@ -192,7 +192,7 @@ tests = aroundAll withDatabaseTestContext do
                 let venueId = fromMaybe (error "invalid roster venue UUID") (UUID.fromString "00000000-0000-0000-0000-000000000111")
                 let rosterGroupId = Id "00000000-0000-0000-0000-000000000222" :: Id RosterGroup
                 let rosterDayId = Id "00000000-0000-0000-0000-000000000333" :: Id RosterDay
-                let scope = RosterWeekScopeValue { rosterWeekVenueId = venueId, rosterWeekGroupId = rosterGroupId, rosterWeekWeekOffset = 3, rosterWeekTimelineDayOffset = Nothing }
+                let scope = RosterWeekScopeValue { rosterWeekVenueId = venueId, rosterWeekGroupId = rosterGroupId, rosterWeekWeekOffset = 3, rosterWeekWindowStart = testAnchorForOffset (3), rosterWeekWindowEnd = addDays 7 (testAnchorForOffset (3)), rosterWeekCalendarRevision = 1, rosterWeekTimelineDayOffset = Nothing }
                 let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0), (rosterDayId, 1)], rosterMountedTemplateUserId = Nothing }
                 let impl = rosterSurfaceImpl scope plan
                 let mountConfig = impl.surfaceImplMountConfig
@@ -204,7 +204,7 @@ tests = aroundAll withDatabaseTestContext do
                 map (.intentFormName) (rosterIntentForms scope True)
                     `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day", "drop-roster-staff", "preview-roster-template-application"]
                 mountConfig.mountSurfaceName `shouldBe` "roster"
-                mountConfig.mountScopeKey `shouldBe` "roster:00000000-0000-0000-0000-000000000111:00000000-0000-0000-0000-000000000222:3"
+                mountConfig.mountScopeKey `shouldBe` "roster:00000000-0000-0000-0000-000000000111:00000000-0000-0000-0000-000000000222:2025-01-27:2025-02-03:1"
                 fragmentKeys
                     `shouldBe` [ RosterLive.rosterContentLiveFragment
                                , RosterLive.rosterGridToolbarLiveFragment
@@ -220,7 +220,7 @@ tests = aroundAll withDatabaseTestContext do
                                ]
                 fragmentTargets `shouldContain` [rosterDaySectionDomId rosterDayId]
                 fragmentTargets `shouldContain` [rosterRowDomIdText rosterDayId 1]
-                fragmentUrls `shouldSatisfy` all (Text.isInfixOf "weekOffset=3")
+                fragmentUrls `shouldSatisfy` all (Text.isInfixOf "anchorDate=2025-01-27")
                 fragmentUrls `shouldSatisfy` all (Text.isInfixOf "rosterGroupId=00000000-0000-0000-0000-000000000222")
                 fragmentKeys `shouldContain` [RosterLive.rosterRowLiveFragment (unpackId rosterDayId) 1]
 
@@ -237,7 +237,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
 
                 response <- withUserAndCurrentVenue worker venue.id do
-                    callAction (ShowRosterWeekGridFrameFragmentAction 0)
+                    callAction (ShowRosterWeekGridFrameFragmentAction (testAnchorForOffset 0))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-roster-visibility=\"hidden-draft\""
@@ -322,7 +322,7 @@ tests = aroundAll withDatabaseTestContext do
                 slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction 0)
+                    _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction)
                         [ ("hideStaffAtIdealShifts", "true")
                         , ("hideStaffUnavailable", "false")
                         , ("hideStaffOnApprovedLeave", "false")
@@ -359,7 +359,7 @@ tests = aroundAll withDatabaseTestContext do
                 slot <- createRosterSlotRecord mondayRosterDay slotName (Just selectedStaff) 0
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction 0)
+                    _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction)
                         [ ("hideStaffAtIdealShifts", "false")
                         , ("hideStaffUnavailable", "true")
                         , ("hideStaffOnApprovedLeave", "false")
@@ -397,7 +397,7 @@ tests = aroundAll withDatabaseTestContext do
                 slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName mondayRosterDay frontSlotName
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction 0)
+                    _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction)
                         [ ("hideStaffAtIdealShifts", "false")
                         , ("hideStaffUnavailable", "true")
                         , ("hideStaffOnApprovedLeave", "false")
@@ -424,7 +424,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- updateRecord (timelineSlot |> setTestStartTime (Just (TimeOfDay 9 0 0)) |> setTestEndTime (Just (TimeOfDay 13 0 0)))
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (ShowRosterWeekAction 0)
+                    callActionWithParams (ShowRosterWindowAction (testAnchorForOffset 0))
                         [ ("rosterView", "timeline")
                         , ("dayOffset", "0")
                         ]
@@ -461,7 +461,7 @@ tests = aroundAll withDatabaseTestContext do
                 timelineSlot <- updateRecord (applyRosterSlotBoundaries boundaries timelineSlot)
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (ShowRosterWeekAction 64)
+                    callActionWithParams (ShowRosterWindowAction (testAnchorForOffset 64))
                         [ ("rosterView", "timeline")
                         , ("dayOffset", "5")
                         ]
@@ -526,7 +526,7 @@ tests = aroundAll withDatabaseTestContext do
                 slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName mondayRosterDay slotName
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction 0)
+                    _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction)
                         [ ("hideStaffAtIdealShifts", "false")
                         , ("hideStaffUnavailable", "false")
                         , ("hideStaffOnApprovedLeave", "true")
@@ -557,7 +557,7 @@ tests = aroundAll withDatabaseTestContext do
                 lateLane <- fetchRosterLaneForDefinition rosterDay lateDefinition
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekRowFragmentAction 0 rosterDay.id 0)
+                    callAction (ShowRosterWeekRowFragmentAction (testAnchorForOffset 0) rosterDay.id 0)
 
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
@@ -591,7 +591,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterLane <- fetchRosterLaneForDefinition rosterDay slotDefinition
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekRowFragmentAction 0 rosterDay.id 0)
+                    callAction (ShowRosterWeekRowFragmentAction (testAnchorForOffset 0) rosterDay.id 0)
 
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
@@ -620,14 +620,14 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (UpdateRosterLayoutPreferenceAction 0) [("rosterLayoutMode", "day_columns")]
+                        callActionWithParams (UpdateRosterLayoutPreferenceAction) [("rosterLayoutMode", "day_columns")]
 
                 response `responseStatusShouldBe` status200
                 lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
                 response `responseBodyShouldNotContain` "roster-shift-card-empty roster-shift-card-create roster-shift-launcher roster-shift-create-plus-card"
 
                 fragmentResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekDayColumnsFragmentAction 0)
+                    callAction (ShowRosterWeekDayColumnsFragmentAction (testAnchorForOffset 0))
                 body <- responseBody fragmentResponse
                 let bodyText = cs body :: String
                 bodyText `shouldContain` "roster-shift-card-empty roster-shift-card-create roster-shift-launcher roster-shift-create-plus-card"
@@ -655,7 +655,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> updateRecord
 
                 rowResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekRowFragmentAction 0 rosterDay.id 0)
+                    callAction (ShowRosterWeekRowFragmentAction (testAnchorForOffset 0) rosterDay.id 0)
                 rowBody <- responseBody rowResponse
                 let rowText = cs rowBody :: String
                 rowText `shouldContain` "title=\"Front of House Supervisor and Closing Coordinator\""
@@ -663,9 +663,9 @@ tests = aroundAll withDatabaseTestContext do
 
                 _ <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (UpdateRosterLayoutPreferenceAction 0) [("rosterLayoutMode", "day_columns")]
+                        callActionWithParams (UpdateRosterLayoutPreferenceAction) [("rosterLayoutMode", "day_columns")]
                 dayColumnResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekDayColumnsFragmentAction 0)
+                    callAction (ShowRosterWeekDayColumnsFragmentAction (testAnchorForOffset 0))
                 dayColumnResponse `responseBodyShouldContain` "title=\"Front of House Supervisor and Closing Coordinator\""
 
         it "renders editable day-column shifts as typed drag sources and create cards as drop targets" $ withContext do
@@ -681,14 +681,14 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (UpdateRosterLayoutPreferenceAction 0) [("rosterLayoutMode", "day_columns")]
+                        callActionWithParams (UpdateRosterLayoutPreferenceAction) [("rosterLayoutMode", "day_columns")]
 
                 response `responseStatusShouldBe` status200
                 lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
                 response `responseBodyShouldNotContain` "roster-day-columns"
 
                 fragmentResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekDayColumnsFragmentAction 0)
+                    callAction (ShowRosterWeekDayColumnsFragmentAction (testAnchorForOffset 0))
                 body <- responseBody fragmentResponse
                 let bodyText = cs body :: String
                 let sourceGroupKey = "existing:" <> tshow sourceSlot.id
@@ -714,7 +714,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterDay <- createRosterDayRecord rosterWeek 0
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekRowFragmentAction 0 rosterDay.id 0)
+                    callAction (ShowRosterWeekRowFragmentAction (testAnchorForOffset 0) rosterDay.id 0)
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "roster-shift-create-plus-cell"
@@ -735,7 +735,7 @@ tests = aroundAll withDatabaseTestContext do
                 slot <- createRosterSlotRecord rosterDay early (Just staffMember) 0
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekRowFragmentAction 0 rosterDay.id 0)
+                    callAction (ShowRosterWeekRowFragmentAction (testAnchorForOffset 0) rosterDay.id 0)
 
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
@@ -760,7 +760,7 @@ tests = aroundAll withDatabaseTestContext do
                 openSlot <- createRosterSlotRecord rosterDay early Nothing 0
 
                 managerResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekRowFragmentAction 0 rosterDay.id 0)
+                    callAction (ShowRosterWeekRowFragmentAction (testAnchorForOffset 0) rosterDay.id 0)
                 managerResponse `responseStatusShouldBe` status200
                 managerBody <- responseBody managerResponse
                 let managerText = cs managerBody :: String
@@ -773,9 +773,9 @@ tests = aroundAll withDatabaseTestContext do
                 managerText `shouldNotContain` "data-bepis-dropzone-ref=\"existing-shift-dropzone\""
 
                 _ <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (UpdateRosterLayoutPreferenceAction 0) [("rosterLayoutMode", "day_columns")]
+                    callActionWithParams (UpdateRosterLayoutPreferenceAction) [("rosterLayoutMode", "day_columns")]
                 dayColumnsResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekDayColumnsFragmentAction 0)
+                    callAction (ShowRosterWeekDayColumnsFragmentAction (testAnchorForOffset 0))
                 dayColumnsBody <- responseBody dayColumnsResponse
                 let dayColumnsText = cs dayColumnsBody :: String
                 dayColumnsText `shouldContain` ">OPEN<"
@@ -784,7 +784,7 @@ tests = aroundAll withDatabaseTestContext do
                 dayColumnsText `shouldNotContain` "data-bepis-source-ref=\"shift-drag-source\""
 
                 timelineResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterDayTimelineContentFragmentAction 0 rosterDay.id)
+                    callAction (ShowRosterDayTimelineContentFragmentAction (testAnchorForOffset 0) rosterDay.id)
                 timelineBody <- responseBody timelineResponse
                 let timelineText = cs timelineBody :: String
                 timelineText `shouldContain` ">OPEN<"
@@ -794,7 +794,7 @@ tests = aroundAll withDatabaseTestContext do
                 timelineText `shouldNotContain` "data-bepis-source-ref=\"timeline-shift-drag-source\""
 
                 workerResponse <- withUserAndCurrentVenue worker venue.id do
-                    callAction (ShowRosterWeekRowFragmentAction 0 rosterDay.id 0)
+                    callAction (ShowRosterWeekRowFragmentAction (testAnchorForOffset 0) rosterDay.id 0)
                 workerResponse `responseStatusShouldBe` status200
                 workerBody <- responseBody workerResponse
                 let workerText = cs workerBody :: String
@@ -1052,10 +1052,10 @@ tests = aroundAll withDatabaseTestContext do
                     callActionWithParams (UpdateRosterSlotAction secondSlot.id) (fullShiftParamsAt staffMember shiftType "13:00")
 
                 firstRowResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekRowFragmentAction 0 rosterDay.id 0)
+                    callAction (ShowRosterWeekRowFragmentAction (testAnchorForOffset 0) rosterDay.id 0)
 
                 secondRowResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekRowFragmentAction 0 rosterDay.id 1)
+                    callAction (ShowRosterWeekRowFragmentAction (testAnchorForOffset 0) rosterDay.id 1)
 
                 firstRowResponse `responseStatusShouldBe` status200
                 secondRowResponse `responseStatusShouldBe` status200
@@ -1076,7 +1076,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue manager Manager
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekAction 0)
+                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "roster-week-nav-label"
@@ -1093,7 +1093,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue manager Manager
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekAction 0)
+                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-bepis-surface=\"roster\""
@@ -1116,7 +1116,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekAction 0)
+                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-bepis-disposable-layer=\"drag-preview\""
@@ -1148,8 +1148,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams MoveRosterShiftToSlotAction { weekOffset = 0 }
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                        callActionWithParams MoveRosterShiftToSlotAction $
+                            rosterMutationParams 0 <> [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                             , ("sourceItemKey", cs ("existing:" <> tshow sourceSlot.id))
                             , ("targetDropzoneKey", "delete")
                             ]
@@ -1183,8 +1183,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams MoveRosterShiftToSlotAction { weekOffset = 0 }
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                        callActionWithParams MoveRosterShiftToSlotAction $
+                            rosterMutationParams 0 <> [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                             , ("sourceItemKey", cs sourceToken)
                             , ("targetDropzoneKey", cs targetToken)
                             ]
@@ -1222,7 +1222,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 chooserResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams MoveRosterShiftToSlotAction { weekOffset = 64 } baseParams
+                        callActionWithParams MoveRosterShiftToSlotAction (rosterMutationParams 64 <> baseParams)
 
                 chooserResponse `responseStatusShouldBe` status200
                 chooserResponse `responseBodyShouldContain` "data-time-occurrence-chooser=\"copyStartOccurrence\""
@@ -1235,8 +1235,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 movedResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams MoveRosterShiftToSlotAction { weekOffset = 64 }
-                            (coreParams <> [("copyStartOccurrence", "second")])
+                        callActionWithParams MoveRosterShiftToSlotAction
+                            (rosterMutationParams 64 <> coreParams <> [("copyStartOccurrence", "second")])
 
                 movedResponse `responseStatusShouldBe` status200
                 movedSlot <- fetch sourceSlot.id
@@ -1271,7 +1271,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 chooserResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams DuplicateRosterShiftToDayAction { weekOffset = 64 } baseParams
+                        callActionWithParams DuplicateRosterShiftToDayAction (rosterMutationParams 64 <> baseParams)
 
                 chooserResponse `responseStatusShouldBe` status200
                 chooserResponse `responseBodyShouldContain` "data-time-occurrence-chooser=\"copyStartOccurrence\""
@@ -1283,8 +1283,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 duplicatedResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams DuplicateRosterShiftToDayAction { weekOffset = 64 }
-                            (coreParams <> [("copyStartOccurrence", "second")])
+                        callActionWithParams DuplicateRosterShiftToDayAction
+                            (rosterMutationParams 64 <> coreParams <> [("copyStartOccurrence", "second")])
 
                 duplicatedResponse `responseStatusShouldBe` status200
                 copiedSlot <- query @RosterSlot
@@ -1319,8 +1319,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams DuplicateRosterShiftToDayAction { weekOffset = 64 }
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                        callActionWithParams DuplicateRosterShiftToDayAction $
+                            rosterMutationParams 64 <> [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                             , ("sourceItemKey", cs sourceToken)
                             , ("targetDropzoneKey", cs targetToken)
                             ]
@@ -1361,7 +1361,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 chooserResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams MoveRosterTimelineShiftAction { weekOffset = 64 } baseParams
+                        callActionWithParams MoveRosterTimelineShiftAction (rosterMutationParams 64 <> baseParams)
 
                 chooserResponse `responseStatusShouldBe` status200
                 chooserResponse `responseBodyShouldContain` "data-time-occurrence-chooser=\"timelineStartOccurrence\""
@@ -1372,8 +1372,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 movedResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams MoveRosterTimelineShiftAction { weekOffset = 64 }
-                            (coreParams <> [("timelineStartOccurrence", "first")])
+                        callActionWithParams MoveRosterTimelineShiftAction
+                            (rosterMutationParams 64 <> coreParams <> [("timelineStartOccurrence", "first")])
 
                 movedResponse `responseStatusShouldBe` status200
                 movedSlot <- fetch sourceSlot.id
@@ -1424,8 +1424,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 noOpResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams MoveRosterTimelineShiftAction { weekOffset = 64 }
-                            (moveParams sameTargetToken "5")
+                        callActionWithParams MoveRosterTimelineShiftAction
+                            (rosterMutationParams 64 <> moveParams sameTargetToken "5")
 
                 noOpResponse `responseStatusShouldBe` status200
                 lookup "HX-Reswap" (responseHeaders noOpResponse) `shouldBe` Just "none"
@@ -1436,8 +1436,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams MoveRosterTimelineShiftAction { weekOffset = 64 }
-                            (moveParams targetToken "6")
+                        callActionWithParams MoveRosterTimelineShiftAction
+                            (rosterMutationParams 64 <> moveParams targetToken "6")
 
                 response `responseStatusShouldBe` status200
                 movedSlot <- fetch sourceSlot.id
@@ -1470,7 +1470,7 @@ tests = aroundAll withDatabaseTestContext do
                 sourceSlot <- updateRecord (applyRosterSlotBoundaries boundaries sourceSlot)
 
                 timelineResponse <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (ShowRosterWeekAction 0)
+                    callActionWithParams (ShowRosterWindowAction (testAnchorForOffset 0))
                         [ ("rosterView", "timeline")
                         , ("dayOffset", "0")
                         ]
@@ -1491,8 +1491,8 @@ tests = aroundAll withDatabaseTestContext do
                 let targetToken = "time:" <> tshow targetDay.id <> ":" <> tshow targetLane.id <> ":540"
                 moveResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams MoveRosterTimelineShiftAction { weekOffset = 0 }
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                        callActionWithParams MoveRosterTimelineShiftAction $
+                            rosterMutationParams 0 <> [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                             , ("rosterView", "timeline")
                             , ("dayOffset", "1")
                             , ("sourceItemKey", cs sourceToken)
@@ -1527,8 +1527,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams MoveRosterShiftToSlotAction { weekOffset = 0 }
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                        callActionWithParams MoveRosterShiftToSlotAction $
+                            rosterMutationParams 0 <> [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                             , ("sourceItemKey", cs sourceToken)
                             , ("targetDropzoneKey", cs targetToken)
                             ]
@@ -1562,8 +1562,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams MoveRosterShiftToSlotAction { weekOffset = 0 }
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                        callActionWithParams MoveRosterShiftToSlotAction $
+                            rosterMutationParams 0 <> [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                             , ("sourceItemKey", cs ("existing:" <> tshow sourceSlot.id))
                             , ("targetDropzoneKey", cs ("day:" <> tshow targetDay.id))
                             ]
@@ -1575,8 +1575,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 duplicateResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams DuplicateRosterShiftToDayAction { weekOffset = 0 }
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                        callActionWithParams DuplicateRosterShiftToDayAction $
+                            rosterMutationParams 0 <> [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                             , ("sourceItemKey", cs ("existing:" <> tshow sourceSlot.id))
                             , ("targetDropzoneKey", cs ("day:" <> tshow targetDay.id))
                             ]
@@ -1613,8 +1613,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams MoveRosterShiftToSlotAction { weekOffset = 0 }
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                        callActionWithParams MoveRosterShiftToSlotAction $
+                            rosterMutationParams 0 <> [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                             , ("sourceItemKey", cs ("existing:" <> tshow sourceSlot.id))
                             , ("targetDropzoneKey", cs ("day:" <> tshow rosterDay.id))
                             ]
@@ -1640,8 +1640,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams DropRosterStaffAction { weekOffset = 0 }
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                        callActionWithParams DropRosterStaffAction $
+                            rosterMutationParams 0 <> [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                             , ("sourceItemKey", cs ("staff:" <> tshow unresolvedStaff.id))
                             , ("targetDropzoneKey", cs ("existing:" <> tshow targetSlot.id))
                             ]
@@ -1674,8 +1674,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams DropRosterStaffAction { weekOffset = 0 }
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                        callActionWithParams DropRosterStaffAction $
+                            rosterMutationParams 0 <> [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                             , ("sourceItemKey", cs ("staff:" <> tshow replacementStaffWithRate.id))
                             , ("targetDropzoneKey", cs ("existing:" <> tshow targetSlot.id))
                             ]
@@ -1699,8 +1699,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams DropRosterStaffAction { weekOffset = 0 }
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                        callActionWithParams DropRosterStaffAction $
+                            rosterMutationParams 0 <> [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                             , ("sourceItemKey", cs ("staff:" <> tshow replacementStaff.id))
                             , ("targetDropzoneKey", cs ("existing:" <> tshow targetSlot.id))
                             ]
@@ -1724,8 +1724,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams DropRosterStaffAction { weekOffset = 0 }
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                        callActionWithParams DropRosterStaffAction $
+                            rosterMutationParams 0 <> [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                             , ("sourceItemKey", cs ("staff:" <> tshow replacementStaff.id))
                             , ("targetDropzoneKey", cs ("existing:" <> tshow targetSlot.id))
                             ]
@@ -1750,8 +1750,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams DropRosterStaffAction { weekOffset = 0 }
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                        callActionWithParams DropRosterStaffAction $
+                            rosterMutationParams 0 <> [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                             , ("sourceItemKey", cs ("staff:" <> tshow unresolvedStaff.id))
                             , ("targetDropzoneKey", cs targetToken)
                             ]
@@ -1780,8 +1780,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams DropRosterStaffAction { weekOffset = 0 }
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                        callActionWithParams DropRosterStaffAction $
+                            rosterMutationParams 0 <> [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                             , ("sourceItemKey", cs ("staff:" <> tshow staffMember.id))
                             , ("targetDropzoneKey", cs targetToken)
                             ]
@@ -1807,8 +1807,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams DuplicateRosterShiftToDayAction { weekOffset = 0 }
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                        callActionWithParams DuplicateRosterShiftToDayAction $
+                            rosterMutationParams 0 <> [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                             , ("sourceItemKey", cs ("existing:" <> tshow sourceSlot.id))
                             , ("targetDropzoneKey", cs ("day:" <> tshow rosterDay.id))
                             ]
@@ -1841,8 +1841,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams DuplicateRosterShiftToDayAction { weekOffset = 0 }
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                        callActionWithParams DuplicateRosterShiftToDayAction $
+                            rosterMutationParams 0 <> [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                             , ("sourceItemKey", cs ("existing:" <> tshow sourceSlot.id))
                             , ("targetDropzoneKey", cs ("day:" <> tshow rosterDay.id))
                             ]
@@ -1887,7 +1887,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createLeaveRequestRecord venue staffMember (addDays (-6) defaultWeekEpoch) (addDays (-4) defaultWeekEpoch) LeaveRequestStatusEnumApproved
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekOverviewFragmentAction 0)
+                    callAction (ShowRosterWeekOverviewFragmentAction (testAnchorForOffset 0))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-bepis-roster-week-overview-panel="
@@ -1897,7 +1897,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "&quot;weekOverviewLeaveDisplay&quot;:&quot;1&quot;"
                 response `responseBodyShouldNotContain` "&quot;weekOverviewLeaveDisplay&quot;:&quot;2&quot;"
                 response `responseBodyShouldContain` "&quot;weekOverviewDate&quot;:&quot;2025-01-01&quot;"
-                response `responseBodyShouldContain` "weekDate=2025-01-13"
+                response `responseBodyShouldContain` "anchorDate=2025-01-13"
 
 targetFragmentKeys :: [SurfaceInvalidationTarget] -> [[SurfaceFragmentKey]]
 targetFragmentKeys targets =

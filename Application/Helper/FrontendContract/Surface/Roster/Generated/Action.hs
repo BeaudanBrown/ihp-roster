@@ -97,11 +97,11 @@ import Application.Helper.FrontendContract.Surface.Values (ActionFieldSpecs,
                                                            ActionMarker,
                                                            ActionSurface,
                                                            actionFields,
-                                                           noActionFields,
                                                            noSurfaceFields,
                                                            surfaceField,
                                                            surfaceOptionalField,
                                                            (&:))
+import Data.Time (Day)
 import qualified Data.UUID as UUID
 import IHP.Prelude
 import Network.Wai (Request)
@@ -111,15 +111,20 @@ data AddRosterRowActionOperation
 type instance ActionSurface AddRosterRowActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker AddRosterRowActionOperation = Types2.AddRosterRow
 type instance ActionFieldSpecs AddRosterRowActionOperation =
-    '[]
+    '[ 'Field Types2.RosterCalendarRevision 'WireInt
+     ]
 
-addRosterRowActionFields :: ActionFields AddRosterRowActionOperation
-addRosterRowActionFields =
-    noActionFields
+addRosterRowActionFields ::
+    Int ->
+    ActionFields AddRosterRowActionOperation
+addRosterRowActionFields rosterCalendarRevision =
+    actionFields
+        (surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision)
+        noSurfaceFields
 
 addRosterRowActionEvidence :: ActionEvidence AddRosterRowActionOperation
 addRosterRowActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "AddRosterRow" "add-roster-row" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "AddRosterRow" "add-roster-row" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 addRosterRowAction :: ActionFields AddRosterRowActionOperation -> FrontendSurfaceAction
 addRosterRowAction =
@@ -134,6 +139,7 @@ type instance ActionFieldSpecs ApplyRosterTemplateApplicationActionOperation =
      , 'Field Types1.TargetDropzoneKey 'WireText
      , 'Field Types2.ExpectedTemplateVersion 'WireInt
      , 'Field Types2.ExpectedTargetRevision 'WireText
+     , 'Field Types2.RosterCalendarRevision 'WireInt
      ]
 
 applyRosterTemplateApplicationActionFields ::
@@ -141,19 +147,21 @@ applyRosterTemplateApplicationActionFields ::
     Text ->
     Int ->
     Text ->
+    Int ->
     ActionFields ApplyRosterTemplateApplicationActionOperation
-applyRosterTemplateApplicationActionFields templateId targetDropzoneKey expectedTemplateVersion expectedTargetRevision =
+applyRosterTemplateApplicationActionFields templateId targetDropzoneKey expectedTemplateVersion expectedTargetRevision rosterCalendarRevision =
     actionFields
         (surfaceField @Types2.TemplateId templateId)
         ( surfaceField @Types1.TargetDropzoneKey targetDropzoneKey
             &: surfaceField @Types2.ExpectedTemplateVersion expectedTemplateVersion
             &: surfaceField @Types2.ExpectedTargetRevision expectedTargetRevision
+            &: surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision
             &: noSurfaceFields
         )
 
 applyRosterTemplateApplicationActionEvidence :: ActionEvidence ApplyRosterTemplateApplicationActionOperation
 applyRosterTemplateApplicationActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ApplyRosterTemplateApplication" "apply-roster-template-application" [SurfaceIR.FieldIR "TemplateId" "templateId" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "TargetDropzoneKey" "targetDropzoneKey" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ExpectedTemplateVersion" "expectedTemplateVersion" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ExpectedTargetRevision" "expectedTargetRevision" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" []))])
+    actionEvidence (SurfaceIR.HtmxActionIR "ApplyRosterTemplateApplication" "apply-roster-template-application" [SurfaceIR.FieldIR "TemplateId" "templateId" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "TargetDropzoneKey" "targetDropzoneKey" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ExpectedTemplateVersion" "expectedTemplateVersion" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ExpectedTargetRevision" "expectedTargetRevision" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" []))])
 
 applyRosterTemplateApplicationAction :: ActionFields ApplyRosterTemplateApplicationActionOperation -> FrontendSurfaceAction
 applyRosterTemplateApplicationAction =
@@ -171,24 +179,27 @@ data CopyRosterWeekActionOperation
 type instance ActionSurface CopyRosterWeekActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker CopyRosterWeekActionOperation = Types2.CopyRosterWeek
 type instance ActionFieldSpecs CopyRosterWeekActionOperation =
-    '[ 'OptionalField Types2.CopyStartOccurrence 'WireText
+    '[ 'Field Types2.RosterCalendarRevision 'WireInt
+     , 'OptionalField Types2.CopyStartOccurrence 'WireText
      , 'OptionalField Types2.CopyEndOccurrence 'WireText
      ]
 
 copyRosterWeekActionFields ::
+    Int ->
     Maybe Text ->
     Maybe Text ->
     ActionFields CopyRosterWeekActionOperation
-copyRosterWeekActionFields copyStartOccurrence copyEndOccurrence =
+copyRosterWeekActionFields rosterCalendarRevision copyStartOccurrence copyEndOccurrence =
     actionFields
-        (surfaceOptionalField @Types2.CopyStartOccurrence copyStartOccurrence)
-        ( surfaceOptionalField @Types2.CopyEndOccurrence copyEndOccurrence
+        (surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision)
+        ( surfaceOptionalField @Types2.CopyStartOccurrence copyStartOccurrence
+            &: surfaceOptionalField @Types2.CopyEndOccurrence copyEndOccurrence
             &: noSurfaceFields
         )
 
 copyRosterWeekActionEvidence :: ActionEvidence CopyRosterWeekActionOperation
 copyRosterWeekActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "CopyRosterWeek" "copy-roster-week" [SurfaceIR.FieldIR "CopyStartOccurrence" "copyStartOccurrence" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "CopyEndOccurrence" "copyEndOccurrence" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-content" ["roster-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionCustomHtmxIR "copy-roster-week-custom-htmx" "copy previous week requires a destructive overwrite confirmation")])
+    actionEvidence (SurfaceIR.HtmxActionIR "CopyRosterWeek" "copy-roster-week" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "CopyStartOccurrence" "copyStartOccurrence" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "CopyEndOccurrence" "copyEndOccurrence" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-content" ["roster-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionCustomHtmxIR "copy-roster-week-custom-htmx" "copy previous week requires a destructive overwrite confirmation")])
 
 copyRosterWeekAction :: ActionFields CopyRosterWeekActionOperation -> FrontendSurfaceAction
 copyRosterWeekAction =
@@ -237,15 +248,20 @@ data CreateRosterWeekSlotDefinitionActionOperation
 type instance ActionSurface CreateRosterWeekSlotDefinitionActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker CreateRosterWeekSlotDefinitionActionOperation = Types2.CreateRosterWeekSlotDefinition
 type instance ActionFieldSpecs CreateRosterWeekSlotDefinitionActionOperation =
-    '[]
+    '[ 'Field Types2.RosterCalendarRevision 'WireInt
+     ]
 
-createRosterWeekSlotDefinitionActionFields :: ActionFields CreateRosterWeekSlotDefinitionActionOperation
-createRosterWeekSlotDefinitionActionFields =
-    noActionFields
+createRosterWeekSlotDefinitionActionFields ::
+    Int ->
+    ActionFields CreateRosterWeekSlotDefinitionActionOperation
+createRosterWeekSlotDefinitionActionFields rosterCalendarRevision =
+    actionFields
+        (surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision)
+        noSurfaceFields
 
 createRosterWeekSlotDefinitionActionEvidence :: ActionEvidence CreateRosterWeekSlotDefinitionActionOperation
 createRosterWeekSlotDefinitionActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "CreateRosterWeekSlotDefinition" "create-roster-week-slot-definition" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-content" ["roster-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "CreateRosterWeekSlotDefinition" "create-roster-week-slot-definition" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-content" ["roster-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 createRosterWeekSlotDefinitionAction :: ActionFields CreateRosterWeekSlotDefinitionActionOperation -> FrontendSurfaceAction
 createRosterWeekSlotDefinitionAction =
@@ -256,15 +272,20 @@ data DeleteRosterWeekSlotDefinitionActionOperation
 type instance ActionSurface DeleteRosterWeekSlotDefinitionActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker DeleteRosterWeekSlotDefinitionActionOperation = Types2.DeleteRosterWeekSlotDefinition
 type instance ActionFieldSpecs DeleteRosterWeekSlotDefinitionActionOperation =
-    '[]
+    '[ 'Field Types2.RosterCalendarRevision 'WireInt
+     ]
 
-deleteRosterWeekSlotDefinitionActionFields :: ActionFields DeleteRosterWeekSlotDefinitionActionOperation
-deleteRosterWeekSlotDefinitionActionFields =
-    noActionFields
+deleteRosterWeekSlotDefinitionActionFields ::
+    Int ->
+    ActionFields DeleteRosterWeekSlotDefinitionActionOperation
+deleteRosterWeekSlotDefinitionActionFields rosterCalendarRevision =
+    actionFields
+        (surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision)
+        noSurfaceFields
 
 deleteRosterWeekSlotDefinitionActionEvidence :: ActionEvidence DeleteRosterWeekSlotDefinitionActionOperation
 deleteRosterWeekSlotDefinitionActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "DeleteRosterWeekSlotDefinition" "delete-roster-week-slot-definition" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxDeleteIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-content" ["roster-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "DeleteRosterWeekSlotDefinition" "delete-roster-week-slot-definition" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxDeleteIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-content" ["roster-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 deleteRosterWeekSlotDefinitionAction :: ActionFields DeleteRosterWeekSlotDefinitionActionOperation -> FrontendSurfaceAction
 deleteRosterWeekSlotDefinitionAction =
@@ -275,24 +296,24 @@ data NavigateRosterWeekActionOperation
 type instance ActionSurface NavigateRosterWeekActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker NavigateRosterWeekActionOperation = Types2.NavigateRosterWeek
 type instance ActionFieldSpecs NavigateRosterWeekActionOperation =
-    '[ 'Field Types2.WeekOffset 'WireInt
+    '[ 'Field Types2.AnchorDate 'WireDay
      , 'Field Types2.RosterGroupId 'WireUUID
      ]
 
 navigateRosterWeekActionFields ::
-    Int ->
+    Day ->
     UUID.UUID ->
     ActionFields NavigateRosterWeekActionOperation
-navigateRosterWeekActionFields weekOffset rosterGroupId =
+navigateRosterWeekActionFields anchorDate rosterGroupId =
     actionFields
-        (surfaceField @Types2.WeekOffset weekOffset)
+        (surfaceField @Types2.AnchorDate anchorDate)
         ( surfaceField @Types2.RosterGroupId rosterGroupId
             &: noSurfaceFields
         )
 
 navigateRosterWeekActionEvidence :: ActionEvidence NavigateRosterWeekActionOperation
 navigateRosterWeekActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "NavigateRosterWeek" "navigate-roster-week" [SurfaceIR.FieldIR "WeekOffset" "weekOffset" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterGroupId" "rosterGroupId" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell" ["roster-week-shell"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlTrueIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "NavigateRosterWeek" "navigate-roster-week" [SurfaceIR.FieldIR "AnchorDate" "anchorDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterGroupId" "rosterGroupId" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell" ["roster-week-shell"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlTrueIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 navigateRosterWeekAction :: ActionFields NavigateRosterWeekActionOperation -> FrontendSurfaceAction
 navigateRosterWeekAction =
@@ -328,6 +349,7 @@ type instance ActionFieldSpecs PreviewRosterTemplateApplicationActionOperation =
      , 'OptionalField Types1.CurrentClientY 'WireText
      , 'OptionalField Types1.DeltaX 'WireText
      , 'OptionalField Types1.DeltaY 'WireText
+     , 'Field Types2.RosterCalendarRevision 'WireInt
      ]
 
 previewRosterTemplateApplicationActionFields ::
@@ -342,8 +364,9 @@ previewRosterTemplateApplicationActionFields ::
     Maybe Text ->
     Maybe Text ->
     Maybe Text ->
+    Int ->
     ActionFields PreviewRosterTemplateApplicationActionOperation
-previewRosterTemplateApplicationActionFields sourceItemKey targetDropzoneKey sessionKind pointerId pointerType startClientX startClientY currentClientX currentClientY deltaX deltaY =
+previewRosterTemplateApplicationActionFields sourceItemKey targetDropzoneKey sessionKind pointerId pointerType startClientX startClientY currentClientX currentClientY deltaX deltaY rosterCalendarRevision =
     actionFields
         (surfaceField @Types1.SourceItemKey sourceItemKey)
         ( surfaceField @Types1.TargetDropzoneKey targetDropzoneKey
@@ -356,12 +379,13 @@ previewRosterTemplateApplicationActionFields sourceItemKey targetDropzoneKey ses
             &: surfaceOptionalField @Types1.CurrentClientY currentClientY
             &: surfaceOptionalField @Types1.DeltaX deltaX
             &: surfaceOptionalField @Types1.DeltaY deltaY
+            &: surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision
             &: noSurfaceFields
         )
 
 previewRosterTemplateApplicationActionEvidence :: ActionEvidence PreviewRosterTemplateApplicationActionOperation
 previewRosterTemplateApplicationActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "PreviewRosterTemplateApplication" "preview-roster-template-application" [SurfaceIR.FieldIR "SourceItemKey" "sourceItemKey" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "TargetDropzoneKey" "targetDropzoneKey" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "SessionKind" "sessionKind" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "PointerId" "pointerId" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "PointerType" "pointerType" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "StartClientX" "startClientX" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "StartClientY" "startClientY" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "CurrentClientX" "currentClientX" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "CurrentClientY" "currentClientY" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DeltaX" "deltaX" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DeltaY" "deltaY" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" []))])
+    actionEvidence (SurfaceIR.HtmxActionIR "PreviewRosterTemplateApplication" "preview-roster-template-application" [SurfaceIR.FieldIR "SourceItemKey" "sourceItemKey" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "TargetDropzoneKey" "targetDropzoneKey" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "SessionKind" "sessionKind" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "PointerId" "pointerId" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "PointerType" "pointerType" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "StartClientX" "startClientX" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "StartClientY" "startClientY" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "CurrentClientX" "currentClientX" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "CurrentClientY" "currentClientY" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DeltaX" "deltaX" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DeltaY" "deltaY" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" []))])
 
 previewRosterTemplateApplicationAction :: ActionFields PreviewRosterTemplateApplicationActionOperation -> FrontendSurfaceAction
 previewRosterTemplateApplicationAction =
@@ -379,15 +403,20 @@ data RemoveRosterRowActionOperation
 type instance ActionSurface RemoveRosterRowActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker RemoveRosterRowActionOperation = Types2.RemoveRosterRow
 type instance ActionFieldSpecs RemoveRosterRowActionOperation =
-    '[]
+    '[ 'Field Types2.RosterCalendarRevision 'WireInt
+     ]
 
-removeRosterRowActionFields :: ActionFields RemoveRosterRowActionOperation
-removeRosterRowActionFields =
-    noActionFields
+removeRosterRowActionFields ::
+    Int ->
+    ActionFields RemoveRosterRowActionOperation
+removeRosterRowActionFields rosterCalendarRevision =
+    actionFields
+        (surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision)
+        noSurfaceFields
 
 removeRosterRowActionEvidence :: ActionEvidence RemoveRosterRowActionOperation
 removeRosterRowActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "RemoveRosterRow" "remove-roster-row" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "RemoveRosterRow" "remove-roster-row" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 removeRosterRowAction :: ActionFields RemoveRosterRowActionOperation -> FrontendSurfaceAction
 removeRosterRowAction =
@@ -429,15 +458,20 @@ data SortRosterWeekActionOperation
 type instance ActionSurface SortRosterWeekActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker SortRosterWeekActionOperation = Types2.SortRosterWeek
 type instance ActionFieldSpecs SortRosterWeekActionOperation =
-    '[]
+    '[ 'Field Types2.RosterCalendarRevision 'WireInt
+     ]
 
-sortRosterWeekActionFields :: ActionFields SortRosterWeekActionOperation
-sortRosterWeekActionFields =
-    noActionFields
+sortRosterWeekActionFields ::
+    Int ->
+    ActionFields SortRosterWeekActionOperation
+sortRosterWeekActionFields rosterCalendarRevision =
+    actionFields
+        (surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision)
+        noSurfaceFields
 
 sortRosterWeekActionEvidence :: ActionEvidence SortRosterWeekActionOperation
 sortRosterWeekActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "SortRosterWeek" "sort-roster-week" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-content" ["roster-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "SortRosterWeek" "sort-roster-week" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-content" ["roster-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 sortRosterWeekAction :: ActionFields SortRosterWeekActionOperation -> FrontendSurfaceAction
 sortRosterWeekAction =
@@ -489,15 +523,20 @@ data ToggleRosterDayClosedActionOperation
 type instance ActionSurface ToggleRosterDayClosedActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker ToggleRosterDayClosedActionOperation = Types2.ToggleRosterDayClosed
 type instance ActionFieldSpecs ToggleRosterDayClosedActionOperation =
-    '[]
+    '[ 'Field Types2.RosterCalendarRevision 'WireInt
+     ]
 
-toggleRosterDayClosedActionFields :: ActionFields ToggleRosterDayClosedActionOperation
-toggleRosterDayClosedActionFields =
-    noActionFields
+toggleRosterDayClosedActionFields ::
+    Int ->
+    ActionFields ToggleRosterDayClosedActionOperation
+toggleRosterDayClosedActionFields rosterCalendarRevision =
+    actionFields
+        (surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision)
+        noSurfaceFields
 
 toggleRosterDayClosedActionEvidence :: ActionEvidence ToggleRosterDayClosedActionOperation
 toggleRosterDayClosedActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterDayClosed" "toggle-roster-day-closed" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterDayClosed" "toggle-roster-day-closed" [SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 toggleRosterDayClosedAction :: ActionFields ToggleRosterDayClosedActionOperation -> FrontendSurfaceAction
 toggleRosterDayClosedAction =
@@ -640,19 +679,23 @@ type instance ActionSurface ToggleRosterWeekLiveStatusActionOperation = AdapterS
 type instance ActionMarker ToggleRosterWeekLiveStatusActionOperation = Types2.ToggleRosterWeekLiveStatus
 type instance ActionFieldSpecs ToggleRosterWeekLiveStatusActionOperation =
     '[ 'Field Types2.IsLive 'WireBool
+     , 'Field Types2.RosterCalendarRevision 'WireInt
      ]
 
 toggleRosterWeekLiveStatusActionFields ::
     Bool ->
+    Int ->
     ActionFields ToggleRosterWeekLiveStatusActionOperation
-toggleRosterWeekLiveStatusActionFields isLive =
+toggleRosterWeekLiveStatusActionFields isLive rosterCalendarRevision =
     actionFields
         (surfaceField @Types2.IsLive isLive)
-        noSurfaceFields
+        ( surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision
+            &: noSurfaceFields
+        )
 
 toggleRosterWeekLiveStatusActionEvidence :: ActionEvidence ToggleRosterWeekLiveStatusActionOperation
 toggleRosterWeekLiveStatusActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterWeekLiveStatus" "toggle-roster-week-live-status" [SurfaceIR.FieldIR "IsLive" "isLive" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-content" ["roster-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
+    actionEvidence (SurfaceIR.HtmxActionIR "ToggleRosterWeekLiveStatus" "toggle-roster-week-live-status" [SurfaceIR.FieldIR "IsLive" "isLive" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-content" ["roster-content"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSyncIR (SurfaceIR.HtmxTypedSyntaxIR "#roster-week-shell:replace" ["roster-week-shell"]))])
 
 toggleRosterWeekLiveStatusAction :: ActionFields ToggleRosterWeekLiveStatusActionOperation -> FrontendSurfaceAction
 toggleRosterWeekLiveStatusAction =

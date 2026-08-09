@@ -396,19 +396,19 @@ tests = aroundAll withDatabaseTestContext do
                 otherVenue <- createVenueWithConfig "Other Staff Group Resource Venue"
                 otherGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId otherVenue.id) |> filterWhere (#isDefault, True) |> fetchOne
                 let activeScopes =
-                        [ (unpackId venue.id, unpackId previousGroup.id, 0)
-                        , (unpackId venue.id, unpackId selectedGroup.id, 1)
-                        , (unpackId otherVenue.id, unpackId otherGroup.id, 0)
+                        [ (unpackId venue.id, unpackId previousGroup.id, testAnchorForOffset 0, addDays 7 (testAnchorForOffset 0), 1)
+                        , (unpackId venue.id, unpackId selectedGroup.id, testAnchorForOffset 1, addDays 7 (testAnchorForOffset 1), 1)
+                        , (unpackId otherVenue.id, unpackId otherGroup.id, testAnchorForOffset 0, addDays 7 (testAnchorForOffset 0), 1)
                         ]
 
                 let resources = staffRosterGroupResources (unpackId venue.id) activeScopes [previousGroup.id, selectedGroup.id]
 
                 Set.fromList resources
                     `shouldBe` Set.fromList
-                        [ rosterWeekResource (unpackId previousGroup.id) 0
-                        , rosterSlotsContentResource (unpackId previousGroup.id) 0
-                        , rosterWeekResource (unpackId selectedGroup.id) 1
-                        , rosterSlotsContentResource (unpackId selectedGroup.id) 1
+                        [ rosterWeekResource (unpackId previousGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0))
+                        , rosterSlotsContentResource (unpackId previousGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0))
+                        , rosterWeekResource (unpackId selectedGroup.id) (testAnchorForOffset 1) (addDays 7 (testAnchorForOffset 1))
+                        , rosterSlotsContentResource (unpackId selectedGroup.id) (testAnchorForOffset 1) (addDays 7 (testAnchorForOffset 1))
                         ]
 
         it "touches every active venue Timesheet week after staff pay changes" $ withContext do
@@ -416,14 +416,14 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Staff Timesheet Resource Venue"
                 otherVenue <- createVenueWithConfig "Other Staff Timesheet Resource Venue"
                 let resources = staffTimesheetResources (unpackId venue.id)
-                        [ (unpackId venue.id, 0)
-                        , (unpackId venue.id, 2)
-                        , (unpackId otherVenue.id, 0)
+                        [ (unpackId venue.id, testAnchorForOffset 0, addDays 7 (testAnchorForOffset 0), 1)
+                        , (unpackId venue.id, testAnchorForOffset 2, addDays 7 (testAnchorForOffset 2), 1)
+                        , (unpackId otherVenue.id, testAnchorForOffset 0, addDays 7 (testAnchorForOffset 0), 1)
                         ]
 
                 Set.fromList resources `shouldBe` Set.fromList
-                    [ timesheetWeekResource (unpackId venue.id) 0
-                    , timesheetWeekResource (unpackId venue.id) 2
+                    [ timesheetWeekResource (unpackId venue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0))
+                    , timesheetWeekResource (unpackId venue.id) (testAnchorForOffset 2) (addDays 7 (testAnchorForOffset 2))
                     ]
 
         it "invalidates roster child and staff list resources for HTMX roster-launched staff edits" $ withContext do
@@ -1596,7 +1596,7 @@ tests = aroundAll withDatabaseTestContext do
                         callAction (RemoveStaffAction staff.id)
                     , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
-                            callActionWithParams MoveRosterShiftToSlotAction { weekOffset = currentWeekOffset }
+                            callActionWithParams MoveRosterShiftToSlotAction
                                 [ ("rosterGroupId", cs (tshow rosterGroup.id))
                                 , ("sourceItemKey", cs sourceToken)
                                 , ("targetDropzoneKey", cs targetToken)
@@ -1680,7 +1680,7 @@ tests = aroundAll withDatabaseTestContext do
                         callAction (RemoveStaffAction staff.id)
                     , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
-                            callAction (CopyRosterWeekAction currentWeekOffset (currentWeekOffset + 1))
+                            callAction (CopyRosterWeekAction)
                     ]
 
                 lefts results `shouldSatisfy` null
@@ -1731,7 +1731,7 @@ tests = aroundAll withDatabaseTestContext do
                         callAction (RemoveStaffAction staff.id)
                     , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
-                            callAction (CopyRosterWeekAction currentWeekOffset (currentWeekOffset + 1))
+                            callAction (CopyRosterWeekAction)
                     ]
 
                 lefts results `shouldSatisfy` null

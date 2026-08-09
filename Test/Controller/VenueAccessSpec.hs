@@ -190,11 +190,11 @@ tests = aroundAll withDatabaseTestContext do
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
 
                 rosterAuthorized <- withAuthenticatedControllerContext user venue.id do
-                    authorizeSurfaceScope (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) 0)
+                    authorizeSurfaceScope (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
                 leaveAuthorized <- withAuthenticatedControllerContext user venue.id do
                     authorizeSurfaceScope (LeaveLive.leaveRequestsLiveScope (unpackId venue.id))
                 timesheetAuthorized <- withAuthenticatedControllerContext user venue.id do
-                    authorizeSurfaceScope (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) 0)
+                    authorizeSurfaceScope (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
                 profileAuthorized <- withAuthenticatedControllerContext user venue.id do
                     authorizeSurfaceScope (ProfileLive.profileLiveScope (unpackId venue.id) (unpackId staff.id))
 
@@ -213,7 +213,7 @@ tests = aroundAll withDatabaseTestContext do
                 foreignStaff <- createStaffRecord venueB Nothing "Foreign" "Staff"
 
                 rosterAuthorized <- withAuthenticatedControllerContext admin venueA.id do
-                    authorizeSurfaceScope (RosterLive.rosterWeekLiveScope (unpackId venueB.id) (unpackId rosterGroupB.id) 0)
+                    authorizeSurfaceScope (RosterLive.rosterWeekLiveScope (unpackId venueB.id) (unpackId rosterGroupB.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
                 adminXeroAuthorized <- withAuthenticatedControllerContext admin venueA.id do
                     authorizeSurfaceScope (AdminLive.adminXeroLiveScope (unpackId venueB.id))
                 billingAuthorized <- withAuthenticatedControllerContext admin venueA.id do
@@ -221,7 +221,7 @@ tests = aroundAll withDatabaseTestContext do
                 leaveAuthorized <- withAuthenticatedControllerContext admin venueA.id do
                     authorizeSurfaceScope (LeaveLive.leaveRequestsLiveScope (unpackId venueB.id))
                 timesheetAuthorized <- withAuthenticatedControllerContext admin venueA.id do
-                    authorizeSurfaceScope (TimesheetsLive.timesheetWeekLiveScope (unpackId venueB.id) 0)
+                    authorizeSurfaceScope (TimesheetsLive.timesheetWeekLiveScope (unpackId venueB.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
                 profileAuthorized <- withAuthenticatedControllerContext admin venueA.id do
                     authorizeSurfaceScope (ProfileLive.profileLiveScope (unpackId venueB.id) (unpackId foreignStaff.id))
 
@@ -255,7 +255,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterGroupB <- query @RosterGroup |> filterWhere (#venueId, unpackId venueB.id) |> fetchOne
 
                 rosterAuthorized <- withAuthenticatedControllerContext admin venueA.id do
-                    authorizeSurfaceScope (RosterLive.rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupB.id) 0)
+                    authorizeSurfaceScope (RosterLive.rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupB.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
                 adminRosterGroupsAuthorized <- withAuthenticatedControllerContext admin venueA.id do
                     authorizeSurfaceScope (AdminLive.adminRosterGroupsLiveScope (unpackId venueA.id))
 
@@ -1124,7 +1124,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createTimesheetEntryRecord venueB staffB defaultWeekEpoch
 
                 response <- withUser manager do
-                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
+                    callAction (ShowTimesheetWindowAction (testAnchorForOffset 0))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Ava Hours"
@@ -1147,7 +1147,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createStaffRecord venueB (Just linkedUserB) "Beta" "Crew"
 
                 response <- withUser manager do
-                    callAction ShowRosterWeekAction { weekOffset = 0 }
+                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "roster-staff-panel"
@@ -1163,7 +1163,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- forM ["Early", "Mid", "Late"] (fetchSlotNameRecord venueB)
 
                 response <- withUser manager do
-                    callAction CreateRosterWeekAction { weekOffset = 0 }
+                    callAction CreateRosterWeekAction
 
                 response `responseStatusShouldBe` status302
 

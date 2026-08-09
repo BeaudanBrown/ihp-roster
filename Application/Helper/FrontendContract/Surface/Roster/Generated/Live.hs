@@ -46,6 +46,7 @@ import qualified Application.Helper.FrontendContract.Surface.Roster as Types1
 import qualified Application.Helper.FrontendContract.Surface.Roster.HaskellAdapter as Types2
 import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
                                                            surfaceField, (&:))
+import Data.Time (Day)
 import qualified Data.UUID as UUID
 import IHP.Prelude
 
@@ -125,21 +126,25 @@ matchRosterDayTimelineContentLiveFragment =
 rosterDayTimelineLiveScope ::
     UUID.UUID ->
     UUID.UUID ->
+    Day ->
+    Day ->
     Int ->
     UUID.UUID ->
     SurfaceScope
-rosterDayTimelineLiveScope venueId rosterGroupId weekOffset rosterDayId =
+rosterDayTimelineLiveScope venueId rosterGroupId windowStartDate windowEndDate rosterCalendarRevision rosterDayId =
     frontendSurfaceScope
         @(AdapterFamilySurface Types2.RosterDayTimelineAdapterFamily)
         @Types1.RosterDayTimeline
         ( surfaceField @Types1.VenueId venueId
             &: surfaceField @Types1.RosterGroupId rosterGroupId
-            &: surfaceField @Types1.WeekOffset weekOffset
+            &: surfaceField @Types1.WindowStartDate windowStartDate
+            &: surfaceField @Types1.WindowEndDate windowEndDate
+            &: surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision
             &: surfaceField @Types1.RosterDayId rosterDayId
             &: noSurfaceFields
         )
 
-matchRosterDayTimelineLiveScope :: SurfaceScope -> Maybe (UUID.UUID, (UUID.UUID, (Int, (UUID.UUID, ()))))
+matchRosterDayTimelineLiveScope :: SurfaceScope -> Maybe (UUID.UUID, (UUID.UUID, (Day, (Day, (Int, (UUID.UUID, ()))))))
 matchRosterDayTimelineLiveScope =
     matchFrontendSurfaceScope
         @(AdapterFamilySurface Types2.RosterDayTimelineAdapterFamily)
@@ -270,19 +275,23 @@ matchRosterWageRailLiveFragment =
 rosterWeekLiveScope ::
     UUID.UUID ->
     UUID.UUID ->
+    Day ->
+    Day ->
     Int ->
     SurfaceScope
-rosterWeekLiveScope venueId rosterGroupId weekOffset =
+rosterWeekLiveScope venueId rosterGroupId windowStartDate windowEndDate rosterCalendarRevision =
     frontendSurfaceScope
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterWeek
         ( surfaceField @Types1.VenueId venueId
             &: surfaceField @Types1.RosterGroupId rosterGroupId
-            &: surfaceField @Types1.WeekOffset weekOffset
+            &: surfaceField @Types1.WindowStartDate windowStartDate
+            &: surfaceField @Types1.WindowEndDate windowEndDate
+            &: surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision
             &: noSurfaceFields
         )
 
-matchRosterWeekLiveScope :: SurfaceScope -> Maybe (UUID.UUID, (UUID.UUID, (Int, ())))
+matchRosterWeekLiveScope :: SurfaceScope -> Maybe (UUID.UUID, (UUID.UUID, (Day, (Day, (Int, ())))))
 matchRosterWeekLiveScope =
     matchFrontendSurfaceScope
         @(AdapterFamilySurface Types2.RosterAdapterFamily)

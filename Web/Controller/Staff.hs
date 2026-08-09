@@ -26,12 +26,13 @@ import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 ToastOverlayPosition (..), dialogOverlayMountId,
                                 errorToast, renderDialogOverlay, renderToastOob,
                                 successToast)
+import Application.Helper.WeekBoundaries (venueWeekStartDate)
 import Application.PayAssignment (selectableStaffAssignmentMode)
 import Application.StaffDefaults (applyVenueDefaultStaffPayAssignment,
                                   validateStaffAwardRateAvailability)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
+import Data.Time.Calendar (Day, addDays)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import Text.Blaze.Html (Html)
@@ -209,11 +210,13 @@ instance Controller StaffController where
                 if isHtmxRequest
                     then do
                         rosterGroup <- fetchCurrentVenueRosterGroupOrDefault maybeRosterGroupId
+                        let windowStart = venueWeekStartDate venueConfig weekOffset
+                        let windowEnd = addDays 7 windowStart
                         let actorTouchedResources =
                                 mutationResult.liveMutationTouchedResources
                                     <> Set.fromList
-                                        [ rosterWeekResource (unpackId rosterGroup.id) weekOffset
-                                        , rosterSlotsContentResource (unpackId rosterGroup.id) weekOffset
+                                        [ rosterWeekResource (unpackId rosterGroup.id) windowStart windowEnd
+                                        , rosterSlotsContentResource (unpackId rosterGroup.id) windowStart windowEnd
                                         ]
                         respondWithRosterResourceInvalidation
                             rosterGroup.id
@@ -295,11 +298,14 @@ instance Controller StaffController where
                         let weekOffset = paramOrDefault @Int 0 "weekOffset"
                         let maybeRosterGroupId = paramOrNothing @(Id RosterGroup) "rosterGroupId"
                         rosterGroup <- fetchCurrentVenueRosterGroupOrDefault maybeRosterGroupId
+                        venueConfig <- fetchVenueConfig
+                        let windowStart = venueWeekStartDate venueConfig weekOffset
+                        let windowEnd = addDays 7 windowStart
                         let actorTouchedResources =
                                 mutationResult.liveMutationTouchedResources
                                     <> Set.fromList
-                                        [ rosterWeekResource (unpackId rosterGroup.id) weekOffset
-                                        , rosterSlotsContentResource (unpackId rosterGroup.id) weekOffset
+                                        [ rosterWeekResource (unpackId rosterGroup.id) windowStart windowEnd
+                                        , rosterSlotsContentResource (unpackId rosterGroup.id) windowStart windowEnd
                                         ]
                         respondWithRosterResourceInvalidation
                             rosterGroup.id

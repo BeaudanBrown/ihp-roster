@@ -39,6 +39,7 @@ import qualified Application.Helper.FrontendContract.Surface.Roster as Types1
 import qualified Application.Helper.FrontendContract.Surface.Roster.HaskellAdapter as Types2
 import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
                                                            surfaceField, (&:))
+import Data.Time (Day)
 import qualified Data.UUID as UUID
 import IHP.Prelude
 
@@ -95,18 +96,20 @@ matchRosterLayoutConfigResource =
 
 rosterNotificationStatusResource ::
     UUID.UUID ->
-    Int ->
+    Day ->
+    Day ->
     SurfaceResourceValue
-rosterNotificationStatusResource rosterGroupId weekOffset =
+rosterNotificationStatusResource rosterGroupId windowStartDate windowEndDate =
     frontendSurfaceResource
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterNotificationStatus
         ( surfaceField @Types1.RosterGroupId rosterGroupId
-            &: surfaceField @Types1.WeekOffset weekOffset
+            &: surfaceField @Types1.WindowStartDate windowStartDate
+            &: surfaceField @Types1.WindowEndDate windowEndDate
             &: noSurfaceFields
         )
 
-matchRosterNotificationStatusResource :: SurfaceResourceValue -> Maybe (UUID.UUID, (Int, ()))
+matchRosterNotificationStatusResource :: SurfaceResourceValue -> Maybe (UUID.UUID, (Day, (Day, ())))
 matchRosterNotificationStatusResource =
     matchFrontendSurfaceResource
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
@@ -114,18 +117,20 @@ matchRosterNotificationStatusResource =
 
 rosterSlotsContentResource ::
     UUID.UUID ->
-    Int ->
+    Day ->
+    Day ->
     SurfaceResourceValue
-rosterSlotsContentResource rosterGroupId weekOffset =
+rosterSlotsContentResource rosterGroupId windowStartDate windowEndDate =
     frontendSurfaceResource
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterSlotsContent
         ( surfaceField @Types1.RosterGroupId rosterGroupId
-            &: surfaceField @Types1.WeekOffset weekOffset
+            &: surfaceField @Types1.WindowStartDate windowStartDate
+            &: surfaceField @Types1.WindowEndDate windowEndDate
             &: noSurfaceFields
         )
 
-matchRosterSlotsContentResource :: SurfaceResourceValue -> Maybe (UUID.UUID, (Int, ()))
+matchRosterSlotsContentResource :: SurfaceResourceValue -> Maybe (UUID.UUID, (Day, (Day, ())))
 matchRosterSlotsContentResource =
     matchFrontendSurfaceResource
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
@@ -133,18 +138,20 @@ matchRosterSlotsContentResource =
 
 rosterSlotsStructureResource ::
     UUID.UUID ->
-    Int ->
+    Day ->
+    Day ->
     SurfaceResourceValue
-rosterSlotsStructureResource rosterGroupId weekOffset =
+rosterSlotsStructureResource rosterGroupId windowStartDate windowEndDate =
     frontendSurfaceResource
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterSlotsStructure
         ( surfaceField @Types1.RosterGroupId rosterGroupId
-            &: surfaceField @Types1.WeekOffset weekOffset
+            &: surfaceField @Types1.WindowStartDate windowStartDate
+            &: surfaceField @Types1.WindowEndDate windowEndDate
             &: noSurfaceFields
         )
 
-matchRosterSlotsStructureResource :: SurfaceResourceValue -> Maybe (UUID.UUID, (Int, ()))
+matchRosterSlotsStructureResource :: SurfaceResourceValue -> Maybe (UUID.UUID, (Day, (Day, ())))
 matchRosterSlotsStructureResource =
     matchFrontendSurfaceResource
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
@@ -220,18 +227,20 @@ matchRosterWeekBoundaryConfigResource =
 
 rosterWeekResource ::
     UUID.UUID ->
-    Int ->
+    Day ->
+    Day ->
     SurfaceResourceValue
-rosterWeekResource rosterGroupId weekOffset =
+rosterWeekResource rosterGroupId windowStartDate windowEndDate =
     frontendSurfaceResource
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterWeek
         ( surfaceField @Types1.RosterGroupId rosterGroupId
-            &: surfaceField @Types1.WeekOffset weekOffset
+            &: surfaceField @Types1.WindowStartDate windowStartDate
+            &: surfaceField @Types1.WindowEndDate windowEndDate
             &: noSurfaceFields
         )
 
-matchRosterWeekResource :: SurfaceResourceValue -> Maybe (UUID.UUID, (Int, ()))
+matchRosterWeekResource :: SurfaceResourceValue -> Maybe (UUID.UUID, (Day, (Day, ())))
 matchRosterWeekResource =
     matchFrontendSurfaceResource
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
@@ -239,18 +248,20 @@ matchRosterWeekResource =
 
 rosterWeekStructureResource ::
     UUID.UUID ->
-    Int ->
+    Day ->
+    Day ->
     SurfaceResourceValue
-rosterWeekStructureResource rosterGroupId weekOffset =
+rosterWeekStructureResource rosterGroupId windowStartDate windowEndDate =
     frontendSurfaceResource
         @(AdapterFamilySurface Types2.RosterAdapterFamily)
         @Types1.RosterWeekStructure
         ( surfaceField @Types1.RosterGroupId rosterGroupId
-            &: surfaceField @Types1.WeekOffset weekOffset
+            &: surfaceField @Types1.WindowStartDate windowStartDate
+            &: surfaceField @Types1.WindowEndDate windowEndDate
             &: noSurfaceFields
         )
 
-matchRosterWeekStructureResource :: SurfaceResourceValue -> Maybe (UUID.UUID, (Int, ()))
+matchRosterWeekStructureResource :: SurfaceResourceValue -> Maybe (UUID.UUID, (Day, (Day, ())))
 matchRosterWeekStructureResource =
     matchFrontendSurfaceResource
         @(AdapterFamilySurface Types2.RosterAdapterFamily)

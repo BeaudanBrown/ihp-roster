@@ -59,9 +59,10 @@ applyRosterTemplateApplicationMutation ::
     RosterTemplateApplicationRequest ->
     Int ->
     Text ->
+    Int ->
     IO (Either RosterTemplateApplicationError (LiveMutationResult RosterTemplateApplicationResult))
-applyRosterTemplateApplicationMutation actor request expectedVersion expectedTargetRevision = do
-    applied <- applyRosterTemplateApplication actor request expectedVersion expectedTargetRevision
+applyRosterTemplateApplicationMutation actor request expectedVersion expectedTargetRevision expectedCalendarRevision = do
+    applied <- applyRosterTemplateApplication actor request expectedVersion expectedTargetRevision expectedCalendarRevision
     traverse (invalidateTouchedResources "roster.template.apply" . \result -> liveMutationResult result result.appliedTouchedResources) applied
 
 applyRosterTemplateApplication ::
@@ -70,8 +71,9 @@ applyRosterTemplateApplication ::
     RosterTemplateApplicationRequest ->
     Int ->
     Text ->
+    Int ->
     IO (Either RosterTemplateApplicationError RosterTemplateApplicationResult)
-applyRosterTemplateApplication actor request expectedVersion expectedTargetRevision = do
+applyRosterTemplateApplication actor request expectedVersion expectedTargetRevision expectedCalendarRevision = do
     lockTarget <- query @RosterWeek
         |> filterWhere (#id, request.applicationTargetWeekId)
         |> filterWhere (#venueId, unpackId (rosterTemplateActorVenueId actor))
@@ -90,6 +92,8 @@ applyRosterTemplateApplication actor request expectedVersion expectedTargetRevis
                         case preparedResult of
                             Left failure -> pure (Left failure)
                             Right prepared
+                                | prepared.preparedCalendarRevision /= expectedCalendarRevision ->
+                                    pure (Left RosterTemplateApplicationCalendarConflict)
                                 | prepared.preparedSaved.savedTemplate.currentVersion /= expectedVersion ->
                                     pure (Left (RosterTemplateApplicationVersionConflict prepared.preparedSaved.savedTemplate.currentVersion))
                                 | targetRevision prepared /= expectedTargetRevision ->
@@ -222,6 +226,7 @@ prepareStructurallyValidContent request saved targetWeek = do
                                         , preparedExistingSlots = existingSlots
                                         , preparedTargetDefinitions = targetDefinitions
                                         , preparedTimesheetEntries = timesheetEntries
+                                        , preparedCalendarRevision = venueConfig.rosterCalendarRevision
                                         })
 
 prepareShift ::
@@ -348,11 +353,13 @@ toPreview prepared =
         { applicationPreviewTemplateName = prepared.preparedSaved.savedTemplate.name
         , applicationPreviewScale = prepared.preparedSaved.savedTemplate.scale
         , applicationPreviewTargetWeekOffset = prepared.preparedTargetWeek.weekOffset
+        , applicationPreviewTargetAnchorDate = minimum (map (.operationalDate) prepared.preparedTargetDays)
         , applicationPreviewTargetDayOffset = case prepared.preparedSaved.savedTemplate.scale of
             Day  -> Just prepared.preparedFirstTargetDay.dayOffset
             Week -> Nothing
         , applicationExpectedVersion = prepared.preparedSaved.savedTemplate.currentVersion
         , applicationExpectedTargetRevision = targetRevision prepared
+        , applicationRosterCalendarRevision = prepared.preparedCalendarRevision
         , applicationReplacementShiftCount = length prepared.preparedShiftPlans
         , applicationExistingShiftCount = length prepared.preparedExistingSlots
         , applicationResolvedShifts = map resolvedShift prepared.preparedShiftPlans
@@ -416,11 +423,11 @@ targetRevision prepared =
 
 touchedResources :: PreparedApplication -> [SurfaceResourceValue]
 touchedResources prepared =
-    [ rosterWeekResource groupId weekOffset
-    , rosterWeekStructureResource groupId weekOffset
-    , rosterSlotsStructureResource groupId weekOffset
-    , rosterSlotsContentResource groupId weekOffset
-    , timesheetWeekResource prepared.preparedTargetWeek.venueId weekOffset
+    [ rosterWeekResource groupId windowStart windowEnd
+    , rosterWeekStructureResource groupId windowStart windowEnd
+    , rosterSlotsStructureResource groupId windowStart windowEnd
+    , rosterSlotsContentResource groupId windowStart windowEnd
+    , timesheetWeekResource prepared.preparedTargetWeek.venueId windowStart windowEnd
     ] <> templateResources
   where
     templateResources
@@ -430,4 +437,5 @@ touchedResources prepared =
             ]
         | otherwise = []
     groupId = prepared.preparedTargetWeek.rosterGroupId
-    weekOffset = prepared.preparedTargetWeek.weekOffset
+    windowStart = minimum (map (.operationalDate) prepared.preparedTargetDays)
+    windowEnd = addDays 7 windowStart

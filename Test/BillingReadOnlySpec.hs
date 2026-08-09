@@ -59,7 +59,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- markVenueReadOnly venue superAdmin
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (CreateRosterWeekAction 0)
+                    callAction (CreateRosterWeekAction)
 
                 response `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"

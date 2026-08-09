@@ -23,8 +23,11 @@ import Application.Helper.View (ToastOverlayConfig,
                                 ToastOverlayPosition (ToastBottomCenter),
                                 dialogOverlayMountId, errorToast,
                                 renderToastOob, successToast)
+import Application.Helper.View.Oob (outerHtmlOobSwap)
+import Application.Helper.WeekBoundaries (venueWeekStartDate)
 import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
+import Data.Time.Calendar (Day, addDays, diffDays)
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
@@ -71,32 +74,22 @@ respondWithRosterFragments :: (?context :: ControllerContext, ?modelContext :: M
 respondWithRosterFragments rosterGroupId weekOffset fragments extraHtml =
     respondWithRosterActorInvalidation rosterGroupId weekOffset fragments extraHtml
 
-respondWithRosterActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
+respondWithRosterActorInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
 respondWithRosterActorInvalidation rosterGroupId weekOffset fragments extraHtml = do
-    let scope = RosterWeekScopeValue
-            { rosterWeekVenueId = unpackId currentVenueId
-            , rosterWeekGroupId = rosterGroupId
-            , rosterWeekWeekOffset = weekOffset
-            , rosterWeekTimelineDayOffset = currentRosterTimelineDayOffset
-            }
+    scope <- fetchRosterWindowScopeValue rosterGroupId weekOffset
     setHeader ("HX-Reswap", "none")
     setActorLocalFragmentsRefresh (rosterSurfaceScope scope) (rosterSurfaceFragmentKeys (map (rosterMountedFragmentForProjection scope) (nub fragments)))
     respondHtmlProfiled extraHtml
 
-respondWithRosterResourceInvalidation :: (?context :: ControllerContext, ?request :: Request) => Id RosterGroup -> Int -> Set.Set SurfaceResourceValue -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
+respondWithRosterResourceInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Set.Set SurfaceResourceValue -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
 respondWithRosterResourceInvalidation rosterGroupId weekOffset touchedResources fragments extraHtml = do
-    let scope = RosterWeekScopeValue
-            { rosterWeekVenueId = unpackId currentVenueId
-            , rosterWeekGroupId = rosterGroupId
-            , rosterWeekWeekOffset = weekOffset
-            , rosterWeekTimelineDayOffset = currentRosterTimelineDayOffset
-            }
+    scope <- fetchRosterWindowScopeValue rosterGroupId weekOffset
     let mountedFragments = map (rosterMountedFragmentForProjection scope) (nub fragments)
     setHeader ("HX-Reswap", "none")
     setActorLiveResourcesRefresh (rosterSurfaceScope scope) touchedResources mountedFragments
     respondHtmlProfiled extraHtml
 
-respondWithRosterDialogOverlay :: (?context :: ControllerContext, ?request :: Request) => Id RosterGroup -> Int -> Blaze.Html -> IO ()
+respondWithRosterDialogOverlay :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Blaze.Html -> IO ()
 respondWithRosterDialogOverlay rosterGroupId weekOffset dialog =
     respondWithRosterResourceInvalidation rosterGroupId weekOffset Set.empty [] [hsx|
         <div id={dialogOverlayMountId} hx-swap-oob="innerHTML">{dialog}</div>
@@ -108,11 +101,15 @@ respondWithRosterCompleteResourceInvalidation rosterGroupId weekOffset touchedRe
     case maybeRosterData of
         Nothing -> respondWithRosterResourceInvalidation rosterGroupId weekOffset touchedResources [RosterProjectionContent] extraHtml
         Just rosterData -> do
+            let windowStart = rosterData.weekStartDate
             let scope = RosterWeekScopeValue
                     { rosterWeekVenueId = unpackId currentVenueId
                     , rosterWeekGroupId = rosterGroupId
                     , rosterWeekWeekOffset = weekOffset
-                    , rosterWeekTimelineDayOffset = currentRosterTimelineDayOffset
+                    , rosterWeekWindowStart = windowStart
+                    , rosterWeekWindowEnd = addDays 7 windowStart
+                    , rosterWeekCalendarRevision = rosterData.rosterCalendarRevision
+                    , rosterWeekTimelineDayOffset = currentRosterTimelineDayOffset windowStart
                     }
             let plan = rosterMountedFragmentPlanFromRenderData rosterData.templateLibraryUserId rosterData.rosterDays rosterData.renderIndexes
             setHeader ("HX-Reswap", "none")
@@ -137,7 +134,7 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
         Nothing -> do
             TextIO.putStrLn ("roster_read_model_miss_oob: rosterGroupId=" <> tshow rosterGroupId <> " weekOffset=" <> tshow weekOffset)
             respondHtmlProfiled [hsx|<div id="roster-content" hx-swap-oob="outerHTML"></div>|]
-        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } -> do
+        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } -> do
             let viewCapabilities = buildRosterViewCapabilities rosterWeek
             respondHtmlProfiled $
                     renderrosterContentLiveFragmentOob
@@ -157,6 +154,7 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
                             , gridSlotNames = orderedSlotNames
                             , gridShiftTypes = shiftTypes
                             , gridWeekStartDate = weekStartDate
+                            , gridRosterCalendarRevision = rosterCalendarRevision
                             , gridAllSlots = allSlots
                             , gridSlotConflicts = slotConflicts
                             , gridRenderIndexes = renderIndexes
@@ -172,7 +170,7 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
                             , gridCurrentViewerStaffKey = currentViewerStaffKey
                             , gridPublicHolidays = rosterPublicHolidays
                             , gridPublishAttempted = False
-                            , gridViewMode = currentRosterGridViewMode
+                            , gridViewMode = currentRosterGridViewMode weekStartDate
                             , gridTimelineTodayUrl = Nothing
                             }
 
@@ -199,7 +197,7 @@ respondWithRosterContentToast rosterGroupId weekOffset publishAttempted toast = 
         mconcat
             [ case rosterData of
                 Nothing -> [hsx|<div id="roster-content"></div>|]
-                Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } ->
+                Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } ->
                     let viewCapabilities = buildRosterViewCapabilities rosterWeek
                      in renderrosterContentLiveFragment
                             RosterGridRenderModel
@@ -218,6 +216,7 @@ respondWithRosterContentToast rosterGroupId weekOffset publishAttempted toast = 
                                 , gridSlotNames = orderedSlotNames
                                 , gridShiftTypes = shiftTypes
                                 , gridWeekStartDate = weekStartDate
+                                , gridRosterCalendarRevision = rosterCalendarRevision
                                 , gridAllSlots = allSlots
                                 , gridSlotConflicts = slotConflicts
                                 , gridRenderIndexes = renderIndexes
@@ -233,20 +232,37 @@ respondWithRosterContentToast rosterGroupId weekOffset publishAttempted toast = 
                                 , gridCurrentViewerStaffKey = currentViewerStaffKey
                                 , gridPublicHolidays = rosterPublicHolidays
                                 , gridPublishAttempted = publishAttempted
-                                , gridViewMode = currentRosterGridViewMode
+                                , gridViewMode = currentRosterGridViewMode weekStartDate
                                 , gridTimelineTodayUrl = Nothing
                                 }
             , renderToastOob ToastBottomCenter toast
             ]
 
-currentRosterGridViewMode :: (?request :: Request) => RosterGridViewMode
-currentRosterGridViewMode =
-    case (paramOrNothing @Text "rosterView", paramOrNothing @Int "dayOffset") of
-        (Just "timeline", Just dayOffset) -> RosterDayTimelineGridView (max 0 (min 6 dayOffset))
-        _ -> RosterWeekGridView
+fetchRosterWindowScopeValue :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO RosterWeekScopeValue
+fetchRosterWindowScopeValue rosterGroupId weekOffset = do
+    venueConfig <- fetchVenueConfig
+    let windowStart = venueWeekStartDate venueConfig weekOffset
+    pure RosterWeekScopeValue
+        { rosterWeekVenueId = unpackId currentVenueId
+        , rosterWeekGroupId = rosterGroupId
+        , rosterWeekWeekOffset = weekOffset
+        , rosterWeekWindowStart = windowStart
+        , rosterWeekWindowEnd = addDays 7 windowStart
+        , rosterWeekCalendarRevision = venueConfig.rosterCalendarRevision
+        , rosterWeekTimelineDayOffset = currentRosterTimelineDayOffset windowStart
+        }
 
-currentRosterTimelineDayOffset :: (?request :: Request) => Maybe Int
-currentRosterTimelineDayOffset = case currentRosterGridViewMode of
+currentRosterGridViewMode :: (?request :: Request) => Day -> RosterGridViewMode
+currentRosterGridViewMode windowStart =
+    case (paramOrNothing @Text "rosterView", paramOrNothing @Day "dayDate", paramOrNothing @Int "dayOffset") of
+        (Just "timeline", Just dayDate, _) -> RosterDayTimelineGridView (clampDayOffset (fromInteger (diffDays dayDate windowStart)))
+        (Just "timeline", Nothing, Just dayOffset) -> RosterDayTimelineGridView (clampDayOffset dayOffset)
+        _ -> RosterWeekGridView
+  where
+    clampDayOffset = max 0 . min 6
+
+currentRosterTimelineDayOffset :: (?request :: Request) => Day -> Maybe Int
+currentRosterTimelineDayOffset windowStart = case currentRosterGridViewMode windowStart of
     RosterDayTimelineGridView dayOffset -> Just dayOffset
     RosterWeekGridView                  -> Nothing
 

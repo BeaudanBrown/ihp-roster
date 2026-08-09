@@ -127,7 +127,7 @@ export type TimesheetsSurfaceFragmentKey =
   | { kind: "timesheet-side-panel-content"; params: TimesheetsTimesheetSidePanelContentFragmentParams | null }
   | { kind: "timesheet-day-section"; params: TimesheetsTimesheetDaySectionFragmentParams };
 export function isTimesheetsSurfaceFragmentKey(value: unknown): value is TimesheetsSurfaceFragmentKey {
-    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-side-panel-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["dayOffset"], ["dayOffset"]) && (typeof value["params"]["dayOffset"] === "number" && Number.isInteger(value["params"]["dayOffset"])))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-side-panel-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], [], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["operationalDate"], ["operationalDate"]) && (typeof value["params"]["operationalDate"] === "string"))));
 }
 
 export type RosterSurfaceFragmentKey =
@@ -1023,9 +1023,9 @@ export function parseTimesheetStaffPanelSortRow(value: unknown): TimesheetStaffP
     throw new Error("Invalid TimesheetStaffPanelSortRow");
 }
 
-export type TimesheetsTimesheetWeekScope = { venueId: FrontendContractUuid; weekOffset: number };
+export type TimesheetsTimesheetWeekScope = { venueId: FrontendContractUuid; windowStartDate: FrontendContractDay; windowEndDate: FrontendContractDay; rosterCalendarRevision: number };
 export function isTimesheetsTimesheetWeekScope(value: unknown): value is TimesheetsTimesheetWeekScope {
-    return isRecord(value) && hasExactKeys(value, ["venueId", "weekOffset"], ["venueId", "weekOffset"]) && (typeof value["venueId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
+    return isRecord(value) && hasExactKeys(value, ["venueId", "windowStartDate", "windowEndDate", "rosterCalendarRevision"], ["venueId", "windowStartDate", "windowEndDate", "rosterCalendarRevision"]) && (typeof value["venueId"] === "string") && (typeof value["windowStartDate"] === "string") && (typeof value["windowEndDate"] === "string") && (typeof value["rosterCalendarRevision"] === "number" && Number.isInteger(value["rosterCalendarRevision"]));
 }
 
 export type TimesheetsTimesheetToolbarFragmentParams = {  };
@@ -1043,9 +1043,9 @@ export function isTimesheetsTimesheetSidePanelContentFragmentParams(value: unkno
     return isRecord(value) && hasExactKeys(value, [], []);
 }
 
-export type TimesheetsTimesheetDaySectionFragmentParams = { dayOffset: number };
+export type TimesheetsTimesheetDaySectionFragmentParams = { operationalDate: FrontendContractDay };
 export function isTimesheetsTimesheetDaySectionFragmentParams(value: unknown): value is TimesheetsTimesheetDaySectionFragmentParams {
-    return isRecord(value) && hasExactKeys(value, ["dayOffset"], ["dayOffset"]) && (typeof value["dayOffset"] === "number" && Number.isInteger(value["dayOffset"]));
+    return isRecord(value) && hasExactKeys(value, ["operationalDate"], ["operationalDate"]) && (typeof value["operationalDate"] === "string");
 }
 
 export type TemplateApplicationCardConfig = { templateId: FrontendContractUuid; templateName: string; templateScale: RosterTemplateScaleEnum };
@@ -1121,9 +1121,9 @@ export function parseRosterWeekOverviewDayConfig(value: unknown): RosterWeekOver
     throw new Error("Invalid RosterWeekOverviewDayConfig");
 }
 
-export type RosterRosterWeekScope = { venueId: FrontendContractUuid; rosterGroupId: FrontendContractUuid; weekOffset: number };
+export type RosterRosterWeekScope = { venueId: FrontendContractUuid; rosterGroupId: FrontendContractUuid; windowStartDate: FrontendContractDay; windowEndDate: FrontendContractDay; rosterCalendarRevision: number };
 export function isRosterRosterWeekScope(value: unknown): value is RosterRosterWeekScope {
-    return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "weekOffset"], ["venueId", "rosterGroupId", "weekOffset"]) && (typeof value["venueId"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
+    return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "windowStartDate", "windowEndDate", "rosterCalendarRevision"], ["venueId", "rosterGroupId", "windowStartDate", "windowEndDate", "rosterCalendarRevision"]) && (typeof value["venueId"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["windowStartDate"] === "string") && (typeof value["windowEndDate"] === "string") && (typeof value["rosterCalendarRevision"] === "number" && Number.isInteger(value["rosterCalendarRevision"]));
 }
 
 export type RosterRosterLayoutFragmentParams = {  };
@@ -1201,9 +1201,9 @@ export function isRosterRosterRowFragmentParams(value: unknown): value is Roster
     return isRecord(value) && hasExactKeys(value, ["rosterDayId", "rowIndex"], ["rosterDayId", "rowIndex"]) && (typeof value["rosterDayId"] === "string") && (typeof value["rowIndex"] === "number" && Number.isInteger(value["rowIndex"]));
 }
 
-export type RosterDayTimelineRosterDayTimelineScope = { venueId: FrontendContractUuid; rosterGroupId: FrontendContractUuid; weekOffset: number; rosterDayId: FrontendContractUuid };
+export type RosterDayTimelineRosterDayTimelineScope = { venueId: FrontendContractUuid; rosterGroupId: FrontendContractUuid; windowStartDate: FrontendContractDay; windowEndDate: FrontendContractDay; rosterCalendarRevision: number; rosterDayId: FrontendContractUuid };
 export function isRosterDayTimelineRosterDayTimelineScope(value: unknown): value is RosterDayTimelineRosterDayTimelineScope {
-    return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "weekOffset", "rosterDayId"], ["venueId", "rosterGroupId", "weekOffset", "rosterDayId"]) && (typeof value["venueId"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && (typeof value["rosterDayId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "windowStartDate", "windowEndDate", "rosterCalendarRevision", "rosterDayId"], ["venueId", "rosterGroupId", "windowStartDate", "windowEndDate", "rosterCalendarRevision", "rosterDayId"]) && (typeof value["venueId"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["windowStartDate"] === "string") && (typeof value["windowEndDate"] === "string") && (typeof value["rosterCalendarRevision"] === "number" && Number.isInteger(value["rosterCalendarRevision"])) && (typeof value["rosterDayId"] === "string");
 }
 
 export type RosterDayTimelineRosterDayTimelineContentFragmentParams = { rosterDayId: FrontendContractUuid };

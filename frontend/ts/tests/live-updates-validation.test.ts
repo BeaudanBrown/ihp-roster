@@ -18,22 +18,22 @@ const executableDescriptor = {
     protectionPolicy: { kind: "none" },
 };
 
-const validScope = { surface: "timesheets", scope: { venueId: "venue-1", weekOffset: 0 } };
+const validScope = { surface: "timesheets", scope: { venueId: "venue-1", windowStartDate: "2025-01-06", windowEndDate: "2025-01-13", rosterCalendarRevision: 1 } };
 
 const exactTimesheetsMount = {
     surface: "timesheets",
-    scopeKey: "timesheets:venue-1:3",
+    scopeKey: "timesheets:venue-1:2025-01-20:2025-01-27:1",
     mountKey: "primary",
     fragments: [
         {
-            fragmentKey: { surface: "timesheets", kind: "timesheet-day-section", params: { dayOffset: 2 } },
-            targetId: "timesheet-day-section-2",
-            url: "/ShowTimesheetDaySectionFragment?weekOffset=3&dayOffset=2",
+            fragmentKey: { surface: "timesheets", kind: "timesheet-day-section", params: { operationalDate: "2025-01-22" } },
+            targetId: "timesheet-day-section-2025-01-22",
+            url: "/ShowTimesheetDaySectionFragment?anchorDate=2025-01-20&operationalDate=2025-01-22",
             protection: { kind: "replace" },
         },
     ],
     subscription: {
-        scope: { surface: "timesheets", scope: { venueId: "venue-1", weekOffset: 3 } },
+        scope: { surface: "timesheets", scope: { venueId: "venue-1", windowStartDate: "2025-01-20", windowEndDate: "2025-01-27", rosterCalendarRevision: 1 } },
         renderedDependencyWatermark: 7,
     },
 };
@@ -42,11 +42,11 @@ test("generated FrontendSurface mount parser is exact and surface-discriminated"
     assertEqual(isGeneratedFrontendSurfaceMountConfig(exactTimesheetsMount), true);
     assertEqual(isGeneratedFrontendSurfaceMountConfig({ ...exactTimesheetsMount, mountState: {} }), false);
     assertEqual(isGeneratedFrontendSurfaceMountConfig({ ...exactTimesheetsMount, fragments: [{ ...exactTimesheetsMount.fragments[0], loadPolicy: "eager" }] }), false);
-    assertEqual(isGeneratedFrontendSurfaceMountConfig({ ...exactTimesheetsMount, subscription: { scope: { surface: "timesheets", scope: { venueId: "venue-1", weekOffset: "3" } } } }), false);
-    assertEqual(isGeneratedFrontendSurfaceMountConfig({ ...exactTimesheetsMount, fragments: [{ ...exactTimesheetsMount.fragments[0], fragmentKey: { surface: "timesheets", kind: "timesheet-day-section", params: { dayOffset: "2" } } }] }), false);
+    assertEqual(isGeneratedFrontendSurfaceMountConfig({ ...exactTimesheetsMount, subscription: { scope: { surface: "timesheets", scope: { venueId: "venue-1", windowStartDate: 3, windowEndDate: "2025-01-27", rosterCalendarRevision: 1 } } } }), false);
+    assertEqual(isGeneratedFrontendSurfaceMountConfig({ ...exactTimesheetsMount, fragments: [{ ...exactTimesheetsMount.fragments[0], fragmentKey: { surface: "timesheets", kind: "timesheet-day-section", params: { operationalDate: 2 } } }] }), false);
     assertEqual(isGeneratedFrontendSurfaceMountConfig({ ...exactTimesheetsMount, fragments: [{ ...exactTimesheetsMount.fragments[0], fragmentKey: { surface: "roster", kind: "roster-content", params: {} } }] }), false);
     assertEqual(isGeneratedFrontendSurfaceMountConfig({ ...exactTimesheetsMount, fragments: [{ ...exactTimesheetsMount.fragments[0], protection: { kind: "focused-field" } }] }), false);
-    assertEqual(isGeneratedFrontendSurfaceMountConfig({ ...exactTimesheetsMount, subscription: { scope: { surface: "roster", scope: { venueId: "venue-1", rosterGroupId: "group-1", weekOffset: 3 } } } }), false);
+    assertEqual(isGeneratedFrontendSurfaceMountConfig({ ...exactTimesheetsMount, subscription: { scope: { surface: "roster", scope: { venueId: "venue-1", rosterGroupId: "group-1", windowStartDate: "2025-01-20", windowEndDate: "2025-01-27", rosterCalendarRevision: 1 } } } }), false);
     assertEqual(isGeneratedFrontendSurfaceMountConfig({ ...exactTimesheetsMount, subscription: null }), false);
     if (!isGeneratedFrontendSurfaceMountConfig(exactTimesheetsMount)) throw new Error("expected exact Timesheets mount fixture");
     assertEqual(frontendSurfaceMountMatchesOwnerSurface(exactTimesheetsMount, "timesheets"), true);
@@ -101,49 +101,49 @@ function withSurfaceSubscription(config: SurfaceMountFixture, scopeFields: unkno
 test("FrontendSurface config parser derives Timesheets live subscriptions from mounted fragments", () => {
     const config = parseFrontendSurfaceSubscriptionConfig(withSurfaceSubscription({
         surface: "timesheets",
-        scopeKey: "timesheets:venue-1:3",
+        scopeKey: "timesheets:venue-1:2025-01-20:2025-01-27:1",
         mountKey: "primary",
         fragments: [{
             kind: "timesheet-day-section",
-            params: { dayOffset: 2 },
-            targetId: "timesheet-day-section-2",
-            url: "/ShowTimesheetDaySectionFragment?weekOffset=3&dayOffset=2",
+            params: { operationalDate: "2025-01-22" },
+            targetId: "timesheet-day-section-2025-01-22",
+            url: "/ShowTimesheetDaySectionFragment?anchorDate=2025-01-20&operationalDate=2025-01-22",
             protection: { kind: "replace" },
         }],
-    }, { venueId: "venue-1", weekOffset: 3 }));
+    }, { venueId: "venue-1", windowStartDate: "2025-01-20", windowEndDate: "2025-01-27", rosterCalendarRevision: 1 }));
 
-    assertDeepEqual(config?.scope, { surface: "timesheets", scope: { venueId: "venue-1", weekOffset: 3 } });
-    assertEqual(config?.scopeKey, "timesheets:venue-1:3");
+    assertDeepEqual(config?.scope, { surface: "timesheets", scope: { venueId: "venue-1", windowStartDate: "2025-01-20", windowEndDate: "2025-01-27", rosterCalendarRevision: 1 } });
+    assertEqual(config?.scopeKey, "timesheets:venue-1:2025-01-20:2025-01-27:1");
     assertEqual(config?.renderedDependencyWatermark, 7);
-    assertEqual(config?.resyncFragments[0]?.targetId, "timesheet-day-section-2");
-    assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { surface: "timesheets", kind: "timesheet-day-section", params: { dayOffset: 2 } });
+    assertEqual(config?.resyncFragments[0]?.targetId, "timesheet-day-section-2025-01-22");
+    assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { surface: "timesheets", kind: "timesheet-day-section", params: { operationalDate: "2025-01-22" } });
 });
 
 test("FrontendSurface config parser derives Roster live subscriptions from mounted fragments", () => {
     const config = parseFrontendSurfaceSubscriptionConfig(withSurfaceSubscription({
         surface: "roster",
-        scopeKey: "roster:venue-1:group-1:-1",
+        scopeKey: "roster:venue-1:group-1:2024-12-30:2025-01-06:1",
         mountKey: "primary",
         fragments: [
             {
                 kind: "roster-content",
                 params: null,
                 targetId: "roster-content",
-                url: "/ShowRosterWeekContentFragment?weekOffset=-1&rosterGroupId=group-1",
+                url: "/ShowRosterWeekContentFragment?anchorDate=2024-12-30&rosterGroupId=group-1",
                 protection: { kind: "replace" },
             },
             {
                 kind: "roster-row",
                 params: { rosterDayId: "day-1", rowIndex: 3 },
                 targetId: "roster-row-day-1-3",
-                url: "/ShowRosterWeekRowFragment?weekOffset=-1&rosterGroupId=group-1&rosterDayId=day-1&rowIndex=3",
+                url: "/ShowRosterWeekRowFragment?anchorDate=2024-12-30&rosterGroupId=group-1&rosterDayId=day-1&rowIndex=3",
                 protection: { kind: "replace" },
             },
         ],
-    }, { venueId: "venue-1", rosterGroupId: "group-1", weekOffset: -1 }));
+    }, { venueId: "venue-1", rosterGroupId: "group-1", windowStartDate: "2024-12-30", windowEndDate: "2025-01-06", rosterCalendarRevision: 1 }));
 
-    assertDeepEqual(config?.scope, { surface: "roster", scope: { venueId: "venue-1", rosterGroupId: "group-1", weekOffset: -1 } });
-    assertEqual(config?.scopeKey, "roster:venue-1:group-1:-1");
+    assertDeepEqual(config?.scope, { surface: "roster", scope: { venueId: "venue-1", rosterGroupId: "group-1", windowStartDate: "2024-12-30", windowEndDate: "2025-01-06", rosterCalendarRevision: 1 } });
+    assertEqual(config?.scopeKey, "roster:venue-1:group-1:2024-12-30:2025-01-06:1");
     assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { surface: "roster", kind: "roster-content", params: null });
     assertDeepEqual(config?.resyncFragments[1]?.fragmentKey, { surface: "roster", kind: "roster-row", params: { rosterDayId: "day-1", rowIndex: 3 } });
 });
@@ -337,28 +337,28 @@ test("generated live protocol accepts semantic keys and rejects executable descr
 test("generated actor refresh parser is exact and uses per-surface scope and fragment guards", () => {
     const detail = {
         scope: validScope,
-        scopeKey: "timesheets:venue-1:0",
+        scopeKey: "timesheets:venue-1:2025-01-06:2025-01-13:1",
         fragments: [validFragmentKey],
     };
     assertEqual(isLiveFragmentsRefreshEventDetail(detail), true);
     assertEqual(isLiveFragmentsRefreshEventDetail({ ...detail, elt: {} }), false);
     assertEqual(isLiveFragmentsRefreshEventDetail({ ...detail, executableUrl: "/unsafe" }), false);
-    assertEqual(isLiveFragmentsRefreshEventDetail({ ...detail, scope: { surface: "timesheets", scope: { venueId: "venue-1", weekOffset: "0" } } }), false);
-    assertEqual(isLiveFragmentsRefreshEventDetail({ ...detail, fragments: [{ surface: "timesheets", kind: "timesheet-day-section", params: { dayOffset: "1" } }] }), false);
+    assertEqual(isLiveFragmentsRefreshEventDetail({ ...detail, scope: { surface: "timesheets", scope: { venueId: "venue-1", windowStartDate: 0, windowEndDate: "2025-01-13", rosterCalendarRevision: 1 } } }), false);
+    assertEqual(isLiveFragmentsRefreshEventDetail({ ...detail, fragments: [{ surface: "timesheets", kind: "timesheet-day-section", params: { operationalDate: 1 } }] }), false);
 });
 
 test("generated live update message guard checks websocket payload discriminants and primitives", () => {
     assertEqual(isLiveUpdateMessage({
         type: "subscribed",
         scope: validScope,
-        scopeKey: "timesheets:venue-1:0",
+        scopeKey: "timesheets:venue-1:2025-01-06:2025-01-13:1",
         currentVersion: 1,
         resync: false,
     }), true);
     assertEqual(isLiveUpdateMessage({
         type: "invalidate",
         scope: validScope,
-        scopeKey: "timesheets:venue-1:0",
+        scopeKey: "timesheets:venue-1:2025-01-06:2025-01-13:1",
         version: 2,
         fragments: [validFragmentKey],
         sourceClientId: null,

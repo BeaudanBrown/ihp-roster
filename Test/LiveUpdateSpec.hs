@@ -43,9 +43,11 @@ import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.ByteString.Lazy as LBS
 import Data.Either (isLeft, isRight)
 import qualified Data.Text as Text
+import Data.Time.Calendar (addDays, fromGregorian)
 import qualified Data.UUID as UUID
 import IHP.Prelude
 import Test.Hspec
+import Test.Support (testAnchorForOffset)
 import qualified Web.Admin.FrontendSurface as AdminSurface
 
 tests :: Spec
@@ -55,25 +57,27 @@ tests = describe "LiveUpdate runtime types" do
         let scope =
                 frontendSurfaceScope @Timesheets.TimesheetsSurface @Timesheets.TimesheetWeek
                     ( surfaceField @Timesheets.VenueId venueId
-                        &: surfaceField @Timesheets.WeekOffset 4
+                        &: surfaceField @Timesheets.WindowStartDate (fromGregorian 2025 2 3)
+                        &: surfaceField @Timesheets.WindowEndDate (fromGregorian 2025 2 10)
+                        &: surfaceField @Timesheets.RosterCalendarRevision 4
                         &: noSurfaceFields
                     )
         let fragmentKey =
                 frontendSurfaceFragmentKey @Timesheets.TimesheetsSurface @Timesheets.TimesheetDaySection
-                    (surfaceField @Timesheets.DayOffset 2 &: noSurfaceFields)
+                    (surfaceField @Timesheets.OperationalDate (fromGregorian 2025 2 5) &: noSurfaceFields)
 
         matchFrontendSurfaceScope @Timesheets.TimesheetsSurface @Timesheets.TimesheetWeek scope
-            `shouldBe` Just (venueId, (4, ()))
+            `shouldBe` Just (venueId, (fromGregorian 2025 2 3, (fromGregorian 2025 2 10, (4, ()))))
         matchFrontendSurfaceFragmentKey @Timesheets.TimesheetsSurface @Timesheets.TimesheetDaySection fragmentKey
-            `shouldBe` Just (2, ())
+            `shouldBe` Just (fromGregorian 2025 2 5, ())
         matchFrontendSurfaceFragmentKey @Timesheets.TimesheetsSurface @Timesheets.TimesheetToolbar fragmentKey
             `shouldBe` Nothing
 
     it "matches generated zero-field and parameterized Live fragments through the curated facade" do
-        let parameterized = TimesheetsLive.timesheetDaySectionLiveFragment 2
+        let parameterized = TimesheetsLive.timesheetDaySectionLiveFragment (addDays 2 (testAnchorForOffset 0))
 
         TimesheetsLive.matchTimesheetDaySectionLiveFragment parameterized
-            `shouldBe` Just (2, ())
+            `shouldBe` Just (addDays 2 (testAnchorForOffset 0), ())
         TimesheetsLive.matchTimesheetToolbarLiveFragment TimesheetsLive.timesheetToolbarLiveFragment
             `shouldBe` Just ()
         TimesheetsLive.matchTimesheetDayColumnsLiveFragment TimesheetsLive.timesheetDayColumnsLiveFragment
@@ -84,7 +88,7 @@ tests = describe "LiveUpdate runtime types" do
     it "encodes websocket invalidations with semantic fragment keys only" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
-        let scope = RosterLive.rosterWeekLiveScope venueId rosterGroupId 0
+        let scope = RosterLive.rosterWeekLiveScope venueId rosterGroupId (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1
         let fragmentKey = RosterLive.rosterStaffPanelLiveFragment
         let message =
                 LiveUpdatesInvalidated
@@ -123,7 +127,7 @@ tests = describe "LiveUpdate runtime types" do
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
         let staffId = expectUuid "44444444-4444-4444-4444-444444444444"
         let scopes =
-                [ RosterLive.rosterWeekLiveScope venueId rosterGroupId 0
+                [ RosterLive.rosterWeekLiveScope venueId rosterGroupId (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1
                 , AdminLive.adminVenueConfigLiveScope venueId
                 , AdminLive.adminShiftTypesLiveScope venueId
                 , AdminLive.adminRosterGroupsLiveScope venueId
@@ -132,7 +136,7 @@ tests = describe "LiveUpdate runtime types" do
                 , AdminLive.adminXeroLiveScope venueId
                 , BillingLive.billingVenueLiveScope venueId
                 , LeaveLive.leaveRequestsLiveScope venueId
-                , TimesheetsLive.timesheetWeekLiveScope venueId 2
+                , TimesheetsLive.timesheetWeekLiveScope venueId (testAnchorForOffset 2) (addDays 7 (testAnchorForOffset 2)) 1
                 , ProfileLive.profileLiveScope venueId staffId
                 , SupportLive.supportPlatformLiveScope
                 ]
@@ -147,7 +151,7 @@ tests = describe "LiveUpdate runtime types" do
                 , RosterLive.rosterStaffPanelLiveFragment
                 , RosterLive.rosterRowLiveFragment rosterDayId 1
                 , leavePendingCountLiveFragment
-                , TimesheetsLive.timesheetDaySectionLiveFragment 4
+                , TimesheetsLive.timesheetDaySectionLiveFragment (addDays 4 (testAnchorForOffset 0))
                 , AdminLive.adminVenueSettingsLiveFragment
                 , AdminLive.adminInvitesLiveFragment
                 , AdminLive.adminExportsLiveFragment
@@ -167,7 +171,7 @@ tests = describe "LiveUpdate runtime types" do
     it "pins the canonical scope JSON boundary across generated adapter migration" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
-        let scope = RosterLive.rosterWeekLiveScope venueId rosterGroupId (-1)
+        let scope = RosterLive.rosterWeekLiveScope venueId rosterGroupId (testAnchorForOffset (-1)) (addDays 7 (testAnchorForOffset (-1))) 1
 
         Aeson.toJSON scope
             `shouldBe`
@@ -200,8 +204,8 @@ tests = describe "LiveUpdate runtime types" do
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
         let staffId = expectUuid "44444444-4444-4444-4444-444444444444"
 
-        surfaceScopeKey (RosterLive.rosterWeekLiveScope venueId rosterGroupId (-1))
-            `shouldBe` "roster:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:-1"
+        surfaceScopeKey (RosterLive.rosterWeekLiveScope venueId rosterGroupId (testAnchorForOffset (-1)) (addDays 7 (testAnchorForOffset (-1))) 1)
+            `shouldBe` "roster:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:2024-12-30:2025-01-06:1"
         surfaceScopeKey (AdminLive.adminVenueConfigLiveScope venueId)
             `shouldBe` "admin-venue-config:11111111-1111-1111-1111-111111111111"
         surfaceScopeKey (AdminLive.adminShiftTypesLiveScope venueId)
@@ -218,8 +222,8 @@ tests = describe "LiveUpdate runtime types" do
             `shouldBe` "billing:11111111-1111-1111-1111-111111111111"
         surfaceScopeKey (LeaveLive.leaveRequestsLiveScope venueId)
             `shouldBe` "leave-requests:11111111-1111-1111-1111-111111111111"
-        surfaceScopeKey (TimesheetsLive.timesheetWeekLiveScope venueId 2)
-            `shouldBe` "timesheets:11111111-1111-1111-1111-111111111111:2"
+        surfaceScopeKey (TimesheetsLive.timesheetWeekLiveScope venueId (testAnchorForOffset 2) (addDays 7 (testAnchorForOffset 2)) 1)
+            `shouldBe` "timesheets:11111111-1111-1111-1111-111111111111:2025-01-20:2025-01-27:1"
         surfaceScopeKey (ProfileLive.profileLiveScope venueId staffId)
             `shouldBe` "profile:11111111-1111-1111-1111-111111111111:44444444-4444-4444-4444-444444444444"
         surfaceScopeKey SupportLive.supportPlatformLiveScope
@@ -231,9 +235,9 @@ tests = describe "LiveUpdate runtime types" do
         let staffId = "44444444-4444-4444-4444-444444444444"
         let rosterDayId = "22222222-2222-2222-2222-222222222222"
         let cases =
-                [ (Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= venueId, "weekOffset" Aeson..= (2 :: Int)]), "timesheets:" <> venueId <> ":2")
-                , (Wire.SurfaceScope "roster" (Aeson.object ["venueId" Aeson..= venueId, "rosterGroupId" Aeson..= rosterGroupId, "weekOffset" Aeson..= (-1 :: Int)]), "roster:" <> venueId <> ":" <> rosterGroupId <> ":-1")
-                , (Wire.SurfaceScope "roster-day-timeline" (Aeson.object ["venueId" Aeson..= venueId, "rosterGroupId" Aeson..= rosterGroupId, "weekOffset" Aeson..= (1 :: Int), "rosterDayId" Aeson..= rosterDayId]), "roster-day-timeline:" <> venueId <> ":" <> rosterGroupId <> ":1:" <> rosterDayId)
+                [ (Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= venueId, "windowStartDate" Aeson..= ("2025-01-20" :: Text), "windowEndDate" Aeson..= ("2025-01-27" :: Text), "rosterCalendarRevision" Aeson..= (1 :: Int)]), "timesheets:" <> venueId <> ":2025-01-20:2025-01-27:1")
+                , (Wire.SurfaceScope "roster" (Aeson.object ["venueId" Aeson..= venueId, "rosterGroupId" Aeson..= rosterGroupId, "windowStartDate" Aeson..= ("2024-12-30" :: Text), "windowEndDate" Aeson..= ("2025-01-06" :: Text), "rosterCalendarRevision" Aeson..= (1 :: Int)]), "roster:" <> venueId <> ":" <> rosterGroupId <> ":2024-12-30:2025-01-06:1")
+                , (Wire.SurfaceScope "roster-day-timeline" (Aeson.object ["venueId" Aeson..= venueId, "rosterGroupId" Aeson..= rosterGroupId, "windowStartDate" Aeson..= ("2025-01-13" :: Text), "windowEndDate" Aeson..= ("2025-01-20" :: Text), "rosterCalendarRevision" Aeson..= (1 :: Int), "rosterDayId" Aeson..= rosterDayId]), "roster-day-timeline:" <> venueId <> ":" <> rosterGroupId <> ":2025-01-13:2025-01-20:1:" <> rosterDayId)
                 , (Wire.SurfaceScope "leave-requests" (Aeson.object ["venueId" Aeson..= venueId]), "leave-requests:" <> venueId)
                 , (Wire.SurfaceScope "billing" (Aeson.object ["venueId" Aeson..= venueId]), "billing:" <> venueId)
                 , (Wire.SurfaceScope "support" (Aeson.object []), "support")
@@ -341,7 +345,7 @@ tests = describe "LiveUpdate runtime types" do
     it "round-trips commands and encodes subscribed, invalidation, and error payloads as JSON" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
-        let scope = RosterLive.rosterWeekLiveScope venueId rosterGroupId 0
+        let scope = RosterLive.rosterWeekLiveScope venueId rosterGroupId (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1
         let fragmentKey = RosterLive.rosterStaffPanelLiveFragment
         let subscription =
                 SurfaceSubscription
@@ -374,7 +378,7 @@ tests = describe "LiveUpdate runtime types" do
         encodedInvalidated `shouldSatisfy` Text.isInfixOf "\"scopeKey\":\"roster:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:0\""
 
     it "exposes active roster scopes without leaking websocket subscription internals" do
-        RosterLive.activeRosterWeekScopes `shouldReturn` []
+        RosterLive.activeRosterWindowScopes `shouldReturn` []
 
     it "exercises isolated in-memory live buses without global state leakage" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
@@ -386,7 +390,7 @@ tests = describe "LiveUpdate runtime types" do
         activeSurfaceScopesWithBus firstBus `shouldReturn` []
         activeSurfaceSubscriptionsWithBus firstBus `shouldReturn` []
         activeSurfaceScopeMatchesWithBus firstBus supportScopeLabel `shouldReturn` []
-        RosterLive.activeRosterWeekScopesWithBus firstBus `shouldReturn` []
+        RosterLive.activeRosterWindowScopesWithBus firstBus `shouldReturn` []
 
         let subscription =
                 SurfaceSubscription
@@ -421,7 +425,7 @@ tests = describe "LiveUpdate runtime types" do
 
     it "recovers active Timesheet week scopes for context-free resource fanout" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
-        let scope = TimesheetsLive.timesheetWeekLiveScope venueId 3
+        let scope = TimesheetsLive.timesheetWeekLiveScope venueId (testAnchorForOffset 3) (addDays 7 (testAnchorForOffset 3)) 1
         let subscription =
                 SurfaceSubscription
                     { subscriptionScope = scope
@@ -431,9 +435,9 @@ tests = describe "LiveUpdate runtime types" do
                     }
         bus <- newInMemoryLiveBus
 
-        TimesheetsLive.activeTimesheetWeekScopesWithBus bus `shouldReturn` []
+        TimesheetsLive.activeTimesheetWindowScopesWithBus bus `shouldReturn` []
         registerSurfaceSubscriptionWithBus bus venueId subscription (error "unused websocket connection")
-        TimesheetsLive.activeTimesheetWeekScopesWithBus bus `shouldReturn` [(venueId, 3)]
+        TimesheetsLive.activeTimesheetWindowScopesWithBus bus `shouldReturn` [(venueId, testAnchorForOffset 3, addDays 7 (testAnchorForOffset 3), 1)]
 
     it "reports broadcast fanout counts for profiling hooks" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
@@ -480,12 +484,12 @@ tests = describe "LiveUpdate runtime types" do
 
     it "validates live subscriptions from generated FrontendSurface metadata" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
-        let scope = TimesheetsLive.timesheetWeekLiveScope venueId 0
+        let scope = TimesheetsLive.timesheetWeekLiveScope venueId (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1
         let subscription =
                 SurfaceSubscription
                     { subscriptionScope = scope
                     , subscriptionScopeKey = surfaceScopeKey scope
-                    , subscriptionFragmentKeys = [TimesheetsLive.timesheetDaySectionLiveFragment 1]
+                    , subscriptionFragmentKeys = [TimesheetsLive.timesheetDaySectionLiveFragment (addDays 1 (testAnchorForOffset 0))]
                     , subscriptionRenderedDependencyWatermark = 0
                     }
 
@@ -505,8 +509,8 @@ tests = describe "LiveUpdate runtime types" do
         frontendSurfaceScopeAuthorizationRequirement (AdminLive.adminVenueConfigLiveScope venueId) `shouldBe` Just (Just (RequireCurrentVenueAdmin venueId))
         frontendSurfaceScopeAuthorizationRequirement (LeaveLive.leaveRequestsLiveScope venueId) `shouldBe` Just (Just (RequireCurrentVenueManager venueId))
         frontendSurfaceScopeAuthorizationRequirement (ProfileLive.profileLiveScope venueId staffId) `shouldBe` Just (Just (RequireCurrentVenueStaff venueId staffId))
-        frontendSurfaceScopeAuthorizationRequirement (RosterLive.rosterWeekLiveScope venueId rosterGroupId 0) `shouldBe` Just (Just (RequireCurrentVenueRosterGroup venueId rosterGroupId))
-        frontendSurfaceScopeAuthorizationRequirement (TimesheetsLive.timesheetWeekLiveScope venueId 0) `shouldBe` Just (Just (RequireCurrentVenue venueId))
+        frontendSurfaceScopeAuthorizationRequirement (RosterLive.rosterWeekLiveScope venueId rosterGroupId (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1) `shouldBe` Just (Just (RequireCurrentVenueRosterGroup venueId rosterGroupId))
+        frontendSurfaceScopeAuthorizationRequirement (TimesheetsLive.timesheetWeekLiveScope venueId (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1) `shouldBe` Just (Just (RequireCurrentVenue venueId))
         frontendSurfaceScopeAuthorizationRequirement staffScope `shouldBe` Just (Just (RequireCurrentVenueManager venueId))
 
 leavePendingCountLiveFragment :: SurfaceFragmentKey

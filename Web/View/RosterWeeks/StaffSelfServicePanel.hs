@@ -14,20 +14,18 @@ import Application.Helper.FrontendContract.Surface.Roster.StaffPanel (RosterSelf
 import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl,
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
-import Data.Time.Calendar (diffDays)
+import Data.Time.Calendar (addDays, diffDays)
 import Web.LeaveRequests.SelfService (renderSelfServiceLeaveFormMount)
 import Web.RosterWeeks.Dom (rosterSelfServiceQuickToolsPaneId,
                             rosterSelfServiceQuickToolsTabId,
                             rosterSelfServiceSettingsPaneId,
                             rosterSelfServiceSettingsTabId)
 import Web.RosterWeeks.Types (RosterStaffSelfServicePanel (..))
-import Web.Timesheets.Filters (emptyTimesheetViewFilters)
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        TimesheetsMountStateValue (..),
                                        timesheetsDaySurfaceImpl)
 import Web.View.Prelude
-import Web.View.RosterWeeks.SettingsPanel (renderRosterGroupSwitcher,
-                                           renderRosterOwnLiveShiftHighlightPreferenceForm)
+import Web.View.RosterWeeks.SettingsPanel (renderRosterOwnLiveShiftHighlightPreferenceForm)
 import Web.View.Timesheets.Index (TimesheetDayRenderModel (..),
                                   renderDaySection)
 
@@ -92,13 +90,12 @@ renderRosterStaffSelfServicePanelFragmentWithSwap maybeSwapOob (Just panel)
                                  aria-labelledby={rosterSelfServiceSettingsTabId}
                                  tabindex="0">
                                 <div class="roster-settings-stack">
-                                    {renderRosterGroupSettings panel}
                                     <section class="roster-settings-section">
                                         <div class="roster-settings-section-heading">
                                             <i class="bi bi-eye" aria-hidden="true"></i>
                                             <h2 class="h6 mb-0">Display</h2>
                                         </div>
-                                        {renderRosterOwnLiveShiftHighlightPreferenceForm panel.quickToolsRosterWeekOffset panel.quickToolsRosterGroupId panel.quickToolsHighlightOwnLiveShifts}
+                                        {renderRosterOwnLiveShiftHighlightPreferenceForm panel.quickToolsTimesheetWeekStartDate panel.quickToolsRosterGroupId panel.quickToolsHighlightOwnLiveShifts}
                                     </section>
                                 </div>
                             </div>
@@ -112,19 +109,6 @@ renderRosterStaffSelfServicePanelFragmentWithSwap maybeSwapOob (Just panel)
         , SidePanelTabConfig rosterSelfServiceSettingsTabId rosterSelfServiceSettingsPaneId "Settings" "bi bi-sliders" False "roster-staff-panel-tab" (rosterSelfServicePanelTabAttrs RosterSelfServiceSettingsTab)
         ]
 
-renderRosterGroupSettings :: RosterStaffSelfServicePanel -> Html
-renderRosterGroupSettings panel
-    | length panel.quickToolsRosterGroups <= 1 = mempty
-    | otherwise = [hsx|
-        <section class="roster-settings-section">
-            <div class="roster-settings-section-heading">
-                <i class="bi bi-people" aria-hidden="true"></i>
-                <h2 class="h6 mb-0">Roster group</h2>
-            </div>
-            {renderRosterGroupSwitcher panel.quickToolsRosterWeekOffset panel.quickToolsRosterGroups panel.quickToolsRosterGroupId}
-        </section>
-    |]
-
 timesheetDayModel :: RosterStaffSelfServicePanel -> TimesheetDayRenderModel
 timesheetDayModel panel =
     let operationalDayOffset = quickToolsTimesheetDayOffset panel
@@ -134,12 +118,12 @@ timesheetDayModel panel =
         , daySuggestions = []
         , dayStaffMembers = panel.quickToolsStaffMembers
         , dayShiftTypes = panel.quickToolsShiftTypes
-        , dayWageEstimates = Nothing
         , dayToday = panel.quickToolsOperationalDay
         , dayEditWindowDays = panel.quickToolsTimesheetEditWindowDays
         , dayWeekOffset = panel.quickToolsTimesheetWeekOffset
         , dayWeekStartDate = panel.quickToolsTimesheetWeekStartDate
-        , dayFilters = emptyTimesheetViewFilters
+        , dayCalendarRevision = panel.quickToolsCalendarRevision
+        , dayStaffFilterId = Nothing
         , dayOffset = operationalDayOffset
         }
 
@@ -148,11 +132,12 @@ timesheetSurface panel =
     let scope = TimesheetWeekScopeValue
             { timesheetWeekVenueId = unpackId panel.quickToolsVenueId
             , timesheetWeekWeekOffset = panel.quickToolsTimesheetWeekOffset
+            , timesheetWindowStart = panel.quickToolsTimesheetWeekStartDate
+            , timesheetWindowEnd = addDays 7 panel.quickToolsTimesheetWeekStartDate
+            , timesheetCalendarRevision = panel.quickToolsCalendarRevision
             }
         mountState = TimesheetsMountStateValue
-            { timesheetsMountStaffFilterId = Nothing
-            , timesheetsMountRosterGroupFilterId = Nothing
-            }
+            { timesheetsMountStaffFilterId = Nothing }
      in timesheetsDaySurfaceImpl scope mountState (quickToolsTimesheetDayOffset panel)
 
 quickToolsTimesheetDayOffset :: RosterStaffSelfServicePanel -> Int

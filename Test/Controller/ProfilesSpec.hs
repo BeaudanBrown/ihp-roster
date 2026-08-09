@@ -569,8 +569,8 @@ tests = aroundAll withDatabaseTestContext do
                     fetchProfileRosterInvalidationTargetsForScopes
                         venue.id
                         staff
-                        [ (unpackId venue.id, unpackId frontGroup.id, 0)
-                        , (unpackId venue.id, unpackId backGroup.id, 0)
+                        [ (unpackId venue.id, unpackId frontGroup.id, testAnchorForOffset 0, addDays 7 (testAnchorForOffset 0), 1)
+                        , (unpackId venue.id, unpackId backGroup.id, testAnchorForOffset 0, addDays 7 (testAnchorForOffset 0), 1)
                         ]
 
                 let frontEntry = find (\(rosterGroupId, weekOffset, _) -> rosterGroupId == frontGroup.id && weekOffset == 0) activeInvalidationTargets
@@ -579,8 +579,8 @@ tests = aroundAll withDatabaseTestContext do
                 fmap (\(_, _, rowKeys) -> rowKeys) frontEntry `shouldBe` Just [(unpackId frontDay.id, assignedSlot.rowIndex)]
                 backEntry `shouldBe` Nothing
 
-                frontVersionBefore <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId frontGroup.id) 0)
-                backVersionBefore <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId backGroup.id) 0)
+                frontVersionBefore <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId frontGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
+                backVersionBefore <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId backGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
                 profileVersionBefore <- currentLiveUpdateVersion (ProfileLive.profileLiveScope (unpackId venue.id) (unpackId staff.id))
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -597,8 +597,8 @@ tests = aroundAll withDatabaseTestContext do
                             ]
 
                 response `responseStatusShouldBe` status200
-                frontVersionAfter <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId frontGroup.id) 0)
-                backVersionAfter <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId backGroup.id) 0)
+                frontVersionAfter <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId frontGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
+                backVersionAfter <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId backGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
                 profileVersionAfter <- currentLiveUpdateVersion (ProfileLive.profileLiveScope (unpackId venue.id) (unpackId staff.id))
 
                 frontVersionAfter `shouldBe` frontVersionBefore

@@ -26,6 +26,7 @@ import qualified Application.Helper.FrontendContract.Surface.Timesheets as Types
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.HaskellAdapter as Types2
 import Application.Helper.FrontendContract.Surface.Values (noSurfaceFields,
                                                            surfaceField, (&:))
+import Data.Time (Day)
 import qualified Data.UUID as UUID
 import IHP.Prelude
 
@@ -43,17 +44,17 @@ matchTimesheetDayColumnsLiveFragment =
         @Types1.TimesheetDayColumns
 
 timesheetDaySectionLiveFragment ::
-    Int ->
+    Day ->
     SurfaceFragmentKey
-timesheetDaySectionLiveFragment dayOffset =
+timesheetDaySectionLiveFragment operationalDate =
     frontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
         @Types1.TimesheetDaySection
-        ( surfaceField @Types1.DayOffset dayOffset
+        ( surfaceField @Types1.OperationalDate operationalDate
             &: noSurfaceFields
         )
 
-matchTimesheetDaySectionLiveFragment :: SurfaceFragmentKey -> Maybe (Int, ())
+matchTimesheetDaySectionLiveFragment :: SurfaceFragmentKey -> Maybe (Day, ())
 matchTimesheetDaySectionLiveFragment =
     matchFrontendSurfaceFragmentKey
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
@@ -87,18 +88,22 @@ matchTimesheetToolbarLiveFragment =
 
 timesheetWeekLiveScope ::
     UUID.UUID ->
+    Day ->
+    Day ->
     Int ->
     SurfaceScope
-timesheetWeekLiveScope venueId weekOffset =
+timesheetWeekLiveScope venueId windowStartDate windowEndDate rosterCalendarRevision =
     frontendSurfaceScope
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)
         @Types1.TimesheetWeek
         ( surfaceField @Types1.VenueId venueId
-            &: surfaceField @Types1.WeekOffset weekOffset
+            &: surfaceField @Types1.WindowStartDate windowStartDate
+            &: surfaceField @Types1.WindowEndDate windowEndDate
+            &: surfaceField @Types1.RosterCalendarRevision rosterCalendarRevision
             &: noSurfaceFields
         )
 
-matchTimesheetWeekLiveScope :: SurfaceScope -> Maybe (UUID.UUID, (Int, ()))
+matchTimesheetWeekLiveScope :: SurfaceScope -> Maybe (UUID.UUID, (Day, (Day, (Int, ()))))
 matchTimesheetWeekLiveScope =
     matchFrontendSurfaceScope
         @(AdapterFamilySurface Types2.TimesheetsAdapterFamily)

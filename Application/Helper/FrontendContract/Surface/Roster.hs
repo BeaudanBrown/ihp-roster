@@ -16,7 +16,6 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterGridToolbar
     , RosterGroupId
     , RosterEndTimesConfig
-    , RosterLayoutConfig
     , RosterRow
     , RosterSlotsGrid
     , RosterStaffPanel
@@ -210,7 +209,10 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RowIndex
     , SetRosterLayoutMode
     , VenueId
-    , WeekOffset
+    , AnchorDate
+    , WindowStartDate
+    , WindowEndDate
+    , RosterCalendarRevision
     , NotificationRosterWeekId
     , ShowRosterWarnings
     , IsLive
@@ -261,7 +263,10 @@ data RosterSlotsStructure
 data RosterSlotsContent
 data VenueId
 data RosterGroupId
-data WeekOffset
+data AnchorDate
+data WindowStartDate
+data WindowEndDate
+data RosterCalendarRevision
 data NotificationRosterWeekId
 
 data RosterLayout
@@ -483,7 +488,6 @@ data CopyRosterWeekCustomHtmx
 data RosterDay
 data RosterWeekOverview
 data RosterEndTimesConfig
-data RosterLayoutConfig
 data RosterWeekBoundaryConfig
 data TimePickerConfig
 data RosterStaffPanelFragment
@@ -495,17 +499,16 @@ data RosterTemplateLibraryMount
 data RosterTemplateRecordMount
 data RosterTemplateDraftMount
 
-type RosterWeekResource = Resource RosterWeek '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
-type RosterWeekStructureResource = Resource RosterWeekStructure '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
-type RosterNotificationStatusResource = Resource RosterNotificationStatus '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
-type RosterSlotsStructureResource = Resource RosterSlotsStructure '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
-type RosterSlotsContentResource = Resource RosterSlotsContent '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
+type RosterWeekResource = Resource RosterWeek '[ Field RosterGroupId 'WireUUID, Field WindowStartDate 'WireDay, Field WindowEndDate 'WireDay ]
+type RosterWeekStructureResource = Resource RosterWeekStructure '[ Field RosterGroupId 'WireUUID, Field WindowStartDate 'WireDay, Field WindowEndDate 'WireDay ]
+type RosterNotificationStatusResource = Resource RosterNotificationStatus '[ Field RosterGroupId 'WireUUID, Field WindowStartDate 'WireDay, Field WindowEndDate 'WireDay ]
+type RosterSlotsStructureResource = Resource RosterSlotsStructure '[ Field RosterGroupId 'WireUUID, Field WindowStartDate 'WireDay, Field WindowEndDate 'WireDay ]
+type RosterSlotsContentResource = Resource RosterSlotsContent '[ Field RosterGroupId 'WireUUID, Field WindowStartDate 'WireDay, Field WindowEndDate 'WireDay ]
 type RosterTemplateLibraryResource = Resource RosterTemplateLibrary '[ Field RosterGroupId 'WireUUID ]
 type RosterTemplateResource = Resource RosterTemplate '[ Field TemplateId 'WireUUID ]
 type RosterTemplateDraftResource = Resource RosterTemplateDraft '[ Field UserId 'WireUUID ]
 type RosterDayResource = Resource RosterDay '[ Field RosterDayId 'WireUUID ]
 type RosterEndTimesConfigResource = Resource RosterEndTimesConfig '[ Field VenueId 'WireUUID ]
-type RosterLayoutConfigResource = Resource RosterLayoutConfig '[ Field VenueId 'WireUUID ]
 type RosterWeekBoundaryConfigResource = Resource RosterWeekBoundaryConfig '[ Field VenueId 'WireUUID ]
 type TimePickerConfigResource = Resource TimePickerConfig '[ Field VenueId 'WireUUID ]
 
@@ -513,7 +516,9 @@ type RosterScopeBundle =
     '[ Scope RosterWeek
         '[ Field VenueId 'WireUUID
          , Field RosterGroupId 'WireUUID
-         , Field WeekOffset 'WireInt
+         , Field WindowStartDate 'WireDay
+         , Field WindowEndDate 'WireDay
+         , Field RosterCalendarRevision 'WireInt
          ]
         '[ 'Authorize 'CurrentVenueRosterGroup '[ VenueId, RosterGroupId ] ]
      ]
@@ -532,7 +537,7 @@ type RosterFragmentBundle =
         '[ 'MountTarget RosterContent '[]
          , 'Eager
          , 'Live
-         , 'DependsOn RosterWeekStructureResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ]
+         , 'DependsOn RosterWeekStructureResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ]
          , 'Contains RosterGridToolbar
          , 'Contains RosterGridFrame
          ]
@@ -541,7 +546,7 @@ type RosterFragmentBundle =
         '[ 'MountTarget RosterGridToolbar '[]
          , 'Eager
          , 'Live
-         , 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ]
+         , 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ]
          , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]
          , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
          ]
@@ -550,9 +555,8 @@ type RosterFragmentBundle =
         '[ 'MountTarget RosterGridFrame '[]
          , 'Eager
          , 'Live
-         , 'DependsOn RosterWeekStructureResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ]
+         , 'DependsOn RosterWeekStructureResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ]
          , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]
-         , 'DependsOn RosterLayoutConfigResource '[ 'FromScope VenueId ]
          , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
          , 'Contains RosterDayColumns
          , 'Contains RosterDayRail
@@ -560,12 +564,12 @@ type RosterFragmentBundle =
          , 'Contains RosterSlotsGrid
          , 'Contains RosterDaySection
          ]
-     , Fragment RosterDayColumns '[] '[ 'MountTarget RosterDayColumns '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
-     , Fragment RosterDayRail '[] '[ 'MountTarget RosterDayRail '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
-     , Fragment RosterWageRail '[] '[ 'MountTarget RosterWageRail '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
-     , Fragment RosterSlotsGrid '[] '[ 'MountTarget RosterSlotsGrid '[], 'Eager, 'Live, 'DependsOn RosterSlotsStructureResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterSlotsContentResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
-     , Fragment RosterStaffPanel '[] '[ 'MountTarget RosterStaffPanelFragment '[], 'Lazy '[ 'DependsOnFragment RosterContent, 'Contains RosterTemplateLibraryFragment ], 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterNotificationStatusResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterLayoutConfigResource '[ 'FromScope VenueId ] ]
-     , Fragment RosterWeekOverview '[] '[ 'MountTarget RosterWeekOverviewMount '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ], 'Lazy '[ 'DependsOnFragment RosterContent ], 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ] ]
+     , Fragment RosterDayColumns '[] '[ 'MountTarget RosterDayColumns '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
+     , Fragment RosterDayRail '[] '[ 'MountTarget RosterDayRail '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
+     , Fragment RosterWageRail '[] '[ 'MountTarget RosterWageRail '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
+     , Fragment RosterSlotsGrid '[] '[ 'MountTarget RosterSlotsGrid '[], 'Eager, 'Live, 'DependsOn RosterSlotsStructureResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterSlotsContentResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
+     , Fragment RosterStaffPanel '[] '[ 'MountTarget RosterStaffPanelFragment '[], 'Lazy '[ 'DependsOnFragment RosterContent, 'Contains RosterTemplateLibraryFragment ], 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterNotificationStatusResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ] ]
+     , Fragment RosterWeekOverview '[] '[ 'MountTarget RosterWeekOverviewMount '[ Field RosterGroupId 'WireUUID, Field WindowStartDate 'WireDay, Field WindowEndDate 'WireDay ], 'Lazy '[ 'DependsOnFragment RosterContent ], 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ] ]
      , Fragment RosterTemplateLibraryFragment
         '[ Field UserId 'WireUUID ]
         '[ 'MountTarget RosterTemplateLibraryMount '[ Field UserId 'WireUUID ]
@@ -606,13 +610,14 @@ type RosterFragmentBundle =
      ]
 
 type RosterCopyOccurrenceFields =
-    '[ OptionalField CopyStartOccurrence 'WireText
+    '[ Field RosterCalendarRevision 'WireInt
+     , OptionalField CopyStartOccurrence 'WireText
      , OptionalField CopyEndOccurrence 'WireText
      ]
 
 type RosterActionBundle =
     '[ Action NavigateRosterWeek
-        '[ Field WeekOffset 'WireInt
+        '[ Field AnchorDate 'WireDay
          , Field RosterGroupId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxGet
@@ -643,7 +648,7 @@ type RosterActionBundle =
          , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
          ]
      , Action SortRosterWeek
-        '[]
+        '[ Field RosterCalendarRevision 'WireInt ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxTarget ('HtmxId RosterContent)
          , 'HtmxSwap 'HtmxNoSwap
@@ -651,7 +656,9 @@ type RosterActionBundle =
          , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
          ]
      , Action ToggleRosterWeekLiveStatus
-        '[ Field IsLive 'WireBool ]
+        '[ Field IsLive 'WireBool
+         , Field RosterCalendarRevision 'WireInt
+         ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxTarget ('HtmxId RosterContent)
          , 'HtmxSwap 'HtmxOuterHTML
@@ -691,7 +698,7 @@ type RosterActionBundle =
          , 'CustomHtmx CopyRosterWeekCustomHtmx "copy previous week requires a destructive overwrite confirmation"
          ]
      , Action CreateRosterWeekSlotDefinition
-        '[]
+        '[ Field RosterCalendarRevision 'WireInt ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxTarget ('HtmxId RosterContent)
          , 'HtmxSwap 'HtmxNoSwap
@@ -699,7 +706,7 @@ type RosterActionBundle =
          , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
          ]
      , Action DeleteRosterWeekSlotDefinition
-        '[]
+        '[ Field RosterCalendarRevision 'WireInt ]
         '[ 'HtmxMethod 'HtmxDelete
          , 'HtmxTarget ('HtmxId RosterContent)
          , 'HtmxSwap 'HtmxNoSwap
@@ -707,21 +714,21 @@ type RosterActionBundle =
          , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
          ]
      , Action ToggleRosterDayClosed
-        '[]
+        '[ Field RosterCalendarRevision 'WireInt ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
          ]
      , Action AddRosterRow
-        '[]
+        '[ Field RosterCalendarRevision 'WireInt ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
          ]
      , Action RemoveRosterRow
-        '[]
+        '[ Field RosterCalendarRevision 'WireInt ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
@@ -732,6 +739,7 @@ type RosterActionBundle =
          , Field TargetDropzoneKey 'WireText
          , Field ExpectedTemplateVersion 'WireInt
          , Field ExpectedTargetRevision 'WireText
+         , Field RosterCalendarRevision 'WireInt
          ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")
@@ -779,7 +787,7 @@ type RosterInteractionBundle =
          , DragDropIntentWithExtraFields MoveRosterShiftToSlot RosterContent RosterCopyOccurrenceFields
          , '[ Action DuplicateRosterShiftToDay (Concat '[ DragDropFields, RosterCopyOccurrenceFields ]) '[ 'Target RosterContent ] ]
          , '[ Intent DuplicateRosterShiftToDay (Concat '[ DragDropFields, RosterCopyOccurrenceFields ]) '[ 'SessionOption DragSession, 'BackedBy DuplicateRosterShiftToDay ] ]
-         , DragDropIntent DropRosterStaff RosterContent
+         , DragDropIntentWithExtraFields DropRosterStaff RosterContent '[ Field RosterCalendarRevision 'WireInt ]
          , '[ SourceRef DayTemplateDragSource
                 '[ 'SessionOption DragSession
                  , 'Submits PreviewRosterTemplateApplication
@@ -794,7 +802,7 @@ type RosterInteractionBundle =
                  ]
             , DropzoneRef DayTemplateDropzone '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
             , DropzoneRef WeekTemplateDropzone '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
-            , Action PreviewRosterTemplateApplication DragDropFields
+            , Action PreviewRosterTemplateApplication (Concat '[ DragDropFields, '[ Field RosterCalendarRevision 'WireInt ] ])
                 '[ 'HtmxMethod 'HtmxPost
                  , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")
                  , 'HtmxSwap 'HtmxInnerHTML
@@ -993,7 +1001,9 @@ type RosterDayTimelineScopeBundle =
     '[ Scope RosterDayTimeline
         '[ Field VenueId 'WireUUID
          , Field RosterGroupId 'WireUUID
-         , Field WeekOffset 'WireInt
+         , Field WindowStartDate 'WireDay
+         , Field WindowEndDate 'WireDay
+         , Field RosterCalendarRevision 'WireInt
          , Field RosterDayId 'WireUUID
          ]
         '[ 'Authorize 'CurrentVenueRosterGroup '[ VenueId, RosterGroupId ] ]
@@ -1020,7 +1030,8 @@ type RosterDayTimelineInteractionBundle =
     DragDropInteractionWithExtraFields
         MoveRosterTimelineShift
         RosterDayTimelineContent
-        '[ OptionalField TimelineStartOccurrence 'WireText
+        '[ Field RosterCalendarRevision 'WireInt
+         , OptionalField TimelineStartOccurrence 'WireText
          ]
 
 type RosterDayTimelineLinkedHighlightBundle =
