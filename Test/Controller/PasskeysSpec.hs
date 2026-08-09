@@ -424,6 +424,12 @@ tests = aroundAll withDatabaseTestContext do
                 dialogResponse `responseBodyShouldContain` "&quot;successRedirect&quot;:&quot;/Support&quot;"
                 dialogResponse `responseBodyShouldNotContain` "data-success-redirect"
 
+                overriddenDialogResponse <- withPasskeyVerifiedUser founder do
+                    callActionWithParams ShowPasskeySetupDialogAction [("successRedirect", "/RosterWeeks")]
+                overriddenDialogResponse `responseStatusShouldBe` status200
+                overriddenDialogResponse `responseBodyShouldContain` "&quot;successRedirect&quot;:&quot;/Support&quot;"
+                overriddenDialogResponse `responseBodyShouldNotContain` "&quot;successRedirect&quot;:&quot;/RosterWeeks&quot;"
+
         it "allows recovery-code verified admins to begin replacement passkey registration" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Recovery Registration Venue"

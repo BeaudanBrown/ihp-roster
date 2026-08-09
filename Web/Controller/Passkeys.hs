@@ -35,7 +35,8 @@ instance Controller PasskeysController where
         redirectTo RosterWeeksAction
 
     action currentAction@ShowPasskeySetupDialogAction = runBepis currentAction BepisDialogAction do
-        let successRedirect = safeLocalRedirect (paramOrDefault @Text profileSecurityPath "successRedirect")
+        let requestedRedirect = safeLocalRedirect (paramOrDefault @Text profileSecurityPath "successRedirect")
+        let successRedirect = if currentUserIsSuperAdmin then passkeyManagementPath else requestedRedirect
         respondHtml (renderPasskeySetupDialog OptionalFirstPasskey successRedirect)
 
     action currentAction@ShowPasskeyRecoveryCodeDialogAction = runBepis currentAction BepisDialogAction do
