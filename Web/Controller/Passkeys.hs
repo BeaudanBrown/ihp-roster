@@ -26,7 +26,7 @@ instance Controller PasskeysController where
 
     action currentAction@PasskeySetupAction = runBepis currentAction BepisPageAction do
         rawRedirectTo <- getSession @Text passkeyStepUpRedirectSessionKey
-        let passkeySetupRedirectTo = fromMaybe (pathTo RosterWeeksAction) (rawRedirectTo >>= nonEmptyText)
+        let passkeySetupRedirectTo = fromMaybe passkeyManagementPath (rawRedirectTo >>= nonEmptyText)
         render PasskeySetupView { .. }
 
     action currentAction@DismissMandatoryPasskeySetupAction = runBepis currentAction BepisMutationAction do

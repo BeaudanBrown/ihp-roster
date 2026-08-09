@@ -393,6 +393,10 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status302
                 lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/PasskeySetup"
+                setupResponse <- withUser founder do
+                    callAction PasskeySetupAction
+                setupResponse `responseStatusShouldBe` status200
+                setupResponse `responseBodyShouldContain` "&quot;successRedirect&quot;:&quot;/Support&quot;"
                 now <- getCurrentTime
                 supportResponse <- withSessionValues
                     [ (cs (LoginSupport.sessionKey @User), Serialize.encode founder.id)

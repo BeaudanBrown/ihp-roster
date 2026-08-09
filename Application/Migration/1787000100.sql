@@ -25,4 +25,6 @@ CREATE TABLE password_reset_tokens (
 
 CREATE INDEX idx_password_reset_tokens_user_id ON password_reset_tokens (user_id);
 CREATE INDEX idx_password_reset_tokens_venue_id ON password_reset_tokens (venue_id);
+-- Issuance serializes on the User row and consumes the previous token first;
+-- this partial index enforces the retained one-unconsumed-token invariant.
 CREATE UNIQUE INDEX idx_password_reset_tokens_one_active_per_user ON password_reset_tokens (user_id) WHERE consumed_at IS NULL;
