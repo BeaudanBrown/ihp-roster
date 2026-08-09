@@ -5,10 +5,10 @@ module Web.View.RosterTemplates.Reference where
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.RosterTemplateScale (rosterTemplateScaleIsWeek,
                                                rosterTemplateScaleValue)
-import Application.Helper.Url (appendQueryParams)
 import Data.Time.Calendar (addDays)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.RosterTemplates.FrontendSurface
+import Web.RosterWeeks.Paths (rosterTemplateReferenceUrl)
 import Web.RosterWeeks.TemplateDesigner
 import Web.View.Prelude
 
@@ -60,9 +60,11 @@ instance View ReferenceView where
             , templateDesignerUserId = unpackId currentUser.id
             }
         referenceUrl targetOffset =
-            appendQueryParams
-                (pathTo ShowRosterTemplateReferenceAction { rosterGroupId = rosterGroup.id })
-                [("anchorDate", tshow (addDays (toInteger ((targetOffset - weekOffset) * 7)) referenceWeek.referenceWeekStart)), ("name", templateName), ("scale", rosterTemplateScaleValue templateScale)]
+            rosterTemplateReferenceUrl
+                (addDays (toInteger ((targetOffset - weekOffset) * 7)) referenceWeek.referenceWeekStart)
+                rosterGroup.id
+                templateName
+                (rosterTemplateScaleValue templateScale)
 
 renderReferenceContent :: ReferenceView -> Html
 renderReferenceContent view@ReferenceView { referenceWeek = RosterTemplateReferenceWeek { referenceRosterWeek = Nothing } } = [hsx|

@@ -17,7 +17,7 @@ import Application.Helper.FrontendContract.Surface.Values
 import qualified Data.Text as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
-                                  adminExportsSurfaceImplForWeek)
+                                  adminExportsSurfaceImplForWindow)
 import Web.View.Admin.Common
 import Web.View.Prelude
 
@@ -36,7 +36,7 @@ renderExportsSectionFragment =
 
 renderExportsSectionFragmentWithSwap :: Maybe Text -> ReportWeekSelection -> Html
 renderExportsSectionFragmentWithSwap maybeSwapOob selection =
-    renderFrontendSurfaceMount (adminExportsSurfaceImplForWeek AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing } selection.weekOffset) [hsx|
+    renderFrontendSurfaceMount (adminExportsSurfaceImplForWindow AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing } selection.weekStart) [hsx|
         <div id={adminExportsFragmentId}
              hx-swap-oob={maybeSwapOob}>
             {renderExportsSection selection}
@@ -71,25 +71,25 @@ renderExportWeekSelector selection = [hsx|
         renderWeekNavigationGroup WeekNavigationConfig
             { weekNavigationAriaLabel = "Export week navigation"
             , weekNavigationExtraClass = ""
-            , weekNavigationPrevious = renderWeekLink "<" "Previous week" (selection.weekOffset - 1)
+            , weekNavigationPrevious = renderWeekLink "<" "Previous week" (addDays (-7) selection.weekStart)
             , weekNavigationCurrentLabel = [hsx|{exportWeekLabel selection}|]
             , weekNavigationLabelClass = ""
-            , weekNavigationNext = renderWeekLink ">" "Next week" (selection.weekOffset + 1)
+            , weekNavigationNext = renderWeekLink ">" "Next week" (addDays 7 selection.weekStart)
             }
 
-renderWeekLink :: Text -> Text -> Int -> Html
-renderWeekLink label ariaLabel targetWeekOffset = [hsx|
+renderWeekLink :: Text -> Text -> Day -> Html
+renderWeekLink label ariaLabel anchorDate = [hsx|
     <a class={weekNavigationButtonClass ""}
-       href={exportWeekUrl targetWeekOffset}
+       href={exportWeekUrl anchorDate}
        aria-label={ariaLabel}
        title={ariaLabel}>{label}</a>
 |]
 
-exportWeekUrl :: Int -> Text
-exportWeekUrl weekOffset =
+exportWeekUrl :: Day -> Text
+exportWeekUrl anchorDate =
     appendQueryParams (pathTo AdminAction)
         [ ("showExports", "true")
-        , ("weekOffset", tshow weekOffset)
+        , ("anchorDate", tshow anchorDate)
         ]
         <> "#exports"
 

@@ -33,7 +33,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status302
                 fmap cs (lookup "Location" (responseHeaders response))
-                    `shouldSatisfy` maybe False (Text.isPrefixOf "http://localhost/ShowRosterWeek?weekOffset=")
+                    `shouldSatisfy` maybe False (Text.isPrefixOf "http://localhost/ShowRosterWindow?anchorDate=")
 
         it "keeps owner billing recovery available" $ withContext do
             withCleanDb do

@@ -247,8 +247,7 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateMinutePrecisionShiftTimesEnabled allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateUnavailableStaffWarningThreshold allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateRosterTimePickerWindow allRequestAdapterOperations
-    , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateRosterWeekStartsOn
-        (requestAdapterParserOnly "The roster-week-start mutation is retained for compatibility but has no active rendered setting form")
+    , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateRosterWeekStartsOn allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminInvitesAdapterFamily @Admin.CreateVenueInvitation allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminInvitesAdapterFamily @Admin.RevokeVenueInvitation
         (requestAdapterOperationsWithoutParser "The zero-field revoke endpoint consumes its route id and has no Surface request parser")

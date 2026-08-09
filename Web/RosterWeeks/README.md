@@ -72,7 +72,7 @@ a registered `WireClosed` scalar; generated TypeScript owns the `"day" |
 ## Boundaries
 
 
-- The URL's `weekOffset` is week-navigation authority.
+- Canonical navigation uses an ISO `anchorDate`; the server resolves the configured `[start,end)` window containing it. Retained `weekOffset` routes only redirect to that authority.
 - Server-rendered HTML and registered Surface contracts are browser authority.
 - Views consume generated interaction roles and payloads; generic browser
   behavior belongs in the shared interaction runtime.

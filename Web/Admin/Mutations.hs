@@ -19,6 +19,7 @@ module Web.Admin.Mutations
     , setUnavailableStaffWarningThresholdMutation
     , setRosterTimePickerWindowMutation
     , setRosterWeekStartsOnMutation
+    , setRosterWeekStartsOnMutationAtRevision
     , shiftTypeAffectsXeroPayItems
     , shiftTypePayResources
     , shiftTypeXeroPayItemScopeChanged
@@ -127,13 +128,28 @@ setUnavailableStaffWarningThresholdMutation venueConfig threshold = do
 
 setRosterWeekStartsOnMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Int -> IO (LiveMutationResult VenueConfig)
 setRosterWeekStartsOnMutation venueConfig rosterWeekStartsOn = do
-    updated <- withRosterCalendarLock currentVenueId do
-        normalizePublishedRosterWindows currentVenueId rosterWeekStartsOn
-        venueConfig
-            |> set #rosterWeekStartsOn rosterWeekStartsOn
-            |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay rosterWeekStartsOn)
-            |> updateRecord
-    invalidateTouchedResources "admin.venue_config.week_start" (liveMutationResult updated (rosterWeekStartsOnTouchedResources currentVenueId))
+    outcome <- setRosterWeekStartsOnMutationAtRevision venueConfig rosterWeekStartsOn venueConfig.rosterCalendarRevision
+    either (error . cs) pure outcome
+
+setRosterWeekStartsOnMutationAtRevision :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Int -> Int -> IO (Either Text (LiveMutationResult VenueConfig))
+setRosterWeekStartsOnMutationAtRevision venueConfig rosterWeekStartsOn expectedCalendarRevision = do
+    outcome <- withRosterCalendarLock currentVenueId do
+        currentConfig <- fetch venueConfig.id
+        if currentConfig.rosterCalendarRevision /= expectedCalendarRevision
+            then pure (Left "The roster calendar changed. Review the refreshed setting and try again.")
+            else
+                if currentConfig.rosterWeekStartsOn == rosterWeekStartsOn
+                    then pure (Right currentConfig)
+                    else do
+                        normalizePublishedRosterWindows currentVenueId rosterWeekStartsOn
+                        updated <- currentConfig
+                            |> set #rosterWeekStartsOn rosterWeekStartsOn
+                            |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay rosterWeekStartsOn)
+                            |> updateRecord
+                        pure (Right updated)
+    case outcome of
+        Left message -> pure (Left message)
+        Right updated -> Right <$> invalidateTouchedResources "admin.venue_config.week_start" (liveMutationResult updated (rosterWeekStartsOnTouchedResources currentVenueId))
 
 setRosterTimePickerWindowMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Int -> Int -> IO (LiveMutationResult VenueConfig)
 setRosterTimePickerWindowMutation venueConfig startMinute finalSelectableMinute = do

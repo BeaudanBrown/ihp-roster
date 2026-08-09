@@ -67,6 +67,7 @@ module Application.Helper.FrontendContract.Surface.Admin
     , TimePickerStart
     , TimePickerEnd
     , RosterWeekStartsOn
+    , RosterCalendarRevision
     , UnavailableStaffWarningThreshold
     , Email
     , RangeStart
@@ -148,6 +149,7 @@ data MinutePrecisionShiftTimesEnabled
 data TimePickerStart
 data TimePickerEnd
 data RosterWeekStartsOn
+data RosterCalendarRevision
 data UnavailableStaffWarningThreshold
 data Email
 data RangeStart
@@ -170,6 +172,7 @@ data Click
 data ClosestFormCustomHtmx
 data InputChangedAutosaveCustomHtmx
 data ChangeAutosaveCustomHtmx
+data RosterWeekStartImpactConfirmationCustomHtmx
 data LoadReferenceSyncCustomHtmx
 data AdminXeroFragment
 
@@ -256,11 +259,14 @@ type AdminVenueSettingsSurface =
              , 'CustomHtmx ChangeAutosaveCustomHtmx "venue setting inputs submit on change"
              ]
          , Action UpdateRosterWeekStartsOn
-            '[ Field RosterWeekStartsOn 'WireInt ]
+            '[ Field RosterWeekStartsOn 'WireInt
+             , Field RosterCalendarRevision 'WireInt
+             ]
             '[ 'HtmxMethod 'HtmxPost
              , 'HtmxTarget ('HtmxId AdminVenueSettingsFragment)
              , 'HtmxSwap 'HtmxNoSwap
              , 'HtmxPushUrl 'HtmxPushUrlFalse
+             , 'CustomHtmx RosterWeekStartImpactConfirmationCustomHtmx "changing the venue week start reprojects every roster and timesheet window and may return mixed Published windows to Draft"
              ]
          ]
 

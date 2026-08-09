@@ -124,21 +124,21 @@ tests = do
     describe "ProfileSeed application routes" do
         it "keeps typed-route target bytes stable" do
             rosterWeekPath 9 1 1
-                `shouldBe` "/ShowRosterWeek?weekOffset=9&rosterGroupId=00b71b01-0001-4000-8002-00004795d228"
+                `shouldBe` "/ShowRosterWindow?anchorDate=2025-03-10&rosterGroupId=00b71b01-0001-4000-8002-00004795d228"
             rosterWeekContentFragmentPath 9 1 1
-                `shouldBe` "/ShowRosterWeekContentFragment?weekOffset=9&rosterGroupId=00b71b01-0001-4000-8002-00004795d228"
+                `shouldBe` "/ShowRosterWeekContentFragment?anchorDate=2025-03-10&rosterGroupId=00b71b01-0001-4000-8002-00004795d228"
             rosterWeekStaffPanelFragmentPath 9 1 1
-                `shouldBe` "/ShowRosterWeekStaffPanelFragment?weekOffset=9&rosterGroupId=00b71b01-0001-4000-8002-00004795d228"
+                `shouldBe` "/ShowRosterWeekStaffPanelFragment?anchorDate=2025-03-10&rosterGroupId=00b71b01-0001-4000-8002-00004795d228"
             rosterWeekOverviewFragmentPath 9 1 1
-                `shouldBe` "/ShowRosterWeekOverviewFragment?weekOffset=9&rosterGroupId=00b71b01-0001-4000-8002-00004795d228"
+                `shouldBe` "/ShowRosterWeekOverviewFragment?anchorDate=2025-03-10&rosterGroupId=00b71b01-0001-4000-8002-00004795d228"
             timesheetWeekPath 9
-                `shouldBe` "/ShowTimesheetWeek?weekOffset=9"
+                `shouldBe` "/ShowTimesheetWindow?anchorDate=2025-03-10"
             timesheetResetPath 9
                 `shouldBe` "/Timesheets"
             timesheetStaffFilterPath 9 "004c4b41-0001-4000-8002-00001ddcab28"
-                `shouldBe` "/ShowTimesheetWeek?weekOffset=9&staffFilterId=004c4b41-0001-4000-8002-00001ddcab28"
+                `shouldBe` "/ShowTimesheetWindow?anchorDate=2025-03-10&staffFilterId=004c4b41-0001-4000-8002-00001ddcab28"
             timesheetDayFragmentPath 9 0
-                `shouldBe` "/ShowTimesheetDaySectionFragment?weekOffset=9&dayOffset=0"
+                `shouldBe` "/ShowTimesheetDaySectionFragment?anchorDate=2025-03-10&operationalDate=2025-03-10"
             profileLeaveSectionFragmentPath
                 `shouldBe` "/ShowprofileContentLiveFragment?section=leave"
             adminInvitesFragmentPath 1 1

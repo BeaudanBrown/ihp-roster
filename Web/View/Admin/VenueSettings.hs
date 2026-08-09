@@ -53,6 +53,7 @@ renderVenueSettingsSection venueConfig awardLevels awardLevelBaseRates =
         mempty
         [hsx|
             <div class="admin-settings-grid">
+                {renderRosterWeekStartsOnForm venueConfig}
                 {renderDefaultStaffPayRateForm venueConfig awardLevels awardLevelBaseRates}
                 {renderRosterTimePickerWindowForm venueConfig}
                 {renderMinutePrecisionShiftTimesForm venueConfig}
@@ -60,6 +61,41 @@ renderVenueSettingsSection venueConfig awardLevels awardLevelBaseRates =
                 {renderRosterEndTimesForm venueConfig}
             </div>
         |]
+
+renderRosterWeekStartsOnForm :: VenueConfig -> Html
+renderRosterWeekStartsOnForm venueConfig =
+    renderFrontendSurfaceActionForm
+        (AdminAction.updateRosterWeekStartsOnAction fields)
+        rosterWeekStartsOnSettingRoute
+        [hsx|
+        <div class="admin-setting-row-copy">
+            <div class="fw-semibold">Roster week starts on</div>
+            <p class="small app-muted mb-0">Changes every roster and Timesheet window immediately. Mixed Published windows return to Draft; saved shifts and times remain unchanged.</p>
+        </div>
+        <div class="admin-setting-row-control admin-setting-row-control-wide d-flex gap-2 justify-content-end">
+            <label class="visually-hidden" for="venue-roster-week-start">Roster week starts on</label>
+            <select id="venue-roster-week-start"
+                    class="form-select form-select-sm"
+                    name={surfaceFieldNameFrom @Surface.RosterWeekStartsOn fields}>
+                {forEach rosterWeekdayOptions renderWeekdayOption}
+            </select>
+            <button type="submit" class="btn btn-outline-warning btn-sm text-nowrap">Change start day</button>
+        </div>
+    |]
+  where
+    fields = AdminAction.updateRosterWeekStartsOnActionFields venueConfig.rosterWeekStartsOn venueConfig.rosterCalendarRevision
+    renderWeekdayOption (weekdayIndex, label) = [hsx|<option value={tshow weekdayIndex} selected={venueConfig.rosterWeekStartsOn == weekdayIndex}>{label}</option>|]
+
+rosterWeekdayOptions :: [(Int, Text)]
+rosterWeekdayOptions =
+    [ (1, "Monday")
+    , (2, "Tuesday")
+    , (3, "Wednesday")
+    , (4, "Thursday")
+    , (5, "Friday")
+    , (6, "Saturday")
+    , (0, "Sunday")
+    ]
 
 renderDefaultStaffPayRateForm :: VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
 renderDefaultStaffPayRateForm venueConfig awardLevels awardLevelBaseRates =
@@ -225,6 +261,18 @@ renderVenueSettingToggle fields inputId isEnabled =
             , appToggleRoleSwitch = True
             , appToggleSubmitPolicy = ToggleSubmitImmediate
             }
+
+rosterWeekStartsOnSettingRoute :: FrontendSurfaceActionRoute
+rosterWeekStartsOnSettingRoute = FrontendSurfaceActionRoute
+    { actionRouteUrl = pathTo UpdateRosterWeekStartsOnAction
+    , actionRouteCustomHtmx =
+        [ FrontendSurfaceCustomHtmxAttrs
+            "roster-week-start-impact-confirmation-custom-htmx"
+            [("hx-confirm", "Change the venue roster week start? Roster and Timesheet windows will reproject immediately, and mixed Published windows will return to Draft.")]
+        ]
+    , actionRouteStandardUrl = Just (pathTo UpdateRosterWeekStartsOnAction)
+    , actionRouteExtraAttrs = [("class", "admin-setting-row")]
+    }
 
 defaultStaffPayRateSettingRoute :: FrontendSurfaceActionRoute
 defaultStaffPayRateSettingRoute = FrontendSurfaceActionRoute

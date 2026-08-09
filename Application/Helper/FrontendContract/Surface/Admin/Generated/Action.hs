@@ -95,6 +95,8 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Action
     , updateRosterGroupActionFields
     , updateRosterTimePickerWindowAction
     , updateRosterTimePickerWindowActionFields
+    , updateRosterWeekStartsOnAction
+    , updateRosterWeekStartsOnActionFields
     , updateShiftTypeAction
     , updateShiftTypeActionFields
     , updateUnavailableStaffWarningThresholdAction
@@ -834,7 +836,27 @@ type instance ActionSurface UpdateRosterWeekStartsOnActionOperation = AdapterSur
 type instance ActionMarker UpdateRosterWeekStartsOnActionOperation = Types2.UpdateRosterWeekStartsOn
 type instance ActionFieldSpecs UpdateRosterWeekStartsOnActionOperation =
     '[ 'Field Types2.RosterWeekStartsOn 'WireInt
+     , 'Field Types2.RosterCalendarRevision 'WireInt
      ]
+
+updateRosterWeekStartsOnActionFields ::
+    Int ->
+    Int ->
+    ActionFields UpdateRosterWeekStartsOnActionOperation
+updateRosterWeekStartsOnActionFields rosterWeekStartsOn rosterCalendarRevision =
+    actionFields
+        (surfaceField @Types2.RosterWeekStartsOn rosterWeekStartsOn)
+        ( surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision
+            &: noSurfaceFields
+        )
+
+updateRosterWeekStartsOnActionEvidence :: ActionEvidence UpdateRosterWeekStartsOnActionOperation
+updateRosterWeekStartsOnActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "UpdateRosterWeekStartsOn" "update-roster-week-starts-on" [SurfaceIR.FieldIR "RosterWeekStartsOn" "rosterWeekStartsOn" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-venue-settings-fragment" ["admin-venue-settings-fragment"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionCustomHtmxIR "roster-week-start-impact-confirmation-custom-htmx" "changing the venue week start reprojects every roster and timesheet window and may return mixed Published windows to Draft")])
+
+updateRosterWeekStartsOnAction :: ActionFields UpdateRosterWeekStartsOnActionOperation -> FrontendSurfaceAction
+updateRosterWeekStartsOnAction =
+    frontendSurfaceActionFromEvidence updateRosterWeekStartsOnActionEvidence
 
 parseUpdateRosterWeekStartsOnActionParams ::
     (?request :: Request) =>

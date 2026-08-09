@@ -1,9 +1,9 @@
 module Web.View.RosterTemplates.ConfirmReference where
 
 import Application.Helper.RosterTemplateScale (rosterTemplateScaleValue)
-import Application.Helper.Url (appendQueryParams)
 import Data.Time.Calendar (addDays)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Web.RosterWeeks.Paths (rosterTemplateReferenceUrl)
 import Web.RosterWeeks.TemplateDesigner
 import Web.View.Prelude
 
@@ -55,9 +55,7 @@ instance View ConfirmReferenceView where
             Just dayOffset ->
                 let date = addDays (toInteger dayOffset) referenceWeek.referenceWeekStart
                  in cs (formatTime defaultTimeLocale "%A %d %b %Y" date)
-        backPath = appendQueryParams
-            (pathTo ShowRosterTemplateReferenceAction { rosterGroupId = rosterGroup.id })
-            [("anchorDate", tshow referenceWeek.referenceWeekStart), ("name", templateName), ("scale", rosterTemplateScaleValue templateScale)]
+        backPath = rosterTemplateReferenceUrl referenceWeek.referenceWeekStart rosterGroup.id templateName (rosterTemplateScaleValue templateScale)
 
 renderDayOffsetInput :: Int -> Html
 renderDayOffsetInput dayOffset = [hsx|<input type="hidden" name="dayOffset" value={tshow dayOffset} />|]

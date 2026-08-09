@@ -214,7 +214,7 @@ tests = aroundAll withDatabaseTestContext do
                     (\(role, response) ->
                         ( role
                         , lookup HTTP.hLocation (responseHeaders response)
-                            |> maybe False ("http://localhost/ShowRosterWeek?weekOffset=" `ByteString.isPrefixOf`)
+                            |> maybe False ("http://localhost/ShowRosterWindow?anchorDate=" `ByteString.isPrefixOf`)
                         )
                     )
                     responses

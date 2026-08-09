@@ -16,6 +16,14 @@ currentExportWeekSelection = do
     today <- utctDay <$> getCurrentTime
     pure (exportWeekSelection venueConfig (venueWeekOffsetForDay venueConfig today))
 
+exportWeekSelectionForAnchor ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Day ->
+    IO ReportWeekSelection
+exportWeekSelectionForAnchor anchorDate = do
+    venueConfig <- fetchVenueConfig
+    pure (exportWeekSelection venueConfig (venueWeekOffsetForDay venueConfig anchorDate))
+
 exportWeekSelectionForOffset ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     Int ->

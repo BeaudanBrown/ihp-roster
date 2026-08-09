@@ -6,9 +6,11 @@ This document retains cross-module scheduling and state-transition rules.
 
 ## Week And Access Contract
 
-- `weekOffset` in the URL is viewed-week authority.
-  `ShowRosterWeekAction { weekOffset }` is explicit navigation and
-  `RosterWeeksAction` resets to this week. Do not persist a last-viewed week.
+- `anchorDate` in the canonical URL is window-navigation authority.
+  `ShowRosterWindowAction { anchorDate }` resolves the configured seven-day
+  window containing that date; `RosterWeeksAction` resets from the current
+  Operational day. Legacy `ShowRosterWeekAction { weekOffset }` links only
+  redirect to an ISO anchor-date URL. Do not persist a last-viewed window.
 - Roster data is venue-scoped and may be roster-group-scoped. Missing weeks may
   be materialized only through authorized server behavior; reference browsing
   for templates never materializes a week.

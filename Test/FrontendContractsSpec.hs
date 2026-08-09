@@ -455,11 +455,12 @@ tests = describe "Frontend contract generator foundation" do
         lookupEnumLiteralValue @Text @Text `shouldBe` Left "No FrontendContract enum case Text for enum marker Text"
 
     it "validates records, refs, arrays, nullable fields, and tagged unions through the IR JSON interpreter" do
-        let scope = Live.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "weekOffset" Aeson..= (4 :: Int)])
-        let fragmentKey = Live.SurfaceFragmentKey "timesheets" "timesheet-day-section" (Aeson.object ["dayOffset" Aeson..= (2 :: Int)])
-        let subscription = Live.SurfaceSubscription scope "timesheets:11111111-1111-1111-1111-111111111111:4" [fragmentKey] 0
+        let scope = Live.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "windowStartDate" Aeson..= ("2025-02-03" :: Text), "windowEndDate" Aeson..= ("2025-02-10" :: Text), "rosterCalendarRevision" Aeson..= (1 :: Int)])
+        let fragmentKey = Live.SurfaceFragmentKey "timesheets" "timesheet-day-section" (Aeson.object ["operationalDate" Aeson..= ("2025-02-05" :: Text)])
+        let scopeKey = "timesheets:11111111-1111-1111-1111-111111111111:2025-02-03:2025-02-10:1"
+        let subscription = Live.SurfaceSubscription scope scopeKey [fragmentKey] 0
         let command = Live.Subscribe subscription "client-1" (Just 9)
-        let message = Live.Invalidate scope "timesheets:11111111-1111-1111-1111-111111111111:4" 10 [fragmentKey] (Just "client-2")
+        let message = Live.Invalidate scope scopeKey 10 [fragmentKey] (Just "client-2")
 
         AesonTypes.parseEither (validateContractMarkerValue @LiveContract.SurfaceSubscription) (Aeson.toJSON subscription) `shouldSatisfy` isRight
         AesonTypes.parseEither (validateContractMarkerValue @LiveContract.LiveUpdateCommand) (Aeson.toJSON command) `shouldSatisfy` isRight
@@ -514,8 +515,8 @@ tests = describe "Frontend contract generator foundation" do
         AesonTypes.parseEither (validateContractMarkerValueWith @SpecUnion contract) (Aeson.object ["kind" Aeson..= ("one" :: Text), "value" Aeson..= goodNested, "extra" Aeson..= True]) `shouldSatisfy` isLeft
 
     it "validates semantic scope and fragment-key wire constructors without executable descriptors" do
-        let scope = Aeson.object ["surface" Aeson..= ("timesheets" :: Text), "scope" Aeson..= Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "weekOffset" Aeson..= (0 :: Int)]]
-        let key = Aeson.object ["surface" Aeson..= ("timesheets" :: Text), "kind" Aeson..= ("timesheet-day-section" :: Text), "params" Aeson..= Aeson.object ["dayOffset" Aeson..= (0 :: Int)]]
+        let scope = Aeson.object ["surface" Aeson..= ("timesheets" :: Text), "scope" Aeson..= Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "windowStartDate" Aeson..= ("2025-01-06" :: Text), "windowEndDate" Aeson..= ("2025-01-13" :: Text), "rosterCalendarRevision" Aeson..= (1 :: Int)]]
+        let key = Aeson.object ["surface" Aeson..= ("timesheets" :: Text), "kind" Aeson..= ("timesheet-day-section" :: Text), "params" Aeson..= Aeson.object ["operationalDate" Aeson..= ("2025-01-06" :: Text)]]
         let descriptor = addJsonField "url" (Aeson.String "/fragment") key
         AesonTypes.parseEither (validateWireValue "scope" Contract.WireSurfaceScopeIR) scope `shouldSatisfy` isRight
         AesonTypes.parseEither (validateWireValue "key" Contract.WireSurfaceFragmentKeyIR) key `shouldSatisfy` isRight

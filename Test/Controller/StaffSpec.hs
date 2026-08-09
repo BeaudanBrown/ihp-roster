@@ -1680,7 +1680,7 @@ tests = aroundAll withDatabaseTestContext do
                         callAction (RemoveStaffAction staff.id)
                     , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
-                            callAction (CopyRosterWeekAction)
+                            callActionWithParams CopyRosterWeekAction (rosterCopyParams currentWeekOffset (currentWeekOffset + 1))
                     ]
 
                 lefts results `shouldSatisfy` null
@@ -1731,7 +1731,7 @@ tests = aroundAll withDatabaseTestContext do
                         callAction (RemoveStaffAction staff.id)
                     , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
-                            callAction (CopyRosterWeekAction)
+                            callActionWithParams CopyRosterWeekAction (rosterCopyParams currentWeekOffset (currentWeekOffset + 1))
                     ]
 
                 lefts results `shouldSatisfy` null

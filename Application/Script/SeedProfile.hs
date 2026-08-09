@@ -312,8 +312,12 @@ timesheetStaffFilterPath weekOffset staffUuid =
 
 timesheetDayFragmentPath :: Int -> Int -> Text
 timesheetDayFragmentPath weekOffset dayOffset =
-    let windowStart = weekStartForOffset weekOffset
-     in pathTo (ShowTimesheetDaySectionFragmentAction windowStart (addDays (toInteger dayOffset) windowStart))
+    replaceQueryParams
+        (pathTo (ShowTimesheetDaySectionFragmentAction windowStart operationalDate))
+        [("anchorDate", tshow windowStart), ("operationalDate", tshow operationalDate)]
+  where
+    windowStart = weekStartForOffset weekOffset
+    operationalDate = addDays (toInteger dayOffset) windowStart
 
 adminInvitesFragmentPath :: Int -> Int -> Text
 adminInvitesFragmentPath venueIndex groupIndex =

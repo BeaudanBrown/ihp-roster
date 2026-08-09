@@ -365,9 +365,10 @@ tests = aroundAll withDatabaseTestContext do
                 venueSettingsResponse `responseBodyShouldContain` "data-bepis-surface-action=\"update-minute-precision-shift-times-enabled\""
                 venueSettingsResponse `responseBodyShouldContain` "data-bepis-surface-action=\"update-unavailable-staff-warning-threshold\""
                 venueSettingsResponse `responseBodyShouldContain` "data-bepis-surface-action=\"update-roster-end-times-enabled\""
-                venueSettingsResponse `responseBodyShouldNotContain` "Roster week starts on"
-                venueSettingsResponse `responseBodyShouldNotContain` "admin-roster-week-starts-on"
-                venueSettingsResponse `responseBodyShouldNotContain` "name=\"rosterWeekStartsOn\""
+                venueSettingsResponse `responseBodyShouldContain` "Roster week starts on"
+                venueSettingsResponse `responseBodyShouldContain` "hx-post=\"/UpdateRosterWeekStartsOn\""
+                venueSettingsResponse `responseBodyShouldContain` "name=\"rosterWeekStartsOn\""
+                venueSettingsResponse `responseBodyShouldContain` "hx-confirm=\"Change the venue roster week start?"
                 venueSettingsResponse `responseBodyShouldNotContain` "Automatically create pending timesheets"
                 venueSettingsResponse `responseBodyShouldNotContain` "autoTimesheetCreationEnabled"
                 venueSettingsResponse `responseBodyShouldNotContain` "name=\"configField\""
@@ -388,6 +389,8 @@ tests = aroundAll withDatabaseTestContext do
                 exportsResponse `responseBodyShouldContain` "Staff Hours CSV"
                 exportsResponse `responseBodyShouldContain` "Download CSV"
                 exportsResponse `responseBodyShouldContain` "Export week navigation"
+                exportsResponse `responseBodyShouldContain` "anchorDate="
+                exportsResponse `responseBodyShouldNotContain` "weekOffset="
                 exportsResponse `responseBodyShouldNotContain` "Recent Exports"
                 exportsResponse `responseBodyShouldNotContain` "Approved Timesheets CSV"
                 exportsResponse `responseBodyShouldContain` "Hourly Breakdown ZIP"
@@ -1011,9 +1014,9 @@ tests = aroundAll withDatabaseTestContext do
                 pageResponse `responseBodyShouldContain` "Disabled"
                 pageResponse `responseBodyShouldContain` "name=\"timePickerStart\" value=\"06:00\""
                 pageResponse `responseBodyShouldContain` "name=\"timePickerEnd\" value=\"05:45\""
-                pageResponse `responseBodyShouldNotContain` "Roster week starts on"
-                pageResponse `responseBodyShouldNotContain` "admin-roster-week-starts-on"
-                pageResponse `responseBodyShouldNotContain` "name=\"rosterWeekStartsOn\""
+                pageResponse `responseBodyShouldContain` "Roster week starts on"
+                pageResponse `responseBodyShouldContain` "hx-post=\"/UpdateRosterWeekStartsOn\""
+                pageResponse `responseBodyShouldContain` "name=\"rosterWeekStartsOn\""
 
                 versionBefore <- currentLiveUpdateVersion (AdminLive.adminVenueConfigLiveScope (unpackId venue.id))
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -1236,15 +1239,27 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetch
                 reversedDays `shouldSatisfy` all ((== Draft) . (.publicationState))
 
-        it "updates the roster week start before venue history exists" $ withContext do
+        it "updates the roster week start after venue history exists" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Venue"
                 admin <- createUserRecord "admin-week-start@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
+                rosterGroup <- query @RosterGroup
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> fetchOne
+                _ <- newRecord @RosterDay
+                    |> set #venueId (unpackId venue.id)
+                    |> set #rosterGroupId (unpackId rosterGroup.id)
+                    |> set #operationalDate (fromGregorian 2025 1 6)
+                    |> set #publicationState Draft
+                    |> createRecord
 
+                initialConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams UpdateRosterWeekStartsOnAction
-                        [("rosterWeekStartsOn", "2")]
+                        [ ("rosterWeekStartsOn", "2")
+                        , ("rosterCalendarRevision", cs (tshow initialConfig.rosterCalendarRevision))
+                        ]
 
                 response `responseStatusShouldBe` status302
 
@@ -1252,6 +1267,27 @@ tests = aroundAll withDatabaseTestContext do
 
                 venueConfig.rosterWeekStartsOn `shouldBe` 2
                 venueConfig.weekOffsetEpoch `shouldBe` defaultWeekOffsetEpochForStartDay 2
+                venueConfig.rosterCalendarRevision `shouldSatisfy` (> initialConfig.rosterCalendarRevision)
+
+        it "rejects a stale roster week-start confirmation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin stale calendar venue"
+                admin <- createUserRecord "admin-stale-week-start@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                staleConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withCurrentControllerContext do
+                        setRosterWeekStartsOnMutation staleConfig 3
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams UpdateRosterWeekStartsOnAction
+                        [ ("rosterWeekStartsOn", "2")
+                        , ("rosterCalendarRevision", cs (tshow staleConfig.rosterCalendarRevision))
+                        ]
+
+                response `responseStatusShouldBe` status302
+                currentConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                currentConfig.rosterWeekStartsOn `shouldBe` 3
 
         it "toggles roster end times without changing the roster week start" $ withContext do
             withCleanDb do
