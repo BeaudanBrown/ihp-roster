@@ -556,6 +556,7 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_layout_mode roster_layout_mode_enum DEFAULT 'day_rows' NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "show_shift_type_highlights BOOLEAN DEFAULT TRUE NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "show_wage_estimates BOOLEAN DEFAULT FALSE NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "show_timesheet_wage_estimates BOOLEAN DEFAULT FALSE NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "highlight_own_live_shifts BOOLEAN DEFAULT TRUE NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "hide_approved BOOLEAN DEFAULT TRUE NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "show_timesheet_suggestions BOOLEAN DEFAULT TRUE NOT NULL"

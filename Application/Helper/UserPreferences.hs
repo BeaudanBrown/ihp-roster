@@ -21,6 +21,7 @@ module Application.Helper.UserPreferences
     , upsertCurrentUserHighlightOwnLiveShifts
     , upsertCurrentUserTimesheetHideApproved
     , upsertCurrentUserTimesheetShowSuggestions
+    , upsertCurrentUserTimesheetShowWageEstimates
     ) where
 
 import Application.Helper.Controller (effectiveCurrentUser, enumFromText,
@@ -36,8 +37,9 @@ data UserRosterPreferences = UserRosterPreferences
     }
 
 data UserTimesheetPreferences = UserTimesheetPreferences
-    { userTimesheetHideApproved    :: Bool
-    , userTimesheetShowSuggestions :: Bool
+    { userTimesheetHideApproved      :: Bool
+    , userTimesheetShowSuggestions   :: Bool
+    , userTimesheetShowWageEstimates :: Bool
     }
     deriving (Eq, Show)
 
@@ -103,6 +105,7 @@ fetchCurrentUserTimesheetPreferences = do
     pure UserTimesheetPreferences
         { userTimesheetHideApproved = maybe True (.hideApproved) maybePreferences
         , userTimesheetShowSuggestions = maybe True (.showTimesheetSuggestions) maybePreferences
+        , userTimesheetShowWageEstimates = maybe False (.showTimesheetWageEstimates) maybePreferences
         }
 
 upsertCurrentUserRosterLayoutMode ::
@@ -206,4 +209,21 @@ upsertCurrentUserTimesheetShowSuggestions showTimesheetSuggestions = do
             newRecord @UserPreference
                 |> set #userId (unpackId currentUser.id)
                 |> set #showTimesheetSuggestions showTimesheetSuggestions
+                |> createRecord
+
+upsertCurrentUserTimesheetShowWageEstimates ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Bool ->
+    IO UserPreference
+upsertCurrentUserTimesheetShowWageEstimates showTimesheetWageEstimates = do
+    maybePreferences <- fetchCurrentUserPreferenceRecord
+    case maybePreferences of
+        Just preferences ->
+            preferences
+                |> set #showTimesheetWageEstimates showTimesheetWageEstimates
+                |> updateRecord
+        Nothing ->
+            newRecord @UserPreference
+                |> set #userId (unpackId effectiveCurrentUser.id)
+                |> set #showTimesheetWageEstimates showTimesheetWageEstimates
                 |> createRecord

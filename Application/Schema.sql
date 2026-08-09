@@ -183,6 +183,7 @@ CREATE TABLE user_preferences (
     roster_layout_mode roster_layout_mode_enum DEFAULT 'day_rows' NOT NULL,
     show_shift_type_highlights BOOLEAN DEFAULT TRUE NOT NULL,
     show_wage_estimates BOOLEAN DEFAULT FALSE NOT NULL,
+    show_timesheet_wage_estimates BOOLEAN DEFAULT FALSE NOT NULL,
     highlight_own_live_shifts BOOLEAN DEFAULT TRUE NOT NULL,
     hide_approved BOOLEAN DEFAULT TRUE NOT NULL,
     show_timesheet_suggestions BOOLEAN DEFAULT TRUE NOT NULL,
