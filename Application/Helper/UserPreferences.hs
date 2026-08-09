@@ -4,7 +4,6 @@
 module Application.Helper.UserPreferences
     ( UserRosterPreferences (..)
     , UserTimesheetPreferences (..)
-    , defaultRosterLayoutMode
     , fetchCurrentRosterLayoutMode
     , fetchCurrentUserRosterPreferences
     , fetchCurrentUserShowRosterWarnings
@@ -15,7 +14,6 @@ module Application.Helper.UserPreferences
     , rosterLayoutModeLabel
     , rosterLayoutModeValue
     , rosterLayoutModes
-    , upsertCurrentUserRosterLayoutMode
     , upsertCurrentUserShowRosterWarnings
     , upsertCurrentUserShowWageEstimates
     , upsertCurrentUserHighlightOwnLiveShifts
@@ -24,14 +22,13 @@ module Application.Helper.UserPreferences
     , upsertCurrentUserTimesheetShowWageEstimates
     ) where
 
-import Application.Helper.Controller (effectiveCurrentUser, enumFromText,
+import Application.Helper.Controller (effectiveCurrentUser, fetchVenueConfig,
                                       hasRole)
 import Generated.Types
 import IHP.ControllerPrelude
 
 data UserRosterPreferences = UserRosterPreferences
-    { userRosterLayoutMode       :: RosterLayoutModeEnum
-    , userShowRosterWarnings     :: Bool
+    { userShowRosterWarnings     :: Bool
     , userShowWageEstimates      :: Bool
     , userHighlightOwnLiveShifts :: Bool
     }
@@ -46,16 +43,12 @@ data UserTimesheetPreferences = UserTimesheetPreferences
 normaliseUserRosterPreferences :: Maybe UserPreference -> UserRosterPreferences
 normaliseUserRosterPreferences maybePreferences =
     UserRosterPreferences
-        { userRosterLayoutMode = maybe defaultRosterLayoutMode (.rosterLayoutMode) maybePreferences
-        -- Legacy column name is inverted for roster warning highlights: TRUE keeps
-        -- conflict highlighting hidden, preserving the default disabled state.
-        , userShowRosterWarnings = maybe False (\preferences -> not preferences.showShiftTypeHighlights) maybePreferences
+        { -- Legacy column name is inverted for roster warning highlights: TRUE keeps
+          -- conflict highlighting hidden, preserving the default disabled state.
+          userShowRosterWarnings = maybe False (\preferences -> not preferences.showShiftTypeHighlights) maybePreferences
         , userShowWageEstimates = maybe False (.showWageEstimates) maybePreferences
         , userHighlightOwnLiveShifts = maybe True (.highlightOwnLiveShifts) maybePreferences
         }
-
-defaultRosterLayoutMode :: RosterLayoutModeEnum
-defaultRosterLayoutMode = DayRows
 
 rosterLayoutModes :: [RosterLayoutModeEnum]
 rosterLayoutModes = allEnumValues @RosterLayoutModeEnum
@@ -84,7 +77,7 @@ fetchCurrentUserRosterPreferences =
 
 fetchCurrentRosterLayoutMode :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO RosterLayoutModeEnum
 fetchCurrentRosterLayoutMode =
-    (.userRosterLayoutMode) <$> fetchCurrentUserRosterPreferences
+    (.rosterLayoutMode) <$> fetchVenueConfig
 
 fetchCurrentUserShowRosterWarnings :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Bool
 fetchCurrentUserShowRosterWarnings
@@ -107,23 +100,6 @@ fetchCurrentUserTimesheetPreferences = do
         , userTimesheetShowSuggestions = maybe True (.showTimesheetSuggestions) maybePreferences
         , userTimesheetShowWageEstimates = maybe False (.showTimesheetWageEstimates) maybePreferences
         }
-
-upsertCurrentUserRosterLayoutMode ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    RosterLayoutModeEnum ->
-    IO UserPreference
-upsertCurrentUserRosterLayoutMode layoutMode = do
-    maybePreferences <- fetchCurrentUserPreferenceRecord
-    case maybePreferences of
-        Just preferences ->
-            preferences
-                |> set #rosterLayoutMode layoutMode
-                |> updateRecord
-        Nothing ->
-            newRecord @UserPreference
-                |> set #userId (unpackId effectiveCurrentUser.id)
-                |> set #rosterLayoutMode layoutMode
-                |> createRecord
 
 upsertCurrentUserShowRosterWarnings ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

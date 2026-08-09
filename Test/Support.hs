@@ -306,7 +306,11 @@ withCurrentControllerContext action = do
 
 createVenueWithConfig :: (?modelContext :: ModelContext) => Text -> IO Venue
 createVenueWithConfig name =
-    withTransaction (ApplicationFixture.createVenueRecordWithRosterDefaults name)
+    withTransaction do
+        venue <- ApplicationFixture.createVenueRecordWithRosterDefaults name
+        venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+        _ <- venueConfig |> set #rosterLayoutMode DayRows |> updateRecord
+        pure venue
 
 createUserRecord :: (?modelContext :: ModelContext) => Text -> Text -> Bool -> IO User
 createUserRecord emailAddress globalRole isProfileCompleted =

@@ -1386,6 +1386,8 @@ tests = aroundAll withDatabaseTestContext do
         it "shows week wage estimates to admins only" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
+                wageVenueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- wageVenueConfig |> set #rosterLayoutMode DayRows |> updateRecord
                 admin <- createUserRecord "roster-admin-wage-prediction@example.com" "staff" True
                 supportAdmin <- createUserRecordWithPlatformRole "roster-support-wage-prediction@example.com" "staff" (Just SuperAdmin) True
                 owner <- createUserRecord "roster-owner-wage-prediction@example.com" "staff" True
@@ -2054,14 +2056,22 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "showShiftTypeHighlights"
                 response `responseBodyShouldNotContain` "roster-shift-type-highlights-toggle"
 
-        it "persists roster layout preference and renders day columns" $ withContext do
+        it "persists the venue roster layout and renders it for managers and workers" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- venueConfig |> set #rosterLayoutMode DayRows |> updateRecord
                 manager <- createUserRecord "roster-manager-layout-pref@example.com" "staff" True
+                worker <- createUserRecord "roster-worker-layout-pref@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue worker Worker
+                _ <- newRecord @UserPreference
+                    |> set #userId (unpackId manager.id)
+                    |> set #rosterLayoutMode DayRows
+                    |> createRecord
                 slotName <- fetchSlotNameRecord venue "Early"
-                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
-                rosterWeek <- createRosterWeekRecord venue 0 False
+                staffMember <- createStaffRecord venue (Just worker) "Alpha" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 True
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 _ <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
 
@@ -2078,10 +2088,14 @@ tests = aroundAll withDatabaseTestContext do
                 let layoutTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 layoutTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterGridFrameFragmentId))
 
-                preferences <- query @UserPreference
+                updatedVenueConfig <- query @VenueConfig
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> fetchOne
+                inputValue updatedVenueConfig.rosterLayoutMode `shouldBe` ("day_columns" :: Text)
+                managerPreferences <- query @UserPreference
                     |> filterWhere (#userId, unpackId manager.id)
                     |> fetchOne
-                inputValue preferences.rosterLayoutMode `shouldBe` ("day_columns" :: Text)
+                managerPreferences.rosterLayoutMode `shouldBe` DayRows
 
                 showResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekAction 0)
@@ -2089,6 +2103,13 @@ tests = aroundAll withDatabaseTestContext do
                 showResponse `responseStatusShouldBe` status200
                 showResponse `responseBodyShouldContain` "data-roster-layout=\"day_columns\""
                 showResponse `responseBodyShouldContain` "roster-day-columns"
+
+                workerResponse <- withUserAndCurrentVenue worker venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                workerResponse `responseStatusShouldBe` status200
+                workerResponse `responseBodyShouldContain` "data-roster-layout=\"day_columns\""
+                workerResponse `responseBodyShouldContain` "roster-day-columns"
 
         it "manager can fetch the roster content fragment for the current venue" $ withContext do
             withCleanDb do

@@ -48,6 +48,7 @@ expandRosterSurfaceResourcesWithoutContext activeRosterScopes resources =
 rosterVenueConfigResourceVenueId :: SurfaceResourceValue -> Maybe UUID
 rosterVenueConfigResourceVenueId resourceValue =
     RosterResource.matchRosterEndTimesConfigResource resourceValue
+        <|> RosterResource.matchRosterLayoutConfigResource resourceValue
         <|> RosterResource.matchRosterWeekBoundaryConfigResource resourceValue
 
 rosterStaffResourceStaffId :: SurfaceResourceValue -> Maybe UUID

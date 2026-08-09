@@ -140,14 +140,17 @@ tests = aroundAll withDatabaseTestContext do
                             (UpdateRosterLayoutPreferenceAction 0)
                             [("rosterLayoutMode", "day_columns")]
 
-                let refreshesRosterSettings response = do
+                let refreshesPersonalRosterSettings response = do
                         let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                         triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-grid-toolbar\"")
                         triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-grid-frame\"")
                         triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-staff-panel\"")
-                refreshesRosterSettings warningResponse
-                refreshesRosterSettings wageResponse
-                refreshesRosterSettings layoutResponse
+                refreshesPersonalRosterSettings warningResponse
+                refreshesPersonalRosterSettings wageResponse
+                let layoutTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders layoutResponse)
+                layoutTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-grid-frame\"")
+                layoutTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-staff-panel\"")
+                layoutTriggerHeader `shouldSatisfy` maybe True (not . Text.isInfixOf "\"kind\":\"roster-grid-toolbar\"")
 
         it "plans non-overlapping passive roster content and staff panel fragments" $ withContext do
             withCleanDb do

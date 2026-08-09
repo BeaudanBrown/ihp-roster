@@ -150,7 +150,7 @@ tests = aroundAll withDatabaseTestContext do
                 supportResponse `responseBodyShouldContain` "support-venue-switch"
                 exitResponse `responseStatusShouldBe` status302
 
-        it "stores private roster preferences for the effective user" $ withContext do
+        it "does not let founder impersonation bypass worker roster-layout authority" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Preference Ownership Impersonation Venue"
                 founder <- createUserRecordWithPlatformRole "impersonation-preference-founder@example.com" "staff" (Just SuperAdmin) True
@@ -167,14 +167,30 @@ tests = aroundAll withDatabaseTestContext do
                         [("rosterLayoutMode", "day_columns")]
 
                 response `responseStatusShouldBe` status302
-                workerPreference <- query @UserPreference
-                    |> filterWhere (#userId, unpackId worker.id)
+                venueConfig <- query @VenueConfig
+                    |> filterWhere (#venueId, unpackId venue.id)
                     |> fetchOne
-                workerPreference.rosterLayoutMode `shouldBe` DayColumns
+                venueConfig.rosterLayoutMode `shouldBe` DayRows
                 query @UserPreference
-                    |> filterWhere (#userId, unpackId founder.id)
+                    |> filterWhere (#userId, unpackId worker.id)
                     |> fetchCount
                     >>= (`shouldBe` 0)
+
+        it "allows unimpersonated founder support to change venue roster layout" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Founder Layout Venue"
+                founder <- createUserRecordWithPlatformRole "layout-founder@example.com" "staff" (Just SuperAdmin) True
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    callActionWithParams
+                        (UpdateRosterLayoutPreferenceAction 0)
+                        [("rosterLayoutMode", "day_columns")]
+
+                response `responseStatusShouldBe` status302
+                venueConfig <- query @VenueConfig
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> fetchOne
+                venueConfig.rosterLayoutMode `shouldBe` DayColumns
 
         it "enforces the effective venue-role matrix across manager admin and owner routes" $ withContext do
             withCleanDb do

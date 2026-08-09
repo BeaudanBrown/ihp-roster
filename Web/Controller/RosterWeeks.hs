@@ -101,6 +101,7 @@ import Web.RosterWeeks.StaffOptions (buildRosterStaffOptionStates,
                                      fetchRosterShiftDialogStaff,
                                      fetchStaffPayConfigurationRequiredIds)
 import Web.RosterWeeks.Types
+import Web.RosterWeeks.VenueSettings (setVenueRosterLayoutMode)
 import Web.View.RosterWeeks.NotificationDialog (renderRosterNotificationConfirmation)
 import Web.View.RosterWeeks.OccurrenceDialog
 import Web.View.RosterWeeks.Overview (renderWeekOverviewPanelFragment)
@@ -743,7 +744,9 @@ instance Controller RosterWeeksController where
                         setSuccessMessage "Roster row removed."
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
-    action currentAction@UpdateRosterLayoutPreferenceAction { weekOffset } = runBepis currentAction BepisPreferenceAction do
+    action currentAction@UpdateRosterLayoutPreferenceAction { weekOffset } = runBepis currentAction BepisMutationAction do
+        ensureManagerRole
+        ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
         let requestedLayoutMode =
                 case RosterIntent.parseSetRosterLayoutModeIntentParams of
@@ -759,11 +762,17 @@ instance Controller RosterWeeksController where
                         setErrorMessage errorMessage
                         redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
             Right layoutMode -> do
-                _ <- upsertCurrentUserRosterLayoutMode layoutMode
+                venueConfig <- fetchVenueConfig
+                mutationResult <- setVenueRosterLayoutMode venueConfig layoutMode
                 if isHtmxRequest
-                    then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset rosterGridStructuralAndStaffPanelFragments (successToast "Roster layout preference saved.")
+                    then respondWithRosterResourceInvalidation
+                        rosterGroup.id
+                        weekOffset
+                        mutationResult.liveMutationTouchedResources
+                        rosterGridStructuralAndStaffPanelFragments
+                        (renderToastOob ToastBottomCenter (successToast "Venue roster layout saved."))
                     else do
-                        setSuccessMessage "Roster layout preference saved."
+                        setSuccessMessage "Venue roster layout saved."
                         redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
 
     action currentAction@MoveRosterShiftToSlotAction { weekOffset } = runBepis currentAction BepisMutationAction do
