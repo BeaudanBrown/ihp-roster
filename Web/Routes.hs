@@ -7,6 +7,7 @@ import Web.Types
 instance AutoRoute StaticController
 instance AutoRoute SessionsController
 instance AutoRoute AuthController
+instance AutoRoute PasswordResetsController
 instance AutoRoute PasskeysController
 instance AutoRoute UsersController
 instance AutoRoute ProfilesController

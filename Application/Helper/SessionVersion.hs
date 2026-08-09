@@ -20,7 +20,7 @@ authenticatedSessionVersionIsCurrent =
             sessionVersion <- getSession @Int sessionVersionSessionKey
             pure $
                 case sessionVersion of
-                    Nothing -> user.sessionVersion == 0
+                    Nothing      -> user.sessionVersion == 0
                     Just version -> version == user.sessionVersion
 
 markAuthenticatedSessionVersion :: (?context :: ControllerContext, ?request :: Request) => User -> IO ()

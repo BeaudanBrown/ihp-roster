@@ -141,10 +141,14 @@ ensureManagerRole = do
     redirectPermissionDeniedUnless (hasRole Manager) "You need manager access to view that page."
     emitScopeFact (BepisRoleScopeFact BepisManagerRole) "manager-role"
 
-ensureAdminRole :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()
-ensureAdminRole = do
+ensureAdminRoleAccess :: (?context :: ControllerContext, ?request :: Request) => IO ()
+ensureAdminRoleAccess = do
     redirectPermissionDeniedUnless (hasRole VenueAdmin) "You need admin access to view that page."
     emitScopeFact (BepisRoleScopeFact BepisAdminRole) "admin-role"
+
+ensureAdminRole :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()
+ensureAdminRole = do
+    ensureAdminRoleAccess
     ensurePrivilegedPasskeyReady
 
 ensureSupportAccess :: (?context :: ControllerContext, ?request :: Request) => IO ()
@@ -235,26 +239,34 @@ clearCurrentUserPasskeyVerification = do
     deleteSession passkeyVerifiedAtSessionKey
     clearCurrentUserPasskeyRecoveryVerification
 
-ensurePrivilegedPasskeyReady :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+ensurePrivilegedPasskeyReady :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 ensurePrivilegedPasskeyReady = do
     strongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
     when strongAuthenticationRequired ensureFreshPasskeyReady
 
-ensureFreshPasskeyReady :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
-ensureFreshPasskeyReady = do
+ensureFreshPasskeyReady :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+ensureFreshPasskeyReady =
+    ensureFreshPasskeyReadyFor currentRequestPath
+
+ensureFreshPasskeyReadyFor :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> IO ()
+ensureFreshPasskeyReadyFor redirectPath = do
     hasPasskey <- currentUserHasPasskey
     if not hasPasskey
         then withRequestContext do
-            setSession passkeyStepUpRedirectSessionKey currentRequestPath
+            setSession passkeyStepUpRedirectSessionKey redirectPath
             redirectTo PasskeySetupAction
-        else ensureFreshPasskeyVerified
+        else ensureFreshPasskeyVerifiedFor redirectPath
 
-ensureFreshPasskeyVerified :: (?context :: ControllerContext) => IO ()
-ensureFreshPasskeyVerified = do
+ensureFreshPasskeyVerified :: (?context :: ControllerContext, ?request :: Request) => IO ()
+ensureFreshPasskeyVerified =
+    ensureFreshPasskeyVerifiedFor currentRequestPath
+
+ensureFreshPasskeyVerifiedFor :: (?context :: ControllerContext) => Text -> IO ()
+ensureFreshPasskeyVerifiedFor redirectPath = do
     verified <- isCurrentUserPasskeyVerified
     unless verified do
         withRequestContext do
-            setSession passkeyStepUpRedirectSessionKey currentRequestPath
+            setSession passkeyStepUpRedirectSessionKey redirectPath
             setErrorMessage "Verify with your passkey to continue."
             redirectTo PasskeyStepUpAction
 

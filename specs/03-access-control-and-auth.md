@@ -135,6 +135,9 @@ The product must not rely on global in-app business roles without venue boundari
 - Passkeys require browser WebAuthn support and a secure origin in deployed environments; local development may use browser localhost exceptions.
 - The public login entry point should try discoverable passkey sign-in first when the browser supports WebAuthn, then fall back to email/password without blocking the user.
 - After password login, the app may render a one-time passkey setup prompt. Browser-local markers and dismissals are only UX hints; server-side access control must not treat them as proof that a device does or does not hold a passkey.
+- Active Venue Admins, Venue Owners, and unimpersonated platform super admins may send passkey setup, passkey recovery, and password-reset links from an active linked Staff profile in the selected current venue. Every send requires fresh passkey verification, regardless of the deployment-wide privileged strong-auth switch; cross-venue, inactive, archived, deactivated, unlinked, and impersonated targets are denied.
+- Staff password-reset links are hashed at rest, expire after one hour, are single-use, and replace any older active password-reset link for that user. Completion preserves passkeys, increments the user session version to revoke all existing sessions, consumes the token atomically, and returns the recipient to sign-in.
+- Existing encrypted cookie sessions without a session-version marker remain valid only while the persisted user session version is zero. Every new login records the current version, and requests carrying a stale version are logged out before venue or impersonation context initializes.
 
 ## Mandatory profile gate
 

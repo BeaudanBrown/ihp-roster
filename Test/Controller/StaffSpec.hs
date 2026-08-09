@@ -1743,6 +1743,7 @@ tests = aroundAll withDatabaseTestContext do
                 editResponse `responseBodyShouldNotContain` "<option value=\"venue_owner\""
                 editResponse `responseBodyShouldNotContain` "Email passkey setup"
                 editResponse `responseBodyShouldNotContain` "Email recovery link"
+                editResponse `responseBodyShouldNotContain` "Email password reset"
                 updateResponse `responseStatusShouldBe` status200
                 preservedMembership <- fetch targetMembership.id
                 preservedMembership.venueRole `shouldBe` Worker
@@ -1815,13 +1816,13 @@ tests = aroundAll withDatabaseTestContext do
         it "renders staff login access and temporarily hides RSA upload in the staff edit modal" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Access Modal Venue"
-                owner <- createUserRecord "staff-access-owner@example.com" "admin" True
+                admin <- createUserRecord "staff-access-admin@example.com" "admin" True
                 worker <- createUserRecord "staff-access-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner VenueOwner
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
                 _ <- createVenueMembershipRecord venue worker Worker
                 staff <- createStaffRecord venue (Just worker) "Access" "Worker"
 
-                response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
 
                 response `responseStatusShouldBe` status200
@@ -1829,6 +1830,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "staff-access-worker@example.com"
                 response `responseBodyShouldContain` "Email passkey setup"
                 response `responseBodyShouldContain` "Email recovery link"
+                response `responseBodyShouldContain` "Email password reset"
                 response `responseBodyShouldNotContain` "id=\"staff-profile-rsa\""
                 response `responseBodyShouldNotContain` "Upload a Responsible Service of Alcohol statement of attainment."
                 response `responseBodyShouldNotContain` "Upload and scan PDF"

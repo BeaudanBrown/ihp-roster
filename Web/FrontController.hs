@@ -36,6 +36,7 @@ import Web.Controller.Help
 import Web.Controller.LeaveRequests
 import Web.Controller.LiveUpdates
 import Web.Controller.Passkeys
+import Web.Controller.PasswordResets
 import Web.Controller.Profiles
 import Web.Controller.RosterTemplates
 import Web.Controller.RosterWeeks
@@ -54,6 +55,7 @@ instance FrontController WebApplication where
         , parseRoute @StaticController
         , parseRoute @SessionsController
         , parseRoute @AuthController
+        , parseRoute @PasswordResetsController
         , parseRoute @PasskeysController
         , parseRoute @UsersController
         , parseRoute @ProfilesController

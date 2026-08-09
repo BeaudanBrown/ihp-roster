@@ -376,7 +376,7 @@ renderStaffLoginAccessPanel staff maybeLinkedUserEmail weekOffset maybeRosterGro
         <div class="app-panel-header">
             <div>
                 <h3 class="app-panel-title mb-1">Sign-in access</h3>
-                <p class="app-panel-description mb-0">Manage passkey setup and recovery for the linked login.</p>
+                <p class="app-panel-description mb-0">Manage passkey setup, recovery, and password reset for the linked login.</p>
             </div>
         </div>
         <div class="app-panel-body">
@@ -395,7 +395,7 @@ renderLinkedLoginSummary (Just email) = [hsx|
 renderStaffPasskeySetupControls :: Staff -> Maybe Text -> Int -> Maybe (Id RosterGroup) -> Html
 renderStaffPasskeySetupControls _ Nothing _ _ = mempty
 renderStaffPasskeySetupControls staff (Just _) weekOffset maybeRosterGroupId
-    | currentUserIsUnimpersonatedSuperAdmin || (not currentUserIsImpersonating && hasRole VenueOwner) = [hsx|
+    | currentUserIsUnimpersonatedSuperAdmin || (not currentUserIsImpersonating && hasRole VenueAdmin) = [hsx|
         <div class="d-flex flex-wrap gap-2">
             <form method="POST" action={SendStaffPasskeySetupEmailAction staff.id} class="d-inline">
                 {renderStaffPasskeyReturnInputs weekOffset maybeRosterGroupId}
@@ -404,6 +404,10 @@ renderStaffPasskeySetupControls staff (Just _) weekOffset maybeRosterGroupId
             <form method="POST" action={SendStaffPasskeyRecoveryEmailAction staff.id} class="d-inline">
                 {renderStaffPasskeyReturnInputs weekOffset maybeRosterGroupId}
                 <button type="submit" class="btn btn-sm btn-outline-warning">Email recovery link</button>
+            </form>
+            <form method="POST" action={SendStaffPasswordResetEmailAction staff.id} class="d-inline">
+                {renderStaffPasskeyReturnInputs weekOffset maybeRosterGroupId}
+                <button type="submit" class="btn btn-sm btn-outline-warning">Email password reset</button>
             </form>
         </div>
     |]

@@ -19,6 +19,7 @@ import Web.Mail.Billing.Notification
 import Web.Mail.StaffDocuments.RsaReminder
 import Web.Mail.Users.EmailVerification
 import Web.Mail.Users.PasskeySetupLink
+import Web.Mail.Users.PasswordReset
 import Web.Mail.Users.VenueInvitation
 import Web.Mail.Users.VenueOnboardingInvitation
 
@@ -184,6 +185,30 @@ tests = aroundAll withDatabaseTestContext do
                 text mail `shouldSatisfy` isInfixOf "Set up a new device passkey for your Bepis account:"
                 text mail `shouldSatisfy` isInfixOf "https://app.example/NewPasskeySetup?token=test"
                 text mail `shouldSatisfy` isInfixOf "This link expires in one hour and can only be used once."
+                text mail `shouldSatisfy` isInfixOf "contact support@example.com."
+
+        it "renders password reset mail with session and passkey consequences" $ withContext do
+            withCleanDb do
+                user <- createUserRecord "password-reset-mail@example.com" "staff" True
+                let mail =
+                        PasswordResetMail
+                            { user
+                            , resetUrl = "https://app.example/NewPasswordReset?token=test"
+                            , fromAddress = "accounts@example.com"
+                            , replyToAddress = "support@example.com"
+                            , supportEmail = "support@example.com"
+                            }
+                let ?context = ?mocking
+
+                addressEmail (to mail) `shouldBe` user.email
+                let ?mail = mail
+                subject `shouldBe` "Reset your Bepis password"
+                addressName from `shouldBe` Just "Bepis"
+                addressEmail from `shouldBe` "accounts@example.com"
+                fmap addressEmail (replyTo mail) `shouldBe` Just "support@example.com"
+                text mail `shouldSatisfy` isInfixOf "https://app.example/NewPasswordReset?token=test"
+                text mail `shouldSatisfy` isInfixOf "signs your account out on all devices"
+                text mail `shouldSatisfy` isInfixOf "Your passkeys remain available"
                 text mail `shouldSatisfy` isInfixOf "contact support@example.com."
 
         it "renders RSA reminder mail with venue context, reply-to, and support footer" $ withContext do

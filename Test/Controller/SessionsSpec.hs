@@ -7,9 +7,9 @@ import Application.Helper.FrontendContract.Passkey.Runtime (PasskeyDom (..),
                                                             canonicalPasskeyDom)
 import Application.Helper.SessionVersion (sessionVersionSessionKey)
 import Config
+import qualified Data.Serialize as Serialize
 import Data.Time.Clock (addUTCTime, getCurrentTime)
 import Generated.Types
-import qualified Data.Serialize as Serialize
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -187,6 +187,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status302
                 lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
+                getSession @Int sessionVersionSessionKey `shouldReturn` Just 0
 
                 auditEvent <- query @AuditEvent
                     |> filterWhere (#eventType, "login_succeeded")

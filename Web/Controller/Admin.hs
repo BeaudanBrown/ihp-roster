@@ -1,5 +1,6 @@
 module Web.Controller.Admin where
 
+import Application.Helper.Audit
 import Application.Helper.Export
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
@@ -16,6 +17,7 @@ import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.InvitationStatus (invitationStatusAllowsRenewal)
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
 import Application.Helper.PasskeySetupTokens
+import Application.Helper.PasswordResetTokens
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.SurfaceResource
@@ -26,6 +28,7 @@ import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import Application.Xero.Connection
+import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.List as List
 import qualified Data.Text as Text
@@ -94,20 +97,62 @@ sendStaffPasskeySetupLink ::
     Text ->
     IO ()
 sendStaffPasskeySetupLink staffId purpose successMessage = do
-    ensureNotImpersonatingAccountSecurity
-    redirectPermissionDeniedUnless
-        (currentUserIsUnimpersonatedSuperAdmin || hasRole VenueOwner)
-        "Only the venue owner or a super admin can send passkey setup links."
+    ensureCanSendStaffCredentialLink
     maybeTarget <- fetchCurrentVenueStaffUser staffId
     case maybeTarget of
-        Nothing -> do
-            setErrorMessage "Choose a linked staff login from this venue."
-            redirectTo AdminAction
+        Nothing -> rejectStaffCredentialTarget
         Just targetUser -> do
             (_, rawToken) <- issuePasskeySetupToken purpose targetUser (Just currentUser.id) (Just currentVenueId)
+            void $
+                recordCurrentUserAuditEvent
+                    (passkeySetupAuditEvent purpose)
+                    "users"
+                    (unpackId targetUser.id)
+                    (Aeson.object ["staffId" Aeson..= staffId])
             sendPasskeySetupTokenEmail targetUser purpose rawToken
             setSuccessMessage successMessage
             redirectToPath staffPasskeyReturnPath
+
+sendStaffPasswordResetLink ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Id Staff ->
+    IO ()
+sendStaffPasswordResetLink staffId = do
+    ensureCanSendStaffCredentialLink
+    fetchCurrentVenueStaffUser staffId >>= \case
+        Nothing -> rejectStaffCredentialTarget
+        Just targetUser -> do
+            (_, rawToken) <- issuePasswordResetToken targetUser currentUser.id currentVenueId
+            void $
+                recordCurrentUserAuditEvent
+                    StaffPasswordResetRequestedAudit
+                    "users"
+                    (unpackId targetUser.id)
+                    (Aeson.object ["staffId" Aeson..= staffId])
+            sendPasswordResetTokenEmail targetUser rawToken
+            setSuccessMessage "Password reset email sent."
+            redirectToPath staffPasskeyReturnPath
+
+ensureCanSendStaffCredentialLink ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO ()
+ensureCanSendStaffCredentialLink = do
+    ensureNotImpersonatingAccountSecurity
+    redirectPermissionDeniedUnless
+        (currentUserIsUnimpersonatedSuperAdmin || hasRole VenueAdmin)
+        "Only a venue admin, venue owner, or super admin can send account recovery links."
+    ensureFreshPasskeyReadyFor staffPasskeyReturnPath
+
+rejectStaffCredentialTarget :: (?context :: ControllerContext, ?request :: Request) => IO a
+rejectStaffCredentialTarget = do
+    setErrorMessage "Choose an active linked staff login from this venue."
+    redirectTo AdminAction
+    error "unreachable"
+
+passkeySetupAuditEvent :: PasskeySetupTokenPurpose -> AuditEventType
+passkeySetupAuditEvent StaffNewDevicePasskeySetup = StaffPasskeySetupRequestedAudit
+passkeySetupAuditEvent StaffPasskeyRecovery = StaffPasskeyRecoveryRequestedAudit
+passkeySetupAuditEvent SelfNewDevicePasskeySetup = error "Self passkey setup cannot use the staff credential action"
 
 staffPasskeyReturnPath :: (?request :: Request) => Text
 staffPasskeyReturnPath =
@@ -124,10 +169,25 @@ fetchCurrentVenueStaffUser staffId = do
         query @Staff
             |> filterWhere (#id, staffId)
             |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#isActive, True)
+            |> filterWhere (#archivedAt, Nothing)
             |> fetchOneOrNothing
     case maybeStaff >>= (.userId) of
-        Nothing     -> pure Nothing
-        Just userId -> Just <$> fetch (Id userId :: Id User)
+        Nothing -> pure Nothing
+        Just userId -> do
+            activeMembershipExists <- query @VenueMembership
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhere (#userId, userId)
+                |> filterWhere (#isActive, True)
+                |> filterWhere (#archivedAt, Nothing)
+                |> fetchExists
+            if not activeMembershipExists
+                then pure Nothing
+                else
+                    query @User
+                        |> filterWhere (#id, Id userId)
+                        |> filterWhere (#deactivatedAt, Nothing)
+                        |> fetchOneOrNothing
 
 parseAdminShiftTypesVisibility :: (?request :: Request) => Either [SurfaceRequestFieldError] Bool
 parseAdminShiftTypesVisibility
@@ -145,7 +205,11 @@ instance Controller AdminController where
         ensureIsUser
         ensureCurrentVenueOrSupportRedirect
         ensureProfileCompleted
-        ensureAdminRole
+        case ?theAction of
+            SendStaffPasskeySetupEmailAction {}    -> ensureAdminRoleAccess
+            SendStaffPasskeyRecoveryEmailAction {} -> ensureAdminRoleAccess
+            SendStaffPasswordResetEmailAction {}   -> ensureAdminRoleAccess
+            _                                      -> ensureAdminRole
 
     action currentAction@AdminAction = runBepis currentAction BepisPageAction $
         profileActionSpan "admin.page.render" do
@@ -201,6 +265,9 @@ instance Controller AdminController where
 
     action currentAction@SendStaffPasskeyRecoveryEmailAction { staffId } = runBepis currentAction BepisMutationAction do
         sendStaffPasskeySetupLink staffId StaffPasskeyRecovery "Passkey recovery email sent."
+
+    action currentAction@SendStaffPasswordResetEmailAction { staffId } = runBepis currentAction BepisMutationAction do
+        sendStaffPasswordResetLink staffId
 
     action currentAction@StartXeroConnectionAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable

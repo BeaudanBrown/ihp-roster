@@ -13,8 +13,10 @@ import Application.Helper.FrontendContract.Passkey.Runtime (PasskeyDom (..),
                                                             canonicalPasskeyDom)
 import Application.Helper.PasskeyRecoveryCodes (hashRecoveryCode)
 import Application.Helper.Passkeys (allowedOrigins, rpIdTextFromRequest)
-import Application.Helper.PasskeySetupTokens (PasskeySetupTokenPurpose (SelfNewDevicePasskeySetup),
+import Application.Helper.PasskeySetupTokens (PasskeySetupTokenPurpose (SelfNewDevicePasskeySetup, StaffNewDevicePasskeySetup),
                                               issuePasskeySetupToken)
+import Application.Helper.PasswordResetTokens (findActivePasswordResetToken,
+                                               issuePasswordResetToken)
 import Config
 import Crypto.WebAuthn.Model.Types (Origin (..))
 import qualified Data.Aeson as Aeson
@@ -25,6 +27,7 @@ import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime (..), addUTCTime, getCurrentTime,
                         secondsToDiffTime)
 import Generated.Types
+import IHP.AuthSupport.Authentication (verifyPassword)
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
@@ -593,6 +596,221 @@ tests = aroundAll withDatabaseTestContext do
                 setupToken.requestedByUserId `shouldBe` Just (unpackId owner.id)
                 setupToken.venueId `shouldBe` Just (unpackId venue.id)
                 setupToken.purpose `shouldBe` "staff_recovery"
+
+        it "lets venue admins send all staff credential link types" $ withContext do
+            withCleanDb do
+                setEnv "DISABLE_EMAIL_DELIVERY" "1"
+                venue <- createVenueWithConfig "Venue Admin Credential Links Venue"
+                admin <- createUserRecord "credential-links-admin@example.com" "admin" True
+                target <- createUserRecord "credential-links-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- createVenueMembershipRecord venue target Worker
+                targetStaff <- query @Staff
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#userId, Just (unpackId target.id))
+                    |> fetchOne
+
+                withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    setupResponse <- callAction (SendStaffPasskeySetupEmailAction targetStaff.id)
+                    recoveryResponse <- callAction (SendStaffPasskeyRecoveryEmailAction targetStaff.id)
+                    passwordResponse <- callAction (SendStaffPasswordResetEmailAction targetStaff.id)
+                    forM_ [setupResponse, recoveryResponse, passwordResponse] (`responseStatusShouldBe` status302)
+
+                setupPurposes <- map (.purpose) <$> (query @PasskeySetupToken |> fetch)
+                setupPurposes `shouldMatchList` ["staff_new_device", "staff_recovery"]
+                resetToken <- query @PasswordResetToken |> fetchOne
+                resetToken.userId `shouldBe` unpackId target.id
+                resetToken.requestedByUserId `shouldBe` Just (unpackId admin.id)
+                resetToken.venueId `shouldBe` unpackId venue.id
+                auditTypes <- map (.eventType) <$> (query @AuditEvent |> fetch)
+                auditTypes `shouldMatchList`
+                    [ "staff_passkey_setup_requested"
+                    , "staff_passkey_recovery_requested"
+                    , "staff_password_reset_requested"
+                    ]
+
+        it "requires fresh passkey verification for every staff credential link and returns to the staff profile" $ withContext do
+            withCleanDb do
+                setEnv "DISABLE_EMAIL_DELIVERY" "1"
+                venue <- createVenueWithConfig "Credential Link Step Up Venue"
+                admin <- createUserRecord "credential-link-step-up-admin@example.com" "admin" True
+                target <- createUserRecord "credential-link-step-up-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- createVenueMembershipRecord venue target Worker
+                _ <- createTestPasskeyRecord admin "Admin passkey"
+                targetStaff <- query @Staff
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#userId, Just (unpackId target.id))
+                    |> fetchOne
+
+                responses <- withUserAndCurrentVenue admin venue.id do
+                    setupResponse <- callActionWithParams (SendStaffPasskeySetupEmailAction targetStaff.id)
+                        [("returnTo", "staff"), ("weekOffset", "4")]
+                    getSession @Text passkeyStepUpRedirectSessionKey `shouldReturn` Just "/ShowRosterWeek?weekOffset=4"
+                    recoveryResponse <- callActionWithParams (SendStaffPasskeyRecoveryEmailAction targetStaff.id)
+                        [("returnTo", "staff"), ("weekOffset", "4")]
+                    passwordResponse <- callActionWithParams (SendStaffPasswordResetEmailAction targetStaff.id)
+                        [("returnTo", "staff"), ("weekOffset", "4")]
+                    pure [setupResponse, recoveryResponse, passwordResponse]
+
+                forM_ responses \response -> do
+                    response `responseStatusShouldBe` status302
+                    lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/PasskeyStepUp"
+                query @PasskeySetupToken |> fetchCount `shouldReturn` 0
+                query @PasswordResetToken |> fetchCount `shouldReturn` 0
+
+        it "lets a super admin send a password reset for active linked staff in an arbitrary selected venue" $ withContext do
+            withCleanDb do
+                setEnv "DISABLE_EMAIL_DELIVERY" "1"
+                venue <- createVenueWithConfig "Support Credential Target Venue"
+                founder <- createUserRecordWithPlatformRole "credential-founder@example.com" "staff" (Just SuperAdmin) True
+                target <- createUserRecord "credential-founder-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue target Worker
+                targetStaff <- query @Staff
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#userId, Just (unpackId target.id))
+                    |> fetchOne
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    callActionWithParams (SendStaffPasswordResetEmailAction targetStaff.id)
+                        [("returnTo", "staff"), ("weekOffset", "2")]
+
+                response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/ShowRosterWeek?weekOffset=2"
+                resetToken <- query @PasswordResetToken |> fetchOne
+                resetToken.userId `shouldBe` unpackId target.id
+                resetToken.venueId `shouldBe` unpackId venue.id
+
+        it "rejects cross-venue and inactive staff credential targets" $ withContext do
+            withCleanDb do
+                setEnv "DISABLE_EMAIL_DELIVERY" "1"
+                selectedVenue <- createVenueWithConfig "Selected Credential Venue"
+                otherVenue <- createVenueWithConfig "Other Credential Venue"
+                admin <- createUserRecord "credential-scope-admin@example.com" "admin" True
+                crossVenueUser <- createUserRecord "credential-cross-venue@example.com" "staff" True
+                inactiveUser <- createUserRecord "credential-inactive@example.com" "staff" True
+                revokedUser <- createUserRecord "credential-revoked-membership@example.com" "staff" True
+                deactivatedUser <- createUserRecord "credential-deactivated-user@example.com" "staff" True
+                _ <- createVenueMembershipRecord selectedVenue admin VenueAdmin
+                _ <- createVenueMembershipRecord otherVenue crossVenueUser Worker
+                _ <- createVenueMembershipRecord selectedVenue inactiveUser Worker
+                revokedMembership <- createVenueMembershipRecord selectedVenue revokedUser Worker
+                _ <- createVenueMembershipRecord selectedVenue deactivatedUser Worker
+                crossVenueStaff <- query @Staff |> filterWhere (#venueId, unpackId otherVenue.id) |> filterWhere (#userId, Just (unpackId crossVenueUser.id)) |> fetchOne
+                inactiveStaff <- query @Staff |> filterWhere (#venueId, unpackId selectedVenue.id) |> filterWhere (#userId, Just (unpackId inactiveUser.id)) |> fetchOne
+                revokedStaff <- query @Staff |> filterWhere (#venueId, unpackId selectedVenue.id) |> filterWhere (#userId, Just (unpackId revokedUser.id)) |> fetchOne
+                deactivatedStaff <- query @Staff |> filterWhere (#venueId, unpackId selectedVenue.id) |> filterWhere (#userId, Just (unpackId deactivatedUser.id)) |> fetchOne
+                now <- getCurrentTime
+                _ <- inactiveStaff |> set #isActive False |> updateRecord
+                _ <- revokedMembership |> set #isActive False |> set #archivedAt (Just now) |> updateRecord
+                _ <- deactivatedUser |> set #deactivatedAt (Just now) |> updateRecord
+
+                withPasskeyVerifiedUserAndCurrentVenue admin selectedVenue.id do
+                    responses <- sequence
+                        [ callAction (SendStaffPasswordResetEmailAction crossVenueStaff.id)
+                        , callAction (SendStaffPasswordResetEmailAction inactiveStaff.id)
+                        , callAction (SendStaffPasswordResetEmailAction revokedStaff.id)
+                        , callAction (SendStaffPasswordResetEmailAction deactivatedStaff.id)
+                        ]
+                    forM_ responses (`responseStatusShouldBe` status302)
+
+                query @PasswordResetToken |> fetchCount `shouldReturn` 0
+                query @AuditEvent |> fetchCount `shouldReturn` 0
+
+        it "resets a password once, preserves passkeys, and revokes existing sessions" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Password Reset Completion Venue"
+                admin <- createUserRecord "password-reset-requester@example.com" "admin" True
+                target <- createUserRecord "password-reset-completion@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- createVenueMembershipRecord venue target Worker
+                passkey <- createTestPasskeyRecord target "Preserved passkey"
+                (resetToken, rawToken) <- issuePasswordResetToken target admin.id venue.id
+
+                formResponse <- callActionWithParams NewPasswordResetAction [("token", cs rawToken)]
+                formResponse `responseStatusShouldBe` status200
+                formResponse `responseBodyShouldContain` target.email
+                formResponse `responseBodyShouldContain` "preserves its passkeys"
+
+                mismatchResponse <- callActionWithParams UpdatePasswordResetAction
+                    [ ("token", cs rawToken)
+                    , ("password", "replacement-password")
+                    , ("passwordConfirmation", "different-password")
+                    ]
+                mismatchResponse `responseStatusShouldBe` status200
+                findActivePasswordResetToken rawToken `shouldReturn` Just resetToken
+
+                completionResponse <- callActionWithParams UpdatePasswordResetAction
+                    [ ("token", cs rawToken)
+                    , ("password", "replacement-password")
+                    , ("passwordConfirmation", "replacement-password")
+                    ]
+                completionResponse `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders completionResponse) `shouldBe` Just "http://localhost/NewSession"
+
+                updatedUser <- fetch target.id
+                verifyPassword updatedUser "replacement-password" `shouldBe` True
+                updatedUser.sessionVersion `shouldBe` 1
+                query @Passkey |> filterWhere (#id, passkey.id) |> fetchExists `shouldReturn` True
+                consumedToken <- fetch resetToken.id
+                consumedToken.consumedAt `shouldSatisfy` isJust
+                completionAudit <- query @AuditEvent |> filterWhere (#eventType, "password_reset_completed") |> fetchOne
+                completionAudit.actorUserId `shouldBe` unpackId target.id
+
+                replayResponse <- callActionWithParams UpdatePasswordResetAction
+                    [ ("token", cs rawToken)
+                    , ("password", "another-password")
+                    , ("passwordConfirmation", "another-password")
+                    ]
+                replayResponse `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders replayResponse) `shouldBe` Just "http://localhost/NewSession"
+                replayedUser <- fetch target.id
+                verifyPassword replayedUser "replacement-password" `shouldBe` True
+
+        it "keeps passkey and password reset tokens isolated and replaces older password reset links" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Credential Token Isolation Venue"
+                admin <- createUserRecord "credential-token-admin@example.com" "admin" True
+                target <- createUserRecord "credential-token-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- createVenueMembershipRecord venue target Worker
+                (_, firstResetRawToken) <- issuePasswordResetToken target admin.id venue.id
+                (_, secondResetRawToken) <- issuePasswordResetToken target admin.id venue.id
+                (_, passkeyRawToken) <- issuePasskeySetupToken StaffNewDevicePasskeySetup target (Just admin.id) (Just venue.id)
+
+                findActivePasswordResetToken firstResetRawToken `shouldReturn` Nothing
+                findActivePasswordResetToken secondResetRawToken >>= (`shouldSatisfy` isJust)
+
+                passkeyAsPasswordResponse <- callActionWithParams NewPasswordResetAction [("token", cs passkeyRawToken)]
+                passwordAsPasskeyResponse <- callActionWithParams NewPasskeySetupAction [("token", cs secondResetRawToken)]
+                passkeyAsPasswordResponse `responseStatusShouldBe` status302
+                passwordAsPasskeyResponse `responseStatusShouldBe` status302
+
+        it "rejects missing and expired password reset links without changing credentials" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Expired Password Reset Venue"
+                admin <- createUserRecord "expired-password-reset-admin@example.com" "admin" True
+                target <- createUserRecord "expired-password-reset-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- createVenueMembershipRecord venue target Worker
+                (resetToken, rawToken) <- issuePasswordResetToken target admin.id venue.id
+                now <- getCurrentTime
+                _ <- resetToken |> set #expiresAt (addUTCTime (-60) now) |> updateRecord
+
+                missingResponse <- callAction NewPasswordResetAction
+                expiredResponse <- callActionWithParams NewPasswordResetAction [("token", cs rawToken)]
+                expiredSubmitResponse <- callActionWithParams UpdatePasswordResetAction
+                    [ ("token", cs rawToken)
+                    , ("password", "replacement-password")
+                    , ("passwordConfirmation", "replacement-password")
+                    ]
+
+                forM_ [missingResponse, expiredResponse, expiredSubmitResponse] \response -> do
+                    response `responseStatusShouldBe` status302
+                    lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/NewSession"
+                unchangedUser <- fetch target.id
+                verifyPassword unchangedUser testPassword `shouldBe` True
+                unchangedUser.sessionVersion `shouldBe` 0
 
         it "rejects passkey registration finishes if the pending user changes" $ withContext do
             withCleanDb do

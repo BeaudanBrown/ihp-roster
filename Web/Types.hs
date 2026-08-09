@@ -37,6 +37,11 @@ data AuthController
     | FinishPasskeySetupRegistrationAction
     deriving (Eq, Show, Data)
 
+data PasswordResetsController
+    = NewPasswordResetAction
+    | UpdatePasswordResetAction
+    deriving (Eq, Show, Data)
+
 data PasskeysController
     = PasskeyStepUpAction
     | PasskeySetupAction
@@ -167,6 +172,7 @@ data AdminController
     | RenewVenueInvitationAction { venueInvitationId :: !(Id VenueInvitation) }
     | SendStaffPasskeySetupEmailAction { staffId :: !(Id Staff) }
     | SendStaffPasskeyRecoveryEmailAction { staffId :: !(Id Staff) }
+    | SendStaffPasswordResetEmailAction { staffId :: !(Id Staff) }
     | CreateRosterGroupAction
     | UpdateRosterGroupAction { rosterGroupId :: !(Id RosterGroup) }
     | MoveRosterGroupUpAction { rosterGroupId :: !(Id RosterGroup) }

@@ -1905,6 +1905,7 @@ CREATE INDEX idx_passkey_setup_tokens_user_id ON passkey_setup_tokens (user_id);
 CREATE INDEX idx_passkey_setup_tokens_venue_id ON passkey_setup_tokens (venue_id);
 CREATE INDEX idx_password_reset_tokens_user_id ON password_reset_tokens (user_id);
 CREATE INDEX idx_password_reset_tokens_venue_id ON password_reset_tokens (venue_id);
+CREATE UNIQUE INDEX idx_password_reset_tokens_one_active_per_user ON password_reset_tokens (user_id) WHERE consumed_at IS NULL;
 CREATE INDEX idx_venue_invitations_venue_status ON venue_invitations (venue_id, status);
 CREATE INDEX idx_venue_invitations_email_status ON venue_invitations (email, status);
 CREATE INDEX idx_venue_invitations_staff ON venue_invitations (staff_id) WHERE staff_id IS NOT NULL;

@@ -28,6 +28,10 @@ data AuditEventType
     | LoginBlockedAudit
     | PasskeyStepUpSucceededAudit
     | PasskeyStepUpFailedAudit
+    | StaffPasskeySetupRequestedAudit
+    | StaffPasskeyRecoveryRequestedAudit
+    | StaffPasswordResetRequestedAudit
+    | PasswordResetCompletedAudit
     | TimesheetDeletedAudit
     | StaffRemovedAudit
     | RsaDocumentUploadedAudit
@@ -73,6 +77,10 @@ auditEventTypeText LoginFailedAudit = "login_failed"
 auditEventTypeText LoginBlockedAudit = "login_blocked"
 auditEventTypeText PasskeyStepUpSucceededAudit = "passkey_step_up_succeeded"
 auditEventTypeText PasskeyStepUpFailedAudit = "passkey_step_up_failed"
+auditEventTypeText StaffPasskeySetupRequestedAudit = "staff_passkey_setup_requested"
+auditEventTypeText StaffPasskeyRecoveryRequestedAudit = "staff_passkey_recovery_requested"
+auditEventTypeText StaffPasswordResetRequestedAudit = "staff_password_reset_requested"
+auditEventTypeText PasswordResetCompletedAudit = "password_reset_completed"
 auditEventTypeText TimesheetDeletedAudit = "timesheet_deleted"
 auditEventTypeText StaffRemovedAudit = "staff_removed"
 auditEventTypeText RsaDocumentUploadedAudit = "rsa_document_uploaded"
