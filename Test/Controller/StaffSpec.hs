@@ -1597,10 +1597,12 @@ tests = aroundAll withDatabaseTestContext do
                     , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
                             callActionWithParams MoveRosterShiftToSlotAction
-                                [ ("rosterGroupId", cs (tshow rosterGroup.id))
-                                , ("sourceItemKey", cs sourceToken)
-                                , ("targetDropzoneKey", cs targetToken)
-                                ]
+                                ( [ ("rosterGroupId", cs (tshow rosterGroup.id))
+                                  , ("sourceItemKey", cs sourceToken)
+                                  , ("targetDropzoneKey", cs targetToken)
+                                  ]
+                                    <> rosterMutationParams currentWeekOffset
+                                )
                     ]
 
                 lefts results `shouldSatisfy` null
