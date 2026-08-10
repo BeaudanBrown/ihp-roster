@@ -40,6 +40,7 @@ import Data.Time.LocalTime (LocalTime (..))
 import Generated.Types
 import qualified IHP.Prelude as Prelude
 import IHP.ViewPrelude
+import Web.Timesheets.Filters
 import Web.Types
 
 data TimesheetFormOrigin
@@ -57,8 +58,8 @@ timesheetModalTitle day =
         <> formatDayMonthDisplay day
 
 -- | Shared timesheet entry form used by New and Edit views.
-renderTimesheetForm :: (?context :: ControllerContext) => AppShellActionIR -> TimesheetFormOrigin -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Text -> Text -> OverlayFormMode -> Html
-renderTimesheetForm appShellAction formOrigin entry staffMembers shiftTypes weekOffset selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep actionUrl formId formMode =
+renderTimesheetForm :: (?context :: ControllerContext) => AppShellActionIR -> TimesheetFormOrigin -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> TimesheetViewFilters -> Maybe UUID -> Text -> Text -> Int -> Text -> Text -> OverlayFormMode -> Html
+renderTimesheetForm appShellAction formOrigin entry staffMembers shiftTypes weekOffset viewFilters currentViewerStaffId pickerStart pickerEnd pickerStep actionUrl formId formMode =
     case formMode of
         HtmxOverlayForm ->
             renderAppShellActionForm
@@ -74,20 +75,21 @@ renderTimesheetForm appShellAction formOrigin entry staffMembers shiftTypes week
 
                         ]
                     }
-                (renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep True)
+                (renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset viewFilters currentViewerStaffId pickerStart pickerEnd pickerStep True)
         PageOverlayForm -> [hsx|
             <form id={formId}
                   method="POST"
                   action={actionUrl}
                   class="mt-3">
-                {renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep False}
+                {renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset viewFilters currentViewerStaffId pickerStart pickerEnd pickerStep False}
             </form>
         |]
 
-renderTimesheetFormFields :: (?context :: ControllerContext) => TimesheetFormOrigin -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Bool -> Html
-renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep keyboardEnabled = [hsx|
+renderTimesheetFormFields :: (?context :: ControllerContext) => TimesheetFormOrigin -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> TimesheetViewFilters -> Maybe UUID -> Text -> Text -> Int -> Bool -> Html
+renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset viewFilters currentViewerStaffId pickerStart pickerEnd pickerStep keyboardEnabled = [hsx|
     <input type="hidden" name={surfaceFieldNameFrom @Surface.WeekOffset stateFields} value={tshow weekOffset} />
-    <input type="hidden" name={surfaceFieldNameFrom @Surface.StaffFilterId stateFields} value={maybe "" tshow selectedStaffFilterId} />
+    <input type="hidden" name={surfaceFieldNameFrom @Surface.StaffFilterId stateFields} value={maybe "" tshow viewFilters.filterStaffId} />
+    <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterGroupFilterId stateFields} value={maybe "" tshow viewFilters.filterRosterGroupId} />
     {renderTimesheetFormOriginNotice formOrigin}
     {renderStaffFieldForOrigin formOrigin entry staffMembers}
     {renderShiftTypeField entry shiftTypes}
@@ -134,7 +136,7 @@ renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset se
                 , timePickerInvalid = invalid
                 }
         stateFields =
-            TimesheetsAction.createTimesheetEntryFromSuggestionActionFields weekOffset selectedStaffFilterId
+            TimesheetsAction.createTimesheetEntryFromSuggestionActionFields weekOffset viewFilters.filterStaffId viewFilters.filterRosterGroupId
 
 renderTimesheetBreakFields :: TimesheetEntry -> AuthoritativeBoundaries -> Text -> Text -> Text -> Text -> Int -> Bool -> Html
 renderTimesheetBreakFields entry boundaries breakStartTimeValue breakEndTimeValue pickerStart pickerEnd pickerStep keyboardEnabled =

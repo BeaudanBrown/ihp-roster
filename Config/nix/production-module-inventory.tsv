@@ -445,6 +445,7 @@ Web/Staff/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/Staff/ProfileSurfaceRequest.hs	production	runtime	Main	Reachable from Main
 Web/StaffDocuments/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/SurfaceInvalidation.hs	production	runtime	Main	Reachable from Main
+Web/Timesheets/Filters.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/FrontendSurface.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/Paths.hs	production	runtime	Main	Reachable from Main

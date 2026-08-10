@@ -22,6 +22,7 @@ import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as 
 import Application.Helper.FrontendContract.Surface.Values
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
+import Web.Timesheets.Filters (TimesheetViewFilters (..))
 import Web.Timesheets.Paths (timesheetDayColumnsFragmentUrl,
                              timesheetDaySectionFragmentUrl,
                              timesheetSidePanelFragmentUrl,
@@ -37,7 +38,9 @@ data TimesheetWeekScopeValue = TimesheetWeekScopeValue
     deriving (Eq, Show)
 
 data TimesheetsMountStateValue = TimesheetsMountStateValue
-    { timesheetsMountStaffFilterId :: !(Maybe UUID.UUID) }
+    { timesheetsMountStaffFilterId       :: !(Maybe UUID.UUID)
+    , timesheetsMountRosterGroupFilterId :: !(Maybe UUID.UUID)
+    }
     deriving (Eq, Show)
 
 timesheetsSurfaceImpl :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> SurfaceImpl Surface.TimesheetsSurface
@@ -83,6 +86,7 @@ timesheetWeekScopeFields scope =
 timesheetsMountStateFields :: TimesheetsMountStateValue -> SurfaceFields (SurfaceMountStateFieldSpecs Surface.TimesheetsSurface)
 timesheetsMountStateFields mountState =
     surfaceField @Surface.StaffFilterId mountState.timesheetsMountStaffFilterId
+        &: surfaceField @Surface.RosterGroupFilterId mountState.timesheetsMountRosterGroupFilterId
         &: noSurfaceFields
 
 timesheetToolbarMountedFragment :: TimesheetsMountStateValue -> Int -> FrontendSurfaceMountedFragment
@@ -90,7 +94,7 @@ timesheetToolbarMountedFragment mountState weekOffset =
     frontendSurfaceMountedFragmentFor @Surface.TimesheetsSurface @Surface.TimesheetToolbar
         noSurfaceFields
         noSurfaceFields
-        (timesheetToolbarFragmentUrl weekOffset mountState.timesheetsMountStaffFilterId)
+        (timesheetToolbarFragmentUrl weekOffset (mountStateFilters mountState))
         FrontendSurfaceReplace
 
 timesheetDayColumnsMountedFragment :: TimesheetsMountStateValue -> Int -> FrontendSurfaceMountedFragment
@@ -98,7 +102,7 @@ timesheetDayColumnsMountedFragment mountState weekOffset =
     frontendSurfaceMountedFragmentFor @Surface.TimesheetsSurface @Surface.TimesheetDayColumns
         noSurfaceFields
         noSurfaceFields
-        (timesheetDayColumnsFragmentUrl weekOffset mountState.timesheetsMountStaffFilterId)
+        (timesheetDayColumnsFragmentUrl weekOffset (mountStateFilters mountState))
         FrontendSurfaceReplace
 
 timesheetSidePanelMountedFragment :: TimesheetsMountStateValue -> Int -> FrontendSurfaceMountedFragment
@@ -106,7 +110,7 @@ timesheetSidePanelMountedFragment mountState weekOffset =
     frontendSurfaceMountedFragmentFor @Surface.TimesheetsSurface @Surface.TimesheetSidePanelContent
         noSurfaceFields
         noSurfaceFields
-        (timesheetSidePanelFragmentUrl weekOffset mountState.timesheetsMountStaffFilterId)
+        (timesheetSidePanelFragmentUrl weekOffset (mountStateFilters mountState))
         FrontendSurfaceReplace
 
 timesheetDaySectionMountedFragment :: TimesheetsMountStateValue -> Int -> Int -> FrontendSurfaceMountedFragment
@@ -114,5 +118,12 @@ timesheetDaySectionMountedFragment mountState weekOffset dayOffset =
     frontendSurfaceMountedFragmentFor @Surface.TimesheetsSurface @Surface.TimesheetDaySection
         (surfaceField @Surface.DayOffset dayOffset &: noSurfaceFields)
         (surfaceField @Surface.DayOffset dayOffset &: noSurfaceFields)
-        (timesheetDaySectionFragmentUrl weekOffset dayOffset mountState.timesheetsMountStaffFilterId)
+        (timesheetDaySectionFragmentUrl weekOffset dayOffset (mountStateFilters mountState))
         FrontendSurfaceReplace
+
+mountStateFilters :: TimesheetsMountStateValue -> TimesheetViewFilters
+mountStateFilters mountState =
+    TimesheetViewFilters
+        { filterStaffId = mountState.timesheetsMountStaffFilterId
+        , filterRosterGroupId = mountState.timesheetsMountRosterGroupFilterId
+        }

@@ -7,6 +7,7 @@ module Application.Helper.FrontendContract.Surface.Timesheets
     , ShowTimesheetSuggestions
     , ShowTimesheetWageEstimates
     , StaffFilterId
+    , RosterGroupFilterId
     , TimesheetDay
     , TimesheetDayColumns
     , TimesheetDaySection
@@ -73,6 +74,7 @@ data HideApproved
 data ShowTimesheetSuggestions
 data ShowTimesheetWageEstimates
 data StaffFilterId
+data RosterGroupFilterId
 
 data TimesheetToolbar
 data TimesheetWeekToolbar
@@ -142,7 +144,9 @@ type TimesheetScopeBundle =
          ]
         '[ 'Authorize 'CurrentVenue '[ VenueId ] ]
      , MountState TimesheetsMountState
-        '[ Field StaffFilterId ('WireOptional 'WireUUID) ]
+        '[ Field StaffFilterId ('WireOptional 'WireUUID)
+         , Field RosterGroupFilterId ('WireOptional 'WireUUID)
+         ]
      ]
 
 type TimesheetActionBundle =
@@ -150,6 +154,7 @@ type TimesheetActionBundle =
      , Action NavigateTimesheetWeek
         '[ Field WeekOffset 'WireInt
          , OptionalField StaffFilterId 'WireUUID
+         , OptionalField RosterGroupFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxGet
          , 'HtmxTarget ('HtmxId TimesheetWeekShell)
@@ -160,6 +165,7 @@ type TimesheetActionBundle =
      , Action UpdateTimesheetFilters
         '[ Field WeekOffset 'WireInt
          , OptionalField StaffFilterId 'WireUUID
+         , OptionalField RosterGroupFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxGet
          , 'HtmxTarget ('HtmxId TimesheetWeekShell)
@@ -171,6 +177,7 @@ type TimesheetActionBundle =
         '[ Field WeekOffset 'WireInt
          , Field HideApproved 'WireBool
          , OptionalField StaffFilterId 'WireUUID
+         , OptionalField RosterGroupFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
@@ -180,6 +187,7 @@ type TimesheetActionBundle =
         '[ Field WeekOffset 'WireInt
          , Field ShowTimesheetSuggestions 'WireBool
          , OptionalField StaffFilterId 'WireUUID
+         , OptionalField RosterGroupFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
@@ -189,6 +197,7 @@ type TimesheetActionBundle =
         '[ Field WeekOffset 'WireInt
          , Field ShowTimesheetWageEstimates 'WireBool
          , OptionalField StaffFilterId 'WireUUID
+         , OptionalField RosterGroupFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
@@ -197,6 +206,7 @@ type TimesheetActionBundle =
      , Action CreateTimesheetEntryFromSuggestion
         '[ Field WeekOffset 'WireInt
          , OptionalField StaffFilterId 'WireUUID
+         , OptionalField RosterGroupFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
@@ -205,6 +215,7 @@ type TimesheetActionBundle =
      , Action ApproveTimesheetEntry
         '[ Field WeekOffset 'WireInt
          , OptionalField StaffFilterId 'WireUUID
+         , OptionalField RosterGroupFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap
@@ -213,6 +224,7 @@ type TimesheetActionBundle =
      , Action UnapproveTimesheetEntry
         '[ Field WeekOffset 'WireInt
          , OptionalField StaffFilterId 'WireUUID
+         , OptionalField RosterGroupFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap 'HtmxNoSwap

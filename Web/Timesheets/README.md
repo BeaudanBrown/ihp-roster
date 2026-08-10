@@ -20,7 +20,8 @@ owns request orchestration, authorization, params, and response selection;
 Frontend contracts come from the registered Timesheets Surface and shared
 Overlay, Toggle, TimePicker, SidePanel, and linked-highlight capabilities; views
 and TypeScript must not restate them. Hide-approved and suggestion visibility are
-global user preferences; staff filtering remains canonical URL state.
+global user preferences; authorized manager staff and roster-group filtering
+remain canonical URL state.
 
 ## Related Docs
 

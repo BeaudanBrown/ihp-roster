@@ -18,74 +18,78 @@ import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action a
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldsText)
 import Application.Helper.Url (replaceQueryParams)
 import Data.Time.Calendar (Day)
-import Data.UUID (UUID)
 import Generated.Types
 import IHP.Prelude
 import IHP.Router.UrlGenerator (pathTo)
 import Web.Routes ()
+import Web.Timesheets.Filters
 import Web.Types
 
-timesheetWeekUrl :: Int -> Maybe UUID -> Text
-timesheetWeekUrl weekOffset staffFilterId =
+timesheetWeekUrl :: Int -> TimesheetViewFilters -> Text
+timesheetWeekUrl weekOffset filters =
     replaceQueryParams
         (pathTo (ShowTimesheetWeekAction weekOffset))
-        (timesheetStateQueryParams weekOffset staffFilterId)
+        (timesheetStateQueryParams weekOffset filters)
 
-timesheetWeekResetUrl :: Maybe UUID -> Text
-timesheetWeekResetUrl staffFilterId =
+timesheetWeekResetUrl :: TimesheetViewFilters -> Text
+timesheetWeekResetUrl filters =
     replaceQueryParams
         (pathTo TimesheetsAction)
-        (timesheetStateQueryParams 0 staffFilterId)
+        (timesheetStateQueryParams 0 filters)
 
-timesheetToolbarFragmentUrl :: Int -> Maybe UUID -> Text
-timesheetToolbarFragmentUrl weekOffset staffFilterId =
+timesheetToolbarFragmentUrl :: Int -> TimesheetViewFilters -> Text
+timesheetToolbarFragmentUrl weekOffset filters =
     replaceQueryParams
         (pathTo ShowtimesheetToolbarLiveFragmentAction { weekOffset })
-        (timesheetStateQueryParams weekOffset staffFilterId)
+        (timesheetStateQueryParams weekOffset filters)
 
-timesheetSidePanelFragmentUrl :: Int -> Maybe UUID -> Text
-timesheetSidePanelFragmentUrl weekOffset staffFilterId =
+timesheetSidePanelFragmentUrl :: Int -> TimesheetViewFilters -> Text
+timesheetSidePanelFragmentUrl weekOffset filters =
     replaceQueryParams
         (pathTo ShowtimesheetSidePanelContentLiveFragmentAction { weekOffset })
-        (timesheetStateQueryParams weekOffset staffFilterId)
+        (timesheetStateQueryParams weekOffset filters)
 
-timesheetDayColumnsFragmentUrl :: Int -> Maybe UUID -> Text
-timesheetDayColumnsFragmentUrl weekOffset staffFilterId =
+timesheetDayColumnsFragmentUrl :: Int -> TimesheetViewFilters -> Text
+timesheetDayColumnsFragmentUrl weekOffset filters =
     replaceQueryParams
         (pathTo ShowtimesheetDayColumnsLiveFragmentAction { weekOffset })
-        (timesheetStateQueryParams weekOffset staffFilterId)
+        (timesheetStateQueryParams weekOffset filters)
 
-timesheetDaySectionFragmentUrl :: Int -> Int -> Maybe UUID -> Text
-timesheetDaySectionFragmentUrl weekOffset dayOffset staffFilterId =
+timesheetDaySectionFragmentUrl :: Int -> Int -> TimesheetViewFilters -> Text
+timesheetDaySectionFragmentUrl weekOffset dayOffset filters =
     replaceQueryParams
         (pathTo ShowTimesheetDaySectionFragmentAction { weekOffset, dayOffset })
-        (timesheetStateQueryParams weekOffset staffFilterId)
+        (timesheetStateQueryParams weekOffset filters)
 
-newTimesheetEntryUrl :: Int -> Day -> Maybe UUID -> Text
-newTimesheetEntryUrl weekOffset workedOn staffFilterId =
+newTimesheetEntryUrl :: Int -> Day -> TimesheetViewFilters -> Text
+newTimesheetEntryUrl weekOffset workedOn filters =
     replaceQueryParams
         (pathTo NewTimesheetEntryAction)
-        (("workedOn", tshow workedOn) : timesheetStateQueryParams weekOffset staffFilterId)
+        (("workedOn", tshow workedOn) : timesheetStateQueryParams weekOffset filters)
 
-newTimesheetEntryFromSuggestionUrl :: Id RosterSlot -> Int -> Maybe UUID -> Text
-newTimesheetEntryFromSuggestionUrl rosterSlotId weekOffset staffFilterId =
+newTimesheetEntryFromSuggestionUrl :: Id RosterSlot -> Int -> TimesheetViewFilters -> Text
+newTimesheetEntryFromSuggestionUrl rosterSlotId weekOffset filters =
     replaceQueryParams
         (pathTo NewTimesheetEntryFromSuggestionAction { rosterSlotId })
-        (timesheetStateQueryParams weekOffset staffFilterId)
+        (timesheetStateQueryParams weekOffset filters)
 
-createTimesheetEntryFromSuggestionUrl :: Id RosterSlot -> Int -> Maybe UUID -> Text
-createTimesheetEntryFromSuggestionUrl rosterSlotId weekOffset staffFilterId =
+createTimesheetEntryFromSuggestionUrl :: Id RosterSlot -> Int -> TimesheetViewFilters -> Text
+createTimesheetEntryFromSuggestionUrl rosterSlotId weekOffset filters =
     replaceQueryParams
         (pathTo CreateTimesheetEntryFromSuggestionAction { rosterSlotId })
-        (timesheetStateQueryParams weekOffset staffFilterId)
+        (timesheetStateQueryParams weekOffset filters)
 
-editTimesheetEntryUrl :: Id TimesheetEntry -> Int -> Maybe UUID -> Text
-editTimesheetEntryUrl timesheetEntryId weekOffset staffFilterId =
+editTimesheetEntryUrl :: Id TimesheetEntry -> Int -> TimesheetViewFilters -> Text
+editTimesheetEntryUrl timesheetEntryId weekOffset filters =
     replaceQueryParams
         (pathTo EditTimesheetEntryAction { timesheetEntryId })
-        (timesheetStateQueryParams weekOffset staffFilterId)
+        (timesheetStateQueryParams weekOffset filters)
 
-timesheetStateQueryParams :: Int -> Maybe UUID -> [(Text, Text)]
-timesheetStateQueryParams weekOffset staffFilterId =
+timesheetStateQueryParams :: Int -> TimesheetViewFilters -> [(Text, Text)]
+timesheetStateQueryParams weekOffset filters =
     surfaceFieldsText
-        (TimesheetsAction.navigateTimesheetWeekActionFields weekOffset staffFilterId)
+        ( TimesheetsAction.navigateTimesheetWeekActionFields
+            weekOffset
+            filters.filterStaffId
+            filters.filterRosterGroupId
+        )

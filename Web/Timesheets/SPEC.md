@@ -34,14 +34,19 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
 
 - `Hide approved` and `Show suggestions` are global per-user preferences and do
   not enter Bepis-generated Timesheets URLs, fragment requests, or mutation
-  envelopes. Only the viewed week and authorized manager staff filter are URL
-  state; additional query fields are ignored rather than interpreted as
-  compatibility state. Manager staff filtering never grants authority.
+  envelopes. The viewed week and authorized manager staff and roster-group
+  filters are URL state; additional query fields are ignored rather than
+  interpreted as compatibility state. Filters never grant authority.
+  Roster-group choices contain only active current-venue groups. Selecting one
+  retains only entries linked to a source slot in that group and transient
+  suggestions from that group; ad-hoc entries have no group and appear only
+  under All roster groups.
 - Timesheets uses the shared transient SidePanel and the same main-card header,
   desktop focus/Escape behavior, and phone stacking as Roster and manager
   Unavailability. Managers receive Staff and Settings; ordinary staff receive Settings only. The manager Staff inventory
   contains every active Timesheet-eligible staff member independently of card
-  filters, and its counts exclude transient suggestions.
+  filters. Its counts exclude transient suggestions, ignore the staff card
+  filter, and reflect the selected roster group.
 - Manager row hover/focus highlights matching persisted and suggestion cards;
   pinning keeps that presentation relationship. Keyboard row activation opens
   the existing staff profile dialog. Highlight and pin state never alter URLs or
@@ -81,7 +86,8 @@ only their own; managers see their normal venue scope.
   view authorized staff estimates; supervisors and managers do not receive the
   control or amounts.
 - The week summary and each day summary aggregate only currently visible cards,
-  so staff filtering, Hide approved, and Show suggestions all change the total.
+  so staff and roster-group filtering, Hide approved, and Show suggestions all
+  change the total.
   Approved entries consume sealed immutable ledger facts; unapproved entries
   and transient suggestions use canonical draft evaluation. Failed calculations
   remain unavailable and are excluded from the clearly partial total rather
