@@ -9,6 +9,7 @@ import Data.Either (isLeft, isRight)
 import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
+import Data.Time.Calendar (fromGregorian)
 import qualified Data.Vector as Vector
 import IHP.Prelude
 import Network.HTTP.Simple (getResponseStatusCode, httpLBS)
@@ -152,6 +153,26 @@ tests =
             XeroMock.headerValue "If-Modified-Since" request `shouldBe` Just "Thu, 30 Apr 2026 01:02:03 GMT"
             XeroMock.headerValue "Xero-Tenant-Id" request `shouldBe` Just "tenant-id"
 
+        it "scopes Payroll AU v2 timesheet reads to one calendar and period" do
+            XeroMock.assertSpecOperation payrollV2Spec "/Timesheets" "get"
+            let request =
+                    buildFetchTimesheetsForPeriodRequest
+                        "access-token"
+                        "tenant-id"
+                        (Just "calendar-id")
+                        (fromGregorian 2026 5 4)
+                        (fromGregorian 2026 5 10)
+                        2
+            request.xeroRequestMethod `shouldBe` "GET"
+            request.xeroRequestUrl
+                `shouldBe` "https://api.xero.com/payroll.xro/2.0/Timesheets?filter=payrollCalendarId%3D%3Dcalendar-id&startDate=2026-05-04&endDate=2026-05-10&page=2"
+            XeroMock.headerValue "Xero-Tenant-Id" request `shouldBe` Just "tenant-id"
+            let decoded =
+                    Aeson.eitherDecode
+                        "{\"timesheets\":[{\"timesheetID\":\"timesheet-id\",\"employeeID\":\"employee-id\",\"startDate\":\"2026-05-04\",\"endDate\":\"2026-05-10\",\"status\":\"Approved\",\"totalHours\":12.5}]}" ::
+                        Either String XeroTimesheetsResponse
+            fmap (map (.xeroTimesheetHours) . unXeroTimesheetsResponse) decoded `shouldBe` Right [Just 12.5]
+
         it "constructs Payroll AU write requests with idempotency headers and documented body envelopes" do
             XeroMock.assertSpecOperation payrollSpec "/Timesheets" "post"
             XeroMock.assertSpecOperation payrollSpec "/Timesheets/{TimesheetID}" "post"
@@ -176,11 +197,11 @@ tests =
             XeroMock.jsonBody updateRequest `shouldSatisfy` XeroMock.isJsonArray
 
         it "validates every app Xero endpoint request builder against the vendored OpenAPI operations" do
-            forM_ (XeroMock.xeroRequestContractCases identitySpec payrollSpec accountingSpec earningsRatesSpec) \(spec, contract, request) ->
+            forM_ (XeroMock.xeroRequestContractCases identitySpec payrollSpec payrollV2Spec accountingSpec earningsRatesSpec) \(spec, contract, request) ->
                 XeroMock.validateXeroRequest spec contract request
 
         it "covers every concrete Xero client operation in the OpenAPI contract table" do
-            List.sort (map (XeroMock.contractName . middleOfThree) (XeroMock.xeroRequestContractCases identitySpec payrollSpec accountingSpec earningsRatesSpec))
+            List.sort (map (XeroMock.contractName . middleOfThree) (XeroMock.xeroRequestContractCases identitySpec payrollSpec payrollV2Spec accountingSpec earningsRatesSpec))
                 `shouldBe` List.sort expectedContractCaseNames
             coveredXeroClientOperationNames `shouldBe` expectedContractCaseNames
 
@@ -230,6 +251,9 @@ tests =
 
                     timesheetsResult <- client.fetchTimesheets "access-token" "tenant-id" XeroMock.sampleTimesheetQuery
                     fmap (map (.xeroTimesheetEmployeeId)) timesheetsResult `shouldBe` Right ["employee-id"]
+
+                    periodTimesheetsResult <- client.fetchTimesheetsForPeriod "access-token" "tenant-id" (Just "calendar-id") (fromGregorian 2026 5 4) (fromGregorian 2026 5 10)
+                    fmap (map (.xeroTimesheetEmployeeId)) periodTimesheetsResult `shouldBe` Right ["employee-id"]
 
                     timesheetResult <- client.fetchTimesheet "access-token" "tenant-id" "timesheet-id"
                     fmap (.xeroTimesheetEmployeeId) timesheetResult `shouldBe` Right "employee-id"
@@ -313,6 +337,7 @@ expectedContractCaseNames =
     , "payroll settings accounts"
     , "pay runs list"
     , "timesheets list"
+    , "period timesheets list"
     , "timesheet show"
     , "earnings rate create"
     , "timesheet create"

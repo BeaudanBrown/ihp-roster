@@ -36,6 +36,7 @@ module Application.Helper.Xero
     , buildFetchPayrollEmployeesRequest
     , buildFetchTimesheetRequest
     , buildFetchTimesheetsRequest
+    , buildFetchTimesheetsForPeriodRequest
     , buildRefreshXeroTokenRequest
     , buildUpdateTimesheetRequest
     , currentXeroClient
@@ -223,6 +224,7 @@ defaultXeroClient =
         , fetchPayRuns = fetchPayRunsRequest
         , createPayItem = createPayItemRequest
         , fetchTimesheets = fetchTimesheetsRequest
+        , fetchTimesheetsForPeriod = fetchTimesheetsForPeriodRequest
         , fetchTimesheet = fetchTimesheetRequest
         , createTimesheet = createTimesheetRequest
         , updateTimesheet = updateTimesheetRequest
@@ -390,6 +392,25 @@ fetchTimesheetsRequest accessToken tenantId query = do
     fmap unXeroTimesheetsResponse <$>
         sendXeroJsonRequest "Xero payroll timesheets request" (buildFetchTimesheetsRequestWith urls accessToken tenantId query)
 
+fetchTimesheetsForPeriodRequest :: Text -> Text -> Maybe Text -> Day -> Day -> IO (Either XeroClientError [XeroTimesheetRef])
+fetchTimesheetsForPeriodRequest accessToken tenantId maybeCalendarId periodStart periodEnd = do
+    urls <- currentXeroRequestBaseUrls
+    fetchPage urls 1 []
+  where
+    fetchPage urls page acc = do
+        pageResult <-
+            fmap unXeroTimesheetsResponse <$>
+                sendXeroJsonRequest
+                    "Xero payroll period timesheets request"
+                    (buildFetchTimesheetsForPeriodRequestWith urls accessToken tenantId maybeCalendarId periodStart periodEnd page)
+        case pageResult of
+            Left err -> pure (Left err)
+            Right refs ->
+                let nextAcc = acc <> refs
+                 in if length refs < 100
+                        then pure (Right nextAcc)
+                        else fetchPage urls (page + 1) nextAcc
+
 fetchTimesheetRequest :: Text -> Text -> Text -> IO (Either XeroClientError XeroTimesheetRef)
 fetchTimesheetRequest accessToken tenantId timesheetId = do
     urls <- currentXeroRequestBaseUrls
@@ -546,6 +567,23 @@ buildFetchTimesheetsRequest =
 buildFetchTimesheetsRequestWith :: XeroRequestBaseUrls -> Text -> Text -> XeroTimesheetQuery -> XeroHttpRequest
 buildFetchTimesheetsRequestWith urls accessToken tenantId query =
     buildXeroPayrollGetRequest accessToken tenantId (xeroTimesheetsUrlWith urls query) (timesheetQueryHeaders query)
+
+buildFetchTimesheetsForPeriodRequest :: Text -> Text -> Maybe Text -> Day -> Day -> Int -> XeroHttpRequest
+buildFetchTimesheetsForPeriodRequest =
+    buildFetchTimesheetsForPeriodRequestWith defaultXeroRequestBaseUrls
+
+buildFetchTimesheetsForPeriodRequestWith :: XeroRequestBaseUrls -> Text -> Text -> Maybe Text -> Day -> Day -> Int -> XeroHttpRequest
+buildFetchTimesheetsForPeriodRequestWith urls accessToken tenantId maybeCalendarId periodStart periodEnd page =
+    buildXeroPayrollGetRequest accessToken tenantId url []
+  where
+    params =
+        maybe [] (\calendarId -> [("filter", Just (TextEncoding.encodeUtf8 ("payrollCalendarId==" <> calendarId)))]) maybeCalendarId
+            <> [ ("startDate", Just (renderDay periodStart))
+               , ("endDate", Just (renderDay periodEnd))
+               , ("page", Just (TextEncoding.encodeUtf8 (tshow page)))
+               ]
+    url = urls.xeroPayrollV2BaseUrl <> "/Timesheets" <> TextEncoding.decodeUtf8 (URI.renderQuery True params)
+    renderDay = cs . TimeFormat.formatTime defaultTimeLocale "%F"
 
 buildFetchTimesheetRequest :: Text -> Text -> Text -> XeroHttpRequest
 buildFetchTimesheetRequest =

@@ -207,6 +207,7 @@ keepaliveXeroClient refreshResult =
         , fetchPayRuns = \_ _ _ -> pure (Right [])
         , createPayItem = \_ _ _ _ -> pure (Right [])
         , fetchTimesheets = \_ _ _ -> pure (Right [])
+        , fetchTimesheetsForPeriod = \_ _ _ _ _ -> pure (Right [])
         , fetchTimesheet = \_ _ _ -> pure (Left (XeroHttpError "unused"))
         , createTimesheet = \_ _ _ _ -> pure (Right [])
         , updateTimesheet = \_ _ _ _ _ -> pure (Right [])

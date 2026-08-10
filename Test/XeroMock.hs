@@ -102,8 +102,8 @@ loadXeroOpenApiSpecs = do
     payrollSpec <- loadOpenApiSpec "vendor/xero-openapi/xero-payroll-au.yaml"
     pure (identitySpec, payrollSpec)
 
-xeroRequestContractCases :: OpenApiSpec -> OpenApiSpec -> OpenApiSpec -> OpenApiSpec -> [(OpenApiSpec, XeroEndpointContract, XeroHttpRequest)]
-xeroRequestContractCases identitySpec payrollSpec accountingSpec earningsRatesSpec =
+xeroRequestContractCases :: OpenApiSpec -> OpenApiSpec -> OpenApiSpec -> OpenApiSpec -> OpenApiSpec -> [(OpenApiSpec, XeroEndpointContract, XeroHttpRequest)]
+xeroRequestContractCases identitySpec payrollSpec payrollV2Spec accountingSpec earningsRatesSpec =
     [ (identitySpec, tokenContract "token exchange" (FormRequestFields ["grant_type", "code", "redirect_uri"]), buildExchangeCodeForTokenRequest testConfig "auth-code")
     , (identitySpec, tokenContract "token refresh" (FormRequestFields ["grant_type", "refresh_token"]), buildRefreshXeroTokenRequest testConfig "refresh-token")
     , (identitySpec, identityContract "connections list" "GET" "/Connections" "/connections" NoRequestBody, buildFetchConnectedTenantsRequest "access-token")
@@ -120,6 +120,14 @@ xeroRequestContractCases identitySpec payrollSpec accountingSpec earningsRatesSp
     , ( payrollSpec
       , (payrollReadContract "timesheets list" "/Timesheets" "/Timesheets" ["where", "order", "page", "If-Modified-Since"]) { contractAllowedQueries = ["where", "order", "page"] }
       , buildFetchTimesheetsRequest "access-token" "tenant-id" sampleTimesheetQuery
+      )
+    , ( payrollV2Spec
+      , (payrollReadContract "period timesheets list" "/Timesheets" "/Timesheets" ["filter", "startDate", "endDate", "page"])
+            { contractSpecServer = Just xeroPayrollV2Server
+            , contractRequestServer = xeroPayrollV2Server
+            , contractAllowedQueries = ["filter", "startDate", "endDate", "page"]
+            }
+      , buildFetchTimesheetsForPeriodRequest "access-token" "tenant-id" (Just "calendar-id") (fromGregorian 2026 5 4) (fromGregorian 2026 5 10) 1
       )
     , (payrollSpec, payrollReadContract "timesheet show" "/Timesheets/{TimesheetID}" "/Timesheets/timesheet-id" [], buildFetchTimesheetRequest "access-token" "tenant-id" "timesheet-id")
     , (earningsRatesSpec, payrollEarningsRateCreateContract "earnings rate create" "/earningsRates", buildCreatePayItemRequest "access-token" "tenant-id" "idem-pay-items" sampleEarningsRateBody)
@@ -422,13 +430,14 @@ withStrictXeroMockBaseUrl identitySpec payrollSpec action =
 withStrictXeroMockBaseUrlWithResponses :: OpenApiSpec -> OpenApiSpec -> StrictMockResponses -> (Text -> IO a) -> IO a
 withStrictXeroMockBaseUrlWithResponses identitySpec payrollSpec responses action = do
     accountingSpec <- loadOpenApiSpec "vendor/xero-openapi/xero-accounting.yaml"
+    payrollV2Spec <- loadOpenApiSpec "vendor/xero-openapi/xero-payroll-au-v2.yaml"
     earningsRatesSpec <- loadOpenApiSpec "vendor/xero-openapi/xero-payroll-au-v2-earnings-rates.local.yaml"
     timesheetListResponseRef <- IORef.newIORef responses.strictMockTimesheetListResponses
     timesheetCreateResponseRef <- IORef.newIORef responses.strictMockTimesheetCreateResponses
     timesheetUpdateResponseRef <- IORef.newIORef responses.strictMockTimesheetUpdateResponses
     earningsRateResponseRef <- IORef.newIORef responses.strictMockEarningsRateResponses
     scriptViolationsRef <- IORef.newIORef ([] :: [Text])
-    result <- Warp.testWithApplication (pure (xeroStrictMockApp identitySpec payrollSpec accountingSpec earningsRatesSpec timesheetListResponseRef timesheetCreateResponseRef timesheetUpdateResponseRef earningsRateResponseRef scriptViolationsRef)) \port ->
+    result <- Warp.testWithApplication (pure (xeroStrictMockApp identitySpec payrollSpec payrollV2Spec accountingSpec earningsRatesSpec timesheetListResponseRef timesheetCreateResponseRef timesheetUpdateResponseRef earningsRateResponseRef scriptViolationsRef)) \port ->
         action ("http://127.0.0.1:" <> tshow port)
     assertTimesheetScriptConsumed "list" timesheetListResponseRef
     assertTimesheetScriptConsumed "create" timesheetCreateResponseRef
@@ -564,8 +573,8 @@ payItemsPageRate index =
         , "IsActive" Aeson..= True
         ]
 
-xeroStrictMockApp :: OpenApiSpec -> OpenApiSpec -> OpenApiSpec -> OpenApiSpec -> IORef.IORef (Maybe [Wai.Response]) -> IORef.IORef (Maybe [Wai.Response]) -> IORef.IORef (Maybe [Wai.Response]) -> IORef.IORef [Wai.Response] -> IORef.IORef [Text] -> Wai.Application
-xeroStrictMockApp identitySpec payrollSpec accountingSpec earningsRatesSpec timesheetListResponseRef timesheetCreateResponseRef timesheetUpdateResponseRef earningsRateResponseRef scriptViolationsRef request respond = do
+xeroStrictMockApp :: OpenApiSpec -> OpenApiSpec -> OpenApiSpec -> OpenApiSpec -> OpenApiSpec -> IORef.IORef (Maybe [Wai.Response]) -> IORef.IORef (Maybe [Wai.Response]) -> IORef.IORef (Maybe [Wai.Response]) -> IORef.IORef [Wai.Response] -> IORef.IORef [Text] -> Wai.Application
+xeroStrictMockApp identitySpec payrollSpec payrollV2Spec accountingSpec earningsRatesSpec timesheetListResponseRef timesheetCreateResponseRef timesheetUpdateResponseRef earningsRateResponseRef scriptViolationsRef request respond = do
     body <- Wai.strictRequestBody request
     let baseUrl = requestBaseUrl request
     let mockRequest = waiToXeroHttpRequest baseUrl request body
@@ -604,6 +613,17 @@ xeroStrictMockApp identitySpec payrollSpec accountingSpec earningsRatesSpec time
                     | method == methodGet -> pure (Just (accountingSpec, (accountingReadContract "mock accounts list" "/Accounts" "/Accounts") { contractRequestServer = baseUrl <> "/api.xro/2.0" }, jsonResponse status200 accountsFixture))
                 (method, "/payroll.xro/1.0/PayRuns")
                     | method == methodGet -> pure (Just (payrollSpec, (mockPayrollReadContract baseUrl "mock pay runs list" "/PayRuns" "/PayRuns" ["where", "order", "page", "If-Modified-Since"]) { contractAllowedQueries = ["where", "order", "page"] }, jsonResponse status200 payRunsFixture))
+                (method, "/payroll.xro/2.0/Timesheets")
+                    | method == methodGet -> do
+                        dynamicTimesheetsFixture <- currentPeriodTimesheetsFixture
+                        response <- nextTimesheetResponse "list" timesheetListResponseRef (jsonResponse status200 dynamicTimesheetsFixture)
+                        let contract =
+                                (payrollReadContract "mock period timesheets list" "/Timesheets" "/Timesheets" ["filter", "startDate", "endDate", "page"])
+                                    { contractSpecServer = Just xeroPayrollV2Server
+                                    , contractRequestServer = baseUrl <> "/payroll.xro/2.0"
+                                    , contractAllowedQueries = ["filter", "startDate", "endDate", "page"]
+                                    }
+                        pure (Just (payrollV2Spec, contract, response))
                 (method, "/payroll.xro/1.0/Timesheets")
                     | method == methodGet -> do
                         dynamicTimesheetsFixture <- currentPeriodTimesheetsFixture

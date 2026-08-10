@@ -235,7 +235,7 @@ instance Aeson.FromJSON XeroTimesheetRef where
             <*> requiredDay object ["StartDate", "startDate"]
             <*> requiredDay object ["EndDate", "endDate"]
             <*> optionalText object ["Status", "status"]
-            <*> optionalScientific object ["Hours", "hours"]
+            <*> optionalScientific object ["Hours", "hours", "TotalHours", "totalHours"]
             <*> optionalTimesheetLines object
             <*> pure value
     parseJSON _ = fail "Expected Xero timesheet object"
@@ -309,6 +309,7 @@ data XeroClient = XeroClient
     , fetchPayRuns :: Text -> Text -> XeroPayRunQuery -> IO (Either XeroClientError [XeroPayRunRef])
     , createPayItem :: Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroEarningsRateRef])
     , fetchTimesheets :: Text -> Text -> XeroTimesheetQuery -> IO (Either XeroClientError [XeroTimesheetRef])
+    , fetchTimesheetsForPeriod :: Text -> Text -> Maybe Text -> Day -> Day -> IO (Either XeroClientError [XeroTimesheetRef])
     , fetchTimesheet :: Text -> Text -> Text -> IO (Either XeroClientError XeroTimesheetRef)
     , createTimesheet :: Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroTimesheetRef])
     , updateTimesheet :: Text -> Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroTimesheetRef])
@@ -374,7 +375,11 @@ instance Aeson.FromJSON XeroPayRunsResponse where
 newtype XeroTimesheetsResponse = XeroTimesheetsResponse { unXeroTimesheetsResponse :: [XeroTimesheetRef] }
 
 instance Aeson.FromJSON XeroTimesheetsResponse where
-    parseJSON = parseXeroListResponse XeroTimesheetsResponse "Timesheets"
+    parseJSON value@(Aeson.Object object) =
+        case firstPresent object ["Timesheets", "timesheets"] of
+            Just timesheetsValue -> XeroTimesheetsResponse <$> Aeson.parseJSON timesheetsValue
+            Nothing             -> parseXeroListResponse XeroTimesheetsResponse "Timesheets" value
+    parseJSON value = parseXeroListResponse XeroTimesheetsResponse "Timesheets" value
 
 newtype XeroTimesheetObjectResponse = XeroTimesheetObjectResponse { unXeroTimesheetObjectResponse :: XeroTimesheetRef }
 

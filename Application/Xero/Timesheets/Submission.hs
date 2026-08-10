@@ -32,6 +32,7 @@ import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.Bifunctor as Bifunctor
 import qualified Data.List as List
 import qualified Data.Text as Text
+import Data.Time.Calendar (Day)
 import Data.Time.Clock (UTCTime)
 import qualified Data.Vector as Vector
 import Generated.Types
@@ -152,9 +153,15 @@ withFreshRemoteTimesheets request action =
                         Left message -> pure (Left message)
                         Right (refreshedConnection, accessToken) -> do
                             xeroClient <- currentXeroClient
-                            fetchRemoteTimesheetsForDuplicateCheck xeroClient accessToken refreshedConnection.tenantId >>= \case
-                                Left message -> pure (Left message)
-                                Right remoteTimesheets -> action xeroClient accessToken refreshedConnection remoteTimesheets
+                            fetchRemoteTimesheetsForDuplicateCheck
+                                xeroClient
+                                accessToken
+                                refreshedConnection.tenantId
+                                request.readinessPayrollCalendarId
+                                request.readinessPeriodStart
+                                request.readinessPeriodEnd >>= \case
+                                    Left message -> pure (Left message)
+                                    Right remoteTimesheets -> action xeroClient accessToken refreshedConnection remoteTimesheets
 
 buildFreshSubmissionPlan ::
     (?modelContext :: ModelContext) =>
@@ -213,41 +220,47 @@ retryExistingSubmission submission = do
                 Left message -> pure (Left message)
                 Right (refreshedConnection, accessToken) -> do
                     xeroClient <- currentXeroClient
-                    fetchRemoteTimesheetsForDuplicateCheck xeroClient accessToken refreshedConnection.tenantId >>= \case
-                        Left message -> pure (Left message)
-                        Right remoteTimesheets -> do
-                            let readinessRequest =
-                                    XeroTimesheetReadinessRequest
-                                        { readinessVenueId = Id run.venueId
-                                        , readinessPayrollCalendarId = run.selectedPayrollCalendarId
-                                        , readinessPayrollCalendarName = run.selectedPayrollCalendarName
-                                        , readinessSelectedPeriodKey = run.selectedPeriodKey
-                                        , readinessPeriodStart = run.payPeriodStart
-                                        , readinessPeriodEnd = run.payPeriodEnd
-                                        , readinessPaymentDate = run.paymentDate
-                                        , readinessXeroPayRunId = run.xeroPayRunId
-                                        , readinessXeroPayRunStatus = run.xeroPayRunStatus
-                                        , readinessRemoteTimesheets = remoteTimesheets
-                                        , readinessSkippedStaffIds = []
-                                        }
-                                duplicateSnapshot = duplicateCheckSnapshotJson remoteTimesheets
-                            readiness <- validateXeroTimesheetReadiness readinessRequest
-                            sourceEntries <- fetchRetrySubmissionSourceEntries submission
-                            let scopedReadiness = scopeRetryReadinessToEntries sourceEntries readiness
-                            _ <-
-                                run
-                                    |> set #readinessSnapshotJson (xeroReadinessSnapshotJson scopedReadiness)
-                                    |> set #xeroDuplicateCheckJson duplicateSnapshot
-                                    |> updateRecord
-                            retrySourceCheck <- enforceRetrySubmissionSources sourceEntries
-                            updatedSubmission <-
-                                if not scopedReadiness.xeroTimesheetReady
-                                    then markSubmissionBlocked submission (blockedReadinessSummary scopedReadiness)
-                                    else case retrySourceCheck of
-                                        Left message -> markSubmissionBlocked submission message
-                                        Right () -> retrySubmissionAfterReconciliation xeroClient accessToken refreshedConnection submission remoteTimesheets
-                            refreshRunStatus run
-                            pure (Right updatedSubmission)
+                    fetchRemoteTimesheetsForDuplicateCheck
+                        xeroClient
+                        accessToken
+                        refreshedConnection.tenantId
+                        run.selectedPayrollCalendarId
+                        run.payPeriodStart
+                        run.payPeriodEnd >>= \case
+                            Left message -> pure (Left message)
+                            Right remoteTimesheets -> do
+                                let readinessRequest =
+                                        XeroTimesheetReadinessRequest
+                                            { readinessVenueId = Id run.venueId
+                                            , readinessPayrollCalendarId = run.selectedPayrollCalendarId
+                                            , readinessPayrollCalendarName = run.selectedPayrollCalendarName
+                                            , readinessSelectedPeriodKey = run.selectedPeriodKey
+                                            , readinessPeriodStart = run.payPeriodStart
+                                            , readinessPeriodEnd = run.payPeriodEnd
+                                            , readinessPaymentDate = run.paymentDate
+                                            , readinessXeroPayRunId = run.xeroPayRunId
+                                            , readinessXeroPayRunStatus = run.xeroPayRunStatus
+                                            , readinessRemoteTimesheets = remoteTimesheets
+                                            , readinessSkippedStaffIds = []
+                                            }
+                                    duplicateSnapshot = duplicateCheckSnapshotJson remoteTimesheets
+                                readiness <- validateXeroTimesheetReadiness readinessRequest
+                                sourceEntries <- fetchRetrySubmissionSourceEntries submission
+                                let scopedReadiness = scopeRetryReadinessToEntries sourceEntries readiness
+                                _ <-
+                                    run
+                                        |> set #readinessSnapshotJson (xeroReadinessSnapshotJson scopedReadiness)
+                                        |> set #xeroDuplicateCheckJson duplicateSnapshot
+                                        |> updateRecord
+                                retrySourceCheck <- enforceRetrySubmissionSources sourceEntries
+                                updatedSubmission <-
+                                    if not scopedReadiness.xeroTimesheetReady
+                                        then markSubmissionBlocked submission (blockedReadinessSummary scopedReadiness)
+                                        else case retrySourceCheck of
+                                            Left message -> markSubmissionBlocked submission message
+                                            Right () -> retrySubmissionAfterReconciliation xeroClient accessToken refreshedConnection submission remoteTimesheets
+                                refreshRunStatus run
+                                pure (Right updatedSubmission)
 
 retrySubmissionAfterReconciliation ::
     (?modelContext :: ModelContext) =>
@@ -491,24 +504,31 @@ recoverAfterProviderResponse ::
     UTCTime ->
     XeroClientError ->
     IO XeroTimesheetSubmission
-recoverAfterProviderResponse remainingRecoveries xeroClient accessToken connection submission operation now writeError =
-    fetchRemoteTimesheetsForDuplicateCheckResult xeroClient accessToken connection.tenantId >>= \case
-        Left fetchError ->
-            markSubmissionFailed
-                submission
-                now
-                (xeroClientErrorText writeError <> " Reconciliation fetch failed: " <> xeroClientErrorText fetchError)
-        Right remoteTimesheets ->
-            recoverFromReconciliation
-                remainingRecoveries
-                xeroClient
-                accessToken
-                connection
-                submission
-                operation
-                now
-                writeError
-                (reconcileSubmissionRemoteState submission remoteTimesheets)
+recoverAfterProviderResponse remainingRecoveries xeroClient accessToken connection submission operation now writeError = do
+    run <- fetch (Id submission.xeroSubmissionRunId :: Id XeroSubmissionRun)
+    fetchRemoteTimesheetsForDuplicateCheckResult
+        xeroClient
+        accessToken
+        connection.tenantId
+        run.selectedPayrollCalendarId
+        submission.payPeriodStart
+        submission.payPeriodEnd >>= \case
+            Left fetchError ->
+                markSubmissionFailed
+                    submission
+                    now
+                    (xeroClientErrorText writeError <> " Reconciliation fetch failed: " <> xeroClientErrorText fetchError)
+            Right remoteTimesheets ->
+                recoverFromReconciliation
+                    remainingRecoveries
+                    xeroClient
+                    accessToken
+                    connection
+                    submission
+                    operation
+                    now
+                    writeError
+                    (reconcileSubmissionRemoteState submission remoteTimesheets)
 
 recoverFromReconciliation ::
     (?modelContext :: ModelContext) =>
@@ -694,30 +714,14 @@ blockedReadinessSummary readiness =
         |> List.nub
         |> Text.intercalate "\n"
 
-fetchRemoteTimesheetsForDuplicateCheck :: XeroClient -> Text -> Text -> IO (Either Text [XeroTimesheetRef])
-fetchRemoteTimesheetsForDuplicateCheck xeroClient accessToken tenantId =
-    fetchRemoteTimesheetsForDuplicateCheckResult xeroClient accessToken tenantId
+fetchRemoteTimesheetsForDuplicateCheck :: XeroClient -> Text -> Text -> Maybe Text -> Day -> Day -> IO (Either Text [XeroTimesheetRef])
+fetchRemoteTimesheetsForDuplicateCheck xeroClient accessToken tenantId maybeCalendarId periodStart periodEnd =
+    fetchRemoteTimesheetsForDuplicateCheckResult xeroClient accessToken tenantId maybeCalendarId periodStart periodEnd
         |> fmap (Bifunctor.first (("Xero duplicate check failed: " <>) . xeroClientErrorText))
 
-fetchRemoteTimesheetsForDuplicateCheckResult :: XeroClient -> Text -> Text -> IO (Either XeroClientError [XeroTimesheetRef])
-fetchRemoteTimesheetsForDuplicateCheckResult xeroClient accessToken tenantId =
-    fetchPage 1 []
-  where
-    fetchPage page acc = do
-        let query =
-                XeroTimesheetQuery
-                    { xeroTimesheetIfModifiedSince = Nothing
-                    , xeroTimesheetWhere = Just "EmployeeID!=Guid(\"00000000-0000-0000-0000-000000000000\")"
-                    , xeroTimesheetOrder = Just "StartDate DESC"
-                    , xeroTimesheetPage = Just page
-                    }
-        fetchTimesheets xeroClient accessToken tenantId query >>= \case
-            Left err -> pure (Left err)
-            Right refs ->
-                let nextAcc = acc <> refs
-                 in if length refs < 100
-                        then pure (Right nextAcc)
-                        else fetchPage (page + 1) nextAcc
+fetchRemoteTimesheetsForDuplicateCheckResult :: XeroClient -> Text -> Text -> Maybe Text -> Day -> Day -> IO (Either XeroClientError [XeroTimesheetRef])
+fetchRemoteTimesheetsForDuplicateCheckResult xeroClient accessToken tenantId maybeCalendarId periodStart periodEnd =
+    fetchTimesheetsForPeriod xeroClient accessToken tenantId maybeCalendarId periodStart periodEnd
 
 duplicateCheckSnapshotJson :: [XeroTimesheetRef] -> Aeson.Value
 duplicateCheckSnapshotJson refs =
