@@ -236,7 +236,7 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams CreateRosterWeekAction (rosterMutationParams 0)
 
-                response `responseStatusShouldBe` status200
+                response `responseStatusShouldBe` status409
                 lookup "HX-Refresh" (responseHeaders response) `shouldBe` Just "true"
                 response `responseBodyShouldContain` "The roster calendar changed. Review the refreshed window and try again."
                 query @RosterDay |> filterWhere (#venueId, unpackId venue.id) |> fetchCount >>= (`shouldBe` 0)
@@ -1000,7 +1000,7 @@ tests = aroundAll withDatabaseTestContext do
                             , ("shiftTypeId", idToParam shiftType.id)
                             ]
 
-                response `responseStatusShouldBe` status200
+                response `responseStatusShouldBe` status409
                 lookup "HX-Refresh" (responseHeaders response) `shouldBe` Just "true"
                 response `responseBodyShouldContain` "The roster calendar changed. Review the refreshed window and try again."
                 query @RosterSlot |> fetchCount >>= (`shouldBe` 0)

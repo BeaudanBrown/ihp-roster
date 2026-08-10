@@ -71,7 +71,7 @@ import Data.Time (getCurrentTime, utctDay)
 import qualified Data.Time.Calendar as Calendar
 import Data.Time.LocalTime (TimeOfDay)
 import qualified Data.UUID as UUID
-import Network.HTTP.Types.Status (status400)
+import Network.HTTP.Types.Status (status400, status409)
 import qualified Network.Wai as Wai
 import qualified Text.Blaze.Html as Blaze
 import qualified Text.Read as TextRead
@@ -1183,8 +1183,13 @@ requireRosterSlotMutationContext rosterWeek = do
 requireCurrentRosterCalendarRevision :: (?context :: ControllerContext, ?request :: Request) => VenueConfig -> Int -> IO ()
 requireCurrentRosterCalendarRevision venueConfig expectedRevision =
     when (expectedRevision /= venueConfig.rosterCalendarRevision) do
-        setHeader ("HX-Refresh", "true")
-        setErrorMessage "The roster calendar changed. Review the refreshed window and try again."
+        respondAndExit
+            ( Wai.responseLBS
+                status409
+                [("Content-Type", "text/plain"), ("HX-Refresh", "true")]
+                "The roster calendar changed. Review the refreshed window and try again."
+            )
+        error "unreachable"
 
 rosterShiftDialogSubmissionFromRequest :: (?context :: ControllerContext, ?request :: Request) => RosterShiftDialogSubmission
 rosterShiftDialogSubmissionFromRequest =
