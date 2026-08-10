@@ -12,6 +12,7 @@ module Web.RosterWeeks.DirectReadModel
     , buildSlotConflictsForSlotsDirect
     , fetchRosterBaseFactsDirect
     , fetchRosterBaseFactsForWeekDirect
+    , fetchRosterNotificationWindowDays
     , fetchRosterStaffPanelEntriesDirect
     ) where
 
@@ -32,6 +33,16 @@ import Web.RosterWeeks.DateRange
 import Web.RosterWeeks.Rows
 import Web.RosterWeeks.StaffOptions
 import Web.RosterWeeks.Types
+
+fetchRosterNotificationWindowDays :: (?modelContext :: ModelContext) => Id Venue -> Id RosterGroup -> Day -> Day -> IO [RosterDay]
+fetchRosterNotificationWindowDays venueId rosterGroupId windowStart windowEnd =
+    query @RosterDay
+        |> filterWhere (#venueId, unpackId venueId)
+        |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
+        |> filterWhereGreaterThanOrEqualTo (#operationalDate, windowStart)
+        |> filterWhereLessThan (#operationalDate, windowEnd)
+        |> orderByAsc #operationalDate
+        |> fetch
 
 -- Database-near base facts for roster read-model rendering. These reads are
 -- request-local and do not use a cross-request HTML/read-model cache.

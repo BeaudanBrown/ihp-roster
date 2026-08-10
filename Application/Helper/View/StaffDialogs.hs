@@ -23,7 +23,7 @@ renderStaffAddTrialPageModalWithButtons = renderStaffPageModalWithTitle "Add Tri
 renderStaffPageModalWithTitle :: Text -> Int -> [OverlayButton] -> Html -> Html
 renderStaffPageModalWithTitle title weekOffset buttons formContent =
     renderPageDialogModal
-        (pathTo (ShowRosterWeekAction weekOffset))
+        (pathTo RosterWeeksAction)
         DialogOverlayConfig
             { dialogOverlayTitle = title
             , dialogOverlayBody = formContent

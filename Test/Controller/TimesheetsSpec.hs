@@ -138,20 +138,6 @@ tests = aroundAll withDatabaseTestContext do
                 lookup "Location" (responseHeaders unauthorizedFilterResponse)
                     `shouldBe` Just "http://localhost/ShowTimesheetWindow?anchorDate=2025-02-03"
 
-        it "redirects retained Timesheet offset bookmarks to an ISO anchor date" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Legacy Timesheet Offset Venue"
-                user <- createUserRecord "legacy-timesheet-offset@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user Worker
-                _ <- createStaffRecord venue (Just user) "Legacy" "Timesheet"
-
-                response <- withUserAndCurrentVenue user venue.id do
-                    callAction ShowTimesheetWeekAction { weekOffset = 4 }
-
-                response `responseStatusShouldBe` status302
-                lookup "Location" (responseHeaders response)
-                    `shouldBe` Just "http://localhost/ShowTimesheetWindow?anchorDate=2025-02-03"
-
         it "ignores additional query fields instead of treating them as Timesheets state" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Query Authority Venue"

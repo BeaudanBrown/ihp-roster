@@ -149,11 +149,6 @@ instance Controller TimesheetsController where
             then redirectToPath (timesheetWindowUrl anchorDate selectedStaffFilterId)
             else renderTimesheetWeekPage weekOffset selectedStaffFilterId
 
-    action currentAction@ShowTimesheetWeekAction { weekOffset } = runBepis currentAction BepisPageAction do
-        venueConfig <- fetchVenueConfig
-        let calendarRevision = venueConfig.rosterCalendarRevision
-        redirectToPath (timesheetWindowUrl (venueWeekStartDate venueConfig weekOffset) timesheetStaffFilterFromRequest)
-
     action currentAction@ShowtimesheetToolbarLiveFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
         weekOffset <- timesheetWeekOffsetForAnchor anchorDate

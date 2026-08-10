@@ -298,7 +298,7 @@ rsaReturnPath =
         RsaReturnContext { rsaReturnTo = "admin" } -> pathTo AdminAction <> "#compliance"
         RsaReturnContext { rsaReturnTo = "staff", rsaReturnWeekOffset, rsaReturnRosterGroupId } ->
             appendQueryParams
-                (pathTo ShowRosterWeekAction { weekOffset = fromMaybe 0 rsaReturnWeekOffset })
+                (pathTo RosterWeeksAction)
                 (maybe [] (\rosterGroupId -> [("rosterGroupId", tshow rosterGroupId)]) rsaReturnRosterGroupId)
         _ -> pathTo EditProfileAction
 

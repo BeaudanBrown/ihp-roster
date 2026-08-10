@@ -67,11 +67,12 @@ instance View ReferenceView where
                 (rosterTemplateScaleValue templateScale)
 
 renderReferenceContent :: ReferenceView -> Html
-renderReferenceContent view@ReferenceView { referenceWeek = RosterTemplateReferenceWeek { referenceRosterWeek = Nothing } } = [hsx|
-    <div class="alert alert-secondary mb-0">No live or draft roster exists for this week.</div>
-|]
+renderReferenceContent view@ReferenceView { referenceWeek = RosterTemplateReferenceWeek { .. } }
+    | null referenceRosterDays = [hsx|
+        <div class="alert alert-secondary mb-0">No live or draft roster exists for this window.</div>
+    |]
 renderReferenceContent view@ReferenceView { referenceWeek = RosterTemplateReferenceWeek { .. }, templateScale = Week }
-    | map (.dayOffset) referenceRosterDays /= [0 .. 6] = [hsx|
+    | map (.operationalDate) referenceRosterDays /= map (`addDays` referenceWeekStart) [0 .. 6] = [hsx|
         <div class="alert alert-secondary mb-0">This roster week is incomplete and cannot be used as a Week template reference.</div>
     |]
     | otherwise = [hsx|
@@ -82,7 +83,7 @@ renderReferenceContent view@ReferenceView { referenceWeek = RosterTemplateRefere
             <button type="submit" class="btn p-0 text-start w-100 roster-template-reference-button" aria-label="Use this week as template reference">
                 <span class="d-block p-4">
                     <strong>Week of {formatDate referenceWeekStart}</strong>
-                    <span class="d-block text-muted mt-1">{length referenceRosterSlots} shifts · {visibilityLabel referenceRosterWeek}</span>
+                    <span class="d-block text-muted mt-1">{length referenceRosterSlots} shifts · {visibilityLabel referenceRosterDays}</span>
                 </span>
             </button>
         </form>
@@ -94,7 +95,7 @@ renderReferenceContent view@ReferenceView { referenceWeek = RosterTemplateRefere
 |]
   where
     renderDay rosterDay =
-        let date = addDays (toInteger rosterDay.dayOffset) referenceWeekStart
+        let date = rosterDay.operationalDate
             label :: Text
             label = cs (formatTime defaultTimeLocale "%A" date)
             shiftCount = length (filter (\slot -> slot.rosterDayId == unpackId rosterDay.id) referenceRosterSlots)
@@ -128,10 +129,9 @@ renderDayOffsetInput :: Int -> Html
 renderDayOffsetInput dayOffset = [hsx|<input type="hidden" name="dayOffset" value={tshow dayOffset} />|]
 
 
-visibilityLabel :: Maybe RosterWeek -> Text
-visibilityLabel Nothing = "Unavailable"
-visibilityLabel (Just rosterWeek)
-    | rosterWeek.isLive = "Published roster"
+visibilityLabel :: [RosterDay] -> Text
+visibilityLabel rosterDays
+    | all ((== Published) . (.publicationState)) rosterDays = "Published roster"
     | otherwise = "Draft roster"
 
 formatDate :: Day -> Text

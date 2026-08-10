@@ -147,11 +147,11 @@ tests = aroundAll withDatabaseTestContext do
                 let actor = rosterTemplateActor owner venue True
                 _ <- shiftType |> set #isActive False |> updateRecord
 
-                staleType <- startRosterTemplateDraftFromReference actor rosterGroup "Stale type" (RosterTemplateDayReference sourceWeek.id 0)
+                staleType <- startRosterTemplateDraftFromReference actor rosterGroup "Stale type" (RosterTemplateDayReference sourceDay.operationalDate)
                 noTypeDraft <- fetchPrivateRosterTemplateDraft actor
                 _ <- shiftType |> set #isActive True |> updateRecord
                 _ <- staff |> set #isActive False |> updateRecord
-                staleStaff <- startRosterTemplateDraftFromReference actor rosterGroup "Stale staff" (RosterTemplateDayReference sourceWeek.id 0)
+                staleStaff <- startRosterTemplateDraftFromReference actor rosterGroup "Stale staff" (RosterTemplateDayReference sourceDay.operationalDate)
                 noStaffDraft <- fetchPrivateRosterTemplateDraft actor
 
                 staleType `shouldBe` Left (RosterTemplateInvalidShiftTypes [shiftType.id])
@@ -184,7 +184,7 @@ tests = aroundAll withDatabaseTestContext do
                         threadDelay 200000
                 let createAfterArchiveStarts = do
                         takeMVar archiveStarted
-                        startRosterTemplateDraftFromReference actor rosterGroup "Concurrent reference" (RosterTemplateDayReference sourceWeek.id 0)
+                        startRosterTemplateDraftFromReference actor rosterGroup "Concurrent reference" (RosterTemplateDayReference sourceDay.operationalDate)
 
                 (_, result) <- concurrently archiveReference createAfterArchiveStarts
                 persisted <- fetchPrivateRosterTemplateDraft actor
@@ -202,7 +202,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- forM sourceDays (\day -> day |> set #rowCount (day.dayOffset + 1) |> set #isClosed (day.dayOffset == 6) |> updateRecord)
                 let actor = rosterTemplateActor owner venue True
 
-                result <- startRosterTemplateDraftFromReference actor rosterGroup "Reference week" (RosterTemplateWeekReference sourceWeek.id)
+                result <- startRosterTemplateDraftFromReference actor rosterGroup "Reference week" (RosterTemplateWeekReference (sourceDays !! 0).operationalDate (addDays 1 (sourceDays !! 6).operationalDate))
 
                 let Right draft = result
                 map (.dayIndex) draft.draftDays `shouldBe` [0 .. 6]
@@ -250,10 +250,10 @@ tests = aroundAll withDatabaseTestContext do
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 owner <- createUserRecord "designer-single-replacement@example.com" "staff" True
                 sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 False
-                _ <- createRosterDayRecord sourceWeek 0
+                sourceDay <- createRosterDayRecord sourceWeek 0
                 let actor = rosterTemplateActor owner venue True
                 Right existing <- startBlankRosterTemplateDesignerDraft actor rosterGroup Day "Existing"
-                let reference = RosterTemplateDayReference sourceWeek.id 0
+                let reference = RosterTemplateDayReference sourceDay.operationalDate
                 Just sourceRevision <- fetchRosterTemplateReferenceRevision rosterGroup reference
 
                 let confirmedDraftRevision = rosterTemplateDraftRevision existing
@@ -273,22 +273,35 @@ tests = aroundAll withDatabaseTestContext do
                 owner <- createUserRecord "designer-reference@example.com" "staff" True
                 staff <- createStaffRecord venue Nothing "Reference" "Worker"
                 slotName <- fetchSlotNameRecordForRosterGroup rosterGroup "Early"
-                sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 True
-                sourceDay <- createRosterDayRecord sourceWeek 2
-                _ <- sourceDay |> set #rowCount 2 |> updateRecord
-                sourceSlot <- createCompleteRosterSlotRecord sourceDay slotName staff 1
-                    >>= updateRecord
-                        . setTestRosterSlotBoundaries
-                            (addDays 2 (venueWeekStartDate venueConfig 0))
-                            (TimeOfDay 9 0 0)
-                            (TimeOfDay 17 0 0)
+                shiftType <- ensureVenueDefaultShiftType venue
+                sourceDay <- createNativeRosterDayRecord venue rosterGroup (addDays 2 (venueWeekStartDate venueConfig 0)) 2
+                _ <- sourceDay |> set #publicationState Published |> set #rowCount 2 |> updateRecord
+                sourceLane <- newRecord @RosterLane
+                    |> set #rosterDayId (unpackId sourceDay.id)
+                    |> set #legacyRosterWeekSlotDefinitionId Nothing
+                    |> set #name slotName.name
+                    |> set #sortOrder 0
+                    |> createRecord
+                sourceSlot <- newRecord @RosterSlot
+                    |> set #rosterDayId (unpackId sourceDay.id)
+                    |> set #rosterLaneId (unpackId sourceLane.id)
+                    |> set #rosterWeekSlotDefinitionId Nothing
+                    |> set #assignmentState "staff"
+                    |> set #staffId (Just (unpackId staff.id))
+                    |> set #rowIndex 1
+                    |> set #shiftTypeId (Just (unpackId shiftType.id))
+                    |> setTestRosterSlotBoundaries
+                        (addDays 2 (venueWeekStartDate venueConfig 0))
+                        (TimeOfDay 9 0 0)
+                        (TimeOfDay 17 0 0)
+                    |> createRecord
                 let actor = rosterTemplateActor owner venue True
 
                 result <- startRosterTemplateDraftFromReference
                     actor
                     rosterGroup
                     "Reference day"
-                    (RosterTemplateDayReference sourceWeek.id 2)
+                    (RosterTemplateDayReference sourceDay.operationalDate)
                 persistedSource <- fetch sourceSlot.id
 
                 let Right draft = result

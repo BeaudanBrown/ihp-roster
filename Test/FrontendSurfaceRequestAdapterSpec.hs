@@ -385,6 +385,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
             ]
             `shouldBe` List.sort
                 [ ("timesheets", "navigate-timesheet-week")
+                , ("roster", "navigate-roster-week")
                 , ("timesheets", "update-timesheet-filters")
                 , ("roster", "sort-roster-week")
                 , ("roster", "create-roster-week-slot-definition")

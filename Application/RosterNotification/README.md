@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This subsystem emails one explicitly selected Published roster-group window. It owns the
+This subsystem emails one explicitly selected Published roster-group `[start,end)` window. It owns the
 immutable communication snapshot, recipient selection, durable domain reference,
 and per-recipient mail projection. Roster UI and authorization remain under
 `Web/RosterWeeks/`; transport and terminal outcomes belong to
@@ -23,8 +23,8 @@ and per-recipient mail projection. Roster UI and authorization remain under
 ## Run And Delivery Contract
 
 A run is created only for a Published roster window with at least one eligible linked,
-active group staff member. Creation locks the roster week, rejects any active
-notification delivery for that week, and captures the roster, recipients, and
+active group staff member. Creation locks the explicit dated days, lanes, and shifts,
+rejects any active notification delivery for that date window, and captures the roster, recipients, and
 skipped recipients in one transaction. One permanently deduplicated
 `email_delivery` envelope is queued per recipient. `roster_notification_runs` is
 an immutable retained communication record; later roster edits and returning the
@@ -41,7 +41,8 @@ Provider exceptions are rethrown to the shared ten-attempt worker lifecycle.
 Success and disabled delivery use the shared bounded results and invalidate the
 roster notification status resource. UI summaries aggregate the related shared
 job states; they do not expose provider errors or provide per-recipient retry
-controls.
+controls. Legacy roster-week ID and offset columns are nullable provenance for
+retained runs, never notification routing authority.
 
 Migration `1788001800.sql` marks only active legacy
 `roster_notification_delivery` jobs succeeded with the audible

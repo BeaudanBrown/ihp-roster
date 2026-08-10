@@ -24,14 +24,6 @@ exportWeekSelectionForAnchor anchorDate = do
     venueConfig <- fetchVenueConfig
     pure (exportWeekSelection venueConfig (venueWeekOffsetForDay venueConfig anchorDate))
 
-exportWeekSelectionForOffset ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    Int ->
-    IO ReportWeekSelection
-exportWeekSelectionForOffset weekOffset = do
-    venueConfig <- fetchVenueConfig
-    pure (exportWeekSelection venueConfig weekOffset)
-
 exportWeekSelection :: VenueConfig -> Int -> ReportWeekSelection
 exportWeekSelection venueConfig weekOffset =
     ReportWeekSelection

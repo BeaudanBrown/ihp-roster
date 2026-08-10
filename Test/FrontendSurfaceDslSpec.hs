@@ -1041,7 +1041,7 @@ tests = describe "FrontendSurface DSL foundation" do
                 , weekOverviewHoursDisplay = "30h"
                 , weekOverviewSummaryText = "2 unavailable periods, 5 shifts assigned, 30h rostered."
                 , weekOverviewWeekLabel = "In Week of 6 Jan"
-                , weekOverviewNavigationUrl = "/ShowRosterWeek?weekOffset=0&weekDate=2025-01-06"
+                , weekOverviewNavigationUrl = "/ShowRosterWindow?anchorDate=2025-01-06"
                 , weekOverviewAvailability = RosterWeekOverviewLoaded
                 , weekOverviewClosure = RosterWeekOverviewClosed
                 }
@@ -1060,7 +1060,7 @@ tests = describe "FrontendSurface DSL foundation" do
                     , "weekOverviewHoursDisplay" Aeson..= ("30h" :: Text)
                     , "weekOverviewSummaryText" Aeson..= ("2 unavailable periods, 5 shifts assigned, 30h rostered." :: Text)
                     , "weekOverviewWeekLabel" Aeson..= ("In Week of 6 Jan" :: Text)
-                    , "weekOverviewNavigationUrl" Aeson..= ("/ShowRosterWeek?weekOffset=0&weekDate=2025-01-06" :: Text)
+                    , "weekOverviewNavigationUrl" Aeson..= ("/ShowRosterWindow?anchorDate=2025-01-06" :: Text)
                     , "weekOverviewAvailability" Aeson..= ("loaded" :: Text)
                     , "weekOverviewClosure" Aeson..= ("closed" :: Text)
                     ]

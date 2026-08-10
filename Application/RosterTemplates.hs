@@ -73,9 +73,10 @@ data RosterTemplateActor = RosterTemplateActor
     deriving (Eq, Show)
 
 data RosterTemplateDayInput = RosterTemplateDayInput
-    { inputDayIndex    :: !Int
-    , inputDayIsClosed :: !Bool
-    , inputDayRowCount :: !Int
+    { inputDayIndex        :: !Int
+    , inputDayWeekdayIndex :: !(Maybe Int)
+    , inputDayIsClosed     :: !Bool
+    , inputDayRowCount     :: !Int
     }
     deriving (Eq, Show)
 
@@ -703,7 +704,7 @@ savedContentInput saved =
     let dayIndexById = Map.fromList [(unpackId day.id, day.dayIndex) | day <- saved.savedDays]
         columnSortById = Map.fromList [(unpackId column.id, column.sortOrder) | column <- saved.savedColumns]
      in RosterTemplateContent
-            { contentDays = [RosterTemplateDayInput day.dayIndex day.isClosed day.rowCount | day <- saved.savedDays]
+            { contentDays = [RosterTemplateDayInput day.dayIndex day.weekdayIndex day.isClosed day.rowCount | day <- saved.savedDays]
             , contentColumns = [RosterTemplateColumnInput column.name column.sortOrder | column <- saved.savedColumns]
             , contentShifts = mapMaybe (savedShiftInput dayIndexById columnSortById) saved.savedShifts
             }
@@ -713,7 +714,7 @@ draftContentInput draft =
     let dayIndexById = Map.fromList [(unpackId day.id, day.dayIndex) | day <- draft.draftDays]
         columnSortById = Map.fromList [(unpackId column.id, column.sortOrder) | column <- draft.draftColumns]
      in RosterTemplateContent
-            { contentDays = [RosterTemplateDayInput day.dayIndex day.isClosed day.rowCount | day <- draft.draftDays]
+            { contentDays = [RosterTemplateDayInput day.dayIndex day.weekdayIndex day.isClosed day.rowCount | day <- draft.draftDays]
             , contentColumns = [RosterTemplateColumnInput column.name column.sortOrder | column <- draft.draftColumns]
             , contentShifts = mapMaybe (savedShiftInput dayIndexById columnSortById) draft.draftShifts
             }
@@ -886,6 +887,7 @@ validTemplateContentForScale scale content =
         && all validDay content.contentDays
         && all validColumn content.contentColumns
         && unique (map (.inputDayIndex) content.contentDays)
+        && validWeekdayIdentity
         && unique (map (.inputColumnSortOrder) content.contentColumns)
         && unique [(shift.inputShiftDayIndex, shift.inputShiftColumnSortOrder, shift.inputShiftRowIndex) | shift <- content.contentShifts]
         && all validShift content.contentShifts
@@ -894,6 +896,11 @@ validTemplateContentForScale scale content =
     daysByIndex = Map.fromList [(day.inputDayIndex, day) | day <- content.contentDays]
     columnSortOrders = map (.inputColumnSortOrder) content.contentColumns
     validDay day = day.inputDayIndex >= 0 && day.inputDayIndex <= 6 && day.inputDayRowCount >= 0 && (rosterTemplateScaleIsWeek scale || day.inputDayIndex == 0)
+    validWeekdayIdentity = case scale of
+        Day -> all (isNothing . (.inputDayWeekdayIndex)) content.contentDays
+        Week ->
+            all (maybe False (\weekdayIndex -> weekdayIndex >= 0 && weekdayIndex <= 6) . (.inputDayWeekdayIndex)) content.contentDays
+                && unique (mapMaybe (.inputDayWeekdayIndex) content.contentDays)
     validColumn column =
         let name = Text.strip column.inputColumnName
          in not (Text.null name) && Text.length name <= 120 && column.inputColumnSortOrder >= 0
@@ -916,6 +923,7 @@ createTemplateDay design input =
     newRecord @RosterTemplateDay
         |> set #rosterTemplateDesignId (unpackId design.id)
         |> set #dayIndex input.inputDayIndex
+        |> set #weekdayIndex input.inputDayWeekdayIndex
         |> set #isClosed input.inputDayIsClosed
         |> set #rowCount input.inputDayRowCount
         |> createRecord

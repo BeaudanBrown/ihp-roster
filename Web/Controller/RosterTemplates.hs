@@ -44,14 +44,15 @@ import Web.View.RosterTemplates.Reference
 import Web.View.RosterWeeks.TemplatePanel (renderRosterTemplateLibraryFragment)
 
 rosterTemplateWindowOffset :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterTemplatesController -> IO Int
-rosterTemplateWindowOffset currentAction = do
+rosterTemplateWindowOffset _currentAction = do
     venueConfig <- fetchVenueConfig
-    case paramOrNothing @Day "anchorDate" of
-        Just anchorDate -> pure (venueWeekOffsetForDay venueConfig (startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate))
-        Nothing -> do
-            let legacyOffset = paramOrDefault @Int (venueWeekOffsetForDay venueConfig venueConfig.weekOffsetEpoch) "weekOffset"
-            redirectToPath (appendQueryParams (pathTo currentAction) [("anchorDate", tshow (venueWeekStartDate venueConfig legacyOffset))])
-            pure legacyOffset
+    let anchorDate = param @Day "anchorDate"
+    pure (venueWeekOffsetForDay venueConfig (startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate))
+
+fetchRosterTemplateReferenceWeekForOffset :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterTemplateActor -> RosterGroup -> Int -> IO (Maybe RosterTemplateReferenceWeek)
+fetchRosterTemplateReferenceWeekForOffset actor rosterGroup weekOffset = do
+    venueConfig <- fetchVenueConfig
+    fetchRosterTemplateReferenceWeek actor rosterGroup (venueWeekStartDate venueConfig weekOffset)
 
 abortStaleTemplateCalendarRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 abortStaleTemplateCalendarRequest =
@@ -121,7 +122,7 @@ instance Controller RosterTemplatesController where
         currentWeekOffset <- fetchCurrentRosterWeekOffset
         case (paramOrNothing @Text "name", paramOrNothing @Text "scale" >>= parseRosterTemplateScale) of
             (Just templateName, Just templateScale) -> do
-                maybeReferenceWeek <- fetchRosterTemplateReferenceWeek actor rosterGroup weekOffset
+                maybeReferenceWeek <- fetchRosterTemplateReferenceWeekForOffset actor rosterGroup weekOffset
                 accessDeniedUnless (isJust maybeReferenceWeek)
                 let referenceWeek = fromMaybe (error "authorized reference week missing") maybeReferenceWeek
                 render ReferenceView { .. }
@@ -138,7 +139,7 @@ instance Controller RosterTemplatesController where
         case referenceRequestFromParams of
             Nothing -> redirectTo NewRosterTemplateAction { .. }
             Just (templateName, templateScale, selectedDayOffset) -> do
-                maybeReferenceWeek <- fetchRosterTemplateReferenceWeek actor rosterGroup weekOffset
+                maybeReferenceWeek <- fetchRosterTemplateReferenceWeekForOffset actor rosterGroup weekOffset
                 accessDeniedUnless (isJust maybeReferenceWeek)
                 let referenceWeek = fromMaybe (error "authorized reference week missing") maybeReferenceWeek
                 case selectedReference templateScale selectedDayOffset referenceWeek of
@@ -168,7 +169,7 @@ instance Controller RosterTemplatesController where
         case referenceRequestFromParams of
             Nothing -> redirectTo NewRosterTemplateAction { .. }
             Just (templateName, templateScale, selectedDayOffset) -> do
-                maybeReferenceWeek <- fetchRosterTemplateReferenceWeek actor rosterGroup weekOffset
+                maybeReferenceWeek <- fetchRosterTemplateReferenceWeekForOffset actor rosterGroup weekOffset
                 accessDeniedUnless (isJust maybeReferenceWeek)
                 let referenceWeek = fromMaybe (error "authorized reference week missing") maybeReferenceWeek
                 case selectedReference templateScale selectedDayOffset referenceWeek of
@@ -216,6 +217,8 @@ instance Controller RosterTemplatesController where
         let draft = fromMaybe (error "authorized template draft missing") maybeDraft
         rosterGroup <- fetchScopedRosterGroup (Id draft.draftDesign.rosterGroupId)
         designerStaff <- fetchDesignerStaff rosterGroup
+        venueConfig <- fetchVenueConfig
+        let designerWeekStartsOn = venueConfig.rosterWeekStartsOn
         designerShiftTypes <- query @ShiftType
             |> filterWhere (#venueId, rosterGroup.venueId)
             |> filterWhere (#isActive, True)
@@ -406,40 +409,46 @@ resolveTemplateApplicationRequest ::
     Text ->
     IO (Maybe RosterTemplateApplicationRequest)
 resolveTemplateApplicationRequest rosterTemplateId rosterGroup weekOffset targetDropzoneKey = do
-    maybeTargetWeek <- query @RosterWeek
-        |> filterWhere (#venueId, rosterGroup.venueId)
-        |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
-        |> filterWhere (#weekOffset, weekOffset)
-        |> filterWhere (#archivedAt, Nothing)
-        |> fetchOneOrNothing
-    case maybeTargetWeek of
-        Nothing -> pure Nothing
-        Just targetWeek -> case parseTemplateTargetKey targetDropzoneKey of
-            Just (TemplateWeekTarget targetWeekId)
-                | targetWeekId == targetWeek.id -> pure (Just (applicationRequest targetWeek Nothing))
-            Just (TemplateDayTarget rosterDayId) -> do
-                maybeDay <- query @RosterDay
-                    |> filterWhere (#id, rosterDayId)
-                    |> filterWhere (#rosterWeekId, Just (unpackId targetWeek.id))
-                    |> fetchOneOrNothing
-                pure (applicationRequest targetWeek . Just . (.dayOffset) <$> maybeDay)
-            _ -> pure Nothing
-  where
-    applicationRequest targetWeek targetDayOffset = RosterTemplateApplicationRequest
-        { applicationTemplateId = rosterTemplateId
-        , applicationTargetWeekId = targetWeek.id
-        , applicationTargetDayOffset = targetDayOffset
-        , applicationOccurrenceSelections = ShiftCopyOccurrenceSelections Nothing Nothing Nothing Nothing
-        }
+    venueConfig <- query @VenueConfig |> filterWhere (#venueId, rosterGroup.venueId) |> fetchOne
+    let windowStart = venueWeekStartDate venueConfig weekOffset
+    let windowEnd = addDays 7 windowStart
+    let applicationRequest targetOperationalDate = RosterTemplateApplicationRequest
+            { applicationTemplateId = rosterTemplateId
+            , applicationTargetRosterGroupId = rosterGroup.id
+            , applicationTargetWindowStart = windowStart
+            , applicationTargetWindowEnd = windowEnd
+            , applicationTargetOperationalDate = targetOperationalDate
+            , applicationOccurrenceSelections = ShiftCopyOccurrenceSelections Nothing Nothing Nothing Nothing
+            }
+    case parseTemplateTargetKey targetDropzoneKey of
+        Just (TemplateWeekTarget targetWindowStart)
+            | targetWindowStart == windowStart -> do
+                dayCount <- query @RosterDay
+                    |> filterWhere (#venueId, rosterGroup.venueId)
+                    |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+                    |> filterWhereGreaterThanOrEqualTo (#operationalDate, windowStart)
+                    |> filterWhereLessThan (#operationalDate, windowEnd)
+                    |> fetchCount
+                pure (applicationRequest Nothing <$ guard (dayCount == 7))
+        Just (TemplateDayTarget rosterDayId) -> do
+            maybeDay <- query @RosterDay
+                |> filterWhere (#id, rosterDayId)
+                |> filterWhere (#venueId, rosterGroup.venueId)
+                |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+                |> filterWhereGreaterThanOrEqualTo (#operationalDate, windowStart)
+                |> filterWhereLessThan (#operationalDate, windowEnd)
+                |> fetchOneOrNothing
+            pure (applicationRequest . Just . (.operationalDate) <$> maybeDay)
+        _ -> pure Nothing
 
 data TemplateApplicationTarget
-    = TemplateWeekTarget !(Id RosterWeek)
+    = TemplateWeekTarget !Day
     | TemplateDayTarget !(Id RosterDay)
 
 parseTemplateTargetKey :: Text -> Maybe TemplateApplicationTarget
 parseTemplateTargetKey value
-    | Just rawId <- Text.stripPrefix "week:" value
-    , Just targetId <- Id <$> UUID.fromText rawId = Just (TemplateWeekTarget targetId)
+    | Just rawDate <- Text.stripPrefix "window:" value
+    , Just targetDate <- readMaybe (cs rawDate) = Just (TemplateWeekTarget targetDate)
     | Just rawId <- Text.stripPrefix "day:" value
     , Just targetId <- Id <$> UUID.fromText rawId = Just (TemplateDayTarget targetId)
     | otherwise = Nothing
@@ -586,15 +595,15 @@ referenceRequestFromParams = do
 
 selectedReference :: RosterTemplateScaleEnum -> Maybe Int -> RosterTemplateReferenceWeek -> Maybe RosterTemplateReference
 selectedReference Day (Just dayOffset) referenceWeek = do
-    sourceWeek <- referenceWeek.referenceRosterWeek
-    guard (any ((== dayOffset) . (.dayOffset)) referenceWeek.referenceRosterDays)
-    pure (RosterTemplateDayReference sourceWeek.id dayOffset)
+    selectedDay <- find ((== dayOffset) . (.dayOffset)) referenceWeek.referenceRosterDays
+    pure (RosterTemplateDayReference selectedDay.operationalDate)
 selectedReference Day Nothing _ = Nothing
 selectedReference Week (Just _) _ = Nothing
 selectedReference Week Nothing referenceWeek = do
-    sourceWeek <- referenceWeek.referenceRosterWeek
-    guard (map (.dayOffset) referenceWeek.referenceRosterDays == [0 .. 6])
-    pure (RosterTemplateWeekReference sourceWeek.id)
+    let windowStart = referenceWeek.referenceWeekStart
+    let windowEnd = addDays 7 windowStart
+    guard (map (.operationalDate) referenceWeek.referenceRosterDays == map (`addDays` windowStart) [0 .. 6])
+    pure (RosterTemplateWeekReference windowStart windowEnd)
 
 renderDraftOccupied ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) =>
@@ -627,7 +636,7 @@ restartFromReference actor existingDesignId rosterGroup templateName templateSca
     let maybeConfirmationToken = paramOrNothing @Text "confirmationToken"
     case (maybeWeekOffset, maybeConfirmationToken) of
         (Just weekOffset, Just confirmationToken) -> do
-            maybeReferenceWeek <- fetchRosterTemplateReferenceWeek actor rosterGroup weekOffset
+            maybeReferenceWeek <- fetchRosterTemplateReferenceWeekForOffset actor rosterGroup weekOffset
             let maybeReference = maybeReferenceWeek >>= selectedReference templateScale selectedDayOffset
             case maybeReference of
                 Nothing -> redirectToPath =<< referenceSelectionPath rosterGroup weekOffset templateName templateScale

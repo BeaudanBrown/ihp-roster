@@ -70,6 +70,7 @@ validateRunIdentity run snapshot jobVenueId = do
             && snapshot.snapshotRosterWeekId == run.rosterWeekId
             && snapshot.snapshotWeekOffset == run.weekOffset
             && snapshot.snapshotWeekStart == run.weekStart
+            && addDays 1 snapshot.snapshotWeekEnd == run.windowEnd
         ) $
         fail "Roster notification run identity does not match its snapshot"
 

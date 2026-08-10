@@ -39,7 +39,7 @@ renderRosterTemplateApplicationConfirmation rosterTemplateId rosterGroupId targe
         }
   where
     formId = "roster-template-application-form"
-    actionUrl = rosterTemplateApplicationUrl preview.applicationPreviewTargetAnchorDate rosterTemplateId rosterGroupId
+    actionUrl = rosterTemplateApplicationUrl preview.applicationPreviewTargetWindowStart rosterTemplateId rosterGroupId
     actionFields = RosterAction.applyRosterTemplateApplicationActionFields
         (unpackId rosterTemplateId)
         targetDropzoneKey

@@ -26,7 +26,7 @@ Migrate through additive columns/tables, deterministic backfill and equivalence 
 
 Venues can change the start weekday without rewriting shift instants, assignments, or lane data. Historical navigation reprojects immediately; mixed publication is conservatively lost and must be republished. Roster and Timesheet day ownership becomes consistent, including after-midnight work, while detailed payroll evidence retains actual component dates.
 
-The roster read/write model, publication, Timesheets, exports, Xero, templates, frontend contracts, URLs, live invalidation, and tests require a broad staged migration. Date-local lane unions may be visually rough after a rare setting change until users normalize the affected window. Old offset links need compatibility redirects, and legacy tables cannot be dropped until production reconciliation and recovery evidence are approved.
+The roster read/write model, publication, Timesheets, exports, Xero, templates, frontend contracts, URLs, live invalidation, and tests require a broad staged migration. Date-local lane unions may be visually rough after a rare setting change until users normalize the affected window. Offset-based URLs are intentionally unsupported; legacy tables still cannot be dropped until production reconciliation and recovery evidence are approved.
 
 ## Alternatives Considered
 

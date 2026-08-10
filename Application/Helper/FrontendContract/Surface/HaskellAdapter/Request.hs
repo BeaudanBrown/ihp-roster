@@ -191,26 +191,26 @@ renderSurfaceIntentAdapterModules ::
 renderSurfaceIntentAdapterModules = renderSurfaceRequestAdapterModules intentRequestRenderer
 
 data RequestAdapterRenderer kind = RequestAdapterRenderer
-    { requestAdapterLayout             :: !(AdapterModuleLayout kind)
-    , requestAdapterLanguagePragmas    :: ![Text]
-    , requestAdapterBaseName           :: !(Text -> Text)
-    , requestAdapterMetadataSuffix     :: !Text
-    , requestAdapterFieldsType         :: !Text
-    , requestAdapterBindFields         :: !Text
-    , requestAdapterEmptyFields        :: !Text
-    , requestAdapterMetadataImports    :: ![Text]
+    { requestAdapterLayout                        :: !(AdapterModuleLayout kind)
+    , requestAdapterLanguagePragmas               :: ![Text]
+    , requestAdapterBaseName                      :: !(Text -> Text)
+    , requestAdapterMetadataSuffix                :: !Text
+    , requestAdapterFieldsType                    :: !Text
+    , requestAdapterBindFields                    :: !Text
+    , requestAdapterEmptyFields                   :: !Text
+    , requestAdapterMetadataImports               :: ![Text]
     , requestAdapterOperationLocalMetadataImports :: ![Text]
-    , requestAdapterMetadataResultType :: !Text
-    , requestAdapterMetadataBuilder    :: !Text
-    , requestAdapterParser             :: !Text
-    , requestAdapterOperationPrefix    :: !Text
-    , requestAdapterOperationFields    :: !Text
-    , requestAdapterOperationFieldSpecs :: !Text
-    , requestAdapterOperationSurface   :: !Text
-    , requestAdapterOperationMarker    :: !Text
-    , requestAdapterOperationEmpty     :: !Text
-    , requestAdapterOperationBind      :: !Text
-    , requestAdapterOperationPresent   :: !Text
+    , requestAdapterMetadataResultType            :: !Text
+    , requestAdapterMetadataBuilder               :: !Text
+    , requestAdapterParser                        :: !Text
+    , requestAdapterOperationPrefix               :: !Text
+    , requestAdapterOperationFields               :: !Text
+    , requestAdapterOperationFieldSpecs           :: !Text
+    , requestAdapterOperationSurface              :: !Text
+    , requestAdapterOperationMarker               :: !Text
+    , requestAdapterOperationEmpty                :: !Text
+    , requestAdapterOperationBind                 :: !Text
+    , requestAdapterOperationPresent              :: !Text
     }
 
 actionRequestRenderer :: RequestAdapterRenderer 'ActionAdapterKind

@@ -43,7 +43,6 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , parseApplyRosterTemplateApplicationActionParams
     , parseCopyRosterWeekActionParams
     , parseCreateRosterNotificationRunActionParams
-    , parseNavigateRosterWeekActionParams
     , parsePreviewRosterTemplateApplicationActionParams
     , parseShowRosterNotificationConfirmationActionParams
     , parseToggleRosterAssignmentFiltersActionParams
@@ -217,20 +216,30 @@ data CreateRosterNotificationRunActionOperation
 type instance ActionSurface CreateRosterNotificationRunActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker CreateRosterNotificationRunActionOperation = Types2.CreateRosterNotificationRun
 type instance ActionFieldSpecs CreateRosterNotificationRunActionOperation =
-    '[ 'Field Types2.NotificationRosterWeekId 'WireUUID
+    '[ 'Field Types2.RosterGroupId 'WireUUID
+     , 'Field Types2.WindowStartDate 'WireDay
+     , 'Field Types2.WindowEndDate 'WireDay
+     , 'Field Types2.RosterCalendarRevision 'WireInt
      ]
 
 createRosterNotificationRunActionFields ::
     UUID.UUID ->
+    Day ->
+    Day ->
+    Int ->
     ActionFields CreateRosterNotificationRunActionOperation
-createRosterNotificationRunActionFields notificationRosterWeekId =
+createRosterNotificationRunActionFields rosterGroupId windowStartDate windowEndDate rosterCalendarRevision =
     actionFields
-        (surfaceField @Types2.NotificationRosterWeekId notificationRosterWeekId)
-        noSurfaceFields
+        (surfaceField @Types2.RosterGroupId rosterGroupId)
+        ( surfaceField @Types2.WindowStartDate windowStartDate
+            &: surfaceField @Types2.WindowEndDate windowEndDate
+            &: surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision
+            &: noSurfaceFields
+        )
 
 createRosterNotificationRunActionEvidence :: ActionEvidence CreateRosterNotificationRunActionOperation
 createRosterNotificationRunActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "CreateRosterNotificationRun" "create-roster-notification-run" [SurfaceIR.FieldIR "NotificationRosterWeekId" "notificationRosterWeekId" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" []))])
+    actionEvidence (SurfaceIR.HtmxActionIR "CreateRosterNotificationRun" "create-roster-notification-run" [SurfaceIR.FieldIR "RosterGroupId" "rosterGroupId" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "WindowStartDate" "windowStartDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "WindowEndDate" "windowEndDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" []))])
 
 createRosterNotificationRunAction :: ActionFields CreateRosterNotificationRunActionOperation -> FrontendSurfaceAction
 createRosterNotificationRunAction =
@@ -324,13 +333,6 @@ navigateRosterWeekActionParamsPresent ::
     Bool
 navigateRosterWeekActionParamsPresent =
     actionParamsPresent
-        @NavigateRosterWeekActionOperation
-
-parseNavigateRosterWeekActionParams ::
-    (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (ActionFields NavigateRosterWeekActionOperation)
-parseNavigateRosterWeekActionParams =
-    parseActionParams
         @NavigateRosterWeekActionOperation
 
 data PreviewRosterTemplateApplicationActionOperation
@@ -427,20 +429,30 @@ data ShowRosterNotificationConfirmationActionOperation
 type instance ActionSurface ShowRosterNotificationConfirmationActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
 type instance ActionMarker ShowRosterNotificationConfirmationActionOperation = Types2.ShowRosterNotificationConfirmation
 type instance ActionFieldSpecs ShowRosterNotificationConfirmationActionOperation =
-    '[ 'Field Types2.NotificationRosterWeekId 'WireUUID
+    '[ 'Field Types2.RosterGroupId 'WireUUID
+     , 'Field Types2.WindowStartDate 'WireDay
+     , 'Field Types2.WindowEndDate 'WireDay
+     , 'Field Types2.RosterCalendarRevision 'WireInt
      ]
 
 showRosterNotificationConfirmationActionFields ::
     UUID.UUID ->
+    Day ->
+    Day ->
+    Int ->
     ActionFields ShowRosterNotificationConfirmationActionOperation
-showRosterNotificationConfirmationActionFields notificationRosterWeekId =
+showRosterNotificationConfirmationActionFields rosterGroupId windowStartDate windowEndDate rosterCalendarRevision =
     actionFields
-        (surfaceField @Types2.NotificationRosterWeekId notificationRosterWeekId)
-        noSurfaceFields
+        (surfaceField @Types2.RosterGroupId rosterGroupId)
+        ( surfaceField @Types2.WindowStartDate windowStartDate
+            &: surfaceField @Types2.WindowEndDate windowEndDate
+            &: surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision
+            &: noSurfaceFields
+        )
 
 showRosterNotificationConfirmationActionEvidence :: ActionEvidence ShowRosterNotificationConfirmationActionOperation
 showRosterNotificationConfirmationActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ShowRosterNotificationConfirmation" "show-roster-notification-confirmation" [SurfaceIR.FieldIR "NotificationRosterWeekId" "notificationRosterWeekId" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" []))])
+    actionEvidence (SurfaceIR.HtmxActionIR "ShowRosterNotificationConfirmation" "show-roster-notification-confirmation" [SurfaceIR.FieldIR "RosterGroupId" "rosterGroupId" (SurfaceIR.WireUuidIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "WindowStartDate" "windowStartDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "WindowEndDate" "windowEndDate" (SurfaceIR.WireDayIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxGetIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" []))])
 
 showRosterNotificationConfirmationAction :: ActionFields ShowRosterNotificationConfirmationActionOperation -> FrontendSurfaceAction
 showRosterNotificationConfirmationAction =

@@ -139,8 +139,8 @@ rsaReturnPathFor RsaReturnContext { .. } =
     basePath =
         case rsaReturnTo of
             "admin" -> pathTo AdminAction <> "#compliance"
-            "staff" -> pathTo ShowRosterWeekAction { weekOffset = fromMaybe 0 rsaReturnWeekOffset }
-            _ -> pathTo EditProfileAction
+            "staff" -> pathTo RosterWeeksAction
+            _       -> pathTo EditProfileAction
     params =
         case rsaReturnTo of
             "staff" -> maybe [] (\rosterGroupId -> [("rosterGroupId", tshow rosterGroupId)]) rsaReturnRosterGroupId

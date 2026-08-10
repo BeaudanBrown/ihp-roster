@@ -465,6 +465,21 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (manager_note IS NULL OR char_length(manager_note) <= 1000)"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (((is_approved = FALSE) AND approved_at IS NULL AND approved_by_user_id IS NULL AND staff_pay_version_id IS NULL AND shift_type_pay_version_id IS NULL) OR ((is_approved = TRUE) AND approved_at IS NOT NULL AND approved_by_user_id IS NOT NULL AND staff_pay_version_id IS NOT NULL AND shift_type_pay_version_id IS NOT NULL))"
 
+    it "gives roster template days explicit calendar-weekday identity" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        migrationSqlText <- TextIO.readFile "Application/Migration/1787004000.sql"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "weekday_index INT DEFAULT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "idx_roster_template_days_design_weekday"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "(venue_config.roster_week_starts_on + roster_template_days.day_index) % 7"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "roster_template_designs.scale = 'week'"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "roster template weekday backfill failed"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "window_end DATE NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_week_id UUID DEFAULT NULL"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ALTER COLUMN roster_week_id DROP NOT NULL"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ALTER COLUMN week_offset DROP NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "IF NEW.window_end <> NEW.week_start + 7 THEN"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER validate_roster_notification_window BEFORE INSERT OR UPDATE ON roster_notification_runs"
+
     it "defines explicit roster-shift assignment state in the fresh schema" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         runbookExists <- Directory.doesFileExist "Application/Migration/explicit-roster-shift-assignment-304-runbook.md"

@@ -13,6 +13,7 @@ import Data.IORef (modifyIORef', newIORef, readIORef)
 import qualified Data.Set as Set
 import Data.Text (isInfixOf)
 import qualified Data.Text.Lazy as LazyText
+import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types hiding (createRosterNotificationRun)
 import IHP.ControllerPrelude
@@ -30,6 +31,36 @@ import Web.Mail.RosterNotification
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Roster notification runs" do
+        it "creates immutable runs for native Published date windows without a roster week" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Native notification window"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                actor <- createUserRecord "native-notify@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue actor Manager
+                let windowStart = fromGregorian 2027 2 1
+                let windowEnd = addDays 7 windowStart
+                forM_ [0 .. 6] \dayOffset ->
+                    newRecord @RosterDay
+                        |> set #rosterWeekId Nothing
+                        |> set #venueId (unpackId venue.id)
+                        |> set #rosterGroupId (unpackId rosterGroup.id)
+                        |> set #operationalDate (addDays dayOffset windowStart)
+                        |> set #publicationState Published
+                        |> set #dayOffset (fromInteger dayOffset)
+                        |> createRecord
+
+                run <- createRosterNotificationRunForWindow actor venue rosterGroup windowStart windowEnd
+                snapshot <- decodeRosterNotificationSnapshot run
+
+                run.rosterWeekId `shouldBe` Nothing
+                run.weekOffset `shouldBe` Nothing
+                run.weekStart `shouldBe` windowStart
+                run.windowEnd `shouldBe` windowEnd
+                snapshot.snapshotRosterWeekId `shouldBe` Nothing
+                snapshot.snapshotWeekOffset `shouldBe` Nothing
+                snapshot.snapshotWeekStart `shouldBe` windowStart
+                snapshot.snapshotWeekEnd `shouldBe` addDays (-1) windowEnd
+
         it "snapshots every eligible recipient and queues shared email envelopes" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Notification Venue"
@@ -99,7 +130,7 @@ tests = aroundAll withDatabaseTestContext do
                 let mail = RosterNotificationMail
                         { notificationSnapshot = snapshot
                         , notificationRecipient = recipient
-                        , rosterUrl = "https://app.example/ShowRosterWeek?weekOffset=0&rosterGroupId=test"
+                        , rosterUrl = "https://app.example/ShowRosterWindow?anchorDate=2025-01-06&rosterGroupId=test"
                         , fromAddress = "rosters@example.com"
                         , replyToAddress = "support@example.com"
                         , supportEmail = "support@example.com"

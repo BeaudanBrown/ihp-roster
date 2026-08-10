@@ -42,8 +42,8 @@ tests = aroundAll withDatabaseTestContext do
                 , ("row fragment", callAction (ShowRosterWeekRowFragmentAction (tshow (testAnchorForOffset 0)) "11111111-1111-1111-1111-111111111111" 0))
                 , ("create week", callActionWithParams CreateRosterWeekAction (rosterMutationParams 0))
                 , ("copy week", callActionWithParams CopyRosterWeekAction (rosterCopyParams 0 1))
-                , ("notification confirmation", callAction (ShowRosterNotificationConfirmationAction "11111111-1111-1111-1111-111111111111"))
-                , ("create notification run", callAction (CreateRosterNotificationRunAction "11111111-1111-1111-1111-111111111111"))
+                , ("notification confirmation", callAction (ShowRosterNotificationConfirmationAction))
+                , ("create notification run", callAction (CreateRosterNotificationRunAction))
                 , ("toggle day", callActionWithParams (ToggleRosterDayClosedAction "11111111-1111-1111-1111-111111111111") (rosterMutationParams 0))
                 , ("add row", callAction (AddRosterRowAction "11111111-1111-1111-1111-111111111111"))
                 , ("remove row", callActionWithParams (RemoveRosterRowAction "11111111-1111-1111-1111-111111111111") (rosterMutationParams 0))
@@ -83,19 +83,6 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Mon 06/01"
                 response `responseBodyShouldContain` "Sun 12/01"
-
-        it "redirects retained offset bookmarks to their dated roster window" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Venue A"
-                user <- createUserRecord "roster-legacy-offset@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user Worker
-                rosterWeek <- createRosterWeekRecord venue 0 False
-                let rosterGroupId = Id rosterWeek.rosterGroupId :: Id RosterGroup
-                response <- withUserAndCurrentVenue user venue.id do
-                    callAction (ShowRosterWeekAction 0)
-                response `responseStatusShouldBe` status302
-                responseHeaders response `shouldContain`
-                    [("Location", cs ("http://localhost/ShowRosterWindow?anchorDate=2025-01-06&rosterGroupId=" <> tshow rosterGroupId))]
 
         it "visiting a sparse window does not materialize legacy weeks or dated days" $ withContext do
             withCleanDb do
@@ -388,8 +375,8 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` ("data-bepis-roster-staff-highlight-source=\"staff:" <> cs (tshow panelStaff.id) <> "\"")
                 response `responseBodyShouldContain` ("data-bepis-roster-staff-highlight-pin=\"staff:" <> cs (tshow panelStaff.id) <> "\"")
                 response `responseBodyShouldContain` "Week actions"
-                response `responseBodyShouldNotContain` "hx-post=\"/CopyRosterWeek?"
-                response `responseBodyShouldNotContain` "hx-confirm=\"This will overwrite the current week with the previous week&#39;s roster. Continue?\""
+                response `responseBodyShouldContain` "hx-post=\"/CopyRosterWeek?"
+                response `responseBodyShouldContain` "hx-confirm=\"This will overwrite the current week with the previous week&#39;s roster. Continue?\""
                 response `responseBodyShouldContain` "Sort shifts"
                 response `responseBodyShouldContain` "hx-post=\"/SortRosterWeek?anchorDate=2025-01-06&amp;rosterGroupId="
                 response `responseBodyShouldNotContain` "Roster columns"
@@ -409,7 +396,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-roster-warnings\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-roster-assignment-filters\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"sort-roster-week\""
-                response `responseBodyShouldNotContain` "data-bepis-surface-action=\"copy-roster-week\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"copy-roster-week\""
 
         it "keeps templates and application targets hidden on Published rosters" $ withContext do
             withCleanDb do

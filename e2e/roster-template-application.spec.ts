@@ -167,7 +167,7 @@ test('Day and Week cards converge on confirmation while controls and cancellatio
     await openTemplatesTab(page);
 
     const weekCard = page.getByRole('button', { name: 'Apply Standard week' }).locator('..').locator('..');
-    await expect(weekCard.locator('[data-bepis-roster-template-target-input]')).toHaveValue(/^week:/);
+    await expect(weekCard.locator('[data-bepis-roster-template-target-input]')).toHaveValue(/^window:\d{4}-\d{2}-\d{2}$/);
     const weekPreviewResponse = page.waitForResponse((response) => response.url().includes('PreviewRosterTemplateDrop'));
     await page.getByRole('button', { name: 'Apply Standard week' }).click();
     expect((await weekPreviewResponse).status()).toBe(200);

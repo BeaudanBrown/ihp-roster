@@ -23,8 +23,8 @@ import Web.Routes ()
 import Web.Types (AdminController (AdminAction, ShowadminInvitesLiveFragmentAction, ShowadminRosterGroupsLiveFragmentAction, ShowadminShiftTypesLiveFragmentAction, ShowadminXeroShellLiveFragmentAction, XeroAction),
                   LeaveRequestsController (LeaveRequestsAction, ShowleaveRequestsContentLiveFragmentAction),
                   ProfilesController (EditProfileAction, ShowprofileContentLiveFragmentAction),
-                  RosterWeeksController (ShowRosterWeekAction, ShowRosterWeekContentFragmentAction, ShowRosterWeekOverviewFragmentAction, ShowRosterWeekStaffPanelFragmentAction, ShowRosterWindowAction),
-                  TimesheetsController (ShowTimesheetDaySectionFragmentAction, ShowTimesheetWeekAction, ShowTimesheetWindowAction, TimesheetsAction))
+                  RosterWeeksController (ShowRosterWeekContentFragmentAction, ShowRosterWeekOverviewFragmentAction, ShowRosterWeekStaffPanelFragmentAction, ShowRosterWindowAction),
+                  TimesheetsController (ShowTimesheetDaySectionFragmentAction, ShowTimesheetWindowAction, TimesheetsAction))
 
 run :: IO ()
 run = do

@@ -163,7 +163,7 @@ test("passkey credential encoders preserve exact nullable and nested request sha
 
 test("passkey redirects remain path-only and same-origin after URL normalization", () => {
     const origin = "https://bepis.test";
-    assertEqual(safePasskeyRedirectPath("/RosterWeeks?weekOffset=1", origin), "/RosterWeeks?weekOffset=1");
+    assertEqual(safePasskeyRedirectPath("/ShowRosterWindow?anchorDate=2025-01-13", origin), "/ShowRosterWindow?anchorDate=2025-01-13");
     assertEqual(safePasskeyRedirectPath("//evil.example/", origin), null);
     assertEqual(safePasskeyRedirectPath("/\\evil.example/", origin), null);
     assertEqual(safePasskeyRedirectPath("https://bepis.test/RosterWeeks", origin), null);

@@ -7,6 +7,7 @@ module Application.Helper.RosterWagePrediction
     ( RosterWagePrediction (..)
     , RosterWagePredictionDay (..)
     , fetchRosterWagePrediction
+    , fetchRosterWagePredictionForWindow
     , lookupRosterWagePredictionDayByDate
     , formatMoneyAmount
     ) where
@@ -65,23 +66,32 @@ fetchRosterWagePrediction ::
     [RosterDay] ->
     [RosterSlot] ->
     IO RosterWagePrediction
-fetchRosterWagePrediction venueConfig rosterWeek rosterDays rosterSlots = do
+fetchRosterWagePrediction venueConfig _rosterWeek rosterDays rosterSlots =
+    fetchRosterWagePredictionForWindow venueConfig rosterDays rosterSlots
+
+fetchRosterWagePredictionForWindow ::
+    (?modelContext :: ModelContext) =>
+    VenueConfig ->
+    [RosterDay] ->
+    [RosterSlot] ->
+    IO RosterWagePrediction
+fetchRosterWagePredictionForWindow venueConfig rosterDays rosterSlots = do
     let staffAssignedSlots = filter rosterShiftIsStaffAssigned rosterSlots
         referencedStaffIds = List.nub (mapMaybe (.staffId) staffAssignedSlots)
         referencedShiftTypeIds = List.nub (mapMaybe (.shiftTypeId) staffAssignedSlots)
     staffMembers <-
         if null referencedStaffIds
             then pure []
-            else query @Staff |> filterWhere (#venueId, rosterWeek.venueId) |> filterWhereIn (#id, map Id referencedStaffIds) |> fetch
+            else query @Staff |> filterWhere (#venueId, venueConfig.venueId) |> filterWhereIn (#id, map Id referencedStaffIds) |> fetch
     shiftTypes <-
         if null referencedShiftTypeIds
             then pure []
-            else query @ShiftType |> filterWhere (#venueId, rosterWeek.venueId) |> filterWhereIn (#id, map Id referencedShiftTypeIds) |> fetch
+            else query @ShiftType |> filterWhere (#venueId, venueConfig.venueId) |> filterWhereIn (#id, map Id referencedShiftTypeIds) |> fetch
     let rosterDaysById = Map.fromList [(unpackId rosterDay.id, rosterDay) | rosterDay <- rosterDays]
         staffById = Map.fromList [(unpackId staff.id, staff) | staff <- staffMembers]
         shiftTypeById = Map.fromList [(unpackId shiftType.id, shiftType) | shiftType <- shiftTypes]
         subjectCandidates =
-            [ (slot, Map.lookup slot.rosterDayId rosterDaysById, rosterSlotWageSubject rosterWeek.venueId slot)
+            [ (slot, Map.lookup slot.rosterDayId rosterDaysById, rosterSlotWageSubject venueConfig.venueId slot)
             | slot <- staffAssignedSlots
             , not (rosterSlotIsRosterOnly staffById shiftTypeById slot)
             ]
@@ -110,7 +120,7 @@ fetchRosterWagePrediction venueConfig rosterWeek rosterDays rosterSlots = do
             , not (null outcome.evaluatedSourceDiagnostics)
             ]
         predictionDays =
-            [ predictionDay (weekStartDate venueConfig rosterWeek) rosterDay predictedShifts failures rosterSlots
+            [ predictionDay rosterDay predictedShifts failures rosterSlots
             | rosterDay <- rosterDays
             ]
     pure RosterWagePrediction
@@ -148,12 +158,12 @@ lookupRosterWagePredictionDayByDate :: RosterWagePrediction -> Day -> Maybe Rost
 lookupRosterWagePredictionDayByDate prediction date =
     List.find (\day -> day.predictionDayDate == date) prediction.predictionDays
 
-predictionDay :: Day -> RosterDay -> [PredictedShift] -> [(UUID, Text)] -> [RosterSlot] -> RosterWagePredictionDay
-predictionDay weekStart rosterDay predictedShifts failures rosterSlots =
+predictionDay :: RosterDay -> [PredictedShift] -> [(UUID, Text)] -> [RosterSlot] -> RosterWagePredictionDay
+predictionDay rosterDay predictedShifts failures rosterSlots =
     let dayShifts = filter (\shift -> shift.predictedShiftDayOffset == rosterDay.dayOffset) predictedShifts
         daySlotIds = [unpackId slot.id | slot <- rosterSlots, slot.rosterDayId == unpackId rosterDay.id]
      in RosterWagePredictionDay
-            { predictionDayDate = addDays (toInteger rosterDay.dayOffset) weekStart
+            { predictionDayDate = rosterDay.operationalDate
             , predictionDayOffset = rosterDay.dayOffset
             , predictionDayTotal = sum (map (.predictedShiftAmount) dayShifts)
             , predictionDayShiftCount = length dayShifts
@@ -163,11 +173,6 @@ predictionDay weekStart rosterDay predictedShifts failures rosterSlots =
 calculationAmount :: WageEvaluationOutcome -> Scientific
 calculationAmount outcome =
     fst (Scientific.fromRationalRepetendUnlimited outcome.evaluatedFinalEarnings.finalEarningsTotalAmount)
-
-
-weekStartDate :: VenueConfig -> RosterWeek -> Day
-weekStartDate venueConfig rosterWeek =
-    addDays (toInteger (rosterWeek.weekOffset * 7)) venueConfig.weekOffsetEpoch
 
 formatMoneyAmount :: Scientific -> Text
 formatMoneyAmount value =

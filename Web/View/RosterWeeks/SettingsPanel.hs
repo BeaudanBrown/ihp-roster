@@ -62,7 +62,7 @@ renderRosterSettingsPanel RosterStaffPanelRenderModel { staffPanelRosterWeek, st
         {when (staffPanelViewCapabilities.canCopyRosterWeek || shouldShowRosterSortForm staffPanelRosterWeek staffPanelViewCapabilities) $
             renderRosterSettingsSection "bi-lightning-charge" "Week actions" (renderRosterWeekActions staffPanelRosterWeek staffPanelWeekOffset staffPanelWeekStartDate staffPanelCalendarRevision staffPanelCurrentRosterGroup.id staffPanelViewCapabilities)}
         {when (isJust staffPanelNotificationPanelData || shouldShowRosterExport staffPanelRosterWeek staffPanelViewCapabilities staffPanelRosterLayoutMode staffPanelViewMode) $
-            renderRosterSettingsSection "bi-share" "Share roster" (renderRosterShareSection staffPanelRosterWeek staffPanelCurrentRosterGroup.name staffPanelWeekStartDate staffPanelNotificationPanelData staffPanelViewCapabilities staffPanelRosterLayoutMode staffPanelViewMode)}
+            renderRosterSettingsSection "bi-share" "Share roster" (renderRosterShareSection staffPanelRosterWeek staffPanelCurrentRosterGroup staffPanelWeekStartDate staffPanelCalendarRevision staffPanelNotificationPanelData staffPanelViewCapabilities staffPanelRosterLayoutMode staffPanelViewMode)}
     </div>
 |]
 
@@ -322,16 +322,16 @@ shouldShowRosterExport maybeRosterWeek viewCapabilities rosterLayoutMode viewMod
         && viewMode == RosterWeekGridView
         && not (rosterLayoutModeIsDayColumns rosterLayoutMode)
 
-renderRosterShareSection :: (?context :: ControllerContext) => Maybe RosterWeek -> Text -> Day -> Maybe RosterNotificationPanelData -> RosterViewCapabilities -> RosterLayoutModeEnum -> RosterGridViewMode -> Html
-renderRosterShareSection maybeRosterWeek rosterGroupName weekStartDate notificationPanelData viewCapabilities rosterLayoutMode viewMode = [hsx|
+renderRosterShareSection :: (?context :: ControllerContext) => Maybe RosterWeek -> RosterGroup -> Day -> Int -> Maybe RosterNotificationPanelData -> RosterViewCapabilities -> RosterLayoutModeEnum -> RosterGridViewMode -> Html
+renderRosterShareSection maybeRosterWeek rosterGroup weekStartDate calendarRevision notificationPanelData viewCapabilities rosterLayoutMode viewMode = [hsx|
     <div class="d-grid gap-2">
-        {renderRosterEmailAction maybeRosterWeek notificationPanelData}
-        {when (shouldShowRosterExport maybeRosterWeek viewCapabilities rosterLayoutMode viewMode) (renderRosterExportSection rosterGroupName weekStartDate)}
+        {renderRosterEmailAction rosterGroup.id weekStartDate calendarRevision notificationPanelData}
+        {when (shouldShowRosterExport maybeRosterWeek viewCapabilities rosterLayoutMode viewMode) (renderRosterExportSection rosterGroup.name weekStartDate)}
     </div>
 |]
 
-renderRosterEmailAction :: (?context :: ControllerContext) => Maybe RosterWeek -> Maybe RosterNotificationPanelData -> Html
-renderRosterEmailAction (Just rosterWeek) (Just RosterNotificationPanelData { panelNotificationAudience = audience, panelLatestNotificationRun = latestRun })
+renderRosterEmailAction :: (?context :: ControllerContext) => Id RosterGroup -> Day -> Int -> Maybe RosterNotificationPanelData -> Html
+renderRosterEmailAction rosterGroupId windowStart calendarRevision (Just RosterNotificationPanelData { panelNotificationAudience = audience, panelLatestNotificationRun = latestRun })
     | maybe False ((> 0) . (.summaryInProgressCount)) latestRun = [hsx|
         <button id={rosterEmailButtonId} type="button" class="btn btn-outline-primary btn-sm w-100" disabled="disabled" title="Roster email delivery is in progress">
             <i class="bi bi-envelope me-1" aria-hidden="true"></i>
@@ -348,7 +348,7 @@ renderRosterEmailAction (Just rosterWeek) (Just RosterNotificationPanelData { pa
     |]
     | otherwise =
         renderFrontendSurfaceActionLink
-            (RosterAction.showRosterNotificationConfirmationAction (RosterAction.showRosterNotificationConfirmationActionFields (unpackId rosterWeek.id)))
+            (RosterAction.showRosterNotificationConfirmationAction (RosterAction.showRosterNotificationConfirmationActionFields (unpackId rosterGroupId) windowStart windowEnd calendarRevision))
             (rosterWeekShellSyncRoute actionUrl)
                 { actionRouteStandardUrl = Just actionUrl
                 , actionRouteExtraAttrs =
@@ -361,8 +361,9 @@ renderRosterEmailAction (Just rosterWeek) (Just RosterNotificationPanelData { pa
                 Email roster
             |]
       where
-        actionUrl = pathTo (ShowRosterNotificationConfirmationAction rosterWeek.id)
-renderRosterEmailAction _ _ = mempty
+        actionUrl = pathTo ShowRosterNotificationConfirmationAction
+        windowEnd = addDays 7 windowStart
+renderRosterEmailAction _ _ _ _ = mempty
 
 renderRosterExportSection :: Text -> Day -> Html
 renderRosterExportSection rosterGroupName weekStartDate = [hsx|

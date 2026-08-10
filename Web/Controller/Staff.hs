@@ -110,8 +110,8 @@ instance Controller StaffController where
                                     setSuccessMessage "Trial staff placeholder created"
                                     redirectToPath $
                                         maybe
-                                            (pathTo ShowRosterWeekAction { weekOffset })
-                                            (\rosterGroupId -> appendQueryParams (pathTo ShowRosterWeekAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)])
+                                            (pathTo RosterWeeksAction)
+                                            (\rosterGroupId -> appendQueryParams (pathTo RosterWeeksAction) [("rosterGroupId", tshow rosterGroupId)])
                                             maybeRosterGroupId
                         _ -> renderNewStaffResponse validStaff submittedRosterGroupIds rosterGroups awardLevels awardLevelBaseRates importedPayItems weekOffset maybeRosterGroupId
 
@@ -228,8 +228,8 @@ instance Controller StaffController where
                         setSuccessMessage successMessage
                         redirectToPath $
                             maybe
-                                (pathTo ShowRosterWeekAction { weekOffset })
-                                (\rosterGroupId -> appendQueryParams (pathTo ShowRosterWeekAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)])
+                                (pathTo RosterWeeksAction)
+                                (\rosterGroupId -> appendQueryParams (pathTo RosterWeeksAction) [("rosterGroupId", tshow rosterGroupId)])
                                 maybeRosterGroupId
         case submissionResult of
             Left errors -> do

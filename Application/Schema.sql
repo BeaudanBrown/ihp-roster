@@ -862,6 +862,7 @@ CREATE TABLE roster_template_days (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     roster_template_design_id UUID NOT NULL,
     day_index INT NOT NULL,
+    weekday_index INT DEFAULT NULL,
     is_closed BOOLEAN DEFAULT FALSE NOT NULL,
     row_count INT DEFAULT 4 NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
@@ -869,6 +870,7 @@ CREATE TABLE roster_template_days (
     UNIQUE(roster_template_design_id, day_index),
     FOREIGN KEY (roster_template_design_id) REFERENCES roster_template_designs (id) ON DELETE CASCADE,
     CHECK ((day_index >= 0) AND (day_index <= 6)),
+    CHECK (weekday_index IS NULL OR ((weekday_index >= 0) AND (weekday_index <= 6))),
     CHECK (row_count >= 0)
 );
 CREATE TABLE roster_template_columns (
@@ -1023,9 +1025,10 @@ CREATE TABLE roster_notification_runs (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
     roster_group_id UUID NOT NULL,
-    roster_week_id UUID NOT NULL,
-    week_offset INT NOT NULL,
+    roster_week_id UUID DEFAULT NULL,
+    week_offset INT DEFAULT NULL,
     week_start DATE NOT NULL,
+    window_end DATE NOT NULL,
     snapshot_schema_version INT DEFAULT 1 NOT NULL,
     roster_snapshot JSONB NOT NULL,
     recipient_snapshot JSONB NOT NULL,
@@ -1037,6 +1040,7 @@ CREATE TABLE roster_notification_runs (
     FOREIGN KEY (roster_week_id) REFERENCES roster_weeks (id) ON DELETE RESTRICT,
     FOREIGN KEY (requested_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK (snapshot_schema_version > 0),
+    CHECK (window_end > week_start),
     CHECK (jsonb_typeof(roster_snapshot) = 'object'),
     CHECK (jsonb_typeof(recipient_snapshot) = 'array'),
     CHECK (jsonb_typeof(skipped_recipient_snapshot) = 'array')
@@ -2010,6 +2014,7 @@ CREATE INDEX idx_roster_templates_group_updated ON roster_templates (roster_grou
 CREATE UNIQUE INDEX idx_roster_template_designs_one_draft_per_user ON roster_template_designs (draft_owner_user_id) WHERE draft_owner_user_id IS NOT NULL;
 CREATE UNIQUE INDEX idx_roster_template_designs_saved_version ON roster_template_designs (template_id, version_number) WHERE template_id IS NOT NULL;
 CREATE INDEX idx_roster_template_designs_group ON roster_template_designs (roster_group_id);
+CREATE UNIQUE INDEX idx_roster_template_days_design_weekday ON roster_template_days (roster_template_design_id, weekday_index) WHERE weekday_index IS NOT NULL;
 CREATE UNIQUE INDEX idx_roster_template_columns_design_name ON roster_template_columns (roster_template_design_id, LOWER(btrim(name)));
 CREATE UNIQUE INDEX idx_roster_template_columns_design_sort ON roster_template_columns (roster_template_design_id, sort_order);
 CREATE UNIQUE INDEX idx_roster_template_shifts_cell ON roster_template_shifts (roster_template_day_id, row_index, roster_template_column_id);
@@ -2025,6 +2030,7 @@ CREATE INDEX idx_roster_slots_lane ON roster_slots (roster_lane_id) WHERE delete
 CREATE INDEX idx_roster_slots_staff ON roster_slots (staff_id) WHERE staff_id IS NOT NULL AND deleted_at IS NULL;
 CREATE INDEX idx_roster_slots_shift_type ON roster_slots (shift_type_id) WHERE shift_type_id IS NOT NULL AND deleted_at IS NULL;
 CREATE INDEX idx_roster_notification_runs_group_week_created ON roster_notification_runs (roster_group_id, week_offset, created_at DESC);
+CREATE INDEX idx_roster_notification_runs_group_window_created ON roster_notification_runs (roster_group_id, week_start, window_end, created_at DESC);
 CREATE UNIQUE INDEX idx_roster_slots_active_cell ON roster_slots (roster_day_id, row_index, roster_week_slot_definition_id) WHERE deleted_at IS NULL;
 CREATE UNIQUE INDEX idx_roster_slots_active_lane_cell ON roster_slots (roster_day_id, row_index, roster_lane_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_staff_pay_versions_staff_effective ON staff_pay_versions (staff_id, effective_from DESC, created_at DESC);
@@ -2542,6 +2548,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION validate_roster_notification_window()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    IF NEW.window_end <> NEW.week_start + 7 THEN
+        RAISE EXCEPTION 'roster notification window must span exactly seven days';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION enforce_roster_template_integrity()
 RETURNS TRIGGER
 AS $$
@@ -2553,8 +2570,11 @@ BEGIN
     IF TG_TABLE_NAME = 'roster_template_days' THEN
         SELECT roster_group_id, scale INTO design_group_id, design_scale
         FROM roster_template_designs WHERE id = NEW.roster_template_design_id;
-        IF design_scale = 'day' AND NEW.day_index <> 0 THEN
-            RAISE EXCEPTION 'day roster templates may contain only day index zero';
+        IF design_scale = 'day' AND (NEW.day_index <> 0 OR NEW.weekday_index IS NOT NULL) THEN
+            RAISE EXCEPTION 'day roster templates may contain only target-relative day index zero';
+        END IF;
+        IF design_scale = 'week' AND NEW.weekday_index IS NULL THEN
+            RAISE EXCEPTION 'week roster template days require explicit weekday identity';
         END IF;
         RETURN NEW;
     END IF;
@@ -2972,6 +2992,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE TRIGGER validate_roster_notification_window BEFORE INSERT OR UPDATE ON roster_notification_runs FOR EACH ROW EXECUTE FUNCTION validate_roster_notification_window();
 CREATE TRIGGER prevent_saved_roster_template_design_mutation BEFORE UPDATE OR DELETE ON roster_template_designs FOR EACH ROW EXECUTE FUNCTION prevent_saved_roster_template_design_mutation();
 CREATE TRIGGER prevent_saved_roster_template_days_mutation BEFORE INSERT OR UPDATE OR DELETE ON roster_template_days FOR EACH ROW EXECUTE FUNCTION prevent_saved_roster_template_content_mutation();
 CREATE TRIGGER prevent_saved_roster_template_columns_mutation BEFORE INSERT OR UPDATE OR DELETE ON roster_template_columns FOR EACH ROW EXECUTE FUNCTION prevent_saved_roster_template_content_mutation();

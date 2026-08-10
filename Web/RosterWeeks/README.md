@@ -72,7 +72,7 @@ a registered `WireClosed` scalar; generated TypeScript owns the `"day" |
 ## Boundaries
 
 
-- Canonical navigation uses an ISO `anchorDate`; the server resolves the configured `[start,end)` window containing it. Retained `weekOffset` routes only redirect to that authority.
+- Canonical navigation uses an ISO `anchorDate`; the server resolves the configured `[start,end)` window containing it. Offset-based compatibility URLs are intentionally unsupported.
 - Server-rendered HTML and registered Surface contracts are browser authority.
 - Views consume generated interaction roles and payloads; generic browser
   behavior belongs in the shared interaction runtime.
@@ -92,7 +92,7 @@ The designer clearly identifies Template design. Complete day, column, and shift
 
 ## Template Application Contract
 
-Template application targets one explicitly scoped, Draft roster-group window. Day templates replace one day while matching columns case-insensitively by name, adding missing columns, and preserving unrelated columns and days. Week templates replace all seven day states/rows, columns/order, and shifts.
+Template application targets one explicitly scoped, Draft roster-group `[start,end)` window and optional Operational date. Week template days retain explicit weekday identity and rotate into the current venue presentation order. Day templates replace one day while matching columns case-insensitively by name, adding missing columns, and preserving unrelated columns and days. Week templates replace all seven day states/rows, columns/order, and shifts.
 
 Preview returns authoritative template and target revisions, resolved shift instants, destructive and Timesheet warnings, assignment-cleanup reasons, and typed touched resources. It intentionally confirms scope and consequences without a Before/After visual comparison. Confirmation locks the template, target week structure/content, Timesheet snapshots, Shift types, Staff rows, and group memberships; revalidates both revisions, and performs all source-template cleanup and target replacement in one transaction. Replaced roster shifts are soft-deleted, so materialized Timesheet snapshots retain their source and values.
 

@@ -1,6 +1,7 @@
 module Application.RosterPublication.Mutations
     ( normalizePublishedRosterWindows
     , withRosterCalendarLock
+    , withRosterWindowDateLock
     , withRosterWindowLock
     ) where
 
@@ -37,6 +38,15 @@ withRosterCalendarLock venueId action =
         let lockKey = "roster-calendar:" <> tshow venueId
         _ :: Bool <- sqlQueryScalar
             "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS roster_calendar_lock"
+            (PG.Only lockKey)
+        action
+
+withRosterWindowDateLock :: (?modelContext :: ModelContext) => Id Venue -> Id RosterGroup -> Day -> Day -> IO value -> IO value
+withRosterWindowDateLock venueId rosterGroupId windowStart windowEnd action =
+    withRosterCalendarLock venueId do
+        let lockKey = "roster-window-date:" <> tshow venueId <> ":" <> tshow rosterGroupId <> ":" <> tshow windowStart <> ":" <> tshow windowEnd
+        _ :: Bool <- sqlQueryScalar
+            "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS roster_window_date_lock"
             (PG.Only lockKey)
         action
 

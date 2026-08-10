@@ -351,7 +351,7 @@ expect_compile_failure \
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceRosterActionWrongField.hs" \
-    "FrontendSurface field bundle does not declare marker Roster.NotificationRosterWeekId"
+    "FrontendSurface field bundle does not declare marker Roster.TemplateId"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceRosterActionRawRebinding.hs" \

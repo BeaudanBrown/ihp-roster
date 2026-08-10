@@ -9,8 +9,8 @@ This document retains cross-module scheduling and state-transition rules.
 - `anchorDate` in the canonical URL is window-navigation authority.
   `ShowRosterWindowAction { anchorDate }` resolves the configured seven-day
   window containing that date; `RosterWeeksAction` resets from the current
-  Operational day. Legacy `ShowRosterWeekAction { weekOffset }` links only
-  redirect to an ISO anchor-date URL. Do not persist a last-viewed window.
+  Operational day. Offset-based roster and Timesheet URLs are unsupported;
+  do not add compatibility redirects or persist a last-viewed window.
 - Roster data is venue-scoped and may be roster-group-scoped. Missing weeks may
   be materialized only through authorized server behavior; reference browsing
   for templates never materializes a week.
@@ -64,8 +64,7 @@ roster edits expose warnings but never rewrite or delete those entries.
   weeks and ordinary staff expose no action. Active runs prevent another send;
   terminal runs may be deliberately repeated without roster-change inference or
   a distinct Resend workflow.
-- One immutable run snapshots roster content, eligible recipients, skipped
-  recipients, and actual requester provenance. Trial, unlinked, inactive, and
+- One immutable run snapshots an explicit `[windowStart, windowEnd)` roster range, eligible recipients, skipped recipients, and actual requester provenance. Legacy week IDs/offsets are optional historical provenance only. Trial, unlinked, inactive, and
   email-less staff are skipped. One durable job per eligible recipient renders
   only that recipient's assigned shifts, all snapshot Open shifts, and the
   authenticated roster link.
@@ -84,6 +83,7 @@ controller, mail, and delivery tests.
 - Reference creation reads only confirmed Published/Draft source content. Proof is
   session-bound to source and occupied-draft revisions; stale or replayed proof
   fails before mutation. Source roster rows are never changed.
+- Week template days persist explicit calendar-weekday identity and rotate into the current venue window order without changing weekday meaning. Day templates remain target-date-relative.
 - Saved templates contain complete shifts explicitly assigned Staff/Open.
   Unavailable or pay-invalid staff become Open with warnings in a new version;
   stale shift types fail atomically.

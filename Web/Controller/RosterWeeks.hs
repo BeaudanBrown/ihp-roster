@@ -52,7 +52,7 @@ import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
 import Application.Helper.WeekBoundaries (startOfWeekFor, venueWeekOffsetForDay,
                                           venueWeekStartDate)
 import qualified Application.RosterNotification as Notification
-import Application.RosterPublication (fetchRosterWeekIsPublished)
+import Application.RosterPublication (rosterDaysArePublished)
 import Application.RosterShiftAssignment (RosterShiftAssignment (StaffAssignment),
                                           applyRosterShiftAssignment,
                                           copyRosterShiftAssignment,
@@ -86,6 +86,7 @@ import Web.RosterWeeks.DateRange (RosterDayRowRemovalPreview (..),
                                   projectedRosterDayId,
                                   resolveRosterLaneReference,
                                   rosterPlanningWeekForDay)
+import Web.RosterWeeks.DirectReadModel (fetchRosterNotificationWindowDays)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.DropWorkflow
 import Web.RosterWeeks.Filters
@@ -249,41 +250,6 @@ instance Controller RosterWeeksController where
         let weekOffset = venueWeekOffsetForDay venueConfig windowStart
         renderRosterWeekPage weekOffset rosterGroup.id
 
-    action currentAction@ShowRosterWeekAction { weekOffset } = runBepis currentAction BepisPageAction do
-        rosterGroup <- resolveRequestedRosterGroup
-        venueConfig <- fetchVenueConfig
-        maybeLegacyWeek <- query @RosterWeek
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
-            |> filterWhere (#weekOffset, weekOffset)
-            |> fetchOneOrNothing
-        maybeLegacyDate <- case maybeLegacyWeek of
-            Nothing -> pure Nothing
-            Just legacyWeek -> query @RosterDay
-                |> filterWhere (#rosterWeekId, Just (unpackId legacyWeek.id))
-                |> orderByAsc #operationalDate
-                |> fetchOneOrNothing
-                |> fmap (fmap (.operationalDate))
-        let anchorDate = fromMaybe (venueWeekStartDate venueConfig weekOffset) maybeLegacyDate
-        redirectToPath (rosterWindowUrl anchorDate rosterGroup.id)
-
-    action currentAction@ShowRosterDayTimelineAction { weekOffset, rosterDayId } = runBepis currentAction BepisPageAction do
-        rosterGroup <- resolveRequestedRosterGroup
-        maybeRosterData <- fetchVisibleRosterReadModel rosterGroup.id weekOffset
-        case maybeRosterData of
-            Nothing -> do
-                setErrorMessage "Roster week not found."
-                redirectToRosterWindow weekOffset rosterGroup.id
-            Just rosterData -> do
-                let canViewTimeline = maybe False (.isLive) rosterData.rosterWeek || hasRole Manager
-                accessDeniedUnless canViewTimeline
-                case find (\rosterDay -> rosterDay.id == rosterDayId) rosterData.rosterDays of
-                    Nothing -> do
-                        setErrorMessage "Roster day not found."
-                        redirectToRosterWindow weekOffset rosterGroup.id
-                    Just rosterDay ->
-                        redirectToPath (rosterTimelineWindowUrl rosterDay.operationalDate rosterGroup.id)
-
     action currentAction@ShowRosterDayTimelineContentFragmentAction { anchorDate = anchorDateParam, rosterDayId } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
         weekOffset <- rosterWeekOffsetForAnchor anchorDate
@@ -361,90 +327,85 @@ instance Controller RosterWeeksController where
         panelModel <- fetchVisibleRosterStaffPanelRenderModel panelScope rosterGroup.id weekOffset
         respondHtmlProfiled (renderrosterStaffPanelLiveFragment panelModel)
 
-    action currentAction@ShowRosterNotificationConfirmationAction { rosterWeekId } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterNotificationConfirmationAction = runBepis currentAction BepisFragmentAction do
         ensureManagerRole
         notificationFields <- case RosterAction.parseShowRosterNotificationConfirmationActionParams of
             Left errors -> respondRosterNotificationBadRequest (rosterSurfaceRequestErrorMessage errors)
             Right fields -> pure fields
-        accessDeniedUnless (surfaceFieldValue @Surface.NotificationRosterWeekId notificationFields == unpackId rosterWeekId)
-        rosterWeek <- fetch rosterWeekId
-        ensureRecordInCurrentVenue rosterWeek.venueId
-        accessDeniedUnless =<< fetchRosterWeekIsPublished rosterWeek
-        rosterGroup <- query @RosterGroup
-            |> filterWhere (#id, Id rosterWeek.rosterGroupId)
+        let rosterGroupId = Id (surfaceFieldValue @Surface.RosterGroupId notificationFields)
+        let windowStart = surfaceFieldValue @Surface.WindowStartDate notificationFields
+        let windowEnd = surfaceFieldValue @Surface.WindowEndDate notificationFields
+        let expectedCalendarRevision = surfaceFieldValue @Surface.RosterCalendarRevision notificationFields
+        maybeRosterGroup <- query @RosterGroup
+            |> filterWhere (#id, rosterGroupId)
             |> filterWhere (#venueId, unpackId currentVenueId)
-            |> fetchOne
-        venue <- fetch currentVenueId
+            |> fetchOneOrNothing
+        accessDeniedUnless (isJust maybeRosterGroup)
+        let rosterGroup = fromMaybe (error "authorized notification roster group missing") maybeRosterGroup
         venueConfig <- fetchVenueConfig
+        accessDeniedUnless (expectedCalendarRevision == venueConfig.rosterCalendarRevision)
+        accessDeniedUnless (windowStart == startOfWeekFor venueConfig.rosterWeekStartsOn windowStart && windowEnd == Calendar.addDays 7 windowStart)
+        rosterDays <- fetchRosterNotificationWindowDays currentVenueId rosterGroup.id windowStart windowEnd
+        accessDeniedUnless (rosterDaysArePublished rosterDays && length rosterDays == 7)
+        venue <- fetch currentVenueId
         audience <- Notification.fetchRosterNotificationAudience venue rosterGroup
-        latestRun <- Notification.fetchLatestRosterNotificationRunSummary rosterWeek
-        let weekStart = venueWeekStartDate venueConfig rosterWeek.weekOffset
-        respondHtmlProfiled (renderRosterNotificationConfirmation venue rosterGroup rosterWeek weekStart audience latestRun)
+        latestRun <- Notification.fetchLatestRosterNotificationRunSummaryForWindow currentVenueId rosterGroup.id windowStart windowEnd
+        respondHtmlProfiled (renderRosterNotificationConfirmation venue rosterGroup windowStart windowEnd expectedCalendarRevision audience latestRun)
 
-    action currentAction@CreateRosterNotificationRunAction { rosterWeekId } = runBepis currentAction BepisMutationAction do
+    action currentAction@CreateRosterNotificationRunAction = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         notificationFields <- case RosterAction.parseCreateRosterNotificationRunActionParams of
             Left errors -> respondRosterNotificationBadRequest (rosterSurfaceRequestErrorMessage errors)
             Right fields -> pure fields
-        accessDeniedUnless (surfaceFieldValue @Surface.NotificationRosterWeekId notificationFields == unpackId rosterWeekId)
-        rosterWeek <- fetch rosterWeekId
-        ensureRecordInCurrentVenue rosterWeek.venueId
-        accessDeniedUnless =<< fetchRosterWeekIsPublished rosterWeek
-        let rosterGroupId = Id rosterWeek.rosterGroupId
-        runResult <- Notification.createRosterNotificationRunUnlessActive currentUser rosterWeek
+        let rosterGroupId = Id (surfaceFieldValue @Surface.RosterGroupId notificationFields)
+        let windowStart = surfaceFieldValue @Surface.WindowStartDate notificationFields
+        let windowEnd = surfaceFieldValue @Surface.WindowEndDate notificationFields
+        let expectedCalendarRevision = surfaceFieldValue @Surface.RosterCalendarRevision notificationFields
+        maybeRosterGroup <- query @RosterGroup
+            |> filterWhere (#id, rosterGroupId)
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> fetchOneOrNothing
+        accessDeniedUnless (isJust maybeRosterGroup)
+        let rosterGroup = fromMaybe (error "authorized notification roster group missing") maybeRosterGroup
+        venueConfig <- fetchVenueConfig
+        accessDeniedUnless (expectedCalendarRevision == venueConfig.rosterCalendarRevision)
+        accessDeniedUnless (windowStart == startOfWeekFor venueConfig.rosterWeekStartsOn windowStart && windowEnd == Calendar.addDays 7 windowStart)
+        venue <- fetch currentVenueId
+        let weekOffset = venueWeekOffsetForDay venueConfig windowStart
+        runResult <- Notification.createRosterNotificationRunForWindowUnlessActiveAtRevision currentUser venue rosterGroup windowStart windowEnd expectedCalendarRevision
         case runResult of
+            Notification.RosterNotificationRunCalendarConflict ->
+                markStaleRosterCalendarResponseForRefresh >> respondRosterNotificationBadRequest "The roster calendar changed. Review the refreshed window and try again."
             Notification.RosterNotificationRunAlreadyActive ->
                 if isHtmxRequest
-                    then respondWithRosterFragments
-                        rosterGroupId
-                        rosterWeek.weekOffset
-                        [RosterProjectionStaffPanel]
-                        [hsx|
-                            <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
-                            {renderToastOob ToastBottomCenter (errorToast "Roster email delivery is already in progress.")}
-                        |]
-                    else do
-                        setErrorMessage "Roster email delivery is already in progress."
-                        redirectToRosterWindow rosterWeek.weekOffset rosterGroupId
+                    then respondWithRosterFragments rosterGroupId weekOffset [RosterProjectionStaffPanel] [hsx|
+                        <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+                        {renderToastOob ToastBottomCenter (errorToast "Roster email delivery is already in progress.")}
+                    |]
+                    else setErrorMessage "Roster email delivery is already in progress." >> redirectToRosterWindow weekOffset rosterGroupId
             Notification.RosterNotificationRunHasNoEligibleRecipients ->
                 if isHtmxRequest
-                    then respondWithRosterFragments
-                        rosterGroupId
-                        rosterWeek.weekOffset
-                        [RosterProjectionStaffPanel]
-                        [hsx|
-                            <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
-                            {renderToastOob ToastBottomCenter (errorToast "No eligible recipients are available.")}
-                        |]
-                    else do
-                        setErrorMessage "No eligible recipients are available."
-                        redirectToRosterWindow rosterWeek.weekOffset rosterGroupId
+                    then respondWithRosterFragments rosterGroupId weekOffset [RosterProjectionStaffPanel] [hsx|
+                        <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+                        {renderToastOob ToastBottomCenter (errorToast "No eligible recipients are available.")}
+                    |]
+                    else setErrorMessage "No eligible recipients are available." >> redirectToRosterWindow weekOffset rosterGroupId
             Notification.RosterNotificationRunCreated run -> do
                 recipients <- Notification.decodeRosterNotificationRecipients run
                 skippedRecipients <- Notification.decodeRosterNotificationSkippedRecipients run
-                let queuedCount = length recipients
-                let skippedCount = length skippedRecipients
-                let successMessage =
-                        "Roster email queued for "
-                            <> Notification.rosterNotificationRecipientCountLabel queuedCount
-                            <> ". "
-                            <> tshow skippedCount
-                            <> " skipped"
-                            <> "."
+                let successMessage = "Roster email queued for " <> Notification.rosterNotificationRecipientCountLabel (length recipients) <> ". " <> tshow (length skippedRecipients) <> " skipped."
                 if isHtmxRequest
                     then respondWithRosterResourceInvalidation
                         rosterGroupId
-                        rosterWeek.weekOffset
-                        (Set.singleton (rosterNotificationStatusResource (unpackId rosterGroupId) run.weekStart (Calendar.addDays 7 run.weekStart)))
+                        weekOffset
+                        (Set.singleton (rosterNotificationStatusResource (unpackId rosterGroupId) run.weekStart run.windowEnd))
                         [RosterProjectionStaffPanel]
                         [hsx|
                             <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
                             {renderToastOob ToastBottomCenter (successToast successMessage)}
                         |]
-                    else do
-                        setSuccessMessage successMessage
-                        redirectToRosterWindow rosterWeek.weekOffset rosterGroupId
+                    else setSuccessMessage successMessage >> redirectToRosterWindow weekOffset rosterGroupId
 
     action currentAction@ShowRosterWeekDaySectionFragmentAction { anchorDate = anchorDateParam, rosterDayId } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
@@ -505,7 +466,10 @@ instance Controller RosterWeeksController where
                         redirectToPath targetPath
 
     action currentAction@CopyRosterWeekAction = runBepis currentAction BepisMutationAction do
-        (sourceWeekOffset, targetWeekOffset) <- rosterCopyActionWeekOffsets
+        (sourceWindowStart, targetWindowStart) <- rosterCopyActionDates
+        venueConfig <- fetchVenueConfig
+        let sourceWeekOffset = venueWeekOffsetForDay venueConfig sourceWindowStart
+        let targetWeekOffset = venueWeekOffsetForDay venueConfig targetWindowStart
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
@@ -519,29 +483,31 @@ instance Controller RosterWeeksController where
                         setErrorMessage errorMessage
                         redirectToRosterWindow targetWeekOffset rosterGroup.id
             else do
-                sourceWeekOrNothing <- query @RosterWeek
+                sourceDays <- query @RosterDay
+                    |> filterWhere (#venueId, unpackId currentVenueId)
                     |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
-                    |> filterWhere (#weekOffset, sourceWeekOffset)
-                    |> fetchOneOrNothing
-                case sourceWeekOrNothing of
-                    Nothing -> do
+                    |> filterWhereGreaterThanOrEqualTo (#operationalDate, sourceWindowStart)
+                    |> filterWhereLessThan (#operationalDate, Calendar.addDays 7 sourceWindowStart)
+                    |> fetch
+                case sourceDays of
+                    [] -> do
                         let errorMessage = "Source week not found. Cannot copy."
                         if isHtmxRequest
                             then respondWithRosterToast errorMessage "app-toast-error"
                             else do
                                 setErrorMessage errorMessage
                                 redirectToRosterWindow targetWeekOffset rosterGroup.id
-                    Just sourceWeek ->
+                    _ ->
                         case copyOccurrenceSelectionsFromRosterAction of
                             Left message -> respondWithRosterCopyFailure rosterGroup.id targetWeekOffset message
                             Right selections -> do
-                                copyResult <- copyRosterWeekFromSourceMutation selections rosterGroup.id sourceWeek targetWeekOffset
+                                copyResult <- copyRosterWindowFromSourceMutation selections rosterGroup.id sourceWindowStart targetWindowStart
                                 case copyResult of
                                     Left (RosterWeekCopyPersistenceError message) ->
                                         respondWithRosterCopyFailure rosterGroup.id targetWeekOffset message
                                     Left (RosterWeekCopyBoundaryError failure) -> do
                                         venueConfig <- fetchVenueConfig
-                                        (startIsRepeated, endIsRepeated) <- rosterWeekCopyAmbiguousEndpoints venueConfig sourceWeek targetWeekOffset
+                                        (startIsRepeated, endIsRepeated) <- rosterWindowCopyAmbiguousEndpoints venueConfig currentVenueId rosterGroup.id sourceWindowStart targetWindowStart
                                         case failure of
                                             BoundaryCivilTimeError (RepeatedCivilTimeRequiresOccurrence _)
                                                 | startIsRepeated || endIsRepeated ->
@@ -1524,13 +1490,13 @@ rosterMutationWeekOffset = do
     requireCurrentRosterCalendarRevision venueConfig calendarRevision
     rosterActionWeekOffset
 
-rosterCopyActionWeekOffsets :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Int, Int)
-rosterCopyActionWeekOffsets = do
+rosterCopyActionDates :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Day, Day)
+rosterCopyActionDates = do
     venueConfig <- fetchVenueConfig
     let sourceAnchorDate = param @Calendar.Day "sourceAnchorDate"
     let targetAnchorDate = param @Calendar.Day "targetAnchorDate"
     let calendarRevision = param @Int "rosterCalendarRevision"
-    let resolve = venueWeekOffsetForDay venueConfig . startOfWeekFor venueConfig.rosterWeekStartsOn
+    let resolve = startOfWeekFor venueConfig.rosterWeekStartsOn
     requireCurrentRosterCalendarRevision venueConfig calendarRevision
     pure (resolve sourceAnchorDate, resolve targetAnchorDate)
 

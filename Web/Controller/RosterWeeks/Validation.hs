@@ -4,13 +4,10 @@
 {-# LANGUAGE TypeApplications    #-}
 
 module Web.Controller.RosterWeeks.Validation
-    ( activeRosterWeekSlotDefinitionWithName
-    , ensureRosterWeekIsDraftForEdit
+    ( ensureRosterWeekIsDraftForEdit
     , firstAvailableDefaultName
     , invalidRosterSlotTimingMessage
-    , nextDefaultRosterSlotDefinitionName
     , normalizeRosterSlotDefinitionName
-    , resolveRosterSlotDefinitionNameForCreate
     ) where
 
 import Application.Helper.Controller
@@ -54,32 +51,9 @@ normalizeRosterSlotDefinitionName submittedName =
                     then Left "Roster column name must be 120 characters or fewer."
                     else Right normalized
 
-resolveRosterSlotDefinitionNameForCreate :: (?modelContext :: ModelContext, ?request :: Request) => RosterWeek -> IO (Either Text Text)
-resolveRosterSlotDefinitionNameForCreate rosterWeek =
-    case Text.strip (paramOrDefault @Text "" "name") of
-        "" -> Right <$> nextDefaultRosterSlotDefinitionName rosterWeek
-        submittedName -> pure (normalizeRosterSlotDefinitionName submittedName)
-
-nextDefaultRosterSlotDefinitionName :: (?modelContext :: ModelContext) => RosterWeek -> IO Text
-nextDefaultRosterSlotDefinitionName rosterWeek = do
-    activeDefinitions <- query @RosterWeekSlotDefinition
-        |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
-        |> filterWhere (#deletedAt, Nothing)
-        |> fetch
-    let existingNames = map (.name) activeDefinitions
-    pure (firstAvailableDefaultName existingNames)
-
 firstAvailableDefaultName :: [Text] -> Text
 firstAvailableDefaultName existingNames =
     fromMaybe "New column" (head (filter (`notElem` existingNames) candidateNames))
   where
     candidateNames =
         "New column" : map (\index -> "New column " <> tshow index) [2 :: Int ..]
-
-activeRosterWeekSlotDefinitionWithName :: (?modelContext :: ModelContext) => RosterWeek -> Text -> IO (Maybe RosterWeekSlotDefinition)
-activeRosterWeekSlotDefinitionWithName rosterWeek slotName =
-    query @RosterWeekSlotDefinition
-        |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
-        |> filterWhere (#name, slotName)
-        |> filterWhere (#deletedAt, Nothing)
-        |> fetchOneOrNothing

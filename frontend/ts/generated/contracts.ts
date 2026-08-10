@@ -1458,7 +1458,6 @@ export type RosterGroupId = FrontendContractUuid;
 export type UserId = FrontendContractUuid;
 export type TemplateId = FrontendContractUuid;
 export type RosterDayId = FrontendContractUuid;
-export type NotificationRosterWeekId = FrontendContractUuid;
 export type StaffId = FrontendContractUuid;
 export type RosterGroupIdsField = FrontendContractUuid;
 export type DefaultStaffAwardLevelId = FrontendContractUuid;

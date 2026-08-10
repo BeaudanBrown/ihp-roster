@@ -18,6 +18,7 @@ import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
+import Data.Time.Calendar (Day, addDays, fromGregorian)
 import Data.UUID (UUID, fromWords)
 import GHC.Clock (getMonotonicTimeNSec)
 import IHP.Prelude
@@ -76,7 +77,7 @@ allScenarios =
 data BenchmarkPlan = BenchmarkPlan
     { planResources           :: !(Set.Set SurfaceResourceValue)
     , planActiveSubscriptions :: ![SurfaceSubscription]
-    , planActiveRosterScopes  :: ![(UUID, UUID, Int)]
+    , planActiveRosterScopes  :: ![(UUID, UUID, Day, Day, Int)]
     }
 
 scenarioName :: LiveInvalidationBenchmarkScenario -> Text
@@ -190,10 +191,10 @@ buildBenchmarkPlan scenario requestedScopeCount =
                 }
         TimesheetWeekScenario ->
             BenchmarkPlan
-                { planResources = Set.singleton (timesheetWeekResource targetVenueId targetWeekOffset)
+                { planResources = Set.singleton (timesheetWeekResource targetVenueId targetWindowStart targetWindowEnd)
                 , planActiveSubscriptions =
                     [ benchmarkSubscription
-                        (TimesheetsLive.timesheetWeekLiveScope (venueIdFor index) (index `mod` 52))
+                        (TimesheetsLive.timesheetWeekLiveScope (venueIdFor index) (windowStartFor index) (addDays 7 (windowStartFor index)) targetCalendarRevision)
                         [TimesheetsLive.timesheetToolbarLiveFragment]
                     | index <- [0 .. requestedScopeCount - 1]
                     ]
@@ -212,14 +213,14 @@ buildBenchmarkPlan scenario requestedScopeCount =
                 }
         RosterWeekFanoutScenario ->
             BenchmarkPlan
-                { planResources = Set.fromList [rosterWeekResource (rosterGroupIdFor index) targetWeekOffset | index <- [0 .. requestedScopeCount - 1]]
+                { planResources = Set.fromList [rosterWeekResource (rosterGroupIdFor index) targetWindowStart targetWindowEnd | index <- [0 .. requestedScopeCount - 1]]
                 , planActiveSubscriptions =
                     [ benchmarkSubscription
-                        (RosterLive.rosterWeekLiveScope targetVenueId (rosterGroupIdFor index) targetWeekOffset)
+                        (RosterLive.rosterWeekLiveScope targetVenueId (rosterGroupIdFor index) targetWindowStart targetWindowEnd targetCalendarRevision)
                         [RosterLive.rosterGridToolbarLiveFragment]
                     | index <- [0 .. requestedScopeCount - 1]
                     ]
-                , planActiveRosterScopes = [(targetVenueId, rosterGroupIdFor index, targetWeekOffset) | index <- [0 .. requestedScopeCount - 1]]
+                , planActiveRosterScopes = [(targetVenueId, rosterGroupIdFor index, targetWindowStart, targetWindowEnd, targetCalendarRevision) | index <- [0 .. requestedScopeCount - 1]]
                 }
         MixedContextFreeScenario ->
             BenchmarkPlan
@@ -228,7 +229,7 @@ buildBenchmarkPlan scenario requestedScopeCount =
                         [ supportAwardRatesResource
                         , billingResource targetVenueId
                         , adminInvitesResource targetVenueId
-                        , timesheetWeekResource targetVenueId targetWeekOffset
+                        , timesheetWeekResource targetVenueId targetWindowStart targetWindowEnd
                         , xeroConnectionResource targetVenueId
                         ]
                 , planActiveSubscriptions = take requestedScopeCount (cycle mixedSubscriptions)
@@ -236,12 +237,15 @@ buildBenchmarkPlan scenario requestedScopeCount =
                 }
     where
         targetVenueId = venueIdFor 0
-        targetWeekOffset = 0
+        targetWindowStart = fromGregorian 2025 1 6
+        targetWindowEnd = addDays 7 targetWindowStart
+        targetCalendarRevision = 1
+        windowStartFor index = addDays (toInteger ((index `mod` 52) * 7)) targetWindowStart
         mixedSubscriptions =
             [ benchmarkSubscription SupportLive.supportPlatformLiveScope [SupportLive.supportAwardRatesLiveFragment]
             , benchmarkSubscription (BillingLive.billingVenueLiveScope targetVenueId) [BillingLive.billingStatusLiveFragment]
             , benchmarkSubscription (AdminLive.adminInvitesLiveScope targetVenueId) [AdminLive.adminInvitesLiveFragment]
-            , benchmarkSubscription (TimesheetsLive.timesheetWeekLiveScope targetVenueId targetWeekOffset) [TimesheetsLive.timesheetToolbarLiveFragment]
+            , benchmarkSubscription (TimesheetsLive.timesheetWeekLiveScope targetVenueId targetWindowStart targetWindowEnd targetCalendarRevision) [TimesheetsLive.timesheetToolbarLiveFragment]
             , benchmarkSubscription (AdminLive.adminXeroLiveScope targetVenueId) [AdminLive.adminXeroShellLiveFragment]
             ]
 

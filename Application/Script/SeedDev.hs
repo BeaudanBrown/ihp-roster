@@ -98,7 +98,7 @@ runWithResetMode resetMode = do
             |> fetch
     rosterDays <-
         query @RosterDay
-            |> filterWhereIn (#rosterWeekId, map (unpackId . (.id)) rosterWeeks)
+            |> filterWhereIn (#rosterWeekId, map (Just . unpackId . (.id)) rosterWeeks)
             |> fetch
     rosterSlots <-
         query @RosterSlot

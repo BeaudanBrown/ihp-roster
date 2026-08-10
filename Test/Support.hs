@@ -449,6 +449,17 @@ createRosterDayRecord rosterWeek dayOffset = do
         |> fetchOneOrNothing
     maybe (ApplicationFixture.createRosterDayRecord rosterWeek dayOffset) pure existing
 
+createNativeRosterDayRecord :: (?modelContext :: ModelContext) => Venue -> RosterGroup -> Day -> Int -> IO RosterDay
+createNativeRosterDayRecord venue rosterGroup operationalDate dayOffset =
+    newRecord @RosterDay
+        |> set #rosterWeekId Nothing
+        |> set #venueId (unpackId venue.id)
+        |> set #rosterGroupId (unpackId rosterGroup.id)
+        |> set #operationalDate operationalDate
+        |> set #publicationState Draft
+        |> set #dayOffset dayOffset
+        |> createRecord
+
 createRosterSlotRecord :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> Maybe Staff -> Int -> IO RosterSlot
 createRosterSlotRecord rosterDay slotName maybeStaff rowIndex =
     ApplicationFixture.createRosterSlotRecord rosterDay slotName assignment rowIndex
@@ -690,6 +701,16 @@ rosterCopyParams sourceOffset targetOffset =
     , ("targetAnchorDate", cs (show (testAnchorForOffset targetOffset)))
     , ("rosterCalendarRevision", "1")
     ]
+
+rosterNotificationParams :: RosterWeek -> [(ByteString.ByteString, ByteString.ByteString)]
+rosterNotificationParams rosterWeek =
+    [ ("rosterGroupId", cs (show rosterWeek.rosterGroupId))
+    , ("windowStartDate", cs (show windowStart))
+    , ("windowEndDate", cs (show (addDays 7 windowStart)))
+    , ("rosterCalendarRevision", "1")
+    ]
+  where
+    windowStart = testAnchorForOffset rosterWeek.weekOffset
 
 rosterMutationParams :: Int -> [(ByteString.ByteString, ByteString.ByteString)]
 rosterMutationParams weekOffset =

@@ -2,7 +2,7 @@ module Web.RosterWeeks.Mutations
     ( RosterSlotMutationResult (..)
     , addRosterDayRowMutation
     , appendRosterWindowLaneMutation
-    , copyRosterWeekFromSourceMutation
+    , copyRosterWindowFromSourceMutation
     , ensureRosterWeekExistsMutation
     , materializeRosterWindowMutation
     , moveRosterSlotMutation
@@ -26,7 +26,8 @@ module Web.RosterWeeks.Mutations
 import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource
 import Application.Helper.SurfaceResource
-import Application.RosterPublication.Mutations (withRosterWindowLock)
+import Application.RosterPublication.Mutations (withRosterWindowDateLock,
+                                                withRosterWindowLock)
 import Application.Staff.Mutations (withStaffOperationalLocks)
 import Application.VenueTime.Model (BoundaryModelError,
                                     ShiftCopyOccurrenceSelections)
@@ -86,34 +87,30 @@ ensureRosterWeekExistsMutation rosterGroupId weekOffset = do
                     then invalidateTouchedResources "roster.week.ensure" mutationResult
                     else pure mutationResult
 
-copyRosterWeekFromSourceMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftCopyOccurrenceSelections -> Id RosterGroup -> RosterWeek -> Int -> IO (Either RosterWeekCopyError (LiveMutationResult RosterWeek))
-copyRosterWeekFromSourceMutation selections rosterGroupId sourceWeek targetWeekOffset = do
-    copyResult <- withRosterWindowMutationLock rosterGroupId targetWeekOffset do
-        venueConfig <- fetchVenueConfig
-        calendarError <- requestRosterCalendarRevisionError venueConfig
+copyRosterWindowFromSourceMutation ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    ShiftCopyOccurrenceSelections ->
+    Id RosterGroup ->
+    Day ->
+    Day ->
+    IO (Either RosterWeekCopyError (LiveMutationResult ()))
+copyRosterWindowFromSourceMutation selections rosterGroupId sourceStart targetStart = do
+    venueConfig <- fetchVenueConfig
+    let targetWeekOffset = venueWeekOffsetForDay venueConfig targetStart
+    copyResult <- withRosterWindowDateLock currentVenueId rosterGroupId targetStart (addDays 7 targetStart) do
+        lockedVenueConfig <- fetchVenueConfig
+        calendarError <- requestRosterCalendarRevisionError lockedVenueConfig
         case calendarError of
             Just message -> pure (Left (RosterWeekCopyPersistenceError message))
             Nothing -> do
-                targetWindow <- fetchRosterWindow currentVenueId rosterGroupId (venueWeekStartDate venueConfig targetWeekOffset)
+                targetWindow <- fetchRosterWindow currentVenueId rosterGroupId targetStart
                 let targetHasPublishedDay = any (maybe False ((== Published) . (.publicationState)) . (.persistedRosterDay)) targetWindow.rosterWindowProjectedDays
-                existingTarget <- query @RosterWeek
-                    |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
-                    |> filterWhere (#weekOffset, targetWeekOffset)
-                    |> fetchOneOrNothing
-                case existingTarget of
-                    Just targetWeek
-                        | targetHasPublishedDay ->
-                            pure (Left (RosterWeekCopyPersistenceError "Published roster windows are read-only. Return it to Draft before copying."))
-                        | otherwise -> replaceRosterWeekFromSource selections sourceWeek targetWeek
-                    Nothing
-                        | targetHasPublishedDay ->
-                            pure (Left (RosterWeekCopyPersistenceError "Published roster windows are read-only. Return it to Draft before copying."))
-                        | any (isJust . (.persistedRosterDay)) targetWindow.rosterWindowProjectedDays ->
-                            pure (Left (RosterWeekCopyPersistenceError "Date-native roster windows cannot use legacy copy."))
-                        | otherwise -> copyRosterWeek selections sourceWeek targetWeekOffset
-    traverse
-        (\targetWeek -> invalidateRosterMutation "roster.week.copy" targetWeek (rosterWeekStructuralTouchedResources rosterGroupId targetWeekOffset))
-        copyResult
+                if targetHasPublishedDay
+                    then pure (Left (RosterWeekCopyPersistenceError "Published roster windows are read-only. Return it to Draft before copying."))
+                    else copyRosterWindowByDates selections currentVenueId rosterGroupId sourceStart targetStart
+    traverse (\() -> do
+        touchedResources <- rosterWeekStructuralTouchedResources rosterGroupId targetWeekOffset
+        invalidateTouchedResources "roster.window.copy" (liveMutationResult () touchedResources)) copyResult
 
 toggleRosterWeekLiveStatusMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> Bool -> IO (Either Text (LiveMutationResult RosterWeek))
 toggleRosterWeekLiveStatusMutation rosterGroupId rosterWeek nextLiveStatus = do

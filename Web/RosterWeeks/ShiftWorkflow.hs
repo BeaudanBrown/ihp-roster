@@ -10,7 +10,6 @@ module Web.RosterWeeks.ShiftWorkflow
     , applyValidatedRosterShift
     , defaultRosterShiftDialogValuesForVenue
     , fetchCurrentVenueRosterShiftTypesForDialog
-    , fetchRosterSlotCreateContext
     , fetchRosterSlotDefinitionForCreate
     , fetchRosterSlotEditContext
     , fetchRosterSlotForEdit
@@ -67,12 +66,6 @@ data ValidatedRosterShift = ValidatedRosterShift
     , validRosterShiftBoundaries :: !AuthoritativeBoundaries
     , validRosterShiftTypeId     :: !UUID.UUID
     }
-
-fetchRosterSlotCreateContext :: (?modelContext :: ModelContext) => Id RosterDay -> IO (RosterDay, RosterWeek)
-fetchRosterSlotCreateContext rosterDayId = do
-    rosterDay <- fetch rosterDayId
-    rosterWeek <- rosterPlanningWeekForDay rosterDay
-    pure (rosterDay, rosterWeek)
 
 fetchRosterSlotDefinitionForCreate :: (?modelContext :: ModelContext) => Id RosterDay -> Id RosterLane -> IO RosterLane
 fetchRosterSlotDefinitionForCreate rosterDayId requestedId =

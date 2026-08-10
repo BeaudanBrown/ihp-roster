@@ -64,7 +64,6 @@ data ProfilesController
 data TimesheetsController
     = TimesheetsAction
     | ShowTimesheetWindowAction { anchorDate :: !Text }
-    | ShowTimesheetWeekAction { weekOffset :: !Int }
     | ShowtimesheetToolbarLiveFragmentAction { anchorDate :: !Text }
     | ShowtimesheetDayColumnsLiveFragmentAction { anchorDate :: !Text }
     | ShowtimesheetSidePanelContentLiveFragmentAction { anchorDate :: !Text }
@@ -260,8 +259,6 @@ data RosterTemplatesController
 data RosterWeeksController
     = RosterWeeksAction
     | ShowRosterWindowAction { anchorDate :: !Text }
-    | ShowRosterWeekAction { weekOffset :: !Int }
-    | ShowRosterDayTimelineAction { weekOffset :: !Int, rosterDayId :: !(Id RosterDay) }
     | ShowRosterDayTimelineContentFragmentAction { anchorDate :: !Text, rosterDayId :: !(Id RosterDay) }
     | ShowRosterWeekOverviewFragmentAction { anchorDate :: !Text }
     | ShowRosterWeekContentFragmentAction { anchorDate :: !Text }
@@ -278,8 +275,8 @@ data RosterWeeksController
     | CreateRosterWeekAction
     | CopyRosterWeekAction
     | ToggleRosterWeekLiveStatusAction { rosterWeekId :: !(Id RosterWeek) }
-    | ShowRosterNotificationConfirmationAction { rosterWeekId :: !(Id RosterWeek) }
-    | CreateRosterNotificationRunAction { rosterWeekId :: !(Id RosterWeek) }
+    | ShowRosterNotificationConfirmationAction
+    | CreateRosterNotificationRunAction
     | CreateRosterWeekSlotDefinitionAction
     | RemoveRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId :: !(Id RosterLane) }
     | SortRosterWeekAction

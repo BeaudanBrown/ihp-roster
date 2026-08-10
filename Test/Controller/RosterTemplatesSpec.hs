@@ -336,7 +336,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Discard and start new"
                 response `responseBodyShouldContain` "Cancel"
 
-        it "preserves occupied work when a confirmed reference disappears before discard" $ withContext do
+        it "keeps confirmed dated references valid when legacy week provenance is archived" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Template disappearing reference"
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
@@ -364,8 +364,8 @@ tests = aroundAll withDatabaseTestContext do
                         ]
                 retained <- fetchPrivateRosterTemplateDraft actor
 
-                response `responseStatusShouldBe` status302
-                fmap (.draftName) retained `shouldBe` Just "Keep me"
+                response `responseStatusShouldBe` status303
+                fmap (.draftName) retained `shouldBe` Just "Replacement reference"
 
         it "discards occupied work and starts the explicitly requested replacement" $ withContext do
             withCleanDb do
@@ -420,7 +420,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ShowRosterTemplateApplicationConfirmationAction
                         { rosterTemplateId = saved.savedTemplate.id, rosterGroupId = rosterGroup.id }
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("targetDropzoneKey", cs ("week:" <> tshow targetWeek.id))]
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("targetDropzoneKey", "window:2025-01-06")]
                 afterSlots <- query @RosterSlot |> fetchCount
 
                 response `responseStatusShouldBe` status200
@@ -433,7 +433,7 @@ tests = aroundAll withDatabaseTestContext do
                     callActionWithParams PreviewRosterTemplateDropAction
                         { rosterGroupId = rosterGroup.id }
                         [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("sourceItemKey", idToParam saved.savedTemplate.id)
-                        , ("targetDropzoneKey", cs ("week:" <> tshow targetWeek.id))
+                        , ("targetDropzoneKey", "window:2025-01-06")
                         ]
                 dropResponse `responseStatusShouldBe` status200
                 dropResponse `responseBodyShouldContain` "Apply Standard week"
@@ -476,7 +476,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> set #name "Old lane"
                     |> set #sortOrder 0
                     |> createRecord
-                let targetKey = "week:" <> tshow targetWeek.id
+                let targetKey :: Text = "window:2025-01-06"
                 previewResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ShowRosterTemplateApplicationConfirmationAction
                         { rosterTemplateId = saved.savedTemplate.id, rosterGroupId = rosterGroup.id }
@@ -492,13 +492,17 @@ tests = aroundAll withDatabaseTestContext do
                         , ("expectedTemplateVersion", cs expectedVersion)
                         , ("expectedTargetRevision", cs expectedRevision)
                         ]
-                activeDefinitions <- query @RosterWeekSlotDefinition
-                    |> filterWhere (#rosterWeekId, unpackId targetWeek.id)
+                targetDay <- query @RosterDay
+                    |> filterWhere (#rosterWeekId, Just (unpackId targetWeek.id))
+                    |> filterWhere (#dayOffset, 0)
+                    |> fetchOne
+                activeLanes <- query @RosterLane
+                    |> filterWhere (#rosterDayId, unpackId targetDay.id)
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetch
 
                 response `responseStatusShouldBe` status302
-                map (.name) activeDefinitions `shouldBe` ["Shift"]
+                map (.name) activeLanes `shouldBe` ["Shift"]
 
         it "names the template and preserves existing rosters in delete confirmation" $ withContext do
             withCleanDb do

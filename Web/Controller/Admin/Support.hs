@@ -261,34 +261,6 @@ shouldShowVenueInvitation now retentionCutoff invitation =
         Accepted -> fromMaybe invitation.updatedAt invitation.acceptedAt >= retentionCutoff
         Revoked -> invitation.updatedAt >= retentionCutoff
 
-isVenueRosterWeekStartLocked :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Bool
-isVenueRosterWeekStartLocked = do
-    rosterWeekCount <-
-        query @RosterWeek
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> fetchCount
-    timesheetEntryCount <-
-        query @TimesheetEntry
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> fetchCount
-    leaveRequestCount <-
-        query @LeaveRequest
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> fetchCount
-    exportJobCount <-
-        query @ExportJob
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> fetchCount
-    staffPayVersionCount <-
-        query @StaffPayVersion
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> fetchCount
-    shiftTypePayVersionCount <-
-        query @ShiftTypePayVersion
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> fetchCount
-    pure (any (> 0) [rosterWeekCount, timesheetEntryCount, leaveRequestCount, exportJobCount, staffPayVersionCount, shiftTypePayVersionCount])
-
 validateRequiredName :: (?context :: ControllerContext, ?request :: Request) => Text -> Text -> IO (Maybe Text)
 validateRequiredName rawValue errorMessage =
     let value = Text.strip rawValue

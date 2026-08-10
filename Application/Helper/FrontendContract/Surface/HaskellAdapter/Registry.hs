@@ -194,7 +194,7 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.CreateTimesheetEntryFromSuggestion allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.ApproveTimesheetEntry allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.UnapproveTimesheetEntry allRequestAdapterOperations
-    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.NavigateRosterWeek requestAdapterOperationsWithParamsPresent
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.NavigateRosterWeek requestAdapterOperationsWithParamsPresentWithoutParser
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWarnings allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterWageEstimates allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ToggleRosterOwnLiveShiftHighlight allRequestAdapterOperations
@@ -299,19 +299,16 @@ requestAdapterOperationsWithParamsPresent =
         { surfaceAdapterParamsPresentOperation = GenerateSurfaceAdapterOperation
         }
 
+requestAdapterOperationsWithParamsPresentWithoutParser :: SurfaceRequestAdapterOperations
+requestAdapterOperationsWithParamsPresentWithoutParser =
+    requestAdapterOperationsWithParamsPresent
+        { surfaceAdapterRequestParserOperation = ExcludeSurfaceAdapterOperation "Navigation is rendered by Haskell and consumed by the browser; the server never parses this action envelope"
+        }
+
 requestAdapterOperationsWithoutParser :: Text -> SurfaceRequestAdapterOperations
 requestAdapterOperationsWithoutParser reason =
     allRequestAdapterOperations
         { surfaceAdapterRequestParserOperation = ExcludeSurfaceAdapterOperation reason
-        }
-
-requestAdapterParserOnly :: Text -> SurfaceRequestAdapterOperations
-requestAdapterParserOnly reason =
-    SurfaceRequestAdapterOperations
-        { surfaceAdapterFieldsBuilderOperation = ExcludeSurfaceAdapterOperation reason
-        , surfaceAdapterRenderMetadataOperation = ExcludeSurfaceAdapterOperation reason
-        , surfaceAdapterRequestParserOperation = GenerateSurfaceAdapterOperation
-        , surfaceAdapterParamsPresentOperation = ExcludeSurfaceAdapterOperation "No envelope-presence consumer for this parser-only compatibility operation"
         }
 
 intentOnlyActionReason :: Text

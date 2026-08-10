@@ -1,5 +1,6 @@
 module Test.RosterTemplatesSpec where
 
+import Application.Helper.WeekBoundaries (orderedWeekdayIndexes)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..))
 import Application.RosterTemplates
 import Data.Either (isRight)
@@ -9,6 +10,7 @@ import IHP.ControllerPrelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
+import Web.RosterWeeks.TemplateDesigner (startBlankRosterTemplateDesignerDraft)
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
@@ -18,7 +20,7 @@ tests = aroundAll withDatabaseTestContext do
             let firstShift = RosterTemplateShiftInput 0 0 0 540 1020 shiftTypeId OpenAssignment
             let secondShift = RosterTemplateShiftInput 1 1 0 600 1080 shiftTypeId OpenAssignment
             let content = RosterTemplateContent
-                    [RosterTemplateDayInput 0 False 1, RosterTemplateDayInput 1 False 1]
+                    [RosterTemplateDayInput 0 Nothing False 1, RosterTemplateDayInput 1 Nothing False 1]
                     [RosterTemplateColumnInput "Early" 0, RosterTemplateColumnInput "Late" 1]
                     [firstShift, secondShift]
             let reordered = content
@@ -28,6 +30,21 @@ tests = aroundAll withDatabaseTestContext do
                     }
 
             rosterTemplateContentRevision reordered `shouldBe` rosterTemplateContentRevision content
+
+        it "preserves Week template weekday identity when the venue start day changes" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Template weekday identity"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                owner <- createUserRecord "template-weekday@example.com" "staff" True
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                let ownerActor = rosterTemplateActor owner venue True
+
+                Right draft <- startBlankRosterTemplateDesignerDraft ownerActor rosterGroup Week "Weekdays"
+                _ <- venueConfig |> set #rosterWeekStartsOn 4 |> updateRecord
+                reloaded <- fetchPrivateRosterTemplateDraft ownerActor
+
+                map (.weekdayIndex) draft.draftDays `shouldBe` map Just (orderedWeekdayIndexes venueConfig.rosterWeekStartsOn)
+                fmap (map (.weekdayIndex) . (.draftDays)) reloaded `shouldBe` Just (map Just [1, 2, 3, 4, 5, 6, 0])
 
         it "keeps one private recoverable draft per authorized effective user" $ withContext do
             withCleanDb do
@@ -66,7 +83,7 @@ tests = aroundAll withDatabaseTestContext do
                 let crossVenueActor = rosterTemplateActor owner foreignVenue True
                 Right draft <- startBlankRosterTemplateDraft ownerActor rosterGroup Day "Opening day"
                 let content = RosterTemplateContent
-                        { contentDays = [RosterTemplateDayInput 0 False 2]
+                        { contentDays = [RosterTemplateDayInput 0 Nothing False 2]
                         , contentColumns = [RosterTemplateColumnInput "Early" 0]
                         , contentShifts =
                             [ RosterTemplateShiftInput 0 0 0 540 1020 shiftType.id (StaffAssignment staff.id)
@@ -196,7 +213,7 @@ tests = aroundAll withDatabaseTestContext do
 oneShiftContent :: Id ShiftType -> RosterShiftAssignment -> RosterTemplateContent
 oneShiftContent shiftTypeId assignment =
     RosterTemplateContent
-        { contentDays = [RosterTemplateDayInput 0 False 1]
+        { contentDays = [RosterTemplateDayInput 0 Nothing False 1]
         , contentColumns = [RosterTemplateColumnInput "Early" 0]
         , contentShifts = [RosterTemplateShiftInput 0 0 0 540 1020 shiftTypeId assignment]
         }

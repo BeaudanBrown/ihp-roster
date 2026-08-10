@@ -173,6 +173,8 @@ test.describe('Roster notification workflow', () => {
             ensureDraft: false,
             ensureEditable: false,
         });
+        const windowStart = new URL(page.url()).searchParams.get('anchorDate');
+        expect(windowStart).toMatch(/^\d{4}-\d{2}-\d{2}$/);
         runSql(`
             CREATE OR REPLACE FUNCTION e2e_defer_roster_notification_jobs()
             RETURNS TRIGGER AS $$
@@ -203,13 +205,13 @@ test.describe('Roster notification workflow', () => {
                 UPDATE roster_weeks
                 SET is_live = FALSE
                 WHERE id = '${rosterWeekId}';
-                UPDATE roster_days SET publication_state = 'draft' WHERE roster_week_id = '${rosterWeekId}';
+                UPDATE roster_days SET publication_state = 'draft' WHERE roster_group_id = '${rosterGroupId}' AND operational_date >= '${windowStart}'::date AND operational_date < '${windowStart}'::date + 7;
                 DROP TRIGGER e2e_defer_roster_notification_jobs ON app_jobs;
                 UPDATE app_jobs
                 SET status = 'job_status_retry', run_at = NOW()
                 WHERE related_id = (
                     SELECT id FROM roster_notification_runs
-                    WHERE roster_week_id = '${rosterWeekId}'
+                    WHERE roster_group_id = '${rosterGroupId}' AND week_start = '${windowStart}'
                     ORDER BY created_at DESC LIMIT 1
                 );
                 DROP FUNCTION e2e_defer_roster_notification_jobs();
@@ -223,7 +225,7 @@ test.describe('Roster notification workflow', () => {
                 FROM app_jobs
                 WHERE related_id IN (
                     SELECT id FROM roster_notification_runs
-                    WHERE roster_week_id = '${rosterWeekId}'
+                    WHERE roster_group_id = '${rosterGroupId}' AND week_start = '${windowStart}'
                 )
                   AND status IN ('job_status_not_started', 'job_status_running', 'job_status_retry');
             `), 10), { timeout: E2E_TIMEOUT.mailhog }).toBe(0);
@@ -232,7 +234,7 @@ test.describe('Roster notification workflow', () => {
                 UPDATE roster_weeks
                 SET is_live = TRUE
                 WHERE id = '${rosterWeekId}';
-                UPDATE roster_days SET publication_state = 'published' WHERE roster_week_id = '${rosterWeekId}';
+                UPDATE roster_days SET publication_state = 'published' WHERE roster_group_id = '${rosterGroupId}' AND operational_date >= '${windowStart}'::date AND operational_date < '${windowStart}'::date + 7;
                 UPDATE app_jobs
                 SET status = 'job_status_retry', run_at = NOW() + INTERVAL '1 hour'
                 WHERE payload ->> 'recipientAddress' = '${recipientEmail}';
@@ -251,7 +253,7 @@ test.describe('Roster notification workflow', () => {
                     run_at = NOW()
                 WHERE related_id = (
                     SELECT id FROM roster_notification_runs
-                    WHERE roster_week_id = '${rosterWeekId}'
+                    WHERE roster_group_id = '${rosterGroupId}' AND week_start = '${windowStart}'
                     ORDER BY created_at DESC LIMIT 1
                 );
             `);
@@ -269,7 +271,7 @@ test.describe('Roster notification workflow', () => {
                 UPDATE roster_weeks
                 SET is_live = FALSE
                 WHERE id = '${rosterWeekId}';
-                UPDATE roster_days SET publication_state = 'draft' WHERE roster_week_id = '${rosterWeekId}';
+                UPDATE roster_days SET publication_state = 'draft' WHERE roster_group_id = '${rosterGroupId}' AND operational_date >= '${windowStart}'::date AND operational_date < '${windowStart}'::date + 7;
                 UPDATE roster_groups
                 SET is_active = FALSE
                 WHERE id = '${rosterGroupId}';

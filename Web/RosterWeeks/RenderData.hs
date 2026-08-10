@@ -22,6 +22,7 @@ import Application.Helper.RosterWagePrediction
 import Application.Helper.UserPreferences
 import Application.Helper.VenueScopedQueries (fetchVenueShiftTypes)
 import qualified Application.RosterNotification as Notification
+import Application.RosterPublication (rosterDaysArePublished)
 import Application.RosterTemplates (RosterTemplateLibrary,
                                     currentRosterTemplateActor,
                                     fetchRosterTemplateLibrary,
@@ -358,7 +359,7 @@ fetchRosterRenderData rosterGroupId weekOffset = do
                                 Just ("staff:" <> tshow staff.id)
                         _ -> Nothing
             panelStaff <- profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntries panelStaffMembers visibleSlots)
-            notificationPanelData <- fetchRosterPanelNotificationData currentRosterGroup rosterWeek
+            notificationPanelData <- fetchRosterPanelNotificationData currentRosterGroup weekStartDate rosterDays
             staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig rosterGroups rosterGroupId weekOffset highlightOwnLiveShifts)
             slotConflicts <-
                 if maybe False (.isLive) rosterWeek
@@ -367,19 +368,21 @@ fetchRosterRenderData rosterGroupId weekOffset = do
             let renderIndexes = buildRosterRenderIndexes rosterDays visibleSlots staffMembers slotConflicts
             let wageSlots = filterRosterWageSlots (pinnedRosterWageStaffId showWageEstimates panelStaffMembers) visibleSlots
             rosterWagePrediction <-
-                case (showWageEstimates, rosterWeek) of
-                    (True, Just legacyRosterWeek) -> Just <$> profileActionSpan "roster.predict_wages" (fetchRosterWagePrediction venueConfig legacyRosterWeek rosterDays wageSlots)
-                    _ -> pure Nothing
+                if showWageEstimates
+                    then Just <$> profileActionSpan "roster.predict_wages" (fetchRosterWagePredictionForWindow venueConfig rosterDays wageSlots)
+                    else pure Nothing
             let rosterCalendarRevision = venueConfig.rosterCalendarRevision
             pure (Just RosterRenderData { rosterWeek, weekOffset, rosterGroups, currentRosterGroup, rosterDays, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData = notificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled = venueConfig.rosterEndTimesEnabled, rosterTimePickerStartMinute = venueConfig.timePickerStartMinuteOfDay, rosterTimePickerFinalSelectableMinute = venueConfig.timePickerFinalSelectableMinuteOfDay, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays })
 
-fetchRosterPanelNotificationData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterGroup -> Maybe RosterWeek -> IO (Maybe Notification.RosterNotificationPanelData)
-fetchRosterPanelNotificationData rosterGroup (Just rosterWeek)
-    | hasRole Manager && rosterWeek.isLive && unpackId rosterWeek.id /= UUID.nil = do
+fetchRosterPanelNotificationData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterGroup -> Day -> [RosterDay] -> IO (Maybe Notification.RosterNotificationPanelData)
+fetchRosterPanelNotificationData rosterGroup windowStart rosterDays
+    | hasRole Manager
+    , map (.operationalDate) rosterDays == map (`Calendar.addDays` windowStart) [0 .. 6]
+    , rosterDaysArePublished rosterDays = do
         panelNotificationAudience <- Notification.fetchRosterNotificationAudience currentVenue rosterGroup
-        panelLatestNotificationRun <- Notification.fetchLatestRosterNotificationRunSummary rosterWeek
+        panelLatestNotificationRun <- Notification.fetchLatestRosterNotificationRunSummaryForWindow currentVenueId rosterGroup.id windowStart (Calendar.addDays 7 windowStart)
         pure (Just Notification.RosterNotificationPanelData { .. })
-fetchRosterPanelNotificationData _ _ = pure Nothing
+fetchRosterPanelNotificationData _ _ _ = pure Nothing
 
 -- Templates are intentionally hidden from the Roster side panel for the next release.
 -- Keep the implementation and routes intact so the feature can be re-enabled later.
@@ -539,7 +542,7 @@ renderVisibleRosterFragment rosterGroupId weekOffset fragment = do
                     let wageSlots = filterRosterWageSlots (pinnedRosterWageStaffId showWageEstimates panelStaffMembers) visibleSlots
                     rosterWagePrediction <-
                         if showWageEstimates
-                            then Just <$> profileActionSpan "roster.predict_wages" (fetchRosterWagePrediction venueConfig rosterWeek rosterDays wageSlots)
+                            then Just <$> profileActionSpan "roster.predict_wages" (fetchRosterWagePredictionForWindow venueConfig rosterDays wageSlots)
                             else pure Nothing
                     pure (renderRequestedDaySectionFragment (hasRole Manager && not rosterWeek.isLive) weekStartDate venueConfig.rosterCalendarRevision facts.baseOrderedSlotDefinitions assignmentFilters staffMembers facts.baseShiftTypes facts.baseAllSlots slotConflicts renderIndexes rosterLayoutMode venueConfig.rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings rosterPublicHolidays rosterDayUuid)
 
@@ -567,7 +570,7 @@ fetchVisibleRosterStaffPanelRenderModel panelScope rosterGroupId weekOffset = do
                 RosterStaffPanelCurrentGroup -> pure facts.basePanelStaff
                 RosterStaffPanelAllVenue     -> fetchCurrentVenueActiveStaff
             profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntriesForScope panelScope panelStaffMembers facts.baseVisibleSlots)
-    notificationPanelData <- fetchRosterPanelNotificationData currentRosterGroup visibleRosterWeek
+    notificationPanelData <- fetchRosterPanelNotificationData currentRosterGroup weekStartDate (maybe [] (.baseRosterDays) baseFacts)
     pure RosterStaffPanelRenderModel
         { staffPanelRosterWeek = visibleRosterWeek
         , staffPanelWeekOffset = weekOffset

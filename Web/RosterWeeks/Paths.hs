@@ -13,7 +13,6 @@ module Web.RosterWeeks.Paths
     , rosterWarningPreferenceUrl
     , rosterWageEstimatePreferenceUrl
     , rosterOwnLiveShiftHighlightPreferenceUrl
-    , rosterOverviewFragmentUrl
     , rosterTimelineWindowUrl
     , rosterDayTimelineContentFragmentUrl
     , rosterWeekContentFragmentUrl
@@ -50,14 +49,13 @@ import Web.Types
 
 supportVenueSwitchReturnPath :: Text -> Text
 supportVenueSwitchReturnPath candidate
-    | returnPathWithoutQuery candidate `elem` rosterWindowPaths
+    | candidatePath == "/ShowRosterWeek" = pathTo RosterWeeksAction
+    | candidatePath == canonicalRosterWindowPath
         && returnPathHasQueryParameter "rosterGroupId" candidate = pathTo RosterWeeksAction
     | otherwise = candidate
   where
-    rosterWindowPaths =
-        [ returnPathWithoutQuery (pathTo ShowRosterWindowAction { anchorDate = "" })
-        , returnPathWithoutQuery (pathTo ShowRosterWeekAction { weekOffset = 0 })
-        ]
+    candidatePath = returnPathWithoutQuery candidate
+    canonicalRosterWindowPath = returnPathWithoutQuery (pathTo ShowRosterWindowAction { anchorDate = "" })
 
 returnPathWithoutQuery :: Text -> Text
 returnPathWithoutQuery = Text.takeWhile (/= '?')
@@ -106,10 +104,6 @@ rosterDayTimelineContentFragmentUrl anchorDate rosterGroupId rosterDayId =
         , ("rosterDayId", tshow rosterDayId)
         , ("rosterGroupId", tshow rosterGroupId)
         ]
-
-rosterOverviewFragmentUrl :: Day -> Id RosterGroup -> Text
-rosterOverviewFragmentUrl anchorDate rosterGroupId =
-    replaceQueryParams (pathTo ShowRosterWeekOverviewFragmentAction { anchorDate = tshow anchorDate }) (rosterWindowActionQuery anchorDate rosterGroupId)
 
 rosterWeekContentFragmentUrl :: Day -> Id RosterGroup -> Text
 rosterWeekContentFragmentUrl anchorDate rosterGroupId =

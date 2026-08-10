@@ -998,7 +998,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status302
                 lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks?rosterView=timeline"
 
-        it "preserves a roster week return path without venue-scoped parameters" $ withContext do
+        it "drops unsupported offset roster return paths after a support switch" $ withContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Alpha Venue"
                 venueB <- createVenueWithConfig "Beta Venue"
@@ -1021,7 +1021,7 @@ tests = aroundAll withDatabaseTestContext do
                                 ]
 
                         response `responseStatusShouldBe` status302
-                        lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just ("http://localhost" <> nextPath)
+                        lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
 
         it "drops the previous venue roster scope when redirecting after a support switch" $ withContext do
             withCleanDb do

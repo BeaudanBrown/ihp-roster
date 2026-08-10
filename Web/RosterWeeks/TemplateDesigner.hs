@@ -15,13 +15,16 @@ module Web.RosterWeeks.TemplateDesigner
     ) where
 
 import Application.Helper.RosterTemplateScale (rosterTemplateScaleIsWeek)
-import Application.Helper.WeekBoundaries (venueWeekStartDate)
+import Application.Helper.WeekBoundaries (orderedWeekdayIndexes,
+                                          weekdayIndexForDay)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..))
 import Application.RosterTemplates
 import Application.RosterTemplates.Mutations (lockRosterTemplateReferenceRows)
 import Application.VenueTime (resolvedInstantFromUTC, resolvedInstantLocalTime)
 import Control.Monad (guard)
+import Data.List (nubBy)
 import qualified Data.Map.Strict as Map
+import qualified Data.Text as Text
 import Data.Time.Calendar (diffDays)
 import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..))
 import Data.Traversable (traverse)
@@ -35,8 +38,9 @@ startBlankRosterTemplateDesignerDraft ::
     RosterTemplateScaleEnum ->
     Text ->
     IO (Either RosterTemplateError RosterTemplateDraft)
-startBlankRosterTemplateDesignerDraft actor rosterGroup scale requestedName =
-    startRosterTemplateDraftWithContent actor rosterGroup scale requestedName (blankTemplateContent scale)
+startBlankRosterTemplateDesignerDraft actor rosterGroup scale requestedName = do
+    content <- blankTemplateContent actor rosterGroup scale
+    startRosterTemplateDraftWithContent actor rosterGroup scale requestedName content
 
 replaceBlankRosterTemplateDesignerDraft ::
     (?modelContext :: ModelContext) =>
@@ -47,16 +51,28 @@ replaceBlankRosterTemplateDesignerDraft ::
     Text ->
     Text ->
     IO (Either RosterTemplateError RosterTemplateDraft)
-replaceBlankRosterTemplateDesignerDraft actor designId rosterGroup scale requestedName expectedDraftRevision =
-    replaceRosterTemplateDraftWithContent actor designId rosterGroup scale requestedName (blankTemplateContent scale) (Just expectedDraftRevision)
+replaceBlankRosterTemplateDesignerDraft actor designId rosterGroup scale requestedName expectedDraftRevision = do
+    content <- blankTemplateContent actor rosterGroup scale
+    replaceRosterTemplateDraftWithContent actor designId rosterGroup scale requestedName content (Just expectedDraftRevision)
 
-blankTemplateContent :: RosterTemplateScaleEnum -> RosterTemplateContent
-blankTemplateContent scale = RosterTemplateContent
+blankTemplateContent ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    RosterGroup ->
+    RosterTemplateScaleEnum ->
+    IO RosterTemplateContent
+blankTemplateContent actor rosterGroup scale = do
+    weekdayIndexes <- case scale of
+        Day -> pure [Nothing]
+        Week -> do
+            venueConfig <- query @VenueConfig
+                |> filterWhere (#venueId, unpackId (rosterTemplateActorVenueId actor))
+                |> fetchOne
+            pure (map Just (orderedWeekdayIndexes venueConfig.rosterWeekStartsOn))
+    pure RosterTemplateContent
         { contentDays =
-            [ RosterTemplateDayInput dayIndex False 1
-            | dayIndex <- case scale of
-                Day  -> [0]
-                Week -> [0 .. 6]
+            [ RosterTemplateDayInput dayIndex weekdayIndex False 1
+            | (dayIndex, weekdayIndex) <- zip [0 ..] weekdayIndexes
             ]
         , contentColumns = [RosterTemplateColumnInput "Shift" 0]
         , contentShifts = []
@@ -155,9 +171,7 @@ applyDesignerMutation (DeleteRosterTemplateShift dayIndex columnSort rowIndex) c
             == (dayIndex, columnSort, rowIndex)
 
 data RosterTemplateReferenceWeek = RosterTemplateReferenceWeek
-    { referenceRosterWeek  :: !(Maybe RosterWeek)
-    , referenceRosterDays  :: ![RosterDay]
-    , referenceColumns     :: ![RosterWeekSlotDefinition]
+    { referenceRosterDays  :: ![RosterDay]
     , referenceRosterSlots :: ![RosterSlot]
     , referenceWeekStart   :: !Day
     }
@@ -167,56 +181,33 @@ fetchRosterTemplateReferenceWeek ::
     (?modelContext :: ModelContext) =>
     RosterTemplateActor ->
     RosterGroup ->
-    Int ->
+    Day ->
     IO (Maybe RosterTemplateReferenceWeek)
-fetchRosterTemplateReferenceWeek actor rosterGroup weekOffset
+fetchRosterTemplateReferenceWeek actor rosterGroup windowStart
     | not (rosterTemplateActorCanEditRosters actor) = pure Nothing
     | rosterGroup.venueId /= unpackId (rosterTemplateActorVenueId actor) = pure Nothing
     | otherwise = do
-        venueConfig <- query @VenueConfig
+        days <- query @RosterDay
             |> filterWhere (#venueId, rosterGroup.venueId)
-            |> fetchOne
-        maybeWeek <- query @RosterWeek
             |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
-            |> filterWhere (#weekOffset, weekOffset)
-            |> filterWhere (#archivedAt, Nothing)
-            |> fetchOneOrNothing
-        case maybeWeek of
-            Nothing -> pure (Just RosterTemplateReferenceWeek
-                { referenceRosterWeek = Nothing
-                , referenceRosterDays = []
-                , referenceColumns = []
-                , referenceRosterSlots = []
-                , referenceWeekStart = venueWeekStartDate venueConfig weekOffset
-                })
-            Just rosterWeek -> do
-                days <- query @RosterDay
-                    |> filterWhere (#rosterWeekId, Just (unpackId rosterWeek.id))
-                    |> orderByAsc #dayOffset
-                    |> fetch
-                columns <- query @RosterWeekSlotDefinition
-                    |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
-                    |> filterWhere (#deletedAt, Nothing)
-                    |> orderByAsc #sortOrder
-                    |> fetch
-                slots <- if null days
-                    then pure []
-                    else query @RosterSlot
-                        |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) days)
-                        |> filterWhere (#deletedAt, Nothing)
-                        |> orderByAsc #rowIndex
-                        |> fetch
-                pure (Just RosterTemplateReferenceWeek
-                    { referenceRosterWeek = Just rosterWeek
-                    , referenceRosterDays = days
-                    , referenceColumns = columns
-                    , referenceRosterSlots = slots
-                    , referenceWeekStart = venueWeekStartDate venueConfig weekOffset
-                    })
+            |> filterWhereGreaterThanOrEqualTo (#operationalDate, windowStart)
+            |> filterWhereLessThan (#operationalDate, addDays 7 windowStart)
+            |> orderByAsc #operationalDate
+            |> fetch
+        slots <- if null days then pure [] else query @RosterSlot
+            |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) days)
+            |> filterWhere (#deletedAt, Nothing)
+            |> orderByAsc #rowIndex
+            |> fetch
+        pure (Just RosterTemplateReferenceWeek
+            { referenceRosterDays = days
+            , referenceRosterSlots = slots
+            , referenceWeekStart = windowStart
+            })
 
 data RosterTemplateReference
-    = RosterTemplateDayReference !(Id RosterWeek) !Int
-    | RosterTemplateWeekReference !(Id RosterWeek)
+    = RosterTemplateDayReference !Day
+    | RosterTemplateWeekReference !Day !Day
     deriving (Eq, Show)
 
 replaceRosterTemplateDraftFromReference ::
@@ -230,7 +221,7 @@ replaceRosterTemplateDraftFromReference ::
     Text ->
     IO (Either RosterTemplateError RosterTemplateDraft)
 replaceRosterTemplateDraftFromReference actor designId rosterGroup requestedName reference expectedSourceRevision expectedDraftRevision = withTransaction do
-    lockRosterTemplateReferenceRows (referenceWeekId reference) (referenceDayOffset reference)
+    lockRosterTemplateReferenceRows (rosterTemplateActorVenueId actor) rosterGroup.id (referenceWindowStart reference) (referenceWindowEnd reference) (referenceOperationalDate reference)
     maybeSource <- fetchReferenceSource rosterGroup reference
     case maybeSource of
         Nothing -> pure (Left RosterTemplateNotFound)
@@ -248,7 +239,7 @@ startConfirmedRosterTemplateDraftFromReference ::
     Text ->
     IO (Either RosterTemplateError RosterTemplateDraft)
 startConfirmedRosterTemplateDraftFromReference actor rosterGroup requestedName reference expectedSourceRevision = withTransaction do
-    lockRosterTemplateReferenceRows (referenceWeekId reference) (referenceDayOffset reference)
+    lockRosterTemplateReferenceRows (rosterTemplateActorVenueId actor) rosterGroup.id (referenceWindowStart reference) (referenceWindowEnd reference) (referenceOperationalDate reference)
     maybeSource <- fetchReferenceSource rosterGroup reference
     case maybeSource of
         Nothing -> pure (Left RosterTemplateNotFound)
@@ -256,13 +247,17 @@ startConfirmedRosterTemplateDraftFromReference actor rosterGroup requestedName r
             | referenceSourceRevision source /= expectedSourceRevision -> pure (Left RosterTemplateNotFound)
             | otherwise -> startRosterTemplateDraftWithContentInCurrentTransaction actor rosterGroup source.sourceScale requestedName source.sourceContent
 
-referenceWeekId :: RosterTemplateReference -> Id RosterWeek
-referenceWeekId (RosterTemplateDayReference weekId _) = weekId
-referenceWeekId (RosterTemplateWeekReference weekId)  = weekId
+referenceWindowStart :: RosterTemplateReference -> Day
+referenceWindowStart (RosterTemplateDayReference operationalDate) = operationalDate
+referenceWindowStart (RosterTemplateWeekReference windowStart _) = windowStart
 
-referenceDayOffset :: RosterTemplateReference -> Maybe Int
-referenceDayOffset (RosterTemplateDayReference _ dayOffset) = Just dayOffset
-referenceDayOffset RosterTemplateWeekReference {}           = Nothing
+referenceWindowEnd :: RosterTemplateReference -> Day
+referenceWindowEnd (RosterTemplateDayReference operationalDate) = addDays 1 operationalDate
+referenceWindowEnd (RosterTemplateWeekReference _ windowEnd) = windowEnd
+
+referenceOperationalDate :: RosterTemplateReference -> Maybe Day
+referenceOperationalDate (RosterTemplateDayReference operationalDate) = Just operationalDate
+referenceOperationalDate RosterTemplateWeekReference {} = Nothing
 
 fetchRosterTemplateReferenceRevision ::
     (?modelContext :: ModelContext) =>
@@ -274,7 +269,7 @@ fetchRosterTemplateReferenceRevision rosterGroup reference =
 
 referenceSourceRevision :: ReferenceSource -> Text
 referenceSourceRevision source =
-    tshow (source.sourceScale, rosterTemplateContentRevision source.sourceContent)
+    tshow (source.sourceScale, source.sourceCalendarRevision, rosterTemplateContentRevision source.sourceContent)
 
 startRosterTemplateDraftFromReference ::
     (?modelContext :: ModelContext) =>
@@ -291,8 +286,9 @@ startRosterTemplateDraftFromReference actor rosterGroup requestedName reference 
             startRosterTemplateDraftWithContent actor rosterGroup source.sourceScale requestedName source.sourceContent
 
 data ReferenceSource = ReferenceSource
-    { sourceScale   :: !RosterTemplateScaleEnum
-    , sourceContent :: !RosterTemplateContent
+    { sourceScale            :: !RosterTemplateScaleEnum
+    , sourceContent          :: !RosterTemplateContent
+    , sourceCalendarRevision :: !Int
     }
 
 fetchReferenceSource ::
@@ -301,53 +297,43 @@ fetchReferenceSource ::
     RosterTemplateReference ->
     IO (Maybe ReferenceSource)
 fetchReferenceSource rosterGroup reference = do
-    let (rosterWeekId, selectedDayOffset, scale) = case reference of
-            RosterTemplateDayReference weekId dayOffset -> (weekId, Just dayOffset, Day)
-            RosterTemplateWeekReference weekId          -> (weekId, Nothing, Week)
-    maybeWeek <- query @RosterWeek
-        |> filterWhere (#id, rosterWeekId)
-        |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+    let (windowStart, windowEnd, selectedDate, scale) = case reference of
+            RosterTemplateDayReference operationalDate -> (operationalDate, addDays 1 operationalDate, Just operationalDate, Day)
+            RosterTemplateWeekReference startDate endDate -> (startDate, endDate, Nothing, Week)
+    sourceDays <- query @RosterDay
         |> filterWhere (#venueId, rosterGroup.venueId)
-        |> filterWhere (#archivedAt, Nothing)
-        |> fetchOneOrNothing
-    case maybeWeek of
-        Nothing -> pure Nothing
-        Just rosterWeek -> do
-            sourceDays <- query @RosterDay
-                |> filterWhere (#rosterWeekId, Just (unpackId rosterWeek.id))
-                |> orderByAsc #dayOffset
+        |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+        |> filterWhereGreaterThanOrEqualTo (#operationalDate, windowStart)
+        |> filterWhereLessThan (#operationalDate, windowEnd)
+        |> orderByAsc #operationalDate
+        |> fetch
+    let expectedDates = case scale of
+            Day  -> [windowStart]
+            Week -> map (`addDays` windowStart) [0 .. 6]
+    if map (.operationalDate) sourceDays /= expectedDates
+        then pure Nothing
+        else do
+            lanes <- query @RosterLane
+                |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) sourceDays)
+                |> filterWhere (#deletedAt, Nothing)
                 |> fetch
-            let selectedDays = case selectedDayOffset of
-                    Nothing        -> sourceDays
-                    Just dayOffset -> filter ((== dayOffset) . (.dayOffset)) sourceDays
-            if null selectedDays || (rosterTemplateScaleIsWeek scale && map (.dayOffset) selectedDays /= [0 .. 6])
-                then pure Nothing
-                else do
-                    definitions <- query @RosterWeekSlotDefinition
-                        |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
-                        |> filterWhere (#deletedAt, Nothing)
-                        |> orderByAsc #sortOrder
-                        |> fetch
-                    slots <- query @RosterSlot
-                        |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) selectedDays)
-                        |> filterWhere (#deletedAt, Nothing)
-                        |> orderByAsc #rowIndex
-                        |> fetch
-                    venueConfig <- query @VenueConfig
-                        |> filterWhere (#venueId, rosterGroup.venueId)
-                        |> fetchOne
-                    let weekStartDate = venueWeekStartDate venueConfig rosterWeek.weekOffset
-                    pure (ReferenceSource scale <$> referenceContent weekStartDate selectedDayOffset selectedDays definitions slots)
+            slots <- query @RosterSlot
+                |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) sourceDays)
+                |> filterWhere (#deletedAt, Nothing)
+                |> orderByAsc #rowIndex
+                |> fetch
+            venueConfig <- query @VenueConfig |> filterWhere (#venueId, rosterGroup.venueId) |> fetchOne
+            pure ((\content -> ReferenceSource scale content venueConfig.rosterCalendarRevision) <$> referenceContent windowStart selectedDate sourceDays lanes slots)
 
 referenceContent ::
     Day ->
-    Maybe Int ->
+    Maybe Day ->
     [RosterDay] ->
-    [RosterWeekSlotDefinition] ->
+    [RosterLane] ->
     [RosterSlot] ->
     Maybe RosterTemplateContent
-referenceContent weekStartDate selectedDayOffset sourceDays definitions slots = do
-    shiftInputs <- traverse (slotInput weekStartDate selectedDayOffset dayById definitionSortById) slots
+referenceContent windowStart selectedDate sourceDays lanes slots = do
+    shiftInputs <- traverse (slotInput windowStart selectedDate dayById laneColumnSortById) slots
     pure RosterTemplateContent
         { contentDays = map dayInput sourceDays
         , contentColumns = columnInputs
@@ -355,30 +341,36 @@ referenceContent weekStartDate selectedDayOffset sourceDays definitions slots = 
         }
   where
     dayById = Map.fromList [(unpackId day.id, day) | day <- sourceDays]
-    definitionSortById = Map.fromList [(unpackId definition.id, definition.sortOrder) | definition <- definitions]
+    dayDateById = Map.fromList [(unpackId day.id, day.operationalDate) | day <- sourceDays]
+    orderedLanes = sortOn (\lane -> (Map.lookup lane.rosterDayId dayDateById, lane.sortOrder, lane.id)) lanes
+    uniqueLaneNames = nubBy (\left right -> Text.toCaseFold (Text.strip left.name) == Text.toCaseFold (Text.strip right.name)) orderedLanes
+    columnSortByName = Map.fromList [(Text.toCaseFold (Text.strip lane.name), sortOrder) | (sortOrder, lane) <- zip [0 ..] uniqueLaneNames]
+    laneColumnSortById = Map.fromList
+        [ (unpackId lane.id, columnSortByName Map.! Text.toCaseFold (Text.strip lane.name))
+        | lane <- lanes
+        ]
     dayInput day = RosterTemplateDayInput
-        { inputDayIndex = maybe day.dayOffset (const 0) selectedDayOffset
+        { inputDayIndex = maybe (fromInteger (diffDays day.operationalDate windowStart)) (const 0) selectedDate
+        , inputDayWeekdayIndex = case selectedDate of
+            Just _  -> Nothing
+            Nothing -> Just (weekdayIndexForDay day.operationalDate)
         , inputDayIsClosed = day.isClosed
         , inputDayRowCount = day.rowCount
         }
-    columnInputs = case definitions of
+    columnInputs = case uniqueLaneNames of
         [] -> [RosterTemplateColumnInput "Shift" 0]
-        _  ->
-            [ RosterTemplateColumnInput definition.name definition.sortOrder
-            | definition <- definitions
-            ]
+        _ -> [RosterTemplateColumnInput lane.name sortOrder | (sortOrder, lane) <- zip [0 ..] uniqueLaneNames]
 
 slotInput ::
     Day ->
-    Maybe Int ->
+    Maybe Day ->
     Map.Map UUID RosterDay ->
     Map.Map UUID Int ->
     RosterSlot ->
     Maybe RosterTemplateShiftInput
-slotInput weekStartDate selectedDayOffset dayById definitionSortById slot = do
+slotInput windowStart selectedDate dayById laneColumnSortById slot = do
     sourceDay <- Map.lookup slot.rosterDayId dayById
-    definitionId <- slot.rosterWeekSlotDefinitionId
-    columnSortOrder <- Map.lookup definitionId definitionSortById
+    columnSortOrder <- Map.lookup slot.rosterLaneId laneColumnSortById
     startsAt <- slot.startsAt
     endsAt <- slot.endsAt
     shiftTypeId <- Id <$> slot.shiftTypeId
@@ -386,12 +378,11 @@ slotInput weekStartDate selectedDayOffset dayById definitionSortById slot = do
         ("staff", Just staffId) -> Just (StaffAssignment (Id staffId))
         ("open", Nothing)       -> Just OpenAssignment
         _                       -> Nothing
-    let rosterDate = addDays (toInteger sourceDay.dayOffset) weekStartDate
-    startMinute <- minuteRelativeToRosterDate rosterDate startsAt
-    endMinute <- minuteRelativeToRosterDate rosterDate endsAt
+    startMinute <- minuteRelativeToRosterDate sourceDay.operationalDate startsAt
+    endMinute <- minuteRelativeToRosterDate sourceDay.operationalDate endsAt
     guard (endMinute > startMinute && endMinute <= 2880)
     pure RosterTemplateShiftInput
-        { inputShiftDayIndex = maybe sourceDay.dayOffset (const 0) selectedDayOffset
+        { inputShiftDayIndex = maybe (fromInteger (diffDays sourceDay.operationalDate windowStart)) (const 0) selectedDate
         , inputShiftColumnSortOrder = columnSortOrder
         , inputShiftRowIndex = slot.rowIndex
         , inputShiftStartMinute = startMinute

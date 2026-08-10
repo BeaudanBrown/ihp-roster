@@ -610,12 +610,10 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                     callActionWithParams (SendStaffPasskeyRecoveryEmailAction targetStaff.id)
-                        [ ("returnTo", "staff")
-                        , ("weekOffset", "3")
-                        ]
+                        [("returnTo", "staff")]
 
                 response `responseStatusShouldBe` status302
-                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/ShowRosterWeek?weekOffset=3"
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
                 setupToken <- query @PasskeySetupToken |> fetchOne
                 setupToken.userId `shouldBe` unpackId target.id
                 setupToken.requestedByUserId `shouldBe` Just (unpackId owner.id)

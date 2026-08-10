@@ -17,12 +17,13 @@ renderRosterNotificationConfirmation ::
     (?context :: ControllerContext) =>
     Venue ->
     RosterGroup ->
-    RosterWeek ->
     Day ->
+    Day ->
+    Int ->
     RosterNotificationAudience ->
     Maybe RosterNotificationRunSummary ->
     Html
-renderRosterNotificationConfirmation venue rosterGroup rosterWeek weekStart audience latestRun =
+renderRosterNotificationConfirmation venue rosterGroup windowStart windowEnd calendarRevision audience latestRun =
     renderDialogOverlay DialogOverlayConfig
         { dialogOverlayTitle = "Email roster"
         , dialogOverlayBody = [hsx|
@@ -57,9 +58,9 @@ renderRosterNotificationConfirmation venue rosterGroup rosterWeek weekStart audi
         }
   where
     formId = rosterNotificationSendFormId
-    actionUrl = pathTo (CreateRosterNotificationRunAction rosterWeek.id)
+    actionUrl = pathTo CreateRosterNotificationRunAction
     sendForm = renderFrontendSurfaceActionFormWithHiddenFields
-        (RosterAction.createRosterNotificationRunAction (RosterAction.createRosterNotificationRunActionFields (unpackId rosterWeek.id)))
+        (RosterAction.createRosterNotificationRunAction (RosterAction.createRosterNotificationRunActionFields (unpackId rosterGroup.id) windowStart windowEnd calendarRevision))
         FrontendSurfaceActionRoute
             { actionRouteUrl = actionUrl
             , actionRouteCustomHtmx = []
@@ -70,7 +71,7 @@ renderRosterNotificationConfirmation venue rosterGroup rosterWeek weekStart audi
     recipientCount = length audience.audienceRecipients
     skippedCount = length audience.audienceSkippedRecipients
     canSend = recipientCount > 0 && maybe True ((== 0) . (.summaryInProgressCount)) latestRun
-    weekLabel = formatDay weekStart <> " – " <> formatDay (addDays 6 weekStart)
+    weekLabel = formatDay windowStart <> " – " <> formatDay (addDays (-1) windowEnd)
 
 formatDay :: Day -> Text
 formatDay = cs . formatTime defaultTimeLocale "%d %b %Y"

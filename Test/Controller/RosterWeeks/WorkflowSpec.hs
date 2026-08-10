@@ -2470,7 +2470,7 @@ tests = aroundAll withDatabaseTestContext do
                 bodyText `shouldNotContain` rowId
                 bodyText `shouldNotContain` "Crew, Alpha"
 
-        it "manager can copy a week and it is created as draft with copied slots" $ withContext do
+        it "manager can copy an explicit date window as native Draft days and lanes" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-copy@example.com" "staff" True
@@ -2491,21 +2491,24 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status302
 
-                copiedWeek <- query @RosterWeek
+                query @RosterWeek
                     |> filterWhere (#venueId, unpackId venue.id)
                     |> filterWhere (#weekOffset, 1)
-                    |> fetchOne
-                copiedWeek.isLive `shouldBe` False
+                    |> fetchOneOrNothing
+                    >>= (`shouldBe` Nothing)
 
+                let targetStart = testAnchorForOffset 1
                 copiedDays <- query @RosterDay
-                    |> filterWhere (#rosterWeekId, Just (unpackId copiedWeek.id))
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhereGreaterThanOrEqualTo (#operationalDate, targetStart)
+                    |> filterWhereLessThan (#operationalDate, addDays 7 targetStart)
+                    |> orderByAsc #operationalDate
                     |> fetch
                 length copiedDays `shouldBe` 7
+                map (.rosterWeekId) copiedDays `shouldSatisfy` all isNothing
+                map (.publicationState) copiedDays `shouldSatisfy` all (== Draft)
 
-                copiedDay <- query @RosterDay
-                    |> filterWhere (#rosterWeekId, Just (unpackId copiedWeek.id))
-                    |> filterWhere (#dayOffset, 0)
-                    |> fetchOne
+                let copiedDay = fromJust (head copiedDays)
                 copiedSlots <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId copiedDay.id)
                     |> filterWhere (#deletedAt, Nothing)
@@ -2513,9 +2516,10 @@ tests = aroundAll withDatabaseTestContext do
                 length copiedSlots `shouldBe` 1
 
                 let copiedSlot = fromJust (head copiedSlots)
-                copiedSlotDefinition <- fetch (Id (fromJust copiedSlot.rosterWeekSlotDefinitionId) :: Id RosterWeekSlotDefinition)
+                copiedLane <- fetch (Id copiedSlot.rosterLaneId :: Id RosterLane)
                 copiedSlot.staffId `shouldBe` Just (unpackId staffMember.id)
-                copiedSlotDefinition.name `shouldBe` slotName.name
+                copiedSlot.rosterWeekSlotDefinitionId `shouldBe` Nothing
+                copiedLane.name `shouldBe` slotName.name
                 copiedSlot.rowIndex `shouldBe` 0
                 testStartTime copiedSlot `shouldBe` Just (timeOfDay 9 0)
                 testDurationMinutes copiedSlot `shouldBe` Just 480
@@ -2615,13 +2619,10 @@ tests = aroundAll withDatabaseTestContext do
                             rosterCopyParams 63 64 <> [("copyStartOccurrence", "second")]
 
                 copiedResponse `responseStatusShouldBe` status200
-                copiedWeek <- query @RosterWeek
-                    |> filterWhere (#venueId, unpackId venue.id)
-                    |> filterWhere (#weekOffset, 64)
-                    |> fetchOne
                 copiedDay <- query @RosterDay
-                    |> filterWhere (#rosterWeekId, Just (unpackId copiedWeek.id))
-                    |> filterWhere (#dayOffset, 5)
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#rosterGroupId, sourceWeek.rosterGroupId)
+                    |> filterWhere (#operationalDate, addDays 7 sourceDay.operationalDate)
                     |> fetchOne
                 copiedSlot <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId copiedDay.id)
@@ -2682,13 +2683,9 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetch
                 length targetWeeks `shouldBe` 1
 
-                copiedWeek <- query @RosterWeek
-                    |> filterWhere (#venueId, unpackId venue.id)
-                    |> filterWhere (#weekOffset, 1)
-                    |> fetchOne
                 copiedDay <- query @RosterDay
-                    |> filterWhere (#rosterWeekId, Just (unpackId copiedWeek.id))
-                    |> filterWhere (#dayOffset, 0)
+                    |> filterWhere (#rosterWeekId, Just (unpackId targetWeek.id))
+                    |> filterWhere (#operationalDate, targetDay.operationalDate)
                     |> fetchOne
                 copiedSlots <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId copiedDay.id)
@@ -2697,9 +2694,10 @@ tests = aroundAll withDatabaseTestContext do
 
                 length copiedSlots `shouldBe` 1
                 let copiedSlot = fromJust (head copiedSlots)
-                copiedSlotDefinition <- fetch (Id (fromJust copiedSlot.rosterWeekSlotDefinitionId) :: Id RosterWeekSlotDefinition)
+                copiedLane <- fetch (Id copiedSlot.rosterLaneId :: Id RosterLane)
                 copiedSlot.staffId `shouldBe` Just (unpackId alpha.id)
-                copiedSlotDefinition.name `shouldBe` early.name
+                copiedSlot.rosterWeekSlotDefinitionId `shouldBe` Nothing
+                copiedLane.name `shouldBe` early.name
                 testStartTime copiedSlot `shouldBe` Just (timeOfDay 8 0)
                 testDurationMinutes copiedSlot `shouldBe` Just 300
 
@@ -2711,7 +2709,8 @@ tests = aroundAll withDatabaseTestContext do
                 rosterGroup <- query @RosterGroup
                     |> filterWhere (#venueId, unpackId venue.id)
                     |> fetchOne
-                _ <- createRosterWeekRecordForRosterGroup venue rosterGroup (-1) False
+                sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup (-1) False
+                _ <- createRosterDayRecord sourceWeek 0
                 _ <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams
                         (ToggleRosterWeekLiveStatusAction (Id UUID.nil))

@@ -51,17 +51,6 @@ import Web.View.Admin.ShiftTypes
 import Web.View.Admin.VenueSettings
 import Web.View.Admin.Xero
 
-adminExportWindowUrl :: Day -> Text
-adminExportWindowUrl anchorDate =
-    appendQueryParams (pathTo AdminAction)
-        [("showExports", "true"), ("anchorDate", tshow anchorDate)]
-        <> "#exports"
-
-adminExportFragmentWindowUrl :: Day -> Text
-adminExportFragmentWindowUrl anchorDate =
-    appendQueryParams (pathTo ShowadminExportsLiveFragmentAction)
-        [("anchorDate", tshow anchorDate)]
-
 respondToProfileLiveInvalidation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Text ->
@@ -161,7 +150,7 @@ staffPasskeyReturnPath =
     case paramOrDefault @Text "admin" "returnTo" of
         "staff" ->
             appendQueryParams
-                (pathTo ShowRosterWeekAction { weekOffset = paramOrDefault @Int 0 "weekOffset" })
+                (pathTo RosterWeeksAction)
                 (maybe [] (\rosterGroupId -> [("rosterGroupId", tshow (rosterGroupId :: Id RosterGroup))]) (paramOrNothing "rosterGroupId"))
         _ -> pathTo AdminAction
 
@@ -231,18 +220,12 @@ instance Controller AdminController where
                 Right value -> pure value
             invitations <- profileActionSpan "admin.page.fetch_invitations" fetchCurrentVenueInvitations
             let maybeExportAnchorDate = paramOrNothing @Day "anchorDate"
-            let maybeLegacyExportWeekOffset = paramOrNothing @Int "weekOffset"
-            case (maybeExportAnchorDate, maybeLegacyExportWeekOffset) of
-                (Nothing, Just weekOffset) -> do
-                    selection <- exportWeekSelectionForOffset weekOffset
-                    redirectToPath (adminExportWindowUrl selection.weekStart)
-                _ -> do
-                    exportWeekSelection <- profileActionSpan "admin.page.export_week_selection" $
-                        maybe currentExportWeekSelection exportWeekSelectionForAnchor maybeExportAnchorDate
-                    let exportSectionOpen = paramOrDefault False "showExports" || isJust maybeExportAnchorDate
-                    currentTime <- getCurrentTime
-                    let today = utctDay currentTime
-                    profileActionSpan "admin.page.render_response" (render IndexView { .. })
+            exportWeekSelection <- profileActionSpan "admin.page.export_week_selection" $
+                maybe currentExportWeekSelection exportWeekSelectionForAnchor maybeExportAnchorDate
+            let exportSectionOpen = paramOrDefault False "showExports" || isJust maybeExportAnchorDate
+            currentTime <- getCurrentTime
+            let today = utctDay currentTime
+            profileActionSpan "admin.page.render_response" (render IndexView { .. })
 
     action currentAction@XeroAction = runBepis currentAction BepisPageAction $
         profileActionSpan "admin.xero.page.render" do
@@ -489,14 +472,10 @@ instance Controller AdminController where
 
     action currentAction@ShowadminExportsLiveFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.exports_fragment.respond" do
-            case (paramOrNothing @Day "anchorDate", paramOrNothing @Int "weekOffset") of
-                (Nothing, Just weekOffset) -> do
-                    selection <- exportWeekSelectionForOffset weekOffset
-                    redirectToPath (adminExportFragmentWindowUrl selection.weekStart)
-                (maybeAnchorDate, _) -> do
-                    exportWeekSelection <- profileActionSpan "admin.exports_fragment.week_selection" $
-                        maybe currentExportWeekSelection exportWeekSelectionForAnchor maybeAnchorDate
-                    profileActionSpan "admin.exports_fragment.render_response" (respondFragmentHtml (renderExportsSectionFragment exportWeekSelection))
+            let maybeAnchorDate = paramOrNothing @Day "anchorDate"
+            exportWeekSelection <- profileActionSpan "admin.exports_fragment.week_selection" $
+                maybe currentExportWeekSelection exportWeekSelectionForAnchor maybeAnchorDate
+            profileActionSpan "admin.exports_fragment.render_response" (respondFragmentHtml (renderExportsSectionFragment exportWeekSelection))
 
     action currentAction@ShowadminXeroShellLiveFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.xero_fragment.respond" do

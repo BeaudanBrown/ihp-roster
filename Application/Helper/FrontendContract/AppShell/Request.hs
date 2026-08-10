@@ -1,11 +1,11 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE PolyKinds           #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE TypeFamilies        #-}
-{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE AllowAmbiguousTypes  #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE PolyKinds            #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE TypeOperators        #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 -- | Nominal AppShell request fields derived directly from 'AppShellContract'.
@@ -32,14 +32,15 @@ import Application.Helper.FrontendContract.Surface.Diagnostics (AssertSurfaceFie
                                                                 SurfaceFieldsTail)
 import qualified Application.Helper.FrontendContract.Surface.DSL as Surface
 import Application.Helper.FrontendContract.Surface.Request (KnownSurfaceRequestFields,
-                                                           SurfaceRequestFieldError,
-                                                           parseDeclaredRequestParamPairs,
-                                                           parseDeclaredRequestParams)
+                                                            SurfaceRequestFieldError,
+                                                            parseDeclaredRequestParamPairs,
+                                                            parseDeclaredRequestParams)
 import Application.Helper.FrontendContract.Surface.Values (DeclaredRequestFields,
-                                                          SurfaceFieldInput,
-                                                          SurfaceFields,
-                                                          declaredRequestFields,
-                                                          noDeclaredRequestFields)
+                                                           SurfaceFieldInput,
+                                                           SurfaceFields,
+                                                           declaredRequestFields,
+                                                           noDeclaredRequestFields,
+                                                           surfaceFieldsText)
 import Data.ByteString (ByteString)
 import Data.Kind (Type)
 import Data.Typeable (Typeable)

@@ -9,16 +9,13 @@ module Web.Timesheets.FrontendSurface
     , timesheetsSurfaceScope
     , timesheetsDaySurfaceImpl
     , timesheetsSurfaceImpl
-    , timesheetsSurfaceMountConfig
     , timesheetStaffCardsLinkedHighlight
-    , timesheetsSurfaceScopeKey
     , timesheetsSurfaceFragmentKeys
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
-                                                         SurfaceScope,
-                                                         surfaceScopeKey)
+                                                         SurfaceScope)
 import Application.Helper.FrontendContract.Surface.Runtime
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as SurfaceLive
@@ -66,13 +63,6 @@ timesheetsSurfaceImplWithFragments scope mountState fragments =
         (timesheetWeekScopeFields scope)
         (timesheetsMountStateFields mountState)
         fragments
-
-timesheetsSurfaceMountConfig :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> FrontendSurfaceMountConfig
-timesheetsSurfaceMountConfig scope mountState =
-    (timesheetsSurfaceImpl scope mountState).surfaceImplMountConfig
-
-timesheetsSurfaceScopeKey :: TimesheetWeekScopeValue -> Text
-timesheetsSurfaceScopeKey = surfaceScopeKey . timesheetsSurfaceScope
 
 timesheetsSurfaceScope :: TimesheetWeekScopeValue -> SurfaceScope
 timesheetsSurfaceScope scope =

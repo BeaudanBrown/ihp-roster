@@ -213,7 +213,6 @@ module Application.Helper.FrontendContract.Surface.Roster
     , WindowStartDate
     , WindowEndDate
     , RosterCalendarRevision
-    , NotificationRosterWeekId
     , ShowRosterWarnings
     , IsLive
     , ShowWageEstimates
@@ -267,7 +266,6 @@ data AnchorDate
 data WindowStartDate
 data WindowEndDate
 data RosterCalendarRevision
-data NotificationRosterWeekId
 
 data RosterLayout
 data RosterContent
@@ -666,13 +664,21 @@ type RosterActionBundle =
          , 'HtmxSync ('HtmxSyncOn ('HtmxId RosterWeekShell) 'HtmxSyncReplace)
          ]
      , Action ShowRosterNotificationConfirmation
-        '[ Field NotificationRosterWeekId 'WireUUID ]
+        '[ Field RosterGroupId 'WireUUID
+         , Field WindowStartDate 'WireDay
+         , Field WindowEndDate 'WireDay
+         , Field RosterCalendarRevision 'WireInt
+         ]
         '[ 'HtmxMethod 'HtmxGet
          , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")
          , 'HtmxSwap 'HtmxInnerHTML
          ]
      , Action CreateRosterNotificationRun
-        '[ Field NotificationRosterWeekId 'WireUUID ]
+        '[ Field RosterGroupId 'WireUUID
+         , Field WindowStartDate 'WireDay
+         , Field WindowEndDate 'WireDay
+         , Field RosterCalendarRevision 'WireInt
+         ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")
          , 'HtmxSwap 'HtmxInnerHTML

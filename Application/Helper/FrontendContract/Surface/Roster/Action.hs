@@ -19,7 +19,6 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
     , parseApplyRosterTemplateApplicationActionParams
     , parseCopyRosterWeekActionParams
     , parseCreateRosterNotificationRunActionParams
-    , parseNavigateRosterWeekActionParams
     , parseShowRosterNotificationConfirmationActionParams
     , parsePreviewRosterTemplateApplicationActionParams
     , previewRosterTemplateApplicationAction
@@ -85,7 +84,6 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (AddR
                                                                             parseApplyRosterTemplateApplicationActionParams,
                                                                             parseCopyRosterWeekActionParams,
                                                                             parseCreateRosterNotificationRunActionParams,
-                                                                            parseNavigateRosterWeekActionParams,
                                                                             parsePreviewRosterTemplateApplicationActionParams,
                                                                             parseShowRosterNotificationConfirmationActionParams,
                                                                             parseToggleRosterAssignmentFiltersActionParams,

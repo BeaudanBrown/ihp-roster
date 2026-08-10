@@ -120,7 +120,7 @@ renderTemplateCard weekOffset anchorDate calendarRevision rosterGroup maybeRoste
         Week -> rosterWeekTemplateDragSourceRef
     initialTargetKey = case template.scale of
         Day  -> ""
-        Week -> maybe "" (("week:" <>) . tshow . (.id)) maybeRosterWeek
+        Week -> if applicationAvailable then "window:" <> tshow anchorDate else ""
     previewFields = RosterAction.previewRosterTemplateApplicationActionFields (tshow template.id) initialTargetKey Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing calendarRevision
     previewRoute = FrontendSurfaceActionRoute
         { actionRouteUrl = appendQueryParams
