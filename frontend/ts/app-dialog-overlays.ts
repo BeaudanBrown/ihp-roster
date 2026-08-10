@@ -479,7 +479,6 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         if (!isHTMLElement(target)) return;
         if (target.id !== mountId) return;
 
-        window.htmx?.process?.(target);
         submitAutoFormsOnce(target);
         initializeKeyboardDialogs(target);
 

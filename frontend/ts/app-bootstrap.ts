@@ -54,7 +54,6 @@ export function pageReadyDetailFrom(detail: PageReadyDetailInput): PageReadyDeta
 
     document.addEventListener(pageReadyEventName, function (event) {
         const target = normalizeTarget(detailTarget(event, "target"));
-        window.htmx?.process?.(target);
         initializeFeedbackDiagnostics(target);
     });
 

@@ -468,7 +468,6 @@
       const target = detailRoot(event, "target");
       if (!isHTMLElement(target)) return;
       if (target.id !== mountId) return;
-      window.htmx?.process?.(target);
       submitAutoFormsOnce(target);
       initializeKeyboardDialogs(target);
       syncDialogState();

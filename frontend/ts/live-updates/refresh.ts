@@ -52,7 +52,7 @@ export function createLiveFragmentRefresher(options: {
         }
 
         target.replaceWith(nextNode);
-        targetWindow.htmx?.process?.(targetDocument.body);
+        targetWindow.htmx?.process?.(nextNode);
         targetWindow.appPageLifecycle?.dispatchPageReady?.({
             source: "live-fragment-refetch",
             target: nextNode,

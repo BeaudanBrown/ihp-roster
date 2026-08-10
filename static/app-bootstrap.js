@@ -126,7 +126,6 @@
     };
     document.addEventListener(pageReadyEventName, function(event) {
       const target = normalizeTarget(detailTarget(event, "target"));
-      window.htmx?.process?.(target);
       initializeFeedbackDiagnostics(target);
     });
     document.addEventListener("DOMContentLoaded", function() {

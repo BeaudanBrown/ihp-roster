@@ -122,11 +122,30 @@ test.describe('Roster Staff Modal', () => {
         const staffEntry = page.locator(
             `[${rosterStaffPanelSortRowDomAttr}][${rosterStaffHighlightSourceDomAttr}="staff:a0000000-0000-0000-0000-000000000101"]:visible`,
         );
+        const pageErrors: Error[] = [];
+        let blackoutRequests = 0;
+        page.on('pageerror', (error) => pageErrors.push(error));
+        page.on('request', (request) => {
+            if (request.url().includes('/ShowVisibleUnavailabilityBlackoutsFragment')) blackoutRequests += 1;
+        });
+        await page.evaluate(() => {
+            document.addEventListener('htmx:swapError', () => {
+                document.documentElement.dataset.e2eHtmxSwapError = 'true';
+            });
+        });
+        const blackoutResponsePromise = page.waitForResponse((response) =>
+            response.url().includes('/ShowVisibleUnavailabilityBlackoutsFragment')
+            && response.request().method() === 'GET',
+        );
         await staffEntry.click();
 
         await expect(page).toHaveURL(initialUrl);
         await expect(modalMount.locator(`[${dialogMountDomAttr}]`)).toBeVisible();
         await expect(modalMount).toContainText('Edit Staff Member');
+        await blackoutResponsePromise;
+        expect(blackoutRequests).toBe(1);
+        expect(pageErrors).toEqual([]);
+        await expect(page.locator('html')).not.toHaveAttribute('data-e2e-htmx-swap-error', 'true');
         await modalMount.getByRole('button', { name: 'Profile Details' }).click();
 
         const staffEditForm = modalMount.locator('#staff-edit-form:visible');
