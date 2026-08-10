@@ -438,6 +438,28 @@ tests = aroundAll withDatabaseTestContext do
                 dropResponse `responseStatusShouldBe` status200
                 dropResponse `responseBodyShouldContain` "Apply Standard week"
 
+        it "aborts a stale HTMX template preview with an authoritative reload" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Stale template preview venue"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                manager <- createUserRecord "stale-template-preview@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- updateRecord (venueConfig |> set #rosterWeekStartsOn 2)
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams PreviewRosterTemplateDropAction { rosterGroupId = rosterGroup.id }
+                            [ ("anchorDate", "2025-01-06")
+                            , ("rosterCalendarRevision", "1")
+                            , ("sourceItemKey", "stale-template")
+                            , ("targetDropzoneKey", "week:stale-window")
+                            ]
+
+                response `responseStatusShouldBe` status409
+                lookup "HX-Refresh" (responseHeaders response) `shouldBe` Just "true"
+                response `responseBodyShouldContain` "The roster calendar changed. Review the refreshed window and try again."
+
         it "applies a confirmed Week template through the roster HTTP boundary" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Template application mutation"

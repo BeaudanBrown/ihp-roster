@@ -5,7 +5,7 @@ module Web.Controller.RosterTemplates where
 import Application.Bepis.Controller
 import Application.Helper.Controller (ensureCurrentVenueOrSupportRedirect,
                                       ensureManagerRole, ensureProfileCompleted,
-                                      ensureVenueWritable)
+                                      ensureVenueWritable, fetchVenueConfig)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
@@ -24,6 +24,8 @@ import Control.Monad (guard)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
+import Network.HTTP.Types.Status (status409)
+import qualified Network.Wai as Wai
 import Text.Read (readMaybe)
 import Web.Controller.Prelude
 import qualified Web.RosterTemplates.Mutations as TemplateMutations
@@ -51,11 +53,26 @@ rosterTemplateWindowOffset currentAction = do
             redirectToPath (appendQueryParams (pathTo currentAction) [("anchorDate", tshow (venueWeekStartDate venueConfig legacyOffset))])
             pure legacyOffset
 
+abortStaleTemplateCalendarRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+abortStaleTemplateCalendarRequest =
+    when isHtmxRequest $
+        forM_ (paramOrNothing @Int "rosterCalendarRevision") \expectedRevision -> do
+            venueConfig <- fetchVenueConfig
+            when (expectedRevision /= venueConfig.rosterCalendarRevision) do
+                respondAndExit
+                    ( Wai.responseLBS
+                        status409
+                        [("Content-Type", "text/plain"), ("HX-Refresh", "true")]
+                        "The roster calendar changed. Review the refreshed window and try again."
+                    )
+                error "unreachable"
+
 instance Controller RosterTemplatesController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         ensureIsUser
         ensureCurrentVenueOrSupportRedirect
         ensureProfileCompleted
+        abortStaleTemplateCalendarRequest
 
     action currentAction@NewRosterTemplateAction { rosterGroupId } = runBepis currentAction BepisPageAction do
         ensureManagerRole

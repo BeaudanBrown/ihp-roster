@@ -268,19 +268,20 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- updateRecord (venueConfig |> set #rosterWeekStartsOn 2)
 
                 response <- withUserAndCurrentVenue user venue.id do
-                    callActionWithParams CreateTimesheetEntryAction
-                        [ ("anchorDate", "2025-01-06")
-                        , ("rosterCalendarRevision", "1")
-                        , ("staffId", idToParam staff.id)
-                        , ("shiftTypeId", idToParam shiftType.id)
-                        , ("workedOn", "2025-01-07")
-                        , ("startTime", "09:00")
-                        , ("endTime", "17:00")
-                        ]
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateTimesheetEntryAction
+                            [ ("anchorDate", "2025-01-06")
+                            , ("rosterCalendarRevision", "1")
+                            , ("staffId", idToParam staff.id)
+                            , ("shiftTypeId", idToParam shiftType.id)
+                            , ("workedOn", "2025-01-07")
+                            , ("startTime", "09:00")
+                            , ("endTime", "17:00")
+                            ]
 
-                response `responseStatusShouldBe` status302
-                lookup "Location" (responseHeaders response)
-                    `shouldBe` Just "http://localhost/ShowTimesheetWindow?anchorDate=2025-01-06"
+                response `responseStatusShouldBe` status409
+                lookup "HX-Refresh" (responseHeaders response) `shouldBe` Just "true"
+                response `responseBodyShouldContain` "The roster calendar changed. Review the refreshed window and try again."
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
         it "denies unauthenticated users through the timesheet surface fragment contract" $ withContext do

@@ -15,6 +15,8 @@ import Application.Helper.UserPreferences (upsertCurrentUserTimesheetHideApprove
 import Application.Helper.WeekBoundaries (startOfWeekFor, venueWeekOffsetForDay,
                                           venueWeekStartDate)
 import Application.VenueTime.Model
+import Network.HTTP.Types.Status (status409)
+import qualified Network.Wai as Wai
 import Web.Controller.Prelude
 import Web.Timesheets.Mutations
 import Web.Timesheets.Paths (editTimesheetEntryUrl,
@@ -87,8 +89,14 @@ markStaleTimesheetCalendarResponseForRefresh =
     when isHtmxRequest $
         forM_ (paramOrNothing @Int "rosterCalendarRevision") \expectedRevision -> do
             venueConfig <- fetchVenueConfig
-            when (expectedRevision /= venueConfig.rosterCalendarRevision) $
-                setHeader ("HX-Refresh", "true")
+            when (expectedRevision /= venueConfig.rosterCalendarRevision) do
+                respondAndExit
+                    ( Wai.responseLBS
+                        status409
+                        [("Content-Type", "text/plain"), ("HX-Refresh", "true")]
+                        "The roster calendar changed. Review the refreshed window and try again."
+                    )
+                error "unreachable"
 
 requireCurrentTimesheetCalendarValues :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Day -> Int -> IO Int
 requireCurrentTimesheetCalendarValues anchorDate expectedRevision = do
