@@ -62,7 +62,9 @@ seedDevelopmentFixtureAfterResetWithScenarioForWeekAndLeaveMonth scenario fixtur
     staff <- applySeededPayAssignments pay.floorAwardLevel pay.importedPayItem.id accounts.aliasStaff baseStaff
     seedRosterProjection scenario fixtureWeekStart venue roster staff pay.allShiftTypes
     seedLeaveProjection fixtureWeekStart leaveMonthAnchor venue scenario staff.allOperationalStaff
-    let approvedAt = UTCTime (dayAtOffset fixtureWeekStart 6) (secondsToDiffTime 3600)
+    now <- getCurrentTime
+    let scheduledApprovalAt = UTCTime (dayAtOffset fixtureWeekStart 6) (secondsToDiffTime 3600)
+        approvedAt = min now scheduledApprovalAt
     seedTimesheetProjection fixtureWeekStart venue accounts.admin scenario pay staff.allOperationalStaff approvedAt
     pure
         DevSeedFixture

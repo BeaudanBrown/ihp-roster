@@ -74,9 +74,10 @@ issue and, when cross-system design remains unresolved, a new workstream.
   unresolved placeholder is created after that snapshot, the newer of the
   mapping refresh and connection snapshot times proves whether the approval has
   already been checked and prevents repeated preparation observations from
-  enqueueing the same refresh. Approval times, not later mutable staff edits, determine
-  whether another mapping refresh is required. Effective
-  `roster_only` work does not request Xero data or block eligible payroll work.
+  enqueueing the same refresh. The persisted approval mutation time, not a
+  future-dated payroll approval value or later mutable staff edit, determines
+  whether another mapping refresh is required. Effective `roster_only` work
+  does not request Xero data or block eligible payroll work.
   Suggested staff matches remain pending until explicit owner approval.
 - Owners do not receive or access manual reference refresh. Founder support sees
   last success, aggregate queued/running/retry-chain state, retry timing,
@@ -175,7 +176,9 @@ The exact paging, lease, retry, and trust implementation is authoritative in
   downloading remote timesheet history. Reconciliation begins at the explicit
   Xero review step and runs again immediately before submission. Every remote
   reconciliation read uses the Payroll AU v2 timesheet endpoint scoped to the
-  selected payroll calendar and period.
+  selected payroll calendar and period. The initial read omits the optional
+  `page` query parameter because live Xero returns 400 for an explicitly
+  requested empty page 1; later full-result pages use page 2 onward.
 - Readiness, proposals, preview, and submission use the same venue-effective
   rate resolution and strict wage-source boundary. Any included calculation or
   source failure blocks the complete operation.

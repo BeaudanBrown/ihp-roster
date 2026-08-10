@@ -45,12 +45,27 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- staff |> set #firstName "Ada updated after approval" |> updateRecord
                 fetchXeroMissingReferenceDemand fixture.connection `shouldReturn` NoMissingPayrollReferenceDemand
 
-                approvedAfterRefresh <- entry |> set #approvedAt (Just (addUTCTime 1 refreshedAt)) |> updateRecord
+                approvedAfterRefresh <-
+                    entry
+                        |> set #approvedAt (Just (addUTCTime 1 refreshedAt))
+                        |> set #updatedAt (addUTCTime 1 refreshedAt)
+                        |> updateRecord
                 fetchXeroMissingReferenceDemand fixture.connection `shouldReturn` MissingPayrollEligibleStaffReference
                 _ <- mapping |> set #referenceRefreshedAt (Just (addUTCTime 2 refreshedAt)) |> updateRecord
                 fetchXeroMissingReferenceDemand fixture.connection `shouldReturn` NoMissingPayrollReferenceDemand
 
-                _ <- approvedAfterRefresh
+                futureApprovedEntry <-
+                    approvedAfterRefresh
+                        |> set #approvedAt (Just (addUTCTime 86400 refreshedAt))
+                        |> set #updatedAt (addUTCTime 3 refreshedAt)
+                        |> updateRecord
+                syncedAfterMutation <-
+                    fixture.connection
+                        |> set #lastSyncAt (Just (addUTCTime 1 futureApprovedEntry.updatedAt))
+                        |> updateRecord
+                fetchXeroMissingReferenceDemand syncedAfterMutation `shouldReturn` NoMissingPayrollReferenceDemand
+
+                _ <- futureApprovedEntry
                     |> set #isApproved False
                     |> set #activePayCalculationId Nothing
                     |> set #legacyPayBackfillPending False

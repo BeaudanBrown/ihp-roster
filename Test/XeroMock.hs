@@ -127,7 +127,7 @@ xeroRequestContractCases identitySpec payrollSpec payrollV2Spec accountingSpec e
             , contractRequestServer = xeroPayrollV2Server
             , contractAllowedQueries = ["filter", "startDate", "endDate", "page"]
             }
-      , buildFetchTimesheetsForPeriodRequest "access-token" "tenant-id" (Just "calendar-id") (fromGregorian 2026 5 4) (fromGregorian 2026 5 10) 1
+      , buildFetchTimesheetsForPeriodRequest "access-token" "tenant-id" (Just "calendar-id") (fromGregorian 2026 5 4) (fromGregorian 2026 5 10) 2
       )
     , (payrollSpec, payrollReadContract "timesheet show" "/Timesheets/{TimesheetID}" "/Timesheets/timesheet-id" [], buildFetchTimesheetRequest "access-token" "tenant-id" "timesheet-id")
     , (earningsRatesSpec, payrollEarningsRateCreateContract "earnings rate create" "/earningsRates", buildCreatePayItemRequest "access-token" "tenant-id" "idem-pay-items" sampleEarningsRateBody)
@@ -618,10 +618,10 @@ xeroStrictMockApp identitySpec payrollSpec payrollV2Spec accountingSpec earnings
                         dynamicTimesheetsFixture <- currentPeriodTimesheetsFixture
                         response <- nextTimesheetResponse "list" timesheetListResponseRef (jsonResponse status200 dynamicTimesheetsFixture)
                         let contract =
-                                (payrollReadContract "mock period timesheets list" "/Timesheets" "/Timesheets" ["filter", "startDate", "endDate", "page"])
+                                (payrollReadContract "mock period timesheets list" "/Timesheets" "/Timesheets" ["filter", "startDate", "endDate"])
                                     { contractSpecServer = Just xeroPayrollV2Server
                                     , contractRequestServer = baseUrl <> "/payroll.xro/2.0"
-                                    , contractAllowedQueries = ["filter", "startDate", "endDate", "page"]
+                                    , contractAllowedQueries = ["filter", "startDate", "endDate"]
                                     }
                         pure (Just (payrollV2Spec, contract, response))
                 (method, "/payroll.xro/1.0/Timesheets")

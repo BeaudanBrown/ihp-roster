@@ -111,7 +111,7 @@ resolvedAssignment staffById shiftTypeById staffVersionById shiftVersionById ent
             case entry.shiftTypePayVersionId >>= (`Map.lookup` shiftVersionById) of
                 Just version -> shiftAssignmentFromVersion version
                 Nothing      -> shiftAssignmentFromShiftType shiftType
-        changedAt = fromMaybe entry.updatedAt entry.approvedAt
+        changedAt = entry.updatedAt
     pure ApprovedAssignment
         { approvedAssignmentStaffId = entry.staffId
         , approvedEffectiveAssignment = resolvePayAssignment staffAssignment shiftAssignment

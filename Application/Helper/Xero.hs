@@ -580,8 +580,10 @@ buildFetchTimesheetsForPeriodRequestWith urls accessToken tenantId maybeCalendar
         maybe [] (\calendarId -> [("filter", Just (TextEncoding.encodeUtf8 ("payrollCalendarId==" <> calendarId)))]) maybeCalendarId
             <> [ ("startDate", Just (renderDay periodStart))
                , ("endDate", Just (renderDay periodEnd))
-               , ("page", Just (TextEncoding.encodeUtf8 (tshow page)))
                ]
+            -- Live Payroll AU v2 returns 400 for an empty filtered result when
+            -- page=1 is explicit; the omitted first page has identical paging semantics.
+            <> [("page", Just (TextEncoding.encodeUtf8 (tshow page))) | page > 1]
     url = urls.xeroPayrollV2BaseUrl <> "/Timesheets" <> TextEncoding.decodeUtf8 (URI.renderQuery True params)
     renderDay = cs . TimeFormat.formatTime defaultTimeLocale "%F"
 

@@ -1268,7 +1268,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 _ <- fixture.connection |> set #lastSyncAt (Just now) |> updateRecord
                 resetXeroStaffMappingForPreparation fixture.staffA
                 entry <- maybe (error "Expected fixture entry") pure (listToMaybe fixture.entries)
-                _ <- entry |> set #approvedAt (Just (addUTCTime 1 now)) |> updateRecord
+                _ <- entry |> set #approvedAt (Just (addUTCTime 1 now)) |> set #updatedAt (addUTCTime 1 now) |> updateRecord
                 _ <- fixture.staffA
                     |> set #payAssignmentMode RosterOnly
                     |> set #defaultAwardLevelId Nothing
@@ -1380,7 +1380,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 _ <- fixture.connection |> set #lastSyncAt (Just now) |> updateRecord
                 resetXeroStaffMappingForPreparation fixture.staffA
                 entry <- maybe (error "Expected fixture entry") pure (listToMaybe fixture.entries)
-                _ <- entry |> set #approvedAt (Just (addUTCTime 1 now)) |> updateRecord
+                _ <- entry |> set #approvedAt (Just (addUTCTime 1 now)) |> set #updatedAt (addUTCTime 1 now) |> updateRecord
                 EnqueuedAppJob retryJob <- enqueueXeroReferenceSyncJob (Just fixture.owner.id) fixture.connection
                 _ <- retryJob
                     |> set #runAt (addUTCTime 3600 now)

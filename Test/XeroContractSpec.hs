@@ -166,6 +166,16 @@ tests =
             request.xeroRequestMethod `shouldBe` "GET"
             request.xeroRequestUrl
                 `shouldBe` "https://api.xero.com/payroll.xro/2.0/Timesheets?filter=payrollCalendarId%3D%3Dcalendar-id&startDate=2026-05-04&endDate=2026-05-10&page=2"
+            let firstPageRequest =
+                    buildFetchTimesheetsForPeriodRequest
+                        "access-token"
+                        "tenant-id"
+                        (Just "calendar-id")
+                        (fromGregorian 2026 5 4)
+                        (fromGregorian 2026 5 10)
+                        1
+            firstPageRequest.xeroRequestUrl
+                `shouldBe` "https://api.xero.com/payroll.xro/2.0/Timesheets?filter=payrollCalendarId%3D%3Dcalendar-id&startDate=2026-05-04&endDate=2026-05-10"
             XeroMock.headerValue "Xero-Tenant-Id" request `shouldBe` Just "tenant-id"
             let decoded =
                     Aeson.eitherDecode

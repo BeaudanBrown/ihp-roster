@@ -237,6 +237,7 @@ approveTimesheetEntryInCurrentTransaction timesheetEntry = do
                         |> set #shiftTypePayVersionId (Just (unpackId (get #id shiftTypePayVersion)))
                         |> set #approvedAt (Just now)
                         |> set #approvedByUserId (Just (unpackId (get #id currentUser)))
+                        |> set #updatedAt now
             sourceEnforcement <- enforceFinalWageEntries [approvalEntry |> set #isApproved False]
             case sourceEnforcement of
                 Left failures -> ioError (userError (Text.unpack (renderWageEntryFailures "Approval blocked: " failures)))
