@@ -1782,6 +1782,9 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Roster week is now live."
+                let publicationTrigger = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                publicationTrigger `shouldSatisfy` maybe False (Text.isInfixOf rosterContentFragmentId)
+                publicationTrigger `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-staff-panel\"")
                 published <- fetch rosterWeek.id
                 published.isLive `shouldBe` True
                 retained <- fetch openSlot.id

@@ -103,8 +103,8 @@ respondWithRosterDialogOverlay rosterGroupId weekOffset dialog =
         <div id={dialogOverlayMountId} hx-swap-oob="innerHTML">{dialog}</div>
     |]
 
-respondWithRosterTemplateApplicationUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Set.Set SurfaceResourceValue -> IO ()
-respondWithRosterTemplateApplicationUpdate rosterGroupId weekOffset touchedResources = do
+respondWithRosterCompleteResourceInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Set.Set SurfaceResourceValue -> Blaze.Html -> IO ()
+respondWithRosterCompleteResourceInvalidation rosterGroupId weekOffset touchedResources extraHtml = do
     maybeRosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
     case maybeRosterData of
         Nothing -> respondWithRosterResourceInvalidation rosterGroupId weekOffset touchedResources [RosterProjectionContent] extraHtml
@@ -119,8 +119,10 @@ respondWithRosterTemplateApplicationUpdate rosterGroupId weekOffset touchedResou
             setHeader ("HX-Reswap", "none")
             setActorLiveResourcesRefresh (rosterSurfaceScope scope) touchedResources (rosterCandidateMountedFragments scope plan)
             respondHtmlProfiled extraHtml
-  where
-    extraHtml = [hsx|
+
+respondWithRosterTemplateApplicationUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Set.Set SurfaceResourceValue -> IO ()
+respondWithRosterTemplateApplicationUpdate rosterGroupId weekOffset touchedResources =
+    respondWithRosterCompleteResourceInvalidation rosterGroupId weekOffset touchedResources [hsx|
         <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
         {renderToastOob ToastBottomCenter (successToast "Template applied.")}
     |]
@@ -173,13 +175,12 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
                             , gridTimelineTodayUrl = Nothing
                             }
 
-respondWithRosterContentUpdate :: (?context :: ControllerContext, ?request :: Request) => Id RosterGroup -> Int -> Set.Set SurfaceResourceValue -> Text -> IO ()
+respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Set.Set SurfaceResourceValue -> Text -> IO ()
 respondWithRosterContentUpdate rosterGroupId weekOffset touchedResources successMessage =
-    respondWithRosterResourceInvalidation
+    respondWithRosterCompleteResourceInvalidation
         rosterGroupId
         weekOffset
         touchedResources
-        [RosterProjectionContent]
         (renderToastOob ToastBottomCenter (successToast successMessage))
 
 respondWithRosterContentError :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()

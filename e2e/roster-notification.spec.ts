@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import {
+    toggleInputDomAttr,
+    toggleRootDomAttr,
+} from '../frontend/ts/generated/contracts';
+import {
     defaultE2ERosterGroupId,
     E2E_TIMEOUT,
     openRoster,
@@ -14,6 +18,49 @@ import {
 } from './test-helpers';
 
 test.describe('Roster notification workflow', () => {
+    test('adds and removes Email roster live for actor and passive manager tabs', async ({ browser, page }, testInfo) => {
+        test.skip(testInfo.project.name !== 'desktop-chromium', 'Publication live-update fanout is covered once on desktop.');
+        runSql(`UPDATE roster_weeks SET is_live = FALSE WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND week_offset = 0;`);
+        const viewerContext = await browser.newContext();
+        const viewerPage = await viewerContext.newPage();
+        try {
+            await openRoster(page);
+            await openRoster(viewerPage);
+            await openRosterSettings(page);
+            await openRosterSettings(viewerPage);
+
+            const liveToggle = page.locator('[data-week-toolbar="roster"]')
+                .locator(`[${toggleRootDomAttr}]`)
+                .filter({ hasText: 'Live' });
+            await expect(liveToggle.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
+            await expect(page.locator('#roster-email-button')).toHaveCount(0);
+            await expect(viewerPage.locator('#roster-email-button')).toHaveCount(0);
+
+            const publishResponse = page.waitForResponse((response) =>
+                response.request().method() === 'POST'
+                && new URL(response.url()).pathname.includes('ToggleRosterWeekLiveStatus'),
+            );
+            await liveToggle.click();
+            expect((await publishResponse).ok()).toBe(true);
+            await expect(liveToggle.locator(`[${toggleInputDomAttr}]`)).toBeChecked();
+            await expect(page.locator('#roster-email-button')).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
+            await expect(viewerPage.locator('#roster-email-button')).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
+
+            const unpublishResponse = page.waitForResponse((response) =>
+                response.request().method() === 'POST'
+                && new URL(response.url()).pathname.includes('ToggleRosterWeekLiveStatus'),
+            );
+            await liveToggle.click();
+            expect((await unpublishResponse).ok()).toBe(true);
+            await expect(liveToggle.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
+            await expect(page.locator('#roster-email-button')).toHaveCount(0);
+            await expect(viewerPage.locator('#roster-email-button')).toHaveCount(0, { timeout: E2E_TIMEOUT.liveUpdate });
+        } finally {
+            await viewerContext.close();
+            runSql(`UPDATE roster_weeks SET is_live = FALSE WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND week_offset = 0;`);
+        }
+    });
+
     test('opens confirmation in place for managers and stays hidden from workers', async ({ browser, page }, testInfo) => {
         test.skip(testInfo.project.name !== 'desktop-chromium', 'Role-specific notification workflow is covered once on desktop.');
         await openRoster(page);
