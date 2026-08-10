@@ -1055,7 +1055,8 @@ tests = aroundAll withDatabaseTestContext do
                             , ("rosterGroupId", idToParam rosterGroup.id)
                             ]
 
-                response `responseStatusShouldBe` status200
+                response `responseStatusShouldBe` status409
+                lookup "HX-Refresh" (responseHeaders response) `shouldBe` Just "true"
                 response `responseBodyShouldContain` "The roster calendar changed. Review the refreshed window and try again."
                 query @RosterDay |> fetchCount >>= (`shouldBe` 0)
 

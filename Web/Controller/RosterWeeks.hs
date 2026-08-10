@@ -1429,7 +1429,10 @@ respondWithRemoveRosterRowConfirmation rosterDay preview =
                 (appShellActionByMarker @ConfirmRemoveRosterRowOverlay)
                 AppShellActionRoute
                     { appShellActionRouteUrl = pathTo (RemoveRosterRowAction rosterDay.id)
-                    , appShellActionRouteFields = []
+                    , appShellActionRouteFields =
+                        [ AppShellFieldValue ("anchorDate", param @Text "anchorDate")
+                        , AppShellFieldValue ("rosterCalendarRevision", param @Text "rosterCalendarRevision")
+                        ]
                     , appShellActionRouteCustomHtmx = []
                     , appShellActionRouteStandardUrl = Nothing
                     , appShellActionRouteExtraAttrs =
@@ -1478,8 +1481,14 @@ markStaleRosterCalendarResponseForRefresh =
     when isHtmxRequest $
         forM_ (paramOrNothing @Int "rosterCalendarRevision") \expectedRevision -> do
             venueConfig <- fetchVenueConfig
-            when (expectedRevision /= venueConfig.rosterCalendarRevision) $
-                setHeader ("HX-Refresh", "true")
+            when (expectedRevision /= venueConfig.rosterCalendarRevision) do
+                respondAndExit
+                    ( Wai.responseLBS
+                        status409
+                        [("Content-Type", "text/plain"), ("HX-Refresh", "true")]
+                        "The roster calendar changed. Review the refreshed window and try again."
+                    )
+                error "unreachable"
 
 rosterWindowUrlForOffset :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Id RosterGroup -> IO Text
 rosterWindowUrlForOffset weekOffset rosterGroupId =

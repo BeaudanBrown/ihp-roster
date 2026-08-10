@@ -321,6 +321,8 @@ type AppShellContract =
              ]
          , AppShellAction ConfirmRemoveRosterRowOverlay
             '[ Field ConfirmDeletePopulatedRowField 'WireText
+             , Field AnchorDateField 'WireText
+             , Field RosterCalendarRevisionField 'WireText
              ]
             '[ AppShellHtmxMethod 'AppShellPost
              , AppShellHtmxTarget DialogOverlayMount
