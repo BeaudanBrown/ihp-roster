@@ -303,7 +303,6 @@ test.describe('Roster Staff Modal', () => {
         const membershipId = globalThis.crypto.randomUUID();
         const staffId = globalThis.crypto.randomUUID();
         const staffRosterGroupId = globalThis.crypto.randomUUID();
-        const rosterDayId = 'a1000000-0000-0000-0000-000000000994';
         const rosterSlotId = globalThis.crypto.randomUUID();
         const userEmail = `e2e-staff-removal-${userId}@example.com`;
         const contexts: BrowserContext[] = [];
@@ -334,20 +333,33 @@ test.describe('Roster Staff Modal', () => {
             );
             INSERT INTO staff_roster_groups (id, staff_id, roster_group_id)
             VALUES ('${staffRosterGroupId}', '${staffId}', 'a1000000-0000-0000-0000-000000000211');
-            INSERT INTO roster_days (id, roster_week_id, day_offset, is_closed, row_count)
-            VALUES ('${rosterDayId}', 'a1000000-0000-0000-0000-000000000051', (SELECT EXTRACT(ISODOW FROM operational_day)::int - 1 FROM e2e_staff_removal_operational_day), FALSE, 1)
-            ON CONFLICT (id) DO UPDATE SET is_closed = FALSE, row_count = 1, updated_at = NOW();
             UPDATE roster_weeks SET is_live = TRUE WHERE id = 'a1000000-0000-0000-0000-000000000051';
+            WITH target_day AS (
+                SELECT roster_days.id
+                FROM roster_days, e2e_staff_removal_operational_day
+                WHERE roster_days.roster_week_id = 'a1000000-0000-0000-0000-000000000051'
+                  AND roster_days.day_offset = EXTRACT(ISODOW FROM operational_day)::int - 1
+            ), target_cell AS (
+                SELECT target_day.id AS roster_day_id, COALESCE(MAX(roster_slots.row_index), -1) + 1 AS row_index
+                FROM target_day
+                LEFT JOIN roster_slots ON roster_slots.roster_day_id = target_day.id AND roster_slots.deleted_at IS NULL
+                GROUP BY target_day.id
+            )
             INSERT INTO roster_slots (
                 id, roster_day_id, staff_id, assignment_state, roster_week_slot_definition_id,
                 row_index, starts_at, ends_at, timezone, shift_type_id
-            ) VALUES (
-                '${rosterSlotId}', '${rosterDayId}', '${staffId}', 'staff',
-                'a1000000-0000-0000-0000-000000000081', 0,
-                ((SELECT operational_day FROM e2e_staff_removal_operational_day) + TIME '12:00') AT TIME ZONE 'Australia/Melbourne',
-                ((SELECT operational_day FROM e2e_staff_removal_operational_day) + TIME '16:00') AT TIME ZONE 'Australia/Melbourne',
+            )
+            SELECT
+                '${rosterSlotId}', target_cell.roster_day_id, '${staffId}', 'staff',
+                'a1000000-0000-0000-0000-000000000081', target_cell.row_index,
+                (operational_day + TIME '12:00') AT TIME ZONE 'Australia/Melbourne',
+                (operational_day + TIME '16:00') AT TIME ZONE 'Australia/Melbourne',
                 'Australia/Melbourne', 'a1000000-0000-0000-0000-000000000133'
-            );
+            FROM target_cell, e2e_staff_removal_operational_day;
+            UPDATE roster_days
+            SET row_count = GREATEST(row_count, roster_slots.row_index + 1)
+            FROM roster_slots
+            WHERE roster_slots.id = '${rosterSlotId}' AND roster_days.id = roster_slots.roster_day_id;
         `);
 
         const actorContext = await browser.newContext();
@@ -403,7 +415,6 @@ test.describe('Roster Staff Modal', () => {
                 BEGIN;
                 SET LOCAL ihp_roster.allow_hard_delete = 'on';
                 DELETE FROM roster_slots WHERE id = '${rosterSlotId}';
-                DELETE FROM roster_days WHERE id = '${rosterDayId}';
                 DELETE FROM staff_roster_groups WHERE id = '${staffRosterGroupId}';
                 DELETE FROM venue_memberships WHERE id = '${membershipId}';
                 DELETE FROM staff WHERE id = '${staffId}';
