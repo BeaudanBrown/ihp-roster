@@ -39,6 +39,9 @@ import Data.Traversable (traverse)
 import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude
+import Network.HTTP.Types.Status (status409)
+import qualified Network.Wai as Wai
+import Web.Controller.Prelude (isHtmxRequest)
 import Web.RosterWeeks.Service (validateRosterSlotForPersistence)
 import Web.RosterWeeks.TemplateApplication.Persistence (applyPreparedApplication)
 import Web.RosterWeeks.TemplateApplication.Types
@@ -63,7 +66,17 @@ applyRosterTemplateApplicationMutation ::
     IO (Either RosterTemplateApplicationError (LiveMutationResult RosterTemplateApplicationResult))
 applyRosterTemplateApplicationMutation actor request expectedVersion expectedTargetRevision expectedCalendarRevision = do
     applied <- applyRosterTemplateApplication actor request expectedVersion expectedTargetRevision expectedCalendarRevision
-    traverse (invalidateTouchedResources "roster.template.apply" . \result -> liveMutationResult result result.appliedTouchedResources) applied
+    case applied of
+        Left RosterTemplateApplicationCalendarConflict
+            | isHtmxRequest -> do
+                respondAndExit
+                    ( Wai.responseLBS
+                        status409
+                        [("Content-Type", "text/plain"), ("HX-Refresh", "true")]
+                        "The roster calendar changed. Review the refreshed window and try again."
+                    )
+                error "unreachable"
+        _ -> traverse (invalidateTouchedResources "roster.template.apply" . \result -> liveMutationResult result result.appliedTouchedResources) applied
 
 applyRosterTemplateApplication ::
     (?modelContext :: ModelContext) =>

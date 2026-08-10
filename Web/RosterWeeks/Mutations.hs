@@ -37,6 +37,8 @@ import Data.Traversable (traverse)
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import qualified Database.PostgreSQL.Simple as PG
+import Network.HTTP.Types.Status (status409)
+import qualified Network.Wai as Wai
 import Web.Controller.Prelude
 import Web.RosterWeeks.DateRange (RosterWindow (..), RosterWindowDay (..),
                                   appendRosterWindowLane, fetchRosterWindow,
@@ -68,7 +70,8 @@ ensureRosterWeekExistsMutation :: (?context :: ControllerContext, ?modelContext 
 ensureRosterWeekExistsMutation rosterGroupId weekOffset = do
     materialized <- withRosterWindowMutationLock rosterGroupId weekOffset do
         venueConfig <- fetchVenueConfig
-        case requestRosterCalendarRevisionError venueConfig of
+        calendarError <- requestRosterCalendarRevisionError venueConfig
+        case calendarError of
             Just message -> pure (Left message)
             Nothing -> Right <$> materializeRosterWindow currentVenueId rosterGroupId weekOffset
     case materialized of
@@ -87,7 +90,8 @@ copyRosterWeekFromSourceMutation :: (?context :: ControllerContext, ?modelContex
 copyRosterWeekFromSourceMutation selections rosterGroupId sourceWeek targetWeekOffset = do
     copyResult <- withRosterWindowMutationLock rosterGroupId targetWeekOffset do
         venueConfig <- fetchVenueConfig
-        case requestRosterCalendarRevisionError venueConfig of
+        calendarError <- requestRosterCalendarRevisionError venueConfig
+        case calendarError of
             Just message -> pure (Left (RosterWeekCopyPersistenceError message))
             Nothing -> do
                 targetWindow <- fetchRosterWindow currentVenueId rosterGroupId (venueWeekStartDate venueConfig targetWeekOffset)
@@ -115,7 +119,8 @@ toggleRosterWeekLiveStatusMutation :: (?context :: ControllerContext, ?modelCont
 toggleRosterWeekLiveStatusMutation rosterGroupId rosterWeek nextLiveStatus = do
     result <- withRosterWindowMutationLock rosterGroupId rosterWeek.weekOffset do
         venueConfig <- fetchVenueConfig
-        case requestRosterCalendarRevisionError venueConfig of
+        calendarError <- requestRosterCalendarRevisionError venueConfig
+        case calendarError of
             Just message -> pure (Left message)
             Nothing -> do
                 let windowStartDate = venueWeekStartDate venueConfig rosterWeek.weekOffset
@@ -168,7 +173,8 @@ withRosterWindowPublicationAccess rosterGroupId weekOffset requiredAccess action
         window <- fetchRosterWindow currentVenueId rosterGroupId (venueWeekStartDate venueConfig weekOffset)
         let hasPublishedDay = any (maybe False ((== Published) . (.publicationState)) . (.persistedRosterDay)) window.rosterWindowProjectedDays
             isPublishedWindow = rosterWindowIsPublished window
-        case requestRosterCalendarRevisionError venueConfig of
+        calendarError <- requestRosterCalendarRevisionError venueConfig
+        case calendarError of
             Just message -> pure (Left message)
             Nothing ->
                 case requiredAccess of
@@ -182,20 +188,32 @@ draftRosterWindowErrorUnderLock :: (?context :: ControllerContext, ?modelContext
 draftRosterWindowErrorUnderLock rosterGroupId weekOffset = do
     venueConfig <- fetchVenueConfig
     window <- fetchRosterWindow currentVenueId rosterGroupId (venueWeekStartDate venueConfig weekOffset)
+    calendarError <- requestRosterCalendarRevisionError venueConfig
     pure $
-        requestRosterCalendarRevisionError venueConfig
+        calendarError
             <|> if any (maybe False ((== Published) . (.publicationState)) . (.persistedRosterDay)) window.rosterWindowProjectedDays
                 then Just publishedRosterReadOnlyMessage
                 else Nothing
 
-requestRosterCalendarRevisionError :: (?request :: Request) => VenueConfig -> Maybe Text
+requestRosterCalendarRevisionError :: (?context :: ControllerContext, ?request :: Request) => VenueConfig -> IO (Maybe Text)
 requestRosterCalendarRevisionError venueConfig =
     case paramOrNothing @Int "rosterCalendarRevision" of
-        Nothing -> Just "The roster calendar context is missing. Review the refreshed window and try again."
+        Nothing -> staleCalendarError "The roster calendar context is missing. Review the refreshed window and try again."
         Just expectedRevision
             | expectedRevision /= venueConfig.rosterCalendarRevision ->
-                Just "The roster calendar changed. Review the refreshed window and try again."
-        _ -> Nothing
+                staleCalendarError "The roster calendar changed. Review the refreshed window and try again."
+        _ -> pure Nothing
+  where
+    staleCalendarError message
+        | isHtmxRequest = do
+            respondAndExit
+                ( Wai.responseLBS
+                    status409
+                    [("Content-Type", "text/plain"), ("HX-Refresh", "true")]
+                    (cs message)
+                )
+            error "unreachable"
+        | otherwise = pure (Just message)
 
 publishedRosterReadOnlyMessage :: Text
 publishedRosterReadOnlyMessage = "Published roster windows are read-only. Return it to Draft to make changes."

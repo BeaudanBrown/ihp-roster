@@ -33,6 +33,8 @@ import Data.Time.Calendar (addDays)
 import Data.Time.Clock (getCurrentTime)
 import Data.Tuple.Only (Only (..))
 import IHP.ModelSupport (sqlQuery)
+import Network.HTTP.Types.Status (status409)
+import qualified Network.Wai as Wai
 import Web.Controller.Prelude
 import Web.SurfaceInvalidation (invalidateTouchedResources)
 import Web.Timesheets.Projection (fetchTimesheetSuggestionForRosterSlot)
@@ -45,10 +47,19 @@ withTimesheetCalendarMutationLock expectedRevision action =
         venueConfig <- fetchVenueConfig
         if expectedRevision == venueConfig.rosterCalendarRevision
             then action
-            else do
-                setHeader ("HX-Refresh", "true")
-                accessDeniedUnless False
-                action
+            else
+                if isHtmxRequest
+                    then do
+                        respondAndExit
+                            ( Wai.responseLBS
+                                status409
+                                [("Content-Type", "text/plain"), ("HX-Refresh", "true")]
+                                "The roster calendar changed. Review the refreshed window and try again."
+                            )
+                        error "unreachable"
+                    else do
+                        accessDeniedUnless False
+                        action
 
 createTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Int -> TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
 createTimesheetEntryMutation _weekOffset expectedRevision timesheetEntry = do
