@@ -1457,11 +1457,13 @@ tests = aroundAll withDatabaseTestContext do
                         withRequestHeaders [("HX-Request", "true")] do
                             callActionWithParams
                                 (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
-                                [ ("staffId", cs (tshow staff.id))
-                                , ("startTime", "09:00")
-                                , ("endTime", "17:00")
-                                , ("shiftTypeId", cs (tshow shiftType.id))
-                                ]
+                                ( [ ("staffId", cs (tshow staff.id))
+                                  , ("startTime", "09:00")
+                                  , ("endTime", "17:00")
+                                  , ("shiftTypeId", cs (tshow shiftType.id))
+                                  ]
+                                    <> rosterMutationParams currentWeekOffset
+                                )
                     ]
 
                 lefts results `shouldSatisfy` null

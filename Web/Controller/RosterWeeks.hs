@@ -9,7 +9,10 @@ module Web.Controller.RosterWeeks where
 import Application.Helper.Controller
 import Application.Helper.FrontendContract.AppShell (ConfirmDeleteRosterSlotOverlay,
                                                      ConfirmRemoveRosterRowOverlay,
-                                                     DeleteRosterSlotOverlay)
+                                                     CreateRosterShiftOverlay,
+                                                     DeleteRosterSlotOverlay,
+                                                     UpdateRosterShiftOverlay)
+import Application.Helper.FrontendContract.AppShell.Request (parseAppShellActionParams)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              AppShellFieldValue (..),
                                                              appShellActionByMarker,
@@ -17,7 +20,7 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
 import Application.Helper.FrontendContract.Passkey.Runtime (PasskeySetupPromptMode,
                                                             passkeySetupPromptModeFromValue)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
-import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
+import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError (..),
                                                             surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceIntentForm)
 import Application.Helper.FrontendContract.Surface.Roster (RosterStaffScopeValue (..))
@@ -1067,6 +1070,7 @@ instance Controller RosterWeeksController where
         ensureVenueWritable
         rosterDay <- fetchRosterDayForMutation rosterDayId
         rosterWeek <- rosterPlanningWeekForDay rosterDay
+        requireRosterShiftCalendarAppShellContext (parseAppShellActionParams @CreateRosterShiftOverlay)
         authorizeRosterSlotCreateContext rosterDay rosterWeek rowIndex
         slotDefinition <- fetchRosterSlotDefinitionForCreate rosterDayId rosterWeekSlotDefinitionId
         authorizeRosterSlotDefinitionForCreate rosterDay slotDefinition
@@ -1106,6 +1110,7 @@ instance Controller RosterWeeksController where
         rosterSlot <- fetchRosterSlotForEdit rosterSlotId
         authorizeRosterSlotForEdit rosterSlot
         (rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlot
+        requireRosterShiftCalendarAppShellContext (parseAppShellActionParams @UpdateRosterShiftOverlay)
         authorizeRosterSlotEditContext rosterSlot rosterDay rosterWeek
         let rosterGroupId = coerce rosterWeek.rosterGroupId
         if rosterWeek.isLive
@@ -1155,13 +1160,29 @@ instance Controller RosterWeeksController where
             Left message -> respondWithMoveRosterShiftFailure rosterGroupId rosterWeek.weekOffset message
             Right mutationResult -> respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult [(rosterSlot.rosterDayId, rosterSlot.rowIndex)] False
 
+requireRosterShiftCalendarAppShellContext :: (?context :: ControllerContext, ?request :: Request) => Either [SurfaceRequestFieldError] fields -> IO ()
+requireRosterShiftCalendarAppShellContext requestFields =
+    case requestFields of
+        Right _ -> pure ()
+        Left errors -> do
+            let contextErrors = filter ((`elem` ["anchorDate", "rosterCalendarRevision"]) . (.surfaceRequestFieldErrorName)) errors
+            unless (null contextErrors) do
+                setErrorMessage (surfaceRequestFieldErrorsMessage contextErrors)
+                accessDeniedUnless False
+
 requireRosterSlotMutationContext :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWeek -> IO ()
 requireRosterSlotMutationContext rosterWeek = do
     venueConfig <- fetchVenueConfig
     let anchorDate = param @Calendar.Day "anchorDate"
     let calendarRevision = param @Int "rosterCalendarRevision"
     accessDeniedUnless (venueWeekOffsetForDay venueConfig anchorDate == rosterWeek.weekOffset)
-    calendarRevision `seq` pure ()
+    requireCurrentRosterCalendarRevision venueConfig calendarRevision
+
+requireCurrentRosterCalendarRevision :: (?context :: ControllerContext, ?request :: Request) => VenueConfig -> Int -> IO ()
+requireCurrentRosterCalendarRevision venueConfig expectedRevision =
+    when (expectedRevision /= venueConfig.rosterCalendarRevision) do
+        setHeader ("HX-Refresh", "true")
+        setErrorMessage "The roster calendar changed. Review the refreshed window and try again."
 
 rosterShiftDialogSubmissionFromRequest :: (?context :: ControllerContext, ?request :: Request) => RosterShiftDialogSubmission
 rosterShiftDialogSubmissionFromRequest =
@@ -1469,8 +1490,10 @@ rosterActionWeekOffset = do
 
 rosterMutationWeekOffset :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Int
 rosterMutationWeekOffset = do
+    venueConfig <- fetchVenueConfig
     let calendarRevision = param @Int "rosterCalendarRevision"
-    calendarRevision `seq` rosterActionWeekOffset
+    requireCurrentRosterCalendarRevision venueConfig calendarRevision
+    rosterActionWeekOffset
 
 rosterCopyActionWeekOffsets :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Int, Int)
 rosterCopyActionWeekOffsets = do
@@ -1479,7 +1502,8 @@ rosterCopyActionWeekOffsets = do
     let targetAnchorDate = param @Calendar.Day "targetAnchorDate"
     let calendarRevision = param @Int "rosterCalendarRevision"
     let resolve = venueWeekOffsetForDay venueConfig . startOfWeekFor venueConfig.rosterWeekStartsOn
-    calendarRevision `seq` pure (resolve sourceAnchorDate, resolve targetAnchorDate)
+    requireCurrentRosterCalendarRevision venueConfig calendarRevision
+    pure (resolve sourceAnchorDate, resolve targetAnchorDate)
 
 rosterWeekOffsetForAnchor :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Calendar.Day -> IO Int
 rosterWeekOffsetForAnchor anchorDate = do
