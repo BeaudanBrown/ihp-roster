@@ -64,6 +64,28 @@ test.describe('Timesheets shared SidePanel', () => {
         await expect(page.locator(`#${dialogOverlayMountDomId}`).getByRole('dialog')).toBeVisible();
     });
 
+    test('keeps roster-group filtering active through shell navigation', async ({ page }) => {
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+        await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
+
+        await expect(page.locator('.timesheet-entry-card')).not.toHaveCount(0);
+        await openTimesheetSettings(page);
+        const rosterGroupFilter = page.locator('#timesheet-roster-group-filter');
+        const rosterGroupId = await rosterGroupFilter.locator('option:not([value=""])').first().getAttribute('value');
+        expect(rosterGroupId).toBeTruthy();
+
+        await rosterGroupFilter.selectOption(rosterGroupId ?? '');
+        await expect(page).toHaveURL(new RegExp(`rosterGroupFilterId=${rosterGroupId}`), { timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('.timesheet-entry-card')).toHaveCount(0);
+        await expect(page.locator(`[${timesheetsTimesheetSidePanelTabDomAttr}="settings"]`)).toHaveAttribute('aria-selected', 'true');
+
+        await page.getByRole('link', { name: '>' }).click();
+        await expect(page).toHaveURL(new RegExp(`rosterGroupFilterId=${rosterGroupId}`), { timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('#timesheet-roster-group-filter')).toHaveValue(rosterGroupId ?? '');
+        await expect(page.locator(`[${timesheetsTimesheetSidePanelTabDomAttr}="settings"]`)).toHaveAttribute('aria-selected', 'true');
+    });
+
     test('renders a Settings-only stacked panel for ordinary staff', async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 844 });
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
@@ -74,6 +96,7 @@ test.describe('Timesheets shared SidePanel', () => {
         await expect(panel.getByRole('heading', { name: 'Settings' })).toBeVisible();
         await expect(panel.getByRole('tab')).toHaveCount(0);
         await expect(panel.locator(`[${timesheetsTimesheetStaffHighlightSourceDomAttr}]`)).toHaveCount(0);
+        await expect(page.locator('#timesheet-roster-group-filter')).toHaveCount(0);
         await expect(page.locator(`[${timesheetsTimesheetSidePanelToggleDomAttr}]`)).toBeHidden();
     });
 });

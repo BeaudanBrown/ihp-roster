@@ -9,6 +9,8 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMount
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as TimesheetsLive
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource
 import Application.Helper.LiveUpdate
+import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
+                                        ensureVenueDefaultRosterGroup)
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
 import Application.Helper.WeekBoundaries (venueWeekOffsetForDay)
@@ -93,7 +95,7 @@ tests = aroundAll withDatabaseTestContext do
                 (response, mountConfig, expectedRefs) <- withUserAndCurrentVenue user venue.id do
                     withCurrentControllerContext do
                         let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = unpackId venue.id, timesheetWeekWeekOffset = 0 }
-                        let mountState = TimesheetsMountStateValue { timesheetsMountStaffFilterId = Nothing }
+                        let mountState = TimesheetsMountStateValue { timesheetsMountStaffFilterId = Nothing, timesheetsMountRosterGroupFilterId = Nothing }
                         let impl = timesheetsSurfaceImpl scope mountState
                         response <- callAction ShowTimesheetWeekAction { weekOffset = 0 }
                         pure (response, impl.surfaceImplMountConfig, impl.surfaceImplMountConfig.mountFragments)
@@ -390,7 +392,7 @@ tests = aroundAll withDatabaseTestContext do
             withCurrentControllerContext do
                 let venueId = fromMaybe (error "invalid test UUID") (UUID.fromString "00000000-0000-0000-0000-000000000123")
                 let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = venueId, timesheetWeekWeekOffset = 2 }
-                let mountState = TimesheetsMountStateValue { timesheetsMountStaffFilterId = Nothing }
+                let mountState = TimesheetsMountStateValue { timesheetsMountStaffFilterId = Nothing, timesheetsMountRosterGroupFilterId = Nothing }
                 let impl = timesheetsSurfaceImpl scope mountState
                 let mountConfig = impl.surfaceImplMountConfig
                 let fragmentKeys = map (.mountedFragmentKey) mountConfig.mountFragments
@@ -401,7 +403,9 @@ tests = aroundAll withDatabaseTestContext do
                 mountConfig.mountSurfaceName `shouldBe` "timesheets"
                 mountConfig.mountScopeKey `shouldBe` "timesheets:00000000-0000-0000-0000-000000000123:2"
                 mountConfig.mountState `shouldBe` Aeson.object
-                    ["staffFilterId" Aeson..= (Nothing :: Maybe Text)]
+                    [ "staffFilterId" Aeson..= (Nothing :: Maybe Text)
+                    , "rosterGroupFilterId" Aeson..= (Nothing :: Maybe Text)
+                    ]
                 fragmentKeys
                     `shouldBe` [ TimesheetsLive.timesheetToolbarLiveFragment
                                , TimesheetsLive.timesheetDayColumnsLiveFragment
@@ -441,7 +445,7 @@ tests = aroundAll withDatabaseTestContext do
                 (response, fragmentRef) <- withUserAndCurrentVenue user venue.id do
                     withCurrentControllerContext do
                         let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = unpackId venue.id, timesheetWeekWeekOffset = 0 }
-                        let mountState = TimesheetsMountStateValue { timesheetsMountStaffFilterId = Nothing }
+                        let mountState = TimesheetsMountStateValue { timesheetsMountStaffFilterId = Nothing, timesheetsMountRosterGroupFilterId = Nothing }
                         let daySectionRef =
                                 timesheetsCandidateMountedFragments scope mountState
                                     |> find (\fragment -> fragment.mountedFragmentKey == TimesheetsLive.timesheetDaySectionLiveFragment 0)
@@ -2115,6 +2119,137 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` cs ("href=\"/ShowTimesheetWeek?weekOffset=1&amp;staffFilterId=" <> tshow workerA.id)
                 response `responseBodyShouldContain` "timesheet-entry-card-link"
                 response `responseBodyShouldContain` cs (pathTo (EditTimesheetEntryAction entryA.id))
+
+        it "filters entries, suggestions, staff counts, wages, and navigation by active roster group" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Roster Group Filter Venue"
+                admin <- createUserRecord "timesheet-roster-group-admin@example.com" "staff" True
+                workerAUser <- createUserRecord "timesheet-roster-group-a@example.com" "staff" True
+                workerBUser <- createUserRecord "timesheet-roster-group-b@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- createVenueMembershipRecord venue workerAUser Worker
+                _ <- createVenueMembershipRecord venue workerBUser Worker
+                workerA <- createStaffRecord venue (Just workerAUser) "Ava" "Front"
+                workerB <- createStaffRecord venue (Just workerBUser) "Bea" "Back"
+                importedPayItem <- createImportedXeroPayItemRecord venue admin "Roster group wage fixture" "roster-group-wage-fixture" 10
+                workerA <- workerA
+                    |> set #payAssignmentMode XeroRate
+                    |> set #defaultAwardLevelId Nothing
+                    |> set #importedXeroPayItemId (Just importedPayItem.id)
+                    |> updateRecord
+                workerB <- workerB
+                    |> set #payAssignmentMode XeroRate
+                    |> set #defaultAwardLevelId Nothing
+                    |> set #importedXeroPayItemId (Just importedPayItem.id)
+                    |> updateRecord
+                payLevel <- createPayLevelRecord venue "Roster group level"
+                shiftType <- createShiftTypeRecord venue payLevel "Roster group shift"
+                shiftType <- shiftType
+                    |> set #payAssignmentMode XeroRate
+                    |> set #overrideAwardLevelId Nothing
+                    |> set #importedXeroPayItemId (Just importedPayItem.id)
+                    |> updateRecord
+                frontGroup <- ensureVenueDefaultRosterGroup venue >>= updateRecord . set #name "Front of House"
+                backGroup <- createVenueRosterGroupWithDefaults venue "Back of House" 20 True
+                inactiveGroup <- createVenueRosterGroupWithDefaults venue "Inactive Area" 30 False
+                    >>= updateRecord . set #isActive False
+                frontLane <- createSlotNameRecordForRosterGroup venue frontGroup "Front lane"
+                backLane <- createSlotNameRecordForRosterGroup venue backGroup "Back lane"
+                frontWeek <- createRosterWeekRecordForRosterGroup venue frontGroup 0 True
+                backWeek <- createRosterWeekRecordForRosterGroup venue backGroup 0 True
+                frontDay <- createRosterDayRecord frontWeek 1
+                backDay <- createRosterDayRecord backWeek 1
+                frontSource <- createRosterSlotRecord frontDay frontLane (Just workerA) 0
+                    >>= updateRecord . setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0) . set #shiftTypeId (Just (unpackId shiftType.id))
+                backSource <- createRosterSlotRecord backDay backLane (Just workerB) 0
+                    >>= updateRecord . setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0) . set #shiftTypeId (Just (unpackId shiftType.id))
+                frontSuggestion <- createRosterSlotRecord frontDay frontLane (Just workerA) 1
+                    >>= updateRecord . setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 10 0 0) (TimeOfDay 18 0 0) . set #shiftTypeId (Just (unpackId shiftType.id))
+                backSuggestion <- createRosterSlotRecord backDay backLane (Just workerB) 1
+                    >>= updateRecord . setTestRosterSlotBoundaries (fromGregorian 2025 1 7) (TimeOfDay 10 0 0) (TimeOfDay 18 0 0) . set #shiftTypeId (Just (unpackId shiftType.id))
+                _ <- newRecord @TimesheetEntry
+                    |> set #venueId (unpackId venue.id)
+                    |> set #staffId (unpackId workerA.id)
+                    |> set #shiftTypeId (unpackId shiftType.id)
+                    |> setTestWorkedOn (fromGregorian 2025 1 7)
+                    |> setTestStartTime (TimeOfDay 9 0 0)
+                    |> setTestEndTime (TimeOfDay 17 0 0)
+                    |> set #sourceRosterSlotId (Just (unpackId frontSource.id))
+                    |> set #staffComment (Just "Front linked entry")
+                    |> createRecord
+                _ <- newRecord @TimesheetEntry
+                    |> set #venueId (unpackId venue.id)
+                    |> set #staffId (unpackId workerB.id)
+                    |> set #shiftTypeId (unpackId shiftType.id)
+                    |> setTestWorkedOn (fromGregorian 2025 1 7)
+                    |> setTestStartTime (TimeOfDay 9 0 0)
+                    |> setTestEndTime (TimeOfDay 17 0 0)
+                    |> set #sourceRosterSlotId (Just (unpackId backSource.id))
+                    |> set #staffComment (Just "Back linked entry")
+                    |> createRecord
+                _ <- createTimesheetEntryRecord venue workerA (fromGregorian 2025 1 7)
+                    >>= updateRecord . set #staffComment (Just "Ad hoc entry")
+                _ <- newRecord @UserPreference
+                    |> set #userId (unpackId admin.id)
+                    |> set #showTimesheetSuggestions True
+                    |> set #showTimesheetWageEstimates True
+                    |> createRecord
+
+                response <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
+                        [ ("staffFilterId", idToParam workerA.id)
+                        , ("rosterGroupFilterId", idToParam frontGroup.id)
+                        ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "id=\"timesheet-roster-group-filter\""
+                response `responseBodyShouldContain` "All roster groups"
+                response `responseBodyShouldContain` "Front of House"
+                response `responseBodyShouldContain` "Back of House"
+                response `responseBodyShouldNotContain` "Inactive Area"
+                response `responseBodyShouldContain` "Front linked entry"
+                response `responseBodyShouldNotContain` "Back linked entry"
+                response `responseBodyShouldNotContain` "Ad hoc entry"
+                response `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow frontSuggestion.id <> "\"")
+                response `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow backSuggestion.id <> "\"")
+                response `responseBodyShouldContain` "timesheet-staff-count-total\">1</span>"
+                response `responseBodyShouldContain` "$155.00"
+                response `responseBodyShouldContain` cs ("staffFilterId=" <> tshow workerA.id)
+                response `responseBodyShouldContain` cs ("rosterGroupFilterId=" <> tshow frontGroup.id)
+                response `responseBodyShouldContain` "name=\"rosterGroupFilterId\""
+                inactiveGroup.isActive `shouldBe` False
+
+        it "canonicalizes roster group filters to active current-venue manager scope" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Roster Group Authority Venue"
+                otherVenue <- createVenueWithConfig "Other Timesheet Roster Group Venue"
+                manager <- createUserRecord "timesheet-roster-group-authority-manager@example.com" "staff" True
+                worker <- createUserRecord "timesheet-roster-group-authority-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue worker Worker
+                _ <- createStaffRecord venue (Just worker) "Willa" "Worker"
+                activeGroup <- ensureVenueDefaultRosterGroup venue
+                inactiveGroup <- createVenueRosterGroupWithDefaults venue "Archived choice" 20 False
+                    >>= updateRecord . set #isActive False
+                otherGroup <- ensureVenueDefaultRosterGroup otherVenue
+
+                forEach [inactiveGroup.id, otherGroup.id] \invalidGroupId -> do
+                    response <- withUserAndCurrentVenue manager venue.id do
+                        callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
+                            [("rosterGroupFilterId", idToParam invalidGroupId)]
+                    response `responseStatusShouldBe` status302
+                    lookup "Location" (responseHeaders response)
+                        `shouldBe` Just "http://localhost/ShowTimesheetWeek?weekOffset=0"
+
+                workerResponse <- withUserAndCurrentVenue worker venue.id do
+                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
+                        [("rosterGroupFilterId", idToParam activeGroup.id)]
+                workerResponse `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders workerResponse)
+                    `shouldBe` Just "http://localhost/ShowTimesheetWeek?weekOffset=0"
+                workerPage <- withUserAndCurrentVenue worker venue.id do
+                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
+                workerPage `responseBodyShouldNotContain` "timesheet-roster-group-filter"
 
         it "renders a shape bar for valid after-midnight timesheet entries" $ withContext do
             withCleanDb do
