@@ -9,6 +9,7 @@ import {
     timesheetsTimesheetStaffHighlightSourceDomAttr,
 } from '../frontend/ts/generated/contracts';
 import {
+    defaultE2ERosterGroupId,
     E2E_TIMEOUT,
     gotoWhenReady,
     loginAs,
@@ -72,17 +73,16 @@ test.describe('Timesheets shared SidePanel', () => {
         await expect(page.locator('.timesheet-entry-card')).not.toHaveCount(0);
         await openTimesheetSettings(page);
         const rosterGroupFilter = page.locator('#timesheet-roster-group-filter');
-        const rosterGroupId = await rosterGroupFilter.locator('option:not([value=""])').first().getAttribute('value');
-        expect(rosterGroupId).toBeTruthy();
+        await expect(rosterGroupFilter.locator(`option[value="${defaultE2ERosterGroupId}"]`)).toHaveText('Main');
 
-        await rosterGroupFilter.selectOption(rosterGroupId ?? '');
-        await expect(page).toHaveURL(new RegExp(`rosterGroupFilterId=${rosterGroupId}`), { timeout: E2E_TIMEOUT.navigation });
+        await rosterGroupFilter.selectOption(defaultE2ERosterGroupId);
+        await expect(page).toHaveURL(new RegExp(`rosterGroupFilterId=${defaultE2ERosterGroupId}`), { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('.timesheet-entry-card')).toHaveCount(0);
         await expect(page.locator(`[${timesheetsTimesheetSidePanelTabDomAttr}="settings"]`)).toHaveAttribute('aria-selected', 'true');
 
         await page.getByRole('link', { name: '>' }).click();
-        await expect(page).toHaveURL(new RegExp(`rosterGroupFilterId=${rosterGroupId}`), { timeout: E2E_TIMEOUT.navigation });
-        await expect(page.locator('#timesheet-roster-group-filter')).toHaveValue(rosterGroupId ?? '');
+        await expect(page).toHaveURL(new RegExp(`rosterGroupFilterId=${defaultE2ERosterGroupId}`), { timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('#timesheet-roster-group-filter')).toHaveValue(defaultE2ERosterGroupId);
         await expect(page.locator(`[${timesheetsTimesheetSidePanelTabDomAttr}="settings"]`)).toHaveAttribute('aria-selected', 'true');
     });
 
