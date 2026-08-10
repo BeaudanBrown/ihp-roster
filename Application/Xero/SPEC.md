@@ -171,6 +171,11 @@ The exact paging, lease, retry, and trust implementation is authoritative in
   days before today through seven days after today. The selector checkbox reveals
   all other eligible past and future periods; this is display
   filtering only and does not change readiness or submission authority.
+  Selecting a period checks its Xero pay run and renders the local summary without
+  downloading remote timesheet history. Reconciliation begins at the explicit
+  Xero review step and runs again immediately before submission. Every remote
+  reconciliation read uses the Payroll AU v2 timesheet endpoint scoped to the
+  selected payroll calendar and period.
 - Readiness, proposals, preview, and submission use the same venue-effective
   rate resolution and strict wage-source boundary. Any included calculation or
   source failure blocks the complete operation.

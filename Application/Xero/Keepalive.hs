@@ -151,7 +151,7 @@ performLeasedXeroConnectionKeepaliveJob appJob connection =
     readXeroConfig >>= \case
         Left message -> fail (cs message)
         Right xeroConfig -> do
-            refreshResult <- refreshXeroConnectionAccess xeroConfig connection
+            refreshResult <- forceRefreshXeroConnectionAccess xeroConfig connection
             case refreshResult of
                 Right (updatedConnection, _) -> do
                     _ <- invalidateXeroKeepaliveConnection updatedConnection "xero.connection.keepalive.refresh"

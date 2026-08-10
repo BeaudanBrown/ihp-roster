@@ -136,7 +136,12 @@ fetchXeroPayRunsForPreparation xeroClient accessToken tenantId run =
                 Left err -> pure (Left ("Xero pay-run check failed: " <> xeroClientErrorText err))
                 Right refs ->
                     let nextAcc = acc <> refs
-                     in if length refs < 100
+                        selectedFound = isJust (findSelectedPayRun run refs)
+                        passedSelectedPeriod =
+                            case (run.payPeriodStart, listToMaybe (reverse refs)) of
+                                (Just selectedStart, Just oldestOnPage) -> oldestOnPage.xeroPayRunPeriodStart < selectedStart
+                                _                                      -> False
+                     in if selectedFound || passedSelectedPeriod || length refs < 100
                             then pure (Right nextAcc)
                             else fetchPage (page + 1) nextAcc
 

@@ -3,6 +3,7 @@ module Application.Xero.Connection
     , markXeroConnectionError
     , markXeroConnectionReauthorizationRequired
     , persistXeroRefreshedTokens
+    , forceRefreshXeroConnectionAccess
     , refreshXeroConnectionAccess
     , refreshXeroConnectionAccessWithoutBroadcast
     , xeroClientErrorText
@@ -41,7 +42,18 @@ refreshXeroConnectionAccess ::
     XeroConfig ->
     XeroConnection ->
     IO (Either Text (XeroConnection, Text))
-refreshXeroConnectionAccess xeroConfig connection =
+refreshXeroConnectionAccess xeroConfig connection = do
+    now <- getCurrentTime
+    case reusableXeroAccessToken now xeroConfig connection of
+        Just accessToken -> pure (Right (connection, accessToken))
+        Nothing          -> forceRefreshXeroConnectionAccess xeroConfig connection
+
+forceRefreshXeroConnectionAccess ::
+    (?modelContext :: ModelContext) =>
+    XeroConfig ->
+    XeroConnection ->
+    IO (Either Text (XeroConnection, Text))
+forceRefreshXeroConnectionAccess xeroConfig connection =
     case decryptXeroToken xeroConfig.tokenEncryptionKey connection.encryptedRefreshToken of
         Left _ -> do
             let friendly = "Could not decrypt the stored Xero refresh token. Reconnect Xero to continue."
@@ -64,6 +76,17 @@ refreshXeroConnectionAccess xeroConfig connection =
                         let message = "Xero token refresh failed: " <> durableXeroClientErrorText err
                         markXeroConnectionError connection message
                         pure (Left message)
+
+reusableXeroAccessToken :: UTCTime -> XeroConfig -> XeroConnection -> Maybe Text
+reusableXeroAccessToken now xeroConfig connection =
+    case (connection.connectionStatus, connection.accessTokenExpiresAt, connection.encryptedAccessToken) of
+        ("active", Just expiresAt, Just encryptedAccessToken)
+            | expiresAt > addUTCTime xeroAccessTokenReuseMargin now ->
+                either (const Nothing) Just (decryptXeroToken xeroConfig.tokenEncryptionKey encryptedAccessToken)
+        _ -> Nothing
+
+xeroAccessTokenReuseMargin :: NominalDiffTime
+xeroAccessTokenReuseMargin = 5 * 60
 
 refreshXeroConnectionAccessWithoutBroadcast ::
     (?modelContext :: ModelContext) =>

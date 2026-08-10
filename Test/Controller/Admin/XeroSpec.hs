@@ -14,6 +14,7 @@ import Application.Helper.XeroAdminTypes (XeroLocalEarningsBucket (..))
 import Application.Helper.XeroTimesheetReadiness (readinessBlockerCodes,
                                                   validateXeroTimesheetReadiness)
 import Application.PayAssignment
+import Application.Xero.Connection (refreshXeroConnectionAccess)
 import Application.Xero.Keepalive (XeroKeepaliveSweepSummary (..),
                                    enqueueDueXeroMaintenanceJobsAt)
 import Application.Xero.ReferenceSyncJob
@@ -603,6 +604,29 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 sweepSummary.referenceSyncDueConnectionCount `shouldBe` 1
                 sweepSummary.referenceSyncEnqueuedJobCount `shouldBe` 0
                 sweepSummary.referenceSyncExistingJobCount `shouldBe` 1
+
+        it "reuses a cached Xero access token with sufficient remaining lifetime" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Cached Access Venue"
+                admin <- createUserRecord "xero-cached-access@example.com" "staff" True
+                connection <- createSyncableXeroConnection venue admin
+                now <- getCurrentTime
+                cachedConnection <-
+                    connection
+                        |> set #accessTokenExpiresAt (Just (addUTCTime 900 now))
+                        |> updateRecord
+                refreshCalls <- IORef.newIORef (0 :: Int)
+                let tokenResponse = XeroTokenResponse "new-access-token" "new-refresh-token" 1800 (Just requiredXeroScopesText)
+                    client =
+                        (successfulXeroClient tokenResponse [])
+                            { refreshXeroToken = \_ _ -> do
+                                IORef.modifyIORef' refreshCalls (+ 1)
+                                pure (Right tokenResponse)
+                            }
+                result <- withXeroClientForTest client (refreshXeroConnectionAccess testXeroConfig cachedConnection)
+
+                fmap snd result `shouldBe` Right "existing-access-token"
+                IORef.readIORef refreshCalls `shouldReturn` 0
 
         it "completes Xero OAuth callback through the strict localhost Xero mock" $ withContext do
             withCleanDb do
@@ -1487,8 +1511,13 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 response `responseBodyShouldNotContain` "Staff mappings"
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
 
+                let summaryClient =
+                        (referenceSyncXeroClient (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) [] [] [])
+                            { fetchTimesheets = \_ _ _ -> pure (Left (XeroHttpError "period selection must not fetch Xero timesheets"))
+                            , fetchTimesheetsForPeriod = \_ _ _ _ _ -> pure (Left (XeroHttpError "period selection must not fetch scoped Xero timesheets"))
+                            }
                 summaryResponse <- withXeroConfigForTest (Right testXeroConfig) do
-                    withXeroClientForTest (referenceSyncXeroClient (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) [] [] []) do
+                    withXeroClientForTest summaryClient do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
                                 callActionWithParams (SelectXeroTimesheetPreparationPeriodAction preparationRun.id)
@@ -1755,7 +1784,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         , fetchPayrollCalendars = fetchPayrollCalendars baseClient
                         , fetchAccounts = fetchAccounts baseClient
                         , fetchPayrollSettingsAccounts = fetchPayrollSettingsAccounts baseClient
-                        , fetchTimesheets = \_ _ _ -> IORef.readIORef remoteTimesheetsResultRef
+                        , fetchTimesheetsForPeriod = \_ _ _ _ _ -> IORef.readIORef remoteTimesheetsResultRef
                         }
                 _ <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest xeroClient do
@@ -2072,7 +2101,10 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 baseClient <- referenceSyncXeroClientForFixture (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) fixture.connection
                 let client =
                         baseClient
-                            { fetchPayRuns = \_ _ _ -> pure (Right [postedPayRun])
+                            { fetchPayRuns = \_ _ query ->
+                                pure case query.xeroPayRunPage of
+                                    Just 1 -> Right (replicate 100 postedPayRun)
+                                    _      -> Left (XeroHttpError "must stop after finding the selected pay run")
                             }
 
                 _ <- withXeroConfigForTest (Right testXeroConfig) do
@@ -2097,7 +2129,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 preparationRun.xeroPayRunId `shouldBe` Just "payrun-posted"
                 preparationRun.remotePayRunsJson `shouldSatisfy` Preview.jsonContainsKey "remotePayRuns"
 
-        it "blocks guided Xero preparation when a remote timesheet already exists for the included employee and period" $ withContext do
+        it "checks the selected calendar and period for remote timesheets only when submission review begins" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                 markOtherFixtureStaffNotPaid fixture
@@ -2120,7 +2152,12 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 baseClient <- referenceSyncXeroClientForFixture (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) fixture.connection
                 let client =
                         baseClient
-                            { fetchTimesheets = \_ _ _ -> pure (Right [remoteTimesheet])
+                            { fetchTimesheetsForPeriod = \_ _ maybeCalendarId periodStart periodEnd ->
+                                if maybeCalendarId == Just "calendar-preview"
+                                    && periodStart == fixture.periodStart
+                                    && periodEnd == fixture.periodEnd
+                                    then pure (Right [remoteTimesheet])
+                                    else pure (Left (XeroHttpError "duplicate check was not scoped to the selected calendar and period"))
                             }
 
                 _ <- withXeroConfigForTest (Right testXeroConfig) do
@@ -2137,14 +2174,18 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                                     [("periodKey", fixturePeriodKey fixture)]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldNotContain` "Readiness validation"
-                response `responseBodyShouldContain` "Xero already has a non-draft timesheet for this employee and period"
-                response `responseBodyShouldContain` "Update or delete it in Xero before continuing"
-                response `responseBodyShouldNotContain` "Submit draft timesheets to Xero"
-                preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
-                preparationRun.status `shouldBe` XeroTimesheetPreparationRunStatusEnumBlocked
-                preparationRun.remoteTimesheetsJson `shouldSatisfy` Preview.jsonContainsKey "remoteTimesheets"
-                preparationRun.readinessSnapshotJson `shouldSatisfy` Preview.jsonContainsKey "blockers"
+                response `responseBodyShouldContain` "Timesheet summary"
+                response `responseBodyShouldNotContain` "Xero already has a non-draft timesheet for this employee and period"
+
+                reviewResponse <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest client do
+                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callAction (ConfirmXeroTimesheetPreparationSubmissionAction preparationRunBeforeSelect.id)
+
+                reviewResponse `responseStatusShouldBe` status200
+                reviewResponse `responseBodyShouldContain` "Xero timesheet ts-existing is APPROVED and cannot be changed by Bepis"
+                reviewResponse `responseBodyShouldNotContain` "Confirm and submit draft timesheets"
 
         it "rejects missing, malformed, and repeated nominal preparation payloads without mutation" $ withContext do
             withCleanDb do

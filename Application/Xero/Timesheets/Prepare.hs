@@ -134,19 +134,14 @@ refreshXeroTimesheetPreparation runId = do
                                     loadXeroTimesheetPreparationView runId
                                 Right (refreshedConnection, accessToken) -> do
                                     xeroClient <- currentXeroClient
-                                    payRunsResult <- fetchXeroPayRunsForPreparation xeroClient accessToken refreshedConnection.tenantId run
-                                    remoteTimesheetsResult <- fetchRemoteTimesheetsForDuplicateCheck xeroClient accessToken refreshedConnection.tenantId
-                                    case (payRunsResult, remoteTimesheetsResult) of
-                                        (Left message, _) -> do
+                                    fetchXeroPayRunsForPreparation xeroClient accessToken refreshedConnection.tenantId run >>= \case
+                                        Left message -> do
                                             _ <- markPreparationFailed run message
                                             loadXeroTimesheetPreparationView runId
-                                        (_, Left message) -> do
-                                            _ <- markPreparationFailed run message
-                                            loadXeroTimesheetPreparationView runId
-                                        (Right payRuns, Right remoteTimesheets) -> do
-                                            refreshedRun <- persistRemotePreparationState refreshedConnection run payRuns remoteTimesheets
+                                        Right payRuns -> do
+                                            refreshedRun <- persistRemotePreparationState refreshedConnection run payRuns []
                                             ensurePreparationDecisionProposals refreshedRun
-                                            _ <- refreshPreparationRunStatus refreshedRun remoteTimesheets
+                                            _ <- refreshPreparationRunStatus refreshedRun []
                                             loadXeroTimesheetPreparationView runId
 
 loadXeroTimesheetPreparationView ::
