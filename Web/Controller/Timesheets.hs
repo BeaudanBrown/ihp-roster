@@ -10,7 +10,7 @@ import Application.Helper.TimeRules (defaultShiftTimesForVenueConfig,
                                      venueShiftTimeIntervalMinutes,
                                      venueTimePickerFinalSelectableTimeText,
                                      venueTimePickerStartTimeText)
-import Application.Helper.UserPreferences (upsertCurrentUserTimesheetHideApproved,
+import Application.Helper.UserPreferences (upsertCurrentUserTimesheetShowApproved,
                                            upsertCurrentUserTimesheetShowSuggestions,
                                            upsertCurrentUserTimesheetShowWageEstimates)
 import Application.VenueTime.Model
@@ -131,8 +131,8 @@ instance Controller TimesheetsController where
         let fragment = TimesheetProjectionDaySection dayOffset
         respondWithTimesheetFragment requestKey fragment
 
-    action currentAction@ToggleTimesheetHideApprovedAction = runBepis currentAction BepisMutationAction do
-        case TimesheetsAction.parseToggleTimesheetHideApprovedActionParams of
+    action currentAction@ToggleTimesheetShowApprovedAction = runBepis currentAction BepisMutationAction do
+        case TimesheetsAction.parseToggleTimesheetShowApprovedActionParams of
             Left errors -> do
                 reportTimesheetSurfaceRequestErrors errors
                 redirectTo TimesheetsAction
@@ -142,7 +142,7 @@ instance Controller TimesheetsController where
                     { filterStaffId = surfaceFieldValue @Surface.StaffFilterId fields
                     , filterRosterGroupId = surfaceFieldValue @Surface.RosterGroupFilterId fields
                     }
-                upsertCurrentUserTimesheetHideApproved (surfaceFieldValue @Surface.HideApproved fields)
+                upsertCurrentUserTimesheetShowApproved (surfaceFieldValue @Surface.ShowApproved fields)
                 if isHtmxRequest
                     then respondWithTimesheetPreferenceUpdate weekOffset viewFilters
                     else redirectToPath (timesheetWeekUrl weekOffset viewFilters)

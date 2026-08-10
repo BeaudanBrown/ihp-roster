@@ -137,7 +137,7 @@ instance Controller ProfilesController where
                     renderProfileResponse staff selectedShiftPreferences
                 | otherwise -> do
                     let canManageProfileStaff = hasRole VenueAdmin && isJust maybeExistingStaff
-                    maybeSelectedRosterGroupIds <- if canManageProfileStaff then validateSubmittedRosterGroupIds submitted.submittedRosterGroupIds else pure Nothing
+                    maybeSelectedRosterGroupIds <- if canManageProfileStaff then validateSubmittedRosterGroupIds staff submitted.submittedRosterGroupIds else pure Nothing
                     maybeSubmittedPayRateSelection <- if canManageProfileStaff then parseSubmittedPayRateSelectionValue (fromMaybe "" submitted.submittedPayRateSelection) else pure (Just emptyStaffPayRateSelection)
                     let maybeSubmittedDefaultAwardLevelId = submittedAwardLevelId <$> maybeSubmittedPayRateSelection
                     let maybeSubmittedImportedXeroPayItemId = submittedImportedXeroPayItemId <$> maybeSubmittedPayRateSelection

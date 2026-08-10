@@ -73,7 +73,7 @@ data TimesheetsController
     | ShowtimesheetDayColumnsLiveFragmentAction { weekOffset :: !Int }
     | ShowtimesheetSidePanelContentLiveFragmentAction { weekOffset :: !Int }
     | ShowTimesheetDaySectionFragmentAction { weekOffset :: !Int, dayOffset :: !Int }
-    | ToggleTimesheetHideApprovedAction
+    | ToggleTimesheetShowApprovedAction
     | ToggleTimesheetShowSuggestionsAction
     | ToggleTimesheetWageEstimatesAction
     | NewTimesheetEntryAction

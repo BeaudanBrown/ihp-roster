@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { gotoWhenReady, loginAs, openRoster, openRosterSettings, runSql } from './test-helpers';
+import { gotoWhenReady, loginAs, openRoster, openRosterSettings, resetTimesheetDisplayPreferences, runSql } from './test-helpers';
 
 type ToolbarMetrics = {
     quickTop: number;
@@ -167,13 +167,15 @@ test.describe('Shared week toolbar responsive layout', () => {
     test('centres Timesheets mobile reset above week navigation with the Settings panel stacked below', async ({ page }) => {
         test.setTimeout(90_000);
         await page.setViewportSize({ width: 390, height: 844 });
-        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+        resetTimesheetDisplayPreferences('e2e-admin@example.com');
+        await loginAs(page, 'e2e-admin@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
 
         const toolbar = page.locator('[data-week-toolbar="timesheets"]');
         await expect(toolbar.getByRole('link', { name: 'This week' })).toBeVisible();
         await expect(toolbar.getByRole('button', { name: 'Expand main content' })).toBeHidden();
         await expect(toolbar.locator('.app-week-nav-group')).toBeVisible();
+        await expect(toolbar.locator('.timesheet-wage-summary')).toBeVisible();
         await expect(page.getByRole('tab', { name: 'Settings' })).toBeVisible();
 
         const metrics = await weekToolbarMetrics(page, '[data-week-toolbar="timesheets"]');
@@ -181,5 +183,7 @@ test.describe('Shared week toolbar responsive layout', () => {
         expect(Math.abs((metrics.resetCenterX ?? 0) - metrics.toolbarCenterX)).toBeLessThanOrEqual(4);
         expect(metrics.resetBottom).not.toBeNull();
         expect(metrics.navigationTop).toBeGreaterThanOrEqual((metrics.resetBottom ?? 0) - 1);
+        expect(metrics.auxiliaryTop).not.toBeNull();
+        expect(metrics.auxiliaryTop ?? 0).toBeGreaterThanOrEqual(metrics.navigationBottom - 1);
     });
 });

@@ -548,8 +548,10 @@ tests = describe "Schema" do
         get #showShiftTypeHighlights preferences `shouldBe` True
         get #showWageEstimates preferences `shouldBe` False
         get #highlightOwnLiveShifts preferences `shouldBe` True
-        get #hideApproved preferences `shouldBe` True
+        get #hideApproved preferences `shouldBe` False
         get #showTimesheetSuggestions preferences `shouldBe` True
+        get #showTimesheetWageEstimates preferences `shouldBe` True
+        get #timesheetPreferencesInitializedAt preferences `shouldBe` Nothing
         map inputValue (allEnumValues @RosterLayoutModeEnum) `shouldBe` ["day_rows", "day_columns"]
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TYPE roster_layout_mode_enum AS ENUM ('day_rows', 'day_columns');"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE user_preferences"
@@ -559,9 +561,10 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "venue_config_default_staff_award_level_id_fk"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "show_shift_type_highlights BOOLEAN DEFAULT TRUE NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "show_wage_estimates BOOLEAN DEFAULT FALSE NOT NULL"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "show_timesheet_wage_estimates BOOLEAN DEFAULT FALSE NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "show_timesheet_wage_estimates BOOLEAN DEFAULT TRUE NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "highlight_own_live_shifts BOOLEAN DEFAULT TRUE NOT NULL"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "hide_approved BOOLEAN DEFAULT TRUE NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "hide_approved BOOLEAN DEFAULT FALSE NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "timesheet_preferences_initialized_at TIMESTAMP WITH TIME ZONE DEFAULT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "show_timesheet_suggestions BOOLEAN DEFAULT TRUE NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "UNIQUE(user_id)"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE"

@@ -17,15 +17,18 @@ module Application.Helper.UserPreferences
     , upsertCurrentUserShowRosterWarnings
     , upsertCurrentUserShowWageEstimates
     , upsertCurrentUserHighlightOwnLiveShifts
-    , upsertCurrentUserTimesheetHideApproved
+    , upsertCurrentUserTimesheetShowApproved
     , upsertCurrentUserTimesheetShowSuggestions
     , upsertCurrentUserTimesheetShowWageEstimates
     ) where
 
 import Application.Helper.Controller (effectiveCurrentUser, fetchVenueConfig,
                                       hasRole)
+import qualified Control.Exception as Exception
 import Generated.Types
+import qualified Hasql.Errors as Hasql
 import IHP.ControllerPrelude
+import IHP.ModelSupport.Types (HasqlSessionError (..))
 
 data UserRosterPreferences = UserRosterPreferences
     { userShowRosterWarnings     :: Bool
@@ -34,7 +37,7 @@ data UserRosterPreferences = UserRosterPreferences
     }
 
 data UserTimesheetPreferences = UserTimesheetPreferences
-    { userTimesheetHideApproved      :: Bool
+    { userTimesheetShowApproved      :: Bool
     , userTimesheetShowSuggestions   :: Bool
     , userTimesheetShowWageEstimates :: Bool
     }
@@ -94,12 +97,66 @@ fetchCurrentUserHighlightOwnLiveShifts =
 
 fetchCurrentUserTimesheetPreferences :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO UserTimesheetPreferences
 fetchCurrentUserTimesheetPreferences = do
-    maybePreferences <- fetchCurrentUserPreferenceRecord
+    preferences <- fetchOrInitializeCurrentUserTimesheetPreferences
     pure UserTimesheetPreferences
-        { userTimesheetHideApproved = maybe True (.hideApproved) maybePreferences
-        , userTimesheetShowSuggestions = maybe True (.showTimesheetSuggestions) maybePreferences
-        , userTimesheetShowWageEstimates = maybe False (.showTimesheetWageEstimates) maybePreferences
+        { -- The deployed column remains inverted for compatibility; positive
+          -- Timesheets semantics stop at this storage boundary.
+          userTimesheetShowApproved = not preferences.hideApproved
+        , userTimesheetShowSuggestions = preferences.showTimesheetSuggestions
+        , userTimesheetShowWageEstimates = preferences.showTimesheetWageEstimates
         }
+
+fetchOrInitializeCurrentUserTimesheetPreferences :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO UserPreference
+fetchOrInitializeCurrentUserTimesheetPreferences = do
+    maybePreferences <- fetchCurrentUserPreferenceRecord
+    now <- getCurrentTime
+    case maybePreferences of
+        Just preferences
+            | isJust preferences.timesheetPreferencesInitializedAt -> pure preferences
+            | otherwise ->
+                preferences
+                    |> set #hideApproved False
+                    |> set #showTimesheetSuggestions True
+                    |> set #showTimesheetWageEstimates True
+                    |> set #timesheetPreferencesInitializedAt (Just now)
+                    |> updateRecord
+        Nothing -> do
+            let initialPreferences =
+                    newRecord @UserPreference
+                        |> set #userId (unpackId effectiveCurrentUser.id)
+                        |> set #hideApproved False
+                        |> set #showTimesheetSuggestions True
+                        |> set #showTimesheetWageEstimates True
+                        |> set #timesheetPreferencesInitializedAt (Just now)
+            result :: Either HasqlSessionError UserPreference <- Exception.try (createRecord initialPreferences)
+            case result of
+                Right preferences -> pure preferences
+                Left sessionError
+                    | isUniqueViolation sessionError ->
+                        fetchCurrentUserPreferenceRecord >>= \case
+                            Just preferences
+                                | isJust preferences.timesheetPreferencesInitializedAt -> pure preferences
+                                | otherwise -> fetchOrInitializeCurrentUserTimesheetPreferences
+                            Nothing -> Exception.throwIO sessionError
+                    | otherwise -> Exception.throwIO sessionError
+
+isUniqueViolation :: HasqlSessionError -> Bool
+isUniqueViolation (HasqlSessionError sessionError) =
+    case sessionError of
+        Hasql.StatementSessionError _ _ _ _ _ statementError -> statementErrorIsUniqueViolation statementError
+        Hasql.ScriptSessionError _ serverError -> serverErrorIsUniqueViolation serverError
+        Hasql.ConnectionSessionError _ -> False
+        Hasql.MissingTypesSessionError _ -> False
+        Hasql.DriverSessionError _ -> False
+  where
+    statementErrorIsUniqueViolation (Hasql.ServerStatementError serverError) = serverErrorIsUniqueViolation serverError
+    statementErrorIsUniqueViolation (Hasql.UnexpectedRowCountStatementError _ _ _) = False
+    statementErrorIsUniqueViolation (Hasql.UnexpectedColumnCountStatementError _ _) = False
+    statementErrorIsUniqueViolation (Hasql.UnexpectedColumnTypeStatementError _ _ _) = False
+    statementErrorIsUniqueViolation (Hasql.RowStatementError _ _) = False
+    statementErrorIsUniqueViolation (Hasql.UnexpectedResultStatementError _) = False
+
+    serverErrorIsUniqueViolation (Hasql.ServerError code _ _ _ _) = code == "23505"
 
 upsertCurrentUserShowRosterWarnings ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -153,53 +210,38 @@ upsertCurrentUserHighlightOwnLiveShifts highlightOwnLiveShifts = do
                 |> set #highlightOwnLiveShifts highlightOwnLiveShifts
                 |> createRecord
 
-upsertCurrentUserTimesheetHideApproved ::
+upsertCurrentUserTimesheetShowApproved ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Bool ->
     IO UserPreference
-upsertCurrentUserTimesheetHideApproved hideApproved = do
-    maybePreferences <- fetchCurrentUserPreferenceRecord
-    case maybePreferences of
-        Just preferences ->
-            preferences
-                |> set #hideApproved hideApproved
-                |> updateRecord
-        Nothing ->
-            newRecord @UserPreference
-                |> set #userId (unpackId currentUser.id)
-                |> set #hideApproved hideApproved
-                |> createRecord
+upsertCurrentUserTimesheetShowApproved showApproved = do
+    preferences <- fetchOrInitializeCurrentUserTimesheetPreferences
+    now <- getCurrentTime
+    preferences
+        |> set #hideApproved (not showApproved)
+        |> set #timesheetPreferencesInitializedAt (Just now)
+        |> updateRecord
 
 upsertCurrentUserTimesheetShowSuggestions ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Bool ->
     IO UserPreference
 upsertCurrentUserTimesheetShowSuggestions showTimesheetSuggestions = do
-    maybePreferences <- fetchCurrentUserPreferenceRecord
-    case maybePreferences of
-        Just preferences ->
-            preferences
-                |> set #showTimesheetSuggestions showTimesheetSuggestions
-                |> updateRecord
-        Nothing ->
-            newRecord @UserPreference
-                |> set #userId (unpackId currentUser.id)
-                |> set #showTimesheetSuggestions showTimesheetSuggestions
-                |> createRecord
+    preferences <- fetchOrInitializeCurrentUserTimesheetPreferences
+    now <- getCurrentTime
+    preferences
+        |> set #showTimesheetSuggestions showTimesheetSuggestions
+        |> set #timesheetPreferencesInitializedAt (Just now)
+        |> updateRecord
 
 upsertCurrentUserTimesheetShowWageEstimates ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Bool ->
     IO UserPreference
 upsertCurrentUserTimesheetShowWageEstimates showTimesheetWageEstimates = do
-    maybePreferences <- fetchCurrentUserPreferenceRecord
-    case maybePreferences of
-        Just preferences ->
-            preferences
-                |> set #showTimesheetWageEstimates showTimesheetWageEstimates
-                |> updateRecord
-        Nothing ->
-            newRecord @UserPreference
-                |> set #userId (unpackId effectiveCurrentUser.id)
-                |> set #showTimesheetWageEstimates showTimesheetWageEstimates
-                |> createRecord
+    preferences <- fetchOrInitializeCurrentUserTimesheetPreferences
+    now <- getCurrentTime
+    preferences
+        |> set #showTimesheetWageEstimates showTimesheetWageEstimates
+        |> set #timesheetPreferencesInitializedAt (Just now)
+        |> updateRecord

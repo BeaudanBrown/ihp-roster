@@ -9,6 +9,7 @@ module Application.Helper.View.ToggleButton
     , namedBooleanToggleField
     , renderAppToggleBreakRegion
     , renderAppToggleButton
+    , renderAppToggleHiddenField
     , surfaceToggleListItemField
     , surfaceToggleScalarField
     , toggleBreakRegion
@@ -89,6 +90,20 @@ renderStateLabel state visible label =
         [ attr canonicalToggleDomAttributes.toggleLabelStateAttribute (togglePresentationStateValue state)
         , hiddenAttr (not visible)
         ]
+
+-- | Render a non-interactive hidden field through the same typed field mapping
+-- used by toggle controls. This is for retained repeated values that have no
+-- visible choice in the current form.
+renderAppToggleHiddenField :: ToggleFieldBinding -> Bool -> Html
+renderAppToggleHiddenField fieldBinding checked =
+    case toggleTargetForState fieldBinding (togglePresentationState checked) of
+        ToggleTargetValue value ->
+            applyAttributes Html5.input
+                [ attr "type" "hidden"
+                , attr "name" (toggleFieldName fieldBinding)
+                , attr "value" value
+                ]
+        ToggleTargetOmitted -> mempty
 
 renderAppToggleTransport :: AppToggleButtonConfig -> Html
 renderAppToggleTransport AppToggleButtonConfig { appToggleInputId, appToggleFieldBinding, appToggleChecked } =

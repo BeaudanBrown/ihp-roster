@@ -73,7 +73,7 @@ data IndexView = IndexView
     , weekOffset               :: Int
     , weekStartDate            :: Day
     , weekEndDate              :: Day
-    , hideApproved             :: Bool
+    , showApproved             :: Bool
     , showTimesheetSuggestions :: Bool
     , showTimesheetWageEstimates :: Bool
     , wageEstimates            :: Maybe TimesheetWageEstimates
@@ -181,10 +181,10 @@ renderTimesheetWeekToolbar =
     renderTimesheetWeekToolbarWithSwap Nothing
 
 renderTimesheetWeekToolbarWithSwap :: (?context :: ControllerContext) => Maybe Text -> IndexView -> Html
-renderTimesheetWeekToolbarWithSwap maybeSwapOob IndexView { weekOffset, weekStartDate, hideApproved, showTimesheetSuggestions, showTimesheetWageEstimates, wageEstimates, viewFilters, staffMembers } = [hsx|
+renderTimesheetWeekToolbarWithSwap maybeSwapOob IndexView { weekOffset, weekStartDate, showApproved, showTimesheetSuggestions, showTimesheetWageEstimates, wageEstimates, viewFilters, staffMembers } = [hsx|
     <div id={timesheetWeekToolbarId}
          hx-swap-oob={maybeSwapOob}>
-        {renderTimesheetWeekHeader weekOffset weekStartDate hideApproved showTimesheetSuggestions showTimesheetWageEstimates wageEstimates viewFilters staffMembers}
+        {renderTimesheetWeekHeader weekOffset weekStartDate showApproved showTimesheetSuggestions showTimesheetWageEstimates wageEstimates viewFilters staffMembers}
     </div>
 |]
 
@@ -215,7 +215,7 @@ renderTimesheetWeekNavigationLink label url targetWeekOffset viewFilters =
         [hsx|{label}|]
 
 renderTimesheetWeekHeader :: (?context :: ControllerContext) => Int -> Day -> Bool -> Bool -> Bool -> Maybe TimesheetWageEstimates -> TimesheetViewFilters -> [Staff] -> Html
-renderTimesheetWeekHeader weekOffset weekStartDate hideApproved showTimesheetSuggestions showTimesheetWageEstimates wageEstimates viewFilters staffMembers =
+renderTimesheetWeekHeader weekOffset weekStartDate _showApproved _showTimesheetSuggestions _showTimesheetWageEstimates wageEstimates viewFilters staffMembers =
     renderWeekToolbar WeekToolbarConfig
         { weekToolbarVariant = WeekToolbarTimesheets
         , weekToolbarAriaLabel = "Timesheet week controls"
@@ -325,9 +325,9 @@ renderWorkerTimesheetSettings view = [hsx|
 |]
 
 renderTimesheetSettings :: (?context :: ControllerContext) => IndexView -> Html
-renderTimesheetSettings IndexView { weekOffset, hideApproved, showTimesheetSuggestions, showTimesheetWageEstimates, viewFilters, staffMembers, rosterGroups } = [hsx|
+renderTimesheetSettings IndexView { weekOffset, showApproved, showTimesheetSuggestions, showTimesheetWageEstimates, viewFilters, staffMembers, rosterGroups } = [hsx|
     <div class="timesheet-settings-toggle-grid mb-2">
-        {renderTimesheetHideApprovedPreferenceForm weekOffset viewFilters hideApproved}
+        {renderTimesheetShowApprovedPreferenceForm weekOffset viewFilters showApproved}
         {renderTimesheetShowSuggestionsPreferenceForm weekOffset viewFilters showTimesheetSuggestions}
         {when canViewTimesheetWageEstimates (renderTimesheetShowWageEstimatesPreferenceForm weekOffset viewFilters showTimesheetWageEstimates)}
     </div>
@@ -382,21 +382,21 @@ renderTimesheetStaffPanelEntry weekOffset staffMembers entry =
             </button>
         |]
 
-renderTimesheetHideApprovedPreferenceForm :: Int -> TimesheetViewFilters -> Bool -> Html
-renderTimesheetHideApprovedPreferenceForm weekOffset viewFilters hideApproved =
+renderTimesheetShowApprovedPreferenceForm :: Int -> TimesheetViewFilters -> Bool -> Html
+renderTimesheetShowApprovedPreferenceForm weekOffset viewFilters showApproved =
     renderFrontendSurfaceActionForm
-        (TimesheetsAction.toggleTimesheetHideApprovedAction fields)
-        (timesheetsActionRoute (pathTo ToggleTimesheetHideApprovedAction))
-            { actionRouteStandardUrl = Just (pathTo ToggleTimesheetHideApprovedAction)
+        (TimesheetsAction.toggleTimesheetShowApprovedAction fields)
+        (timesheetsActionRoute (pathTo ToggleTimesheetShowApprovedAction))
+            { actionRouteStandardUrl = Just (pathTo ToggleTimesheetShowApprovedAction)
             , actionRouteExtraAttrs = [("class", "mb-0")]
             }
         [hsx|
             <input type="hidden" name={surfaceFieldNameFrom @Surface.WeekOffset fields} value={tshow weekOffset} />
             {renderTimesheetFilterHiddenFields (surfaceFieldNameFrom @Surface.StaffFilterId fields) (surfaceFieldNameFrom @Surface.RosterGroupFilterId fields) viewFilters}
-            {renderTimesheetPreferenceToggle "timesheet-hide-approved-toggle" (surfaceToggleScalarField @Surface.HideApproved fields True False) hideApproved "Hide approved"}
+            {renderTimesheetPreferenceToggle "timesheet-show-approved-toggle" (surfaceToggleScalarField @Surface.ShowApproved fields True False) showApproved "Show approved"}
         |]
   where
-    fields = TimesheetsAction.toggleTimesheetHideApprovedActionFields weekOffset hideApproved viewFilters.filterStaffId viewFilters.filterRosterGroupId
+    fields = TimesheetsAction.toggleTimesheetShowApprovedActionFields weekOffset showApproved viewFilters.filterStaffId viewFilters.filterRosterGroupId
 
 renderTimesheetShowSuggestionsPreferenceForm :: Int -> TimesheetViewFilters -> Bool -> Html
 renderTimesheetShowSuggestionsPreferenceForm weekOffset viewFilters showTimesheetSuggestions =
@@ -453,7 +453,7 @@ renderTimesheetFilterForm weekOffset viewFilters staffMembers rosterGroups =
         [hsx|
             <input type="hidden" name={surfaceFieldNameFrom @Surface.WeekOffset fields} value={tshow weekOffset} />
             {renderTimesheetStaffFilter fields viewFilters.filterStaffId staffMembers}
-            {renderTimesheetRosterGroupFilter fields viewFilters.filterRosterGroupId rosterGroups}
+            {when (length rosterGroups > 1) (renderTimesheetRosterGroupFilter fields viewFilters.filterRosterGroupId rosterGroups)}
         |]
   where
     updateUrl = pathTo (ShowTimesheetWeekAction weekOffset)

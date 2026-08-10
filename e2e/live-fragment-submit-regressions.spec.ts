@@ -219,14 +219,19 @@ test.describe('HTMX submit regressions', () => {
         ).toHaveCount(1);
     });
 
-    test('timesheet submit preserves hide-approved preference', async ({ page }) => {
+    test('timesheet submit preserves the disabled Show approved preference', async ({ page }) => {
         resetTimesheetDisplayPreferences('e2e-test@example.com');
         const startTime = '10:30';
         const endTime = '14:30';
-        const note = `hide-approved-timesheet-${Date.now()}`;
+        const note = `show-approved-disabled-timesheet-${Date.now()}`;
 
         await login(page);
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
+        await openTimesheetSettings(page);
+        const showApproved = page.locator('label', { hasText: 'Show approved' });
+        if (await showApproved.locator('input[type="checkbox"]').isChecked()) {
+            await showApproved.click();
+        }
         await expect(page.locator('.timesheet-entry-card[data-timesheet-entry-approved="true"]')).toHaveCount(0);
 
         await page.locator('[data-timesheet-day-add="true"]').first().click();
@@ -281,9 +286,9 @@ test.describe('HTMX submit regressions', () => {
         await login(page);
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await openTimesheetSettings(page);
-        const hideApproved = page.locator('label', { hasText: 'Hide approved' });
-        if (await hideApproved.locator('input[type="checkbox"]').isChecked()) {
-            await hideApproved.click();
+        const showApproved = page.locator('label', { hasText: 'Show approved' });
+        if (!(await showApproved.locator('input[type="checkbox"]').isChecked())) {
+            await showApproved.click();
         }
 
         const targetEntry = page.locator(`.timesheet-entry-card:has(a[href*="${deletedEntryId}"])`);

@@ -32,7 +32,7 @@ import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
-import Data.Time.Clock (getCurrentTime, utctDay)
+import Data.Time.Clock (UTCTime (..), getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude
@@ -59,6 +59,9 @@ import Web.Timesheets.Suggestion (TimesheetSuggestion (..),
                                   newTimesheetEntryFromSuggestion)
 import Web.Types
 import qualified Web.View.Timesheets.Index as TimesheetsView
+
+initializedTimesheetPreferencesAt :: UTCTime
+initializedTimesheetPreferencesAt = UTCTime (fromGregorian 2025 1 1) 0
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
@@ -112,14 +115,46 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-timesheet-day-offset=\"0\""
                 response `responseBodyShouldContain` "hx-sync=\"closest #timesheet-week-shell:replace\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"navigate-timesheet-week\""
-                response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-timesheet-hide-approved\""
+                response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-timesheet-show-approved\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-timesheet-show-suggestions\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-timesheet-wage-estimates\""
                 response `responseBodyShouldNotContain` "timesheet-week-shell-sync-custom-htmx"
                 response `responseBodyShouldNotContain` "Pay preview"
                 response `responseBodyShouldNotContain` "timesheet-wage-preview"
-                response `responseBodyShouldNotContain` "class=\"timesheet-wage-summary\""
-                response `responseBodyShouldNotContain` "class=\"timesheet-day-wage-summary\""
+                response `responseBodyShouldContain` "class=\"timesheet-wage-summary\""
+                response `responseBodyShouldContain` "class=\"timesheet-day-wage-summary\""
+                initializedPreferences <- query @UserPreference
+                    |> filterWhere (#userId, unpackId user.id)
+                    |> fetchOne
+                initializedPreferences.hideApproved `shouldBe` False
+                initializedPreferences.showTimesheetSuggestions `shouldBe` True
+                initializedPreferences.showTimesheetWageEstimates `shouldBe` True
+                initializedPreferences.timesheetPreferencesInitializedAt `shouldSatisfy` isJust
+
+        it "initializes one preference row under concurrent first Timesheets requests" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Concurrent Timesheet Preference Venue"
+                user <- createUserRecord "timesheet-concurrent-preferences@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user Worker
+                _ <- createStaffRecord venue (Just user) "Connie" "Concurrent"
+
+                results <- runConcurrentTimesheetActions 8 do
+                    withUserAndCurrentVenue user venue.id do
+                        callAction ShowTimesheetWeekAction { weekOffset = 0 }
+
+                forEach results \case
+                    Left exception -> expectationFailure ("Concurrent Timesheets request threw: " <> (cs (tshow exception) :: String))
+                    Right response -> response `responseStatusShouldBe` status200
+                preferences :: [UserPreference] <- query @UserPreference
+                    |> filterWhere (#userId, unpackId user.id)
+                    |> fetch
+                case preferences of
+                    [initializedPreferences] -> do
+                        initializedPreferences.hideApproved `shouldBe` False
+                        initializedPreferences.showTimesheetSuggestions `shouldBe` True
+                        initializedPreferences.showTimesheetWageEstimates `shouldBe` True
+                        initializedPreferences.timesheetPreferencesInitializedAt `shouldSatisfy` isJust
+                    _ -> expectationFailure "Expected exactly one initialized Timesheets preference row"
 
         it "resets This week navigation canonically" $ withContext do
             withCleanDb do
@@ -172,12 +207,12 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue user Worker
                 _ <- createStaffRecord venue (Just user) "Perry" "Preferences"
 
-                hideResponse <- withUserAndCurrentVenue user venue.id do
-                    callActionWithParams ToggleTimesheetHideApprovedAction
-                        [("weekOffset", "2"), ("hideApproved", "false")]
+                showApprovedResponse <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams ToggleTimesheetShowApprovedAction
+                        [("weekOffset", "2"), ("showApproved", "false")]
 
-                hideResponse `responseStatusShouldBe` status302
-                lookup "Location" (responseHeaders hideResponse)
+                showApprovedResponse `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders showApprovedResponse)
                     `shouldBe` Just "http://localhost/ShowTimesheetWeek?weekOffset=2"
 
                 suggestionResponse <- withUserAndCurrentVenue user venue.id do
@@ -207,14 +242,14 @@ tests = aroundAll withDatabaseTestContext do
                 preferences <- query @UserPreference
                     |> filterWhere (#userId, unpackId user.id)
                     |> fetchOne
-                preferences.hideApproved `shouldBe` False
+                preferences.hideApproved `shouldBe` True
                 preferences.showTimesheetSuggestions `shouldBe` False
                 preferences.showTimesheetWageEstimates `shouldBe` True
 
                 reloaded <- withUserAndCurrentVenue user venue.id do
                     callAction ShowTimesheetWeekAction { weekOffset = 2 }
                 reloaded `responseStatusShouldBe` status200
-                reloaded `responseBodyShouldContain` "name=\"hideApproved\" value=\"false\""
+                reloaded `responseBodyShouldContain` "name=\"showApproved\" value=\"false\""
                 reloaded `responseBodyShouldContain` "name=\"showTimesheetSuggestions\" value=\"false\""
                 reloaded `responseBodyShouldContain` "name=\"showTimesheetWageEstimates\" value=\"true\""
                 reloaded `responseBodyShouldContain` "class=\"timesheet-wage-summary\""
@@ -257,6 +292,7 @@ tests = aroundAll withDatabaseTestContext do
                 forM_ [admin, manager, supervisor, workerAUser] \viewer ->
                     newRecord @UserPreference
                         |> set #userId (unpackId viewer.id)
+                        |> set #timesheetPreferencesInitializedAt (Just initializedTimesheetPreferencesAt)
                         |> set #showTimesheetWageEstimates True
                         |> createRecord
 
@@ -324,6 +360,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- invalidEntry |> set #shiftTypeId (unpackId invalidShiftType.id) |> updateRecord
                 _ <- newRecord @UserPreference
                     |> set #userId (unpackId admin.id)
+                    |> set #timesheetPreferencesInitializedAt (Just initializedTimesheetPreferencesAt)
                     |> set #showTimesheetWageEstimates True
                     |> createRecord
 
@@ -366,6 +403,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> updateRecord
                 preferences <- newRecord @UserPreference
                     |> set #userId (unpackId workerUser.id)
+                    |> set #timesheetPreferencesInitializedAt (Just initializedTimesheetPreferencesAt)
                     |> set #hideApproved False
                     |> set #showTimesheetSuggestions True
                     |> set #showTimesheetWageEstimates True
@@ -1256,6 +1294,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 _ <- newRecord @UserPreference
                     |> set #userId (unpackId manager.id)
+                    |> set #timesheetPreferencesInitializedAt (Just initializedTimesheetPreferencesAt)
                     |> set #showTimesheetSuggestions False
                     |> createRecord
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -1966,6 +2005,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 _ <- newRecord @UserPreference
                     |> set #userId (unpackId workerUser.id)
+                    |> set #timesheetPreferencesInitializedAt (Just initializedTimesheetPreferencesAt)
                     |> set #hideApproved False
                     |> createRecord
                 response <- withUserAndCurrentVenue workerUser venue.id do
@@ -1991,7 +2031,7 @@ tests = aroundAll withDatabaseTestContext do
                         ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Hide approved"
+                response `responseBodyShouldContain` "Show approved"
                 response `responseBodyShouldContain` "Show suggestions"
                 response `responseBodyShouldContain` "timesheet-side-panel"
                 response `responseBodyShouldContain` "<h2 class=\"h5\">Settings</h2>"
@@ -1999,7 +2039,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "timesheet-staff-panel-entry"
                 response `responseBodyShouldNotContain` ">Show all staff</span>"
 
-        it "defaults managers to all authorized staff and applies persisted display preferences" $ withContext do
+        it "defaults managers to all authorized staff with all entry types shown" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Filter Venue"
                 manager <- createUserRecord "timesheet-filter-manager@example.com" "staff" True
@@ -2017,15 +2057,15 @@ tests = aroundAll withDatabaseTestContext do
                         ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Hide approved"
+                response `responseBodyShouldContain` "Show approved"
                 response `responseBodyShouldNotContain` "Show all staff"
                 response `responseBodyShouldContain` "btn btn-outline-success app-toggle-button"
-                response `responseBodyShouldContain` "data-bepis-toggle-transport=\"toggle-transport:timesheet-hide-approved-toggle\""
+                response `responseBodyShouldContain` "data-bepis-toggle-transport=\"toggle-transport:timesheet-show-approved-toggle\""
                 response `responseBodyShouldContain` "data-bepis-toggle-config=\""
                 response `responseBodyShouldContain` "aria-pressed=\"true\""
                 response `responseBodyShouldContain` "aria-pressed=\"true\""
                 response `responseBodyShouldContain` "timesheet-entry-staff-name\">Ava Hours"
-                response `responseBodyShouldNotContain` "timesheet-entry-card\" data-timesheet-entry-approved=\"true\""
+                response `responseBodyShouldContain` "timesheet-entry-card\" data-timesheet-entry-approved=\"true\""
 
         it "renders complete manager side-panel counts independently of filters and display preferences" $ withContext do
             withCleanDb do
@@ -2191,6 +2231,7 @@ tests = aroundAll withDatabaseTestContext do
                     >>= updateRecord . set #staffComment (Just "Ad hoc entry")
                 _ <- newRecord @UserPreference
                     |> set #userId (unpackId admin.id)
+                    |> set #timesheetPreferencesInitializedAt (Just initializedTimesheetPreferencesAt)
                     |> set #showTimesheetSuggestions True
                     |> set #showTimesheetWageEstimates True
                     |> createRecord
@@ -2233,13 +2274,18 @@ tests = aroundAll withDatabaseTestContext do
                     >>= updateRecord . set #isActive False
                 otherGroup <- ensureVenueDefaultRosterGroup otherVenue
 
-                forEach [inactiveGroup.id, otherGroup.id] \invalidGroupId -> do
+                forEach [activeGroup.id, inactiveGroup.id, otherGroup.id] \invalidGroupId -> do
                     response <- withUserAndCurrentVenue manager venue.id do
                         callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
                             [("rosterGroupFilterId", idToParam invalidGroupId)]
                     response `responseStatusShouldBe` status302
                     lookup "Location" (responseHeaders response)
                         `shouldBe` Just "http://localhost/ShowTimesheetWeek?weekOffset=0"
+
+                managerPage <- withUserAndCurrentVenue manager venue.id do
+                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
+                managerPage `responseStatusShouldBe` status200
+                managerPage `responseBodyShouldNotContain` "timesheet-roster-group-filter"
 
                 workerResponse <- withUserAndCurrentVenue worker venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
@@ -2370,7 +2416,7 @@ tests = aroundAll withDatabaseTestContext do
                 resetAuditExists <- query @AuditEvent |> filterWhere (#eventType, "timesheet_approval_reset") |> fetchExists
                 resetAuditExists `shouldBe` False
 
-        it "keeps approved entries hidden after an HTMX timesheet create with hide approved" $ withContext do
+        it "keeps approved entries hidden after an HTMX timesheet create with Show approved disabled" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Create Hidden Approved Venue"
                 manager <- createUserRecord "timesheet-create-hide-approved-manager@example.com" "staff" True

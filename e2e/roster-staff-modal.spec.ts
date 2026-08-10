@@ -150,6 +150,8 @@ test.describe('Roster Staff Modal', () => {
 
         const staffEditForm = modalMount.locator('#staff-edit-form:visible');
         await expect(staffEditForm).toBeVisible();
+        await expect(staffEditForm.getByText('Roster Groups', { exact: true })).toHaveCount(0);
+        await expect(staffEditForm.locator('input[type="hidden"][name="rosterGroupIds"]')).toHaveValue('a1000000-0000-0000-0000-000000000211');
         const firstNameField = staffEditForm.locator('#firstName');
         const lastNameField = staffEditForm.locator('#lastName');
         const formAction = await staffEditForm.getAttribute('action');

@@ -15,13 +15,33 @@ import {
     loginAs,
     openTimesheetSettings,
     resetTimesheetDisplayPreferences,
+    runSql,
 } from './test-helpers';
+
+const secondRosterGroupId = 'a1000000-0000-0000-0000-000000000213';
+
+function ensureSecondRosterGroup() {
+    runSql(`
+        INSERT INTO roster_groups (id, venue_id, name, sort_order, is_active, is_default, archived_at)
+        VALUES ('${secondRosterGroupId}', 'a1000000-0000-0000-0000-000000000001', 'Second group', 20, TRUE, FALSE, NULL)
+        ON CONFLICT (id) DO UPDATE SET
+            is_active = TRUE,
+            archived_at = NULL,
+            updated_at = NOW();
+    `);
+}
 
 test.describe('Timesheets shared SidePanel', () => {
     test.describe.configure({ timeout: E2E_TIMEOUT.slowTest });
+    test.beforeEach(() => ensureSecondRosterGroup());
     test.afterEach(() => {
         resetTimesheetDisplayPreferences('e2e-test@example.com');
         resetTimesheetDisplayPreferences('e2e-worker@example.com');
+        runSql(`
+            UPDATE roster_groups
+            SET is_active = FALSE, archived_at = NOW(), updated_at = NOW()
+            WHERE id = '${secondRosterGroupId}';
+        `);
     });
 
     test('keeps manager inventory complete while filtering and supports highlight, pin, and profile launch', async ({ page }) => {
@@ -84,6 +104,16 @@ test.describe('Timesheets shared SidePanel', () => {
         await expect(page).toHaveURL(new RegExp(`rosterGroupFilterId=${defaultE2ERosterGroupId}`), { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#timesheet-roster-group-filter')).toHaveValue(defaultE2ERosterGroupId);
         await expect(page.locator(`[${timesheetsTimesheetSidePanelTabDomAttr}="settings"]`)).toHaveAttribute('aria-selected', 'true');
+    });
+
+    test('hides roster-group filtering when the manager has only one active group', async ({ page }) => {
+        runSql(`UPDATE roster_groups SET is_active = FALSE, updated_at = NOW() WHERE id = '${secondRosterGroupId}';`);
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+        await gotoWhenReady(page, `/ShowTimesheetWeek?weekOffset=0&rosterGroupFilterId=${defaultE2ERosterGroupId}`, '#timesheet-week-shell');
+        await expect(page).toHaveURL(/\/ShowTimesheetWeek\?weekOffset=0$/);
+        await openTimesheetSettings(page);
+        await expect(page.locator('#timesheet-roster-group-filter')).toHaveCount(0);
     });
 
     test('renders a Settings-only stacked panel for ordinary staff', async ({ page }) => {

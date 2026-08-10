@@ -32,12 +32,15 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
 
 ## Presentation Preferences And Side Panel
 
-- `Hide approved` and `Show suggestions` are global per-user preferences and do
-  not enter Bepis-generated Timesheets URLs, fragment requests, or mutation
-  envelopes. The viewed week and authorized manager staff and roster-group
-  filters are URL state; additional query fields are ignored rather than
-  interpreted as compatibility state. Filters never grant authority.
-  Roster-group choices contain only active current-venue groups. Selecting one
+- `Show approved`, `Show suggestions`, and (where authorized) `Show wage estimates`
+  are global per-user preferences and default on when Timesheets preferences are
+  first initialized. They do not enter Bepis-generated Timesheets URLs, fragment
+  requests, or mutation envelopes. The viewed week and authorized manager staff
+  and roster-group filters are URL state; additional query fields are ignored
+  rather than interpreted as compatibility state. Filters never grant authority.
+  The roster-group filter is available only when at least two active current-venue
+  groups exist; otherwise roster-group URL state canonicalizes to All roster groups.
+  Selecting one
   retains only entries linked to a source slot in that group and transient
   suggestions from that group; ad-hoc entries have no group and appear only
   under All roster groups.
@@ -81,12 +84,12 @@ only their own; managers see their normal venue scope.
 
 ## Wage Estimates, Approval And Payroll
 
-- Wage estimates are an independent global per-user preference, disabled by
-  default. Workers may view their own estimates; venue admins and owners may
+- Wage estimates are an independent global per-user preference, enabled when
+  Timesheets preferences are first initialized. Workers may view their own estimates; venue admins and owners may
   view authorized staff estimates; supervisors and managers do not receive the
   control or amounts.
 - The week summary and each day summary aggregate only currently visible cards,
-  so staff and roster-group filtering, Hide approved, and Show suggestions all
+  so staff and roster-group filtering, Show approved, and Show suggestions all
   change the total.
   Approved entries consume sealed immutable ledger facts; unapproved entries
   and transient suggestions use canonical draft evaluation. Failed calculations

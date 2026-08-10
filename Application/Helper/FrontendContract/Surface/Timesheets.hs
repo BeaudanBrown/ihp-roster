@@ -3,7 +3,7 @@
 
 module Application.Helper.FrontendContract.Surface.Timesheets
     ( DayOffset
-    , HideApproved
+    , ShowApproved
     , ShowTimesheetSuggestions
     , ShowTimesheetWageEstimates
     , StaffFilterId
@@ -47,7 +47,7 @@ module Application.Helper.FrontendContract.Surface.Timesheets
     , TimesheetWeekShell
     , TimesheetToolbar
     , NavigateTimesheetWeek
-    , ToggleTimesheetHideApproved
+    , ToggleTimesheetShowApproved
     , ToggleTimesheetShowSuggestions
     , ToggleTimesheetWageEstimates
     , UpdateTimesheetFilters
@@ -70,7 +70,7 @@ data VenueId
 data WeekOffset
 
 data TimesheetsMountState
-data HideApproved
+data ShowApproved
 data ShowTimesheetSuggestions
 data ShowTimesheetWageEstimates
 data StaffFilterId
@@ -88,7 +88,7 @@ data TimesheetWeekBoundaryConfig
 
 data NavigateTimesheetWeek
 data UpdateTimesheetFilters
-data ToggleTimesheetHideApproved
+data ToggleTimesheetShowApproved
 data ToggleTimesheetShowSuggestions
 data ToggleTimesheetWageEstimates
 data ApproveTimesheetEntry
@@ -173,9 +173,9 @@ type TimesheetActionBundle =
          , 'HtmxPushUrl 'HtmxPushUrlTrue
          , 'HtmxSync ('HtmxSyncOn ('HtmxClosest ('HtmxId TimesheetWeekShell)) 'HtmxSyncReplace)
          ]
-     , Action ToggleTimesheetHideApproved
+     , Action ToggleTimesheetShowApproved
         '[ Field WeekOffset 'WireInt
-         , Field HideApproved 'WireBool
+         , Field ShowApproved 'WireBool
          , OptionalField StaffFilterId 'WireUUID
          , OptionalField RosterGroupFilterId 'WireUUID
          ]

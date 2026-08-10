@@ -517,9 +517,9 @@ test.describe('Mobile experience smoke', () => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await openTimesheetSettings(page);
-        const hideApproved = page.locator('label', { hasText: 'Hide approved' });
-        if (await hideApproved.locator('input[type="checkbox"]').isChecked()) {
-            await hideApproved.click();
+        const showApproved = page.locator('label', { hasText: 'Show approved' });
+        if (!(await showApproved.locator('input[type="checkbox"]').isChecked())) {
+            await showApproved.click();
         }
 
         const approvedEntry = page.locator('[data-timesheet-entry-approved="true"]').first();

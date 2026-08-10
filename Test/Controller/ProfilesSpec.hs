@@ -187,6 +187,24 @@ tests = aroundAll withDatabaseTestContext do
                 profileFragmentResponse `responseBodyShouldNotContain` "id=\"profile-live-surface\""
                 profileFragmentResponse `responseBodyShouldNotContain` "id=\"app\""
 
+        it "applies the sole roster-group rule to the Profile Staff Admin form" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Profile Sole Group Venue"
+                admin <- createUserRecord "profile-sole-group-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                _ <- createStaffRecord venue (Just admin) "Alex" "Admin"
+                soleRosterGroup <- query @RosterGroup
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#isActive, True)
+                    |> fetchOne
+
+                response <- withUserAndCurrentVenue admin venue.id do
+                    callAction EditProfileAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldNotContain` ">Roster Groups</label>"
+                response `responseBodyShouldContain` cs ("name=\"rosterGroupIds\" value=\"" <> tshow (unpackId soleRosterGroup.id) <> "\"")
+
         it "keeps profile accordions closed by default and opens explicit sections" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Accordion Venue"

@@ -80,7 +80,8 @@
     .app-week-toolbar-timesheets {
         grid-template-areas:
             ". top-spacer settings"
-            "navigation navigation navigation";
+            "navigation navigation navigation"
+            "auxiliary auxiliary auxiliary";
     }
 
     .app-week-toolbar-quick,
@@ -139,7 +140,9 @@
     }
 
     .app-week-toolbar-timesheets .app-week-toolbar-aux {
-        display: none;
+        display: inline-flex;
+        width: 100%;
+        justify-content: center;
     }
 }
 

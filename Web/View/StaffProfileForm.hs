@@ -336,15 +336,37 @@ renderStaffManagementFields :: SurfaceFieldBundleOf Surface.StaffProfileFields f
 renderStaffManagementFields fields StaffManagementFieldData { managementStaff = staff, managementRosterGroups = rosterGroups, managementAwardLevels = awardLevels, managementAwardLevelBaseRates = awardLevelBaseRates, managementImportedPayItems = importedPayItems, managementSelectedRosterGroupIds = selectedRosterGroupIds, managementVenueMembership = maybeMembership, managementWeekOffset = maybeWeekOffset, managementRosterGroupId = maybeRosterGroupId } = [hsx|
     {maybe mempty renderWeekOffsetHiddenInput maybeWeekOffset}
     {renderRosterGroupHiddenInput maybeRosterGroupId}
+    {forEach retainedRosterGroupIds (renderStaffRosterGroupAssignmentHiddenInput fields)}
     {when currentUserIsAdmin (renderStaffRoleField fields maybeMembership)}
     {when currentUserIsAdmin (renderStaffPayFields fields staff awardLevels awardLevelBaseRates importedPayItems)}
-    <div class="mt-3">
-        <label class="form-label d-block">Roster Groups</label>
-        <div class="row g-2">
-            {forEach rosterGroups (renderRosterGroupCheckbox fields selectedRosterGroupIds)}
-        </div>
-    </div>
+    {renderRosterGroupChoices fields activeRosterGroups selectedRosterGroupIds}
 |]
+  where
+    activeRosterGroups = filter (.isActive) rosterGroups
+    activeRosterGroupIds = map (.id) activeRosterGroups
+    selectedInactiveRosterGroupIds = filter (`notElem` activeRosterGroupIds) selectedRosterGroupIds
+    retainedRosterGroupIds =
+        case activeRosterGroupIds of
+            [soleActiveRosterGroupId] -> nub (soleActiveRosterGroupId : selectedInactiveRosterGroupIds)
+            _                         -> selectedInactiveRosterGroupIds
+
+renderRosterGroupChoices :: SurfaceFieldBundleOf Surface.StaffProfileFields fields => fields -> [RosterGroup] -> [Id RosterGroup] -> Html
+renderRosterGroupChoices fields activeRosterGroups selectedRosterGroupIds
+    | length activeRosterGroups <= 1 = mempty
+    | otherwise = [hsx|
+        <div class="mt-3">
+            <label class="form-label d-block">Roster Groups</label>
+            <div class="row g-2">
+                {forEach activeRosterGroups (renderRosterGroupCheckbox fields selectedRosterGroupIds)}
+            </div>
+        </div>
+    |]
+
+renderStaffRosterGroupAssignmentHiddenInput :: SurfaceFieldBundleOf Surface.StaffProfileFields fields => fields -> Id RosterGroup -> Html
+renderStaffRosterGroupAssignmentHiddenInput fields rosterGroupId =
+    renderAppToggleHiddenField
+        (surfaceToggleListItemField @Surface.RosterGroupIdsField fields (unpackId rosterGroupId))
+        True
 
 renderWeekOffsetHiddenInput :: Int -> Html
 renderWeekOffsetHiddenInput weekOffset = [hsx|<input type="hidden" name="weekOffset" value={tshow weekOffset} />|]

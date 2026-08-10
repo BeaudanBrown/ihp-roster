@@ -111,7 +111,7 @@ test.describe('Generated toggle capability', () => {
         }
     });
 
-    test('submits explicit roster scope and persists the Timesheets hide-approved preference', async ({ page }) => {
+    test('submits explicit roster scope and persists the Timesheets show-approved preference', async ({ page }) => {
         const extraRosterGroupId = 'a1000000-0000-0000-0000-000000000169';
         runSql(`
             INSERT INTO roster_groups (id, venue_id, name, sort_order, is_active, is_default)
@@ -174,13 +174,13 @@ test.describe('Generated toggle capability', () => {
         expect(mountConfig.scopeKey).toMatch(/:1$/);
         expect(mountConfig.fragments.every((fragment) => new URL(fragment.url, page.url()).searchParams.get('weekOffset') === '1')).toBe(true);
         await openTimesheetSettings(page);
-        let hideApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Hide approved' });
-        await expect(hideApprovedRoot.locator(`[${toggleInputDomAttr}]`)).toBeChecked();
+        let showApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Show approved' });
+        await expect(showApprovedRoot.locator(`[${toggleInputDomAttr}]`)).toBeChecked();
 
         let requestPromise = page.waitForRequest((request) =>
             request.method() === 'POST'
-            && new URL(request.url()).pathname.includes('ToggleTimesheetHideApproved')
-            && request.postData()?.includes('hideApproved=false') === true
+            && new URL(request.url()).pathname.includes('ToggleTimesheetShowApproved')
+            && request.postData()?.includes('showApproved=false') === true
             && request.postData()?.includes('weekOffset=1') === true,
         );
         const navigatedWeekRefresh = page.waitForResponse((response) =>
@@ -188,21 +188,21 @@ test.describe('Generated toggle capability', () => {
             && new URL(response.url()).pathname.includes('ShowtimesheetDayColumnsLiveFragment')
             && new URL(response.url()).searchParams.get('weekOffset') === '1',
         );
-        await hideApprovedRoot.click();
+        await showApprovedRoot.click();
         await requestPromise;
         await navigatedWeekRefresh;
-        await expect(hideApprovedRoot.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
+        await expect(showApprovedRoot.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
         await page.reload();
         await openTimesheetSettings(page);
-        hideApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Hide approved' });
-        await expect(hideApprovedRoot.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
+        showApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Show approved' });
+        await expect(showApprovedRoot.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
 
         requestPromise = page.waitForRequest((request) =>
             request.method() === 'POST'
-            && new URL(request.url()).pathname.includes('ToggleTimesheetHideApproved')
-            && request.postData()?.includes('hideApproved=true') === true,
+            && new URL(request.url()).pathname.includes('ToggleTimesheetShowApproved')
+            && request.postData()?.includes('showApproved=true') === true,
         );
-        await hideApprovedRoot.click();
+        await showApprovedRoot.click();
         await requestPromise;
         resetTimesheetDisplayPreferences('e2e-test@example.com');
     });

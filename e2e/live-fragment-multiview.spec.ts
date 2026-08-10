@@ -31,9 +31,9 @@ async function loginWorker(page: Page) {
 
 async function showApprovedTimesheets(page: Page) {
     await openTimesheetSettings(page);
-    const hideApproved = page.locator('label', { hasText: 'Hide approved' });
-    if (await hideApproved.locator('input[type="checkbox"]').isChecked()) {
-        await hideApproved.click();
+    const showApproved = page.locator('label', { hasText: 'Show approved' });
+    if (!(await showApproved.locator('input[type="checkbox"]').isChecked())) {
+        await showApproved.click();
     }
 }
 

@@ -13,7 +13,6 @@ import Application.Helper.Pay (rateEffectiveOn)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchStaffLeaveRequests)
 import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
-                                        fetchCurrentVenueRosterGroupIds,
                                         fetchCurrentVenueRosterGroupOrDefault,
                                         fetchCurrentVenueRosterGroups,
                                         fetchStaffRosterGroupIds)
@@ -249,7 +248,7 @@ instance Controller StaffController where
                     setErrorMessage "Choose a valid staff profile section."
                     renderStaffEditResponse staff submittedRosterGroupIds selectedShiftPreferences
                 | otherwise -> do
-                    maybeSelectedRosterGroupIds <- validateSubmittedRosterGroupIds submitted.submittedRosterGroupIds
+                    maybeSelectedRosterGroupIds <- validateSubmittedRosterGroupIds staff submitted.submittedRosterGroupIds
                     maybeSubmittedVenueRole <- if canManageStaffPay then validateSubmittedStaffVenueRole staff maybeVenueMembership submitted.submittedVenueRole else pure (Just Nothing)
                     maybeSubmittedPayRateSelection <- if canManageStaffPay then parseSubmittedPayRateSelectionValue (fromMaybe "" submitted.submittedPayRateSelection) else pure (Just emptyStaffPayRateSelection)
                     let maybeSubmittedDefaultAwardLevelId = submittedAwardLevelId <$> maybeSubmittedPayRateSelection
@@ -527,20 +526,44 @@ buildStaffFromSurfaceSubmission canManageStaffPay maybeSubmittedDefaultAwardLeve
 
 validateSubmittedRosterGroupIds ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Staff ->
     Maybe [UUID.UUID] ->
     IO (Maybe [Id RosterGroup])
-validateSubmittedRosterGroupIds maybeSubmittedIds = do
-    let submittedRosterGroupIds = nub (maybe [] (map Id) maybeSubmittedIds)
-    currentVenueRosterGroupIds <- fetchCurrentVenueRosterGroupIds
-    if null submittedRosterGroupIds
+validateSubmittedRosterGroupIds staff maybeSubmittedIds = do
+    existingRosterGroupIds <- fetchStaffRosterGroupIds staff
+    resolveSubmittedRosterGroupIds existingRosterGroupIds (nub (maybe [] (map Id) maybeSubmittedIds))
+
+resolveSubmittedRosterGroupIds ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    [Id RosterGroup] ->
+    [Id RosterGroup] ->
+    IO (Maybe [Id RosterGroup])
+resolveSubmittedRosterGroupIds retainableRosterGroupIds submittedRosterGroupIds = do
+    rosterGroups <- fetchCurrentVenueRosterGroups
+    let currentVenueRosterGroupIds = map (.id) rosterGroups
+    let activeRosterGroupIds = map (.id) (filter (.isActive) rosterGroups)
+    let submittedInactiveRosterGroupIds = filter (`notElem` activeRosterGroupIds) submittedRosterGroupIds
+    let resolvedRosterGroupIds =
+            case activeRosterGroupIds of
+                [soleActiveRosterGroupId] -> nub (soleActiveRosterGroupId : submittedRosterGroupIds)
+                _                         -> submittedRosterGroupIds
+    if not (all (`elem` currentVenueRosterGroupIds) submittedRosterGroupIds)
         then do
-            setErrorMessage "Choose at least one roster group for this staff member."
+            setErrorMessage "Choose roster groups from the current venue."
             pure Nothing
-        else if all (`elem` currentVenueRosterGroupIds) submittedRosterGroupIds
-            then pure (Just submittedRosterGroupIds)
-            else do
-                setErrorMessage "Choose roster groups from the current venue."
+        else if not (all (`elem` retainableRosterGroupIds) submittedInactiveRosterGroupIds)
+            then do
+                setErrorMessage "Inactive roster groups can only be retained from this staff member's existing assignments."
                 pure Nothing
+        else if null activeRosterGroupIds
+            then do
+                setErrorMessage "Configure an active roster group before assigning staff."
+                pure Nothing
+        else if not (any (`elem` activeRosterGroupIds) resolvedRosterGroupIds)
+            then do
+                setErrorMessage "Choose at least one active roster group for this staff member."
+                pure Nothing
+        else pure (Just resolvedRosterGroupIds)
 
 validateSubmittedStaffVenueRole :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> Maybe VenueMembership -> Maybe VenueRoleEnum -> IO (Maybe (Maybe VenueRoleEnum))
 validateSubmittedStaffVenueRole _ Nothing _ = pure (Just Nothing)
@@ -672,20 +695,11 @@ parseStaffRosterGroupIds :: (?context :: ControllerContext, ?modelContext :: Mod
 parseStaffRosterGroupIds = do
     let submittedRosterGroupTexts = nub (paramTexts "rosterGroupIds")
     let submittedRosterGroupIds = mapMaybe parseRosterGroupIdText submittedRosterGroupTexts
-    currentVenueRosterGroupIds <- fetchCurrentVenueRosterGroupIds
-    if null submittedRosterGroupIds
+    if length submittedRosterGroupIds /= length submittedRosterGroupTexts
         then do
-            setErrorMessage "Choose at least one roster group for this staff member."
+            setErrorMessage "Choose roster groups from the current venue."
             pure Nothing
-        else if length submittedRosterGroupIds /= length submittedRosterGroupTexts
-            then do
-                setErrorMessage "Choose roster groups from the current venue."
-                pure Nothing
-        else if all (`elem` currentVenueRosterGroupIds) submittedRosterGroupIds
-            then pure (Just submittedRosterGroupIds)
-            else do
-                setErrorMessage "Choose roster groups from the current venue."
-                pure Nothing
+        else resolveSubmittedRosterGroupIds [] submittedRosterGroupIds
 
 parseRosterGroupIdText :: Text -> Maybe (Id RosterGroup)
 parseRosterGroupIdText value =

@@ -516,8 +516,9 @@ checkbox-style presentation backed by explicit form transport. It generates the
 closed presentation/submission enums, value-or-omitted targets, exact
 `ToggleConfig` parser, and root/input/label/transport/break-region DOM
 attributes. Presentation state is deliberately separate from submitted target
-state, so inverted controls such as **Hide approved** are represented without
-browser-side business translation.
+state, so any intentionally inverted control can be represented without
+browser-side business translation. Timesheets controls use positive **Show…**
+semantics end to end, with legacy storage translation kept server-side.
 
 Feature views build Surface-owned scalar and repeated-field mappings through
 `surfaceToggleScalarField` and `surfaceToggleListItemField`. Both require the

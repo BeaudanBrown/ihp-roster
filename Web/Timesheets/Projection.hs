@@ -39,7 +39,7 @@ import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling
 import Application.Helper.RosterTimesheetBoundaries (projectRosterSlotTimesheetBoundaries)
 import Application.Helper.UserPreferences (fetchCurrentUserTimesheetPreferences,
-                                           userTimesheetHideApproved,
+                                           userTimesheetShowApproved,
                                            userTimesheetShowSuggestions,
                                            userTimesheetShowWageEstimates)
 import Application.Helper.VenueScopedQueries (fetchLinkedActiveVenueStaff)
@@ -77,7 +77,7 @@ data TimesheetWeekProjection = TimesheetWeekProjection
     , timesheetWeekOffset           :: Int
     , timesheetWeekStartDate        :: Day
     , timesheetWeekEndDate          :: Day
-    , timesheetHideApproved         :: Bool
+    , timesheetShowApproved         :: Bool
     , timesheetSuggestionsVisible   :: Bool
     , timesheetShowWageEstimates    :: Bool
     , timesheetWageEstimates        :: !(Maybe TimesheetWageEstimates)
@@ -116,6 +116,7 @@ canonicalTimesheetFiltersFor staffMembers rosterGroups requestedFilters =
             guard (any (\staff -> staffCanProduceTimesheets staff && unpackId (get #id staff) == staffFilterId) staffMembers)
             pure staffFilterId
         , filterRosterGroupId = do
+            guard (length rosterGroups > 1)
             rosterGroupFilterId <- requestedFilters.filterRosterGroupId
             guard (any ((== rosterGroupFilterId) . unpackId . (.id)) rosterGroups)
             pure rosterGroupFilterId
@@ -131,7 +132,7 @@ fetchActiveTimesheetRosterGroups =
         |> fetch
 
 fetchTimesheetDataForWeek :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Day -> Day -> Bool -> [Staff] -> TimesheetViewFilters -> IO ([TimesheetEntry], Maybe UUID.UUID, [TimesheetStaffPanelEntry])
-fetchTimesheetDataForWeek weekStartDate weekEndDate hideApproved staffMembers validFilters = do
+fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved staffMembers validFilters = do
     maybeCurrentViewerStaff <- fetchCurrentUserStaff
 
     let (weekStartsAt, weekEndsAt) = requireMelbourneDateRangeUTC weekStartDate weekEndDate
@@ -159,7 +160,7 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate hideApproved staffMembers va
     let authorizedEntries = if hasRole Manager then allManagerEntries else workerEntries
     rosterGroupEntries <- filterTimesheetEntriesByRosterGroup validFilters.filterRosterGroupId authorizedEntries
     let entries = rosterGroupEntries
-            |> filter (not . (hideApproved &&) . (.isApproved))
+            |> filter (\entry -> showApproved || not entry.isApproved)
             |> filter (\entry -> maybe True (== entry.staffId) validFilters.filterStaffId)
     staffPanelEntries <-
         if hasRole Manager
@@ -380,7 +381,7 @@ fetchTimesheetWeekProjection :: (?context :: ControllerContext, ?modelContext ::
 fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset = weekOffset, projectionFilters = requestedFilters } = do
     venueConfig <- fetchVenueConfig
     preferences <- fetchCurrentUserTimesheetPreferences
-    let hideApproved = preferences.userTimesheetHideApproved
+    let showApproved = preferences.userTimesheetShowApproved
     let showTimesheetSuggestions = preferences.userTimesheetShowSuggestions
     let showWageEstimates = canViewTimesheetWageEstimates && preferences.userTimesheetShowWageEstimates
     let weekStartDate = venueWeekStartDate venueConfig weekOffset
@@ -392,7 +393,7 @@ fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset =
             if hasRole Manager
                 then canonicalTimesheetFiltersFor staffMembers activeRosterGroups requestedFilters
                 else emptyTimesheetViewFilters
-    (entries, currentViewerStaffId, staffPanelEntries) <- profileActionSpan "timesheets.fetch_week_data" (fetchTimesheetDataForWeek weekStartDate weekEndDate hideApproved staffMembers validFilters)
+    (entries, currentViewerStaffId, staffPanelEntries) <- profileActionSpan "timesheets.fetch_week_data" (fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved staffMembers validFilters)
     suggestions <-
         if showTimesheetSuggestions
             then profileActionSpan "timesheets.fetch_suggestions" (fetchTimesheetSuggestionsForWeek venueConfig weekOffset validFilters activeRosterGroups staffMembers currentViewerStaffId)
@@ -416,7 +417,7 @@ fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset =
             , timesheetWeekOffset = weekOffset
             , timesheetWeekStartDate = weekStartDate
             , timesheetWeekEndDate = weekEndDate
-            , timesheetHideApproved = hideApproved
+            , timesheetShowApproved = showApproved
             , timesheetSuggestionsVisible = showTimesheetSuggestions
             , timesheetShowWageEstimates = showWageEstimates
             , timesheetWageEstimates = wageEstimates
@@ -536,7 +537,7 @@ timesheetDayRenderModelFromProjection projection dayOffset =
         }
 
 timesheetIndexView :: (?context :: ControllerContext) => TimesheetWeekProjection -> IndexView
-timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetSuggestions, timesheetStaffMembers, timesheetShiftTypes, timesheetToday, timesheetEditWindowDays, timesheetWeekOffset, timesheetWeekStartDate, timesheetWeekEndDate, timesheetHideApproved, timesheetSuggestionsVisible, timesheetShowWageEstimates, timesheetWageEstimates, timesheetRosterGroups, timesheetFilters, timesheetCurrentViewerStaffId, timesheetStaffPanelEntries } =
+timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetSuggestions, timesheetStaffMembers, timesheetShiftTypes, timesheetToday, timesheetEditWindowDays, timesheetWeekOffset, timesheetWeekStartDate, timesheetWeekEndDate, timesheetShowApproved, timesheetSuggestionsVisible, timesheetShowWageEstimates, timesheetWageEstimates, timesheetRosterGroups, timesheetFilters, timesheetCurrentViewerStaffId, timesheetStaffPanelEntries } =
     IndexView
         { entries = timesheetEntries
         , suggestions = timesheetSuggestions
@@ -547,7 +548,7 @@ timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetSuggesti
         , weekOffset = timesheetWeekOffset
         , weekStartDate = timesheetWeekStartDate
         , weekEndDate = timesheetWeekEndDate
-        , hideApproved = timesheetHideApproved
+        , showApproved = timesheetShowApproved
         , showTimesheetSuggestions = timesheetSuggestionsVisible
         , showTimesheetWageEstimates = timesheetShowWageEstimates
         , wageEstimates = timesheetWageEstimates

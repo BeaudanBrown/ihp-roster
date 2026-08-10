@@ -10,7 +10,7 @@ module Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action
     ( ApproveTimesheetEntryActionOperation
     , CreateTimesheetEntryFromSuggestionActionOperation
     , NavigateTimesheetWeekActionOperation
-    , ToggleTimesheetHideApprovedActionOperation
+    , ToggleTimesheetShowApprovedActionOperation
     , ToggleTimesheetShowSuggestionsActionOperation
     , ToggleTimesheetWageEstimatesActionOperation
     , UnapproveTimesheetEntryActionOperation
@@ -23,12 +23,12 @@ module Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action
     , navigateTimesheetWeekActionFields
     , parseApproveTimesheetEntryActionParams
     , parseCreateTimesheetEntryFromSuggestionActionParams
-    , parseToggleTimesheetHideApprovedActionParams
+    , parseToggleTimesheetShowApprovedActionParams
     , parseToggleTimesheetShowSuggestionsActionParams
     , parseToggleTimesheetWageEstimatesActionParams
     , parseUnapproveTimesheetEntryActionParams
-    , toggleTimesheetHideApprovedAction
-    , toggleTimesheetHideApprovedActionFields
+    , toggleTimesheetShowApprovedAction
+    , toggleTimesheetShowApprovedActionFields
     , toggleTimesheetShowSuggestionsAction
     , toggleTimesheetShowSuggestionsActionFields
     , toggleTimesheetWageEstimatesAction
@@ -172,46 +172,46 @@ navigateTimesheetWeekAction :: ActionFields NavigateTimesheetWeekActionOperation
 navigateTimesheetWeekAction =
     frontendSurfaceActionFromEvidence navigateTimesheetWeekActionEvidence
 
-data ToggleTimesheetHideApprovedActionOperation
+data ToggleTimesheetShowApprovedActionOperation
 
-type instance ActionSurface ToggleTimesheetHideApprovedActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.TimesheetsAdapterFamily)
-type instance ActionMarker ToggleTimesheetHideApprovedActionOperation = Types1.ToggleTimesheetHideApproved
-type instance ActionFieldSpecs ToggleTimesheetHideApprovedActionOperation =
+type instance ActionSurface ToggleTimesheetShowApprovedActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.TimesheetsAdapterFamily)
+type instance ActionMarker ToggleTimesheetShowApprovedActionOperation = Types1.ToggleTimesheetShowApproved
+type instance ActionFieldSpecs ToggleTimesheetShowApprovedActionOperation =
     '[ 'Field Types1.WeekOffset 'WireInt
-     , 'Field Types1.HideApproved 'WireBool
+     , 'Field Types1.ShowApproved 'WireBool
      , 'OptionalField Types1.StaffFilterId 'WireUUID
      , 'OptionalField Types1.RosterGroupFilterId 'WireUUID
      ]
 
-toggleTimesheetHideApprovedActionFields ::
+toggleTimesheetShowApprovedActionFields ::
     Int ->
     Bool ->
     Maybe UUID.UUID ->
     Maybe UUID.UUID ->
-    ActionFields ToggleTimesheetHideApprovedActionOperation
-toggleTimesheetHideApprovedActionFields weekOffset hideApproved staffFilterId rosterGroupFilterId =
+    ActionFields ToggleTimesheetShowApprovedActionOperation
+toggleTimesheetShowApprovedActionFields weekOffset showApproved staffFilterId rosterGroupFilterId =
     actionFields
         (surfaceField @Types1.WeekOffset weekOffset)
-        ( surfaceField @Types1.HideApproved hideApproved
+        ( surfaceField @Types1.ShowApproved showApproved
             &: surfaceOptionalField @Types1.StaffFilterId staffFilterId
             &: surfaceOptionalField @Types1.RosterGroupFilterId rosterGroupFilterId
             &: noSurfaceFields
         )
 
-toggleTimesheetHideApprovedActionEvidence :: ActionEvidence ToggleTimesheetHideApprovedActionOperation
-toggleTimesheetHideApprovedActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "ToggleTimesheetHideApproved" "toggle-timesheet-hide-approved" [SurfaceIR.FieldIR "WeekOffset" "weekOffset" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "HideApproved" "hideApproved" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaffFilterId" "staffFilterId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "RosterGroupFilterId" "rosterGroupFilterId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+toggleTimesheetShowApprovedActionEvidence :: ActionEvidence ToggleTimesheetShowApprovedActionOperation
+toggleTimesheetShowApprovedActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "ToggleTimesheetShowApproved" "toggle-timesheet-show-approved" [SurfaceIR.FieldIR "WeekOffset" "weekOffset" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "ShowApproved" "showApproved" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaffFilterId" "staffFilterId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "RosterGroupFilterId" "rosterGroupFilterId" (SurfaceIR.WireUuidIR) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "none" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
 
-toggleTimesheetHideApprovedAction :: ActionFields ToggleTimesheetHideApprovedActionOperation -> FrontendSurfaceAction
-toggleTimesheetHideApprovedAction =
-    frontendSurfaceActionFromEvidence toggleTimesheetHideApprovedActionEvidence
+toggleTimesheetShowApprovedAction :: ActionFields ToggleTimesheetShowApprovedActionOperation -> FrontendSurfaceAction
+toggleTimesheetShowApprovedAction =
+    frontendSurfaceActionFromEvidence toggleTimesheetShowApprovedActionEvidence
 
-parseToggleTimesheetHideApprovedActionParams ::
+parseToggleTimesheetShowApprovedActionParams ::
     (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (ActionFields ToggleTimesheetHideApprovedActionOperation)
-parseToggleTimesheetHideApprovedActionParams =
+    Either [SurfaceRequestFieldError] (ActionFields ToggleTimesheetShowApprovedActionOperation)
+parseToggleTimesheetShowApprovedActionParams =
     parseActionParams
-        @ToggleTimesheetHideApprovedActionOperation
+        @ToggleTimesheetShowApprovedActionOperation
 
 data ToggleTimesheetShowSuggestionsActionOperation
 

@@ -79,9 +79,93 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callAction NewStaffAction
 
+                defaultRosterGroup <- query @RosterGroup
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#isDefault, True)
+                    |> fetchOne
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Add Trial"
                 response `responseBodyShouldNotContain` "Edit Staff Member"
+                response `responseBodyShouldNotContain` ">Roster Groups</label>"
+                response `responseBodyShouldContain` cs ("name=\"rosterGroupIds\" value=\"" <> tshow (unpackId defaultRosterGroup.id) <> "\"")
+
+        it "assigns the sole active roster group when staff creation omits group fields" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Implicit Trial Staff Group Venue"
+                manager <- createUserRecord "implicit-trial-group-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                soleRosterGroup <- query @RosterGroup
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#isActive, True)
+                    |> fetchOne
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams CreateStaffAction
+                        [ ("firstName", "Implicit")
+                        , ("lastName", "Group")
+                        , ("phone", "Trial placeholder")
+                        , ("emergencyContactName", "Trial placeholder")
+                        , ("emergencyContactPhone", "Trial placeholder")
+                        , ("idealShiftsPerWeek", "2")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                staff <- query @Staff
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#firstName, "Implicit" :: Text)
+                    |> fetchOne
+                assignments <- query @StaffRosterGroup
+                    |> filterWhere (#staffId, unpackId staff.id)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
+                map (.rosterGroupId) assignments `shouldBe` [unpackId soleRosterGroup.id]
+
+        it "rejects new assignments to inactive roster groups" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Inactive Trial Staff Group Venue"
+                manager <- createUserRecord "inactive-trial-group-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                activeGroup <- query @RosterGroup
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#isActive, True)
+                    |> fetchOne
+                inactiveGroup <- createVenueRosterGroupWithDefaults venue "Inactive group" 20 False
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams CreateStaffAction
+                        [ ("firstName", "Rejected")
+                        , ("lastName", "Inactive")
+                        , ("phone", "Trial placeholder")
+                        , ("emergencyContactName", "Trial placeholder")
+                        , ("emergencyContactPhone", "Trial placeholder")
+                        , ("idealShiftsPerWeek", "2")
+                        , ("rosterGroupIds", cs (tshow activeGroup.id))
+                        , ("rosterGroupIds", cs (tshow inactiveGroup.id))
+                        ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Inactive roster groups can only be retained"
+                query @Staff
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#firstName, "Rejected" :: Text)
+                    |> fetchCount
+                    >>= (`shouldBe` 0)
+
+        it "shows roster-group choices when multiple active groups exist" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Multiple Trial Staff Groups Venue"
+                manager <- createUserRecord "multiple-trial-groups-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                secondGroup <- createVenueRosterGroupWithDefaults venue "Second group" 20 True
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction NewStaffAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` ">Roster Groups</label>"
+                response `responseBodyShouldContain` secondGroup.name
+                response `responseBodyShouldContain` cs ("id=\"staff-roster-group-" <> tshow secondGroup.id <> "\"")
 
         it "lets managers create active casual trial staff placeholders with selected roster groups" $ withContext do
             withCleanDb do
@@ -890,8 +974,58 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"create-staff-leave-request\""
                 response `responseBodyShouldContain` "id=\"staff-profile-details-collapse\" class=\"accordion-collapse collapse\""
                 response `responseBodyShouldContain` "id=\"staff-profile-preferences-collapse\" class=\"accordion-collapse collapse\""
+                soleRosterGroup <- query @RosterGroup
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#isActive, True)
+                    |> fetchOne
                 response `responseBodyShouldContain` "id=\"staff-shift-preferences-form\""
                 response `responseBodyShouldContain` "<span class=\"fw-semibold\">Shift Preferences</span>"
+                response `responseBodyShouldNotContain` ">Roster Groups</label>"
+                response `responseBodyShouldContain` cs ("name=\"rosterGroupIds\" value=\"" <> tshow (unpackId soleRosterGroup.id) <> "\"")
+
+        it "preserves inactive roster-group history while collapsing the sole active choice" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Inactive Group History Venue"
+                manager <- createUserRecord "staff-inactive-group-history-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                activeGroup <- query @RosterGroup
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#isActive, True)
+                    |> fetchOne
+                inactiveGroup <- createVenueRosterGroupWithDefaults venue "Inactive history" 20 False
+                staff <- createStaffRecord venue Nothing "History" "Keeper"
+                _ <- newRecord @StaffRosterGroup
+                    |> set #staffId (unpackId staff.id)
+                    |> set #rosterGroupId (unpackId inactiveGroup.id)
+                    |> createRecord
+
+                editResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                editResponse `responseStatusShouldBe` status200
+                editResponse `responseBodyShouldNotContain` ">Roster Groups</label>"
+                editResponse `responseBodyShouldContain` cs ("name=\"rosterGroupIds\" value=\"" <> tshow (unpackId activeGroup.id) <> "\"")
+                editResponse `responseBodyShouldContain` cs ("name=\"rosterGroupIds\" value=\"" <> tshow (unpackId inactiveGroup.id) <> "\"")
+
+                updateResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (UpdateStaffAction staff.id)
+                        [ ("section", "profile")
+                        , ("firstName", "History")
+                        , ("lastName", "Keeper")
+                        , ("preferredName", "")
+                        , ("phone", "0400000000")
+                        , ("emergencyContactName", "Jordan Keeper")
+                        , ("emergencyContactPhone", "0411111111")
+                        , ("idealShiftsPerWeek", "4")
+                        , ("weekOffset", "0")
+                        , ("rosterGroupIds", cs (tshow activeGroup.id))
+                        , ("rosterGroupIds", cs (tshow inactiveGroup.id))
+                        ]
+                updateResponse `responseStatusShouldBe` status302
+                assignments <- query @StaffRosterGroup
+                    |> filterWhere (#staffId, unpackId staff.id)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
+                sort (map (.rosterGroupId) assignments) `shouldBe` sort [unpackId activeGroup.id, unpackId inactiveGroup.id]
 
         it "updates explicit roster-group applicability from the staff edit form" $ withContext do
             withCleanDb do
