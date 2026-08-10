@@ -24,7 +24,24 @@ let
   hasJobRunner = builtins.pathExists ../../../Application/Job;
   hasServiceUser = cfg.serviceUser != null;
   effectiveServiceGroup = if cfg.serviceGroup != null then cfg.serviceGroup else cfg.serviceUser;
-  schemaReadyService = if cfg.enableMigrations then "wage-cutover.service" else "loadSchema.service";
+  migrationDirectory = ../../../Application/Migration;
+  normalizeMigrationRevision = revision:
+    if revision == "0" then
+      revision
+    else if lib.hasPrefix "0" revision then
+      normalizeMigrationRevision (lib.removePrefix "0" revision)
+    else
+      revision;
+  migrationRevision = fileName:
+    let
+      match = builtins.match "([0-9]+).*\\.sql" fileName;
+    in
+    if match == null then null else normalizeMigrationRevision (builtins.elemAt match 0);
+  migrationRevisions = builtins.filter (revision: revision != null) (
+    map migrationRevision (builtins.attrNames (builtins.readDir migrationDirectory))
+  );
+  expectedMigrationRevisions = lib.concatStringsSep "\n" migrationRevisions;
+  schemaReadyService = if cfg.enableMigrations then "schema-migrations-ready.service" else "loadSchema.service";
 
   serviceUserConfig = optionalAttrs hasServiceUser {
     User = cfg.serviceUser;
@@ -927,7 +944,7 @@ in
         enable = true;
         domain = cfg.domain;
         baseUrl = cfg.baseUrl;
-        migrations = if cfg.enableMigrations then ../../../Application/Migration else null;
+        migrations = if cfg.enableMigrations then migrationDirectory else null;
         schema = ../../../Application/Schema.sql;
         httpsEnabled = cfg.httpsEnabled;
         databaseName = cfg.databaseName;
@@ -977,7 +994,9 @@ in
           pkgs.postgresql
           pkgs.gnugrep
         ];
-        serviceConfig = serviceUserConfig;
+        serviceConfig = serviceUserConfig // optionalAttrs (appWorkerEnvironmentFiles != [ ]) {
+          EnvironmentFile = appWorkerEnvironmentFiles;
+        };
         script = mkForce ''
           DB_URL=''${DATABASE_URL:-''${DEFAULT_DATABASE_URL}}
           if ${pkgs.postgresql}/bin/psql "$DB_URL" -tAc "SELECT to_regtype('public.venue_status_enum') IS NOT NULL" | grep -q t; then
@@ -992,12 +1011,38 @@ in
         after = [ "loadSchema.service" ];
         requires = [ "loadSchema.service" ];
         before = [ "wage-cutover.service" ];
-        serviceConfig = serviceUserConfig;
+        serviceConfig = serviceUserConfig // optionalAttrs (appWorkerEnvironmentFiles != [ ]) {
+          EnvironmentFile = appWorkerEnvironmentFiles;
+        };
       };
       systemd.services.wage-cutover = mkIf cfg.enableMigrations {
         description = "Backfill immutable Haskell wage facts and retire legacy SQL calculators";
         after = [ "migrate.service" ];
         requires = [ "migrate.service" ];
+        before = [ "schema-migrations-ready.service" ];
+        environment.DEFAULT_DATABASE_URL =
+          if cfg.databaseUrl != null then
+            cfg.databaseUrl
+          else
+            "postgresql://${cfg.databaseUser}@/${cfg.databaseName}";
+        path = [ pkgs.postgresql ];
+        serviceConfig = serviceUserConfig // {
+          Type = "oneshot";
+        } // optionalAttrs (appWorkerEnvironmentFiles != [ ]) {
+          EnvironmentFile = appWorkerEnvironmentFiles;
+        };
+        script = ''
+          DB_URL=''${DATABASE_URL:-''${DEFAULT_DATABASE_URL}}
+          export DATABASE_URL="$DB_URL"
+          ${if cfg.package != null then cfg.package else defaultPackage}/bin/BackfillTimesheetPayLedger
+          ${pkgs.postgresql}/bin/psql "$DB_URL" -v ON_ERROR_STOP=1 \
+            -f ${../../../Application/Deployment/retire-legacy-wage-calculators.sql}
+        '';
+      };
+      systemd.services.schema-migrations-ready = mkIf cfg.enableMigrations {
+        description = "Verify all deployed ihp-roster migrations are applied";
+        after = [ "wage-cutover.service" ];
+        requires = [ "wage-cutover.service" ];
         before = [
           "app.service"
           "worker.service"
@@ -1007,18 +1052,37 @@ in
             cfg.databaseUrl
           else
             "postgresql://${cfg.databaseUser}@/${cfg.databaseName}";
-        path = [ pkgs.postgresql ];
-        serviceConfig = serviceUserConfig // {
+        path = [
+          pkgs.coreutils
+          pkgs.postgresql
+        ];
+        serviceConfig = serviceUserConfig // optionalAttrs (appWorkerEnvironmentFiles != [ ]) {
+          EnvironmentFile = appWorkerEnvironmentFiles;
+        } // {
           Type = "oneshot";
-        } // optionalAttrs (runtimeEnvironmentFiles != [ ]) {
-          EnvironmentFile = runtimeEnvironmentFiles;
         };
         script = ''
           DB_URL=''${DATABASE_URL:-''${DEFAULT_DATABASE_URL}}
-          export DATABASE_URL="$DB_URL"
-          ${if cfg.package != null then cfg.package else defaultPackage}/bin/BackfillTimesheetPayLedger
-          ${pkgs.postgresql}/bin/psql "$DB_URL" -v ON_ERROR_STOP=1 \
-            -f ${../../../Application/Deployment/retire-legacy-wage-calculators.sql}
+          expected_file=$(mktemp)
+          applied_file=$(mktemp)
+          missing_file=$(mktemp)
+          trap 'rm -f "$expected_file" "$applied_file" "$missing_file"' EXIT
+
+          cat > "$expected_file" <<'EXPECTED_REVISIONS'
+          ${expectedMigrationRevisions}
+          EXPECTED_REVISIONS
+          sort -o "$expected_file" "$expected_file"
+
+          ${pkgs.postgresql}/bin/psql "$DB_URL" -v ON_ERROR_STOP=1 --tuples-only --no-align \
+            --command="SELECT revision FROM schema_migrations" \
+            | sort > "$applied_file"
+
+          comm -23 "$expected_file" "$applied_file" > "$missing_file"
+          if [ -s "$missing_file" ]; then
+            echo "Refusing to start ihp-roster: deployed migrations are missing:" >&2
+            cat "$missing_file" >&2
+            exit 1
+          fi
         '';
       };
       systemd.services.app.after = [
@@ -1053,7 +1117,10 @@ in
             exec ${if cfg.package != null then cfg.package else defaultPackage}/bin/BootstrapAccount
           '';
         }
-        // serviceUserConfig;
+        // serviceUserConfig
+        // optionalAttrs (appWorkerEnvironmentFiles != [ ]) {
+          EnvironmentFile = appWorkerEnvironmentFiles;
+        };
         environment = {
           DATABASE_URL =
             if cfg.databaseUrl != null then
