@@ -259,12 +259,14 @@ instance Controller AdminController where
     action currentAction@ProfileLiveInvalidateXeroAction = runBepis currentAction BepisPageAction $
         respondToProfileLiveInvalidation "xero" [xeroConnectionResource (unpackId currentVenueId)]
 
-    action currentAction@ProfileLiveInvalidateTimesheetWindowAction { anchorDate } = runBepis currentAction BepisPageAction do
+    action currentAction@ProfileLiveInvalidateTimesheetWindowAction { anchorDate = anchorDateParam } = runBepis currentAction BepisPageAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         venueConfig <- fetchVenueConfig
         let windowStart = startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate
         respondToProfileLiveInvalidation "timesheet_window" [timesheetWeekResource (unpackId currentVenueId) windowStart (addDays 7 windowStart)]
 
-    action currentAction@ProfileLiveInvalidateRosterWindowAction { rosterGroupId, anchorDate } = runBepis currentAction BepisPageAction do
+    action currentAction@ProfileLiveInvalidateRosterWindowAction { rosterGroupId, anchorDate = anchorDateParam } = runBepis currentAction BepisPageAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         venueConfig <- fetchVenueConfig
         let windowStart = startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate
         respondToProfileLiveInvalidation "roster_window" [rosterWeekResource (unpackId rosterGroupId) windowStart (addDays 7 windowStart)]

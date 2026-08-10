@@ -96,7 +96,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createRosterSlotRecord rosterDay slotName Nothing 0
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "roster-day-label-row-primary"
@@ -130,7 +130,7 @@ tests = aroundAll withDatabaseTestContext do
                         |> createRecord
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "roster-public-holiday-indicator"
@@ -577,7 +577,7 @@ tests = aroundAll withDatabaseTestContext do
                 publishTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterContentFragmentId))
 
                 contentResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekContentFragmentAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWeekContentFragmentAction (tshow (testAnchorForOffset 0)))
                 contentResponse `responseBodyShouldContain` ">Alpha<"
                 contentResponse `responseBodyShouldContain` "9:00 AM"
                 contentResponse `responseBodyShouldContain` ">Floor<"
@@ -705,7 +705,7 @@ tests = aroundAll withDatabaseTestContext do
                     >>= updateRecord . set #shiftTypeId (Just (unpackId shiftType.id))
 
                 beforeFill <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowTimesheetWindowAction (testAnchorForOffset 0))
+                    callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                 beforeFill `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow openSlot.id <> "\"")
 
                 dialogResponse <- withUserAndCurrentVenue manager venue.id do
@@ -733,7 +733,7 @@ tests = aroundAll withDatabaseTestContext do
                 filledSlot.rowIndex `shouldBe` openSlot.rowIndex
 
                 afterFill <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowTimesheetWindowAction (testAnchorForOffset 0))
+                    callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                 afterFill `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow openSlot.id <> "\"")
 
         it "rejects Published Open-shift tampering, deletion, ordinary staff writes, and Assigned transitions" $ withContext do
@@ -1168,7 +1168,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetch
                 retainedPublishedDays `shouldSatisfy` all ((== Published) . (.publicationState))
                 authoritativeResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                 authoritativeResponse `responseBodyShouldContain` ">Published</span></label>"
                 authoritativeResponse `responseBodyShouldContain` "role=\"switch\" aria-checked=\"true\""
 
@@ -1423,7 +1423,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- updateRecord (rosterDay |> set #isClosed True)
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "roster-day-closed-label"
@@ -1445,7 +1445,7 @@ tests = aroundAll withDatabaseTestContext do
                 slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
 
                 response <- withUser user do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` ">Alpha<"
@@ -1465,19 +1465,19 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetch
                 _ <- mapM (updateRecord . set #publicationState Draft) rosterDays
                 draftResponse <- withUser user do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                 draftResponse `responseBodyShouldNotContain` "data-bepis-roster-staff-highlight-default"
 
                 _ <- mapM (updateRecord . set #publicationState Published) rosterDays
                 _ <- updateRecord (staffMember |> set #isActive False)
                 inactiveStaffResponse <- withUser user do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                 inactiveStaffResponse `responseBodyShouldNotContain` "data-bepis-roster-staff-highlight-default"
 
                 _ <- updateRecord (staffMember |> set #isActive True)
                 _ <- updateRecord (slot |> set #assignmentState "open" |> set #staffId Nothing)
                 unassignedResponse <- withUser user do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                 unassignedResponse `responseBodyShouldNotContain` "data-bepis-roster-staff-highlight-default"
 
         it "hides roster warning controls and highlights from staff" $ withContext do
@@ -1496,13 +1496,13 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createRosterWeekRecord venue 0 True
 
                 managerResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
 
                 managerResponse `responseStatusShouldBe` status200
                 managerResponse `responseBodyShouldContain` "Warnings disabled"
 
                 workerResponse <- withUserAndCurrentVenue worker venue.id do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
 
                 workerResponse `responseStatusShouldBe` status200
                 workerResponse `responseBodyShouldNotContain` "Warnings enabled"
@@ -1522,7 +1522,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createRosterSlotRecord rosterDay slotName Nothing 0
 
                 draftManagerResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                 draftManagerResponse `responseStatusShouldBe` status200
                 draftManagerResponse `responseBodyShouldNotContain` "Export colour PNG"
                 draftManagerResponse `responseBodyShouldNotContain` "Export print PNG"
@@ -1533,7 +1533,7 @@ tests = aroundAll withDatabaseTestContext do
                     callActionWithParams (ToggleRosterWeekLiveStatusAction draftWeek.id) [("anchorDate", "2025-01-06"), ("isLive", "on"), ("rosterCalendarRevision", "1")]
 
                 liveManagerResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                 liveManagerResponse `responseStatusShouldBe` status200
                 liveManagerResponse `responseBodyShouldContain` "Export colour PNG"
                 liveManagerResponse `responseBodyShouldContain` "Export print PNG"
@@ -1557,14 +1557,14 @@ tests = aroundAll withDatabaseTestContext do
                             [("anchorDate", "2025-01-06"), ("rosterLayoutMode", "day_columns")]
 
                 dayColumnsManagerResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                 dayColumnsManagerResponse `responseStatusShouldBe` status200
                 dayColumnsManagerResponse `responseBodyShouldContain` "data-roster-layout=\"day_columns\""
                 dayColumnsManagerResponse `responseBodyShouldNotContain` "data-bepis-roster-image-export-trigger"
 
                 timelineManagerResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams
-                        (ShowRosterWindowAction (testAnchorForOffset 0))
+                        (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                         [ ("rosterView", "timeline")
                         , ("dayOffset", "0")
                         ]
@@ -1573,7 +1573,7 @@ tests = aroundAll withDatabaseTestContext do
                 timelineManagerResponse `responseBodyShouldNotContain` "data-bepis-roster-image-export-trigger"
 
                 workerResponse <- withUserAndCurrentVenue worker venue.id do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                 workerResponse `responseStatusShouldBe` status200
                 workerResponse `responseBodyShouldNotContain` "Export colour PNG"
                 workerResponse `responseBodyShouldNotContain` "Export print PNG"
@@ -1685,7 +1685,7 @@ tests = aroundAll withDatabaseTestContext do
                         |> createRecord
 
                 adminResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
 
                 adminResponse `responseStatusShouldBe` status200
                 adminResponse `responseBodyShouldContain` "data-roster-layout=\"day_rows\""
@@ -1709,7 +1709,7 @@ tests = aroundAll withDatabaseTestContext do
                 alphaToolbarResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (ShowRosterWeekGridToolbarFragmentAction (testAnchorForOffset 0))
+                            (ShowRosterWeekGridToolbarFragmentAction (tshow (testAnchorForOffset 0)))
                             [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                             , ("pinnedStaffKey", "staff:" <> cs (tshow staffMember.id))
                             ]
@@ -1721,7 +1721,7 @@ tests = aroundAll withDatabaseTestContext do
                 alphaWageRailResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (ShowRosterWeekWageRailFragmentAction (testAnchorForOffset 0))
+                            (ShowRosterWeekWageRailFragmentAction (tshow (testAnchorForOffset 0)))
                             [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                             , ("pinnedStaffKey", "staff:" <> cs (tshow staffMember.id))
                             ]
@@ -1731,7 +1731,7 @@ tests = aroundAll withDatabaseTestContext do
                 supportToolbarResponse <- withUserAndCurrentVenue supportAdmin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (ShowRosterWeekGridToolbarFragmentAction (testAnchorForOffset 0))
+                            (ShowRosterWeekGridToolbarFragmentAction (tshow (testAnchorForOffset 0)))
                             [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                             , ("pinnedStaffKey", "staff:" <> cs (tshow staffMember.id))
                             ]
@@ -1741,7 +1741,7 @@ tests = aroundAll withDatabaseTestContext do
                 ownerToolbarResponse <- withUserAndCurrentVenue owner venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (ShowRosterWeekGridToolbarFragmentAction (testAnchorForOffset 0))
+                            (ShowRosterWeekGridToolbarFragmentAction (tshow (testAnchorForOffset 0)))
                             [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                             , ("pinnedStaffKey", "staff:" <> cs (tshow staffMember.id))
                             ]
@@ -1751,7 +1751,7 @@ tests = aroundAll withDatabaseTestContext do
                 bravoToolbarResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (ShowRosterWeekGridToolbarFragmentAction (testAnchorForOffset 0))
+                            (ShowRosterWeekGridToolbarFragmentAction (tshow (testAnchorForOffset 0)))
                             [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                             , ("pinnedStaffKey", "staff:" <> cs (tshow secondStaff.id))
                             ]
@@ -1761,14 +1761,14 @@ tests = aroundAll withDatabaseTestContext do
                 unpinnedToolbarResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (ShowRosterWeekGridToolbarFragmentAction (testAnchorForOffset 0))
+                            (ShowRosterWeekGridToolbarFragmentAction (tshow (testAnchorForOffset 0)))
                             [("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))]
                 unpinnedToolbarResponse `responseBodyShouldContain` "$230.00"
 
                 foreignPinToolbarResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (ShowRosterWeekGridToolbarFragmentAction (testAnchorForOffset 0))
+                            (ShowRosterWeekGridToolbarFragmentAction (tshow (testAnchorForOffset 0)))
                             [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
                             , ("pinnedStaffKey", "staff:" <> cs (tshow foreignStaff.id))
                             ]
@@ -1777,7 +1777,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 fullNavigationIgnoresPinResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams
-                        (ShowRosterWindowAction (testAnchorForOffset 0))
+                        (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                         [("pinnedStaffKey", "staff:" <> cs (tshow secondStaff.id))]
                 fullNavigationIgnoresPinResponse `responseBodyShouldContain` "$230.00"
                 fullNavigationIgnoresPinResponse `responseBodyShouldNotContain` "$80.00"
@@ -1795,7 +1795,7 @@ tests = aroundAll withDatabaseTestContext do
                 dayColumnsTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterGridFrameFragmentId))
 
                 dayColumnsFrameResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction (ShowRosterWeekContentFragmentAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWeekContentFragmentAction (tshow (testAnchorForOffset 0)))
                 dayColumnsFrameResponse `responseBodyShouldContain` "data-roster-layout=\"day_columns\""
                 dayColumnsFrameResponse `responseBodyShouldContain` "Wages:"
                 dayColumnsFrameResponse `responseBodyShouldContain` "roster-wage-summary-total"
@@ -1817,13 +1817,13 @@ tests = aroundAll withDatabaseTestContext do
                 hiddenWagesTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterGridFrameFragmentId))
 
                 hiddenWagesFrameResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction (ShowRosterWeekContentFragmentAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWeekContentFragmentAction (tshow (testAnchorForOffset 0)))
                 hiddenWagesFrameResponse `responseBodyShouldContain` "data-roster-wages=\"hidden\""
                 hiddenWagesFrameResponse `responseBodyShouldNotContain` "Wages disabled"
                 hiddenWagesFrameResponse `responseBodyShouldNotContain` "Wages:"
                 hiddenWagesPanelResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams
-                        (ShowRosterWeekStaffPanelFragmentAction (testAnchorForOffset 0))
+                        (ShowRosterWeekStaffPanelFragmentAction (tshow (testAnchorForOffset 0)))
                         [("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))]
                 hiddenWagesPanelResponse `responseBodyShouldContain` "Wages disabled"
                 hiddenWagesFrameResponse `responseBodyShouldNotContain` "roster-wage-summary"
@@ -1834,7 +1834,7 @@ tests = aroundAll withDatabaseTestContext do
                 hiddenPreferences.showWageEstimates `shouldBe` False
 
                 managerResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
 
                 managerResponse `responseStatusShouldBe` status200
                 managerResponse `responseBodyShouldNotContain` "Week wage estimate"
@@ -1873,7 +1873,7 @@ tests = aroundAll withDatabaseTestContext do
                 preferences.highlightOwnLiveShifts `shouldBe` False
 
                 refreshedResponse <- withUserAndCurrentVenue worker venue.id do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                 refreshedResponse `responseBodyShouldNotContain` "data-bepis-roster-staff-highlight-default"
                 refreshedResponse `responseBodyShouldContain` "Own shifts not highlighted"
 
@@ -1902,7 +1902,7 @@ tests = aroundAll withDatabaseTestContext do
                     )
 
                 adminResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
 
                 adminResponse `responseStatusShouldBe` status200
                 adminResponse `responseBodyShouldContain` "data-roster-end-times=\"false\""
@@ -1926,13 +1926,13 @@ tests = aroundAll withDatabaseTestContext do
                 shownWagesTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterGridFrameFragmentId))
 
                 shownWagesFrameResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction (ShowRosterWeekContentFragmentAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWeekContentFragmentAction (tshow (testAnchorForOffset 0)))
                 shownWagesFrameResponse `responseBodyShouldContain` "data-roster-end-times=\"false\""
                 shownWagesFrameResponse `responseBodyShouldNotContain` "Wages enabled"
                 shownWagesFrameResponse `responseBodyShouldContain` "Wages:"
                 shownWagesPanelResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams
-                        (ShowRosterWeekStaffPanelFragmentAction (testAnchorForOffset 0))
+                        (ShowRosterWeekStaffPanelFragmentAction (tshow (testAnchorForOffset 0)))
                         [("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))]
                 shownWagesPanelResponse `responseBodyShouldContain` "Wages enabled"
                 shownWagesFrameResponse `responseBodyShouldContain` "$150.00"
@@ -2021,7 +2021,7 @@ tests = aroundAll withDatabaseTestContext do
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
                 timesheetsResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowTimesheetWindowAction (testAnchorForOffset 0))
+                    callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                 timesheetsResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slot.id <> "\"")
 
         it "hides draft-roster suggestions while preserving materialized timesheet snapshots" $ withContext do
@@ -2054,7 +2054,7 @@ tests = aroundAll withDatabaseTestContext do
                     )
 
                 liveResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowTimesheetWindowAction (testAnchorForOffset 0))
+                    callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                 liveResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow sourceSlot.id <> "\"")
                 liveResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow pendingSlot.id <> "\"")
 
@@ -2070,7 +2070,7 @@ tests = aroundAll withDatabaseTestContext do
                 draftResponse `responseStatusShouldBe` status200
 
                 timesheetsResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowTimesheetWindowAction (testAnchorForOffset 0))
+                    callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                 timesheetsResponse `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow pendingSlot.id <> "\"")
                 timesheetsResponse `responseBodyShouldContain` cs (pathTo EditTimesheetEntryAction { timesheetEntryId = materializedEntry.id })
                 unchangedEntry <- fetch materializedEntry.id
@@ -2224,7 +2224,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekRowFragmentAction (testAnchorForOffset 0) rosterDay.id 0)
+                    callAction (ShowRosterWeekRowFragmentAction (tshow (testAnchorForOffset 0)) rosterDay.id 0)
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` cs (rosterRowDomIdText rosterDay.id 0)
@@ -2245,7 +2245,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0 >>= updateRecord . set #shiftTypeId (Just (unpackId shiftType.id))
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-roster-layout=\"day_rows\""
@@ -2296,7 +2296,7 @@ tests = aroundAll withDatabaseTestContext do
                 managerPreferences.rosterLayoutMode `shouldBe` DayRows
 
                 showResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
 
                 showResponse `responseStatusShouldBe` status200
                 showResponse `responseBodyShouldContain` "data-roster-layout=\"day_columns\""
@@ -2321,7 +2321,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekContentFragmentAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWeekContentFragmentAction (tshow (testAnchorForOffset 0)))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` cs rosterContentFragmentId
@@ -2343,7 +2343,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekStaffPanelFragmentAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWeekStaffPanelFragmentAction (tshow (testAnchorForOffset 0)))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` cs rosterStaffPanelFragmentId
@@ -2374,7 +2374,7 @@ tests = aroundAll withDatabaseTestContext do
                 syncStaffRosterGroupAssignments trial [frontOfHouse.id]
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (ShowRosterWeekStaffPanelFragmentAction (testAnchorForOffset 0)) [("rosterGroupId", idToParam frontOfHouse.id)]
+                    callActionWithParams (ShowRosterWeekStaffPanelFragmentAction (tshow (testAnchorForOffset 0))) [("rosterGroupId", idToParam frontOfHouse.id)]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "&quot;staffName&quot;:&quot;Alpha&quot;"
@@ -2401,7 +2401,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createStaffRecord venue (Just worker) "Solo" "Crew"
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekStaffPanelFragmentAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWeekStaffPanelFragmentAction (tshow (testAnchorForOffset 0)))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "&quot;staffName&quot;:&quot;Solo&quot;"
@@ -2431,7 +2431,7 @@ tests = aroundAll withDatabaseTestContext do
                 syncStaffRosterGroupAssignments trial [backOfHouse.id]
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (ShowRosterWeekStaffPanelFragmentAction (testAnchorForOffset 0))
+                    callActionWithParams (ShowRosterWeekStaffPanelFragmentAction (tshow (testAnchorForOffset 0)))
                         [ ("rosterGroupId", idToParam frontOfHouse.id)
                         , ("staffScope", "all")
                         ]
@@ -2455,7 +2455,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
 
                 response <- withUserAndCurrentVenue staffUser venue.id do
-                    callAction (ShowRosterWeekRowFragmentAction (testAnchorForOffset 0) rosterDay.id 0)
+                    callAction (ShowRosterWeekRowFragmentAction (tshow (testAnchorForOffset 0)) rosterDay.id 0)
 
                 response `responseStatusShouldBe` status200
                 body <- responseBody response

@@ -63,12 +63,12 @@ data ProfilesController
 
 data TimesheetsController
     = TimesheetsAction
-    | ShowTimesheetWindowAction { anchorDate :: !Day }
+    | ShowTimesheetWindowAction { anchorDate :: !Text }
     | ShowTimesheetWeekAction { weekOffset :: !Int }
-    | ShowtimesheetToolbarLiveFragmentAction { anchorDate :: !Day }
-    | ShowtimesheetDayColumnsLiveFragmentAction { anchorDate :: !Day }
-    | ShowtimesheetSidePanelContentLiveFragmentAction { anchorDate :: !Day }
-    | ShowTimesheetDaySectionFragmentAction { anchorDate :: !Day, operationalDate :: !Day }
+    | ShowtimesheetToolbarLiveFragmentAction { anchorDate :: !Text }
+    | ShowtimesheetDayColumnsLiveFragmentAction { anchorDate :: !Text }
+    | ShowtimesheetSidePanelContentLiveFragmentAction { anchorDate :: !Text }
+    | ShowTimesheetDaySectionFragmentAction { anchorDate :: !Text, operationalDate :: !Text }
     | ToggleTimesheetHideApprovedAction
     | ToggleTimesheetShowSuggestionsAction
     | NewTimesheetEntryAction
@@ -178,8 +178,8 @@ data AdminController
     | ProfileLiveInvalidateBillingAction
     | ProfileLiveInvalidateAdminInvitesAction
     | ProfileLiveInvalidateXeroAction
-    | ProfileLiveInvalidateTimesheetWindowAction { anchorDate :: !Day }
-    | ProfileLiveInvalidateRosterWindowAction { rosterGroupId :: !(Id RosterGroup), anchorDate :: !Day }
+    | ProfileLiveInvalidateTimesheetWindowAction { anchorDate :: !Text }
+    | ProfileLiveInvalidateRosterWindowAction { rosterGroupId :: !(Id RosterGroup), anchorDate :: !Text }
     | ProfileLiveInvalidateLeaveRequestsAction
     deriving (Eq, Show, Data)
 
@@ -259,21 +259,21 @@ data RosterTemplatesController
 
 data RosterWeeksController
     = RosterWeeksAction
-    | ShowRosterWindowAction { anchorDate :: !Day }
+    | ShowRosterWindowAction { anchorDate :: !Text }
     | ShowRosterWeekAction { weekOffset :: !Int }
     | ShowRosterDayTimelineAction { weekOffset :: !Int, rosterDayId :: !(Id RosterDay) }
-    | ShowRosterDayTimelineContentFragmentAction { anchorDate :: !Day, rosterDayId :: !(Id RosterDay) }
-    | ShowRosterWeekOverviewFragmentAction { anchorDate :: !Day }
-    | ShowRosterWeekContentFragmentAction { anchorDate :: !Day }
-    | ShowRosterWeekGridToolbarFragmentAction { anchorDate :: !Day }
-    | ShowRosterWeekGridFrameFragmentAction { anchorDate :: !Day }
-    | ShowRosterWeekDayColumnsFragmentAction { anchorDate :: !Day }
-    | ShowRosterWeekDayRailFragmentAction { anchorDate :: !Day }
-    | ShowRosterWeekWageRailFragmentAction { anchorDate :: !Day }
-    | ShowRosterWeekSlotsGridFragmentAction { anchorDate :: !Day }
-    | ShowRosterWeekStaffPanelFragmentAction { anchorDate :: !Day }
-    | ShowRosterWeekDaySectionFragmentAction { anchorDate :: !Day, rosterDayId :: !(Id RosterDay) }
-    | ShowRosterWeekRowFragmentAction { anchorDate :: !Day, rosterDayId :: !(Id RosterDay), rowIndex :: !Int }
+    | ShowRosterDayTimelineContentFragmentAction { anchorDate :: !Text, rosterDayId :: !(Id RosterDay) }
+    | ShowRosterWeekOverviewFragmentAction { anchorDate :: !Text }
+    | ShowRosterWeekContentFragmentAction { anchorDate :: !Text }
+    | ShowRosterWeekGridToolbarFragmentAction { anchorDate :: !Text }
+    | ShowRosterWeekGridFrameFragmentAction { anchorDate :: !Text }
+    | ShowRosterWeekDayColumnsFragmentAction { anchorDate :: !Text }
+    | ShowRosterWeekDayRailFragmentAction { anchorDate :: !Text }
+    | ShowRosterWeekWageRailFragmentAction { anchorDate :: !Text }
+    | ShowRosterWeekSlotsGridFragmentAction { anchorDate :: !Text }
+    | ShowRosterWeekStaffPanelFragmentAction { anchorDate :: !Text }
+    | ShowRosterWeekDaySectionFragmentAction { anchorDate :: !Text, rosterDayId :: !(Id RosterDay) }
+    | ShowRosterWeekRowFragmentAction { anchorDate :: !Text, rosterDayId :: !(Id RosterDay), rowIndex :: !Int }
     | UpdateRosterAssignmentFiltersAction
     | CreateRosterWeekAction
     | CopyRosterWeekAction

@@ -68,13 +68,13 @@ returnPathHasQueryParameter parameterName candidate =
 rosterWindowBaseUrl :: Day -> Text
 rosterWindowBaseUrl anchorDate =
     replaceQueryParams
-        (pathTo ShowRosterWindowAction { anchorDate })
+        (pathTo ShowRosterWindowAction { anchorDate = tshow anchorDate })
         [("anchorDate", formatDayParam anchorDate)]
 
 rosterWindowUrl :: Day -> Id RosterGroup -> Text
 rosterWindowUrl anchorDate rosterGroupId =
     replaceQueryParams
-        (pathTo ShowRosterWindowAction { anchorDate })
+        (pathTo ShowRosterWindowAction { anchorDate = tshow anchorDate })
         (surfaceFieldsText (RosterAction.navigateRosterWeekActionFields anchorDate (coerce rosterGroupId)))
 
 rosterWeekWithDateUrl :: Id RosterGroup -> Day -> Text
@@ -96,7 +96,7 @@ rosterTimelineWindowUrl operationalDate rosterGroupId =
 rosterDayTimelineContentFragmentUrl :: Day -> Id RosterGroup -> Id RosterDay -> Text
 rosterDayTimelineContentFragmentUrl anchorDate rosterGroupId rosterDayId =
     replaceQueryParams
-        (pathTo ShowRosterDayTimelineContentFragmentAction { anchorDate, rosterDayId })
+        (pathTo ShowRosterDayTimelineContentFragmentAction { anchorDate = tshow anchorDate, rosterDayId })
         [ ("anchorDate", formatDayParam anchorDate)
         , ("rosterDayId", tshow rosterDayId)
         , ("rosterGroupId", tshow rosterGroupId)
@@ -104,44 +104,44 @@ rosterDayTimelineContentFragmentUrl anchorDate rosterGroupId rosterDayId =
 
 rosterOverviewFragmentUrl :: Day -> Id RosterGroup -> Text
 rosterOverviewFragmentUrl anchorDate rosterGroupId =
-    replaceQueryParams (pathTo ShowRosterWeekOverviewFragmentAction { anchorDate }) (rosterWindowActionQuery anchorDate rosterGroupId)
+    replaceQueryParams (pathTo ShowRosterWeekOverviewFragmentAction { anchorDate = tshow anchorDate }) (rosterWindowActionQuery anchorDate rosterGroupId)
 
 rosterWeekContentFragmentUrl :: Day -> Id RosterGroup -> Text
 rosterWeekContentFragmentUrl anchorDate rosterGroupId =
-    replaceQueryParams (pathTo ShowRosterWeekContentFragmentAction { anchorDate }) (rosterWindowActionQuery anchorDate rosterGroupId)
+    replaceQueryParams (pathTo ShowRosterWeekContentFragmentAction { anchorDate = tshow anchorDate }) (rosterWindowActionQuery anchorDate rosterGroupId)
 
 rosterWeekGridToolbarFragmentUrl :: Day -> Id RosterGroup -> Maybe Day -> Text
 rosterWeekGridToolbarFragmentUrl anchorDate rosterGroupId maybeTimelineDate =
-    replaceQueryParams (pathTo ShowRosterWeekGridToolbarFragmentAction { anchorDate }) (("anchorDate", formatDayParam anchorDate) : rosterViewQueryParams rosterGroupId maybeTimelineDate)
+    replaceQueryParams (pathTo ShowRosterWeekGridToolbarFragmentAction { anchorDate = tshow anchorDate }) (("anchorDate", formatDayParam anchorDate) : rosterViewQueryParams rosterGroupId maybeTimelineDate)
 
 rosterWeekGridFrameFragmentUrl :: Day -> Id RosterGroup -> Maybe Day -> Text
 rosterWeekGridFrameFragmentUrl anchorDate rosterGroupId maybeTimelineDate =
-    replaceQueryParams (pathTo ShowRosterWeekGridFrameFragmentAction { anchorDate }) (("anchorDate", formatDayParam anchorDate) : rosterViewQueryParams rosterGroupId maybeTimelineDate)
+    replaceQueryParams (pathTo ShowRosterWeekGridFrameFragmentAction { anchorDate = tshow anchorDate }) (("anchorDate", formatDayParam anchorDate) : rosterViewQueryParams rosterGroupId maybeTimelineDate)
 
 rosterWeekDayColumnsFragmentUrl :: Day -> Id RosterGroup -> Text
 rosterWeekDayColumnsFragmentUrl anchorDate rosterGroupId =
-    replaceQueryParams (pathTo ShowRosterWeekDayColumnsFragmentAction { anchorDate }) (rosterWindowActionQuery anchorDate rosterGroupId)
+    replaceQueryParams (pathTo ShowRosterWeekDayColumnsFragmentAction { anchorDate = tshow anchorDate }) (rosterWindowActionQuery anchorDate rosterGroupId)
 
 rosterWeekDayRailFragmentUrl :: Day -> Id RosterGroup -> Text
 rosterWeekDayRailFragmentUrl anchorDate rosterGroupId =
-    replaceQueryParams (pathTo ShowRosterWeekDayRailFragmentAction { anchorDate }) (rosterWindowActionQuery anchorDate rosterGroupId)
+    replaceQueryParams (pathTo ShowRosterWeekDayRailFragmentAction { anchorDate = tshow anchorDate }) (rosterWindowActionQuery anchorDate rosterGroupId)
 
 rosterWeekWageRailFragmentUrl :: Day -> Id RosterGroup -> Text
 rosterWeekWageRailFragmentUrl anchorDate rosterGroupId =
-    replaceQueryParams (pathTo ShowRosterWeekWageRailFragmentAction { anchorDate }) (rosterWindowActionQuery anchorDate rosterGroupId)
+    replaceQueryParams (pathTo ShowRosterWeekWageRailFragmentAction { anchorDate = tshow anchorDate }) (rosterWindowActionQuery anchorDate rosterGroupId)
 
 rosterWeekSlotsGridFragmentUrl :: Day -> Id RosterGroup -> Text
 rosterWeekSlotsGridFragmentUrl anchorDate rosterGroupId =
-    replaceQueryParams (pathTo ShowRosterWeekSlotsGridFragmentAction { anchorDate }) (rosterWindowActionQuery anchorDate rosterGroupId)
+    replaceQueryParams (pathTo ShowRosterWeekSlotsGridFragmentAction { anchorDate = tshow anchorDate }) (rosterWindowActionQuery anchorDate rosterGroupId)
 
 rosterWeekStaffPanelFragmentUrl :: Day -> Id RosterGroup -> Text
 rosterWeekStaffPanelFragmentUrl anchorDate rosterGroupId =
-    replaceQueryParams (pathTo ShowRosterWeekStaffPanelFragmentAction { anchorDate }) (rosterWindowActionQuery anchorDate rosterGroupId)
+    replaceQueryParams (pathTo ShowRosterWeekStaffPanelFragmentAction { anchorDate = tshow anchorDate }) (rosterWindowActionQuery anchorDate rosterGroupId)
 
 rosterWeekDaySectionFragmentUrl :: Day -> Id RosterGroup -> Id RosterDay -> Text
 rosterWeekDaySectionFragmentUrl anchorDate rosterGroupId rosterDayId =
     replaceQueryParams
-        (pathTo ShowRosterWeekDaySectionFragmentAction { anchorDate, rosterDayId })
+        (pathTo ShowRosterWeekDaySectionFragmentAction { anchorDate = tshow anchorDate, rosterDayId })
         [ ("anchorDate", formatDayParam anchorDate)
         , ("rosterDayId", tshow rosterDayId)
         , ("rosterGroupId", tshow rosterGroupId)
@@ -150,7 +150,7 @@ rosterWeekDaySectionFragmentUrl anchorDate rosterGroupId rosterDayId =
 rosterWeekRowFragmentUrl :: Day -> Id RosterGroup -> Id RosterDay -> Int -> Text
 rosterWeekRowFragmentUrl anchorDate rosterGroupId rosterDayId rowIndex =
     replaceQueryParams
-        (pathTo ShowRosterWeekRowFragmentAction { anchorDate, rosterDayId, rowIndex })
+        (pathTo ShowRosterWeekRowFragmentAction { anchorDate = tshow anchorDate, rosterDayId, rowIndex })
         [ ("anchorDate", formatDayParam anchorDate)
         , ("rosterDayId", tshow rosterDayId)
         , ("rowIndex", tshow rowIndex)

@@ -241,7 +241,8 @@ instance Controller RosterWeeksController where
                     renderRosterWeekPage currentWeekOffset currentRosterGroup.id
             else redirectToPath currentWeekPath
 
-    action currentAction@ShowRosterWindowAction { anchorDate } = runBepis currentAction BepisPageAction do
+    action currentAction@ShowRosterWindowAction { anchorDate = anchorDateParam } = runBepis currentAction BepisPageAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         rosterGroup <- resolveRequestedRosterGroup
         venueConfig <- fetchVenueConfig
         let windowStart = startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate
@@ -283,7 +284,8 @@ instance Controller RosterWeeksController where
                     Just rosterDay ->
                         redirectToPath (rosterTimelineWindowUrl rosterDay.operationalDate rosterGroup.id)
 
-    action currentAction@ShowRosterDayTimelineContentFragmentAction { anchorDate, rosterDayId } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterDayTimelineContentFragmentAction { anchorDate = anchorDateParam, rosterDayId } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         weekOffset <- rosterWeekOffsetForAnchor anchorDate
         rosterGroup <- resolveRequestedRosterGroup
         maybeRosterData <- fetchVisibleRosterReadModel rosterGroup.id weekOffset
@@ -295,53 +297,62 @@ instance Controller RosterWeeksController where
                 let maybeRosterDay = find (\rosterDay -> rosterDay.id == rosterDayId) rosterData.rosterDays
                 respondHtmlProfiled (maybe mempty (renderRosterDayTimelineContent Nothing rosterData) maybeRosterDay)
 
-    action currentAction@ShowRosterWeekOverviewFragmentAction { anchorDate } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterWeekOverviewFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         weekOffset <- rosterWeekOffsetForAnchor anchorDate
         rosterGroup <- resolveRequestedRosterGroup
         respondHtmlProfiled =<< renderRosterWeekOverviewFragment weekOffset rosterGroup.id
 
-    action currentAction@ShowRosterWeekContentFragmentAction { anchorDate } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterWeekContentFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         weekOffset <- rosterWeekOffsetForAnchor anchorDate
         rosterGroup <- resolveRequestedRosterGroup
         respondWithRosterContent rosterGroup.id weekOffset
 
-    action currentAction@ShowRosterWeekGridToolbarFragmentAction { anchorDate } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterWeekGridToolbarFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         weekOffset <- rosterWeekOffsetForAnchor anchorDate
         rosterGroup <- resolveRequestedRosterGroup
         toolbarHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionGridToolbar
         respondHtmlProfiled (fromMaybe mempty toolbarHtml)
 
-    action currentAction@ShowRosterWeekGridFrameFragmentAction { anchorDate } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterWeekGridFrameFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         weekOffset <- rosterWeekOffsetForAnchor anchorDate
         rosterGroup <- resolveRequestedRosterGroup
         frameHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionGridFrame
         respondHtmlProfiled (fromMaybe mempty frameHtml)
 
-    action currentAction@ShowRosterWeekDayColumnsFragmentAction { anchorDate } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterWeekDayColumnsFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         weekOffset <- rosterWeekOffsetForAnchor anchorDate
         rosterGroup <- resolveRequestedRosterGroup
         fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionDayColumns
         respondHtmlProfiled (fromMaybe mempty fragmentHtml)
 
-    action currentAction@ShowRosterWeekDayRailFragmentAction { anchorDate } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterWeekDayRailFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         weekOffset <- rosterWeekOffsetForAnchor anchorDate
         rosterGroup <- resolveRequestedRosterGroup
         fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionDayRail
         respondHtmlProfiled (fromMaybe mempty fragmentHtml)
 
-    action currentAction@ShowRosterWeekWageRailFragmentAction { anchorDate } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterWeekWageRailFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         weekOffset <- rosterWeekOffsetForAnchor anchorDate
         rosterGroup <- resolveRequestedRosterGroup
         fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionWageRail
         respondHtmlProfiled (fromMaybe mempty fragmentHtml)
 
-    action currentAction@ShowRosterWeekSlotsGridFragmentAction { anchorDate } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterWeekSlotsGridFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         weekOffset <- rosterWeekOffsetForAnchor anchorDate
         rosterGroup <- resolveRequestedRosterGroup
         fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionSlotsGrid
         respondHtmlProfiled (fromMaybe mempty fragmentHtml)
 
-    action currentAction@ShowRosterWeekStaffPanelFragmentAction { anchorDate } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterWeekStaffPanelFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         weekOffset <- rosterWeekOffsetForAnchor anchorDate
         rosterGroup <- resolveRequestedRosterGroup
         panelScope <- case parseRosterStaffPanelScope of
@@ -435,13 +446,15 @@ instance Controller RosterWeeksController where
                         setSuccessMessage successMessage
                         redirectToRosterWindow rosterWeek.weekOffset rosterGroupId
 
-    action currentAction@ShowRosterWeekDaySectionFragmentAction { anchorDate, rosterDayId } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterWeekDaySectionFragmentAction { anchorDate = anchorDateParam, rosterDayId } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         weekOffset <- rosterWeekOffsetForAnchor anchorDate
         rosterGroupId <- resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId
         daySectionHtml <- renderVisibleRosterReadModelFragment rosterGroupId weekOffset (RosterProjectionDaySection (unpackId rosterDayId))
         respondHtmlProfiled (fromMaybe mempty daySectionHtml)
 
-    action currentAction@ShowRosterWeekRowFragmentAction { anchorDate, rosterDayId, rowIndex } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowRosterWeekRowFragmentAction { anchorDate = anchorDateParam, rosterDayId, rowIndex } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         weekOffset <- rosterWeekOffsetForAnchor anchorDate
         rosterGroupId <- resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId
         rowHtml <- renderVisibleRosterReadModelFragment rosterGroupId weekOffset (RosterProjectionRow (unpackId rosterDayId) rowIndex)

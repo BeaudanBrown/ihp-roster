@@ -138,7 +138,8 @@ instance Controller TimesheetsController where
             then respondWithTimesheetWeekFragmentsUpdate weekOffset selectedStaffFilterId
             else redirectToPath (timesheetWindowUrl today selectedStaffFilterId)
 
-    action currentAction@ShowTimesheetWindowAction { anchorDate } = runBepis currentAction BepisPageAction do
+    action currentAction@ShowTimesheetWindowAction { anchorDate = anchorDateParam } = runBepis currentAction BepisPageAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         venueConfig <- fetchVenueConfig
         let calendarRevision = venueConfig.rosterCalendarRevision
         let weekOffset = venueWeekOffsetForDay venueConfig (startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate)
@@ -153,7 +154,8 @@ instance Controller TimesheetsController where
         let calendarRevision = venueConfig.rosterCalendarRevision
         redirectToPath (timesheetWindowUrl (venueWeekStartDate venueConfig weekOffset) timesheetStaffFilterFromRequest)
 
-    action currentAction@ShowtimesheetToolbarLiveFragmentAction { anchorDate } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowtimesheetToolbarLiveFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         weekOffset <- timesheetWeekOffsetForAnchor anchorDate
         let requestedStaffFilterId = timesheetStaffFilterFromRequest
         selectedStaffFilterId <- canonicalTimesheetStaffFilter requestedStaffFilterId
@@ -162,7 +164,8 @@ instance Controller TimesheetsController where
         let requestKey = TimesheetProjectionRequest weekOffset selectedStaffFilterId
         respondWithTimesheetFragment requestKey TimesheetProjectionToolbar
 
-    action currentAction@ShowtimesheetSidePanelContentLiveFragmentAction { anchorDate } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowtimesheetSidePanelContentLiveFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         weekOffset <- timesheetWeekOffsetForAnchor anchorDate
         let requestedStaffFilterId = timesheetStaffFilterFromRequest
         selectedStaffFilterId <- canonicalTimesheetStaffFilter requestedStaffFilterId
@@ -171,7 +174,8 @@ instance Controller TimesheetsController where
         let requestKey = TimesheetProjectionRequest weekOffset selectedStaffFilterId
         respondWithTimesheetFragment requestKey TimesheetProjectionSidePanel
 
-    action currentAction@ShowtimesheetDayColumnsLiveFragmentAction { anchorDate } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowtimesheetDayColumnsLiveFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
         weekOffset <- timesheetWeekOffsetForAnchor anchorDate
         let requestedStaffFilterId = timesheetStaffFilterFromRequest
         selectedStaffFilterId <- canonicalTimesheetStaffFilter requestedStaffFilterId
@@ -180,7 +184,9 @@ instance Controller TimesheetsController where
         let requestKey = TimesheetProjectionRequest weekOffset selectedStaffFilterId
         respondWithTimesheetFragment requestKey TimesheetProjectionDayColumns
 
-    action currentAction@ShowTimesheetDaySectionFragmentAction { anchorDate, operationalDate } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowTimesheetDaySectionFragmentAction { anchorDate = anchorDateParam, operationalDate = operationalDateParam } = runBepis currentAction BepisFragmentAction do
+        anchorDate <- parseIsoDayRouteParam anchorDateParam
+        operationalDate <- parseIsoDayRouteParam operationalDateParam
         venueConfig <- fetchVenueConfig
         let windowStart = startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate
         let weekOffset = venueWeekOffsetForDay venueConfig windowStart

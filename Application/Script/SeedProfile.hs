@@ -265,7 +265,7 @@ profileSectionPath section =
 rosterWeekPath :: Int -> Int -> Int -> Text
 rosterWeekPath weekOffset venueIndex groupIndex =
     replaceQueryParams
-        (pathTo (ShowRosterWindowAction anchorDate))
+        (pathTo (ShowRosterWindowAction (tshow anchorDate)))
         [("anchorDate", tshow anchorDate), ("rosterGroupId", rosterGroupId venueIndex groupIndex)]
   where
     anchorDate = weekStartForOffset weekOffset
@@ -273,7 +273,7 @@ rosterWeekPath weekOffset venueIndex groupIndex =
 rosterWeekContentFragmentPath :: Int -> Int -> Int -> Text
 rosterWeekContentFragmentPath weekOffset venueIndex groupIndex =
     replaceQueryParams
-        (pathTo (ShowRosterWeekContentFragmentAction anchorDate))
+        (pathTo (ShowRosterWeekContentFragmentAction (tshow anchorDate)))
         [("anchorDate", tshow anchorDate), ("rosterGroupId", rosterGroupId venueIndex groupIndex)]
   where
     anchorDate = weekStartForOffset weekOffset
@@ -281,7 +281,7 @@ rosterWeekContentFragmentPath weekOffset venueIndex groupIndex =
 rosterWeekStaffPanelFragmentPath :: Int -> Int -> Int -> Text
 rosterWeekStaffPanelFragmentPath weekOffset venueIndex groupIndex =
     replaceQueryParams
-        (pathTo (ShowRosterWeekStaffPanelFragmentAction anchorDate))
+        (pathTo (ShowRosterWeekStaffPanelFragmentAction (tshow anchorDate)))
         [("anchorDate", tshow anchorDate), ("rosterGroupId", rosterGroupId venueIndex groupIndex)]
   where
     anchorDate = weekStartForOffset weekOffset
@@ -289,7 +289,7 @@ rosterWeekStaffPanelFragmentPath weekOffset venueIndex groupIndex =
 rosterWeekOverviewFragmentPath :: Int -> Int -> Int -> Text
 rosterWeekOverviewFragmentPath weekOffset venueIndex groupIndex =
     replaceQueryParams
-        (pathTo (ShowRosterWeekOverviewFragmentAction anchorDate))
+        (pathTo (ShowRosterWeekOverviewFragmentAction (tshow anchorDate)))
         [("anchorDate", tshow anchorDate), ("rosterGroupId", rosterGroupId venueIndex groupIndex)]
   where
     anchorDate = weekStartForOffset weekOffset
@@ -297,7 +297,7 @@ rosterWeekOverviewFragmentPath weekOffset venueIndex groupIndex =
 timesheetWeekPath :: Int -> Text
 timesheetWeekPath weekOffset =
     replaceQueryParams
-        (pathTo (ShowTimesheetWindowAction anchorDate))
+        (pathTo (ShowTimesheetWindowAction (tshow anchorDate)))
         [("anchorDate", tshow anchorDate)]
   where
     anchorDate = weekStartForOffset weekOffset
@@ -313,7 +313,7 @@ timesheetStaffFilterPath weekOffset staffUuid =
 timesheetDayFragmentPath :: Int -> Int -> Text
 timesheetDayFragmentPath weekOffset dayOffset =
     replaceQueryParams
-        (pathTo (ShowTimesheetDaySectionFragmentAction windowStart operationalDate))
+        (pathTo (ShowTimesheetDaySectionFragmentAction (tshow windowStart) (tshow operationalDate)))
         [("anchorDate", tshow windowStart), ("operationalDate", tshow operationalDate)]
   where
     windowStart = weekStartForOffset weekOffset

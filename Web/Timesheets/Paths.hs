@@ -27,31 +27,31 @@ import Web.Types
 timesheetWindowUrl :: Day -> Maybe UUID -> Text
 timesheetWindowUrl anchorDate staffFilterId =
     replaceQueryParams
-        (pathTo (ShowTimesheetWindowAction anchorDate))
+        (pathTo (ShowTimesheetWindowAction (tshow anchorDate)))
         (timesheetWindowStateQueryParams anchorDate staffFilterId)
 
 timesheetToolbarFragmentUrl :: Day -> Maybe UUID -> Text
 timesheetToolbarFragmentUrl anchorDate staffFilterId =
     replaceQueryParams
-        (pathTo ShowtimesheetToolbarLiveFragmentAction { anchorDate })
+        (pathTo ShowtimesheetToolbarLiveFragmentAction { anchorDate = tshow anchorDate })
         (timesheetWindowStateQueryParams anchorDate staffFilterId)
 
 timesheetSidePanelFragmentUrl :: Day -> Maybe UUID -> Text
 timesheetSidePanelFragmentUrl anchorDate staffFilterId =
     replaceQueryParams
-        (pathTo ShowtimesheetSidePanelContentLiveFragmentAction { anchorDate })
+        (pathTo ShowtimesheetSidePanelContentLiveFragmentAction { anchorDate = tshow anchorDate })
         (timesheetWindowStateQueryParams anchorDate staffFilterId)
 
 timesheetDayColumnsFragmentUrl :: Day -> Maybe UUID -> Text
 timesheetDayColumnsFragmentUrl anchorDate staffFilterId =
     replaceQueryParams
-        (pathTo ShowtimesheetDayColumnsLiveFragmentAction { anchorDate })
+        (pathTo ShowtimesheetDayColumnsLiveFragmentAction { anchorDate = tshow anchorDate })
         (timesheetWindowStateQueryParams anchorDate staffFilterId)
 
 timesheetDaySectionFragmentUrl :: Day -> Day -> Maybe UUID -> Text
 timesheetDaySectionFragmentUrl anchorDate operationalDate staffFilterId =
     replaceQueryParams
-        (pathTo ShowTimesheetDaySectionFragmentAction { anchorDate, operationalDate })
+        (pathTo ShowTimesheetDaySectionFragmentAction { anchorDate = tshow anchorDate, operationalDate = tshow operationalDate })
         (timesheetWindowStateQueryParams anchorDate staffFilterId)
 
 newTimesheetEntryUrl :: Day -> Day -> Maybe UUID -> Text

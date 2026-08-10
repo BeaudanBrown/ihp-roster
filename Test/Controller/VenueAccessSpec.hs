@@ -1124,7 +1124,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createTimesheetEntryRecord venueB staffB defaultWeekEpoch
 
                 response <- withUser manager do
-                    callAction (ShowTimesheetWindowAction (testAnchorForOffset 0))
+                    callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Ava Hours"
@@ -1147,7 +1147,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createStaffRecord venueB (Just linkedUserB) "Beta" "Crew"
 
                 response <- withUser manager do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "roster-staff-panel"

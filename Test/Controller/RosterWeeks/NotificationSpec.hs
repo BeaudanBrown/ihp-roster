@@ -103,7 +103,7 @@ tests = aroundAll withDatabaseTestContext do
                 secondResponse `responseStatusShouldBe` status200
                 secondResponse `responseBodyShouldContain` "Roster email delivery is already in progress."
                 pageResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                 pageResponse `responseStatusShouldBe` status200
                 pageResponse `responseBodyShouldContain` "Roster email delivery is in progress."
                 runs <- query @RosterNotificationRun |> fetch
@@ -125,7 +125,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 True
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "id=\"roster-email-button\""
@@ -210,13 +210,13 @@ tests = aroundAll withDatabaseTestContext do
                 rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 True
 
                 workerResponse <- withUserAndCurrentVenue worker venue.id do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                 rosterDays <- query @RosterDay
                     |> filterWhere (#rosterGroupId, rosterWeek.rosterGroupId)
                     |> fetch
                 _ <- mapM (updateRecord . set #publicationState Draft) rosterDays
                 managerResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWindowAction (testAnchorForOffset 0))
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
 
                 workerResponse `responseStatusShouldBe` status200
                 workerResponse `responseBodyShouldNotContain` "id=\"roster-email-button\""

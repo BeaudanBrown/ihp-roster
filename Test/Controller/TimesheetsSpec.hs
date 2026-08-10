@@ -66,8 +66,8 @@ tests = aroundAll withDatabaseTestContext do
             let entryId = Id "00000000-0000-0000-0000-000000000000"
             actionResponsesShouldHaveStatus status302
                 [ ("index", callAction TimesheetsAction)
-                , ("week", callAction (ShowTimesheetWindowAction (testAnchorForOffset 0)))
-                , ("day fragment", callAction ShowTimesheetDaySectionFragmentAction { anchorDate = testAnchorForOffset 0, operationalDate = addDays (toInteger 0 ) (testAnchorForOffset 0) })
+                , ("week", callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0))))
+                , ("day fragment", callAction ShowTimesheetDaySectionFragmentAction { anchorDate = tshow (testAnchorForOffset 0), operationalDate = tshow (addDays (toInteger 0 ) (testAnchorForOffset 0)) })
                 , ("new entry", callAction NewTimesheetEntryAction)
                 , ("create entry", callAction CreateTimesheetEntryAction)
                 , ("approve", callAction ApproveTimesheetEntryAction { timesheetEntryId = entryId })
@@ -96,7 +96,7 @@ tests = aroundAll withDatabaseTestContext do
                         let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = unpackId venue.id, timesheetWeekWeekOffset = 0 , timesheetWindowStart = testAnchorForOffset (0 ), timesheetWindowEnd = addDays 7 (testAnchorForOffset (0 )), timesheetCalendarRevision = 1}
                         let mountState = TimesheetsMountStateValue { timesheetsMountStaffFilterId = Nothing }
                         let impl = timesheetsSurfaceImpl scope mountState
-                        response <- callAction (ShowTimesheetWindowAction (testAnchorForOffset 0))
+                        response <- callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                         pure (response, impl.surfaceImplMountConfig, impl.surfaceImplMountConfig.mountFragments)
 
                 mountConfig.mountSurfaceName `shouldBe` "timesheets"
@@ -132,7 +132,7 @@ tests = aroundAll withDatabaseTestContext do
                 let location = cs <$> lookup "Location" (responseHeaders response)
                 location `shouldSatisfy` maybe False (Text.isInfixOf ("anchorDate=" <> tshow today))
                 unauthorizedFilterResponse <- withUserAndCurrentVenue user venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (testAnchorForOffset 4))
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 4)))
                         [("staffFilterId", idToParam staff.id)]
                 unauthorizedFilterResponse `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders unauthorizedFilterResponse)
@@ -160,14 +160,14 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createStaffRecord venue (Just user) "Query" "Authority"
 
                 pageResponse <- withUserAndCurrentVenue user venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (testAnchorForOffset 0))
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                         [("unrecognizedDisplayState", "true")]
                 pageResponse `responseStatusShouldBe` status200
                 lookup "Location" (responseHeaders pageResponse) `shouldBe` Nothing
                 pageResponse `responseBodyShouldContain` "id=\"timesheet-week-shell\""
 
                 fragmentResponse <- withUserAndCurrentVenue user venue.id do
-                    callActionWithParams ShowTimesheetDaySectionFragmentAction { anchorDate = testAnchorForOffset 0, operationalDate = addDays (toInteger 0 ) (testAnchorForOffset 0) }
+                    callActionWithParams ShowTimesheetDaySectionFragmentAction { anchorDate = tshow (testAnchorForOffset 0), operationalDate = tshow (addDays (toInteger 0 ) (testAnchorForOffset 0)) }
                         [("unrecognizedDisplayState", "true")]
                 fragmentResponse `responseStatusShouldBe` status200
                 lookup "Location" (responseHeaders fragmentResponse) `shouldBe` Nothing
@@ -210,7 +210,7 @@ tests = aroundAll withDatabaseTestContext do
                 preferences.showTimesheetSuggestions `shouldBe` False
 
                 reloaded <- withUserAndCurrentVenue user venue.id do
-                    callAction (ShowTimesheetWindowAction (testAnchorForOffset 2))
+                    callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 2)))
                 reloaded `responseStatusShouldBe` status200
                 reloaded `responseBodyShouldContain` "name=\"hideApproved\" value=\"false\""
                 reloaded `responseBodyShouldContain` "name=\"showTimesheetSuggestions\" value=\"false\""
@@ -285,7 +285,7 @@ tests = aroundAll withDatabaseTestContext do
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
         it "denies unauthenticated users through the timesheet surface fragment contract" $ withContext do
-            response <- callAction ShowTimesheetDaySectionFragmentAction { anchorDate = testAnchorForOffset 0, operationalDate = addDays (toInteger 0 ) (testAnchorForOffset 0) }
+            response <- callAction ShowTimesheetDaySectionFragmentAction { anchorDate = tshow (testAnchorForOffset 0), operationalDate = tshow (addDays (toInteger 0 ) (testAnchorForOffset 0)) }
 
             liveFragmentResponseShouldBeDenied status302 response
 
@@ -304,8 +304,8 @@ tests = aroundAll withDatabaseTestContext do
                                 timesheetsCandidateMountedFragments scope mountState
                                     |> find (\fragment -> fragment.mountedFragmentKey == TimesheetsLive.timesheetDaySectionLiveFragment (testAnchorForOffset 0))
                                     |> fromMaybe (error "Expected day section fragment ref")
-                        callAction (ShowTimesheetWindowAction (testAnchorForOffset 0))
-                        response <- callAction ShowTimesheetDaySectionFragmentAction { anchorDate = testAnchorForOffset 0, operationalDate = addDays (toInteger 0 ) (testAnchorForOffset 0) }
+                        callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
+                        response <- callAction ShowTimesheetDaySectionFragmentAction { anchorDate = tshow (testAnchorForOffset 0), operationalDate = tshow (addDays (toInteger 0 ) (testAnchorForOffset 0)) }
                         pure (response, daySectionRef)
 
                 liveFragmentResponseShouldRenderTarget response fragmentRef
@@ -319,7 +319,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (ShowTimesheetWindowAction (testAnchorForOffset 1))
+                        callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 1)))
                             [ ("anchorDate", "2025-01-13"), ("rosterCalendarRevision", "1")
                             ]
 
@@ -338,11 +338,11 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createStaffRecord venue (Just manager) "Mia" "Manager"
 
                 toolbarResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction ShowtimesheetToolbarLiveFragmentAction { anchorDate = testAnchorForOffset 0  }
+                    callAction ShowtimesheetToolbarLiveFragmentAction { anchorDate = tshow (testAnchorForOffset 0)  }
                 columnsResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction ShowtimesheetDayColumnsLiveFragmentAction { anchorDate = testAnchorForOffset 0  }
+                    callAction ShowtimesheetDayColumnsLiveFragmentAction { anchorDate = tshow (testAnchorForOffset 0)  }
                 sidePanelResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction ShowtimesheetSidePanelContentLiveFragmentAction { anchorDate = testAnchorForOffset 0  }
+                    callAction ShowtimesheetSidePanelContentLiveFragmentAction { anchorDate = tshow (testAnchorForOffset 0)  }
 
                 toolbarResponse `responseStatusShouldBe` status200
                 toolbarResponse `responseBodyShouldContain` "id=\"timesheet-week-toolbar\""
@@ -765,7 +765,7 @@ tests = aroundAll withDatabaseTestContext do
                             , ("workedOn", "2025-01-07")
                             ]
                 weekResponse <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (testAnchorForOffset 0)) []
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0))) []
 
                 formResponse `responseStatusShouldBe` status200
                 formResponse `responseBodyShouldContain` "Linked Worker"
@@ -998,9 +998,9 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createTimesheetEntryRecord venue workerB (fromGregorian 2025 1 7)
 
                 managerResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction ShowTimesheetDaySectionFragmentAction { anchorDate = testAnchorForOffset 0, operationalDate = addDays (toInteger 1 ) (testAnchorForOffset 0) }
+                    callAction ShowTimesheetDaySectionFragmentAction { anchorDate = tshow (testAnchorForOffset 0), operationalDate = tshow (addDays (toInteger 1 ) (testAnchorForOffset 0)) }
                 workerResponse <- withUserAndCurrentVenue workerAUser venue.id do
-                    callAction ShowTimesheetDaySectionFragmentAction { anchorDate = testAnchorForOffset 0, operationalDate = addDays (toInteger 1 ) (testAnchorForOffset 0) }
+                    callAction ShowTimesheetDaySectionFragmentAction { anchorDate = tshow (testAnchorForOffset 0), operationalDate = tshow (addDays (toInteger 1 ) (testAnchorForOffset 0)) }
 
                 managerResponse `responseStatusShouldBe` status200
                 managerResponse `responseBodyShouldContain` "Ava Hours"
@@ -1032,9 +1032,9 @@ tests = aroundAll withDatabaseTestContext do
                     )
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowTimesheetWindowAction (testAnchorForOffset 0))
+                    callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                 workerResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callAction (ShowTimesheetWindowAction (testAnchorForOffset 0))
+                    callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Rita Rostered"
@@ -1079,7 +1079,7 @@ tests = aroundAll withDatabaseTestContext do
                     )
 
                 response <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (testAnchorForOffset 3))
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 3)))
                         [("anchorDate", "2025-01-27"), ("rosterCalendarRevision", "1")]
 
                 response `responseStatusShouldBe` status200
@@ -1112,7 +1112,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> set #showTimesheetSuggestions False
                     |> createRecord
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowTimesheetWindowAction (testAnchorForOffset 0))
+                    callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Show suggestions"
@@ -1280,7 +1280,7 @@ tests = aroundAll withDatabaseTestContext do
                         [ ("anchorDate", "2026-03-30"), ("rosterCalendarRevision", "1")
                         ]
                 suggestionResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (testAnchorForOffset 64)) surfaceParams
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 64))) surfaceParams
 
                 suggestionResponse `responseStatusShouldBe` status200
                 suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
@@ -1329,7 +1329,7 @@ tests = aroundAll withDatabaseTestContext do
                         ]
 
                 suggestionResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (testAnchorForOffset 64)) surfaceParams
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 64))) surfaceParams
 
                 suggestionResponse `responseStatusShouldBe` status200
                 suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
@@ -1411,7 +1411,7 @@ tests = aroundAll withDatabaseTestContext do
                         ]
 
                 suggestionResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (testAnchorForOffset 65)) surfaceParams
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 65))) surfaceParams
 
                 suggestionResponse `responseStatusShouldBe` status200
                 suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
@@ -1459,7 +1459,7 @@ tests = aroundAll withDatabaseTestContext do
                     )
 
                 workerResponse <- withUserAndCurrentVenue workerAUser venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (testAnchorForOffset 0))
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                         [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
                 workerResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slotA.id <> "\"")
                 workerResponse `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slotB.id <> "\"")
@@ -1471,7 +1471,7 @@ tests = aroundAll withDatabaseTestContext do
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
                 managerResponse <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (testAnchorForOffset 0))
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                         [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("staffFilterId", idToParam workerA.id)]
                 managerResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slotA.id <> "\"")
                 managerResponse `responseBodyShouldNotContain` cs ("data-timesheet-suggestion-id=\"" <> tshow slotB.id <> "\"")
@@ -1647,7 +1647,7 @@ tests = aroundAll withDatabaseTestContext do
                 adHocEntry.sourceRosterSlotId `shouldBe` Nothing
 
                 refreshedResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (testAnchorForOffset 0))
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                         [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
                 refreshedResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
 
@@ -1689,7 +1689,7 @@ tests = aroundAll withDatabaseTestContext do
                     )
 
                 suggestionResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (testAnchorForOffset 0))
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                         [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
                 suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
 
@@ -1822,7 +1822,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> set #hideApproved False
                     |> createRecord
                 response <- withUserAndCurrentVenue workerUser venue.id do
-                    callAction ShowTimesheetDaySectionFragmentAction { anchorDate = testAnchorForOffset 0, operationalDate = addDays (toInteger 1 ) (testAnchorForOffset 0) }
+                    callAction ShowTimesheetDaySectionFragmentAction { anchorDate = tshow (testAnchorForOffset 0), operationalDate = tshow (addDays (toInteger 1 ) (testAnchorForOffset 0)) }
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Ava Approved"
@@ -1839,7 +1839,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createStaffRecord venue (Just workerUser) "Willa" "Worker"
 
                 response <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (testAnchorForOffset 0))
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                         [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         ]
 
@@ -1865,7 +1865,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createTimesheetEntryRecord venue workerA (fromGregorian 2025 1 7)
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (testAnchorForOffset 0))
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                         [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         ]
 
@@ -1898,7 +1898,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createApprovedTimesheetEntryRecord venue workerA manager (fromGregorian 2025 1 8)
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (testAnchorForOffset 0))
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                         [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("staffFilterId", idToParam workerA.id)]
 
                 response `responseStatusShouldBe` status200
@@ -1930,7 +1930,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- updateRecord (staff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just payLevel.id))
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (testAnchorForOffset 0))
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                         [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffFilterId", idToParam staff.id)
                         ]
@@ -1958,7 +1958,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createTimesheetEntryRecord venue workerB (fromGregorian 2025 1 7)
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (testAnchorForOffset 0))
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                         [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffFilterId", idToParam workerA.id)
                         ]
@@ -1992,7 +1992,7 @@ tests = aroundAll withDatabaseTestContext do
                         |> updateRecord
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowTimesheetWindowAction (testAnchorForOffset 2))
+                    callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 2)))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "12:15"
@@ -2008,7 +2008,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createStaffRecord venue (Just manager) "Mia" "Manager"
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (testAnchorForOffset 2))
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 2)))
                         [ ("anchorDate", "2025-01-20"), ("rosterCalendarRevision", "1")
                         ]
 

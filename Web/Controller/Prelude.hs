@@ -17,6 +17,7 @@ module Web.Controller.Prelude
 , renderJsonWithStatusCode
 , respondHtml
 , respondFragmentHtml
+, parseIsoDayRouteParam
 )
 where
 
@@ -28,6 +29,7 @@ import Application.Helper.Conflict
 import Application.Helper.Controller
 import Application.Helper.Telemetry
 import qualified Data.Aeson as Aeson
+import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Data.Typeable (Typeable)
 import Generated.Types
 import IHP.ControllerPrelude hiding (ensureIsUser, redirectTo, redirectToPath,
@@ -38,10 +40,19 @@ import IHP.ControllerPrelude hiding (ensureIsUser, redirectTo, redirectToPath,
 import qualified IHP.ControllerPrelude as IHP
 import IHP.Router.UrlGenerator (HasPath)
 import qualified IHP.ViewSupport as ViewSupport
-import Network.HTTP.Types.Status (Status)
+import Network.HTTP.Types.Status (Status, status400)
+import qualified Network.Wai as Wai
 import Text.Blaze.Html (Html)
 import Web.Routes
 import Web.Types
+
+parseIsoDayRouteParam :: (?request :: Request) => Text -> IO Day
+parseIsoDayRouteParam value =
+    case parseTimeM True defaultTimeLocale "%F" (cs value) of
+        Just day -> pure day
+        Nothing -> do
+            respondAndExit (Wai.responseLBS status400 [("Content-Type", "text/plain")] "Invalid ISO date parameter.")
+            error "unreachable"
 
 ensureIsUser :: forall user. (?context :: ControllerContext, ?request :: Request, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => IO ()
 ensureIsUser = do
