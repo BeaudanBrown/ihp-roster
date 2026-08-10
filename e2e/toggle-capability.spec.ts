@@ -1,6 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
     pageReadyEvent,
+    parseFrontendSurfaceMountConfig,
+    surfaceConfigDomAttr,
+    surfaceDomAttr,
     toggleBreakRegionDomAttr,
     toggleConfigDomAttr,
     toggleInputDomAttr,
@@ -163,6 +166,13 @@ test.describe('Generated toggle capability', () => {
 
         resetTimesheetDisplayPreferences('e2e-test@example.com');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
+        await page.getByRole('link', { name: '>' }).click();
+        await expect(page).toHaveURL(/weekOffset=1/);
+        const rawMountConfig = await page.locator(`[${surfaceDomAttr}="timesheets"][${surfaceConfigDomAttr}]`).getAttribute(surfaceConfigDomAttr);
+        const mountConfig = parseFrontendSurfaceMountConfig(JSON.parse(rawMountConfig ?? 'null'));
+        expect(mountConfig.surface).toBe('timesheets');
+        expect(mountConfig.scopeKey).toMatch(/:1$/);
+        expect(mountConfig.fragments.every((fragment) => new URL(fragment.url, page.url()).searchParams.get('weekOffset') === '1')).toBe(true);
         await openTimesheetSettings(page);
         let hideApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Hide approved' });
         await expect(hideApprovedRoot.locator(`[${toggleInputDomAttr}]`)).toBeChecked();
@@ -170,10 +180,18 @@ test.describe('Generated toggle capability', () => {
         let requestPromise = page.waitForRequest((request) =>
             request.method() === 'POST'
             && new URL(request.url()).pathname.includes('ToggleTimesheetHideApproved')
-            && request.postData()?.includes('hideApproved=false') === true,
+            && request.postData()?.includes('hideApproved=false') === true
+            && request.postData()?.includes('weekOffset=1') === true,
+        );
+        const navigatedWeekRefresh = page.waitForResponse((response) =>
+            response.request().method() === 'GET'
+            && new URL(response.url()).pathname.includes('ShowtimesheetDayColumnsLiveFragment')
+            && new URL(response.url()).searchParams.get('weekOffset') === '1',
         );
         await hideApprovedRoot.click();
         await requestPromise;
+        await navigatedWeekRefresh;
+        await expect(hideApprovedRoot.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
         await page.reload();
         await openTimesheetSettings(page);
         hideApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Hide approved' });

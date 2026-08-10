@@ -1,3 +1,4 @@
+import type { DomRoot } from "./dom";
 import {
     isFrontendSurfaceName,
     surfaceDomAttr,
@@ -18,7 +19,7 @@ type SurfaceQueryRootLike = {
     querySelectorAll: (selector: string) => Iterable<unknown>;
 };
 
-export function surfaceMountsWithin(root: Document | Element): SurfaceElementLike[] {
+export function surfaceMountsWithin(root: DomRoot): SurfaceElementLike[] {
     const queryRoot = root as unknown as SurfaceQueryRootLike;
     const mounts = Array.from(queryRoot.querySelectorAll(`[${surfaceDomAttr}]`)).filter(isSurfaceElementLike);
     if (isSurfaceElementLike(root)) {

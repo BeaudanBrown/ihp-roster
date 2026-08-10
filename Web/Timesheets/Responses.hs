@@ -3,9 +3,7 @@ module Web.Timesheets.Responses
     , respondWithTimesheetMutationUpdate
     , respondWithTimesheetPreferenceUpdate
     , respondWithTimesheetFragment
-    , respondWithTimesheetFragments
     , respondWithTimesheetDaySectionUpdate
-    , respondWithTimesheetWeekFragmentsUpdate
     , respondWithTimesheetWeekView
     ) where
 
@@ -19,7 +17,6 @@ import Application.Helper.Profiling
 import Application.Helper.SurfaceResource (SurfaceResourceValue)
 import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
                                 renderToastOob, successToast)
-import Application.Helper.View.Oob (outerHtmlOobSwap)
 import Data.List (nub)
 import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
@@ -43,12 +40,6 @@ respondWithTimesheetFragment requestKey fragment =
         when (isNothing maybeHtml) do
             TextIO.putStrLn ("timesheet_projection_miss: request=" <> tshow requestKey <> " fragment=" <> tshow fragment)
         respondHtmlProfiled (fromMaybe mempty maybeHtml)
-
-respondWithTimesheetFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetProjectionRequest -> [TimesheetProjectionFragment] -> Blaze.Html -> IO ()
-respondWithTimesheetFragments requestKey fragments extraHtml = do
-    projection <- fetchTimesheetWeekProjection requestKey
-    respondHtmlProfiled $
-        mconcat (mapMaybe (renderTimesheetProjectionFragmentFromProjection (FragmentOob outerHtmlOobSwap) projection) (normalizeTimesheetFragments fragments)) <> extraHtml
 
 respondWithTimesheetActorFragments :: (?context :: ControllerContext, ?request :: Request) => TimesheetProjectionRequest -> [TimesheetProjectionFragment] -> Blaze.Html -> IO ()
 respondWithTimesheetActorFragments requestKey fragments extraHtml = do
@@ -90,13 +81,6 @@ normalizeTimesheetFragments fragments =
         isDaySectionFragment = \case
             TimesheetProjectionDaySection _ -> True
             _                               -> False
-
-respondWithTimesheetWeekFragmentsUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Maybe UUID.UUID -> IO ()
-respondWithTimesheetWeekFragmentsUpdate weekOffset staffFilterId =
-    profileActionSpan "timesheets.page.fragments_update" do
-        let requestKey = TimesheetProjectionRequest weekOffset staffFilterId
-        setHtmxPushUrl (timesheetWeekUrl weekOffset staffFilterId)
-        respondWithTimesheetFragments requestKey [TimesheetProjectionToolbar, TimesheetProjectionDayColumns, TimesheetProjectionSidePanel] mempty
 
 respondWithTimesheetPreferenceUpdate :: (?context :: ControllerContext, ?request :: Request) => Int -> Maybe UUID.UUID -> IO ()
 respondWithTimesheetPreferenceUpdate weekOffset staffFilterId =
@@ -141,5 +125,7 @@ renderTimesheetWeekPage weekOffset staffFilterId =
 respondWithTimesheetWeekView :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IndexView -> IO ()
 respondWithTimesheetWeekView indexView =
     if isHtmxRequest
-        then respondWithTimesheetWeekFragmentsUpdate indexView.weekOffset indexView.selectedStaffFilterId
+        then profileActionSpan "timesheets.page.render_shell_response" do
+            setHtmxPushUrl (timesheetWeekUrl indexView.weekOffset indexView.selectedStaffFilterId)
+            respondHtmlProfiled (renderTimesheetWeekShell indexView)
         else profileActionSpan "timesheets.page.render_response" (renderProfiled indexView)

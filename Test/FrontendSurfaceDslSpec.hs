@@ -924,6 +924,10 @@ tests = describe "FrontendSurface DSL foundation" do
                 [("staffFilterId", WireOptionalIR WireUuidIR)]
         let navigateAction = fromMaybe (error "missing navigate action") (find ((== "navigate-timesheet-week") . (.htmxActionName)) surface.surfaceHtmxActions)
         navigateAction.htmxActionOptions
+            `shouldContain` [HtmxOption (HtmxActionTargetIR (HtmxTypedSyntaxIR "#timesheet-week-shell" ["timesheet-week-shell"]))]
+        navigateAction.htmxActionOptions
+            `shouldContain` [HtmxOption (HtmxActionSwapIR (HtmxTypedSyntaxIR "outerHTML" []))]
+        navigateAction.htmxActionOptions
             `shouldContain` [HtmxOption (HtmxActionSyncIR (HtmxTypedSyntaxIR "closest #timesheet-week-shell:replace" ["timesheet-week-shell"]))]
         navigateAction.htmxActionOptions
             `shouldSatisfy` all (\case HtmxOption HtmxActionCustomHtmxIR {} -> False; _ -> True)

@@ -452,7 +452,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 liveFragmentResponseShouldRenderTarget response fragmentRef
 
-        it "renders unified toolbar and day-columns fragments for HTMX week navigation" $ withContext do
+        it "renders the complete scoped shell for HTMX week navigation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet HTMX Fragment Venue"
                 manager <- createUserRecord "timesheet-htmx-fragment-manager@example.com" "staff" True
@@ -466,11 +466,12 @@ tests = aroundAll withDatabaseTestContext do
                             ]
 
                 response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "id=\"timesheet-week-shell\" hx-history-elt=\"true\""
                 response `responseBodyShouldContain` "id=\"timesheet-week-toolbar\""
                 response `responseBodyShouldContain` "id=\"timesheet-day-columns\""
-                response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
-                response `responseBodyShouldNotContain` "data-live-update-surface="
-                response `responseBodyShouldNotContain` "id=\"timesheet-week-shell\" hx-history-elt"
+                response `responseBodyShouldContain` "data-bepis-surface=\"timesheets\""
+                response `responseBodyShouldContain` "timesheets:"
+                response `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
 
         it "renders declared Timesheets toolbar, day-columns, and side-panel fragment targets" $ withContext do
             withCleanDb do

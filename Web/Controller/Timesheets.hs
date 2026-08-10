@@ -86,7 +86,7 @@ instance Controller TimesheetsController where
         weekOffset <- currentTimesheetWeekOffset
         selectedStaffFilterId <- canonicalTimesheetStaffFilter timesheetStaffFilterFromRequest
         if isHtmxRequest
-            then respondWithTimesheetWeekFragmentsUpdate weekOffset selectedStaffFilterId
+            then renderTimesheetWeekPage weekOffset selectedStaffFilterId
             else redirectToPath (timesheetWeekUrl weekOffset selectedStaffFilterId)
 
     action currentAction@ShowTimesheetWeekAction { weekOffset } = runBepis currentAction BepisPageAction do

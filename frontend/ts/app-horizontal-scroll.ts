@@ -15,7 +15,7 @@ import {
     parsePositiveIntegerForHorizontalScroll,
 } from "./horizontal-scroll/math";
 import { rootFromTarget } from "./shared/dom";
-import { detailTarget, onAppPageReady, onHtmxLoad } from "./shared/lifecycle";
+import { detailRoot, detailTarget, onAppPageReady, onHtmxLoad } from "./shared/lifecycle";
 
 export { clampHorizontalScrollLeft, parsePositiveIntegerForHorizontalScroll };
 
@@ -433,6 +433,27 @@ export function disposeHorizontalScroll(target: unknown): void {
 
 function enableHorizontalScroll(): void {
     if (typeof window === "undefined") return;
+    const pendingSwapScrollPositions = new WeakMap<object, number[]>();
+    document.addEventListener("htmx:beforeSwap", (event) => {
+        const request = detailTarget(event, "xhr");
+        if (request === null || typeof request !== "object") return;
+        const positions = capabilityElementsWithin(detailRoot(event, "target"))
+            .map((element) => element.scrollLeft);
+        if (positions.length > 0) pendingSwapScrollPositions.set(request, positions);
+    });
+    document.addEventListener("htmx:afterSwap", (event) => {
+        const request = detailTarget(event, "xhr");
+        if (request === null || typeof request !== "object") return;
+        const positions = pendingSwapScrollPositions.get(request);
+        if (positions === undefined) return;
+        capabilityElementsWithin(detailRoot(event, "target")).forEach((element, index) => {
+            const position = positions[index];
+            if (position !== undefined) {
+                element.scrollLeft = clampHorizontalScrollLeft(position, element.scrollWidth, element.clientWidth);
+            }
+        });
+        pendingSwapScrollPositions.delete(request);
+    });
     onAppPageReady((event) => initializeHorizontalScroll(detailTarget(event, "target")));
     onHtmxLoad((event) => initializeHorizontalScroll(detailTarget(event, "elt")));
     document.addEventListener("htmx:beforeCleanupElement", (event) => {

@@ -103,6 +103,15 @@
   function detailTarget(event, key) {
     return eventDetailRecord(event)?.[key];
   }
+  function isConnectedRoot(root) {
+    return root instanceof Document || root.isConnected;
+  }
+  function detailRoot(event, key, fallback = document) {
+    const detailCandidate = detailTarget(event, key);
+    if (isDomRoot(detailCandidate) && isConnectedRoot(detailCandidate)) return detailCandidate;
+    if (isDomRoot(event.target) && isConnectedRoot(event.target)) return event.target;
+    return fallback;
+  }
   function onAppPageReady(handler) {
     if (typeof document === "undefined") return;
     document.addEventListener(pageReadyEvent, handler);
@@ -436,6 +445,26 @@
   }
   function enableHorizontalScroll() {
     if (typeof window === "undefined") return;
+    const pendingSwapScrollPositions = /* @__PURE__ */ new WeakMap();
+    document.addEventListener("htmx:beforeSwap", (event) => {
+      const request = detailTarget(event, "xhr");
+      if (request === null || typeof request !== "object") return;
+      const positions = capabilityElementsWithin(detailRoot(event, "target")).map((element) => element.scrollLeft);
+      if (positions.length > 0) pendingSwapScrollPositions.set(request, positions);
+    });
+    document.addEventListener("htmx:afterSwap", (event) => {
+      const request = detailTarget(event, "xhr");
+      if (request === null || typeof request !== "object") return;
+      const positions = pendingSwapScrollPositions.get(request);
+      if (positions === void 0) return;
+      capabilityElementsWithin(detailRoot(event, "target")).forEach((element, index) => {
+        const position = positions[index];
+        if (position !== void 0) {
+          element.scrollLeft = clampHorizontalScrollLeft(position, element.scrollWidth, element.clientWidth);
+        }
+      });
+      pendingSwapScrollPositions.delete(request);
+    });
     onAppPageReady((event) => initializeHorizontalScroll(detailTarget(event, "target")));
     onHtmxLoad((event) => initializeHorizontalScroll(detailTarget(event, "elt")));
     document.addEventListener("htmx:beforeCleanupElement", (event) => {

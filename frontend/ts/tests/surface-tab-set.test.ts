@@ -123,6 +123,26 @@ test("surface tab sets restore remembered generated keys within one mount", () =
     assertEqual(duplicate.staff.getAttribute("aria-selected"), "true");
 });
 
+test("surface tab sets hand selected tabs to replacement mounts", () => {
+    const original = mountWithTabs();
+    const replacement = mountWithTabs();
+    const shown: string[] = [];
+    const controller = createSurfaceTabSetController((element) => {
+        const selected = element as unknown as MiniElement;
+        selected.parentElement?.children.forEach((sibling) => sibling.setAttribute("aria-selected", sibling === selected ? "true" : "false"));
+        shown.push(selected.id);
+    });
+
+    original.staff.setAttribute("aria-selected", "false");
+    original.settings.setAttribute("aria-selected", "true");
+    const snapshots = controller.capture(original.mount as unknown as Element);
+    controller.restore(replacement.mount as unknown as Element, snapshots);
+    controller.reconcile(replacement.mount as unknown as Element);
+
+    assertEqual(replacement.settings.getAttribute("aria-selected"), "true");
+    assertDeepEqual(shown, ["settings-tab"]);
+});
+
 test("Roster, Timesheets, and Unavailability restore generated tabs independently after replacement", () => {
     const surfaces: FrontendSurfaceName[] = ["roster", "timesheets", "leave-requests"];
     const fixtures = surfaces.map((surface) => {

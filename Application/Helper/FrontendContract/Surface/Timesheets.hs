@@ -152,7 +152,8 @@ type TimesheetActionBundle =
          , OptionalField StaffFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxGet
-         , 'HtmxSwap 'HtmxNoSwap
+         , 'HtmxTarget ('HtmxId TimesheetWeekShell)
+         , 'HtmxSwap 'HtmxOuterHTML
          , 'HtmxPushUrl 'HtmxPushUrlTrue
          , 'HtmxSync ('HtmxSyncOn ('HtmxClosest ('HtmxId TimesheetWeekShell)) 'HtmxSyncReplace)
          ]
@@ -161,7 +162,8 @@ type TimesheetActionBundle =
          , OptionalField StaffFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxGet
-         , 'HtmxSwap 'HtmxNoSwap
+         , 'HtmxTarget ('HtmxId TimesheetWeekShell)
+         , 'HtmxSwap 'HtmxOuterHTML
          , 'HtmxPushUrl 'HtmxPushUrlTrue
          , 'HtmxSync ('HtmxSyncOn ('HtmxClosest ('HtmxId TimesheetWeekShell)) 'HtmxSyncReplace)
          ]

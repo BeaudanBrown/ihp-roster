@@ -1507,6 +1507,36 @@
       }
       return false;
     }
+    function capture(root) {
+      const mountIndexes = /* @__PURE__ */ new Map();
+      const snapshots = [];
+      for (const mount of surfaceMountsWithin(root)) {
+        const surface = mount.getAttribute(surfaceDomAttr);
+        if (surface === null) continue;
+        const mountIndex = mountIndexes.get(surface) ?? 0;
+        mountIndexes.set(surface, mountIndex + 1);
+        for (const definition of definitionsForMount2(mount)) {
+          const selectedTab = ownedSurfaceRoleElements(mount, mount, definition.tabRoleAttribute).find((tab) => tab.getAttribute("aria-selected") === "true");
+          const key = selectedTab?.getAttribute(definition.tabRoleAttribute) ?? rememberedKey(mount, definition);
+          if (!definition.isKey(key)) continue;
+          snapshots.push({ surface, mountIndex, tabSet: definition.name, key });
+        }
+      }
+      return snapshots;
+    }
+    function restore(root, snapshots) {
+      const mountIndexes = /* @__PURE__ */ new Map();
+      for (const mount of surfaceMountsWithin(root)) {
+        const surface = mount.getAttribute(surfaceDomAttr);
+        if (surface === null) continue;
+        const mountIndex = mountIndexes.get(surface) ?? 0;
+        mountIndexes.set(surface, mountIndex + 1);
+        for (const definition of definitionsForMount2(mount)) {
+          const snapshot = snapshots.find((candidate) => candidate.surface === surface && candidate.mountIndex === mountIndex && candidate.tabSet === definition.name && definition.isKey(candidate.key));
+          if (snapshot) setRememberedKey(mount, definition, snapshot.key);
+        }
+      }
+    }
     function reconcile(root) {
       for (const mount of surfaceMountsWithin(root)) {
         for (const definition of definitionsForMount2(mount)) {
@@ -1548,7 +1578,7 @@
         }
       }
     }
-    return { remember, reconcile };
+    return { remember, capture, restore, reconcile };
   }
   function definitionsForMount2(mount) {
     return surfaceDefinitionsForMount(mount, FrontendSurfaceTabSetRegistry);
@@ -1558,9 +1588,25 @@
     if (browserRuntimeEnabled3 || typeof document === "undefined") return;
     browserRuntimeEnabled3 = true;
     const controller = createSurfaceTabSetController();
+    const pendingSwapSnapshots = /* @__PURE__ */ new WeakMap();
     document.addEventListener("shown.bs.tab", (event) => {
       if (!(event.target instanceof Element)) return;
       controller.remember(event.target);
+    });
+    document.addEventListener("htmx:beforeSwap", (event) => {
+      const request = detailTarget(event, "xhr");
+      if (request === null || typeof request !== "object") return;
+      pendingSwapSnapshots.set(request, controller.capture(detailRoot(event, "target")));
+    });
+    document.addEventListener("htmx:afterSwap", (event) => {
+      const request = detailTarget(event, "xhr");
+      if (request === null || typeof request !== "object") return;
+      const snapshots = pendingSwapSnapshots.get(request);
+      if (snapshots === void 0) return;
+      const root = detailRoot(event, "target");
+      controller.restore(root, snapshots);
+      controller.reconcile(root);
+      pendingSwapSnapshots.delete(request);
     });
     onAppPageReady((event) => controller.reconcile(surfaceRootFromPageReadyEvent(event)));
     document.addEventListener("htmx:afterSettle", () => controller.reconcile(document));
