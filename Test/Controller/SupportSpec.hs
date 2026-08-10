@@ -36,6 +36,7 @@ import Test.Support.XeroAdmin (testXeroConfig)
 import qualified Web.ClientSession as ClientSession
 import Web.Controller.Support ()
 import Web.FrontController ()
+import Web.RosterWeeks.Paths (supportVenueSwitchReturnPath)
 import Web.Types
 
 supportFragmentRef :: SupportLiveFragment -> FrontendSurfaceMountedFragment
@@ -47,6 +48,10 @@ supportFragmentRef fragment =
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "SupportController" do
+        it "drops venue-scoped roster groups from canonical support-switch return paths" $ withContext do
+            supportVenueSwitchReturnPath "/ShowRosterWindow?anchorDate=2026-08-10&rosterGroupId=11111111-1111-1111-1111-111111111111"
+                `shouldBe` "/RosterWeeks"
+
         it "redirects unauthenticated users from live support fragments" $ withContext do
             response <- callAction ShowFwcMapdAwardRatesSectionAction
 

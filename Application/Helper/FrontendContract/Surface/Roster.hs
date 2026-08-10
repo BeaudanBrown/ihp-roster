@@ -707,7 +707,7 @@ type RosterActionBundle =
          ]
      , Action DeleteRosterWeekSlotDefinition
         '[ Field RosterCalendarRevision 'WireInt ]
-        '[ 'HtmxMethod 'HtmxDelete
+        '[ 'HtmxMethod 'HtmxPost
          , 'HtmxTarget ('HtmxId RosterContent)
          , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse

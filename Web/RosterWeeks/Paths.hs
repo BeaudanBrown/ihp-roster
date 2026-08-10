@@ -50,9 +50,14 @@ import Web.Types
 
 supportVenueSwitchReturnPath :: Text -> Text
 supportVenueSwitchReturnPath candidate
-    | returnPathWithoutQuery candidate == returnPathWithoutQuery (pathTo ShowRosterWeekAction { weekOffset = 0 })
+    | returnPathWithoutQuery candidate `elem` rosterWindowPaths
         && returnPathHasQueryParameter "rosterGroupId" candidate = pathTo RosterWeeksAction
     | otherwise = candidate
+  where
+    rosterWindowPaths =
+        [ returnPathWithoutQuery (pathTo ShowRosterWindowAction { anchorDate = "" })
+        , returnPathWithoutQuery (pathTo ShowRosterWeekAction { weekOffset = 0 })
+        ]
 
 returnPathWithoutQuery :: Text -> Text
 returnPathWithoutQuery = Text.takeWhile (/= '?')

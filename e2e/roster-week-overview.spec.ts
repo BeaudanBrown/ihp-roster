@@ -10,9 +10,9 @@ import {
     rosterWeekOverviewPanelDomAttr,
     toggleRootDomAttr,
 } from '../frontend/ts/generated/contracts';
-import { gotoWhenReady, loginAs, openRoster, openRosterSettings } from './test-helpers';
+import { gotoWhenReady, loginAs, openRoster, openRosterSettings, runSql } from './test-helpers';
 
-const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
+const e2eRosterPath = '/RosterWeeks?rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
 test.describe('Roster week overview', () => {
     test('renders a static week label without the month overview trigger', async ({ page }) => {
@@ -28,7 +28,9 @@ test.describe('Roster week overview', () => {
         await openRoster(page, { weekOffset: 1 });
         const publishToggleRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Published' });
         const publishToggle = publishToggleRoot.getByRole('switch');
+        const publishResponsePromise = page.waitForResponse((response) => response.url().includes('/ToggleRosterWeekLiveStatus'));
         await publishToggleRoot.click();
+        expect((await publishResponsePromise).status()).toBe(200);
         await expect(publishToggle).toBeChecked();
         await page.reload();
         await expect(page.locator('#roster-week-shell')).toBeVisible();

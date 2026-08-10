@@ -422,9 +422,15 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetch
                 createdSlots `shouldBe` []
 
+                staleDeleteResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (RemoveRosterWeekSlotDefinitionAction newColumn.id) [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "0")]
+                staleDeleteResponse `responseStatusShouldBe` status409
+                lookup "HX-Refresh" (responseHeaders staleDeleteResponse) `shouldBe` Just "true"
+
                 deleteResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (DeleteRosterWeekSlotDefinitionAction newColumn.id) (rosterMutationParams 0)
+                        callActionWithParams (RemoveRosterWeekSlotDefinitionAction newColumn.id) (rosterMutationParams 0)
                 deleteResponse `responseStatusShouldBe` status200
                 let deleteTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders deleteResponse)
                 deleteTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-slots-grid\"")
@@ -527,7 +533,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetch
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (DeleteRosterWeekSlotDefinitionAction lateLane.id) (rosterMutationParams 0)
+                        callActionWithParams (RemoveRosterWeekSlotDefinitionAction lateLane.id) (rosterMutationParams 0)
                 response `responseStatusShouldBe` status200
 
                 deletedLateLanes <- mapM (fetch . (.id)) lateLanes

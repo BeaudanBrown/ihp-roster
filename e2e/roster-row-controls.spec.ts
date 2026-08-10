@@ -72,11 +72,11 @@ test.describe('Roster row controls', () => {
         const rosterUrl = new URL(page.url());
         await gotoWhenReady(
             page,
-            `/ShowRosterWeek?${new URLSearchParams({
-                weekOffset: rosterUrl.searchParams.get('weekOffset') ?? '0',
+            `/ShowRosterWindow?${new URLSearchParams({
+                anchorDate: rosterUrl.searchParams.get('anchorDate') ?? '',
                 rosterGroupId: rosterUrl.searchParams.get('rosterGroupId') ?? '',
                 rosterView: 'timeline',
-                dayOffset: '0',
+                dayDate: rosterUrl.searchParams.get('anchorDate') ?? '',
             }).toString()}`,
             '.roster-day-timeline',
         );
@@ -145,9 +145,13 @@ test.describe('Roster row controls', () => {
             const actionForm = pane.querySelector('form[action*="CopyRosterWeek"]');
             if (!(actionForm instanceof HTMLFormElement)) throw new Error('Expected roster week action form');
             const actionUrl = new URL(actionForm.action);
+            const currentUrl = new URL(window.location.href);
             const fragmentUrl = new URL('/ShowRosterWeekStaffPanelFragment', window.location.origin);
-            fragmentUrl.searchParams.set('weekOffset', actionUrl.searchParams.get('targetWeekOffset') ?? '0');
+            const revisionInput = actionForm.elements.namedItem('rosterCalendarRevision');
+            if (!(revisionInput instanceof HTMLInputElement)) throw new Error('Expected roster calendar revision input');
+            fragmentUrl.searchParams.set('anchorDate', currentUrl.searchParams.get('anchorDate') ?? '');
             fragmentUrl.searchParams.set('rosterGroupId', actionUrl.searchParams.get('rosterGroupId') ?? '');
+            fragmentUrl.searchParams.set('rosterCalendarRevision', revisionInput.value);
             const htmx = (window as Window & {
                 htmx?: { ajax: (method: string, url: string, options: { target: string; swap: string }) => unknown };
             }).htmx;

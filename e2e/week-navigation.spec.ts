@@ -13,7 +13,7 @@ test.describe('Week navigation', () => {
         const initialShell = await page.locator('#roster-week-shell').evaluate((el) => el.outerHTML);
 
         await page.getByRole('link', { name: 'Next week' }).click();
-        await expect(page).toHaveURL(/ShowRosterWeek/);
+        await expect(page).toHaveURL(/ShowRosterWindow/);
         await waitForRosterWeekShell(page);
 
         const marker = await page.evaluate(() => window.__rosterWeekNavMarker);
@@ -36,7 +36,7 @@ test.describe('Week navigation', () => {
         await openTimesheetSettings(page);
 
         await page.getByRole('link', { name: '>' }).click();
-        await expect(page).toHaveURL(/ShowTimesheetWeek/);
+        await expect(page).toHaveURL(/ShowTimesheetWindow/);
         await expect(page.locator('#timesheet-week-shell')).toBeVisible();
 
         const marker = await page.evaluate(() => window.__timesheetWeekNavMarker);

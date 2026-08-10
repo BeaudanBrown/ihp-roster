@@ -233,7 +233,7 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         await page.fill('#email', 'e2e-billing-owner@example.com');
         await page.fill('#password', 'test-password-123');
         await page.click('button[type="submit"]');
-        await expect(page).toHaveURL(/(EditProfile|RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page).toHaveURL(/(EditProfile|RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
         await markCurrentSessionPasskeyVerified(page);
         await gotoWhenReady(page, '/Billing', '[data-billing-owner-view="true"]');
 
@@ -290,7 +290,7 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         await page.fill('#email', 'e2e-billing-owner@example.com');
         await page.fill('#password', 'test-password-123');
         await page.click('button[type="submit"]');
-        await expect(page).toHaveURL(/(EditProfile|RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page).toHaveURL(/(EditProfile|RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
         await gotoWhenReady(page, '/Billing', '[data-billing-owner-view="true"]');
         await expect(page.getByText('No subscription', { exact: true })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Start Subscription' })).toBeEnabled();

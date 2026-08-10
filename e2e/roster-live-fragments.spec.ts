@@ -73,9 +73,12 @@ async function openRosterWeekOffset(page: Page, weekOffset: number) {
             const scopeKey = JSON.parse(rawConfig).scopeKey;
             if (typeof scopeKey !== 'string') return null;
             const parts = scopeKey.split(':');
-            return Number(parts[parts.length - 1]);
+            const calendarRevision = Number(parts[parts.length - 1]);
+            return parts[parts.length - 3] === new URL(page.url()).searchParams.get('anchorDate')
+                && Number.isInteger(calendarRevision)
+                && calendarRevision > 0;
         })
-        .toBe(weekOffset);
+        .toBe(true);
 }
 
 async function expectAutoCreatedDraftWeek(page: Page) {

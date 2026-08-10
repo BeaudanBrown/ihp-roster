@@ -19,7 +19,7 @@ async function login(page: Page) {
     await page.fill('#email', 'e2e-test@example.com');
     await page.fill('#password', 'test-password-123');
     await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
     await expect(page.locator('#roster-week-shell')).toBeVisible();
 }
 
@@ -27,7 +27,7 @@ test.describe('HTMX submit regressions', () => {
     test.afterEach(() => resetTimesheetDisplayPreferences('e2e-test@example.com'));
     test('roster quick-view unavailability submit resets the form through live refetch', async ({ page }) => {
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
-        await gotoWhenReady(page, `/ShowRosterWeek?weekOffset=0&rosterGroupId=${defaultE2ERosterGroupId}`, '#self-service-leave-form');
+        await gotoWhenReady(page, `/RosterWeeks?rosterGroupId=${defaultE2ERosterGroupId}`, '#self-service-leave-form');
         await expect(page.locator('#self-service-leave-form')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
         await expect(page.locator('#roster-layout [data-bepis-surface="self-service-leave"]')).toBeVisible();
 
@@ -212,10 +212,10 @@ test.describe('HTMX submit regressions', () => {
         await page.getByRole('button', { name: 'Save' }).click();
 
         await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
-        await expect(page.locator('#timesheet-day-section-0')).toContainText('10:15 AM');
-        await expect(page.locator('#timesheet-day-section-0')).toContainText('2:15 PM');
+        await expect(page.locator('[data-timesheet-operational-date]').first()).toContainText('10:15 AM');
+        await expect(page.locator('[data-timesheet-operational-date]').first()).toContainText('2:15 PM');
         await expect(
-            page.locator(`#timesheet-day-section-0 .timesheet-entry-card:has-text("E2E Manager"):has-text("${note}")`)
+            page.locator('[data-timesheet-operational-date]').first().locator(`.timesheet-entry-card:has-text("E2E Manager"):has-text("${note}")`)
         ).toHaveCount(1);
     });
 
@@ -247,11 +247,11 @@ test.describe('HTMX submit regressions', () => {
         await page.getByRole('button', { name: 'Save' }).click();
 
         await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty();
-        await expect(page.locator('#timesheet-day-section-0')).toContainText('10:30 AM');
-        await expect(page.locator('#timesheet-day-section-0')).toContainText('2:30 PM');
+        await expect(page.locator('[data-timesheet-operational-date]').first()).toContainText('10:30 AM');
+        await expect(page.locator('[data-timesheet-operational-date]').first()).toContainText('2:30 PM');
         await expect(page.locator('.timesheet-entry-card[data-timesheet-entry-approved="true"]')).toHaveCount(0);
         await expect(
-            page.locator(`#timesheet-day-section-0 .timesheet-entry-card:has-text("E2E Manager"):has-text("${note}")`)
+            page.locator('[data-timesheet-operational-date]').first().locator(`.timesheet-entry-card:has-text("E2E Manager"):has-text("${note}")`)
         ).toHaveCount(1);
         resetTimesheetDisplayPreferences('e2e-test@example.com');
     });

@@ -286,6 +286,7 @@ renderRosterSortForm (Just rosterWeek) anchorDate calendarRevision rosterGroupId
                 , actionRouteExtraAttrs = [("class", "mb-0 roster-week-action-form")]
                 }
             [hsx|
+                <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterCalendarRevision (RosterAction.sortRosterWeekActionFields calendarRevision)} value={tshow calendarRevision} />
                 <button type="submit" class="btn btn-outline-secondary btn-sm w-100 h-100 text-center roster-week-action-button">
                     <i class="bi bi-sort-down me-1" aria-hidden="true"></i>
                     Sort shifts
@@ -307,6 +308,7 @@ renderCopyPreviousWeekForm anchorDate calendarRevision rosterGroupId =
             , actionRouteExtraAttrs = [("class", "mb-0 roster-week-action-form")]
             }
         [hsx|
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterCalendarRevision (RosterAction.copyRosterWeekActionFields calendarRevision Nothing Nothing)} value={tshow calendarRevision} />
             <button type="submit" class="btn btn-outline-primary btn-sm w-100 h-100 text-center roster-week-action-button">
                 <i class="bi bi-copy me-1" aria-hidden="true"></i>
                 Copy Previous Week

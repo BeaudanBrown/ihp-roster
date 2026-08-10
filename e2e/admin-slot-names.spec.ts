@@ -52,7 +52,7 @@ test.describe('Roster week columns', () => {
         });
         await editorPage.getByRole('button', { name: 'Add roster column' }).click();
         const createResponse = await createResponsePromise;
-        expect(createResponse.status(), await createResponse.text()).toBe(200);
+        expect(createResponse.status()).toBe(200);
 
         await expect(editorPage.locator('.roster-slot-column-name-input')).toHaveCount(0);
         await expect.poll(() => editorGrid.locator('.roster-block-header').count()).toBeGreaterThan(initialEditorColumnHeaders);
@@ -65,7 +65,7 @@ test.describe('Roster week columns', () => {
         await expect(editDone).toBeVisible();
 
         const deleteResponsePromise = editorPage.waitForResponse((response) => {
-            return response.request().method() === 'DELETE' && response.url().includes('/DeleteRosterWeekSlotDefinition');
+            return response.request().method() === 'POST' && response.url().includes('/RemoveRosterWeekSlotDefinition');
         });
         await editorPage
             .locator('.roster-block-header')
@@ -73,7 +73,7 @@ test.describe('Roster week columns', () => {
             .getByRole('button', { name: 'Remove roster column' })
             .click();
         const deleteResponse = await deleteResponsePromise;
-        expect(deleteResponse.status(), await deleteResponse.text()).toBe(200);
+        expect(deleteResponse.status()).toBe(200);
 
         await expect.poll(() => editorGrid.locator('.roster-block-header').count()).toBe(initialEditorColumnHeaders);
         await viewerPage.reload();

@@ -64,11 +64,27 @@ test.describe('Roster notification workflow', () => {
 
     test('opens confirmation in place for managers and stays hidden from workers', async ({ browser, page }, testInfo) => {
         test.skip(testInfo.project.name !== 'desktop-chromium', 'Role-specific notification workflow is covered once on desktop.');
-        await openRoster(page);
-        const weekOffset = Number.parseInt(new URL(page.url()).searchParams.get('weekOffset') ?? '0', 10);
+        const weekOffset = 52;
+        runSql(`
+            INSERT INTO roster_weeks (id, venue_id, roster_group_id, week_offset, is_live)
+            VALUES (
+                'a1000000-0000-0000-0000-000000000597',
+                'a1000000-0000-0000-0000-000000000001',
+                'a1000000-0000-0000-0000-000000000211',
+                ${weekOffset},
+                FALSE
+            )
+            ON CONFLICT (id) DO UPDATE SET is_live = FALSE;
+            UPDATE roster_days
+            SET publication_state = 'draft'
+            WHERE roster_week_id = 'a1000000-0000-0000-0000-000000000597';
+        `);
+        await openRoster(page, { weekOffset });
         const publishToggleRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Published' });
         const publishToggle = publishToggleRoot.getByRole('switch');
+        const publishResponsePromise = page.waitForResponse((response) => response.url().includes('/ToggleRosterWeekLiveStatus'));
         await publishToggleRoot.click();
+        expect((await publishResponsePromise).status()).toBe(200);
         await expect(publishToggle).toBeChecked();
         await page.reload();
         await expect(page.locator('#roster-week-shell')).toBeVisible();
@@ -157,7 +173,6 @@ test.describe('Roster notification workflow', () => {
             ensureDraft: false,
             ensureEditable: false,
         });
-        const weekOffset = Number.parseInt(new URL(page.url()).searchParams.get('weekOffset') ?? '0', 10);
         runSql(`
             CREATE OR REPLACE FUNCTION e2e_defer_roster_notification_jobs()
             RETURNS TRIGGER AS $$
@@ -194,7 +209,7 @@ test.describe('Roster notification workflow', () => {
                 SET status = 'job_status_retry', run_at = NOW()
                 WHERE related_id = (
                     SELECT id FROM roster_notification_runs
-                    WHERE roster_group_id = '${rosterGroupId}' AND week_offset = ${weekOffset}
+                    WHERE roster_week_id = '${rosterWeekId}'
                     ORDER BY created_at DESC LIMIT 1
                 );
                 DROP FUNCTION e2e_defer_roster_notification_jobs();
@@ -208,7 +223,7 @@ test.describe('Roster notification workflow', () => {
                 FROM app_jobs
                 WHERE related_id IN (
                     SELECT id FROM roster_notification_runs
-                    WHERE roster_group_id = '${rosterGroupId}' AND week_offset = ${weekOffset}
+                    WHERE roster_week_id = '${rosterWeekId}'
                 )
                   AND status IN ('job_status_not_started', 'job_status_running', 'job_status_retry');
             `), 10), { timeout: E2E_TIMEOUT.mailhog }).toBe(0);
@@ -236,7 +251,7 @@ test.describe('Roster notification workflow', () => {
                     run_at = NOW()
                 WHERE related_id = (
                     SELECT id FROM roster_notification_runs
-                    WHERE roster_group_id = '${rosterGroupId}' AND week_offset = ${weekOffset}
+                    WHERE roster_week_id = '${rosterWeekId}'
                     ORDER BY created_at DESC LIMIT 1
                 );
             `);

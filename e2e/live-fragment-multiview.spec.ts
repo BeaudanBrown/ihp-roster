@@ -9,7 +9,7 @@ import {
 import { E2E_TIMEOUT } from './timeouts';
 import { gotoWhenReady, loginAs, openProfileLeaveSection, openRoster, openTimesheetSettings, resetTimesheetDisplayPreferences, runSql, setFlatpickrDate } from './test-helpers';
 
-const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
+const e2eRosterPath = '/RosterWeeks?rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
 const managerCreds = {
     email: 'e2e-test@example.com',
@@ -87,8 +87,8 @@ function cleanupManagerApprovalEntry() {
     `);
 }
 
-async function createTimesheetForDaySection(page: Page, dayOffset: string, startTime: string, endTime: string) {
-    await page.locator(`#timesheet-day-section-${dayOffset} [data-timesheet-day-add="true"]`).click();
+async function createTimesheetForDaySection(page: Page, operationalDate: string, startTime: string, endTime: string) {
+    await page.locator(`[data-timesheet-operational-date="${operationalDate}"] [data-timesheet-day-add="true"]`).click();
     await fillAndSaveTimesheetDialog(page, startTime, endTime);
 }
 
@@ -448,8 +448,8 @@ test.describe('Live fragment multi-view coverage', () => {
 
             await createTimesheet(workerPage, '11:15', '15:15', managerApprovalEntryMarker);
 
-            const managerEntry = managerPage.locator('#timesheet-day-section-0 .timesheet-entry-card').filter({ hasText: managerApprovalEntryMarker });
-            const workerEntry = workerPage.locator('#timesheet-day-section-0 .timesheet-entry-card').filter({ hasText: managerApprovalEntryMarker });
+            const managerEntry = managerPage.locator('[data-timesheet-operational-date]').first().locator('.timesheet-entry-card').filter({ hasText: managerApprovalEntryMarker });
+            const workerEntry = workerPage.locator('[data-timesheet-operational-date]').first().locator('.timesheet-entry-card').filter({ hasText: managerApprovalEntryMarker });
 
             await expect(managerEntry).toHaveCount(1);
             await expect(managerEntry).toContainText(renderedRange);
@@ -484,18 +484,19 @@ test.describe('Live fragment multi-view coverage', () => {
         await gotoWhenReady(rosterPage, e2eRosterPath, '#roster-staff-self-service-timesheet-live-surface');
         await gotoWhenReady(timesheetPage, '/Timesheets', '#timesheet-week-shell');
 
-        const rosterDay = rosterPage.locator('#roster-staff-self-service-timesheet-live-surface [data-timesheet-day-offset]').first();
-        const dayOffset = await rosterDay.getAttribute('data-timesheet-day-offset');
-        expect(dayOffset).toBeTruthy();
+        const rosterDay = rosterPage.locator('#roster-staff-self-service-timesheet-live-surface [data-timesheet-operational-date]').first();
+        const operationalDate = await rosterDay.getAttribute('data-timesheet-operational-date');
+        expect(operationalDate).toBeTruthy();
 
-        await createTimesheetForDaySection(rosterPage, dayOffset!, '13:15', '16:15');
+        await createTimesheetForDaySection(rosterPage, operationalDate!, '13:15', '16:15');
 
         await expect(rosterPage.locator('#roster-staff-self-service-timesheet-live-surface')).toContainText(rosterCreatedRange);
-        await expect(timesheetPage.locator(`#timesheet-day-section-${dayOffset}`)).toContainText(rosterCreatedRange, { timeout: E2E_TIMEOUT.liveUpdate });
+        const timesheetDay = timesheetPage.locator(`[data-timesheet-operational-date="${operationalDate}"]`);
+        await expect(timesheetDay).toContainText(rosterCreatedRange, { timeout: E2E_TIMEOUT.liveUpdate });
 
-        await createTimesheetForDaySection(timesheetPage, dayOffset!, '16:30', '19:30');
+        await createTimesheetForDaySection(timesheetPage, operationalDate!, '16:30', '19:30');
 
-        await expect(timesheetPage.locator(`#timesheet-day-section-${dayOffset}`)).toContainText(timesheetCreatedRange);
+        await expect(timesheetDay).toContainText(timesheetCreatedRange);
         await expect(rosterPage.locator('#roster-staff-self-service-timesheet-live-surface')).toContainText(rosterCreatedRange);
 
         await rosterContext.close();

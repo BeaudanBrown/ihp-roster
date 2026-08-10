@@ -384,7 +384,7 @@ test.describe('Roster Staff Modal', () => {
             INSERT INTO roster_slots (
                 id, roster_day_id, roster_lane_id, staff_id, assignment_state,
                 row_index, starts_at, ends_at, timezone, shift_type_id
-            )
+)
             SELECT
                 '${rosterSlotId}', target_cell.roster_day_id,
                 (SELECT roster_lanes.id FROM roster_lanes WHERE roster_lanes.roster_day_id = target_cell.roster_day_id AND roster_lanes.deleted_at IS NULL ORDER BY roster_lanes.sort_order, roster_lanes.id LIMIT 1),
@@ -416,10 +416,10 @@ test.describe('Roster Staff Modal', () => {
             await openRoster(actorPage, { email: 'e2e-admin@example.com' });
             await openRoster(viewerPage, { email: 'e2e-admin@example.com' });
             await openRoster(timesheetPage, { email: 'e2e-admin@example.com' });
-            const rosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
+            const rosterPath = '/RosterWeeks?rosterGroupId=a1000000-0000-0000-0000-000000000211';
             await gotoWhenReady(actorPage, rosterPath, '#roster-week-shell');
             await gotoWhenReady(viewerPage, rosterPath, '#roster-week-shell');
-            await gotoWhenReady(timesheetPage, '/ShowTimesheetWeek?weekOffset=0', '#timesheet-week-shell');
+            await gotoWhenReady(timesheetPage, '/Timesheets', '#timesheet-week-shell');
             await Promise.all([
                 waitForLiveSubscription(actorPage, 'roster:'),
                 waitForLiveSubscription(viewerPage, 'roster:'),

@@ -55,9 +55,27 @@ test.describe('Roster mobile baseline', () => {
     });
 
     test('fits the Published roster email confirmation within the viewport', async ({ page }) => {
+        runSql(`
+            INSERT INTO roster_weeks (id, venue_id, roster_group_id, week_offset, is_live)
+            VALUES (
+                'a1000000-0000-0000-0000-000000000598',
+                'a1000000-0000-0000-0000-000000000001',
+                'a1000000-0000-0000-0000-000000000211',
+                51,
+                FALSE
+            )
+            ON CONFLICT (id) DO UPDATE SET is_live = FALSE;
+            UPDATE roster_days
+            SET publication_state = 'draft'
+            WHERE roster_week_id = 'a1000000-0000-0000-0000-000000000598';
+        `);
+        await openRoster(page, { weekOffset: 51, useCurrentSession: true });
         const publishToggleRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Published' });
         const publishToggle = publishToggleRoot.getByRole('switch');
+        const publishResponsePromise = page.waitForResponse((response) => response.url().includes('/ToggleRosterWeekLiveStatus'));
         await publishToggleRoot.click();
+        const publishResponse = await publishResponsePromise;
+        expect(publishResponse.status()).toBe(200);
         await expect(publishToggle).toBeChecked();
         await page.reload();
         await expect(page.locator('#roster-week-shell')).toBeVisible();

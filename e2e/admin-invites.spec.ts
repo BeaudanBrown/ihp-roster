@@ -98,7 +98,7 @@ test.describe('Admin invites', () => {
         await inviteePage.fill('input[name="passwordConfirmation"]', 'test-password-123');
         await fillRequiredInviteeStaffDetails(inviteePage);
         await inviteePage.locator('form').evaluate((form) => (form as HTMLFormElement).requestSubmit());
-        await expect(inviteePage).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(inviteePage).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
         await expect(inviteePage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
 
         await gotoWhenReady(page, '/Admin', '#admin-config-sections');

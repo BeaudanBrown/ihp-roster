@@ -371,14 +371,15 @@ test.describe('Roster staff shift highlight', () => {
             await expect(weekTotal).toHaveText(venueTotal ?? '');
 
             await pinAndWait(alphaStaffKey);
+            const initialAnchorDate = new URL(page.url()).searchParams.get('anchorDate');
             await Promise.all([
-                page.waitForURL((url) => url.pathname === '/ShowRosterWeek' && url.searchParams.get('weekOffset') === '1', { timeout: E2E_TIMEOUT.navigation }),
+                page.waitForURL((url) => url.pathname === '/ShowRosterWindow' && url.searchParams.get('anchorDate') !== initialAnchorDate, { timeout: E2E_TIMEOUT.navigation }),
                 page.getByRole('link', { name: 'Next week' }).click(),
             ]);
             expect(new URL(page.url()).searchParams.has('pinnedStaffKey')).toBe(false);
             await expect(page.locator(`[${rosterStaffHighlightPinDomAttr}="${alphaStaffKey}"]`).first()).toHaveAttribute('aria-pressed', 'false');
             await Promise.all([
-                page.waitForURL((url) => url.pathname === '/ShowRosterWeek' && url.searchParams.get('weekOffset') === '0', { timeout: E2E_TIMEOUT.navigation }),
+                page.waitForURL((url) => url.pathname === '/ShowRosterWindow' && url.searchParams.get('anchorDate') === initialAnchorDate, { timeout: E2E_TIMEOUT.navigation }),
                 page.getByRole('link', { name: 'Previous week' }).click(),
             ]);
             expect(new URL(page.url()).searchParams.has('pinnedStaffKey')).toBe(false);

@@ -314,6 +314,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` ">Alpha</div>"
                 response `responseBodyShouldContain` "hx-get=\"/EditRosterSlotDialog?rosterSlotId="
                 response `responseBodyShouldContain` "hx-post=\"/ToggleRosterWeekLiveStatus?rosterWeekId="
+                response `responseBodyShouldContain` "name=\"rosterCalendarRevision\" value=\"1\""
                 response `responseBodyShouldContain` ">Published</span></label>"
 
         it "does not render conflict highlights on Published roster windows" $ withContext do

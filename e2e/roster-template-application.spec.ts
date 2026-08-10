@@ -25,7 +25,7 @@ function resetTemplates() {
 function resetApplicationTargetState() {
     runSql(`
         UPDATE roster_days
-        SET is_closed = FALSE, row_count = 4
+        SET is_closed = FALSE, row_count = 4, publication_state = 'draft'
         WHERE roster_week_id = 'a1000000-0000-0000-0000-000000000051';
         UPDATE roster_week_slot_definitions
         SET deleted_at = CASE
@@ -95,17 +95,19 @@ test.beforeEach(async ({ page }) => {
 test('live roster explains rejection and exposes no application targets', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop-chromium', 'Live-target rejection is covered once on desktop.');
     const viewedUrl = new URL(page.url());
-    const viewedWeekOffset = Number(viewedUrl.searchParams.get('weekOffset') ?? '0');
+    const viewedAnchorDate = viewedUrl.searchParams.get('anchorDate');
+    if (viewedAnchorDate === null) throw new Error('Expected canonical roster anchor date');
     runSql(`
-        UPDATE roster_weeks
-        SET is_live = TRUE
+        UPDATE roster_days
+        SET publication_state = 'published'
         WHERE roster_group_id = '${defaultE2ERosterGroupId}'
-          AND week_offset = ${viewedWeekOffset};
+          AND operational_date >= '${viewedAnchorDate}'::date
+          AND operational_date < '${viewedAnchorDate}'::date + 7;
     `);
     await gotoWhenReady(page, viewedUrl.toString(), '#roster-content');
     await openTemplatesTab(page);
 
-    await expect(page.getByRole('status')).toContainText('Templates cannot be applied to a live roster');
+    await expect(page.getByRole('status')).toContainText('Templates cannot be applied to a Published roster');
     await expect(page.getByRole('button', { name: 'Apply Lunch service' })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Apply Standard week' })).toBeDisabled();
     await expect(page.locator('[data-bepis-dropzone-ref="day-template-dropzone"]')).toHaveCount(0);
@@ -179,7 +181,7 @@ test('Day template keyboard targeting works in timeline mode', async ({ page }, 
     test.skip(testInfo.project.name !== 'desktop-chromium', 'Timeline keyboard targeting is exercised once on desktop.');
     const timelineUrl = new URL(page.url());
     timelineUrl.searchParams.set('rosterView', 'timeline');
-    timelineUrl.searchParams.set('dayOffset', '0');
+    timelineUrl.searchParams.set('dayDate', timelineUrl.searchParams.get('anchorDate') ?? '');
     await gotoWhenReady(page, timelineUrl.toString(), '.roster-day-timeline-shell');
     await openTemplatesTab(page);
 

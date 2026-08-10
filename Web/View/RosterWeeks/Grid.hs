@@ -51,6 +51,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             FrontendSurfaceMountConfig (..),
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceInteractionShell)
+import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom)
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.RosterWagePrediction
 import Application.Helper.TimeRules (rosterOperationalFinalSelectableTimeText,
@@ -486,7 +487,7 @@ renderSlotHeaderGroup endTimesEnabled anchorDate calendarRevision (Just rosterWe
          style={slotHeaderGridColumnStyle endTimesEnabled}
          {...rosterImageExportCellAttrs ""}>
         <div class="d-flex align-items-center justify-content-center gap-2 roster-slot-column-header">
-            {renderSlotDeleteForm calendarRevision slotCount slotName}
+            {renderSlotDeleteForm anchorDate calendarRevision rosterWeek.rosterGroupId slotCount slotName}
             {renderSlotAddButton anchorDate calendarRevision rosterWeek (slotIndex == slotCount - 1)}
         </div>
     </div>
@@ -499,15 +500,15 @@ renderSlotHeaderGroup endTimesEnabled _ _ _ _ _ (slotIndex, _) = [hsx|
          {...rosterImageExportCellAttrs ""}></div>
 |]
 
-renderSlotDeleteForm :: Int -> Int -> RosterWindowLane -> Html
-renderSlotDeleteForm calendarRevision slotCount windowLane =
+renderSlotDeleteForm :: Day -> Int -> UUID -> Int -> RosterWindowLane -> Html
+renderSlotDeleteForm anchorDate calendarRevision rosterGroupId slotCount windowLane =
     renderFrontendSurfaceActionForm
         (RosterAction.deleteRosterWeekSlotDefinitionAction (RosterAction.deleteRosterWeekSlotDefinitionActionFields calendarRevision))
-        (rosterGridActionRoute (pathTo (DeleteRosterWeekSlotDefinitionAction (rosterWindowLaneRepresentative windowLane).id)))
+        (rosterGridActionRoute (appendQueryParams (pathTo (RemoveRosterWeekSlotDefinitionAction (rosterWindowLaneRepresentative windowLane).id)) [("anchorDate", tshow anchorDate), ("rosterGroupId", tshow rosterGroupId)]))
             { actionRouteExtraAttrs = [("class", "mb-0")]
             }
         [hsx|
-            <input type="hidden" name="_method" value="DELETE" />
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterCalendarRevision (RosterAction.deleteRosterWeekSlotDefinitionActionFields calendarRevision)} value={tshow calendarRevision} />
             <button type="submit"
                     class="btn btn-sm btn-outline-danger roster-slot-column-delete"
                     aria-label="Remove roster column"
@@ -529,6 +530,7 @@ renderSlotAddButton anchorDate calendarRevision rosterWeek True =
             { actionRouteExtraAttrs = [("class", "mb-0 roster-slot-column-add-form")]
             }
         [hsx|
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterCalendarRevision (RosterAction.createRosterWeekSlotDefinitionActionFields calendarRevision)} value={tshow calendarRevision} />
             <button type="submit"
                     class="btn btn-sm btn-outline-primary roster-slot-column-add"
                     aria-label="Add roster column"
@@ -922,7 +924,7 @@ renderToggleClosedButton calendarRevision rosterDay =
             let buttonLabel = if rosterDay.isClosed then ("Reopen day" :: Text) else ("Mark day closed" :: Text)
                 iconClass = if rosterDay.isClosed then ("bi bi-lock-fill" :: Text) else ("bi bi-unlock" :: Text)
                 closedLabel = if rosterDay.isClosed then [hsx|<span class="roster-day-action-label">CLOSED</span>|] else mempty
-             in renderRosterDayActionForm (RosterAction.toggleRosterDayClosedAction (RosterAction.toggleRosterDayClosedActionFields calendarRevision)) (rosterDayMutationUrl (ToggleRosterDayClosedAction rosterDay.id) rosterDay) [hsx|
+             in renderRosterDayActionForm (surfaceFieldNameFrom @Surface.RosterCalendarRevision (RosterAction.toggleRosterDayClosedActionFields calendarRevision)) calendarRevision (RosterAction.toggleRosterDayClosedAction (RosterAction.toggleRosterDayClosedActionFields calendarRevision)) (rosterDayMutationUrl (ToggleRosterDayClosedAction rosterDay.id) rosterDay) [hsx|
                 <button type="submit"
                         class={classes [("btn btn-sm app-compact-action-button roster-day-action roster-day-action-toggle", True), ("is-active", rosterDay.isClosed)]}
                         aria-label={buttonLabel}
@@ -937,7 +939,7 @@ renderToggleClosedButton calendarRevision rosterDay =
 renderAddRowButton :: (?context :: ControllerContext) => Int -> RosterDay -> Html
 renderAddRowButton calendarRevision rosterDay =
     if currentUserIsManager
-        then renderRosterDayActionForm (RosterAction.addRosterRowAction (RosterAction.addRosterRowActionFields calendarRevision)) (rosterDayMutationUrl (AddRosterRowAction rosterDay.id) rosterDay) [hsx|
+        then renderRosterDayActionForm (surfaceFieldNameFrom @Surface.RosterCalendarRevision (RosterAction.addRosterRowActionFields calendarRevision)) calendarRevision (RosterAction.addRosterRowAction (RosterAction.addRosterRowActionFields calendarRevision)) (rosterDayMutationUrl (AddRosterRowAction rosterDay.id) rosterDay) [hsx|
             <button type="submit"
                     class="btn btn-sm app-compact-action-button roster-day-action roster-day-action-add"
                     aria-label="Add shift row"
@@ -953,7 +955,7 @@ renderDeleteLastRowButton calendarRevision rosterDay rowIndex =
     if currentUserIsManager
         then
             let canDelete = rowIndex >= minimumOpenRosterRows
-             in renderRosterDayActionForm (RosterAction.removeRosterRowAction (RosterAction.removeRosterRowActionFields calendarRevision)) (rosterDayMutationUrl (RemoveRosterRowAction rosterDay.id) rosterDay) [hsx|
+             in renderRosterDayActionForm (surfaceFieldNameFrom @Surface.RosterCalendarRevision (RosterAction.removeRosterRowActionFields calendarRevision)) calendarRevision (RosterAction.removeRosterRowAction (RosterAction.removeRosterRowActionFields calendarRevision)) (rosterDayMutationUrl (RemoveRosterRowAction rosterDay.id) rosterDay) [hsx|
                 <button type="submit"
                         class="btn btn-sm app-compact-action-button roster-day-action roster-day-action-remove"
                         aria-label={if canDelete then ("Delete last shift row" :: Text) else ("Minimum day size reached" :: Text)}
@@ -971,11 +973,14 @@ rosterDayMutationUrl action rosterDay =
         <> "&rosterGroupId=" <> tshow rosterDay.rosterGroupId
         <> "&operationalDate=" <> tshow rosterDay.operationalDate
 
-renderRosterDayActionForm :: FrontendSurfaceAction -> Text -> Html -> Html
-renderRosterDayActionForm action actionUrl body =
+renderRosterDayActionForm :: Text -> Int -> FrontendSurfaceAction -> Text -> Html -> Html
+renderRosterDayActionForm calendarRevisionFieldName calendarRevision action actionUrl body =
     renderFrontendSurfaceActionForm
         action
         (rosterGridActionRoute actionUrl)
             { actionRouteExtraAttrs = [("class", "d-inline")]
             }
-        body
+        [hsx|
+            <input type="hidden" name={calendarRevisionFieldName} value={tshow calendarRevision} />
+            {body}
+        |]

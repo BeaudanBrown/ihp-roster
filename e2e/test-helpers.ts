@@ -246,7 +246,7 @@ async function completePasswordLoginFromVisibleForm(page: Page, email: string, p
     await page.fill('#email', email);
     await page.fill('#password', password);
     await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
     await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
     await dismissOptionalPasskeySetupPrompt(page);
 }
@@ -527,7 +527,7 @@ export async function loginAsPrivilegedUserWithFreshPasskey(
     await page.fill('#email', email);
     await page.fill('#password', password);
     await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek|Support)/, { timeout: E2E_TIMEOUT.navigation });
+    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow|Support)/, { timeout: E2E_TIMEOUT.navigation });
 
     if (page.url().includes('/Support')) {
         await registerFirstSupportPasskeyForCurrentUser(page);
@@ -663,10 +663,15 @@ export async function openRoster(page: Page, options: OpenRosterOptions = {}) {
         await loginAs(page, email, password);
     }
     await expect(page.locator('#roster-content')).toBeVisible();
+    await gotoWhenReady(page, '/RosterWeeks', '#roster-content');
+    const currentAnchorDate = new URL(page.url()).searchParams.get('anchorDate');
+    if (currentAnchorDate === null) throw new Error('Expected canonical roster anchor date');
+    const targetAnchorDate = new Date(`${currentAnchorDate}T00:00:00.000Z`);
+    targetAnchorDate.setUTCDate(targetAnchorDate.getUTCDate() + (weekOffset * 7));
     await gotoWhenReady(
         page,
-        `/ShowRosterWeek?${new URLSearchParams({
-            weekOffset: String(weekOffset),
+        `/ShowRosterWindow?${new URLSearchParams({
+            anchorDate: targetAnchorDate.toISOString().slice(0, 10),
             rosterGroupId,
         }).toString()}`,
         '.roster-grid-frame',

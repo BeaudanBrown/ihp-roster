@@ -173,7 +173,10 @@ renderLiveToggleForm rosterWeek anchorDate rosterCalendarRevision rosterGroup =
             { actionRouteStandardUrl = Just actionUrl
             , actionRouteExtraAttrs = [("class", "mb-0")]
             }
-        (renderLiveToggleButton fields rosterWeek)
+        [hsx|
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterCalendarRevision fields} value={tshow rosterCalendarRevision} />
+            {renderLiveToggleButton fields rosterWeek}
+        |]
   where
     actionUrl = appendQueryParams
         (pathTo (ToggleRosterWeekLiveStatusAction rosterWeek.id))

@@ -632,7 +632,7 @@ instance Controller RosterWeeksController where
                     Left errorMessage -> respondToRosterSlotDefinitionError rosterGroup.id weekOffset errorMessage
                     Right mutationResult -> respondToRosterSlotDefinitionSuccess rosterGroup.id weekOffset mutationResult "Roster column added."
 
-    action currentAction@DeleteRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = runBepis currentAction BepisMutationAction do
+    action currentAction@RemoveRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         rosterLane <- query @RosterLane

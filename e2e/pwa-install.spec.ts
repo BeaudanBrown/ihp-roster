@@ -272,7 +272,7 @@ test.describe('Install Bepis', () => {
 
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
         await page.goto('/');
-        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/);
+        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow)/);
 
         expect(await openAuthenticatedNavIfCollapsed(page)).toBe(true);
         const mobileNav = page.locator('#app-mobile-nav');

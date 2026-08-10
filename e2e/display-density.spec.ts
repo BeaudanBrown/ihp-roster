@@ -78,7 +78,7 @@ test.describe('Display density tokens', () => {
         expect(compact.controlHeight).toBeLessThan(normal.controlHeight);
         expect(normal.controlHeight).toBeLessThan(large.controlHeight);
 
-        await gotoWhenReady(page, `/ShowRosterWeek?weekOffset=0&rosterGroupId=${defaultE2ERosterGroupId}`, '#roster-week-shell');
+        await gotoWhenReady(page, `/RosterWeeks?rosterGroupId=${defaultE2ERosterGroupId}`, '#roster-week-shell');
         const rosterMetrics = [];
         for (const density of ['compact', 'normal', 'large'] as const) {
             await setDensity(page, density);

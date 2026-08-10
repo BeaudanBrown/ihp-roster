@@ -281,7 +281,7 @@ data RosterWeeksController
     | ShowRosterNotificationConfirmationAction { rosterWeekId :: !(Id RosterWeek) }
     | CreateRosterNotificationRunAction { rosterWeekId :: !(Id RosterWeek) }
     | CreateRosterWeekSlotDefinitionAction
-    | DeleteRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId :: !(Id RosterLane) }
+    | RemoveRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId :: !(Id RosterLane) }
     | SortRosterWeekAction
     | ToggleRosterDayClosedAction { rosterDayId :: !(Id RosterDay) }
     | AddRosterRowAction { rosterDayId :: !(Id RosterDay) }

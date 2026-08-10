@@ -124,7 +124,7 @@ test.describe('Venue owner onboarding invites', () => {
         await ownerPage.fill('#emergencyContactPhone', '0411111111');
         await ownerPage.getByRole('button', { name: 'Create Account And Venue' }).click();
 
-        await expect(ownerPage).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(ownerPage).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
         await expect(ownerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
 
         await gotoWhenReady(ownerPage, inviteUrl, 'body');

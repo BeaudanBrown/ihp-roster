@@ -194,7 +194,7 @@ test.describe('Venue-admin passkeys', () => {
 
         await passwordLogin(page);
 
-        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
         await gotoWhenReady(page, '/Admin', '#admin-config-sections');
         await expect(page.locator('#admin-config-sections')).toBeVisible();
@@ -234,7 +234,7 @@ test.describe('Venue-admin passkeys', () => {
 
         await gotoWhenReady(page, '/NewSession', '#email');
         await page.getByRole('button', { name: 'Sign in with a passkey' }).click();
-        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
 
         await gotoWhenReady(page, '/Admin', '#admin-config-sections');
@@ -263,7 +263,7 @@ test.describe('Venue-admin passkeys', () => {
         const firstAuthenticator = await enableVirtualPasskeyAuthenticator(page);
 
         await passwordLogin(page);
-        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
         await registerFirstPasskeyForCurrentUser(page);
         await logout(page);
 

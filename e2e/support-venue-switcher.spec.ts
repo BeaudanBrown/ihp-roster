@@ -19,7 +19,7 @@ async function loginAsManager(page: import('@playwright/test').Page) {
     await page.fill('#email', 'e2e-test@example.com');
     await page.fill('#password', 'test-password-123');
     await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
     await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
 }
 
@@ -40,14 +40,14 @@ test.describe('Super-admin venue and user switchers', () => {
         await expect(userSwitcher).not.toContainText('@');
 
         await userSwitcher.selectOption({ label: 'Alpha — Worker' });
-        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#roster-week-shell')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#support-impersonation-user option:checked')).toHaveText('Alpha — Worker');
         await expect(page.getByRole('link', { name: 'support', exact: true })).toBeVisible();
         await expect(page.getByRole('link', { name: 'admin', exact: true })).toHaveCount(0);
 
         await page.locator('#support-impersonation-user').selectOption({ label: 'Super admin' });
-        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#roster-week-shell')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#support-impersonation-user option:checked')).toHaveText('Super admin');
         await expect(page.getByRole('link', { name: 'support', exact: true })).toBeVisible();
@@ -125,7 +125,8 @@ test.describe('Super-admin venue and user switchers', () => {
 
         await expect(page).toHaveURL(
             (url) =>
-                url.pathname === '/ShowRosterWeek'
+                url.pathname === '/ShowRosterWindow'
+                && url.searchParams.has('anchorDate')
                 && url.searchParams.has('rosterGroupId')
                 && url.searchParams.get('rosterGroupId') !== defaultE2ERosterGroupId,
             { timeout: E2E_TIMEOUT.navigation },

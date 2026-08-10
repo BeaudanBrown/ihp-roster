@@ -137,9 +137,9 @@ renderFeedbackOverlayButton buttonClasses iconClasses label =
 
 renderDesktopNavLinks :: (?context :: ControllerContext, ?request :: Request) => Html
 renderDesktopNavLinks = [hsx|
-    {renderDesktopNavLink "roster" "bi-calendar-week" (pathTo RosterWeeksAction) ["/RosterWeeks", "/ShowRosterWeek"]}
+    {renderDesktopNavLink "roster" "bi-calendar-week" (pathTo RosterWeeksAction) ["/RosterWeeks", "/ShowRosterWindow", "/ShowRosterWeek"]}
     {renderWhenAudience StaffProfileAudience (renderDesktopNavLink "profile" "bi-person" (pathTo EditProfileAction) ["/EditProfile"])}
-    {renderDesktopNavLink "timesheets" "bi-clock-history" (pathTo TimesheetsAction) ["/Timesheets", "/ShowTimesheetWeek"]}
+    {renderDesktopNavLink "timesheets" "bi-clock-history" (pathTo TimesheetsAction) ["/Timesheets", "/ShowTimesheetWindow", "/ShowTimesheetWeek"]}
     {renderWhenAudience ManagerAudience (renderDesktopNavLink "unavailability" "bi-calendar-check" (pathTo LeaveRequestsAction) ["/LeaveRequests"])}
     {renderWhenAudience XeroAudience (renderDesktopNavLink "xero" "bi-receipt" (pathTo XeroAction) ["/Xero"])}
     {renderOwnerBillingDesktopNavLink}
@@ -150,9 +150,9 @@ renderDesktopNavLinks = [hsx|
 
 renderMobileNavLinks :: (?context :: ControllerContext, ?request :: Request) => Html
 renderMobileNavLinks = [hsx|
-    {renderMobileNavLink "Roster" "bi-calendar-week" (pathTo RosterWeeksAction) ["/RosterWeeks", "/ShowRosterWeek"]}
+    {renderMobileNavLink "Roster" "bi-calendar-week" (pathTo RosterWeeksAction) ["/RosterWeeks", "/ShowRosterWindow", "/ShowRosterWeek"]}
     {renderWhenAudience StaffProfileAudience (renderMobileNavLink "Profile" "bi-person" (pathTo EditProfileAction) ["/EditProfile"])}
-    {renderMobileNavLink "Timesheets" "bi-clock-history" (pathTo TimesheetsAction) ["/Timesheets", "/ShowTimesheetWeek"]}
+    {renderMobileNavLink "Timesheets" "bi-clock-history" (pathTo TimesheetsAction) ["/Timesheets", "/ShowTimesheetWindow", "/ShowTimesheetWeek"]}
     {renderWhenAudience ManagerAudience (renderMobileNavLink "Unavailability" "bi-calendar-check" (pathTo LeaveRequestsAction) ["/LeaveRequests"])}
     {renderWhenAudience XeroAudience (renderMobileNavLink "Xero" "bi-receipt" (pathTo XeroAction) ["/Xero"])}
     {renderOwnerBillingMobileNavLink}

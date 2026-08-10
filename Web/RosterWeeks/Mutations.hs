@@ -189,11 +189,7 @@ draftRosterWindowErrorUnderLock rosterGroupId weekOffset = do
     venueConfig <- fetchVenueConfig
     window <- fetchRosterWindow currentVenueId rosterGroupId (venueWeekStartDate venueConfig weekOffset)
     calendarError <- requestRosterCalendarRevisionError venueConfig
-    pure $
-        calendarError
-            <|> if any (maybe False ((== Published) . (.publicationState)) . (.persistedRosterDay)) window.rosterWindowProjectedDays
-                then Just publishedRosterReadOnlyMessage
-                else Nothing
+    pure (calendarError <|> guardPublishedWindow window)
 
 requestRosterCalendarRevisionError :: (?context :: ControllerContext, ?request :: Request) => VenueConfig -> IO (Maybe Text)
 requestRosterCalendarRevisionError venueConfig =
@@ -214,6 +210,11 @@ requestRosterCalendarRevisionError venueConfig =
                 )
             error "unreachable"
         | otherwise = pure (Just message)
+
+guardPublishedWindow :: RosterWindow -> Maybe Text
+guardPublishedWindow window
+    | any (maybe False ((== Published) . (.publicationState)) . (.persistedRosterDay)) window.rosterWindowProjectedDays = Just publishedRosterReadOnlyMessage
+    | otherwise = Nothing
 
 publishedRosterReadOnlyMessage :: Text
 publishedRosterReadOnlyMessage = "Published roster windows are read-only. Return it to Draft to make changes."
