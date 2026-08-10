@@ -54,7 +54,10 @@ timesheetsSurfaceImpl scope mountState =
 
 timesheetsDaySurfaceImpl :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> Int -> SurfaceImpl Surface.TimesheetsSurface
 timesheetsDaySurfaceImpl scope mountState dayOffset =
-    timesheetsSurfaceImplWithFragments scope mountState [timesheetDaySectionMountedFragment mountState scope.timesheetWindowStart (addDays (toInteger dayOffset) scope.timesheetWindowStart)]
+    timesheetsSurfaceImplWithFragments scope mountState
+        [ withTimesheetCalendarRevision scope.timesheetCalendarRevision
+            (timesheetDaySectionMountedFragment mountState scope.timesheetWindowStart (addDays (toInteger dayOffset) scope.timesheetWindowStart))
+        ]
 
 timesheetsSurfaceImplWithFragments :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> [FrontendSurfaceMountedFragment] -> SurfaceImpl Surface.TimesheetsSurface
 timesheetsSurfaceImplWithFragments scope mountState fragments =

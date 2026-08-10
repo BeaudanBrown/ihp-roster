@@ -1251,7 +1251,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 missingOccurrenceResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callRosterSlotActionWithParams (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0) baseParams
+                        callActionWithParams (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0) (baseParams <> rosterMutationParams 64)
 
                 missingOccurrenceResponse `responseStatusShouldBe` status200
                 missingOccurrenceResponse `responseBodyShouldContain` "Choose whether this is the first or second occurrence."
@@ -1261,9 +1261,9 @@ tests = aroundAll withDatabaseTestContext do
 
                 createdResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callRosterSlotActionWithParams
+                        callActionWithParams
                             (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
-                            (baseParams <> [("startOccurrence", "second")])
+                            (baseParams <> [("startOccurrence", "second")] <> rosterMutationParams 64)
 
                 createdResponse `responseStatusShouldBe` status200
                 slot <- query @RosterSlot |> fetchOne
@@ -1293,7 +1293,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 missingOccurrenceResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callRosterSlotActionWithParams (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0) baseParams
+                        callActionWithParams (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0) (baseParams <> rosterMutationParams 64)
 
                 missingOccurrenceResponse `responseStatusShouldBe` status200
                 missingOccurrenceResponse `responseBodyShouldContain` "data-time-occurrence-chooser=\"startOccurrence\""
@@ -1302,9 +1302,9 @@ tests = aroundAll withDatabaseTestContext do
 
                 createdResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callRosterSlotActionWithParams
+                        callActionWithParams
                             (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
-                            (baseParams <> [("startOccurrence", "first"), ("endOccurrence", "second")])
+                            (baseParams <> [("startOccurrence", "first"), ("endOccurrence", "second")] <> rosterMutationParams 64)
 
                 createdResponse `responseStatusShouldBe` status200
                 slot <- query @RosterSlot |> fetchOne
@@ -1328,13 +1328,15 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callRosterSlotActionWithParams
+                        callActionWithParams
                             (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
-                            [ ("staffId", idToParam staffMember.id)
-                            , ("startTime", "02:30")
-                            , ("endTime", "04:00")
-                            , ("shiftTypeId", idToParam shiftType.id)
-                            ]
+                            ( [ ("staffId", idToParam staffMember.id)
+                              , ("startTime", "02:30")
+                              , ("endTime", "04:00")
+                              , ("shiftTypeId", idToParam shiftType.id)
+                              ]
+                                <> rosterMutationParams 90
+                            )
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "This local time does not exist because clocks move forward."

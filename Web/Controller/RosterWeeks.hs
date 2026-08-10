@@ -1071,6 +1071,7 @@ instance Controller RosterWeeksController where
         rosterDay <- fetchRosterDayForMutation rosterDayId
         rosterWeek <- rosterPlanningWeekForDay rosterDay
         requireRosterShiftCalendarAppShellContext (parseAppShellActionParams @CreateRosterShiftOverlay)
+        requireRosterSlotMutationContext rosterWeek
         authorizeRosterSlotCreateContext rosterDay rosterWeek rowIndex
         slotDefinition <- fetchRosterSlotDefinitionForCreate rosterDayId rosterWeekSlotDefinitionId
         authorizeRosterSlotDefinitionForCreate rosterDay slotDefinition
@@ -1111,6 +1112,7 @@ instance Controller RosterWeeksController where
         authorizeRosterSlotForEdit rosterSlot
         (rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlot
         requireRosterShiftCalendarAppShellContext (parseAppShellActionParams @UpdateRosterShiftOverlay)
+        requireRosterSlotMutationContext rosterWeek
         authorizeRosterSlotEditContext rosterSlot rosterDay rosterWeek
         let rosterGroupId = coerce rosterWeek.rosterGroupId
         if rosterWeek.isLive
