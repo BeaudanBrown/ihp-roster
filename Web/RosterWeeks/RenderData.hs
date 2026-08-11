@@ -74,10 +74,11 @@ renderVisibleRosterReadModelFragment rosterGroupId weekOffset fragment =
     profileActionSpan "roster.read_model.render_fragment" do
         case fragment of
             RosterProjectionContent -> do
-                rosterGroups <- profileActionSpan "roster.fragment.fetch_roster_groups" fetchCurrentVenueRosterGroups
-                currentRosterGroup <- profileActionSpan "roster.fragment.resolve_current_group" (fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId))
+                rosterGroups <- profileActionSpan "roster.fragment.fetch_roster_groups" fetchViewableRosterGroups
+                currentRosterGroupOrNothing <- profileActionSpan "roster.fragment.resolve_current_group" (fetchViewableRosterGroup rosterGroupId)
+                accessDeniedUnless (isJust currentRosterGroupOrNothing)
                 rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
-                Just <$> renderRosterContentFromProjection rosterGroups currentRosterGroup rosterData
+                Just <$> renderRosterContentFromProjection rosterGroups (fromMaybe (error "authorized roster group missing") currentRosterGroupOrNothing) rosterData
             _ -> renderVisibleRosterFragment rosterGroupId weekOffset fragment
 
 renderRosterProjectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Maybe RosterRenderData -> RosterProjectionFragment -> Maybe Blaze.Html
@@ -296,9 +297,11 @@ renderRequestedDaySectionFragmentFromProjectionWithMode renderMode RosterRenderD
 
 fetchVisibleRosterReadModel :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
 fetchVisibleRosterReadModel rosterGroupId weekOffset = profileActionSpan "roster.read_model.fetch_visible" do
+    currentRosterGroupOrNothing <- profileActionSpan "roster.direct.resolve_current_group" (fetchViewableRosterGroup rosterGroupId)
+    accessDeniedUnless (isJust currentRosterGroupOrNothing)
+    let currentRosterGroup = fromMaybe (error "authorized roster group missing") currentRosterGroupOrNothing
     visibleRosterWeek <- profileActionSpan "roster.direct.fetch_visible_week" (fetchVisibleRosterWeek rosterGroupId weekOffset)
-    rosterGroups <- profileActionSpan "roster.direct.fetch_roster_groups" fetchCurrentVenueRosterGroups
-    currentRosterGroup <- profileActionSpan "roster.direct.resolve_current_group" (fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId))
+    rosterGroups <- profileActionSpan "roster.direct.fetch_roster_groups" fetchViewableRosterGroups
     (templateLibraryUserId, templateLibrary) <- fetchRosterPanelTemplateLibrary currentRosterGroup
     highlightOwnLiveShifts <- fetchCurrentUserHighlightOwnLiveShifts
     let currentViewerStaffKey = Nothing
@@ -349,8 +352,10 @@ fetchVisibleRosterReadModel rosterGroupId weekOffset = profileActionSpan "roster
 fetchRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
 fetchRosterRenderData rosterGroupId weekOffset = do
     venueConfig <- profileActionSpan "roster.direct.fetch_venue_config" fetchVenueConfig
-    rosterGroups <- profileActionSpan "roster.direct.fetch_roster_groups" fetchCurrentVenueRosterGroups
-    currentRosterGroup <- profileActionSpan "roster.direct.resolve_current_group" (fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId))
+    rosterGroups <- profileActionSpan "roster.direct.fetch_roster_groups" fetchViewableRosterGroups
+    currentRosterGroupOrNothing <- profileActionSpan "roster.direct.resolve_current_group" (fetchViewableRosterGroup rosterGroupId)
+    accessDeniedUnless (isJust currentRosterGroupOrNothing)
+    let currentRosterGroup = fromMaybe (error "authorized roster group missing") currentRosterGroupOrNothing
     assignmentFilters <- profileActionSpan "roster.direct.fetch_assignment_filters" fetchRosterAssignmentFilters
     rosterLayoutMode <- profileActionSpan "roster.direct.fetch_layout_preference" fetchCurrentRosterLayoutMode
     userShowWageEstimates <- profileActionSpan "roster.direct.fetch_wage_preference" fetchCurrentUserShowWageEstimates
@@ -454,6 +459,8 @@ fetchRosterStaffSelfServicePanel venueConfig rosterGroupId weekOffset highlightO
 
 fetchVisibleRosterWeek :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterWeek)
 fetchVisibleRosterWeek rosterGroupId weekOffset = do
+    rosterGroupIsViewable <- isJust <$> fetchViewableRosterGroup rosterGroupId
+    accessDeniedUnless rosterGroupIsViewable
     _ <- profileActionSpan "roster.visible_week.ensure_exists" (ensureRosterWeekExists rosterGroupId weekOffset)
     rosterWeekOrNothing <-
         profileActionSpan "roster.visible_week.fetch" do
@@ -566,8 +573,10 @@ renderVisibleRosterFragment rosterGroupId weekOffset fragment = do
 fetchVisibleRosterStaffPanelRenderModel :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterStaffPanelScope -> Id RosterGroup -> Int -> IO RosterStaffPanelRenderModel
 fetchVisibleRosterStaffPanelRenderModel panelScope rosterGroupId weekOffset = do
     visibleRosterWeek <- fetchVisibleRosterWeek rosterGroupId weekOffset
-    rosterGroups <- profileActionSpan "roster.fragment.fetch_roster_groups" fetchCurrentVenueRosterGroups
-    currentRosterGroup <- profileActionSpan "roster.fragment.resolve_current_group" (fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId))
+    rosterGroups <- profileActionSpan "roster.fragment.fetch_roster_groups" fetchViewableRosterGroups
+    currentRosterGroupOrNothing <- profileActionSpan "roster.fragment.resolve_current_group" (fetchViewableRosterGroup rosterGroupId)
+    accessDeniedUnless (isJust currentRosterGroupOrNothing)
+    let currentRosterGroup = fromMaybe (error "authorized roster group missing") currentRosterGroupOrNothing
     assignmentFilters <- profileActionSpan "roster.fragment.fetch_assignment_filters" fetchRosterAssignmentFilters
     rosterLayoutMode <- profileActionSpan "roster.fragment.fetch_layout_preference" fetchCurrentRosterLayoutMode
     userShowWageEstimates <- profileActionSpan "roster.fragment.fetch_wage_preference" fetchCurrentUserShowWageEstimates

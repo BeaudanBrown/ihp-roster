@@ -16,8 +16,8 @@ import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRende
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh,
                                       setActorLocalFragmentsRefresh)
 import Application.Helper.Profiling (respondHtmlProfiled)
-import Application.Helper.RosterGroups (fetchCurrentVenueRosterGroupOrDefault,
-                                        fetchCurrentVenueRosterGroups)
+import Application.Helper.RosterGroups (fetchViewableRosterGroup,
+                                        fetchViewableRosterGroups)
 import Application.Helper.SurfaceResource (SurfaceResourceValue)
 import Application.Helper.View (ToastOverlayConfig,
                                 ToastOverlayPosition (ToastBottomCenter),
@@ -129,8 +129,10 @@ respondWithRosterTemplateApplicationUpdate rosterGroupId weekOffset touchedResou
 
 respondWithRosterContentOob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()
 respondWithRosterContentOob rosterGroupId weekOffset = do
-    rosterGroups <- fetchCurrentVenueRosterGroups
-    currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
+    rosterGroups <- fetchViewableRosterGroups
+    currentRosterGroupOrNothing <- fetchViewableRosterGroup rosterGroupId
+    accessDeniedUnless (isJust currentRosterGroupOrNothing)
+    let currentRosterGroup = fromMaybe (error "authorized roster group missing") currentRosterGroupOrNothing
     rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
     case rosterData of
         Nothing -> do
@@ -189,8 +191,10 @@ respondWithRosterContentError rosterGroupId weekOffset errorMessage = do
 
 respondWithRosterContentToast :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Bool -> ToastOverlayConfig -> IO ()
 respondWithRosterContentToast rosterGroupId weekOffset publishAttempted toast = do
-    rosterGroups <- fetchCurrentVenueRosterGroups
-    currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
+    rosterGroups <- fetchViewableRosterGroups
+    currentRosterGroupOrNothing <- fetchViewableRosterGroup rosterGroupId
+    accessDeniedUnless (isJust currentRosterGroupOrNothing)
+    let currentRosterGroup = fromMaybe (error "authorized roster group missing") currentRosterGroupOrNothing
     rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
     respondHtmlProfiled $
         mconcat

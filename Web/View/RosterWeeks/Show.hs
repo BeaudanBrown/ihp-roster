@@ -17,6 +17,32 @@ import Web.View.RosterWeeks.Grid (renderRosterLayout)
 instance View ShowView where
     html = renderRosterWeekShell
 
+instance View NoRosterGroupView where
+    html = renderNoRosterGroupShell
+
+renderNoRosterGroupShell :: NoRosterGroupView -> Html
+renderNoRosterGroupShell NoRosterGroupView { .. } =
+    let emptyState = [hsx|
+            <div class="app-panel roster-main-panel">
+                <div class="app-panel-body" role="status">
+                    <p class="mb-0">You aren't assigned to a roster group yet.</p>
+                </div>
+            </div>
+        |]
+        page = renderAppPage AppPageConfig
+            { appPageTitle = "Roster"
+            , appPageDescription = Nothing
+            , appPageActions = mempty
+            , appPageHelpTopic = Just (PageHelpTopicId "roster")
+            , appPageWidthClass = ""
+            , appPageBody = renderPasskeySetupPrompt noRosterGroupPasskeyStrongAuthenticationRequired noRosterGroupPasskeySetupPrompt <> emptyState
+            }
+     in [hsx|
+        <section id={rosterWeekShellId} hx-history-elt="true">
+            {page}
+        </section>
+    |]
+
 renderRosterWeekShell :: ShowView -> Html
 renderRosterWeekShell ShowView { .. } =
     let page = renderAppPage (AppPageConfig

@@ -58,7 +58,7 @@ import Data.Coerce (coerce)
 import Data.Either (fromRight)
 import Data.List (find, nub)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (catMaybes, fromMaybe, isJust, mapMaybe)
+import Data.Maybe (catMaybes, fromMaybe, isJust, listToMaybe, mapMaybe)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time (getCurrentTime, utctDay)
@@ -106,7 +106,8 @@ import Web.View.RosterWeeks.NotificationDialog (renderRosterNotificationConfirma
 import Web.View.RosterWeeks.OccurrenceDialog
 import Web.View.RosterWeeks.Overview (renderWeekOverviewPanelFragment)
 import Web.View.RosterWeeks.ShiftDialog
-import Web.View.RosterWeeks.Show (renderRosterWeekShell)
+import Web.View.RosterWeeks.Show (renderNoRosterGroupShell,
+                                  renderRosterWeekShell)
 import Web.View.RosterWeeks.StaffPanel (renderrosterStaffPanelLiveFragment)
 import Web.View.RosterWeeks.Timeline (renderRosterDayTimelineContent)
 
@@ -210,47 +211,51 @@ instance Controller RosterWeeksController where
     action currentAction@RosterWeeksAction = runBepis currentAction BepisPageAction do
         -- Redirect to the current week's offset based on today's date
         currentWeekOffset <- fetchCurrentRosterWeekOffset
-        currentRosterGroup <- resolveRequestedRosterGroup
-        currentWeekPath <- case paramOrNothing @Text "rosterView" of
-            Just "timeline" -> do
-                venueConfig <- fetchVenueConfig
-                today <- utctDay <$> getCurrentTime
-                let todayDayOffset = fromInteger (Calendar.diffDays today (venueWeekStartDate venueConfig currentWeekOffset))
-                pure (rosterDayTimelineUrl currentWeekOffset currentRosterGroup.id (max 0 (min 6 todayDayOffset)))
-            _ -> pure (rosterWeekUrl currentWeekOffset currentRosterGroup.id)
+        resolveRequestedRosterGroupOrNothing >>= \case
+            Nothing -> renderNoRosterGroupPage
+            Just currentRosterGroup -> do
+                currentWeekPath <- case paramOrNothing @Text "rosterView" of
+                    Just "timeline" -> do
+                        venueConfig <- fetchVenueConfig
+                        today <- utctDay <$> getCurrentTime
+                        let todayDayOffset = fromInteger (Calendar.diffDays today (venueWeekStartDate venueConfig currentWeekOffset))
+                        pure (rosterDayTimelineUrl currentWeekOffset currentRosterGroup.id (max 0 (min 6 todayDayOffset)))
+                    _ -> pure (rosterWeekUrl currentWeekOffset currentRosterGroup.id)
 
-        if isHtmxRequest
-            then case (paramOrNothing @Text "rosterView", paramOrNothing @Int "dayOffset") of
-                (Just "timeline", Nothing) -> do
-                    setHeader ("HX-Redirect", cs currentWeekPath)
-                    respondHtmlProfiled mempty
-                _ -> do
-                    setHtmxPushUrl currentWeekPath
-                    renderRosterWeekPage currentWeekOffset currentRosterGroup.id
-            else redirectToPath currentWeekPath
+                if isHtmxRequest
+                    then case (paramOrNothing @Text "rosterView", paramOrNothing @Int "dayOffset") of
+                        (Just "timeline", Nothing) -> do
+                            setHeader ("HX-Redirect", cs currentWeekPath)
+                            respondHtmlProfiled mempty
+                        _ -> do
+                            setHtmxPushUrl currentWeekPath
+                            renderRosterWeekPage currentWeekOffset currentRosterGroup.id
+                    else redirectToPath currentWeekPath
 
     action currentAction@ShowRosterWeekAction { weekOffset } = runBepis currentAction BepisPageAction do
-        rosterGroup <- resolveRequestedRosterGroup
-        when RosterAction.navigateRosterWeekActionParamsPresent do
-            case RosterAction.parseNavigateRosterWeekActionParams of
-                Left errors -> do
-                    setErrorMessage (rosterSurfaceRequestErrorMessage errors)
-                    redirectTo RosterWeeksAction
-                Right fields -> do
-                    accessDeniedUnless (surfaceFieldValue @Surface.WeekOffset fields == weekOffset)
-                    accessDeniedUnless (surfaceFieldValue @Surface.RosterGroupId fields == unpackId rosterGroup.id)
-        case paramOrNothing @Calendar.Day "weekDate" of
-            Just weekDate -> do
-                venueConfig <- fetchVenueConfig
-                let selectedWeekOffset = venueWeekOffsetForDay venueConfig weekDate
-                let targetPath = rosterWeekUrl selectedWeekOffset rosterGroup.id
-                if isHtmxRequest
-                    then do
-                        setHtmxPushUrl targetPath
-                        renderRosterWeekPage selectedWeekOffset rosterGroup.id
-                    else redirectToPath targetPath
-            Nothing ->
-                renderRosterWeekPage weekOffset rosterGroup.id
+        resolveRequestedRosterGroupOrNothing >>= \case
+            Nothing -> renderNoRosterGroupPage
+            Just rosterGroup -> do
+                when RosterAction.navigateRosterWeekActionParamsPresent do
+                    case RosterAction.parseNavigateRosterWeekActionParams of
+                        Left errors -> do
+                            setErrorMessage (rosterSurfaceRequestErrorMessage errors)
+                            redirectTo RosterWeeksAction
+                        Right fields -> do
+                            accessDeniedUnless (surfaceFieldValue @Surface.WeekOffset fields == weekOffset)
+                            accessDeniedUnless (surfaceFieldValue @Surface.RosterGroupId fields == unpackId rosterGroup.id)
+                case paramOrNothing @Calendar.Day "weekDate" of
+                    Just weekDate -> do
+                        venueConfig <- fetchVenueConfig
+                        let selectedWeekOffset = venueWeekOffsetForDay venueConfig weekDate
+                        let targetPath = rosterWeekUrl selectedWeekOffset rosterGroup.id
+                        if isHtmxRequest
+                            then do
+                                setHtmxPushUrl targetPath
+                                renderRosterWeekPage selectedWeekOffset rosterGroup.id
+                            else redirectToPath targetPath
+                    Nothing ->
+                        renderRosterWeekPage weekOffset rosterGroup.id
 
     action currentAction@ShowRosterDayTimelineAction { weekOffset, rosterDayId } = runBepis currentAction BepisPageAction do
         rosterGroup <- resolveRequestedRosterGroup
@@ -1225,9 +1230,20 @@ sourceTimesheetWarningToast shouldWarn =
         then renderToastOob ToastBottomCenter (errorToast "A timesheet entry was already created from this roster shift. The timesheet snapshot was not changed. Edit the timesheet entry directly.")
         else mempty
 
+resolveRequestedRosterGroupOrNothing :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Maybe RosterGroup)
+resolveRequestedRosterGroupOrNothing = do
+    let requestedRosterGroupId = paramOrNothing "rosterGroupId"
+    rosterGroups <- fetchViewableRosterGroups
+    let resolvedRosterGroup = maybe (listToMaybe rosterGroups) (\rosterGroupId -> find ((== rosterGroupId) . (.id)) rosterGroups) requestedRosterGroupId
+    when (isJust requestedRosterGroupId && not (null rosterGroups)) do
+        accessDeniedUnless (isJust resolvedRosterGroup)
+    pure resolvedRosterGroup
+
 resolveRequestedRosterGroup :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO RosterGroup
-resolveRequestedRosterGroup =
-    fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
+resolveRequestedRosterGroup = do
+    maybeRosterGroup <- resolveRequestedRosterGroupOrNothing
+    accessDeniedUnless (isJust maybeRosterGroup)
+    pure (fromMaybe (error "authorized roster group missing") maybeRosterGroup)
 
 resolveRosterGroupIdForFragmentRosterDay :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Id RosterDay -> IO (Id RosterGroup)
 resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId = do
@@ -1235,7 +1251,10 @@ resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId = do
     rosterWeek <- fetch (Id rosterDay.rosterWeekId :: Id RosterWeek)
     ensureRecordInCurrentVenue rosterWeek.venueId
     accessDeniedUnless (rosterWeek.weekOffset == weekOffset)
-    pure (coerce rosterWeek.rosterGroupId)
+    let rosterGroupId = coerce rosterWeek.rosterGroupId
+    viewableRosterGroup <- fetchViewableRosterGroup rosterGroupId
+    accessDeniedUnless (isJust viewableRosterGroup)
+    pure rosterGroupId
 
 respondWithDeleteRosterSlotDropConfirmation :: (?context :: ControllerContext, ?request :: Request) => RosterSlot -> IO ()
 respondWithDeleteRosterSlotDropConfirmation rosterSlot =
@@ -1341,6 +1360,16 @@ buildRosterTimelineTodayUrl rosterGroupId = do
         todayDayOffset = fromInteger (Calendar.diffDays today (venueWeekStartDate venueConfig currentWeekOffset))
     pure (rosterDayTimelineUrl currentWeekOffset rosterGroupId (max 0 (min 6 todayDayOffset)))
 
+renderNoRosterGroupPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ()
+renderNoRosterGroupPage = do
+    setTitle "Roster"
+    noRosterGroupPasskeySetupPrompt <- passkeySetupPromptFromSession
+    noRosterGroupPasskeyStrongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
+    let view = NoRosterGroupView { .. }
+    if isHtmxRequest
+        then respondHtmlProfiled (renderNoRosterGroupShell view)
+        else renderProfiled view
+
 renderRosterWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Int -> Id RosterGroup -> IO ()
 renderRosterWeekPage weekOffset requestedRosterGroupId =
     profileActionSpan "roster.page.render" do
@@ -1348,8 +1377,8 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
         let weekStartDate = venueWeekStartDate venueConfig weekOffset
         let weekEndDate = Calendar.addDays 6 weekStartDate
         setTitle "Roster"
-        rosterGroups <- profileActionSpan "roster.page.fetch_roster_groups" fetchCurrentVenueRosterGroups
-        currentRosterGroup <- profileActionSpan "roster.page.resolve_current_group" (fetchCurrentVenueRosterGroupOrDefault (Just requestedRosterGroupId))
+        rosterGroups <- profileActionSpan "roster.page.fetch_roster_groups" fetchViewableRosterGroups
+        let currentRosterGroup = fromMaybe (error "authorized roster group missing") (find ((== requestedRosterGroupId) . (.id)) rosterGroups)
         _ <- profileActionSpan "roster.page.ensure_week_exists" (ensureRosterWeekExists currentRosterGroup.id weekOffset)
         rosterDataOrNothing <- profileActionSpan "roster.page.fetch_read_model" (fetchVisibleRosterReadModel currentRosterGroup.id weekOffset)
         passkeySetupPrompt <- profileActionSpan "roster.page.passkey_prompt" passkeySetupPromptFromSession

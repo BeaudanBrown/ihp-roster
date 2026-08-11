@@ -15,6 +15,7 @@ module Web.RosterWeeks.Types
     , RosterViewCapabilities (..)
     , RosterWeekOverviewDay (..)
     , ShowView (..)
+    , NoRosterGroupView (..)
     ) where
 
 import Application.Helper.Conflict (RosterConflict)
@@ -28,6 +29,11 @@ import Data.Time.Clock (NominalDiffTime)
 import Data.UUID (UUID)
 import Generated.Types
 import IHP.Prelude
+
+data NoRosterGroupView = NoRosterGroupView
+    { noRosterGroupPasskeySetupPrompt :: Maybe PasskeySetupPromptMode
+    , noRosterGroupPasskeyStrongAuthenticationRequired :: Bool
+    }
 
 data ShowView = ShowView
     { rosterWeek             :: Maybe RosterWeek
