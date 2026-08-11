@@ -13,6 +13,7 @@ module Web.Timesheets.Validation
     ) where
 
 import Application.Helper.Staff (isLinkedActiveStaff)
+import Application.Helper.TimeRules (calendarDayForOperationalClock)
 import Application.PayAssignment (ShiftPayAssignment (..),
                                   StaffPayAssignment (..),
                                   shiftAssignmentAllowsTimesheets,
@@ -39,10 +40,10 @@ ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset staffFilterId = d
     when locked do
         let message = "This approved timesheet entry is locked because it has been exported or submitted to Xero."
         if isHtmxRequest
-            then respondWithTimesheetDaySectionUpdate weekOffset (timesheetEntryWorkedOn timesheetEntry) staffFilterId message True
+            then respondWithTimesheetDaySectionUpdate weekOffset (timesheetEntryOperationalDate timesheetEntry) staffFilterId message True
             else do
                 setErrorMessage message
-                redirectToPath (timesheetWindowUrl (timesheetEntryWorkedOn timesheetEntry) staffFilterId)
+                redirectToPath (timesheetWindowUrl (timesheetEntryOperationalDate timesheetEntry) staffFilterId)
 
 timesheetEntryHasPayrollProvenance :: (?modelContext :: ModelContext) => TimesheetEntry -> IO Bool
 timesheetEntryHasPayrollProvenance timesheetEntry = do
@@ -69,7 +70,7 @@ ensureTimesheetVisibility entry =
 ensureRosterDerivedIdentityUnchanged :: (?context :: ControllerContext) => TimesheetEntry -> TimesheetEntry -> IO ()
 ensureRosterDerivedIdentityUnchanged existingEntry updatedEntry =
     when (isJust existingEntry.sourceRosterSlotId) do
-        accessDeniedUnless (timesheetEntryWorkedOn updatedEntry == timesheetEntryWorkedOn existingEntry)
+        accessDeniedUnless (timesheetEntryOperationalDate updatedEntry == timesheetEntryOperationalDate existingEntry)
         accessDeniedUnless (updatedEntry.timezone == existingEntry.timezone)
         accessDeniedUnless (updatedEntry.sourceRosterSlotId == existingEntry.sourceRosterSlotId)
 
@@ -131,6 +132,7 @@ timesheetCoreChanged :: TimesheetEntry -> TimesheetEntry -> Bool
 timesheetCoreChanged previous next =
     previous.staffId /= next.staffId
         || previous.shiftTypeId /= next.shiftTypeId
+        || previous.operationalDate /= next.operationalDate
         || previous.startsAt /= next.startsAt
         || previous.endsAt /= next.endsAt
         || previous.breakStartsAt /= next.breakStartsAt
@@ -164,6 +166,7 @@ buildTimesheetEntry venueConfig currentViewerStaffId entry =
             |> requireParam #startsAt "workedOn" "Please choose a day"
             |> requireParam #shiftTypeId "shiftTypeId" "Please choose a shift type"
             |> fill @'["staffId", "shiftTypeId"]
+            |> maybe (\value -> value) (set #operationalDate) parsedWorkedOn
             |> validateParsedFields
 
     validateParsedFields record =
@@ -216,8 +219,9 @@ buildTimesheetEntry venueConfig currentViewerStaffId entry =
         endTime <- parsedEndTime
         startOccurrence <- rightToMaybe parsedStartOccurrence
         endOccurrence <- rightToMaybe parsedEndOccurrence
-        let shiftEndSharesDate = repeatedEndpointPairCanShareDate workedOn startTime endTime
-        let resolvedShiftEndDate = shiftEndDate workedOn startTime endTime
+        let startDate = calendarDateForSubmittedStart workedOn startTime
+        let shiftEndSharesDate = repeatedEndpointPairCanShareDate startDate startTime endTime
+        let resolvedShiftEndDate = shiftEndDate startDate startTime endTime
         breakInput <-
             if hadBreak
                 then do
@@ -225,9 +229,9 @@ buildTimesheetEntry venueConfig currentViewerStaffId entry =
                     breakEndTime <- parsedBreakEndTime
                     breakStartOccurrence <- rightToMaybe parsedBreakStartOccurrence
                     breakEndOccurrence <- rightToMaybe parsedBreakEndOccurrence
-                    let resolvedBreakStartDate = breakStartDate workedOn startTime breakStartTime
-                    let resolvedBreakEndDate = breakEndDate workedOn startTime breakStartTime breakEndTime
-                    let breakStartUsesSecondOccurrence = breakStartTime < startTime && repeatedEndpointPairCanShareDate workedOn startTime breakStartTime
+                    let resolvedBreakStartDate = breakStartDate startDate startTime breakStartTime
+                    let resolvedBreakEndDate = breakEndDate startDate startTime breakStartTime breakEndTime
+                    let breakStartUsesSecondOccurrence = breakStartTime < startTime && repeatedEndpointPairCanShareDate startDate startTime breakStartTime
                     let breakEndUsesSecondOccurrence = repeatedEndpointPairCanShareDate resolvedBreakStartDate breakStartTime breakEndTime
                     pure (Just BreakBoundaryInput
                         { breakBoundaryStartTime = breakStartTime
@@ -237,9 +241,9 @@ buildTimesheetEntry venueConfig currentViewerStaffId entry =
                         })
                 else pure Nothing
         let input = ShiftBoundaryInput
-                { shiftBoundaryDate = workedOn
+                { shiftBoundaryDate = startDate
                 , shiftBoundaryStartTime = startTime
-                , shiftBoundaryStartOccurrence = provisionalOccurrence FirstOccurrence workedOn startTime startOccurrence
+                , shiftBoundaryStartOccurrence = provisionalOccurrence FirstOccurrence startDate startTime startOccurrence
                 , shiftBoundaryEndTime = endTime
                 , shiftBoundaryEndOccurrence = provisionalOccurrence (if shiftEndSharesDate then SecondOccurrence else FirstOccurrence) resolvedShiftEndDate endTime endOccurrence
                 , shiftBoundaryBreak = breakInput
@@ -247,14 +251,14 @@ buildTimesheetEntry venueConfig currentViewerStaffId entry =
             missingOccurrenceFields =
                 [ field
                 | (field, date, timeOfDay, occurrence) <-
-                    [ (StartOccurrenceField, workedOn, startTime, startOccurrence)
+                    [ (StartOccurrenceField, startDate, startTime, startOccurrence)
                     , (EndOccurrenceField, resolvedShiftEndDate, endTime, endOccurrence)
                     ]
                         <> case breakInput of
                             Nothing -> []
                             Just _ ->
-                                [ (BreakStartOccurrenceField, breakStartDate workedOn startTime (fromMaybe startTime parsedBreakStartTime), fromMaybe startTime parsedBreakStartTime, fromRight Nothing parsedBreakStartOccurrence)
-                                , (BreakEndOccurrenceField, breakEndDate workedOn startTime (fromMaybe startTime parsedBreakStartTime) (fromMaybe endTime parsedBreakEndTime), fromMaybe endTime parsedBreakEndTime, fromRight Nothing parsedBreakEndOccurrence)
+                                [ (BreakStartOccurrenceField, breakStartDate startDate startTime (fromMaybe startTime parsedBreakStartTime), fromMaybe startTime parsedBreakStartTime, fromRight Nothing parsedBreakStartOccurrence)
+                                , (BreakEndOccurrenceField, breakEndDate startDate startTime (fromMaybe startTime parsedBreakStartTime) (fromMaybe endTime parsedBreakEndTime), fromMaybe endTime parsedBreakEndTime, fromRight Nothing parsedBreakEndOccurrence)
                                 ]
                 , isNothing occurrence
                 , civilBoundaryIsRepeated date timeOfDay
@@ -294,10 +298,24 @@ buildTimesheetEntry venueConfig currentViewerStaffId entry =
                     NonPositiveResolvedInterval _ _ -> record |> attachFailure #endsAt "Shift end must be after shift start."
 
     attachCivilFailure localTime message record
-        | parsedWorkedOn == Just localTime.localDay && parsedStartTime == Just localTime.localTimeOfDay = record |> attachFailure #startsAt message
+        | resolvedStartDate == Just localTime.localDay && parsedStartTime == Just localTime.localTimeOfDay = record |> attachFailure #startsAt message
         | parsedEndTime == Just localTime.localTimeOfDay = record |> attachFailure #endsAt message
         | parsedBreakStartTime == Just localTime.localTimeOfDay = record |> attachFailure #breakStartsAt message
         | otherwise = record |> attachFailure #breakEndsAt message
+
+    resolvedStartDate = calendarDateForSubmittedStart <$> parsedWorkedOn <*> parsedStartTime
+
+    calendarDateForSubmittedStart operationalDate startTime
+        | isNothing entry.sourceRosterSlotId
+            && entry.operationalDate == operationalDate
+            && operationalDayForLocalTime existingStartLocal /= operationalDate = existingStartLocal.localDay
+        | otherwise = calendarDayForOperationalClock operationalDate startTime
+      where
+        existingStartLocal =
+            either
+                (error . ("Invalid existing Timesheet boundaries: " <>) . show)
+                authoritativeStartLocalTime
+                (timesheetEntryBoundaries entry)
 
     intervalValidationMessage = venueShiftTimeValidationMessage venueConfig
     submittedTimeAllowed existingTime submittedTime =

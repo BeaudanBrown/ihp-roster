@@ -210,8 +210,13 @@ isWithinEditWindow today workedOn windowDays =
 
 operationalDayForLocalTime :: LocalTime -> Day
 operationalDayForLocalTime LocalTime { localDay, localTimeOfDay }
-    | localTimeOfDay < TimeOfDay 6 0 0 = addDays (-1) localDay
+    | localTimeOfDay < rosterOperationalStartTime = addDays (-1) localDay
     | otherwise = localDay
+
+calendarDayForOperationalClock :: Day -> TimeOfDay -> Day
+calendarDayForOperationalClock operationalDate clock
+    | clock < rosterOperationalStartTime = addDays 1 operationalDate
+    | otherwise = operationalDate
 
 currentOperationalDayForVenue :: (?modelContext :: ModelContext) => VenueConfig -> IO Day
 currentOperationalDayForVenue venueConfig = do
@@ -229,7 +234,7 @@ ensureEditWindowOrManager :: (?context :: ControllerContext, ?modelContext :: Mo
 ensureEditWindowOrManager workedOn =
     unless (hasRole Manager) do
         config <- fetchVenueConfig
-        today <- utctDay <$> getCurrentTime
+        today <- currentOperationalDayForVenue config
         accessDeniedUnless (isWithinEditWindow today workedOn config.staffTimesheetEditWindowDays)
 
 isLeaveDateRangeValid :: Day -> Day -> Bool

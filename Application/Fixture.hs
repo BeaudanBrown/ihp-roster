@@ -271,6 +271,7 @@ createTimesheetEntryRecordWithDefaultLevelName venue staff workedOn defaultLevel
         |> set #venueId (unpackId (get #id venue))
         |> set #staffId (unpackId (get #id staff))
         |> set #shiftTypeId (unpackId (get #id shiftType))
+        |> set #operationalDate workedOn
         |> applyTimesheetEntryBoundaries boundaries
         |> createRecord
 

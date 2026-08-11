@@ -20,8 +20,10 @@ import Application.VenueTime.Model (ShiftBoundaryInput (..),
                                     authoritativeBreakStartLocalTime,
                                     authoritativeBreakStartOccurrence,
                                     authoritativeElapsedSeconds,
+                                    authoritativeStartLocalTime,
                                     resolveShiftBoundaries,
                                     storedInstantOccurrence,
+                                    timesheetEntryBoundaries,
                                     timesheetEntryElapsedSeconds)
 import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar)
@@ -93,7 +95,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 (response, mountConfig, expectedRefs) <- withUserAndCurrentVenue user venue.id do
                     withCurrentControllerContext do
-                        let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = unpackId venue.id, timesheetWeekWeekOffset = 0 , timesheetWindowStart = testAnchorForOffset (0 ), timesheetWindowEnd = addDays 7 (testAnchorForOffset (0 )), timesheetCalendarRevision = 1}
+                        let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = unpackId venue.id, timesheetWindowStart = testAnchorForOffset (0 ), timesheetWindowEnd = addDays 7 (testAnchorForOffset (0 )), timesheetCalendarRevision = 1}
                         let mountState = TimesheetsMountStateValue { timesheetsMountStaffFilterId = Nothing }
                         let impl = timesheetsSurfaceImpl scope mountState
                         response <- callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
@@ -204,7 +206,7 @@ tests = aroundAll withDatabaseTestContext do
         it "builds typed FrontendSurface mount metadata for the current timesheet query state" $ withContext do
             withCurrentControllerContext do
                 let venueId = fromMaybe (error "invalid test UUID") (UUID.fromString "00000000-0000-0000-0000-000000000123")
-                let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = venueId, timesheetWeekWeekOffset = 2 , timesheetWindowStart = testAnchorForOffset (2 ), timesheetWindowEnd = addDays 7 (testAnchorForOffset (2 )), timesheetCalendarRevision = 1}
+                let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = venueId, timesheetWindowStart = testAnchorForOffset (2 ), timesheetWindowEnd = addDays 7 (testAnchorForOffset (2 )), timesheetCalendarRevision = 1}
                 let mountState = TimesheetsMountStateValue { timesheetsMountStaffFilterId = Nothing }
                 let impl = timesheetsSurfaceImpl scope mountState
                 let mountConfig = impl.surfaceImplMountConfig
@@ -231,13 +233,20 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Touched Timesheet Venue"
                 staff <- createStaffRecord venue Nothing "Tim" "Touched"
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
+                entry <-
+                    entry
+                        |> set #operationalDate (fromGregorian 2025 1 12)
+                        |> setTestWorkedOn (fromGregorian 2025 1 13)
+                        |> setTestStartTime (TimeOfDay 2 0 0)
+                        |> setTestEndTime (TimeOfDay 5 0 0)
+                        |> updateRecord
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                let weekOffset = venueWeekOffsetForDay venueConfig (testWorkedOn entry)
+                let weekOffset = venueWeekOffsetForDay venueConfig entry.operationalDate
 
                 Set.fromList (timesheetEntryTouchedResources venueConfig [entry])
                     `shouldBe` Set.fromList
                         [ timesheetWeekResource (unpackId venue.id) (testAnchorForOffset weekOffset) (addDays 7 (testAnchorForOffset weekOffset))
-                        , timesheetDayResource (unpackId venue.id) (testWorkedOn entry)
+                        , timesheetDayResource (unpackId venue.id) entry.operationalDate
 
                         ]
 
@@ -284,7 +293,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 (response, fragmentRef) <- withUserAndCurrentVenue user venue.id do
                     withCurrentControllerContext do
-                        let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = unpackId venue.id, timesheetWeekWeekOffset = 0 , timesheetWindowStart = testAnchorForOffset (0 ), timesheetWindowEnd = addDays 7 (testAnchorForOffset (0 )), timesheetCalendarRevision = 1}
+                        let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = unpackId venue.id, timesheetWindowStart = testAnchorForOffset (0 ), timesheetWindowEnd = addDays 7 (testAnchorForOffset (0 )), timesheetCalendarRevision = 1}
                         let mountState = TimesheetsMountStateValue { timesheetsMountStaffFilterId = Nothing }
                         let daySectionRef =
                                 timesheetsCandidateMountedFragments scope mountState
@@ -369,6 +378,75 @@ tests = aroundAll withDatabaseTestContext do
                         |> filterWhere (#staffId, unpackId staff.id)
                         |> fetchOne
                 testHadBreak entry `shouldBe` False
+
+        it "keeps an after-midnight ad-hoc entry on its explicitly selected Operational day" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "After Midnight Operational Day Venue"
+                workerUser <- createUserRecord "timesheet-after-midnight@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue workerUser Manager
+                worker <- createStaffRecord venue (Just workerUser) "Nora" "Night"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel worker
+                shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
+                let operationalDate = fromGregorian 2025 1 12
+
+                response <- withUserAndCurrentVenue workerUser venue.id do
+                    callActionWithParams CreateTimesheetEntryAction
+                        [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
+                        , ("staffId", idToParam worker.id)
+                        , ("shiftTypeId", idToParam shiftType.id)
+                        , ("workedOn", "2025-01-12")
+                        , ("startTime", "02:00")
+                        , ("endTime", "05:00")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                entry <- query @TimesheetEntry |> fetchOne
+                entry.operationalDate `shouldBe` operationalDate
+                boundaries <- either (\reason -> expectationFailure (cs (tshow reason)) >> error "unreachable") pure (timesheetEntryBoundaries entry)
+                (authoritativeStartLocalTime boundaries).localDay `shouldBe` fromGregorian 2025 1 13
+
+                sourceWindow <- withUserAndCurrentVenue workerUser venue.id do
+                    callAction (ShowTimesheetWindowAction "2025-01-06")
+                followingWindow <- withUserAndCurrentVenue workerUser venue.id do
+                    callAction (ShowTimesheetWindowAction "2025-01-13")
+                let entryPath = cs (pathTo (EditTimesheetEntryAction entry.id))
+                sourceWindow `responseBodyShouldContain` entryPath
+                followingWindow `responseBodyShouldNotContain` entryPath
+
+        it "preserves a migrated after-midnight ad-hoc instant when saving comments" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Historical After Midnight Timesheet Venue"
+                manager <- createUserRecord "timesheet-historical-after-midnight@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                staff <- createStaffRecord venue (Just manager) "Harper" "Historical"
+                entry <- createTimesheetEntryRecord venue staff (fromGregorian 2026 8 4)
+                entry <-
+                    entry
+                        |> setTestWorkedOn (fromGregorian 2026 8 4)
+                        |> setTestStartTime (TimeOfDay 2 0 0)
+                        |> setTestEndTime (TimeOfDay 5 0 0)
+                        |> updateRecord
+                let originalStartsAt = entry.startsAt
+                let originalEndsAt = entry.endsAt
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (UpdateTimesheetEntryAction entry.id)
+                        [ ("anchorDate", "2026-08-04"), ("rosterCalendarRevision", "1")
+                        , ("staffId", idToParam staff.id)
+                        , ("shiftTypeId", cs (tshow entry.shiftTypeId))
+                        , ("workedOn", "2026-08-04")
+                        , ("startTime", "02:00")
+                        , ("endTime", "05:00")
+                        , ("hadBreak", "false")
+                        , ("managerNote", "Historical note")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                updatedEntry <- fetch entry.id
+                updatedEntry.startsAt `shouldBe` originalStartsAt
+                updatedEntry.endsAt `shouldBe` originalEndsAt
+                updatedEntry.managerNote `shouldBe` Just "Historical note"
 
         it "uses effective worker ownership and actual founder attribution for timesheets" $ withContext do
             withCleanDb do
@@ -486,7 +564,7 @@ tests = aroundAll withDatabaseTestContext do
                         [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffId", idToParam staff.id)
                         , ("shiftTypeId", idToParam shiftType.id)
-                        , ("workedOn", "2026-04-05")
+                        , ("workedOn", "2026-04-04")
                         , ("startTime", "02:30")
                         , ("endTime", "04:00")
                         , ("hadBreak", "false")
@@ -523,7 +601,7 @@ tests = aroundAll withDatabaseTestContext do
                         [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffId", idToParam staff.id)
                         , ("shiftTypeId", idToParam shiftType.id)
-                        , ("workedOn", "2026-04-05")
+                        , ("workedOn", "2026-04-04")
                         , ("startTime", "02:30")
                         , ("endTime", "02:30")
                         , ("hadBreak", "false")
@@ -561,7 +639,7 @@ tests = aroundAll withDatabaseTestContext do
                         [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                         , ("staffId", idToParam staff.id)
                         , ("shiftTypeId", idToParam shiftType.id)
-                        , ("workedOn", "2026-04-05")
+                        , ("workedOn", "2026-04-04")
                         , ("startTime", "01:30")
                         , ("endTime", "03:30")
                         , ("hadBreak", "true")
@@ -605,7 +683,7 @@ tests = aroundAll withDatabaseTestContext do
                             [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
                             , ("staffId", idToParam staff.id)
                             , ("shiftTypeId", idToParam shiftType.id)
-                            , ("workedOn", "2026-10-04")
+                            , ("workedOn", "2026-10-03")
                             , ("startTime", "02:30")
                             , ("endTime", "04:00")
                             , ("hadBreak", "false")
@@ -1374,7 +1452,7 @@ tests = aroundAll withDatabaseTestContext do
                 authoritativeElapsedSeconds springSuggestion.suggestionBoundaries `shouldBe` 360 * 60
                 authoritativeBreakStartLocalTime springSuggestion.suggestionBoundaries `shouldBe` Nothing
 
-        it "projects a Sunday after-midnight roster shift into the following timesheet week" $ withContext do
+        it "keeps a Sunday after-midnight roster suggestion in its source Operational week" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Operational Week Venue"
                 workerUser <- createUserRecord "timesheet-operational-week-worker@example.com" "staff" True
@@ -1390,14 +1468,14 @@ tests = aroundAll withDatabaseTestContext do
                 rosterSlot <- updateRecord
                     ( rosterSlot
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
-                        |> setTestRosterSlotBoundaries (fromGregorian 2026 4 5) (TimeOfDay 2 0 0) (TimeOfDay 4 0 0)
+                        |> setTestRosterSlotBoundaries (fromGregorian 2026 4 6) (TimeOfDay 2 0 0) (TimeOfDay 4 0 0)
                     )
                 let surfaceParams =
-                        [ ("anchorDate", "2026-04-06"), ("rosterCalendarRevision", "1")
+                        [ ("anchorDate", "2026-03-30"), ("rosterCalendarRevision", "1")
                         ]
 
                 suggestionResponse <- withUserAndCurrentVenue workerUser venue.id do
-                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 65))) surfaceParams
+                    callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 64))) surfaceParams
 
                 suggestionResponse `responseStatusShouldBe` status200
                 suggestionResponse `responseBodyShouldContain` cs ("data-timesheet-suggestion-id=\"" <> tshow rosterSlot.id <> "\"")
@@ -1407,7 +1485,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 createdResponse `responseStatusShouldBe` status302
                 entry <- query @TimesheetEntry |> fetchOne
-                testWorkedOn entry `shouldBe` fromGregorian 2026 4 6
+                entry.operationalDate `shouldBe` rosterDay.operationalDate
+                entry.operationalDate `shouldBe` fromGregorian 2026 4 5
                 testStartTime entry `shouldBe` TimeOfDay 2 0 0
                 testEndTime entry `shouldBe` TimeOfDay 4 0 0
 
@@ -1661,6 +1740,7 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #venueId (unpackId venue.id)
                         |> set #staffId (unpackId worker.id)
                         |> set #shiftTypeId (unpackId shiftType.id)
+                        |> set #operationalDate rosterDay.operationalDate
                         |> setTestWorkedOn (fromGregorian 2025 1 7)
                         |> setTestStartTime (TimeOfDay 9 0 0)
                         |> setTestEndTime (TimeOfDay 17 0 0)

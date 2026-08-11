@@ -160,7 +160,7 @@ renderLoadSql dir =
         renderTimesheetEntryLoad descriptor =
             [ "CREATE TEMP TABLE profile_seed_timesheet_entries (LIKE timesheet_entries INCLUDING DEFAULTS);"
             , renderCopy "profile_seed_timesheet_entries" descriptor
-            , "INSERT INTO timesheet_entries (id, venue_id, staff_id, shift_type_id, starts_at, ends_at, break_starts_at, break_ends_at, timezone, is_approved) SELECT id, venue_id, staff_id, shift_type_id, starts_at, ends_at, break_starts_at, break_ends_at, timezone, FALSE FROM profile_seed_timesheet_entries;"
+            , "INSERT INTO timesheet_entries (id, venue_id, staff_id, shift_type_id, starts_at, ends_at, break_starts_at, break_ends_at, timezone, operational_date, is_approved) SELECT id, venue_id, staff_id, shift_type_id, starts_at, ends_at, break_starts_at, break_ends_at, timezone, operational_date, FALSE FROM profile_seed_timesheet_entries;"
             , "INSERT INTO timesheet_pay_calculations (id, timesheet_entry_id, calculation_version, calculation_source, venue_timezone, holiday_jurisdiction, staff_pay_version_id, shift_type_pay_version_id, approved_at, approved_by_user_id, sealed_at, created_at) SELECT uuid_generate_v5(uuid_ns_url(), 'bepis-profile-pay:' || id::text), id, 'profile-seed-v1', 'hospitality_award', timezone, 'VIC', staff_pay_version_id, shift_type_pay_version_id, approved_at, approved_by_user_id, NULL, approved_at FROM profile_seed_timesheet_entries WHERE is_approved;"
             , "INSERT INTO timesheet_pay_time_segments (id, timesheet_pay_calculation_id, ordinal, paid_time_kind, starts_at, ends_at, local_date, source_condition, created_at) SELECT uuid_generate_v5(uuid_ns_url(), 'bepis-profile-segment-a:' || id::text), uuid_generate_v5(uuid_ns_url(), 'bepis-profile-pay:' || id::text), 0, 'worked', starts_at, break_starts_at, (starts_at AT TIME ZONE timezone)::date, 'ordinary', approved_at FROM profile_seed_timesheet_entries WHERE is_approved;"
             , "INSERT INTO timesheet_pay_time_segments (id, timesheet_pay_calculation_id, ordinal, paid_time_kind, starts_at, ends_at, local_date, source_condition, created_at) SELECT uuid_generate_v5(uuid_ns_url(), 'bepis-profile-segment-b:' || id::text), uuid_generate_v5(uuid_ns_url(), 'bepis-profile-pay:' || id::text), 1, 'worked', break_ends_at, ends_at, (break_ends_at AT TIME ZONE timezone)::date, 'ordinary', approved_at FROM profile_seed_timesheet_entries WHERE is_approved;"
@@ -477,7 +477,7 @@ rosterSlotColumns = ["id", "roster_day_id", "staff_id", "roster_week_slot_defini
 
 leaveRequestColumns, timesheetEntryColumns, timesheetEntryVersionColumns :: [Text]
 leaveRequestColumns = ["id", "venue_id", "staff_id", "start_date", "end_date", "status", "notes"]
-timesheetEntryColumns = ["id", "venue_id", "staff_id", "shift_type_id", "starts_at", "ends_at", "break_starts_at", "break_ends_at", "timezone", "staff_pay_version_id", "shift_type_pay_version_id", "is_approved", "approved_at", "approved_by_user_id"]
+timesheetEntryColumns = ["id", "venue_id", "staff_id", "shift_type_id", "starts_at", "ends_at", "break_starts_at", "break_ends_at", "timezone", "operational_date", "staff_pay_version_id", "shift_type_pay_version_id", "is_approved", "approved_at", "approved_by_user_id"]
 timesheetEntryVersionColumns = ["id", "venue_id", "timesheet_entry_id", "actor_user_id", "version_action", "snapshot", "payload"]
 
 xeroConnectionColumns, xeroSyncRunColumns, xeroEmployeeColumns, xeroStaffMappingColumns :: [Text]
@@ -721,6 +721,7 @@ timesheetEntryRows plan =
         , instantText workedOn (TimeOfDay 12 0 0)
         , instantText workedOn (TimeOfDay 12 30 0)
         , melbourneTimeZoneName
+        , tshow workedOn
         , if isApproved then staffPayVersionId venueIndex staffIndex else nullText, if isApproved then shiftTypePayVersionId venueIndex (1 + deterministicIndex plan [venueIndex, staffIndex, weekOrdinal, 70] (length shiftTypeTemplates)) else nullText
         , if isApproved then "true" else "false"
         , if isApproved then timestampText else nullText

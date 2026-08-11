@@ -98,7 +98,9 @@ materializeTimesheetSuggestionInCurrentTransaction expectedSuggestion timesheetE
     case existingEntry of
         Just existingEntry
             | existingEntry.staffId == expectedSuggestion.suggestionStaffId
+                && existingEntry.operationalDate == expectedSuggestion.suggestionOperationalDate
                 && existingEntry.startsAt == authoritativeStartsAt expectedSuggestion.suggestionBoundaries
+                && existingEntry.endsAt == authoritativeEndsAt expectedSuggestion.suggestionBoundaries
                 && existingEntry.timezone == authoritativeTimezone expectedSuggestion.suggestionBoundaries ->
                 pure (Just (existingEntry, False))
             | otherwise -> pure Nothing
@@ -339,7 +341,7 @@ timesheetEntryTouchedResources venueConfig =
     concatMap entryResources
     where
         entryResources entry =
-            let workedOn = timesheetEntryWorkedOn entry
+            let workedOn = timesheetEntryOperationalDate entry
                 windowStart = startOfWeekFor venueConfig.rosterWeekStartsOn workedOn
                 windowEnd = addDays 7 windowStart
              in [ timesheetWeekResource entry.venueId windowStart windowEnd

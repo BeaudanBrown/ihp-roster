@@ -6,7 +6,7 @@ import Application.Helper.FrontendContract.AppShell (DeleteTimesheetEntryOverlay
                                                      UpdateTimesheetEntryOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker)
-import Application.VenueTime.Model (timesheetEntryWorkedOn)
+import Application.VenueTime.Model (timesheetEntryOperationalDate)
 import Web.Timesheets.Paths (timesheetWindowStateQueryParams,
                              timesheetWindowUrl)
 import Web.View.Prelude
@@ -27,8 +27,8 @@ data EditView = EditView
 instance View EditView where
     html EditView { .. } =
         renderTimesheetEntryModalWithStartButtons
-            (timesheetModalTitle (timesheetEntryWorkedOn timesheetEntry))
-            (timesheetWindowUrl (timesheetEntryWorkedOn timesheetEntry) selectedStaffFilterId)
+            (timesheetModalTitle (timesheetEntryOperationalDate timesheetEntry))
+            (timesheetWindowUrl (timesheetEntryOperationalDate timesheetEntry) selectedStaffFilterId)
             editTimesheetFormId
             (renderTimesheetForm (appShellActionByMarker @UpdateTimesheetEntryOverlay) formOrigin timesheetEntry staffMembers shiftTypes weekOffset calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId PageOverlayForm)
             (deleteButtonsFor timesheetEntry calendarRevision selectedStaffFilterId)
@@ -41,7 +41,7 @@ editTimesheetFormId = "timesheet-entry-edit-form"
 renderEditTimesheetDialog :: TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Int -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Html
 renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep =
     renderTimesheetEntryDialogWithStartButtons
-        (timesheetModalTitle (timesheetEntryWorkedOn timesheetEntry))
+        (timesheetModalTitle (timesheetEntryOperationalDate timesheetEntry))
         editTimesheetFormId
         (renderTimesheetForm (appShellActionByMarker @UpdateTimesheetEntryOverlay) formOrigin timesheetEntry staffMembers shiftTypes weekOffset calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId HtmxOverlayForm)
         (deleteButtonsFor timesheetEntry calendarRevision selectedStaffFilterId)
@@ -73,5 +73,5 @@ deleteButtonsFor timesheetEntry calendarRevision selectedStaffFilterId =
         }
     ]
     where
-        requestParams = timesheetWindowStateQueryParams (timesheetEntryWorkedOn timesheetEntry) selectedStaffFilterId <> [("rosterCalendarRevision", tshow calendarRevision)]
+        requestParams = timesheetWindowStateQueryParams (timesheetEntryOperationalDate timesheetEntry) selectedStaffFilterId <> [("rosterCalendarRevision", tshow calendarRevision)]
         deleteUrl = appendQueryParams (pathTo (DeleteTimesheetEntryAction (get #id timesheetEntry))) requestParams

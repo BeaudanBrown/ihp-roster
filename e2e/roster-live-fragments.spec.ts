@@ -74,7 +74,12 @@ async function openRosterWeekOffset(page: Page, weekOffset: number) {
             if (typeof scopeKey !== 'string') return null;
             const parts = scopeKey.split(':');
             const calendarRevision = Number(parts[parts.length - 1]);
-            return parts[parts.length - 3] === new URL(page.url()).searchParams.get('anchorDate')
+            const windowStart = parts[parts.length - 3];
+            const windowEnd = parts[parts.length - 2];
+            const anchorDate = new URL(page.url()).searchParams.get('anchorDate');
+            return anchorDate !== null
+                && windowStart <= anchorDate
+                && anchorDate < windowEnd
                 && Number.isInteger(calendarRevision)
                 && calendarRevision > 0;
         })

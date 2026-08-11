@@ -30,6 +30,7 @@ module Application.VenueTime.Model
     , applyTimesheetEntryBoundaries
     , applyRosterSlotBoundaries
     , timesheetEntryBoundaries
+    , timesheetEntryOperationalDate
     , timesheetEntryWorkedOn
     , timesheetEntryStartTime
     , timesheetEntryEndTime
@@ -341,6 +342,12 @@ timesheetEntryBoundaries entry =
         entry.breakStartsAt
         entry.breakEndsAt
 
+timesheetEntryOperationalDate :: TimesheetEntry -> Day
+timesheetEntryOperationalDate = (.operationalDate)
+
+-- Local start date remains an authoritative instant projection for payroll
+-- component/calendar conditions. Timesheet planning and presentation use
+-- 'timesheetEntryOperationalDate' instead.
 timesheetEntryWorkedOn :: TimesheetEntry -> Day
 timesheetEntryWorkedOn = (.localDay) . authoritativeStartLocalTime . requireTimesheetBoundaries
 

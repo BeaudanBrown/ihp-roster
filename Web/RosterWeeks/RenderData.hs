@@ -408,15 +408,12 @@ fetchRosterStaffSelfServicePanel venueConfig rosterGroups rosterGroupId weekOffs
             Nothing -> pure Nothing
             Just staff -> do
                 operationalDay <- currentOperationalDayForVenue venueConfig
-                let timesheetWeekOffset = venueWeekOffsetForDay venueConfig operationalDay
-                let timesheetWeekStartDate = venueWeekStartDate venueConfig timesheetWeekOffset
-                let (dayStartsAt, dayEndsAt) = requireMelbourneDateRangeUTC operationalDay operationalDay
+                let timesheetWeekStartDate = startOfWeekFor venueConfig.rosterWeekStartsOn operationalDay
                 quickToolsTimesheetEntries <-
                     query @TimesheetEntry
                         |> filterWhere (#venueId, unpackId currentVenueId)
                         |> filterWhere (#staffId, unpackId staff.id)
-                        |> filterWhereGreaterThanOrEqualTo (#startsAt, dayStartsAt)
-                        |> filterWhereLessThan (#startsAt, dayEndsAt)
+                        |> filterWhere (#operationalDate, operationalDay)
                         |> filterWhere (#deletedAt, Nothing)
                         |> orderByAsc #startsAt
                         |> fetch
@@ -434,7 +431,6 @@ fetchRosterStaffSelfServicePanel venueConfig rosterGroups rosterGroupId weekOffs
                             , quickToolsStaffMembers = [staff]
                             , quickToolsShiftTypes
                             , quickToolsOperationalDay = operationalDay
-                            , quickToolsTimesheetWeekOffset = timesheetWeekOffset
                             , quickToolsTimesheetWeekStartDate = timesheetWeekStartDate
                             , quickToolsCalendarRevision = venueConfig.rosterCalendarRevision
                             , quickToolsTimesheetEditWindowDays = venueConfig.staffTimesheetEditWindowDays

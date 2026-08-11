@@ -5,7 +5,7 @@ module Web.Timesheets.Responses
     , respondWithTimesheetFragment
     , respondWithTimesheetFragments
     , respondWithTimesheetDaySectionUpdate
-    , respondWithTimesheetWeekFragmentsUpdate
+    , respondWithTimesheetWindowFragmentsUpdate
     , respondWithTimesheetWeekView
     ) where
 
@@ -86,7 +86,6 @@ timesheetScopeFromProjection :: (?context :: ControllerContext) => TimesheetWeek
 timesheetScopeFromProjection projection =
     TimesheetWeekScopeValue
         { timesheetWeekVenueId = unpackId currentVenueId
-        , timesheetWeekWeekOffset = projection.timesheetWeekOffset
         , timesheetWindowStart = projection.timesheetWeekStartDate
         , timesheetWindowEnd = addDays 1 projection.timesheetWeekEndDate
         , timesheetCalendarRevision = projection.timesheetCalendarRevision
@@ -103,18 +102,18 @@ normalizeTimesheetFragments fragments =
             TimesheetProjectionDaySection _ -> True
             _                               -> False
 
-respondWithTimesheetWeekFragmentsUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Maybe UUID.UUID -> IO ()
-respondWithTimesheetWeekFragmentsUpdate weekOffset staffFilterId =
+respondWithTimesheetWindowFragmentsUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Day -> Maybe UUID.UUID -> IO ()
+respondWithTimesheetWindowFragmentsUpdate windowStart staffFilterId =
     profileActionSpan "timesheets.page.fragments_update" do
-        venueConfig <- fetchVenueConfig
-        let requestKey = TimesheetProjectionRequest weekOffset staffFilterId
-        setHtmxPushUrl (timesheetWindowUrl (venueWeekStartDate venueConfig weekOffset) staffFilterId)
+        let requestKey = timesheetProjectionRequestForWindow windowStart staffFilterId
+        setHtmxPushUrl (timesheetWindowUrl windowStart staffFilterId)
         respondWithTimesheetFragments requestKey [TimesheetProjectionToolbar, TimesheetProjectionDayColumns, TimesheetProjectionSidePanel] mempty
 
 respondWithTimesheetPreferenceUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Maybe UUID.UUID -> IO ()
-respondWithTimesheetPreferenceUpdate weekOffset staffFilterId =
+respondWithTimesheetPreferenceUpdate weekOffset staffFilterId = do
+    venueConfig <- fetchVenueConfig
     respondWithTimesheetActorFragments
-        (TimesheetProjectionRequest weekOffset staffFilterId)
+        (timesheetProjectionRequestForOffset venueConfig weekOffset staffFilterId)
         [TimesheetProjectionToolbar, TimesheetProjectionDayColumns, TimesheetProjectionSidePanel]
         mempty
 
@@ -123,36 +122,46 @@ respondWithTimesheetDaySectionUpdate weekOffset workedOn staffFilterId successMe
     venueConfig <- fetchVenueConfig
     let weekStartDate = venueWeekStartDate venueConfig weekOffset
     let dayOffset = timesheetDayOffset weekStartDate workedOn
+    let requestKey = timesheetProjectionRequestForOffset venueConfig weekOffset staffFilterId
     respondWithTimesheetActorFragments
         requestKey
         [TimesheetProjectionDaySection dayOffset]
         ( when closeDialog [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
             <> renderToastOob ToastBottomCenter (successToast successMessage)
         )
-    where
-        requestKey = TimesheetProjectionRequest weekOffset staffFilterId
 
 respondWithTimesheetMutationUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Maybe UUID.UUID -> Set.Set SurfaceResourceValue -> Text -> Bool -> IO ()
-respondWithTimesheetMutationUpdate weekOffset staffFilterId touchedResources successMessage closeDialog =
+respondWithTimesheetMutationUpdate weekOffset staffFilterId touchedResources successMessage closeDialog = do
+    venueConfig <- fetchVenueConfig
     respondWithTimesheetResourceInvalidation
-        requestKey
+        (timesheetProjectionRequestForOffset venueConfig weekOffset staffFilterId)
         touchedResources
         ( when closeDialog [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
             <> renderToastOob ToastBottomCenter (successToast successMessage)
         )
-  where
-    requestKey = TimesheetProjectionRequest weekOffset staffFilterId
 
 renderTimesheetWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Int -> Maybe UUID.UUID -> IO ()
 renderTimesheetWeekPage weekOffset staffFilterId =
     profileActionSpan "timesheets.page.render" do
+        venueConfig <- fetchVenueConfig
+        let requestKey = timesheetProjectionRequestForOffset venueConfig weekOffset staffFilterId
         projection <- profileActionSpan "timesheets.page.fetch_read_model" (fetchTimesheetWeekProjection requestKey)
         profileActionSpan "timesheets.page.respond" (respondWithTimesheetWeekView (timesheetIndexView projection))
-    where
-        requestKey = TimesheetProjectionRequest weekOffset staffFilterId
+
+timesheetProjectionRequestForOffset :: VenueConfig -> Int -> Maybe UUID.UUID -> TimesheetProjectionRequest
+timesheetProjectionRequestForOffset venueConfig weekOffset =
+    timesheetProjectionRequestForWindow (venueWeekStartDate venueConfig weekOffset)
+
+timesheetProjectionRequestForWindow :: Day -> Maybe UUID.UUID -> TimesheetProjectionRequest
+timesheetProjectionRequestForWindow windowStart staffFilterId =
+    TimesheetProjectionRequest
+        { projectionWindowStart = windowStart
+        , projectionWindowEnd = addDays 7 windowStart
+        , projectionStaffFilterId = staffFilterId
+        }
 
 respondWithTimesheetWeekView :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IndexView -> IO ()
 respondWithTimesheetWeekView indexView =
     if isHtmxRequest
-        then respondWithTimesheetWeekFragmentsUpdate indexView.weekOffset indexView.selectedStaffFilterId
+        then respondWithTimesheetWindowFragmentsUpdate indexView.weekStartDate indexView.selectedStaffFilterId
         else profileActionSpan "timesheets.page.render_response" (renderProfiled indexView)

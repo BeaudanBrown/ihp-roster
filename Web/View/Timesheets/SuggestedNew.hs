@@ -4,7 +4,7 @@ module Web.View.Timesheets.SuggestedNew where
 
 import Application.Helper.FrontendContract.AppShell (CreateTimesheetEntryOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (appShellActionByMarker)
-import Application.VenueTime.Model (timesheetEntryWorkedOn)
+import Application.VenueTime.Model (timesheetEntryOperationalDate)
 import Web.Timesheets.Paths (timesheetWindowUrl)
 import Web.View.Prelude
 
@@ -25,8 +25,8 @@ data SuggestedNewView = SuggestedNewView
 instance View SuggestedNewView where
     html SuggestedNewView { .. } =
         renderTimesheetEntryModal
-            ("Rostered " <> timesheetModalTitle (timesheetEntryWorkedOn timesheetEntry))
-            (timesheetWindowUrl (timesheetEntryWorkedOn timesheetEntry) selectedStaffFilterId)
+            ("Rostered " <> timesheetModalTitle (timesheetEntryOperationalDate timesheetEntry))
+            (timesheetWindowUrl (timesheetEntryOperationalDate timesheetEntry) selectedStaffFilterId)
             suggestedTimesheetFormId
             (renderSuggestedTimesheetForm PageOverlayForm rosterSlotId timesheetEntry staffMembers shiftTypes weekOffset calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
 
@@ -36,7 +36,7 @@ suggestedTimesheetFormId = "timesheet-suggestion-create-form"
 renderSuggestedTimesheetDialog :: Id RosterSlot -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Int -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Html
 renderSuggestedTimesheetDialog rosterSlotId timesheetEntry staffMembers shiftTypes weekOffset calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep =
     renderTimesheetEntryDialog
-        ("Rostered " <> timesheetModalTitle (timesheetEntryWorkedOn timesheetEntry))
+        ("Rostered " <> timesheetModalTitle (timesheetEntryOperationalDate timesheetEntry))
         suggestedTimesheetFormId
         (renderSuggestedTimesheetForm HtmxOverlayForm rosterSlotId timesheetEntry staffMembers shiftTypes weekOffset calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
 

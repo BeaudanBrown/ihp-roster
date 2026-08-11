@@ -372,6 +372,10 @@ test.describe('Roster staff shift highlight', () => {
 
             await pinAndWait(alphaStaffKey);
             const initialAnchorDate = new URL(page.url()).searchParams.get('anchorDate');
+            const rawSurfaceConfig = await page.locator('[data-bepis-surface-config]').first().getAttribute('data-bepis-surface-config');
+            expect(rawSurfaceConfig).not.toBeNull();
+            const scopeParts = (JSON.parse(rawSurfaceConfig!).scopeKey as string).split(':');
+            const initialWindowStart = scopeParts[scopeParts.length - 3];
             await Promise.all([
                 page.waitForURL((url) => url.pathname === '/ShowRosterWindow' && url.searchParams.get('anchorDate') !== initialAnchorDate, { timeout: E2E_TIMEOUT.navigation }),
                 page.getByRole('link', { name: 'Next week' }).click(),
@@ -379,7 +383,7 @@ test.describe('Roster staff shift highlight', () => {
             expect(new URL(page.url()).searchParams.has('pinnedStaffKey')).toBe(false);
             await expect(page.locator(`[${rosterStaffHighlightPinDomAttr}="${alphaStaffKey}"]`).first()).toHaveAttribute('aria-pressed', 'false');
             await Promise.all([
-                page.waitForURL((url) => url.pathname === '/ShowRosterWindow' && url.searchParams.get('anchorDate') === initialAnchorDate, { timeout: E2E_TIMEOUT.navigation }),
+                page.waitForURL((url) => url.pathname === '/ShowRosterWindow' && url.searchParams.get('anchorDate') === initialWindowStart, { timeout: E2E_TIMEOUT.navigation }),
                 page.getByRole('link', { name: 'Previous week' }).click(),
             ]);
             expect(new URL(page.url()).searchParams.has('pinnedStaffKey')).toBe(false);

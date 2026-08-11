@@ -70,13 +70,17 @@ test.describe('Roster row controls', () => {
         }
 
         const rosterUrl = new URL(page.url());
+        const rawSurfaceConfig = await page.locator('[data-bepis-surface-config]').first().getAttribute('data-bepis-surface-config');
+        expect(rawSurfaceConfig).not.toBeNull();
+        const scopeParts = (JSON.parse(rawSurfaceConfig!).scopeKey as string).split(':');
+        const windowStart = scopeParts[scopeParts.length - 3];
         await gotoWhenReady(
             page,
             `/ShowRosterWindow?${new URLSearchParams({
                 anchorDate: rosterUrl.searchParams.get('anchorDate') ?? '',
                 rosterGroupId: rosterUrl.searchParams.get('rosterGroupId') ?? '',
                 rosterView: 'timeline',
-                dayDate: rosterUrl.searchParams.get('anchorDate') ?? '',
+                dayDate: windowStart,
             }).toString()}`,
             '.roster-day-timeline',
         );

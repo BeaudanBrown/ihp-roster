@@ -260,19 +260,20 @@ test.describe('HTMX submit regressions', () => {
         const deletedEntryId = 'b1000000-0000-0000-0000-000000000091';
         runSql(`
             INSERT INTO timesheet_entries (
-                id, venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone, is_approved,
+                id, venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone, operational_date, is_approved,
                 approved_at, approved_by_user_id, deleted_at, deleted_by_user_id, delete_reason
             )
             SELECT
                 '${deletedEntryId}', venue_id, staff_id, shift_type_id,
                 ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '17:00') AT TIME ZONE 'Australia/Melbourne',
                 ((CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + TIME '18:00') AT TIME ZONE 'Australia/Melbourne',
-                timezone, FALSE, NULL, NULL, NULL, NULL, NULL
+                timezone, (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1))::date, FALSE, NULL, NULL, NULL, NULL, NULL
             FROM timesheet_entries
             WHERE id = 'a1000000-0000-0000-0000-000000000091'
             ON CONFLICT (id) DO UPDATE SET
                 starts_at = EXCLUDED.starts_at,
                 ends_at = EXCLUDED.ends_at,
+                operational_date = EXCLUDED.operational_date,
                 is_approved = FALSE,
                 approved_at = NULL,
                 approved_by_user_id = NULL,

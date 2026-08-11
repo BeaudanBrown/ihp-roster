@@ -94,7 +94,7 @@ tests = do
     describe "generated FrontendSurface resource dependencies" do
         it "selects affected timesheet fragments from generated dependencies" do
             let venueId = fromWords 1 0 0 0
-            let scopeValue = TimesheetWeekScopeValue venueId 2 (testAnchorForOffset 2) (addDays 7 (testAnchorForOffset 2)) 1
+            let scopeValue = TimesheetWeekScopeValue venueId (testAnchorForOffset 2) (addDays 7 (testAnchorForOffset 2)) 1
             let mountState = TimesheetsMountStateValue Nothing
             let candidates = timesheetsCandidateMountedFragments scopeValue mountState
             let affectedByDay = planMountedFragments (Set.fromList [timesheetDayResource venueId (addDays 4 (testAnchorForOffset 2))]) (timesheetsSurfaceScope scopeValue) candidates
@@ -105,7 +105,7 @@ tests = do
 
         it "coalesces actor mount keys through the same dependency plan as passive subscriptions" do
             let venueId = fromWords 1 0 0 0
-            let scopeValue = TimesheetWeekScopeValue venueId 2 (testAnchorForOffset 2) (addDays 7 (testAnchorForOffset 2)) 1
+            let scopeValue = TimesheetWeekScopeValue venueId (testAnchorForOffset 2) (addDays 7 (testAnchorForOffset 2)) 1
             let mountState = TimesheetsMountStateValue Nothing
             let scope = timesheetsSurfaceScope scopeValue
             let mountedFragments = timesheetsCandidateMountedFragments scopeValue mountState

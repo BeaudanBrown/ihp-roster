@@ -384,7 +384,7 @@ test.describe('Roster Staff Modal', () => {
             INSERT INTO roster_slots (
                 id, roster_day_id, roster_lane_id, staff_id, assignment_state,
                 row_index, starts_at, ends_at, timezone, shift_type_id
-)
+            )
             SELECT
                 '${rosterSlotId}', target_cell.roster_day_id,
                 (SELECT roster_lanes.id FROM roster_lanes WHERE roster_lanes.roster_day_id = target_cell.roster_day_id AND roster_lanes.deleted_at IS NULL ORDER BY roster_lanes.sort_order, roster_lanes.id LIMIT 1),
@@ -451,6 +451,8 @@ test.describe('Roster Staff Modal', () => {
             runSql(`
                 BEGIN;
                 SET LOCAL ihp_roster.allow_hard_delete = 'on';
+                UPDATE roster_days SET publication_state = 'draft'
+                WHERE id = (SELECT roster_day_id FROM roster_slots WHERE id = '${rosterSlotId}');
                 DELETE FROM roster_slots WHERE id = '${rosterSlotId}';
                 DELETE FROM staff_roster_groups WHERE id = '${staffRosterGroupId}';
                 DELETE FROM venue_memberships WHERE id = '${membershipId}';

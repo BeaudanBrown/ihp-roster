@@ -547,6 +547,7 @@ createApprovedTimesheetEntryRecordAtWithShiftTimes venue staff approver shiftTyp
         |> set #venueId (unpackId venue.id)
         |> set #staffId (unpackId staff.id)
         |> set #shiftTypeId (unpackId shiftType.id)
+        |> set #operationalDate workedOn
         |> applyTimesheetEntryBoundaries boundaries
         |> createRecord
     (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval approver.id entry

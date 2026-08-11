@@ -118,6 +118,7 @@ tests = describe "Schema" do
         let _timesheetBreakStartsAt = get #breakStartsAt (newRecord @TimesheetEntry)
         let _timesheetBreakEndsAt = get #breakEndsAt (newRecord @TimesheetEntry)
         let _timesheetTimezone = get #timezone (newRecord @TimesheetEntry)
+        let _timesheetOperationalDate = get #operationalDate (newRecord @TimesheetEntry)
         let _timesheetSourceRosterSlotId = get #sourceRosterSlotId (newRecord @TimesheetEntry)
         let _timesheetStaffPayVersionId = get #staffPayVersionId (newRecord @TimesheetEntry)
         let _timesheetShiftTypePayVersionId = get #shiftTypePayVersionId (newRecord @TimesheetEntry)
@@ -388,6 +389,23 @@ tests = describe "Schema" do
         migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DELETE FROM"
         runbookExists `shouldBe` True
 
+    it "makes Timesheet Operational dates explicit without moving authoritative instants" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        migrationSqlText <- TextIO.readFile "Application/Migration/1787005000.sql"
+        let (_, timesheetSchema) = Text.breakOn "CREATE TABLE timesheet_entries" schemaSqlText
+        Text.take 3000 timesheetSchema `shouldSatisfy` Text.isInfixOf "operational_date DATE NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE INDEX idx_timesheet_entries_venue_operational_date ON timesheet_entries (venue_id, operational_date) WHERE deleted_at IS NULL;"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "rd.operational_date = NEW.operational_date"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "NEW.operational_date IS DISTINCT FROM OLD.operational_date"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ADD COLUMN operational_date DATE"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "rd.operational_date"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "(te.starts_at AT TIME ZONE te.timezone)::DATE"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ALTER COLUMN operational_date SET NOT NULL"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "UPDATE timesheet_entries\nSET starts_at"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "UPDATE timesheet_entries\nSET ends_at"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP COLUMN"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DELETE FROM"
+
     it "stores roster and timesheet time only as authoritative instant boundaries" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "starts_at TIMESTAMP WITH TIME ZONE"
@@ -586,7 +604,7 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_roster_derived_timesheet_identity_immutable BEFORE UPDATE ON timesheet_entries"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_xero_staff_mappings_venue_integrity BEFORE INSERT OR UPDATE ON xero_staff_mappings"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster slot shift type must stay within roster day venue"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "timesheet entry source_roster_slot_id must stay within entry venue"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "timesheet entry source roster slot must match entry venue and Operational date"
 
     it "stores passkeys as user-owned credential records" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
@@ -988,7 +1006,7 @@ tests = describe "Schema" do
                 , "is_live", "roster_week_id", "day_offset", "roster_day_id"
                 , "staff_id", "roster_week_slot_definition_id", "row_index", "starts_at"
                 , "ends_at", "break_starts_at", "break_ends_at", "specific_date", "is_available"
-                , "start_date", "end_date", "status", "notes", "source_roster_slot_id"
+                , "start_date", "end_date", "status", "notes", "source_roster_slot_id", "operational_date"
                 , "is_approved", "approved_at", "approved_by_user_id"
                 , "actor_user_id", "event_type", "target_table", "target_id"
                 , "source_channel", "payload"

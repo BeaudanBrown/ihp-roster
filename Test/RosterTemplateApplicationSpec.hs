@@ -244,6 +244,7 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #staffId (unpackId staff.id)
                         |> set #shiftTypeId (unpackId shiftType.id)
                         |> set #sourceRosterSlotId (Just (unpackId oldSlot.id))
+                        |> set #operationalDate targetDay.operationalDate
                         |> applyTimesheetEntryBoundaries entryBoundaries
                         |> createRecord
                 let entrySnapshot = (entry.staffId, entry.startsAt, entry.endsAt, entry.sourceRosterSlotId)
@@ -349,6 +350,7 @@ tests = aroundAll withDatabaseTestContext do
                                 |> set #staffId (unpackId staff.id)
                                 |> set #shiftTypeId (unpackId shiftType.id)
                                 |> set #sourceRosterSlotId (Just (unpackId oldSlot.id))
+                                |> set #operationalDate targetDay.operationalDate
                                 |> applyTimesheetEntryBoundaries entryBoundaries
                                 |> createRecord
                         putMVar materializationStarted ()

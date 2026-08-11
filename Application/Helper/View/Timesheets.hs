@@ -88,7 +88,7 @@ renderTimesheetForm appShellAction formOrigin entry staffMembers shiftTypes week
 
 renderTimesheetFormFields :: (?context :: ControllerContext) => TimesheetFormOrigin -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Int -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Bool -> Html
 renderTimesheetFormFields formOrigin entry staffMembers shiftTypes _weekOffset calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep keyboardEnabled = [hsx|
-    <input type="hidden" name={surfaceFieldNameFrom @Surface.AnchorDate stateFields} value={surfaceWireText @'WireDay startLocalTime.localDay} />
+    <input type="hidden" name={surfaceFieldNameFrom @Surface.AnchorDate stateFields} value={surfaceWireText @'WireDay entry.operationalDate} />
     <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterCalendarRevision stateFields} value={tshow calendarRevision} />
     <input type="hidden" name={surfaceFieldNameFrom @Surface.StaffFilterId stateFields} value={maybe "" tshow selectedStaffFilterId} />
     {renderTimesheetFormOriginNotice formOrigin}
@@ -128,7 +128,7 @@ renderTimesheetFormFields formOrigin entry staffMembers shiftTypes _weekOffset c
         endTimeValue = timeOfDayToStorageValue endLocalTime.localTimeOfDay
         breakStartTimeValue = optionalTimeOfDayToStorageValue (timesheetEntryBreakStartTime entry)
         breakEndTimeValue = optionalTimeOfDayToStorageValue (timesheetEntryBreakEndTime entry)
-        dateValueIso = tshow startLocalTime.localDay :: Text
+        dateValueIso = tshow entry.operationalDate :: Text
         timesheetPickerConfig fieldName value autofocus invalid =
             (defaultTimePickerConfig fieldName value pickerStart pickerEnd False)
                 { timePickerStepMinutes = pickerStep
@@ -137,7 +137,7 @@ renderTimesheetFormFields formOrigin entry staffMembers shiftTypes _weekOffset c
                 , timePickerInvalid = invalid
                 }
         stateFields =
-            TimesheetsAction.createTimesheetEntryFromSuggestionActionFields startLocalTime.localDay calendarRevision selectedStaffFilterId
+            TimesheetsAction.createTimesheetEntryFromSuggestionActionFields entry.operationalDate calendarRevision selectedStaffFilterId
 
 renderTimesheetBreakFields :: TimesheetEntry -> AuthoritativeBoundaries -> Text -> Text -> Text -> Text -> Int -> Bool -> Html
 renderTimesheetBreakFields entry boundaries breakStartTimeValue breakEndTimeValue pickerStart pickerEnd pickerStep keyboardEnabled =

@@ -173,7 +173,11 @@ test.describe('Roster notification workflow', () => {
             ensureDraft: false,
             ensureEditable: false,
         });
-        const windowStart = new URL(page.url()).searchParams.get('anchorDate');
+        const rawSurfaceConfig = await page.locator('[data-bepis-surface-config]').first().getAttribute('data-bepis-surface-config');
+        expect(rawSurfaceConfig).not.toBeNull();
+        const scopeKey = JSON.parse(rawSurfaceConfig!).scopeKey as string;
+        const scopeParts = scopeKey.split(':');
+        const windowStart = scopeParts[scopeParts.length - 3];
         expect(windowStart).toMatch(/^\d{4}-\d{2}-\d{2}$/);
         runSql(`
             CREATE OR REPLACE FUNCTION e2e_defer_roster_notification_jobs()

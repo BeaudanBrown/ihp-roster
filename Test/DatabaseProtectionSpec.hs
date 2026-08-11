@@ -248,6 +248,30 @@ tests = aroundAll withDatabaseTestContext do
                     sqlExecDiscardResult "SET LOCAL search_path TO public" ()
                     sqlExecDiscardResult "DROP SCHEMA date_native_roster_migration_acceptance CASCADE" ()
 
+    describe "date-native Timesheet migration" do
+        it "backfills source Operational days without moving authoritative instants" $ withContext do
+            withCleanDb do
+                predecessorSql <- TextIO.readFile "Test/Fixtures/date-native-timesheets/pre-operational-date-schema.sql"
+                migrationSql <- TextIO.readFile "Application/Migration/1787005000.sql"
+                withTransaction do
+                    case transactionRunner ?modelContext of
+                        Nothing -> error "Date-native Timesheet migration fixture requires a transaction runner"
+                        Just runner -> do
+                            runInTransaction runner (HasqlSession.script predecessorSql)
+                            runInTransaction runner (HasqlSession.script migrationSql)
+
+                    migratedRows :: [(UUID, Day, UTCTime, UTCTime)] <- sqlQuery
+                        "SELECT id, operational_date, starts_at, ends_at FROM date_native_timesheet_migration_acceptance.timesheet_entries ORDER BY id"
+                        ()
+                    let startsAt = UTCTime (fromGregorian 2026 8 3) (secondsToDiffTime (16 * 60 * 60))
+                    let endsAt = UTCTime (fromGregorian 2026 8 3) (secondsToDiffTime (19 * 60 * 60))
+                    migratedRows `shouldBe`
+                        [ (migrationUuid "40000000-0000-0000-0000-000000000001", fromGregorian 2026 8 3, startsAt, endsAt)
+                        , (migrationUuid "40000000-0000-0000-0000-000000000002", fromGregorian 2026 8 4, startsAt, endsAt)
+                        ]
+                    sqlExecDiscardResult "SET LOCAL search_path TO public" ()
+                    sqlExecDiscardResult "DROP SCHEMA date_native_timesheet_migration_acceptance CASCADE" ()
+
     describe "explicit roster shift assignment migration" do
         it "upgrades representative predecessor rows without deleting history or Timesheet provenance" $ withContext do
             withCleanDb do
@@ -346,32 +370,32 @@ tests = aroundAll withDatabaseTestContext do
 
                 nonPositiveTimesheet <- try
                     (sqlExecDiscardResult
-                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone) VALUES (?, ?, ?, ?, ?, 'Australia/Melbourne')"
+                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone, operational_date) VALUES (?, ?, ?, ?, ?, 'Australia/Melbourne', DATE '2025-01-06')"
                         (unpackId venue.id, unpackId staff.id, unpackId shiftType.id, startsAt, startsAt))
                     :: IO (Either SomeException ())
                 halfBreak <- try
                     (sqlExecDiscardResult
-                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, break_starts_at, timezone) VALUES (?, ?, ?, ?, ?, ?, 'Australia/Melbourne')"
+                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, break_starts_at, timezone, operational_date) VALUES (?, ?, ?, ?, ?, ?, 'Australia/Melbourne', DATE '2025-01-06')"
                         (unpackId venue.id, unpackId staff.id, unpackId shiftType.id, startsAt, endsAt, breakStart))
                     :: IO (Either SomeException ())
                 outsideBreak <- try
                     (sqlExecDiscardResult
-                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, break_starts_at, break_ends_at, timezone) VALUES (?, ?, ?, ?, ?, ?, ?, 'Australia/Melbourne')"
+                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, break_starts_at, break_ends_at, timezone, operational_date) VALUES (?, ?, ?, ?, ?, ?, ?, 'Australia/Melbourne', DATE '2025-01-06')"
                         (unpackId venue.id, unpackId staff.id, unpackId shiftType.id, startsAt, endsAt, beforeStart, breakStart))
                     :: IO (Either SomeException ())
                 emptyTimesheetTimezone <- try
                     (sqlExecDiscardResult
-                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone) VALUES (?, ?, ?, ?, ?, '')"
+                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone, operational_date) VALUES (?, ?, ?, ?, ?, '', DATE '2025-01-06')"
                         (unpackId venue.id, unpackId staff.id, unpackId shiftType.id, startsAt, endsAt))
                     :: IO (Either SomeException ())
                 unsupportedTimesheetTimezone <- try
                     (sqlExecDiscardResult
-                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone) VALUES (?, ?, ?, ?, ?, 'not-a-zone')"
+                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone, operational_date) VALUES (?, ?, ?, ?, ?, 'not-a-zone', DATE '2025-01-06')"
                         (unpackId venue.id, unpackId staff.id, unpackId shiftType.id, startsAt, endsAt))
                     :: IO (Either SomeException ())
                 wholeShiftBreak <- try
                     (sqlExecDiscardResult
-                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, break_starts_at, break_ends_at, timezone) VALUES (?, ?, ?, ?, ?, ?, ?, 'Australia/Melbourne')"
+                        "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, break_starts_at, break_ends_at, timezone, operational_date) VALUES (?, ?, ?, ?, ?, ?, ?, 'Australia/Melbourne', DATE '2025-01-06')"
                         (unpackId venue.id, unpackId staff.id, unpackId shiftType.id, startsAt, endsAt, startsAt, endsAt))
                     :: IO (Either SomeException ())
                 nonPositiveRoster <- try
@@ -655,7 +679,7 @@ tests = aroundAll withDatabaseTestContext do
                 result <-
                     try
                         ( sqlExecDiscardResult
-                            "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone) VALUES (?, ?, ?, ?, ?, 'Australia/Melbourne')"
+                            "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, starts_at, ends_at, timezone, operational_date) VALUES (?, ?, ?, ?, ?, 'Australia/Melbourne', DATE '2025-01-06')"
                             (unpackId venueA.id, unpackId staffA.id, unpackId foreignShiftType.id, startsAt, endsAt)
                         ) :: IO (Either SomeException ())
 
@@ -676,7 +700,8 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #venueId (unpackId venue.id)
                         |> set #staffId (unpackId sourceStaff.id)
                         |> set #shiftTypeId (unpackId shiftType.id)
-                        |> setTestWorkedOn defaultWeekEpoch
+                        |> set #operationalDate rosterDay.operationalDate
+                        |> setTestWorkedOn rosterDay.operationalDate
                         |> setTestStartTime (TimeOfDay 9 0 0)
                         |> setTestEndTime (TimeOfDay 17 0 0)
                         |> set #sourceRosterSlotId (Just (unpackId rosterSlot.id))
@@ -687,15 +712,14 @@ tests = aroundAll withDatabaseTestContext do
                     (unpackId otherStaff.id, unpackId linkedEntry.id)
                 reassignedEntry <- fetch linkedEntry.id
                 reassignedEntry.staffId `shouldBe` unpackId otherStaff.id
-                testWorkedOn reassignedEntry `shouldBe` defaultWeekEpoch
+                reassignedEntry.operationalDate `shouldBe` rosterDay.operationalDate
                 reassignedEntry.sourceRosterSlotId `shouldBe` Just (unpackId rosterSlot.id)
 
-                let movedStartsAt = resolveTestFixtureInstant linkedEntry.timezone (addDays 1 defaultWeekEpoch) (TimeOfDay 9 0 0)
                 changedDateResult <-
                     try
                         ( sqlExecDiscardResult
-                            "UPDATE timesheet_entries SET starts_at = ? WHERE id = ?"
-                            (movedStartsAt, unpackId linkedEntry.id)
+                            "UPDATE timesheet_entries SET operational_date = ? WHERE id = ?"
+                            (addDays 1 rosterDay.operationalDate, unpackId linkedEntry.id)
                         ) :: IO (Either SomeException ())
                 changedDateResult `shouldSatisfy` isLeft
 
@@ -709,7 +733,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 retainedEntry <- fetch linkedEntry.id
                 retainedEntry.staffId `shouldBe` unpackId otherStaff.id
-                testWorkedOn retainedEntry `shouldBe` defaultWeekEpoch
+                retainedEntry.operationalDate `shouldBe` rosterDay.operationalDate
                 retainedEntry.sourceRosterSlotId `shouldBe` Just (unpackId rosterSlot.id)
 
                 secondRosterSlot <- createRosterSlotRecord rosterDay slotName (Just sourceStaff) 1

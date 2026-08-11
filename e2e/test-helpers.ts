@@ -12,6 +12,7 @@ import {
     passkeyRegistrationDomAttr,
     passkeySetupPromptDomAttr,
     surfaceConfigDomAttr,
+    toggleRootDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 
@@ -678,6 +679,14 @@ export async function openRoster(page: Page, options: OpenRosterOptions = {}) {
     );
     await expect(page.locator('#roster-content')).toBeVisible();
     await ensureRosterLayout(page, rosterLayoutMode);
+
+    if (ensureDraft) {
+        const publishToggle = page.getByRole('switch', { name: 'Published' });
+        if (await publishToggle.isChecked().catch(() => false)) {
+            await page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Published' }).click();
+            await expect(publishToggle).not.toBeChecked({ timeout: E2E_TIMEOUT.liveUpdate });
+        }
+    }
 
     for (let step = 0; step <= maxWeekAdvances; step += 1) {
         await expect(page.locator('.roster-grid-frame')).toBeVisible();

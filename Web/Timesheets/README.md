@@ -2,8 +2,8 @@
 
 ## Ownership
 
-`Web/Timesheets/` owns week paths, authoritative projections (including
-transient roster suggestions), materialization/persistence mutations, validation,
+`Web/Timesheets/` owns explicit Operational-window paths and authoritative
+projections (including transient roster suggestions), materialization/persistence mutations, validation,
 Surface metadata, and actor response helpers. `Web/Controller/Timesheets.hs`
 owns request orchestration, authorization, params, and response selection;
 `Web/View/Timesheets/` owns HSX.

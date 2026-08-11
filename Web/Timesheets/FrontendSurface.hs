@@ -34,7 +34,6 @@ import Web.Timesheets.Paths (timesheetDayColumnsFragmentUrl,
 -- can replace query params without changing the surface identity.
 data TimesheetWeekScopeValue = TimesheetWeekScopeValue
     { timesheetWeekVenueId      :: !UUID.UUID
-    , timesheetWeekWeekOffset   :: !Int
     , timesheetWindowStart      :: !Day
     , timesheetWindowEnd        :: !Day
     , timesheetCalendarRevision :: !Int

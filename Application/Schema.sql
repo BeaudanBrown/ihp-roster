@@ -1626,6 +1626,7 @@ CREATE TABLE timesheet_entries (
     break_starts_at TIMESTAMP WITH TIME ZONE,
     break_ends_at TIMESTAMP WITH TIME ZONE,
     timezone TEXT NOT NULL,
+    operational_date DATE NOT NULL,
     active_pay_calculation_id UUID DEFAULT NULL,
     legacy_pay_backfill_pending BOOLEAN DEFAULT FALSE NOT NULL,
     staff_pay_version_id UUID,
@@ -2062,6 +2063,7 @@ CREATE UNIQUE INDEX idx_app_jobs_active_dedupe ON app_jobs (dedupe_key) WHERE de
 CREATE UNIQUE INDEX idx_app_jobs_email_delivery_dedupe ON app_jobs (dedupe_key) WHERE job_kind = 'email_delivery' AND dedupe_key IS NOT NULL;
 CREATE INDEX idx_timesheet_entries_venue_staff ON timesheet_entries (venue_id, staff_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_timesheet_entries_venue_starts_at ON timesheet_entries (venue_id, starts_at) WHERE deleted_at IS NULL;
+CREATE INDEX idx_timesheet_entries_venue_operational_date ON timesheet_entries (venue_id, operational_date) WHERE deleted_at IS NULL;
 CREATE INDEX idx_timesheet_entries_staff_pay_version ON timesheet_entries (staff_pay_version_id);
 CREATE INDEX idx_timesheet_entries_shift_type_pay_version ON timesheet_entries (shift_type_pay_version_id);
 CREATE UNIQUE INDEX idx_timesheet_entries_source_roster_slot ON timesheet_entries (source_roster_slot_id) WHERE source_roster_slot_id IS NOT NULL AND deleted_at IS NULL;
@@ -2864,12 +2866,12 @@ BEGIN
             SELECT 1
             FROM roster_slots rs
             JOIN roster_days rd ON rd.id = rs.roster_day_id
-            JOIN roster_weeks rw ON rw.id = rd.roster_week_id
             WHERE rs.id = NEW.source_roster_slot_id
-                AND rw.venue_id = NEW.venue_id
+                AND rd.venue_id = NEW.venue_id
+                AND rd.operational_date = NEW.operational_date
         )
     THEN
-        RAISE EXCEPTION 'timesheet entry source_roster_slot_id must stay within entry venue';
+        RAISE EXCEPTION 'timesheet entry source roster slot must match entry venue and Operational date';
     END IF;
 
     RETURN NEW;
@@ -2883,11 +2885,11 @@ BEGIN
     IF (OLD.source_roster_slot_id IS NOT NULL OR NEW.source_roster_slot_id IS NOT NULL)
         AND (
             NEW.source_roster_slot_id IS DISTINCT FROM OLD.source_roster_slot_id
-            OR (NEW.starts_at AT TIME ZONE NEW.timezone)::DATE IS DISTINCT FROM (OLD.starts_at AT TIME ZONE OLD.timezone)::DATE
+            OR NEW.operational_date IS DISTINCT FROM OLD.operational_date
             OR NEW.timezone IS DISTINCT FROM OLD.timezone
         )
     THEN
-        RAISE EXCEPTION 'roster-derived timesheet local date, timezone and source are immutable';
+        RAISE EXCEPTION 'roster-derived timesheet Operational date, timezone and source are immutable';
     END IF;
 
     RETURN NEW;

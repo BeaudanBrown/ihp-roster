@@ -120,7 +120,6 @@ timesheetDayModel panel =
         , dayShiftTypes = panel.quickToolsShiftTypes
         , dayToday = panel.quickToolsOperationalDay
         , dayEditWindowDays = panel.quickToolsTimesheetEditWindowDays
-        , dayWeekOffset = panel.quickToolsTimesheetWeekOffset
         , dayWeekStartDate = panel.quickToolsTimesheetWeekStartDate
         , dayCalendarRevision = panel.quickToolsCalendarRevision
         , dayStaffFilterId = Nothing
@@ -131,8 +130,7 @@ timesheetSurface :: (?context :: ControllerContext) => RosterStaffSelfServicePan
 timesheetSurface panel =
     let scope = TimesheetWeekScopeValue
             { timesheetWeekVenueId = unpackId panel.quickToolsVenueId
-            , timesheetWeekWeekOffset = panel.quickToolsTimesheetWeekOffset
-            , timesheetWindowStart = panel.quickToolsTimesheetWeekStartDate
+                , timesheetWindowStart = panel.quickToolsTimesheetWeekStartDate
             , timesheetWindowEnd = addDays 7 panel.quickToolsTimesheetWeekStartDate
             , timesheetCalendarRevision = panel.quickToolsCalendarRevision
             }
