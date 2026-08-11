@@ -78,6 +78,7 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "roster-auto-create@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user Worker
+                _ <- createStaffRecord venue (Just user) "Auto" "Create"
                 slotNames <- query @SlotName
                     |> filterWhere (#venueId, unpackId venue.id)
                     |> filterWhere (#isActive, True)
@@ -130,6 +131,7 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "roster-empty-live-scope@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user Worker
+                _ <- createStaffRecord venue (Just user) "Empty" "Scope"
                 _ <- fetchSlotNameRecord venue "Early"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -148,6 +150,7 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "roster-hidden-draft-live-scope@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user Worker
+                _ <- createStaffRecord venue (Just user) "Hidden" "Scope"
                 _ <- createRosterWeekRecord venue 0 False
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -186,6 +189,96 @@ tests = aroundAll withDatabaseTestContext do
                 body <- responseBody response
                 let bodyText = cs (LByteString.unpack body)
                 Text.count "data-bepis-surface-config" bodyText `shouldBe` 3
+
+        it "shows an empty non-mutating state when staff have no roster groups" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                user <- createUserRecord "roster-no-groups@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user Worker
+                staff <- createStaffRecord venue (Just user) "No" "Groups"
+                syncStaffRosterGroupAssignments staff []
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "You aren't assigned to a roster group yet."
+                response `responseBodyShouldNotContain` "data-bepis-surface=\"roster\""
+                activeAssignments <- query @StaffRosterGroup
+                    |> filterWhere (#staffId, unpackId staff.id)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetchCount
+                activeAssignments `shouldBe` 0
+                query @RosterWeek
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> fetchCount
+                    >>= (`shouldBe` 0)
+
+        it "limits staff roster reads to their assigned group" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                user <- createUserRecord "roster-group-b-only@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user Worker
+                groupA <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                groupB <- createVenueRosterGroupWithDefaults venue "Group B" 2 True
+                groupAStaff <- createStaffRecord venue Nothing "GroupAOnly" "Crew"
+                viewerStaff <- createStaffRecord venue (Just user) "Viewer" "Crew"
+                syncStaffRosterGroupAssignments viewerStaff [groupB.id]
+                groupASlotName <- fetchSlotNameRecordForRosterGroup groupA "Early"
+                groupBSlotName <- fetchSlotNameRecordForRosterGroup groupB "Early"
+                groupAWeek <- createRosterWeekRecordForRosterGroup venue groupA 0 True
+                groupBWeek <- createRosterWeekRecordForRosterGroup venue groupB 0 True
+                groupADay <- createRosterDayRecord groupAWeek 0
+                groupBDay <- createRosterDayRecord groupBWeek 0
+                _ <- createRosterSlotRecord groupADay groupASlotName (Just groupAStaff) 0
+                _ <- createRosterSlotRecord groupBDay groupBSlotName (Just viewerStaff) 0
+
+                assignedResponse <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams (ShowRosterWeekAction 0)
+                        [ ("weekOffset", "0")
+                        , ("rosterGroupId", idToParam groupB.id)
+                        ]
+                deniedResponse <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams (ShowRosterWeekAction 0)
+                        [ ("weekOffset", "0")
+                        , ("rosterGroupId", idToParam groupA.id)
+                        ]
+
+                assignedResponse `responseStatusShouldBe` status200
+                assignedResponse `responseBodyShouldContain` ">Viewer</div>"
+                assignedResponse `responseBodyShouldNotContain` "GroupAOnly"
+                assignedResponse `responseBodyShouldNotContain` "id=\"roster-group-switch\""
+                deniedResponse `responseStatusShouldBe` status403
+
+        it "lets staff switch between each assigned roster group" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                user <- createUserRecord "roster-multiple-groups@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user Worker
+                groupA <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                groupB <- createVenueRosterGroupWithDefaults venue "Group B" 2 True
+                viewerStaff <- createStaffRecord venue (Just user) "Multi" "Group"
+                syncStaffRosterGroupAssignments viewerStaff [groupA.id, groupB.id]
+
+                groupAResponse <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams (ShowRosterWeekAction 0)
+                        [ ("weekOffset", "0")
+                        , ("rosterGroupId", idToParam groupA.id)
+                        ]
+                groupBResponse <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams (ShowRosterWeekAction 0)
+                        [ ("weekOffset", "0")
+                        , ("rosterGroupId", idToParam groupB.id)
+                        ]
+
+                forM_ [groupAResponse, groupBResponse] \response -> do
+                    response `responseStatusShouldBe` status200
+                    response `responseBodyShouldContain` "id=\"roster-group-switch\""
+                    response `responseBodyShouldContain` ("value=\"" <> cs (tshow groupA.id) <> "\"")
+                    response `responseBodyShouldContain` ("value=\"" <> cs (tshow groupB.id) <> "\"")
+                    response `responseBodyShouldContain` "type=\"hidden\" name=\"weekOffset\" value=\"0\""
+                groupAResponse `responseBodyShouldContain` ("value=\"" <> cs (tshow groupA.id) <> "\" selected=\"selected\"")
+                groupBResponse `responseBodyShouldContain` ("value=\"" <> cs (tshow groupB.id) <> "\" selected=\"selected\"")
 
         it "manager can see draft weeks" $ withContext do
             withCleanDb do
@@ -235,7 +328,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue manager Manager
                 panelStaff <- createStaffRecord venue Nothing "Alpha" "Crew"
                 _ <- fetchSlotNameRecord venue "Early"
-                _ <- createVenueRosterGroupWithDefaults venue "Back of House" 1 False
+                _ <- createVenueRosterGroupWithDefaults venue "Back of House" 1 True
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekAction 0)
