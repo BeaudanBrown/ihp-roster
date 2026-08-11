@@ -314,7 +314,7 @@ fetchVisibleRosterReadModel rosterGroupId weekOffset = profileActionSpan "roster
             venueConfig <- fetchVenueConfig
             let showWageEstimates = shouldShowRosterWageEstimates userShowWageEstimates
             rosterPublicHolidays <- fetchRosterPublicHolidayMap venueConfig weekStartDate
-            staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig rosterGroupId weekOffset highlightOwnLiveShifts)
+            staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig rosterGroups rosterGroupId weekOffset highlightOwnLiveShifts)
             let renderIndexes = buildRosterRenderIndexes rosterDays (filterVisibleRosterSlots rosterDays maskedSlots) [] []
             pure $
                 Just
@@ -381,7 +381,7 @@ fetchRosterRenderData rosterGroupId weekOffset = do
                         _ -> Nothing
             panelStaff <- profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntries panelStaffMembers visibleSlots)
             notificationPanelData <- fetchRosterPanelNotificationData currentRosterGroup (Just rosterWeek)
-            staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig rosterGroupId weekOffset highlightOwnLiveShifts)
+            staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig rosterGroups rosterGroupId weekOffset highlightOwnLiveShifts)
             slotConflicts <-
                 if rosterWeek.isLive
                     then pure []
@@ -416,8 +416,8 @@ fetchRosterPanelTemplateLibrary rosterGroup
         library <- fetchRosterTemplateLibrary actor rosterGroup
         pure (rosterTemplateActorUserId actor <$ library, library)
 
-fetchRosterStaffSelfServicePanel :: (?context :: ControllerContext, ?modelContext :: ModelContext) => VenueConfig -> Id RosterGroup -> Int -> Bool -> IO (Maybe RosterStaffSelfServicePanel)
-fetchRosterStaffSelfServicePanel venueConfig rosterGroupId weekOffset highlightOwnLiveShifts
+fetchRosterStaffSelfServicePanel :: (?context :: ControllerContext, ?modelContext :: ModelContext) => VenueConfig -> [RosterGroup] -> Id RosterGroup -> Int -> Bool -> IO (Maybe RosterStaffSelfServicePanel)
+fetchRosterStaffSelfServicePanel venueConfig rosterGroups rosterGroupId weekOffset highlightOwnLiveShifts
     | hasRole Manager = pure Nothing
     | currentUserIsUnimpersonatedSuperAdmin = pure Nothing
     | otherwise = do
@@ -446,6 +446,7 @@ fetchRosterStaffSelfServicePanel venueConfig rosterGroupId weekOffset highlightO
                             { quickToolsLeaveRequest
                             , quickToolsVenueId = currentVenueId
                             , quickToolsRosterGroupId = rosterGroupId
+                            , quickToolsRosterGroups = rosterGroups
                             , quickToolsRosterWeekOffset = weekOffset
                             , quickToolsTimesheetEntries
                             , quickToolsStaffMembers = [staff]

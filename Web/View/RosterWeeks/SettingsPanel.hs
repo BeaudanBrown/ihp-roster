@@ -1,7 +1,8 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Web.View.RosterWeeks.SettingsPanel
-    ( renderRosterOwnLiveShiftHighlightPreferenceForm
+    ( renderRosterGroupSwitcher
+    , renderRosterOwnLiveShiftHighlightPreferenceForm
     , renderRosterSettingsPanel
     ) where
 
@@ -47,7 +48,7 @@ rosterWeekShellSyncRoute actionUrl =
 renderRosterSettingsPanel :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> Html
 renderRosterSettingsPanel RosterStaffPanelRenderModel { staffPanelRosterWeek, staffPanelWeekOffset, staffPanelWeekStartDate, staffPanelRosterGroups, staffPanelCurrentRosterGroup, staffPanelAssignmentFilters, staffPanelViewCapabilities, staffPanelRosterLayoutMode, staffPanelShowWageEstimates, staffPanelShowRosterWarnings, staffPanelHighlightOwnLiveShifts, staffPanelViewMode, staffPanelNotificationPanelData } = [hsx|
     <div class="roster-settings-panel">
-        {when (length staffPanelRosterGroups > 1) $ renderRosterSettingsSection "bi-people" "Roster group" (renderRosterGroupSwitcher staffPanelWeekOffset staffPanelRosterGroups staffPanelCurrentRosterGroup)}
+        {when (length staffPanelRosterGroups > 1) $ renderRosterSettingsSection "bi-people" "Roster group" (renderRosterGroupSwitcher staffPanelWeekOffset staffPanelRosterGroups staffPanelCurrentRosterGroup.id)}
         {renderRosterSettingsSection "bi-layout-split" "Roster layout" (renderRosterLayoutSection staffPanelWeekOffset staffPanelCurrentRosterGroup.id staffPanelRosterLayoutMode staffPanelViewMode)}
         {when (staffPanelViewCapabilities.canManageRosterWarnings || staffPanelViewCapabilities.canViewWageEstimates) $
             renderRosterSettingsSection "bi-eye" "Display" (renderRosterDisplayPreferencesSection staffPanelWeekOffset staffPanelCurrentRosterGroup.id staffPanelViewCapabilities staffPanelShowWageEstimates staffPanelShowRosterWarnings staffPanelHighlightOwnLiveShifts)}
@@ -71,8 +72,8 @@ renderRosterSettingsSection iconClass title body = [hsx|
     </section>
 |]
 
-renderRosterGroupSwitcher :: Int -> [RosterGroup] -> RosterGroup -> Html
-renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup = [hsx|
+renderRosterGroupSwitcher :: Int -> [RosterGroup] -> Id RosterGroup -> Html
+renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroupId = [hsx|
     <form class="mb-0" method="GET" action={pathTo (ShowRosterWeekAction weekOffset)}>
         <label class="visually-hidden" for="roster-group-switch">Roster group</label>
         <input type="hidden" name={surfaceFieldNameFrom @Surface.WeekOffset fields} value={tshow weekOffset}/>
@@ -80,7 +81,7 @@ renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup = [hsx|
                 class="form-select form-select-sm"
                 name={surfaceFieldNameFrom @Surface.RosterGroupId fields}
                 onchange="this.form.submit()">
-            {forEach rosterGroups (renderRosterGroupSwitchOption currentRosterGroup.id)}
+            {forEach rosterGroups (renderRosterGroupSwitchOption currentRosterGroupId)}
         </select>
     </form>
 |]
@@ -89,7 +90,7 @@ renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup = [hsx|
     fields =
         RosterAction.navigateRosterWeekActionFields
             weekOffset
-            (unpackId currentRosterGroup.id)
+            (unpackId currentRosterGroupId)
 
 renderRosterGroupSwitchOption :: Id RosterGroup -> RosterGroup -> Html
 renderRosterGroupSwitchOption selectedRosterGroupId rosterGroup = [hsx|
