@@ -372,6 +372,14 @@ createVenueMembershipRecord venue user venueRole =
         user
         venueRole
 
+containsTextInOrder :: Text -> [Text] -> Bool
+containsTextInOrder _ [] = True
+containsTextInOrder haystack (needle : remaining) =
+    case Text.breakOn needle haystack of
+        (_, suffix)
+            | Text.null suffix -> False
+            | otherwise -> containsTextInOrder (Text.drop (Text.length needle) suffix) remaining
+
 createVenueInvitationRecord :: (?modelContext :: ModelContext) => Venue -> Maybe User -> Text -> VenueRoleEnum -> IO VenueInvitation
 createVenueInvitationRecord = ApplicationFixture.createVenueInvitationRecord
 

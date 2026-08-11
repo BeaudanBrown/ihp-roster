@@ -37,6 +37,7 @@ import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surfa
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling
+import Application.Helper.Staff (sortStaffForDisplay)
 import Application.Helper.RosterTimesheetBoundaries (projectRosterSlotTimesheetBoundaries)
 import Application.Helper.UserPreferences (fetchCurrentUserTimesheetPreferences,
                                            userTimesheetShowApproved,
@@ -326,7 +327,7 @@ fetchStaffForFormIncluding staffId = do
                     |> filterWhere (#isActive, True)
                     |> filterWhere (#archivedAt, Nothing)
                     |> fetchOneOrNothing
-            pure (maybe eligible (: eligible) retained)
+            pure (sortStaffForDisplay (maybe eligible (: eligible) retained))
 
 fetchShiftTypesForForm :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [ShiftType]
 fetchShiftTypesForForm = do

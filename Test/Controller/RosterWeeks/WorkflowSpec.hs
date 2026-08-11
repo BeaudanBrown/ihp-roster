@@ -563,6 +563,39 @@ tests = aroundAll withDatabaseTestContext do
                 contentResponse `responseBodyShouldNotContain` "name=\"staffId\""
                 contentResponse `responseBodyShouldNotContain` "data-bepis-time-picker-trigger"
 
+        it "sorts draft shift staff alphabetically after the Open shift option" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Sorted Shift Staff Venue"
+                manager <- createUserRecord "sorted-shift-staff-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                level <- createPayLevelRecord venue "Level 1"
+                zulu <- createStaffRecord venue Nothing "Zulu" "Crew"
+                alpha <- updateRecord
+                    ( zulu
+                        |> set #preferredName (Just "alpha")
+                        |> set #payAssignmentMode AwardRate
+                        |> set #defaultAwardLevelId (Just level.id)
+                    )
+                bravo <- createStaffRecord venue Nothing "Bravo" "Crew"
+                _ <- updateRecord
+                    ( bravo
+                        |> set #payAssignmentMode AwardRate
+                        |> set #defaultAwardLevelId (Just level.id)
+                    )
+                _ <- createShiftTypeRecord venue level "Floor"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotName <- fetchSlotNameRecord venue "Early"
+                slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (NewRosterSlotDialogAction rosterDay.id slotDefinition.id 0)
+
+                response `responseStatusShouldBe` status200
+                responseBodyText <- responseBody response
+                let body = cs responseBodyText :: Text
+                body `shouldSatisfy` (\html -> containsTextInOrder html ["Select staff member", "Open shift", inputValue alpha.id, "alpha", inputValue bravo.id, "Bravo"])
+
         it "creates an Open shift from the draft Staff selector" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Open Shift Draft Venue"

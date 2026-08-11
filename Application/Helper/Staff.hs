@@ -6,8 +6,12 @@ module Application.Helper.Staff
     , isTrialStaff
     , linkedActiveStaff
     , rosterableStaff
+    , sortStaffForDisplay
+    , staffDisplayBaseName
     ) where
 
+import Data.List (sortBy)
+import qualified Data.Text as Text
 import Generated.Types
 import IHP.Prelude
 
@@ -38,3 +42,26 @@ linkedActiveStaff = filter isLinkedActiveStaff
 
 adoptableTrialStaff :: [Staff] -> [Staff]
 adoptableTrialStaff = filter isAdoptableTrialStaff
+
+-- | Canonical presentation order for staff selection and inventory lists.
+-- Preferred names lead when present; legal names and ids make ties stable.
+sortStaffForDisplay :: [Staff] -> [Staff]
+sortStaffForDisplay = sortBy compareStaff
+  where
+    compareStaff left right =
+        compare (staffSortKey left) (staffSortKey right)
+
+    staffSortKey staff =
+        ( Text.toCaseFold (staffDisplayBaseName staff)
+        , Text.toCaseFold (Text.strip staff.lastName)
+        , Text.toCaseFold (Text.strip staff.firstName)
+        , tshow staff.id
+        )
+
+staffDisplayBaseName :: Staff -> Text
+staffDisplayBaseName staff =
+    fromMaybe staff.firstName (nonBlankText =<< staff.preferredName)
+  where
+    nonBlankText text =
+        let stripped = Text.strip text
+         in if Text.null stripped then Nothing else Just stripped

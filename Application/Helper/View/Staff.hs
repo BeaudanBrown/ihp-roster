@@ -10,9 +10,9 @@ module Application.Helper.View.Staff
     ) where
 
 import Application.Helper.Staff (isTrialStaff, linkedActiveStaff,
-                                 rosterableStaff)
+                                 rosterableStaff, sortStaffForDisplay,
+                                 staffDisplayBaseName)
 import qualified Data.Char as Char
-import Data.List (sortBy)
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ViewPrelude
@@ -21,16 +21,11 @@ import IHP.ViewPrelude
 -- isTrialStaff from Application.Helper.Staff.
 linkedActiveStaffForRosterPanel :: [Staff] -> [Staff]
 linkedActiveStaffForRosterPanel =
-    sortStaffForRosterPanel . linkedActiveStaff
+    sortStaffForDisplay . linkedActiveStaff
 
 rosterableStaffForRosterPanel :: [Staff] -> [Staff]
 rosterableStaffForRosterPanel =
-    sortStaffForRosterPanel . rosterableStaff
-
-sortStaffForRosterPanel :: [Staff] -> [Staff]
-sortStaffForRosterPanel =
-    sortBy \left right ->
-        compare left.firstName right.firstName <> compare left.lastName right.lastName
+    sortStaffForDisplay . rosterableStaff
 
 staffDisplayName :: [Staff] -> Staff -> Text
 staffDisplayName staffMembers staff =
@@ -44,10 +39,6 @@ staffDisplayName staffMembers staff =
         if needsLastInitial
             then baseName <> renderStaffLastInitial staff
             else baseName
-
-staffDisplayBaseName :: Staff -> Text
-staffDisplayBaseName staff =
-    fromMaybe staff.firstName (nonBlankText =<< staff.preferredName)
 
 normalizedStaffDisplayBaseName :: Staff -> Text
 normalizedStaffDisplayBaseName = Text.toCaseFold . staffDisplayBaseName

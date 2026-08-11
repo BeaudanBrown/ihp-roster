@@ -11,14 +11,14 @@ module Web.RosterWeeks.StaffOptions
 
 import Application.Helper.Controller (venueRoleToText)
 import Application.Helper.RosterGroups (fetchEligibleRosterGroupStaff)
-import Application.Helper.Staff (isTrialStaff)
+import Application.Helper.Staff (isTrialStaff, sortStaffForDisplay)
 import Application.Helper.View (rosterableStaffForRosterPanel)
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Application.PayAssignment (StaffPayAssignment (..),
                                   staffPayAssignmentRequiresRemediation)
 import Application.RosterShiftAssignment (rosterShiftIsStaffAssigned)
 import Data.Coerce (coerce)
-import Data.List (find, nub, sortBy)
+import Data.List (find, nub)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (mapMaybe)
 import qualified Data.Set as Set
@@ -86,7 +86,7 @@ fetchRosterShiftDialogStaff rosterGroupId currentStaffId = do
             , coerce staff.id `Set.member` payInvalidStaffIds
             , Just (coerce staff.id) == currentStaffId
             ]
-    pure (validStaff <> currentInvalidStaff, Set.fromList (map (coerce . (.id)) currentInvalidStaff))
+    pure (sortStaffForDisplay (validStaff <> currentInvalidStaff), Set.fromList (map (coerce . (.id)) currentInvalidStaff))
 
 fetchStaffPayConfigurationRequiredIds :: (?context :: ControllerContext, ?modelContext :: ModelContext) => [Staff] -> IO (Set.Set UUID.UUID)
 fetchStaffPayConfigurationRequiredIds staffMembers = do
@@ -104,11 +104,8 @@ fetchStaffPayConfigurationRequiredIds staffMembers = do
 staffForPanelScope :: RosterStaffPanelScope -> [Staff] -> [Staff]
 staffForPanelScope RosterStaffPanelCurrentGroup = rosterableStaffForRosterPanel
 staffForPanelScope RosterStaffPanelAllVenue =
-    sortBy sortStaff
+    sortStaffForDisplay
         . filter (\staff -> staff.isActive && isNothing staff.archivedAt)
-    where
-        sortStaff left right =
-            compare left.firstName right.firstName <> compare left.lastName right.lastName
 
 fetchAssignedRosterWeekStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext) => [RosterSlot] -> IO [Staff]
 fetchAssignedRosterWeekStaff allSlots = do

@@ -876,6 +876,32 @@ tests = aroundAll withDatabaseTestContext do
                 testBreakEndTime persistedEntry `shouldBe` Just (TimeOfDay 12 30 0)
                 testBreakMinutes persistedEntry `shouldBe` 30
 
+        it "sorts manager timesheet staff options alphabetically" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Sorted Timesheet Staff Venue"
+                manager <- createUserRecord "sorted-timesheet-manager@example.com" "staff" True
+                alphaUser <- createUserRecord "sorted-timesheet-alpha@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                _ <- createVenueMembershipRecord venue alphaUser Worker
+                zulu <- createStaffRecord venue (Just manager) "zulu" "Crew"
+                alpha <- createStaffRecord venue (Just alphaUser) "Alpha" "Crew"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel zulu
+                _ <- makeStaffTimesheetProducing payLevel alpha
+                _ <- createShiftTypeRecord venue payLevel "Ordinary"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams NewTimesheetEntryAction
+                            [ ("weekOffset", "0")
+                            , ("workedOn", "2025-01-07")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                responseBodyText <- responseBody response
+                let body = cs responseBodyText :: Text
+                body `shouldSatisfy` (\html -> containsTextInOrder html [inputValue alpha.id, "Alpha Crew", inputValue zulu.id, "zulu Crew"])
+
         it "renders HTMX timesheet forms with javascript submission disabled" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"

@@ -3,6 +3,7 @@ module Application.Helper.VenueScopedQueries
     , fetchLinkedActiveVenueStaff
     ) where
 
+import Application.Helper.Staff (sortStaffForDisplay)
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -10,12 +11,12 @@ import IHP.ControllerPrelude
 -- timesheet/payroll/Xero eligibility.
 fetchLinkedActiveVenueStaff :: (?modelContext :: ModelContext) => Id Venue -> IO [Staff]
 fetchLinkedActiveVenueStaff venueId =
-    query @Staff
+    sortStaffForDisplay <$> (query @Staff
         |> filterWhere (#venueId, unpackId venueId)
         |> filterWhere (#isActive, True)
         |> filterWhere (#archivedAt, Nothing)
         |> filterWhereSql (#userId, "IS NOT NULL")
-        |> fetch
+        |> fetch)
 
 fetchActiveVenueShiftTypes :: (?modelContext :: ModelContext) => Id Venue -> IO [ShiftType]
 fetchActiveVenueShiftTypes venueId =

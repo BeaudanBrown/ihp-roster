@@ -4,6 +4,7 @@
 module Application.Helper.RosterGroups where
 
 import Application.Helper.Controller (currentVenueId)
+import Application.Helper.Staff (sortStaffForDisplay)
 import Application.Helper.WeekBoundaries (defaultRosterWeekStartsOn,
                                           defaultWeekOffsetEpochForStartDay,
                                           sortDayNamesForVenueWeek)
@@ -214,22 +215,20 @@ fetchEligibleRosterGroupStaff rosterGroupId = do
     if null staffIds
         then pure []
         else
-            query @Staff
+            sortStaffForDisplay <$> (query @Staff
                 |> filterWhere (#venueId, unpackId currentVenueId)
                 |> filterWhere (#isActive, True)
                 |> filterWhere (#archivedAt, Nothing)
                 |> filterWhereIn (#id, map Id staffIds)
-                |> orderBy #lastName
-                |> fetch
+                |> fetch)
 
 fetchCurrentVenueActiveStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [Staff]
 fetchCurrentVenueActiveStaff =
-    query @Staff
+    sortStaffForDisplay <$> (query @Staff
         |> filterWhere (#venueId, unpackId currentVenueId)
         |> filterWhere (#isActive, True)
         |> filterWhere (#archivedAt, Nothing)
-        |> orderBy #lastName
-        |> fetch
+        |> fetch)
 
 fetchVenueDayNames :: (?modelContext :: ModelContext) => Venue -> IO [DayName]
 fetchVenueDayNames venue = do
