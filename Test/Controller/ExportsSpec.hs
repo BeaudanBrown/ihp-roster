@@ -80,7 +80,7 @@ tests = aroundAll withDatabaseTestContext do
                 exportJob.venueId `shouldBe` unpackId venue.id
                 exportJob.requestedByUserId `shouldBe` unpackId admin.id
                 exportJob.exportType `shouldBe` exportJobTypeToText ApprovedTimesheetsCsv
-                exportJob.schemaVersion `shouldBe` 3
+                exportJob.schemaVersion `shouldBe` 4
                 exportJob.status `shouldBe` exportJobStatusToText ExportReady
                 exportJob.rangeStart `shouldBe` Just (fromGregorian 2025 1 6)
                 exportJob.rangeEnd `shouldBe` Just (fromGregorian 2025 1 12)
@@ -414,13 +414,13 @@ tests = aroundAll withDatabaseTestContext do
                 exportJob.fileEncoding `shouldBe` "utf8"
                 exportJob.payConfigVersionManifest `shouldSatisfy` isJust
                 csvContents `shouldSatisfy`
-                    Text.isInfixOf "staff_first_name,staff_last_name,work_date,earnings_rate_name,exact_quantity,quantity,unit,rate_per_unit,exact_amount,amount,tracking_code"
+                    Text.isInfixOf "staff_first_name,staff_last_name,operational_date,component_date,earnings_rate_name,exact_quantity,quantity,unit,rate_per_unit,exact_amount,amount,tracking_code"
                 csvContents `shouldSatisfy`
-                    Text.isInfixOf "Rae,Worker,2025-01-06,Bar - Ordinary,5/1,5.000000,hours,"
+                    Text.isInfixOf "Rae,Worker,2025-01-06,2025-01-06,Bar - Ordinary,5/1,5.000000,hours,"
                 csvContents `shouldSatisfy`
-                    Text.isInfixOf "Rae,Worker,2025-01-10,Bar - Public Holiday,4/1,4.000000,hours,"
+                    Text.isInfixOf "Rae,Worker,2025-01-10,2025-01-10,Bar - Public Holiday,4/1,4.000000,hours,"
                 csvContents `shouldSatisfy`
-                    Text.isInfixOf "Rae,Worker,2025-01-11,Kitchen - Saturday,2/1,2.000000,hours,"
+                    Text.isInfixOf "Rae,Worker,2025-01-11,2025-01-11,Kitchen - Saturday,2/1,2.000000,hours,"
                 csvContents `shouldSatisfy`
                     Text.isInfixOf ",public_holiday,bepis-projection:award_level_penalty_rates:"
                 csvContents `shouldSatisfy`

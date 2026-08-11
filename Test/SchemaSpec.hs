@@ -1034,6 +1034,14 @@ tests = describe "Schema" do
             schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE timesheet_pay_calculations"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE timesheet_pay_time_segments"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE timesheet_pay_earnings_components"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "operational_date DATE NOT NULL"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_window_start DATE NOT NULL"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_week_starts_on INT NOT NULL"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "component_date DATE DEFAULT NULL"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "resolved_rate_boundary_date DATE DEFAULT NULL"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "xero_local_bucket_key TEXT DEFAULT NULL"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "xero_earnings_rate_id TEXT DEFAULT NULL"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "xero_mapping_legacy_fallback BOOLEAN DEFAULT FALSE NOT NULL"
 
         it "defers retirement until the automatic post-migration Haskell cutover" do
             markerSqlText <- TextIO.readFile "Application/Migration/1785242000.sql"

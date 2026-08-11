@@ -1394,15 +1394,16 @@ ON CONFLICT (id) DO UPDATE SET
 -- exact paid-time/component facts before the approval state is applied.
 INSERT INTO timesheet_pay_calculations (
     id, timesheet_entry_id, calculation_version, calculation_source,
-    rate_book_version, venue_timezone, holiday_jurisdiction,
+    rate_book_version, operational_date, roster_window_start, roster_week_starts_on,
+    venue_timezone, holiday_jurisdiction,
     staff_pay_version_id, shift_type_pay_version_id, approved_at,
     approved_by_user_id
 )
 VALUES
-    ('a2000000-0000-0000-0000-000000000091', 'a1000000-0000-0000-0000-000000000091', 'hospitality-award-v1', 'hospitality_award', 'e2e-rate-book', 'Australia/Melbourne', 'VIC', 'a1000000-0000-0000-0000-000000000302', 'a1000000-0000-0000-0000-000000000311', '2025-01-12 01:00:00+00', 'a0000000-0000-0000-0000-000000000001'),
-    ('a2000000-0000-0000-0000-000000000092', 'a1000000-0000-0000-0000-000000000092', 'hospitality-award-v1', 'hospitality_award', 'e2e-rate-book', 'Australia/Melbourne', 'VIC', 'a1000000-0000-0000-0000-000000000302', 'a1000000-0000-0000-0000-000000000312', '2025-01-12 01:05:00+00', 'a0000000-0000-0000-0000-000000000001'),
-    ('a2000000-0000-0000-0000-000000000093', 'a1000000-0000-0000-0000-000000000093', 'hospitality-award-v1', 'hospitality_award', 'e2e-rate-book', 'Australia/Melbourne', 'VIC', 'a1000000-0000-0000-0000-000000000302', 'a1000000-0000-0000-0000-000000000311', '2025-01-12 01:10:00+00', 'a0000000-0000-0000-0000-000000000001'),
-    ('a2000000-0000-0000-0000-000000000094', 'a1000000-0000-0000-0000-000000000094', 'hospitality-award-v1', 'hospitality_award', 'e2e-rate-book', 'Australia/Melbourne', 'VIC', 'a1000000-0000-0000-0000-000000000301', 'a1000000-0000-0000-0000-000000000313', '2025-01-12 01:15:00+00', 'a0000000-0000-0000-0000-000000000003');
+    ('a2000000-0000-0000-0000-000000000091', 'a1000000-0000-0000-0000-000000000091', 'hospitality-award-v1', 'hospitality_award', 'e2e-rate-book', (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1))::date, (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1))::date, 1, 'Australia/Melbourne', 'VIC', 'a1000000-0000-0000-0000-000000000302', 'a1000000-0000-0000-0000-000000000311', '2025-01-12 01:00:00+00', 'a0000000-0000-0000-0000-000000000001'),
+    ('a2000000-0000-0000-0000-000000000092', 'a1000000-0000-0000-0000-000000000092', 'hospitality-award-v1', 'hospitality_award', 'e2e-rate-book', (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 1)::date, (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1))::date, 1, 'Australia/Melbourne', 'VIC', 'a1000000-0000-0000-0000-000000000302', 'a1000000-0000-0000-0000-000000000312', '2025-01-12 01:05:00+00', 'a0000000-0000-0000-0000-000000000001'),
+    ('a2000000-0000-0000-0000-000000000093', 'a1000000-0000-0000-0000-000000000093', 'hospitality-award-v1', 'hospitality_award', 'e2e-rate-book', (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 4)::date, (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1))::date, 1, 'Australia/Melbourne', 'VIC', 'a1000000-0000-0000-0000-000000000302', 'a1000000-0000-0000-0000-000000000311', '2025-01-12 01:10:00+00', 'a0000000-0000-0000-0000-000000000001'),
+    ('a2000000-0000-0000-0000-000000000094', 'a1000000-0000-0000-0000-000000000094', 'hospitality-award-v1', 'hospitality_award', 'e2e-rate-book', (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1))::date, (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1))::date, 1, 'Australia/Melbourne', 'VIC', 'a1000000-0000-0000-0000-000000000301', 'a1000000-0000-0000-0000-000000000313', '2025-01-12 01:15:00+00', 'a0000000-0000-0000-0000-000000000003');
 
 INSERT INTO timesheet_pay_time_segments (
     id, timesheet_pay_calculation_id, ordinal, paid_time_kind,
@@ -1417,16 +1418,16 @@ VALUES
 
 INSERT INTO timesheet_pay_earnings_components (
     id, timesheet_pay_calculation_id, ordinal, quantity, unit_type,
-    rate_per_unit, exact_amount, source_condition, calculation_source,
+    rate_per_unit, exact_amount, component_date, xero_mapping_legacy_fallback, source_condition, calculation_source,
     source_rate_identity
 )
 VALUES
-    ('a2200000-0000-0000-0000-000000000091', 'a2000000-0000-0000-0000-000000000091', 0, 8, 'hours', 30, 240, 'ordinary', 'hospitality_award', 'e2e:ordinary'),
-    ('a2200000-0000-0000-0000-000000000092', 'a2000000-0000-0000-0000-000000000092', 0, 4, 'hours', 30, 120, 'ordinary', 'hospitality_award', 'e2e:ordinary'),
-    ('a2200000-0000-0000-0000-000000000093', 'a2000000-0000-0000-0000-000000000093', 0, 5, 'hours', 30, 150, 'ordinary', 'hospitality_award', 'e2e:ordinary'),
-    ('a2200000-0000-0000-0000-000000000193', 'a2000000-0000-0000-0000-000000000093', 1, 1, 'hours', 45, 45, 'saturday', 'hospitality_award', 'e2e:saturday'),
-    ('a2200000-0000-0000-0000-000000000293', 'a2000000-0000-0000-0000-000000000093', 2, 5, 'commenced_hours', 3, 15, 'evening_after_7pm_addition', 'hospitality_award', 'e2e:evening'),
-    ('a2200000-0000-0000-0000-000000000094', 'a2000000-0000-0000-0000-000000000094', 0, 2, 'hours', 30, 60, 'ordinary', 'hospitality_award', 'e2e:ordinary');
+    ('a2200000-0000-0000-0000-000000000091', 'a2000000-0000-0000-0000-000000000091', 0, 8, 'hours', 30, 240, (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1))::date, TRUE, 'ordinary', 'hospitality_award', 'e2e:ordinary'),
+    ('a2200000-0000-0000-0000-000000000092', 'a2000000-0000-0000-0000-000000000092', 0, 4, 'hours', 30, 120, (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 1)::date, TRUE, 'ordinary', 'hospitality_award', 'e2e:ordinary'),
+    ('a2200000-0000-0000-0000-000000000093', 'a2000000-0000-0000-0000-000000000093', 0, 5, 'hours', 30, 150, (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 4)::date, TRUE, 'ordinary', 'hospitality_award', 'e2e:ordinary'),
+    ('a2200000-0000-0000-0000-000000000193', 'a2000000-0000-0000-0000-000000000093', 1, 1, 'hours', 45, 45, (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 5)::date, TRUE, 'saturday', 'hospitality_award', 'e2e:saturday'),
+    ('a2200000-0000-0000-0000-000000000293', 'a2000000-0000-0000-0000-000000000093', 2, 5, 'commenced_hours', 3, 15, (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 4)::date, TRUE, 'evening_after_7pm_addition', 'hospitality_award', 'e2e:evening'),
+    ('a2200000-0000-0000-0000-000000000094', 'a2000000-0000-0000-0000-000000000094', 0, 2, 'hours', 30, 60, (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1))::date, TRUE, 'ordinary', 'hospitality_award', 'e2e:ordinary');
 
 UPDATE timesheet_pay_calculations
 SET sealed_at = '2025-01-12 01:20:00+00'

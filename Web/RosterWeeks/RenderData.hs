@@ -27,7 +27,6 @@ import Application.RosterTemplates (RosterTemplateLibrary,
                                     currentRosterTemplateActor,
                                     fetchRosterTemplateLibrary,
                                     rosterTemplateActorUserId)
-import Application.VenueTime.Model (requireMelbourneDateRangeUTC)
 import Data.Coerce (coerce)
 import Data.List (find)
 import qualified Data.Map.Strict as Map

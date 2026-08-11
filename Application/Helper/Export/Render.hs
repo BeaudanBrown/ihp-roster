@@ -67,7 +67,8 @@ renderPayrollEarningsCsv records =
             Text.intercalate ","
                 [ "staff_first_name"
                 , "staff_last_name"
-                , "work_date"
+                , "operational_date"
+                , "component_date"
                 , "earnings_rate_name"
                 , "exact_quantity"
                 , "quantity"
@@ -96,7 +97,8 @@ renderPayrollEarningsCsv records =
             Text.intercalate ","
                 [ csvCell record.staffFirstName
                 , csvCell record.staffLastName
-                , csvCell (tshow record.workDate)
+                , csvCell (tshow record.operationalDate)
+                , csvCell (tshow record.componentDate)
                 , csvCell record.earningsRateName
                 , csvCell (renderExactRational record.exactQuantity)
                 , formatStaffPayHours record.quantity
@@ -161,6 +163,9 @@ staffPayContributionBucketIndex buckets contribution =
     List.findIndex
         (\bucket -> bucket.bucketDate == contribution.staffHoursDate && bucket.bucketKind == contributionKind)
         buckets
+        <|> List.findIndex
+            (\bucket -> bucket.bucketDate == contribution.staffHoursDate && bucket.bucketKind == "ordinary")
+            buckets
   where
     contributionKind = case contribution.staffHoursBucketKind of
         StaffHoursOrdinary     -> "ordinary"
@@ -223,7 +228,7 @@ renderHourlyBreakdownDateCsv date window columns entries =
     Text.unlines (csvHeader : map renderHourRow reportHours <> [renderTotalRow])
   where
     reportHours = hourlyReportHours window
-    dayEntries = filter ((== date) . timesheetEntryWorkedOn) entries
+    dayEntries = filter ((== date) . (.operationalDate)) entries
     displayedHours hour column =
         sum (map (entryHoursForHourlyWindow hour column.hourlyShiftTypeId) dayEntries)
             |> roundRationalAt 1000000

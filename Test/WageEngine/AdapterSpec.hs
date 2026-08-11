@@ -74,9 +74,10 @@ pureTests =
                     , "holidays"
                     ]
 
-        it "HIGA-POLICY-AWARD-LEVEL and HIGA-POLICY-WEEK-ROLLOVER select versioned rates from one in-memory index" do
+        it "HIGA-POLICY-AWARD-LEVEL and HIGA-POLICY-WEEK-ROLLOVER select versioned rates from the current Operational window" do
             let beforeEntryId = uuid "10000000-0000-0000-0000-000000000010"
                 afterEntryId = uuid "10000000-0000-0000-0000-000000000011"
+                changedStartEntryId = uuid "10000000-0000-0000-0000-000000000014"
                 beforeDate = fromGregorian 2026 7 3
                 afterDate = fromGregorian 2026 7 6
                 oldPeriod = EffectivePeriod (Just (fromGregorian 2025 7 1)) Nothing
@@ -96,6 +97,7 @@ pureTests =
                 contextRows =
                     [ testEntryContext beforeEntryId beforeDate
                     , testEntryContext afterEntryId afterDate
+                    , (testEntryContext changedStartEntryId beforeDate) { contextRosterWeekStartsOn = 3 }
                     ]
                 source =
                     WageEngineBulkSource
@@ -110,15 +112,18 @@ pureTests =
                 requests =
                     [ WageEngineEntryRequest beforeEntryId
                     , WageEngineEntryRequest afterEntryId
+                    , WageEngineEntryRequest changedStartEntryId
                     ]
 
             contexts <- loadWageEngineContextsWith source requests >>= expectRight
             let beforeBook = loadedRateBookOrFail (contexts Map.! beforeEntryId)
                 afterBook = loadedRateBookOrFail (contexts Map.! afterEntryId)
+                changedStartBook = loadedRateBookOrFail (contexts Map.! changedStartEntryId)
                 ordinaryLevel1 = ClassificationRate HospitalityLevel1 PermanentPartTime OrdinaryRate
 
             lookupValidatedRate ordinaryLevel1 beforeBook `shouldBe` Just 100
             lookupValidatedRate ordinaryLevel1 afterBook `shouldBe` Just 110
+            lookupValidatedRate ordinaryLevel1 changedStartBook `shouldBe` Just 110
             validatedRateBookEffectivePeriod beforeBook `shouldBe` oldCandidate.candidateEffectivePeriod
             validatedRateBookEffectivePeriod afterBook `shouldBe` newPeriod
 
@@ -190,6 +195,22 @@ databaseTests = aroundAll withDatabaseTestContext do
                         Right calculation -> rateForCalculation calculation == Just 55
                         Left _            -> False
 
+        it "loads public holidays through the authoritative local component end date" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Cross-midnight holiday scope"
+                level <- createPayLevelRecordWithRates venue "Level 1" 25 2 3 1 1.25 1.5
+                staff <- createStaffRecord venue Nothing "Holiday" "Scope"
+                    >>= updateRecord . set #payAssignmentMode AwardRate . set #defaultAwardLevelId (Just level.id)
+                shiftType <- createShiftTypeRecord venue level "Holiday scope"
+                entry <- createAdapterEntry venue staff shiftType (fromGregorian 2026 7 6)
+                    >>= updateRecord . setTestStartTime (TimeOfDay 23 0 0) . setTestEndTime (TimeOfDay 2 0 0)
+                databaseReads <- newIORef ([] :: [WageEngineDatabaseRead])
+
+                _ <- loadWageEngineContextsWith (databaseWageEngineBulkSourceWith (\readKind -> modifyIORef' databaseReads (<> [readKind]))) [WageEngineEntryRequest (unpackId entry.id)]
+
+                reads <- readIORef databaseReads
+                reads `shouldContain` [StatewideHolidaysRead (fromGregorian 2026 7 6) (fromGregorian 2026 7 7)]
+
         it "gives a projected one-hour casual roster slot the identical canonical minimum as its draft Timesheet" $ withContext do
             withCleanDb do
                 fixture <- loadFwcMapdFixture
@@ -222,7 +243,7 @@ databaseTests = aroundAll withDatabaseTestContext do
                     |> updateRecord
                 entry <- createAdapterEntry venue staff shiftType workedOn
                     >>= updateRecord . applyTimesheetEntryBoundaries boundaries
-                rosterSubject <- expectRight (rosterSlotWageSubject (unpackId venue.id) slot)
+                rosterSubject <- expectRight (rosterSlotWageSubject (unpackId venue.id) workedOn slot)
                 timesheetSubject <- expectRight (timesheetWageSubject entry)
                 projectedBoundaries <- expectRight (projectRosterSlotTimesheetBoundaries slot)
 
@@ -326,9 +347,15 @@ databaseTests = aroundAll withDatabaseTestContext do
                 persisted.calculationVersion `shouldBe` "hospitality-award-v1"
                 persisted.calculationSource `shouldBe` "hospitality_award"
                 persisted.rateBookVersion `shouldSatisfy` maybe False (not . Text.null)
+                persisted.operationalDate `shouldBe` approvedEntry.operationalDate
+                persisted.rosterWindowStart `shouldBe` fromGregorian 2026 7 6
+                persisted.rosterWeekStartsOn `shouldBe` 1
                 fmap (.paidTimeKind) segments `shouldBe` ["worked"]
                 fmap (.quantity) components `shouldBe` [4]
                 components `shouldSatisfy` all (isJust . (.sourceRateIdentity))
+                map (.componentDate) components `shouldBe` [Just (fromGregorian 2026 7 6)]
+                components `shouldSatisfy` all (isJust . (.resolvedRateBoundaryDate))
+                components `shouldSatisfy` all (not . (.xeroMappingLegacyFallback))
                 activeEntry <- approvedEntry
                     |> set #activePayCalculationId (Just persisted.id)
                     |> set #legacyPayBackfillPending False
@@ -375,6 +402,8 @@ databaseTests = aroundAll withDatabaseTestContext do
                     |> createRecord
                     |> void
                     ) `shouldThrow` anyException
+                (activeEntry |> set #operationalDate (addDays 1 activeEntry.operationalDate) |> updateRecord |> void)
+                    `shouldThrow` anyException
 
         it "persists imported pay as external_imported_pay_item without an Award book" $ withContext do
             withCleanDb do
@@ -481,6 +510,9 @@ databaseTests = aroundAll withDatabaseTestContext do
                 backfillResult `shouldBe` Right 2
                 backfillApprovedTimesheetPayCalculations `shouldReturn` Right 0
                 query @TimesheetPayCalculation |> fetchCount `shouldReturn` 2
+                historicalComponents <- query @TimesheetPayEarningsComponent |> fetch
+                historicalComponents `shouldSatisfy` all (.xeroMappingLegacyFallback)
+                historicalComponents `shouldSatisfy` all (isJust . (.componentDate))
 
         it "bulk-loads 250 distinct imported entries within one structural query budget" $ withContext do
             withCleanDb do
@@ -829,7 +861,7 @@ satisfyBulkApprovedAwardDatabaseReads = \case
                 && baseScope.scopedWorkedFrom == Just (fromGregorian 2026 7 6)
                 && baseScope.scopedWorkedTo == Just (fromGregorian 2027 1 21)
                 && holidayFrom == fromGregorian 2026 7 6
-                && holidayTo == fromGregorian 2027 1 22
+                && holidayTo == fromGregorian 2027 1 21
     _ -> False
 
 satisfyBulkImportedDatabaseReads :: [WageEngineDatabaseRead] -> Bool
@@ -843,7 +875,7 @@ satisfyBulkImportedDatabaseReads = \case
         , StatewideHolidaysRead holidayFrom holidayTo
         ] ->
             holidayFrom == fromGregorian 2026 7 6
-                && holidayTo == fromGregorian 2026 7 7
+                && holidayTo == fromGregorian 2026 7 6
     _ -> False
 
 satisfyBoundedDatabaseReads :: [WageEngineDatabaseRead] -> Bool
@@ -865,7 +897,7 @@ satisfyBoundedDatabaseReads = \case
                 && baseScope.scopedWorkedFrom == Just (fromGregorian 2026 7 6)
                 && baseScope.scopedWorkedTo == Just (fromGregorian 2026 7 11)
                 && holidayFrom == fromGregorian 2026 7 6
-                && holidayTo == fromGregorian 2026 7 12
+                && holidayTo == fromGregorian 2026 7 11
     _ -> False
 
 rateForCalculation :: WageCalculation -> Maybe Scientific
@@ -907,6 +939,8 @@ testEntryContext entryId workedOn =
     EntryContextRow
         entryId
         (uuid "10000000-0000-0000-0000-000000000099")
+        workedOn
+        workedOn
         workedOn
         "Australia/Melbourne"
         1

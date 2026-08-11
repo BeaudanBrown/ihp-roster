@@ -26,7 +26,10 @@ where
 import Application.Helper.WeekBoundaries (venueEffectiveRateDate,
                                           venueEffectiveRateEndDate)
 import Application.VenueTime (AwardSegment, ResolvedInterval)
-import Application.VenueTime.Model (timesheetEntryWorkedOn)
+import Application.VenueTime.Model (AuthoritativeBoundaries,
+                                    authoritativeEndLocalTime,
+                                    authoritativeStartLocalTime,
+                                    timesheetEntryBoundaries)
 import Application.WageEngine
 import qualified Data.Bifunctor as Bifunctor
 import qualified Data.List as List
@@ -51,7 +54,9 @@ newtype WageEngineEntryRequest = WageEngineEntryRequest
 -- subjects provide immutable pay-version ids.
 data WageEngineSubjectRequest = WageEngineSubjectRequest
     { subjectRequestId                    :: !UUID
-    , subjectRequestWorkedOn              :: !Day
+    , subjectRequestOperationalDate       :: !Day
+    , subjectRequestComponentStartDate    :: !Day
+    , subjectRequestComponentEndDate      :: !Day
     , subjectRequestVenueId               :: !UUID
     , subjectRequestStaffId               :: !UUID
     , subjectRequestShiftTypeId           :: !UUID
@@ -63,7 +68,9 @@ data WageEngineSubjectRequest = WageEngineSubjectRequest
 data EntryContextRow = EntryContextRow
     { contextEntryId                :: !UUID
     , contextVenueId                :: !UUID
-    , contextWorkedOn               :: !Day
+    , contextOperationalDate        :: !Day
+    , contextComponentStartDate     :: !Day
+    , contextComponentEndDate       :: !Day
     , contextVenueTimeZone          :: !Text
     , contextRosterWeekStartsOn     :: !Int
     , contextHolidayJurisdiction    :: !Text
@@ -200,7 +207,7 @@ loadWageEngineContextResultsWith source requests = do
                 |> List.nub
     importedPayItemRows <- source.fetchImportedPayItemRows importedPayItemIds
     awardLevelRows <- source.fetchProjectedAwardLevelRows
-    let workedDates = map (.contextWorkedOn) entryContextRows
+    let workedDates = map (.contextOperationalDate) entryContextRows
         projectionScope =
             RateProjectionScope
                 { scopedAwardLevelIds =
@@ -232,7 +239,7 @@ loadWageEngineContextResultsWith source requests = do
                 |> mapMaybe
                     ( \request -> do
                         contextRow <- Map.lookup request.requestedEntryId entryContextById
-                        pure ((contextRow.contextRosterWeekStartsOn, contextRow.contextWorkedOn), request.requestedEntryId)
+                        pure ((contextRow.contextRosterWeekStartsOn, contextRow.contextOperationalDate), request.requestedEntryId)
                     )
                 |> Map.fromListWith (<> )
                 . map (\(key, entryId) -> (key, [entryId]))
@@ -275,7 +282,7 @@ buildLoadedContext entryContextById importedPayItemById awardLevelById holidayDa
         case selectedImportedPayItem importedOverrides of
             Just _ -> Right Nothing
             Nothing -> do
-                rateBookResult <- maybe (Left (MissingCalculationContext request.requestedEntryId)) Right (Map.lookup (contextRow.contextRosterWeekStartsOn, contextRow.contextWorkedOn) rateBooksByRequest)
+                rateBookResult <- maybe (Left (MissingCalculationContext request.requestedEntryId)) Right (Map.lookup (contextRow.contextRosterWeekStartsOn, contextRow.contextOperationalDate) rateBooksByRequest)
                 rateBook <- Bifunctor.first (InvalidProjectedRateBook request.requestedEntryId) rateBookResult
                 selectedAwardLevelId <- maybe (Left (MissingCalculationContext request.requestedEntryId)) Right (contextRow.contextShiftAwardLevelId <|> contextRow.contextStaffAwardLevelId)
                 awardLevel <- maybe (Left (MissingCalculationContext request.requestedEntryId)) Right (Map.lookup selectedAwardLevelId awardLevelById)
@@ -575,7 +582,9 @@ projectSubjectContext venueConfigs staffRows shiftTypes staffVersions shiftVersi
     pure EntryContextRow
         { contextEntryId = subject.subjectRequestId
         , contextVenueId = subject.subjectRequestVenueId
-        , contextWorkedOn = subject.subjectRequestWorkedOn
+        , contextOperationalDate = subject.subjectRequestOperationalDate
+        , contextComponentStartDate = subject.subjectRequestComponentStartDate
+        , contextComponentEndDate = subject.subjectRequestComponentEndDate
         , contextVenueTimeZone = venueConfig.timezone
         , contextRosterWeekStartsOn = venueConfig.rosterWeekStartsOn
         , contextHolidayJurisdiction = venueConfig.publicHolidayJurisdiction
@@ -655,11 +664,16 @@ projectEntryContext venueConfigByVenueId staffById shiftTypeById staffPayVersion
     shiftTypePayVersion <- case entry.shiftTypePayVersionId of
         Nothing        -> pure Nothing
         Just versionId -> Just <$> Map.lookup versionId shiftTypePayVersionById
+    let (componentStartDate, componentEndDate) = case timesheetEntryBoundaries entry of
+            Left _ -> (entry.operationalDate, entry.operationalDate)
+            Right boundaries -> ((authoritativeStartLocalTime boundaries).localDay, (authoritativeEndLocalTime boundaries).localDay)
     pure
         EntryContextRow
             { contextEntryId = unpackId entry.id
             , contextVenueId = entry.venueId
-            , contextWorkedOn = timesheetEntryWorkedOn entry
+            , contextOperationalDate = entry.operationalDate
+            , contextComponentStartDate = componentStartDate
+            , contextComponentEndDate = componentEndDate
             , contextVenueTimeZone = venueConfig.timezone
             , contextRosterWeekStartsOn = venueConfig.rosterWeekStartsOn
             , contextHolidayJurisdiction = venueConfig.publicHolidayJurisdiction
@@ -686,9 +700,10 @@ fetchDatabaseImportedPayItemRows observeRead importedPayItemIds = do
 fetchDatabaseStatewideHolidayRows :: (?modelContext :: ModelContext) => (WageEngineDatabaseRead -> IO ()) -> [EntryContextRow] -> IO [StatewideHolidayRow]
 fetchDatabaseStatewideHolidayRows _ [] = pure []
 fetchDatabaseStatewideHolidayRows observeRead contextRows = do
-    let workedDates = List.sort (map (.contextWorkedOn) contextRows)
-        fromDate = fromMaybe (error "WageEngine holiday scope unexpectedly empty") (listToMaybe workedDates)
-        toDate = addDays 1 (fromMaybe (error "WageEngine holiday scope unexpectedly empty") (listToMaybe (reverse workedDates)))
+    let componentStartDates = List.sort (map (.contextComponentStartDate) contextRows)
+        componentEndDates = List.sort (map (.contextComponentEndDate) contextRows)
+        fromDate = fromMaybe (error "WageEngine holiday scope unexpectedly empty") (listToMaybe componentStartDates)
+        toDate = fromMaybe (error "WageEngine holiday scope unexpectedly empty") (listToMaybe (reverse componentEndDates))
     observeRead (StatewideHolidaysRead fromDate toDate)
     holidays <- query @G.PublicHoliday
         |> filterWhere (#jurisdiction, "VIC" :: Text)

@@ -102,6 +102,33 @@ tests = aroundAll withDatabaseTestContext do
                 entryRows `shouldSatisfy` any (Text.isInfixOf ",2025-01-12,")
                 entryRows `shouldSatisfy` any (Text.isInfixOf ",2025-01-13,")
 
+        it "includes early-morning work in its selected Operational window" $ withContext do
+            withCleanDb do
+                fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
+                _ <- createAndApproveEntry fixture.venue fixture.avaStaff goldenWeekEnd fixture.snapshot fixture.admin fixture.approvedAt
+                    [ set #shiftTypeId (unpackId fixture.barShift.id)
+                    , setTestStartTime (TimeOfDay 22 0 0)
+                    , setTestEndTime (TimeOfDay 2 0 0)
+                    ]
+                earlyEntry <- createAndApproveEntry fixture.venue fixture.avaStaff goldenWeekEnd fixture.snapshot fixture.admin fixture.approvedAt
+                    [ set #shiftTypeId (unpackId fixture.barShift.id)
+                    , setTestStartTime (TimeOfDay 6 0 0)
+                    , setTestEndTime (TimeOfDay 8 0 0)
+                    ]
+                afterMidnightEntry <- createAndApproveEntry fixture.venue fixture.avaStaff goldenWeekEnd fixture.snapshot fixture.admin fixture.approvedAt
+                    [ set #shiftTypeId (unpackId fixture.barShift.id)
+                    , set #calendarDayOffset 1
+                    , setTestStartTime (TimeOfDay 2 0 0)
+                    , setTestEndTime (TimeOfDay 5 0 0)
+                    ]
+
+                exportJob <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
+                let csvRows = csvRowsByKey (fromMaybe "" exportJob.fileContents)
+                    workerHours = lookupCsvRow csvRows "Worker, Ava LVL 2"
+
+                drop (length workerHours - 3) workerHours `shouldBe` ["1.000000", "2.000000", "6.000000"]
+                map (.operationalDate) [earlyEntry, afterMidnightEntry] `shouldBe` replicate 2 goldenWeekEnd
+
         it "aggregates exact staff time before one quarter-hour tie-up transform" $ withContext do
             withCleanDb do
                 fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
@@ -288,14 +315,14 @@ normalizePayrollEarningsCsv csvText =
             | Text.isPrefixOf "staff_first_name," row = row
             | otherwise =
                 let fields = Text.splitOn "," row
-                 in if length fields /= 25
+                 in if length fields /= 26
                         then row
                         else Text.intercalate "," (normalizeField <$> zip [0 :: Int ..] fields)
 
         normalizeField (index, value)
-            | index == 11 = "<description>"
-            | index == 12 = "<staff_id>"
-            | index == 13 = "<timesheet_entry_ids>"
+            | index == 12 = "<description>"
+            | index == 13 = "<staff_id>"
+            | index == 14 = "<timesheet_entry_ids>"
             | index == payConfigVersionManifestColumn = "<pay_config_version_manifest>"
             | index == rateBookVersionColumn = "<rate_book_version>"
             | index == sourceRateIdentityColumn = "<source_rate_identity>"
@@ -304,11 +331,11 @@ normalizePayrollEarningsCsv csvText =
             | otherwise = value
 
 payConfigVersionManifestColumn, rateBookVersionColumn, sourceRateIdentityColumn, approvedByUserIdsColumn, activePayCalculationIdsColumn :: Int
-payConfigVersionManifestColumn = 14
-rateBookVersionColumn = 17
-sourceRateIdentityColumn = 19
-approvedByUserIdsColumn = 23
-activePayCalculationIdsColumn = 24
+payConfigVersionManifestColumn = 15
+rateBookVersionColumn = 18
+sourceRateIdentityColumn = 20
+approvedByUserIdsColumn = 24
+activePayCalculationIdsColumn = 25
 
 normalizeRateBookVersions :: Text -> Text
 normalizeRateBookVersions input =

@@ -1664,6 +1664,9 @@ CREATE TABLE timesheet_pay_calculations (
     calculation_version TEXT NOT NULL,
     calculation_source TEXT NOT NULL,
     rate_book_version TEXT DEFAULT NULL,
+    operational_date DATE NOT NULL,
+    roster_window_start DATE NOT NULL,
+    roster_week_starts_on INT NOT NULL,
     venue_timezone TEXT NOT NULL,
     holiday_jurisdiction TEXT NOT NULL,
     staff_pay_version_id UUID NOT NULL,
@@ -1678,6 +1681,8 @@ CREATE TABLE timesheet_pay_calculations (
     FOREIGN KEY (approved_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK (char_length(btrim(calculation_version)) > 0),
     CHECK (calculation_source = 'hospitality_award' OR calculation_source = 'external_imported_pay_item'),
+    CHECK (roster_week_starts_on >= 0),
+    CHECK (roster_week_starts_on <= 6),
     CHECK (char_length(btrim(venue_timezone)) > 0),
     CHECK (char_length(btrim(holiday_jurisdiction)) > 0)
 );
@@ -1706,6 +1711,11 @@ CREATE TABLE timesheet_pay_earnings_components (
     unit_type TEXT NOT NULL,
     rate_per_unit NUMERIC NOT NULL,
     exact_amount NUMERIC NOT NULL,
+    component_date DATE DEFAULT NULL,
+    resolved_rate_boundary_date DATE DEFAULT NULL,
+    xero_local_bucket_key TEXT DEFAULT NULL,
+    xero_earnings_rate_id TEXT DEFAULT NULL,
+    xero_mapping_legacy_fallback BOOLEAN DEFAULT FALSE NOT NULL,
     source_condition TEXT NOT NULL,
     calculation_source TEXT NOT NULL,
     source_rate_identity TEXT DEFAULT NULL,
@@ -1719,6 +1729,9 @@ CREATE TABLE timesheet_pay_earnings_components (
     CHECK (char_length(btrim(source_condition)) > 0),
     CHECK (calculation_source = 'hospitality_award' OR calculation_source = 'external_imported_pay_item'),
     CHECK (source_rate_identity IS NULL OR char_length(btrim(source_rate_identity)) > 0),
+    CHECK (xero_local_bucket_key IS NULL OR char_length(btrim(xero_local_bucket_key)) > 0),
+    CHECK (xero_earnings_rate_id IS NULL OR char_length(btrim(xero_earnings_rate_id)) > 0),
+    CHECK ((xero_local_bucket_key IS NULL) = (xero_earnings_rate_id IS NULL)),
     UNIQUE (timesheet_pay_calculation_id, ordinal)
 );
 ALTER TABLE timesheet_entries
@@ -1792,6 +1805,7 @@ BEGIN
                                 SELECT 1 FROM timesheet_pay_calculations calculation
                                 WHERE calculation.id = entry.active_pay_calculation_id
                                     AND calculation.timesheet_entry_id = entry.id
+                                    AND calculation.operational_date = entry.operational_date
                                     AND calculation.sealed_at IS NOT NULL
                             )
                         )
@@ -1799,7 +1813,7 @@ BEGIN
                 )
             )
     ) THEN
-        RAISE EXCEPTION 'timesheet approval requires a sealed same-entry active pay calculation';
+        RAISE EXCEPTION 'timesheet approval requires a sealed same-entry active pay calculation with matching Operational date';
     END IF;
     RETURN NEW;
 END;

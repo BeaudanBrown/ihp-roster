@@ -22,13 +22,14 @@ cross-module safety and payroll contracts.
 - Every CSV cell passes through `Render.csvCell`, including spreadsheet-formula
   neutralization. Filenames and content-disposition values are encoded as output
   boundaries.
-- Times and dates project from authoritative instants plus the stored timezone.
-  Elapsed duration uses instant differences, so repeated and skipped DST hours
-  remain exact.
-- Hourly Staff Hours and Hourly Wage Totals share one operational window. The
+- Times and component dates project from authoritative instants plus the stored
+  timezone. Operational date selects the export window and keeps the complete
+  entry in that window. Elapsed duration uses instant differences, so repeated
+  and skipped DST hours remain exact.
+- Hourly Staff Hours and Hourly Wage Totals share one Operational-day window. The
   current venue picker window is the minimum, approved entry boundaries expand
-  it, and both ends round outward to clock hours. Every selected date is emitted;
-  overnight rows remain owned by the entry's start date.
+  it, and both ends round outward to clock hours. Every selected Operational date
+  is emitted and owns its complete overnight entries.
 - Hourly Wage Totals consumes sealed earnings. Base earnings follow their paid
   intervals; minimum top-ups spread across actual worked seconds; commenced-hour
   additions spread across their qualifying worked seconds; missed-break
@@ -44,11 +45,10 @@ cross-module safety and payroll contracts.
   and earnings components; they never recalculate from mutable rates or the
   retired SQL pay renderer.
 - Every positive approved component contributes to exactly one final earnings
-  bucket. Payroll Earnings retains actual component dates, including overnight
-  spill beyond the selected range. Staff Hours keeps in-range dates and places
-  out-of-range overnight spill in the selected report's matching weekday and
-  clock-category column. Approval and calculation provenance remain attached to
-  exported facts.
+  bucket. Payroll Earnings exposes both sealed Operational date and Component
+  date; Staff Hours retains in-window clock buckets and assigns any period-end
+  spill to the entry's Operational-day position so no paid time is omitted.
+  Approval and calculation provenance remain attached to exported facts.
 - The complete requested batch passes the shared strict wage-source boundary
   before output is persisted. Any included-entry failure rejects the whole
   export; entries are never silently omitted.

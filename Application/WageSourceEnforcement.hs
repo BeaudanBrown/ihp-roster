@@ -167,7 +167,7 @@ calculationSourceRequirement calculation
 
 sourceDiagnostics :: PolicyClock -> WageSourceFacts -> TimesheetEntry -> SourceRequirement -> [SourceDiagnostic]
 sourceDiagnostics clock facts entry requirement =
-    sourceDiagnosticsFor clock facts entry.venueId (timesheetEntryWorkedOn entry) (entryTargetYears entry) requirement
+    sourceDiagnosticsFor clock facts entry.venueId entry.operationalDate (entryTargetYears entry) requirement
 
 sourceDiagnosticsFor :: PolicyClock -> WageSourceFacts -> UUID -> Day -> Set.Set Integer -> SourceRequirement -> [SourceDiagnostic]
 sourceDiagnosticsFor = sourceDiagnosticsForFacts

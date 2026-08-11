@@ -45,8 +45,6 @@ module Application.VenueTime.Model
     , rosterSlotElapsedSeconds
     , rosterSlotStartOccurrence
     , rosterSlotEndOccurrence
-    , melbourneDateRangeUTC
-    , requireMelbourneDateRangeUTC
     , occurrenceParamValue
     , parseOccurrenceParam
     , civilBoundaryIsRepeated
@@ -415,24 +413,6 @@ occurrenceOfStoredInstant timezone instant =
     case validateTimezone timezone of
         Left failure -> error ("Invalid persisted timezone snapshot: " <> show failure)
         Right () -> resolvedInstantOccurrence (resolvedInstantFromUTC instant)
-
-melbourneDateRangeUTC :: Day -> Day -> Either BoundaryModelError (UTCTime, UTCTime)
-melbourneDateRangeUTC firstDay lastDay = do
-    interval <- resolveShiftBoundaries melbourneTimeZoneName ShiftBoundaryInput
-        { shiftBoundaryDate = firstDay
-        , shiftBoundaryStartTime = midnight
-        , shiftBoundaryStartOccurrence = Nothing
-        , shiftBoundaryEndTime = midnight
-        , shiftBoundaryEndOccurrence = Nothing
-        , shiftBoundaryBreak = Nothing
-        }
-    let requestedEnd = addDays 1 lastDay
-    end <- mapLeft BoundaryCivilTimeError $ resolveCivilTime (civilTime requestedEnd midnight Nothing)
-    pure (authoritativeStartsAt interval, resolvedInstantUTC end)
-
-requireMelbourneDateRangeUTC :: Day -> Day -> (UTCTime, UTCTime)
-requireMelbourneDateRangeUTC firstDay lastDay =
-    either (error . ("Invalid Melbourne date range: " <>) . show) Prelude.id (melbourneDateRangeUTC firstDay lastDay)
 
 occurrenceParamValue :: Maybe RepeatedTimeOccurrence -> Text
 occurrenceParamValue Nothing                 = ""

@@ -90,8 +90,12 @@ fetchRosterWagePredictionForWindow venueConfig rosterDays rosterSlots = do
     let rosterDaysById = Map.fromList [(unpackId rosterDay.id, rosterDay) | rosterDay <- rosterDays]
         staffById = Map.fromList [(unpackId staff.id, staff) | staff <- staffMembers]
         shiftTypeById = Map.fromList [(unpackId shiftType.id, shiftType) | shiftType <- shiftTypes]
+        wageSubjectFor slot =
+            case Map.lookup slot.rosterDayId rosterDaysById of
+                Nothing -> Left (WageSubjectBoundariesFailed (RosterSlotSubject (unpackId slot.id)) "Roster slot has no Operational day.")
+                Just rosterDay -> rosterSlotWageSubject venueConfig.venueId rosterDay.operationalDate slot
         subjectCandidates =
-            [ (slot, Map.lookup slot.rosterDayId rosterDaysById, rosterSlotWageSubject venueConfig.venueId slot)
+            [ (slot, Map.lookup slot.rosterDayId rosterDaysById, wageSubjectFor slot)
             | slot <- staffAssignedSlots
             , not (rosterSlotIsRosterOnly staffById shiftTypeById slot)
             ]

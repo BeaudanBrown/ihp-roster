@@ -272,6 +272,41 @@ tests = aroundAll withDatabaseTestContext do
                     sqlExecDiscardResult "SET LOCAL search_path TO public" ()
                     sqlExecDiscardResult "DROP SCHEMA date_native_timesheet_migration_acceptance CASCADE" ()
 
+    describe "Operational payroll sealing migration" do
+        it "backfills immutable window facts without rewriting historical components" $ withContext do
+            withCleanDb do
+                migrationSql <- TextIO.readFile "Application/Migration/1787006000.sql"
+                withTransaction do
+                    sqlExecDiscardResult "CREATE SCHEMA operational_payroll_migration_acceptance" ()
+                    sqlExecDiscardResult "SET LOCAL search_path TO operational_payroll_migration_acceptance, public" ()
+                    sqlExecDiscardResult "CREATE TABLE venue_config (venue_id UUID PRIMARY KEY, roster_week_starts_on INT NOT NULL)" ()
+                    sqlExecDiscardResult "CREATE TABLE timesheet_entries (id UUID PRIMARY KEY, venue_id UUID NOT NULL, operational_date DATE NOT NULL)" ()
+                    sqlExecDiscardResult "CREATE TABLE timesheet_pay_calculations (id UUID PRIMARY KEY, timesheet_entry_id UUID NOT NULL)" ()
+                    sqlExecDiscardResult "CREATE TABLE timesheet_pay_earnings_components (id UUID PRIMARY KEY, timesheet_pay_calculation_id UUID NOT NULL, calculation_source TEXT, source_rate_identity TEXT)" ()
+                    sqlExecDiscardResult "CREATE TABLE award_level_base_rates (id UUID PRIMARY KEY, operative_from DATE)" ()
+                    sqlExecDiscardResult "CREATE TABLE award_level_penalty_rates (id UUID PRIMARY KEY, operative_from DATE)" ()
+                    sqlExecDiscardResult "CREATE TABLE award_time_penalty_allowances (id UUID PRIMARY KEY, operative_from DATE)" ()
+                    sqlExecDiscardResult "CREATE FUNCTION reject_sealed_ledger_update() RETURNS TRIGGER AS $$ BEGIN RAISE EXCEPTION 'sealed ledger immutable'; END; $$ LANGUAGE plpgsql" ()
+                    sqlExecDiscardResult "CREATE TRIGGER enforce_timesheet_pay_calculations_immutable BEFORE UPDATE ON timesheet_pay_calculations FOR EACH ROW EXECUTE FUNCTION reject_sealed_ledger_update()" ()
+                    sqlExecDiscardResult "CREATE TRIGGER enforce_timesheet_pay_earnings_components_immutable BEFORE UPDATE ON timesheet_pay_earnings_components FOR EACH ROW EXECUTE FUNCTION reject_sealed_ledger_update()" ()
+                    sqlExecDiscardResult "INSERT INTO venue_config VALUES ('10000000-0000-0000-0000-000000000001', 2)" ()
+                    sqlExecDiscardResult "INSERT INTO timesheet_entries VALUES ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '2026-08-05')" ()
+                    sqlExecDiscardResult "INSERT INTO timesheet_pay_calculations VALUES ('30000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001')" ()
+                    sqlExecDiscardResult "INSERT INTO award_level_base_rates VALUES ('50000000-0000-0000-0000-000000000001', '2026-07-01')" ()
+                    sqlExecDiscardResult "INSERT INTO timesheet_pay_earnings_components (id, timesheet_pay_calculation_id, calculation_source, source_rate_identity) VALUES ('40000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 'hospitality_award', 'bepis-projection:award_level_base_rates:50000000-0000-0000-0000-000000000001/source:fwc_mapd_pay_rates:60000000-0000-0000-0000-000000000001')" ()
+                    case transactionRunner ?modelContext of
+                        Nothing -> error "Operational payroll migration fixture requires a transaction runner"
+                        Just runner -> runInTransaction runner (HasqlSession.script migrationSql)
+
+                    facts :: [(Day, Day, Int)] <- sqlQuery "SELECT operational_date, roster_window_start, roster_week_starts_on FROM operational_payroll_migration_acceptance.timesheet_pay_calculations" ()
+                    componentFacts :: [(Maybe Day, Maybe Day, Maybe Text, Maybe Text, Bool)] <- sqlQuery "SELECT component_date, resolved_rate_boundary_date, xero_local_bucket_key, xero_earnings_rate_id, xero_mapping_legacy_fallback FROM operational_payroll_migration_acceptance.timesheet_pay_earnings_components" ()
+                    facts `shouldBe` [(fromGregorian 2026 8 5, fromGregorian 2026 8 4, 2)]
+                    componentFacts `shouldBe` [(Nothing, Just (fromGregorian 2026 7 7), Nothing, Nothing, True)]
+                    enabledGuards :: [PG.Only Bool] <- sqlQuery "SELECT trigger.tgenabled = 'O' FROM pg_trigger trigger JOIN pg_class relation ON relation.oid = trigger.tgrelid JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace WHERE namespace.nspname = 'operational_payroll_migration_acceptance' AND trigger.tgname IN ('enforce_timesheet_pay_calculations_immutable', 'enforce_timesheet_pay_earnings_components_immutable') ORDER BY trigger.tgname" ()
+                    enabledGuards `shouldBe` [PG.Only True, PG.Only True]
+                    sqlExecDiscardResult "SET LOCAL search_path TO public" ()
+                    sqlExecDiscardResult "DROP SCHEMA operational_payroll_migration_acceptance CASCADE" ()
+
     describe "explicit roster shift assignment migration" do
         it "upgrades representative predecessor rows without deleting history or Timesheet provenance" $ withContext do
             withCleanDb do

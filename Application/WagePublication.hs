@@ -82,7 +82,11 @@ datedEarningsComponents calculation =
          in (finalState, contributions <> remainingContributions)
 
     dateComponent state@(remainingHourly, remainingEvening, remainingEarly) component =
-        case (component.unitType, component.sourceCondition) of
+        case component.publishedComponentDate of
+            Just componentDate -> (state, [(componentDate, component)])
+            Nothing            -> undatedComponent
+      where
+        undatedComponent = case (component.unitType, component.sourceCondition) of
             (Hours, MissedMealBreakAdditionCondition) ->
                 (state, missedMealBreakContributions component)
             (Hours, _) ->

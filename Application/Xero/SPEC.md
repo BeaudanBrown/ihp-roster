@@ -110,10 +110,13 @@ issue and, when cross-system design remains unresolved, a new workstream.
   Employees assigned to another calendar or to no calendar are excluded from
   that period rather than sent to Xero's Timesheets API. The modal summary,
   readiness counts, preview, and submission all use this same eligible set.
-  Preparation summary units use locked approved pay facts. Xero request hourly
-  quantities aggregate by employee, managed earning bucket and local day without
-  quarter-hour rounding. Commenced-hour quantities remain whole. Protocol
-  serialization uses 12 decimal places.
+  Preparation summary units use locked approved pay facts. Xero selects entries
+  by Operational date and allocates every component's units to that Operational
+  date in the provider period array while retaining the component-date-derived
+  earnings-rate line. Provider period dates remain submission-range authority;
+  they do not redefine Bepis pay-window ownership. Hourly quantities aggregate
+  without quarter-hour rounding, commenced-hour quantities remain whole, and
+  protocol serialization uses 12 decimal places.
 - Managed Xero earnings-rate names put human payroll details first, e.g. `Saturday Penalty - Level 1 - CAS - Bepis - 1-July-2025`; legacy `Bepis - HIGA - ...` managed names remain matchable to avoid duplicate pay items. Pay-item approval recreates any missing current-run proposal decisions before applying them, so incomplete decision persistence cannot trap the modal on the approval step.
 - Preview/submission consumes every positive sealed earnings component exactly
   once. Managed requirements reserve separate `RATEPERUNIT` evening and
@@ -184,8 +187,13 @@ The exact paging, lease, retry, and trust implementation is authoritative in
 - Readiness, proposals, preview, and submission use the same venue-effective
   rate resolution and strict wage-source boundary. Any included calculation or
   source failure blocks the complete operation.
-- Submission consumes approved, sealed Timesheet/pay facts. Every positive
-  sealed earnings component is consumed exactly once; imported components retain
+- Submission consumes approved, sealed Timesheet/pay facts. Approval seals the
+  Operational date, Bepis roster-window boundary/start day, component date,
+  source, exact amount, local earnings bucket, and provider EarningsRateID when
+  an active Xero connection has an available mapping. A missing approval-time
+  mapping remains blocked after later mapping changes until the entry is
+  unapproved and reapproved. Every positive sealed earnings component is consumed
+  exactly once; imported components retain
   their approval-pinned imported-item identity. Provider availability changes
   cannot reroute sealed components. Submission source links retain immutable audit
   snapshots but do not lock Timesheet entries; corrected entries reset approval and

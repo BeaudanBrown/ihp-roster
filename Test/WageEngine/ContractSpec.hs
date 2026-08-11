@@ -33,8 +33,10 @@ tests = do
                       )
                     ]
 
-            forM_ cases \(source, expected) ->
+            forM_ cases \(source, expected) -> do
                 projectionRateSourceIdentity source `shouldBe` RateSourceIdentity expected
+                projectionRateSourceFromIdentity (RateSourceIdentity expected) `shouldBe` Just source
+            projectionRateSourceFromIdentity (RateSourceIdentity "unsupported") `shouldBe` Nothing
 
         it "recognizes a sealed source after the same projection row points at a refreshed raw source" do
             let projectionId = sourceUuid "11111111-1111-1111-1111-111111111111"
@@ -245,9 +247,9 @@ tests = do
             map paidTimeKindValue [Worked, CasualMinimumEngagementTopUp, PublicHolidayMinimumTopUp]
                 `shouldBe` ["worked", "casual_minimum_engagement_top_up", "public_holiday_minimum_top_up"]
             let intendedDifferenceComponents =
-                    [ EarningsComponent 1 CommencedHours 10 10 EveningAdditionCondition HospitalityAward Nothing
-                    , EarningsComponent 1 CommencedHours 15 15 EarlyMorningAdditionCondition HospitalityAward Nothing
-                    , EarningsComponent 2 Hours 50 100 MissedMealBreakAdditionCondition HospitalityAward Nothing
+                    [ EarningsComponent 1 CommencedHours 10 10 Nothing Nothing Nothing Nothing False EveningAdditionCondition HospitalityAward Nothing
+                    , EarningsComponent 1 CommencedHours 15 15 Nothing Nothing Nothing Nothing False EarlyMorningAdditionCondition HospitalityAward Nothing
+                    , EarningsComponent 2 Hours 50 100 Nothing Nothing Nothing Nothing False MissedMealBreakAdditionCondition HospitalityAward Nothing
                     ]
             map (.unitType) intendedDifferenceComponents `shouldBe` [CommencedHours, CommencedHours, Hours]
             map (sourceConditionValue . (.sourceCondition)) intendedDifferenceComponents
