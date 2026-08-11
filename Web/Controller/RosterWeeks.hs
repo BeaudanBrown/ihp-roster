@@ -211,9 +211,9 @@ instance Controller RosterWeeksController where
     action currentAction@RosterWeeksAction = runBepis currentAction BepisPageAction do
         -- Redirect to the current week's offset based on today's date
         currentWeekOffset <- fetchCurrentRosterWeekOffset
-        resolveRequestedRosterGroupOrNothing >>= \case
+        resolveRosterPageGroup >>= \case
             Nothing -> renderNoRosterGroupPage
-            Just currentRosterGroup -> do
+            Just (currentRosterGroup, _) -> do
                 currentWeekPath <- case paramOrNothing @Text "rosterView" of
                     Just "timeline" -> do
                         venueConfig <- fetchVenueConfig
@@ -233,9 +233,10 @@ instance Controller RosterWeeksController where
                     else redirectToPath currentWeekPath
 
     action currentAction@ShowRosterWeekAction { weekOffset } = runBepis currentAction BepisPageAction do
-        resolveRequestedRosterGroupOrNothing >>= \case
+        resolveRosterPageGroup >>= \case
             Nothing -> renderNoRosterGroupPage
-            Just rosterGroup -> do
+            Just (rosterGroup, False) -> redirectToViewableRosterWeek weekOffset rosterGroup.id
+            Just (rosterGroup, True) -> do
                 when RosterAction.navigateRosterWeekActionParamsPresent do
                     case RosterAction.parseNavigateRosterWeekActionParams of
                         Left errors -> do
@@ -1230,20 +1231,33 @@ sourceTimesheetWarningToast shouldWarn =
         then renderToastOob ToastBottomCenter (errorToast "A timesheet entry was already created from this roster shift. The timesheet snapshot was not changed. Edit the timesheet entry directly.")
         else mempty
 
-resolveRequestedRosterGroupOrNothing :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Maybe RosterGroup)
-resolveRequestedRosterGroupOrNothing = do
+resolveRosterPageGroup :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Maybe (RosterGroup, Bool))
+resolveRosterPageGroup = do
     let requestedRosterGroupId = paramOrNothing "rosterGroupId"
     rosterGroups <- fetchViewableRosterGroups
-    let resolvedRosterGroup = maybe (listToMaybe rosterGroups) (\rosterGroupId -> find ((== rosterGroupId) . (.id)) rosterGroups) requestedRosterGroupId
-    when (isJust requestedRosterGroupId && not (null rosterGroups)) do
-        accessDeniedUnless (isJust resolvedRosterGroup)
-    pure resolvedRosterGroup
+    pure $ case requestedRosterGroupId of
+        Nothing -> (\rosterGroup -> (rosterGroup, True)) <$> listToMaybe rosterGroups
+        Just rosterGroupId ->
+            case find ((== rosterGroupId) . (.id)) rosterGroups of
+                Just rosterGroup -> Just (rosterGroup, True)
+                Nothing          -> (\rosterGroup -> (rosterGroup, False)) <$> listToMaybe rosterGroups
 
 resolveRequestedRosterGroup :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO RosterGroup
 resolveRequestedRosterGroup = do
-    maybeRosterGroup <- resolveRequestedRosterGroupOrNothing
+    let requestedRosterGroupId = paramOrNothing "rosterGroupId"
+    rosterGroups <- fetchViewableRosterGroups
+    let maybeRosterGroup = maybe (listToMaybe rosterGroups) (\rosterGroupId -> find ((== rosterGroupId) . (.id)) rosterGroups) requestedRosterGroupId
     accessDeniedUnless (isJust maybeRosterGroup)
     pure (fromMaybe (error "authorized roster group missing") maybeRosterGroup)
+
+redirectToViewableRosterWeek :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Int -> Id RosterGroup -> IO ()
+redirectToViewableRosterWeek weekOffset rosterGroupId = do
+    let targetPath = rosterWeekUrl weekOffset rosterGroupId
+    if isHtmxRequest
+        then do
+            setHeader ("HX-Redirect", cs targetPath)
+            respondHtmlProfiled mempty
+        else redirectToPath targetPath
 
 resolveRosterGroupIdForFragmentRosterDay :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Id RosterDay -> IO (Id RosterGroup)
 resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId = do

@@ -238,7 +238,7 @@ tests = aroundAll withDatabaseTestContext do
                         [ ("weekOffset", "0")
                         , ("rosterGroupId", idToParam groupB.id)
                         ]
-                deniedResponse <- withUserAndCurrentVenue user venue.id do
+                redirectedResponse <- withUserAndCurrentVenue user venue.id do
                     callActionWithParams (ShowRosterWeekAction 0)
                         [ ("weekOffset", "0")
                         , ("rosterGroupId", idToParam groupA.id)
@@ -248,7 +248,9 @@ tests = aroundAll withDatabaseTestContext do
                 assignedResponse `responseBodyShouldContain` ">Viewer</div>"
                 assignedResponse `responseBodyShouldNotContain` "GroupAOnly"
                 assignedResponse `responseBodyShouldNotContain` "id=\"roster-group-switch\""
-                deniedResponse `responseStatusShouldBe` status403
+                redirectedResponse `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders redirectedResponse)
+                    `shouldSatisfy` maybe False (ByteString.isInfixOf (cs (tshow groupB.id)))
 
         it "lets staff switch between each assigned roster group" $ withContext do
             withCleanDb do
