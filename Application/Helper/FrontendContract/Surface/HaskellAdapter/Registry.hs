@@ -247,6 +247,7 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateMinutePrecisionShiftTimesEnabled allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateUnavailableStaffWarningThreshold allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateRosterTimePickerWindow allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.PreviewRosterWindowStartDay allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminVenueSettingsAdapterFamily @Admin.UpdateRosterWeekStartsOn allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminInvitesAdapterFamily @Admin.CreateVenueInvitation allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @AdminInvitesAdapterFamily @Admin.RevokeVenueInvitation

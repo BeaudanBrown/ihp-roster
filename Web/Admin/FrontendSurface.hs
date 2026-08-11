@@ -16,6 +16,7 @@ module Web.Admin.FrontendSurface
     , adminXeroPayItemImportWaitSurfaceImpl
     , adminVenueSettingsFragment
     , adminInvitesFragment
+    , adminExportsFragmentForWindow
     , adminShiftTypesFragment
     , adminRosterGroupsFragment
     , adminXeroShellFragment

@@ -2,7 +2,9 @@ module Test.Controller.Admin.ConfigSpec where
 
 import Application.Helper.Export (ExportJobType (..), exportJobTypeToText)
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
-import Application.Helper.FrontendContract.Surface.Admin.Resource (adminVenueSettingsResource)
+import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsResource,
+                                                                   adminVenueSettingsResource,
+                                                                   xeroConnectionResource)
 import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
 import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekBoundaryConfigResource,
@@ -15,6 +17,7 @@ import Application.Helper.SurfaceResource
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Application.Helper.Xero
 import Config
+import qualified Control.Concurrent.Async as Async
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as AesonKeyMap
@@ -39,11 +42,13 @@ import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
 import qualified Test.XeroMock as XeroMock
-import Web.Admin.Mutations (adminVenueSettingsTouchedResources,
+import Web.Admin.Mutations (RosterWindowStartDayImpact (..),
+                            adminVenueSettingsTouchedResources,
+                            confirmRosterWindowStartDayMutation,
+                            previewRosterWindowStartDayMutation,
                             rosterEndTimesTouchedResources,
                             rosterTimePickerWindowTouchedResources,
                             rosterWeekStartsOnTouchedResources,
-                            setRosterWeekStartsOnMutation,
                             shiftTypePayResources)
 import Web.Controller.Admin ()
 import Web.FrontController ()
@@ -103,8 +108,10 @@ tests = aroundAll withDatabaseTestContext do
                 Set.fromList (rosterWeekStartsOnTouchedResources venue.id)
                     `shouldBe` Set.fromList
                         [ adminVenueSettingsResource venueId
+                        , adminExportsResource venueId
                         , rosterWeekBoundaryConfigResource venueId
                         , timesheetWeekBoundaryConfigResource venueId
+                        , xeroConnectionResource venueId
                         ]
 
         it "touches active roster and Timesheet views after shift-type pay changes" $ withContext do
@@ -167,6 +174,15 @@ tests = aroundAll withDatabaseTestContext do
                     `shouldReturn` [(scope, expectedFragments)]
                 planFragments (rosterWeekBoundaryConfigResource venueId)
                     `shouldReturn` [(scope, expectedFragments)]
+                let templateFragment = RosterLive.rosterTemplateLibraryLiveFragment (unpackId admin.id)
+                let templateSubscription = subscription { subscriptionFragmentKeys = [templateFragment] }
+                withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withCurrentControllerContext do
+                        pure
+                            [ (target.targetScope, target.targetFragments)
+                            | target <- planSurfaceInvalidations (Set.singleton (rosterWeekBoundaryConfigResource venueId)) [templateSubscription]
+                            ]
+                    `shouldReturn` [(scope, [templateFragment])]
 
         it "shows the Xero header button and page to super admins" $ withContext do
             withCleanDb do
@@ -365,10 +381,11 @@ tests = aroundAll withDatabaseTestContext do
                 venueSettingsResponse `responseBodyShouldContain` "data-bepis-surface-action=\"update-minute-precision-shift-times-enabled\""
                 venueSettingsResponse `responseBodyShouldContain` "data-bepis-surface-action=\"update-unavailable-staff-warning-threshold\""
                 venueSettingsResponse `responseBodyShouldContain` "data-bepis-surface-action=\"update-roster-end-times-enabled\""
-                venueSettingsResponse `responseBodyShouldContain` "Roster week starts on"
-                venueSettingsResponse `responseBodyShouldContain` "hx-post=\"/UpdateRosterWeekStartsOn\""
+                venueSettingsResponse `responseBodyShouldContain` "Roster window start day"
+                venueSettingsResponse `responseBodyShouldContain` "hx-post=\"/PreviewRosterWindowStartDay\""
                 venueSettingsResponse `responseBodyShouldContain` "name=\"rosterWeekStartsOn\""
-                venueSettingsResponse `responseBodyShouldContain` "hx-confirm=\"Change the venue roster week start?"
+                venueSettingsResponse `responseBodyShouldContain` "Preview impact"
+                venueSettingsResponse `responseBodyShouldNotContain` "hx-confirm="
                 venueSettingsResponse `responseBodyShouldNotContain` "Automatically create pending timesheets"
                 venueSettingsResponse `responseBodyShouldNotContain` "autoTimesheetCreationEnabled"
                 venueSettingsResponse `responseBodyShouldNotContain` "name=\"configField\""
@@ -1014,8 +1031,8 @@ tests = aroundAll withDatabaseTestContext do
                 pageResponse `responseBodyShouldContain` "Disabled"
                 pageResponse `responseBodyShouldContain` "name=\"timePickerStart\" value=\"06:00\""
                 pageResponse `responseBodyShouldContain` "name=\"timePickerEnd\" value=\"05:45\""
-                pageResponse `responseBodyShouldContain` "Roster week starts on"
-                pageResponse `responseBodyShouldContain` "hx-post=\"/UpdateRosterWeekStartsOn\""
+                pageResponse `responseBodyShouldContain` "Roster window start day"
+                pageResponse `responseBodyShouldContain` "hx-post=\"/PreviewRosterWindowStartDay\""
                 pageResponse `responseBodyShouldContain` "name=\"rosterWeekStartsOn\""
 
                 versionBefore <- currentLiveUpdateVersion (AdminLive.adminVenueConfigLiveScope (unpackId venue.id))
@@ -1171,6 +1188,85 @@ tests = aroundAll withDatabaseTestContext do
                 updatedShiftType.overrideAwardLevelId `shouldBe` Just overrideLevel.id
                 updatedShiftType.isActive `shouldBe` False
 
+        it "previews and confirms the exact mixed-publication impact" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster window impact venue"
+                admin <- createUserRecord "roster-window-impact-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                rosterGroup <- query @RosterGroup
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> fetchOne
+                slotName <- query @SlotName
+                    |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+                    |> fetchOne
+                _ <- createRosterWeekRecord venue 0 True
+                _ <- createRosterWeekRecord venue 1 True
+                allRosterDays <- query @RosterDay
+                    |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+                    |> orderByAsc #operationalDate
+                    |> fetch
+                forM_ (List.drop 8 allRosterDays) (updateRecord . set #publicationState Draft)
+                let rosterDays = List.take 8 allRosterDays
+                let (firstRosterDay, remainingRosterDays) = case rosterDays of
+                        firstDay : remainingDays -> (firstDay, remainingDays)
+                        [] -> error "Expected dated roster fixture days"
+                firstShift <- createRosterSlotRecord firstRosterDay slotName Nothing 0
+
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                preview <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withCurrentControllerContext do
+                        previewRosterWindowStartDayMutation venueConfig 2
+                preview `shouldSatisfy` either (const False) (const True)
+                let Right initialImpact = preview
+                initialImpact.mixedPublishedWindowCount `shouldBe` 1
+                initialImpact.affectedPublishedDayCount `shouldBe` 1
+                initialImpact.affectedShiftCount `shouldBe` 1
+
+                secondShift <- createRosterSlotRecord firstRosterDay slotName Nothing 1
+                staleConfirmation <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withCurrentControllerContext do
+                        confirmRosterWindowStartDayMutation venueConfig initialImpact
+                staleConfirmation `shouldBe` Left "The roster calendar impact changed. Review the refreshed confirmation and try again."
+                unchangedConfig <- fetch venueConfig.id
+                unchangedConfig.rosterWeekStartsOn `shouldBe` venueConfig.rosterWeekStartsOn
+                fetch firstRosterDay.id >>= (\day -> day.publicationState `shouldBe` Published)
+
+                Right currentImpact <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withCurrentControllerContext do
+                        previewRosterWindowStartDayMutation venueConfig 2
+                currentImpact.affectedShiftCount `shouldBe` 2
+                confirmed <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withCurrentControllerContext do
+                        confirmRosterWindowStartDayMutation venueConfig currentImpact
+                confirmed `shouldSatisfy` either (const False) (const True)
+                updatedConfig <- fetch venueConfig.id
+                updatedConfig.rosterWeekStartsOn `shouldBe` 2
+                updatedConfig.rosterCalendarRevision `shouldBe` venueConfig.rosterCalendarRevision + 1
+                fetch firstRosterDay.id >>= (\day -> day.publicationState `shouldBe` Draft)
+                fetch firstShift.id `shouldReturn` firstShift
+                fetch secondShift.id `shouldReturn` secondShift
+                mapM fetch (map (.id) remainingRosterDays) >>= (\days -> days `shouldSatisfy` all ((== Published) . (.publicationState)))
+
+        it "serializes concurrent roster window start-day confirmations" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Concurrent roster window venue"
+                admin <- createUserRecord "concurrent-roster-window-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                Right impact <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withCurrentControllerContext do
+                        previewRosterWindowStartDayMutation venueConfig 2
+                let confirm = withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        withCurrentControllerContext do
+                            confirmRosterWindowStartDayMutation venueConfig impact
+                (firstResult, secondResult) <- Async.concurrently confirm confirm
+                length (filter (either (const False) (const True)) [firstResult, secondResult]) `shouldBe` 1
+                [message] <- pure [failure | Left failure <- [firstResult, secondResult]]
+                message `shouldBe` "The roster calendar changed. Review the refreshed setting and try again."
+                updatedConfig <- fetch venueConfig.id
+                updatedConfig.rosterWeekStartsOn `shouldBe` 2
+                updatedConfig.rosterCalendarRevision `shouldBe` venueConfig.rosterCalendarRevision + 1
+
         it "normalizes partial Published windows to Draft under a proposed start day" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Publication normalization venue"
@@ -1206,9 +1302,12 @@ tests = aroundAll withDatabaseTestContext do
                     |> createRecord
 
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                Right initialImpact <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withCurrentControllerContext do
+                        previewRosterWindowStartDayMutation venueConfig 2
                 _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withCurrentControllerContext do
-                        setRosterWeekStartsOnMutation venueConfig 2
+                        confirmRosterWindowStartDayMutation venueConfig initialImpact
 
                 normalizedDays <- query @RosterDay
                     |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
@@ -1231,13 +1330,66 @@ tests = aroundAll withDatabaseTestContext do
                 fetch otherPublishedDay.id >>= (\day -> day.publicationState `shouldBe` Published)
 
                 updatedConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                Right reverseImpact <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withCurrentControllerContext do
+                        previewRosterWindowStartDayMutation updatedConfig 1
                 _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withCurrentControllerContext do
-                        setRosterWeekStartsOnMutation updatedConfig 1
+                        confirmRosterWindowStartDayMutation updatedConfig reverseImpact
                 reversedDays <- query @RosterDay
                     |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
                     |> fetch
                 reversedDays `shouldSatisfy` all ((== Draft) . (.publicationState))
+
+        it "previews roster window start-day impact before explicit confirmation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin roster window preview venue"
+                admin <- createUserRecord "admin-roster-window-preview@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                initialConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+
+                malformedResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams PreviewRosterWindowStartDayAction
+                        [("rosterWeekStartsOn", "not-a-weekday")]
+                malformedResponse `responseStatusShouldBe` status302
+                fetch initialConfig.id >>= (\config -> config.rosterWeekStartsOn `shouldBe` initialConfig.rosterWeekStartsOn)
+
+                previewResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams PreviewRosterWindowStartDayAction
+                            [ ("rosterWeekStartsOn", "2")
+                            , ("rosterCalendarRevision", cs (tshow initialConfig.rosterCalendarRevision))
+                            ]
+
+                previewResponse `responseStatusShouldBe` status200
+                previewResponse `responseBodyShouldContain` "Confirm roster window start day"
+                previewResponse `responseBodyShouldContain` "id=\"admin-roster-window-start-day-setting\""
+                previewResponse `responseBodyShouldNotContain` "hx-swap-oob"
+                previewResponse `responseBodyShouldContain` "Tuesday"
+                previewResponse `responseBodyShouldContain` "Mixed Published windows"
+                previewResponse `responseBodyShouldContain` "Published days returning to Draft"
+                previewResponse `responseBodyShouldContain` "Shifts on affected days"
+                previewResponse `responseBodyShouldContain` "name=\"mixedPublishedWindowCount\" value=\"0\""
+                previewResponse `responseBodyShouldContain` "hx-post=\"/UpdateRosterWeekStartsOn\""
+                unchangedConfig <- fetch initialConfig.id
+                unchangedConfig.rosterWeekStartsOn `shouldBe` initialConfig.rosterWeekStartsOn
+
+                confirmResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams UpdateRosterWeekStartsOnAction
+                            [ ("rosterWeekStartsOn", "2")
+                            , ("rosterCalendarRevision", cs (tshow initialConfig.rosterCalendarRevision))
+                            , ("currentRosterWindowStartDay", cs (tshow initialConfig.rosterWeekStartsOn))
+                            , ("mixedPublishedWindowCount", "0")
+                            , ("affectedPublishedDayCount", "0")
+                            , ("affectedShiftCount", "0")
+                            ]
+                confirmResponse `responseStatusShouldBe` status200
+                confirmResponse `responseBodyShouldContain` "id=\"admin-roster-window-start-day-setting\""
+                confirmResponse `responseBodyShouldNotContain` "hx-swap-oob"
+                lookup "HX-Trigger" (responseHeaders confirmResponse) `shouldSatisfy` isJust
+                confirmedConfig <- fetch initialConfig.id
+                confirmedConfig.rosterWeekStartsOn `shouldBe` 2
 
         it "updates the roster week start after venue history exists" $ withContext do
             withCleanDb do
@@ -1259,6 +1411,10 @@ tests = aroundAll withDatabaseTestContext do
                     callActionWithParams UpdateRosterWeekStartsOnAction
                         [ ("rosterWeekStartsOn", "2")
                         , ("rosterCalendarRevision", cs (tshow initialConfig.rosterCalendarRevision))
+                        , ("currentRosterWindowStartDay", cs (tshow initialConfig.rosterWeekStartsOn))
+                        , ("mixedPublishedWindowCount", "0")
+                        , ("affectedPublishedDayCount", "0")
+                        , ("affectedShiftCount", "0")
                         ]
 
                 response `responseStatusShouldBe` status302
@@ -1275,14 +1431,21 @@ tests = aroundAll withDatabaseTestContext do
                 admin <- createUserRecord "admin-stale-week-start@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
                 staleConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                Right interveningImpact <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withCurrentControllerContext do
+                        previewRosterWindowStartDayMutation staleConfig 3
                 _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withCurrentControllerContext do
-                        setRosterWeekStartsOnMutation staleConfig 3
+                        confirmRosterWindowStartDayMutation staleConfig interveningImpact
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams UpdateRosterWeekStartsOnAction
                         [ ("rosterWeekStartsOn", "2")
                         , ("rosterCalendarRevision", cs (tshow staleConfig.rosterCalendarRevision))
+                        , ("currentRosterWindowStartDay", cs (tshow staleConfig.rosterWeekStartsOn))
+                        , ("mixedPublishedWindowCount", "0")
+                        , ("affectedPublishedDayCount", "0")
+                        , ("affectedShiftCount", "0")
                         ]
 
                 response `responseStatusShouldBe` status302

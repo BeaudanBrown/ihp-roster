@@ -103,6 +103,14 @@ server confirmation.
 
 ## Staff And Venue Effects
 
+- Venue Admins and Owners may change the **Roster window start day** only after
+  reviewing a server-calculated impact confirmation. Confirmation serializes on
+  calendar/publication authority, rejects stale revisions or changed impact,
+  advances the calendar revision, and returns only mixed regrouped Published
+  windows to Draft. Fully Published regrouped windows remain Published; changing
+  back never restores publication. The transition does not rewrite shifts,
+  lanes, timestamps, templates, approved payroll calculations, exports, or
+  notification snapshots.
 - Trial staff are active venue-scoped staff without a user. Adoption links the
   existing row, preserving roster identity; acceptance invalidates affected
   roster and Timesheet scopes.

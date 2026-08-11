@@ -158,7 +158,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Create Your Venue"
                 response `responseBodyShouldContain` "owner-onboarding@example.com"
-                response `responseBodyShouldContain` "Roster week starts on"
+                response `responseBodyShouldContain` "Roster window start day"
                 response `responseBodyShouldContain` "Account Details"
                 response `responseBodyShouldContain` "Confirm your staff details"
                 response `responseBodyShouldContain` "id=\"email\""

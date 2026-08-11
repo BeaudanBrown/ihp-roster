@@ -322,7 +322,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "Current support venue"
                 response `responseBodyShouldContain` "Invite Venue Owner"
                 response `responseBodyShouldNotContain` "Create Venue"
-                response `responseBodyShouldNotContain` "Roster week starts on"
+                response `responseBodyShouldNotContain` "Roster window start day"
                 response `responseBodyShouldContain` "Sign-In Methods"
                 response `responseBodyShouldContain` "Support laptop"
                 response `responseBodyShouldNotContain` "Add passkey"

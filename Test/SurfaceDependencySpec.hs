@@ -99,9 +99,22 @@ tests = do
             let candidates = timesheetsCandidateMountedFragments scopeValue mountState
             let affectedByDay = planMountedFragments (Set.fromList [timesheetDayResource venueId (addDays 4 (testAnchorForOffset 2))]) (timesheetsSurfaceScope scopeValue) candidates
             let affectedByWeek = planMountedFragments (Set.fromList [timesheetWeekResource venueId (testAnchorForOffset 2) (addDays 7 (testAnchorForOffset 2))]) (timesheetsSurfaceScope scopeValue) candidates
+            let affectedByBoundary = planMountedFragments (Set.fromList [timesheetWeekBoundaryConfigResource venueId]) (timesheetsSurfaceScope scopeValue) candidates
 
             map (.mountedFragmentTargetId) affectedByDay `shouldBe` ["timesheet-day-section-2025-01-24"]
             map (.mountedFragmentTargetId) affectedByWeek `shouldBe` ["timesheet-week-toolbar", "timesheet-day-columns", "timesheet-side-panel-content"]
+            map (.mountedFragmentTargetId) affectedByBoundary
+                `shouldBe` [ "timesheet-week-toolbar"
+                           , "timesheet-day-columns"
+                           , "timesheet-side-panel-content"
+                           , "timesheet-day-section-2025-01-20"
+                           , "timesheet-day-section-2025-01-21"
+                           , "timesheet-day-section-2025-01-22"
+                           , "timesheet-day-section-2025-01-23"
+                           , "timesheet-day-section-2025-01-24"
+                           , "timesheet-day-section-2025-01-25"
+                           , "timesheet-day-section-2025-01-26"
+                           ]
 
         it "coalesces actor mount keys through the same dependency plan as passive subscriptions" do
             let venueId = fromWords 1 0 0 0

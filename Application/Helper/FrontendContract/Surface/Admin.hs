@@ -23,6 +23,7 @@ module Application.Helper.FrontendContract.Surface.Admin
     , AdminPageContentFragment
     , AdminXeroPageContentFragment
     , AdminVenueSettingsFragment
+    , AdminRosterWindowStartDaySetting
     , AdminInvitesFragment
     , AdminExportsFragment
     , AdminShiftTypesFragment
@@ -48,6 +49,7 @@ module Application.Helper.FrontendContract.Surface.Admin
     , UpdateMinutePrecisionShiftTimesEnabled
     , UpdateUnavailableStaffWarningThreshold
     , UpdateRosterTimePickerWindow
+    , PreviewRosterWindowStartDay
     , UpdateRosterWeekStartsOn
     , CreateVenueInvitation
     , RevokeVenueInvitation
@@ -68,6 +70,10 @@ module Application.Helper.FrontendContract.Surface.Admin
     , TimePickerEnd
     , RosterWeekStartsOn
     , RosterCalendarRevision
+    , CurrentRosterWindowStartDay
+    , MixedPublishedWindowCount
+    , AffectedPublishedDayCount
+    , AffectedShiftCount
     , UnavailableStaffWarningThreshold
     , Email
     , RangeStart
@@ -111,6 +117,7 @@ data AdminXero
 data AdminPageContentFragment
 data AdminXeroPageContentFragment
 data AdminVenueSettingsFragment
+data AdminRosterWindowStartDaySetting
 data AdminInvitesFragment
 data AdminExportsFragment
 data AdminShiftTypesFragment
@@ -130,6 +137,7 @@ data UpdateDefaultStaffPayRate
 data UpdateMinutePrecisionShiftTimesEnabled
 data UpdateUnavailableStaffWarningThreshold
 data UpdateRosterTimePickerWindow
+data PreviewRosterWindowStartDay
 data UpdateRosterWeekStartsOn
 data CreateVenueInvitation
 data RevokeVenueInvitation
@@ -150,6 +158,10 @@ data TimePickerStart
 data TimePickerEnd
 data RosterWeekStartsOn
 data RosterCalendarRevision
+data CurrentRosterWindowStartDay
+data MixedPublishedWindowCount
+data AffectedPublishedDayCount
+data AffectedShiftCount
 data UnavailableStaffWarningThreshold
 data Email
 data RangeStart
@@ -172,7 +184,6 @@ data Click
 data ClosestFormCustomHtmx
 data InputChangedAutosaveCustomHtmx
 data ChangeAutosaveCustomHtmx
-data RosterWeekStartImpactConfirmationCustomHtmx
 data LoadReferenceSyncCustomHtmx
 data AdminXeroFragment
 
@@ -216,6 +227,7 @@ type AdminVenueSettingsSurface =
     Surface AdminVenueConfig
         '[ Scope AdminVenueConfigScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
          , Fragment AdminVenueSettingsFragment '[] '[ 'MountTarget AdminVenueSettingsFragment '[], 'Eager, 'Live, 'DependsOn AdminVenueSettingsResource '[ 'FromScope VenueId ] ]
+         , DomToken AdminRosterWindowStartDaySetting
          , Action UpdateRosterEndTimesEnabled
             '[ Field RosterEndTimesEnabled 'WireBool ]
             '[ 'HtmxMethod 'HtmxPost
@@ -258,15 +270,27 @@ type AdminVenueSettingsSurface =
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              , 'CustomHtmx ChangeAutosaveCustomHtmx "venue setting inputs submit on change"
              ]
-         , Action UpdateRosterWeekStartsOn
+         , Action PreviewRosterWindowStartDay
             '[ Field RosterWeekStartsOn 'WireInt
              , Field RosterCalendarRevision 'WireInt
              ]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget ('HtmxId AdminVenueSettingsFragment)
-             , 'HtmxSwap 'HtmxNoSwap
+             , 'HtmxTarget ('HtmxId AdminRosterWindowStartDaySetting)
+             , 'HtmxSwap 'HtmxOuterHTML
              , 'HtmxPushUrl 'HtmxPushUrlFalse
-             , 'CustomHtmx RosterWeekStartImpactConfirmationCustomHtmx "changing the venue week start reprojects every roster and timesheet window and may return mixed Published windows to Draft"
+             ]
+         , Action UpdateRosterWeekStartsOn
+            '[ Field RosterWeekStartsOn 'WireInt
+             , Field RosterCalendarRevision 'WireInt
+             , Field CurrentRosterWindowStartDay 'WireInt
+             , Field MixedPublishedWindowCount 'WireInt
+             , Field AffectedPublishedDayCount 'WireInt
+             , Field AffectedShiftCount 'WireInt
+             ]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTarget ('HtmxId AdminRosterWindowStartDaySetting)
+             , 'HtmxSwap 'HtmxOuterHTML
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]
          ]
 

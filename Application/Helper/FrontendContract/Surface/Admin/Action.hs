@@ -2,6 +2,7 @@ module Application.Helper.FrontendContract.Surface.Admin.Action
     ( CreateShiftTypeActionOperation
     , ToggleInactiveRosterGroupsActionOperation
     , ToggleInactiveShiftTypesActionOperation
+    , PreviewRosterWindowStartDayActionOperation
     , UpdateDefaultStaffPayRateActionOperation
     , UpdateMinutePrecisionShiftTimesEnabledActionOperation
     , UpdateRosterEndTimesEnabledActionOperation
@@ -33,6 +34,7 @@ module Application.Helper.FrontendContract.Surface.Admin.Action
     , parseMoveRosterGroupUpActionParams
     , parseMoveShiftTypeDownActionParams
     , parseMoveShiftTypeUpActionParams
+    , parsePreviewRosterWindowStartDayActionParams
     , parseRenewVenueInvitationActionParams
     , parseShowXeroTimesheetPreparationStaffMappingsActionParams
     , parseToggleInactiveRosterGroupsActionParams
@@ -45,6 +47,8 @@ module Application.Helper.FrontendContract.Surface.Admin.Action
     , parseUpdateRosterWeekStartsOnActionParams
     , parseUpdateShiftTypeActionParams
     , parseUpdateUnavailableStaffWarningThresholdActionParams
+    , previewRosterWindowStartDayAction
+    , previewRosterWindowStartDayActionFields
     , renewVenueInvitationAction
     , renewVenueInvitationActionFields
     , revokeVenueInvitationAction
@@ -78,6 +82,7 @@ module Application.Helper.FrontendContract.Surface.Admin.Action
     ) where
 
 import Application.Helper.FrontendContract.Surface.Admin.Generated.Action (CreateShiftTypeActionOperation,
+                                                                           PreviewRosterWindowStartDayActionOperation,
                                                                            ToggleInactiveRosterGroupsActionOperation,
                                                                            ToggleInactiveShiftTypesActionOperation,
                                                                            UpdateDefaultStaffPayRateActionOperation,
@@ -111,6 +116,7 @@ import Application.Helper.FrontendContract.Surface.Admin.Generated.Action (Creat
                                                                            parseMoveRosterGroupUpActionParams,
                                                                            parseMoveShiftTypeDownActionParams,
                                                                            parseMoveShiftTypeUpActionParams,
+                                                                           parsePreviewRosterWindowStartDayActionParams,
                                                                            parseRenewVenueInvitationActionParams,
                                                                            parseShowXeroTimesheetPreparationStaffMappingsActionParams,
                                                                            parseToggleInactiveRosterGroupsActionParams,
@@ -123,6 +129,8 @@ import Application.Helper.FrontendContract.Surface.Admin.Generated.Action (Creat
                                                                            parseUpdateRosterWeekStartsOnActionParams,
                                                                            parseUpdateShiftTypeActionParams,
                                                                            parseUpdateUnavailableStaffWarningThresholdActionParams,
+                                                                           previewRosterWindowStartDayAction,
+                                                                           previewRosterWindowStartDayActionFields,
                                                                            renewVenueInvitationAction,
                                                                            renewVenueInvitationActionFields,
                                                                            revokeVenueInvitationAction,

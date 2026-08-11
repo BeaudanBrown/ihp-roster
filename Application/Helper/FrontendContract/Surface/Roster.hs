@@ -574,6 +574,7 @@ type RosterFragmentBundle =
          , 'Live
          , 'DependsOn RosterTemplateLibraryResource '[ 'FromScope RosterGroupId ]
          , 'DependsOn RosterTemplateDraftResource '[ 'FromFragment UserId ]
+         , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
          ]
      , Fragment RosterTemplateRecordFragment
         '[ Field TemplateId 'WireUUID ]

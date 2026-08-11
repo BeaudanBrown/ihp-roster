@@ -2,8 +2,10 @@
 {-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
 module Web.View.Admin.VenueSettings
-    ( renderVenueSettingsSection
-    , renderVenueSettingsSectionFragment
+    ( renderVenueSettingsSectionFragment
+    , renderRosterWindowStartDayImpactFragment
+    , renderRosterWindowStartDaySettingFragment
+    , renderVenueSettingsSectionFragmentWithImpact
     , renderVenueSettingsSectionFragmentWithSwap
     ) where
 
@@ -20,6 +22,7 @@ import Application.Helper.TimeRules (venueTimePickerFinalSelectableTimeText,
 import Application.StaffDefaults (staffAwardRateIsAvailable)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminVenueSettingsSurfaceImpl)
+import Web.Admin.RosterWindowStartDay (RosterWindowStartDayImpact (..))
 import Web.View.Admin.Common
 import Web.View.Prelude
 
@@ -38,22 +41,26 @@ renderVenueSettingsSectionFragment =
 
 renderVenueSettingsSectionFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
 renderVenueSettingsSectionFragmentWithSwap maybeSwapOob venueConfig awardLevels awardLevelBaseRates =
+    renderVenueSettingsSectionFragmentWithImpact maybeSwapOob venueConfig awardLevels awardLevelBaseRates Nothing
+
+renderVenueSettingsSectionFragmentWithImpact :: (?context :: ControllerContext) => Maybe Text -> VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> Maybe RosterWindowStartDayImpact -> Html
+renderVenueSettingsSectionFragmentWithImpact maybeSwapOob venueConfig awardLevels awardLevelBaseRates maybeImpact =
     renderFrontendSurfaceMount (adminVenueSettingsSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
         <div id={adminVenueSettingsFragmentId}
              hx-swap-oob={maybeSwapOob}>
-            {renderVenueSettingsSection venueConfig awardLevels awardLevelBaseRates}
+            {renderVenueSettingsSectionWithImpact venueConfig awardLevels awardLevelBaseRates maybeImpact}
         </div>
     |]
 
-renderVenueSettingsSection :: VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
-renderVenueSettingsSection venueConfig awardLevels awardLevelBaseRates =
+renderVenueSettingsSectionWithImpact :: VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> Maybe RosterWindowStartDayImpact -> Html
+renderVenueSettingsSectionWithImpact venueConfig awardLevels awardLevelBaseRates maybeImpact =
     renderConfigSection
         "admin-venue-settings"
         mempty
         mempty
         [hsx|
             <div class="admin-settings-grid">
-                {renderRosterWeekStartsOnForm venueConfig}
+                {maybe (renderRosterWindowStartDayForm venueConfig) (renderRosterWindowStartDayConfirmation venueConfig) maybeImpact}
                 {renderDefaultStaffPayRateForm venueConfig awardLevels awardLevelBaseRates}
                 {renderRosterTimePickerWindowForm venueConfig}
                 {renderMinutePrecisionShiftTimesForm venueConfig}
@@ -62,29 +69,81 @@ renderVenueSettingsSection venueConfig awardLevels awardLevelBaseRates =
             </div>
         |]
 
-renderRosterWeekStartsOnForm :: VenueConfig -> Html
-renderRosterWeekStartsOnForm venueConfig =
+renderRosterWindowStartDaySettingFragment :: VenueConfig -> Html
+renderRosterWindowStartDaySettingFragment = renderRosterWindowStartDayForm
+
+renderRosterWindowStartDayForm :: VenueConfig -> Html
+renderRosterWindowStartDayForm venueConfig =
     renderFrontendSurfaceActionForm
-        (AdminAction.updateRosterWeekStartsOnAction fields)
-        rosterWeekStartsOnSettingRoute
+        (AdminAction.previewRosterWindowStartDayAction fields)
+        rosterWindowStartDayPreviewRoute
         [hsx|
         <div class="admin-setting-row-copy">
-            <div class="fw-semibold">Roster week starts on</div>
+            <div class="fw-semibold">Roster window start day</div>
             <p class="small app-muted mb-0">Changes every roster and Timesheet window immediately. Mixed Published windows return to Draft; saved shifts and times remain unchanged.</p>
         </div>
         <div class="admin-setting-row-control admin-setting-row-control-wide d-flex gap-2 justify-content-end">
-            <label class="visually-hidden" for="venue-roster-week-start">Roster week starts on</label>
+            <label class="visually-hidden" for="venue-roster-week-start">Roster window start day</label>
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterCalendarRevision fields} value={tshow venueConfig.rosterCalendarRevision} />
             <select id="venue-roster-week-start"
                     class="form-select form-select-sm"
                     name={surfaceFieldNameFrom @Surface.RosterWeekStartsOn fields}>
                 {forEach rosterWeekdayOptions renderWeekdayOption}
             </select>
-            <button type="submit" class="btn btn-outline-warning btn-sm text-nowrap">Change start day</button>
+            <button type="submit" class="btn btn-outline-warning btn-sm text-nowrap">Preview impact</button>
         </div>
     |]
   where
-    fields = AdminAction.updateRosterWeekStartsOnActionFields venueConfig.rosterWeekStartsOn venueConfig.rosterCalendarRevision
+    fields = AdminAction.previewRosterWindowStartDayActionFields venueConfig.rosterWeekStartsOn venueConfig.rosterCalendarRevision
     renderWeekdayOption (weekdayIndex, label) = [hsx|<option value={tshow weekdayIndex} selected={venueConfig.rosterWeekStartsOn == weekdayIndex}>{label}</option>|]
+
+renderRosterWindowStartDayImpactFragment :: VenueConfig -> RosterWindowStartDayImpact -> Html
+renderRosterWindowStartDayImpactFragment = renderRosterWindowStartDayConfirmation
+
+renderRosterWindowStartDayConfirmation :: VenueConfig -> RosterWindowStartDayImpact -> Html
+renderRosterWindowStartDayConfirmation _venueConfig impact =
+    renderFrontendSurfaceActionForm
+        (AdminAction.updateRosterWeekStartsOnAction fields)
+        confirmationRoute
+        [hsx|
+        <div class="admin-setting-row-copy">
+            <div class="fw-semibold">Confirm roster window start day</div>
+            <p class="small app-muted mb-2">Change to {weekdayLabel impact.proposedRosterWindowStartDay}? Saved shifts, lanes, times, templates, approved payroll, exports, and notification snapshots will not be rewritten.</p>
+            <dl class="row small mb-0">
+                <dt class="col-8">Mixed Published windows</dt><dd class="col-4 text-end">{impact.mixedPublishedWindowCount}</dd>
+                <dt class="col-8">Published days returning to Draft</dt><dd class="col-4 text-end">{impact.affectedPublishedDayCount}</dd>
+                <dt class="col-8">Shifts on affected days</dt><dd class="col-4 text-end">{impact.affectedShiftCount}</dd>
+            </dl>
+        </div>
+        <div class="admin-setting-row-control admin-setting-row-control-wide d-flex flex-wrap gap-2 justify-content-end">
+            <a href={pathTo AdminAction} class="btn btn-outline-secondary btn-sm">Cancel</a>
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterWeekStartsOn fields} value={tshow impact.proposedRosterWindowStartDay} />
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterCalendarRevision fields} value={tshow impact.rosterCalendarRevision} />
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.CurrentRosterWindowStartDay fields} value={tshow impact.currentRosterWindowStartDay} />
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.MixedPublishedWindowCount fields} value={tshow impact.mixedPublishedWindowCount} />
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.AffectedPublishedDayCount fields} value={tshow impact.affectedPublishedDayCount} />
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.AffectedShiftCount fields} value={tshow impact.affectedShiftCount} />
+            <button type="submit" class="btn btn-warning btn-sm">Confirm change</button>
+        </div>
+    |]
+  where
+    fields =
+        AdminAction.updateRosterWeekStartsOnActionFields
+            impact.proposedRosterWindowStartDay
+            impact.rosterCalendarRevision
+            impact.currentRosterWindowStartDay
+            impact.mixedPublishedWindowCount
+            impact.affectedPublishedDayCount
+            impact.affectedShiftCount
+    confirmationRoute = FrontendSurfaceActionRoute
+        { actionRouteUrl = pathTo UpdateRosterWeekStartsOnAction
+        , actionRouteCustomHtmx = []
+        , actionRouteStandardUrl = Just (pathTo UpdateRosterWeekStartsOnAction)
+        , actionRouteExtraAttrs = [("class", "admin-setting-row"), ("id", rosterWindowStartDaySettingId)]
+        }
+
+weekdayLabel :: Int -> Text
+weekdayLabel weekdayIndex = fromMaybe "Unknown" (lookup weekdayIndex rosterWeekdayOptions)
 
 rosterWeekdayOptions :: [(Int, Text)]
 rosterWeekdayOptions =
@@ -262,16 +321,16 @@ renderVenueSettingToggle fields inputId isEnabled =
             , appToggleSubmitPolicy = ToggleSubmitImmediate
             }
 
-rosterWeekStartsOnSettingRoute :: FrontendSurfaceActionRoute
-rosterWeekStartsOnSettingRoute = FrontendSurfaceActionRoute
-    { actionRouteUrl = pathTo UpdateRosterWeekStartsOnAction
-    , actionRouteCustomHtmx =
-        [ FrontendSurfaceCustomHtmxAttrs
-            "roster-week-start-impact-confirmation-custom-htmx"
-            [("hx-confirm", "Change the venue roster week start? Roster and Timesheet windows will reproject immediately, and mixed Published windows will return to Draft.")]
-        ]
-    , actionRouteStandardUrl = Just (pathTo UpdateRosterWeekStartsOnAction)
-    , actionRouteExtraAttrs = [("class", "admin-setting-row")]
+rosterWindowStartDaySettingId :: Text
+rosterWindowStartDaySettingId =
+    surfaceDomTokenValue @Surface.AdminVenueSettingsSurface @Surface.AdminRosterWindowStartDaySetting
+
+rosterWindowStartDayPreviewRoute :: FrontendSurfaceActionRoute
+rosterWindowStartDayPreviewRoute = FrontendSurfaceActionRoute
+    { actionRouteUrl = pathTo PreviewRosterWindowStartDayAction
+    , actionRouteCustomHtmx = []
+    , actionRouteStandardUrl = Just (pathTo PreviewRosterWindowStartDayAction)
+    , actionRouteExtraAttrs = [("class", "admin-setting-row"), ("id", rosterWindowStartDaySettingId)]
     }
 
 defaultStaffPayRateSettingRoute :: FrontendSurfaceActionRoute

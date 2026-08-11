@@ -243,6 +243,7 @@ type TimesheetFragmentBundle =
          , 'Eager
          , 'Live
          , 'DependsOn TimesheetWeekResource '[ 'FromScope VenueId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ]
+         , 'DependsOn TimesheetWeekBoundaryConfigResource '[ 'FromScope VenueId ]
          ]
      , Fragment TimesheetDaySection
         '[ Field OperationalDate 'WireDay ]

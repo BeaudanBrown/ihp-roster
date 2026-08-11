@@ -1,6 +1,8 @@
 module Web.Admin.Mutations
     ( AdminShiftTypeMutationResult (..)
+    , RosterWindowStartDayImpact (..)
     , adminVenueSettingsTouchedResources
+    , confirmRosterWindowStartDayMutation
     , createRosterGroupMutation
     , createShiftTypeMutation
     , createVenueInvitationMutation
@@ -8,6 +10,7 @@ module Web.Admin.Mutations
     , issueStaffPasskeySetupLinkMutation
     , moveRosterGroupMutation
     , moveShiftTypeMutation
+    , previewRosterWindowStartDayMutation
     , revokeVenueInvitationMutation
     , renewVenueInvitationMutation
     , rosterEndTimesTouchedResources
@@ -18,8 +21,6 @@ module Web.Admin.Mutations
     , setRosterEndTimesEnabledMutation
     , setUnavailableStaffWarningThresholdMutation
     , setRosterTimePickerWindowMutation
-    , setRosterWeekStartsOnMutation
-    , setRosterWeekStartsOnMutationAtRevision
     , shiftTypeAffectsXeroPayItems
     , shiftTypePayResources
     , shiftTypeXeroPayItemScopeChanged
@@ -47,11 +48,8 @@ import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.SurfaceResource
 import Application.Helper.TimeRules (formatMinuteOfDayText)
 import Application.Helper.VenueInvitation
-import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Application.InvitationDelivery.Enqueue (enqueueVenueInvitationEmail)
 import Application.PayAssignment (selectableShiftAssignmentMode)
-import Application.RosterPublication.Mutations (normalizePublishedRosterWindows,
-                                                withRosterCalendarLock)
 import Application.VenueInvitation.Mutations (withVenueInvitationEmailLock,
                                               withVenueInvitationRenewalLock)
 import Control.Monad (void)
@@ -60,6 +58,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
+import Web.Admin.RosterWindowStartDay
 import Web.Controller.Admin.Support
 import Web.Controller.Prelude
 import Web.SurfaceInvalidation (invalidateTouchedResources)
@@ -126,31 +125,6 @@ setUnavailableStaffWarningThresholdMutation venueConfig threshold = do
         "admin.venue_config.unavailable_staff_warning_threshold"
         (liveMutationResult updated (adminVenueSettingsTouchedResources currentVenueId <> [leaveAvailabilityWarningsResource (unpackId currentVenueId)]))
 
-setRosterWeekStartsOnMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Int -> IO (LiveMutationResult VenueConfig)
-setRosterWeekStartsOnMutation venueConfig rosterWeekStartsOn = do
-    outcome <- setRosterWeekStartsOnMutationAtRevision venueConfig rosterWeekStartsOn venueConfig.rosterCalendarRevision
-    either (error . cs) pure outcome
-
-setRosterWeekStartsOnMutationAtRevision :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Int -> Int -> IO (Either Text (LiveMutationResult VenueConfig))
-setRosterWeekStartsOnMutationAtRevision venueConfig rosterWeekStartsOn expectedCalendarRevision = do
-    outcome <- withRosterCalendarLock currentVenueId do
-        currentConfig <- fetch venueConfig.id
-        if currentConfig.rosterCalendarRevision /= expectedCalendarRevision
-            then pure (Left "The roster calendar changed. Review the refreshed setting and try again.")
-            else
-                if currentConfig.rosterWeekStartsOn == rosterWeekStartsOn
-                    then pure (Right currentConfig)
-                    else do
-                        normalizePublishedRosterWindows currentVenueId rosterWeekStartsOn
-                        updated <- currentConfig
-                            |> set #rosterWeekStartsOn rosterWeekStartsOn
-                            |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay rosterWeekStartsOn)
-                            |> updateRecord
-                        pure (Right updated)
-    case outcome of
-        Left message -> pure (Left message)
-        Right updated -> Right <$> invalidateTouchedResources "admin.venue_config.week_start" (liveMutationResult updated (rosterWeekStartsOnTouchedResources currentVenueId))
-
 setRosterTimePickerWindowMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Int -> Int -> IO (LiveMutationResult VenueConfig)
 setRosterTimePickerWindowMutation venueConfig startMinute finalSelectableMinute = do
     updated <- venueConfig
@@ -173,13 +147,6 @@ rosterTimePickerWindowTouchedResources :: Id Venue -> [SurfaceResourceValue]
 rosterTimePickerWindowTouchedResources venueId =
     adminVenueSettingsTouchedResources venueId
         <> [ timePickerConfigResource (unpackId venueId) ]
-
-rosterWeekStartsOnTouchedResources :: Id Venue -> [SurfaceResourceValue]
-rosterWeekStartsOnTouchedResources venueId =
-    adminVenueSettingsTouchedResources venueId
-        <> [ rosterWeekBoundaryConfigResource (unpackId venueId)
-           , timesheetWeekBoundaryConfigResource (unpackId venueId)
-           ]
 
 createVenueInvitationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> IO (Either Text (LiveMutationResult VenueInvitation))
 createVenueInvitationMutation email = do

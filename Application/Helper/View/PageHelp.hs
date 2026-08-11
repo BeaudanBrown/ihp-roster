@@ -262,7 +262,7 @@ pageHelpTopics =
         [ section HelpAdminPlus "Admin tasks"
             [ iconItem HelpAdminPlus "bi-envelope-plus" "Invites" "Invite staff" "Open Invites, enter an email address, then click Send."
             , buttonItem HelpAdminPlus "bi-send" "Send invite" "Send an invite" "Use this button in the Invites section after entering the staff member's email address." "btn btn-outline-primary" Nothing "Send"
-            , iconItem HelpAdminPlus "bi-sliders" "Venue Settings" "Set venue defaults" "Open Venue Settings to control roster/timesheet windows and default new shift times."
+            , iconItem HelpAdminPlus "bi-sliders" "Venue Settings" "Set venue defaults" "Open Venue Settings to control roster and Timesheet windows and default new shift times. Roster window start day changes show the exact mixed-Published-window, day, and shift impact before confirmation; affected Published days return to Draft without rewriting saved work."
             , iconItem HelpAdminPlus "bi-people" "Roster Groups" "Keep teams and areas tidy" "Open Roster Groups when teams or areas need cleanup."
             , iconItem HelpAdminPlus "bi-tags" "Shift Types" "Keep shift labels tidy" "Open Shift Types when shift labels, colours, pay-item mappings, or menu order need cleanup. The first Timesheet-compatible Shift Type is the default for new ad-hoc Timesheets."
             ]
