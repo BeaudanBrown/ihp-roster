@@ -93,7 +93,7 @@ validateXeroTimesheetReadiness ::
 validateXeroTimesheetReadiness request = do
     maybeConnection <- fetchActiveXeroConnection request.readinessVenueId
     now <- getCurrentTime
-    periodEntries <- fetchPeriodTimesheetEntries request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd
+    periodEntries <- fetchActivePeriodTimesheetEntries request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd
     notPaidStaffIds <- maybe (pure []) fetchNotPaidStaffMappingIds maybeConnection
     let baseSkippedStaffIds = List.nub (request.readinessSkippedStaffIds <> notPaidStaffIds)
     let entriesBeforeCalendarFilter = filter (not . staffIsSkipped baseSkippedStaffIds . (.staffId)) periodEntries
@@ -187,13 +187,14 @@ fetchActiveXeroConnection venueId =
         |> orderByDesc #connectedAt
         |> fetchOneOrNothing
 
-fetchPeriodTimesheetEntries :: (?modelContext :: ModelContext) => Id Venue -> Day -> Day -> IO [TimesheetEntry]
-fetchPeriodTimesheetEntries venueId periodStart periodEnd = do
+fetchActivePeriodTimesheetEntries :: (?modelContext :: ModelContext) => Id Venue -> Day -> Day -> IO [TimesheetEntry]
+fetchActivePeriodTimesheetEntries venueId periodStart periodEnd = do
     let (periodStartsAt, periodEndsAt) = requireMelbourneDateRangeUTC periodStart periodEnd
     query @TimesheetEntry
         |> filterWhere (#venueId, unpackId venueId)
         |> filterWhereGreaterThanOrEqualTo (#startsAt, periodStartsAt)
         |> filterWhereLessThan (#startsAt, periodEndsAt)
+        |> filterWhere (#deletedAt, Nothing)
         |> orderBy #startsAt
         |> fetch
 
@@ -409,19 +410,9 @@ previousConnectionImportedEntryWarnings entryIds =
 entryBlockers :: [TimesheetEntry] -> [XeroReadinessBlocker]
 entryBlockers [] = [blocker "missing_approved_entries" "There are no timesheet entries in the selected period."]
 entryBlockers entries =
-    missingApprovedEntryBlocker <> deletedEntryBlockers
-    where
-        approvedEntries = filter (.isApproved) entries
-        missingApprovedEntryBlocker =
-            [ blocker "missing_approved_entries" "There are no approved timesheet entries in the selected period."
-            | null approvedEntries
-            ]
-        deletedEntryBlockers =
-            approvedEntries
-                |> mapMaybe \entry ->
-                    if isNothing entry.deletedAt
-                        then Nothing
-                        else Just (entryBlocker "entry_deleted" "Deleted timesheet entries cannot be submitted to Xero." entry)
+    [ blocker "missing_approved_entries" "There are no approved timesheet entries in the selected period."
+    | not (any (.isApproved) entries)
+    ]
 
 entryWarnings :: [TimesheetEntry] -> [XeroReadinessBlocker]
 entryWarnings entries =
@@ -556,13 +547,6 @@ staffIsSkipped skippedStaffIds staffId =
 
 blocker :: Text -> Text -> XeroReadinessBlocker
 blocker = blockerWith
-
-entryBlocker :: Text -> Text -> TimesheetEntry -> XeroReadinessBlocker
-entryBlocker code message entry =
-    (blockerWith code message)
-        { xeroBlockerAffectedStaffId = Just entry.staffId
-        , xeroBlockerTimesheetEntryId = Just (unpackId entry.id)
-        }
 
 blockerWith :: Text -> Text -> XeroReadinessBlocker
 blockerWith code message =

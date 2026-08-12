@@ -304,6 +304,52 @@ tests = do
                 readinessBlockerCodes readiness `shouldSatisfy` elem "earnings_mapping_not_verified"
                 readinessBlockerCodes readiness `shouldNotSatisfy` elem "managed_pay_item_not_ready"
 
+        it "ignores deleted approved history when active approved entries remain" $ withContext do
+            withCleanDb do
+                fixture <- createReadyMappedFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
+                deletedEntry <- query @TimesheetEntry |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetchOne
+                now <- getCurrentTime
+                _ <- deletedEntry |> set #deletedAt (Just now) |> updateRecord
+                activeEntry <- createApprovedTimesheetEntryRecord fixture.venue fixture.staff fixture.owner (fromGregorian 2026 4 28)
+
+                readiness <- validateXeroTimesheetReadiness fixture.request
+
+                readinessBlockerCodes readiness `shouldNotSatisfy` elem "entry_deleted"
+                readiness.xeroReadinessEntryCount `shouldBe` 1
+                readiness.xeroTimesheetReady `shouldBe` True
+                previewInput <- Preview.fetchPreviewInput fixture.request fixture.connection
+                map (.id) previewInput.previewTimesheetEntries `shouldBe` [activeEntry.id]
+
+        it "keeps the general unapproved warning when deleted history and active entries coexist" $ withContext do
+            withCleanDb do
+                fixture <- createReadyMappedFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
+                deletedEntry <- query @TimesheetEntry |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetchOne
+                now <- getCurrentTime
+                _ <- deletedEntry |> set #deletedAt (Just now) |> updateRecord
+                _ <- createApprovedTimesheetEntryRecord fixture.venue fixture.staff fixture.owner (fromGregorian 2026 4 28)
+                _ <- createTimesheetEntryRecord fixture.venue fixture.staff (fromGregorian 2026 4 29)
+
+                readiness <- validateXeroTimesheetReadiness fixture.request
+
+                readinessBlockerCodes readiness `shouldNotSatisfy` elem "entry_deleted"
+                map (.xeroBlockerCode) readiness.xeroReadinessWarnings `shouldBe` ["entry_not_approved"]
+                readiness.xeroTimesheetReady `shouldBe` True
+
+        it "reports no entries when the selected period contains only deleted history" $ withContext do
+            withCleanDb do
+                fixture <- createReadyMappedFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
+                deletedEntry <- query @TimesheetEntry |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetchOne
+                now <- getCurrentTime
+                _ <- deletedEntry |> set #deletedAt (Just now) |> updateRecord
+
+                readiness <- validateXeroTimesheetReadiness fixture.request
+
+                readinessBlockerCodes readiness `shouldBe` ["missing_approved_entries"]
+                map (.xeroBlockerMessage) readiness.xeroReadinessBlockers
+                    `shouldBe` ["There are no timesheet entries in the selected period."]
+                readiness.xeroReadinessWarnings `shouldBe` []
+                readiness.xeroTimesheetReady `shouldBe` False
+
         it "warns once when unapproved entries remain in the pay period" $ withContext do
             withCleanDb do
                 fixture <- createReadyMappedFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
