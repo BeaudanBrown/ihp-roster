@@ -44,6 +44,8 @@ import Data.Time.Clock (UTCTime, utctDay)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import qualified Data.Time.Format as TimeFormat
+import Data.Time.LocalTime (LocalTime (localDay), ZonedTime,
+                            zonedTimeToLocalTime)
 import qualified Data.Vector as Vector
 import IHP.Prelude
 import Network.HTTP.Types.Header (HeaderName)
@@ -459,13 +461,23 @@ optionalTimesheetLines object =
 
 parseXeroDayText :: Text -> AesonTypes.Parser Day
 parseXeroDayText value =
-    case parseIsoDay value <|> parseMicrosoftJsonDate value of
+    case parseIsoDay value <|> parseIsoDateTimeDay value <|> parseMicrosoftJsonDate value of
         Just day -> pure day
         Nothing  -> fail ("could not parse Xero date: " <> cs value)
 
 parseIsoDay :: Text -> Maybe Day
 parseIsoDay value =
     parseTimeM True defaultTimeLocale "%Y-%m-%d" (cs value)
+
+parseIsoDateTimeDay :: Text -> Maybe Day
+parseIsoDateTimeDay value =
+    localDay <$> parseLocalDateTime "%Y-%m-%dT%H:%M:%S%Q"
+        <|> localDay <$> parseLocalDateTime "%Y-%m-%dT%H:%M:%S%QZ"
+        <|> (localDay . zonedTimeToLocalTime) <$> parseZonedDateTime "%Y-%m-%dT%H:%M:%S%Q%Ez"
+  where
+    rawValue = cs value
+    parseLocalDateTime format = parseTimeM True defaultTimeLocale format rawValue :: Maybe LocalTime
+    parseZonedDateTime format = parseTimeM True defaultTimeLocale format rawValue :: Maybe ZonedTime
 
 parseMicrosoftJsonDate :: Text -> Maybe Day
 parseMicrosoftJsonDate value = do

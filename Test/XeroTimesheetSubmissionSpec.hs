@@ -93,10 +93,13 @@ tests =
                     forceFixtureEmployeeId fixture "employee-id"
 
                     result <-
-                        XeroMock.withStrictXeroMock identitySpec payrollSpec \urls ->
-                            withXeroRequestBaseUrlsForTest urls do
-                                withXeroConfigForTest (Right testXeroConfig) do
-                                    submitXeroDraftTimesheets fixture.owner.id fixture.request
+                        submitWithStrictResponses
+                            identitySpec
+                            payrollSpec
+                            fixture
+                            [timesheetsDateTimeResponse fixture "employee-id" "DRAFT"]
+                            []
+                            [successfulTimesheetResponse]
 
                     case result of
                         Left message -> expectationFailure (cs message)
@@ -543,15 +546,25 @@ successfulTimesheetResponse :: Wai.Response
 successfulTimesheetResponse = XeroMock.jsonResponse status200 XeroMock.timesheetsFixture
 
 timesheetsResponse :: PreviewFixture -> Text -> Text -> Wai.Response
-timesheetsResponse fixture employeeId status =
+timesheetsResponse fixture =
+    timesheetsResponseWithDates (tshow fixture.periodStart) (tshow fixture.periodEnd)
+
+timesheetsDateTimeResponse :: PreviewFixture -> Text -> Text -> Wai.Response
+timesheetsDateTimeResponse fixture =
+    timesheetsResponseWithDates
+        (tshow fixture.periodStart <> "T00:00:00")
+        (tshow fixture.periodEnd <> "T00:00:00")
+
+timesheetsResponseWithDates :: Text -> Text -> Text -> Text -> Wai.Response
+timesheetsResponseWithDates startDate endDate employeeId status =
     XeroMock.jsonResponse status200 $
         Aeson.object
             [ "Timesheets" Aeson..=
                 [ Aeson.object
                     [ "TimesheetID" Aeson..= ("timesheet-id" :: Text)
                     , "EmployeeID" Aeson..= employeeId
-                    , "StartDate" Aeson..= tshow fixture.periodStart
-                    , "EndDate" Aeson..= tshow fixture.periodEnd
+                    , "StartDate" Aeson..= startDate
+                    , "EndDate" Aeson..= endDate
                     , "Status" Aeson..= status
                     , "Hours" Aeson..= (2 :: Int)
                     , "TimesheetLines" Aeson..= ([] :: [Aeson.Value])

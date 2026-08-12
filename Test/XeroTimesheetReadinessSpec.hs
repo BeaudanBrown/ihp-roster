@@ -59,6 +59,39 @@ tests = do
             let decoded = Aeson.eitherDecode payload :: Either String XeroTimesheetObjectResponse
             fmap (xeroTimesheetId . unXeroTimesheetObjectResponse) decoded `shouldBe` Right (Just "ts-2")
 
+        it "normalizes Xero ISO date-time variants to calendar dates" do
+            let variants :: [Text]
+                variants =
+                    [ "2026-08-10T00:00:00"
+                    , "2026-08-10T00:00:00.000"
+                    , "2026-08-10T00:00:00.123456Z"
+                    , "2026-08-10T00:00:00+10:00"
+                    , "2026-08-10T00:00:00+1000"
+                    ]
+            forM_ variants \dateValue -> do
+                let payload = Aeson.object
+                        [ "Timesheets" Aeson..=
+                            [ Aeson.object
+                                [ "TimesheetID" Aeson..= ("ts-datetime" :: Text)
+                                , "EmployeeID" Aeson..= ("employee-datetime" :: Text)
+                                , "StartDate" Aeson..= dateValue
+                                , "EndDate" Aeson..= dateValue
+                                , "Status" Aeson..= ("DRAFT" :: Text)
+                                , "TimesheetLines" Aeson..= ([] :: [Aeson.Value])
+                                ]
+                            ]
+                        ]
+                    decoded = Aeson.fromJSON payload :: Aeson.Result XeroTimesheetsResponse
+                fmap (map (\timesheet -> (timesheet.xeroTimesheetStartDate, timesheet.xeroTimesheetEndDate)) . unXeroTimesheetsResponse) decoded
+                    `shouldBe` Aeson.Success [(fromGregorian 2026 8 10, fromGregorian 2026 8 10)]
+
+        it "rejects malformed values instead of truncating a date prefix" do
+            let payload = "{\"Timesheet\":{\"TimesheetID\":\"ts-invalid\",\"EmployeeID\":\"employee-invalid\",\"StartDate\":\"2026-08-10-not-a-date\",\"EndDate\":\"2026-08-10\",\"Status\":\"DRAFT\",\"TimesheetLines\":[]}}"
+                decoded = Aeson.eitherDecode payload :: Either String XeroTimesheetObjectResponse
+            case decoded of
+                Left message -> cs message `shouldSatisfy` Text.isInfixOf "could not parse Xero date"
+                Right _      -> expectationFailure "expected malformed Xero date to be rejected"
+
         it "preserves unknown provider-owned statuses for forward compatibility" do
             let timesheetPayload = "{\"Timesheets\":[{\"TimesheetID\":\"ts-future\",\"EmployeeID\":\"employee-future\",\"StartDate\":\"2026-04-27\",\"EndDate\":\"2026-05-03\",\"Status\":\"FUTURE_TIMESHEET_STATUS\",\"TimesheetLines\":[]}]}"
                 payRunPayload = "{\"PayRuns\":[{\"PayRunID\":\"pr-future\",\"PayrollCalendarID\":\"calendar-future\",\"PayRunPeriodStartDate\":\"2026-04-27\",\"PayRunPeriodEndDate\":\"2026-05-03\",\"PayRunStatus\":\"FUTURE_PAY_RUN_STATUS\"}]}"
