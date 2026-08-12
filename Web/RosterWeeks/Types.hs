@@ -145,6 +145,7 @@ data RosterStaffSelfServicePanel = RosterStaffSelfServicePanel
     , quickToolsRosterGroupId           :: Id RosterGroup
     , quickToolsRosterGroups            :: [RosterGroup]
     , quickToolsRosterWeekOffset        :: Int
+    , quickToolsRosterWeekStartDate     :: Day
     , quickToolsTimesheetEntries        :: [TimesheetEntry]
     , quickToolsStaffMembers            :: [Staff]
     , quickToolsShiftTypes              :: [ShiftType]

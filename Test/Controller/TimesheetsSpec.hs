@@ -1171,9 +1171,11 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
                     )
 
+                now <- getCurrentTime
                 _ <- newRecord @UserPreference
                     |> set #userId (unpackId manager.id)
                     |> set #showTimesheetSuggestions False
+                    |> set #timesheetPreferencesInitializedAt (Just now)
                     |> createRecord
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
@@ -1918,7 +1920,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "timesheet-staff-panel-entry"
                 response `responseBodyShouldNotContain` ">Show all staff</span>"
 
-        it "defaults managers to all authorized staff and applies persisted display preferences" $ withContext do
+        it "defaults managers to all authorized staff with all display categories visible" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Filter Venue"
                 manager <- createUserRecord "timesheet-filter-manager@example.com" "staff" True
@@ -1941,10 +1943,9 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "btn btn-outline-success app-toggle-button"
                 response `responseBodyShouldContain` "data-bepis-toggle-transport=\"toggle-transport:timesheet-hide-approved-toggle\""
                 response `responseBodyShouldContain` "data-bepis-toggle-config=\""
-                response `responseBodyShouldContain` "aria-pressed=\"true\""
-                response `responseBodyShouldContain` "aria-pressed=\"true\""
+                response `responseBodyShouldContain` "aria-pressed=\"false\""
                 response `responseBodyShouldContain` "timesheet-entry-staff-name\">Ava Hours"
-                response `responseBodyShouldNotContain` "timesheet-entry-card\" data-timesheet-entry-approved=\"true\""
+                response `responseBodyShouldContain` "timesheet-entry-card\" data-timesheet-entry-approved=\"true\""
 
         it "renders complete manager side-panel counts independently of filters and display preferences" $ withContext do
             withCleanDb do

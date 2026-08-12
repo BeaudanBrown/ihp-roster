@@ -111,7 +111,7 @@ test.describe('Generated toggle capability', () => {
         }
     });
 
-    test('submits explicit roster scope and persists the Timesheets show-approved preference', async ({ page }) => {
+    test('submits explicit roster scope and persists the Timesheets hide-approved preference', async ({ page }) => {
         const extraRosterGroupId = 'a1000000-0000-0000-0000-000000000169';
         runSql(`
             INSERT INTO roster_groups (id, venue_id, name, sort_order, is_active, is_default)
@@ -167,42 +167,39 @@ test.describe('Generated toggle capability', () => {
         resetTimesheetDisplayPreferences('e2e-test@example.com');
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await page.getByRole('link', { name: '>' }).click();
-        await expect(page).toHaveURL(/weekOffset=1/);
+        await expect(page).toHaveURL(/anchorDate=/);
+        const currentAnchorDate = new URL(page.url()).searchParams.get('anchorDate');
+        expect(currentAnchorDate).toBeTruthy();
         const rawMountConfig = await page.locator(`[${surfaceDomAttr}="timesheets"][${surfaceConfigDomAttr}]`).getAttribute(surfaceConfigDomAttr);
         const mountConfig = parseFrontendSurfaceMountConfig(JSON.parse(rawMountConfig ?? 'null'));
         expect(mountConfig.surface).toBe('timesheets');
-        expect(mountConfig.scopeKey).toMatch(/:1$/);
-        expect(mountConfig.fragments.every((fragment) => new URL(fragment.url, page.url()).searchParams.get('weekOffset') === '1')).toBe(true);
+        expect(mountConfig.scopeKey).toMatch(/^timesheets:[^:]+:\d{4}-\d{2}-\d{2}:\d{4}-\d{2}-\d{2}:\d+$/);
+        const scopeWindowStart = mountConfig.scopeKey.split(':')[2];
+        expect(mountConfig.fragments.every((fragment) => new URL(fragment.url, page.url()).searchParams.get('anchorDate') === scopeWindowStart)).toBe(true);
         await openTimesheetSettings(page);
-        let showApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Show approved' });
-        await expect(showApprovedRoot.locator(`[${toggleInputDomAttr}]`)).toBeChecked();
+        let hideApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Hide approved' });
+        await expect(hideApprovedRoot.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
 
         let requestPromise = page.waitForRequest((request) =>
             request.method() === 'POST'
-            && new URL(request.url()).pathname.includes('ToggleTimesheetShowApproved')
-            && request.postData()?.includes('showApproved=false') === true
-            && request.postData()?.includes('weekOffset=1') === true,
+            && new URL(request.url()).pathname.includes('ToggleTimesheetHideApproved')
+            && request.postData()?.includes('hideApproved=true') === true,
         );
-        const navigatedWeekRefresh = page.waitForResponse((response) =>
-            response.request().method() === 'GET'
-            && new URL(response.url()).pathname.includes('ShowtimesheetDayColumnsLiveFragment')
-            && new URL(response.url()).searchParams.get('weekOffset') === '1',
-        );
-        await showApprovedRoot.click();
-        await requestPromise;
-        await navigatedWeekRefresh;
-        await expect(showApprovedRoot.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
+        await hideApprovedRoot.click();
+        const toggleResponse = await (await requestPromise).response();
+        expect(toggleResponse?.ok()).toBe(true);
+        await toggleResponse?.finished();
         await page.reload();
         await openTimesheetSettings(page);
-        showApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Show approved' });
-        await expect(showApprovedRoot.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
+        hideApprovedRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Hide approved' });
+        await expect(hideApprovedRoot.locator(`[${toggleInputDomAttr}]`)).toBeChecked();
 
         requestPromise = page.waitForRequest((request) =>
             request.method() === 'POST'
-            && new URL(request.url()).pathname.includes('ToggleTimesheetShowApproved')
-            && request.postData()?.includes('showApproved=true') === true,
+            && new URL(request.url()).pathname.includes('ToggleTimesheetHideApproved')
+            && request.postData()?.includes('hideApproved=false') === true,
         );
-        await showApprovedRoot.click();
+        await hideApprovedRoot.click();
         await requestPromise;
         resetTimesheetDisplayPreferences('e2e-test@example.com');
     });

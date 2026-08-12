@@ -618,7 +618,7 @@ tests = aroundAll withDatabaseTestContext do
                 slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (NewRosterSlotDialogAction rosterDay.id slotDefinition.id 0)
+                    callAction (NewRosterSlotDialogAction rosterDay.id (coerce slotDefinition.id) 0)
 
                 response `responseStatusShouldBe` status200
                 responseBodyText <- responseBody response
@@ -2309,7 +2309,7 @@ tests = aroundAll withDatabaseTestContext do
                 showResponse `responseBodyShouldContain` "roster-day-columns"
 
                 workerResponse <- withUserAndCurrentVenue worker venue.id do
-                    callAction (ShowRosterWeekAction 0)
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
 
                 workerResponse `responseStatusShouldBe` status200
                 workerResponse `responseBodyShouldContain` "data-roster-layout=\"day_columns\""

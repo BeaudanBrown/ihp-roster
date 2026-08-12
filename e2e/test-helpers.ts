@@ -358,7 +358,7 @@ export function resetTimesheetDisplayPreferences(email: string) {
 export async function openTimesheetSettings(page: Page) {
     const settingsTab = page.getByRole('tab', { name: 'Settings' });
     if (await settingsTab.count()) await settingsTab.click();
-    await expect(page.locator('#timesheet-side-panel-content')).toContainText('Show approved');
+    await expect(page.locator('#timesheet-side-panel-content')).toContainText('Hide approved');
 }
 
 export async function enableVirtualPasskeyAuthenticator(page: Page) {

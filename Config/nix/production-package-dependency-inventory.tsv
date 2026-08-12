@@ -61,11 +61,11 @@ Data.Text.Encoding.Error	text	Application/Helper/Telemetry.hs via Main
 Data.Text.IO	text	Web/FrontController.hs via Main
 Data.Text.Lazy.Encoding	text	Application/Helper/Profiling.hs via Main
 Data.Time	time	Web/Controller/RosterWeeks.hs via Main
-Data.Time.Calendar	time	Web/Controller/RosterWeeks.hs via Main
+Data.Time.Calendar	time	Web/Controller/Admin.hs via Main
 Data.Time.Calendar.WeekDate	time	Application/Helper/WeekBoundaries.hs via Main
 Data.Time.Clock	time	Application/Helper/LiveUpdate/DurableListener.hs via Main
 Data.Time.Clock.POSIX	time	Application/Billing/Stripe.hs via Main
-Data.Time.Format	time	Web/Controller/StaffDocuments.hs via Main
+Data.Time.Format	time	Web/Controller/Prelude.hs via Main
 Data.Time.LocalTime	time	Web/Controller/RosterWeeks.hs via Main
 Data.Time.Zones	tz	Application/VenueTime.hs via Main
 Data.Time.Zones.All	tz	Application/VenueTime.hs via Main

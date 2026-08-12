@@ -16,6 +16,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterGridToolbar
     , RosterGroupId
     , RosterEndTimesConfig
+    , RosterLayoutConfig
     , RosterRow
     , RosterSlotsGrid
     , RosterStaffPanel
@@ -486,6 +487,7 @@ data CopyRosterWeekCustomHtmx
 data RosterDay
 data RosterWeekOverview
 data RosterEndTimesConfig
+data RosterLayoutConfig
 data RosterWeekBoundaryConfig
 data TimePickerConfig
 data RosterStaffPanelFragment
@@ -507,6 +509,7 @@ type RosterTemplateResource = Resource RosterTemplate '[ Field TemplateId 'WireU
 type RosterTemplateDraftResource = Resource RosterTemplateDraft '[ Field UserId 'WireUUID ]
 type RosterDayResource = Resource RosterDay '[ Field RosterDayId 'WireUUID ]
 type RosterEndTimesConfigResource = Resource RosterEndTimesConfig '[ Field VenueId 'WireUUID ]
+type RosterLayoutConfigResource = Resource RosterLayoutConfig '[ Field VenueId 'WireUUID ]
 type RosterWeekBoundaryConfigResource = Resource RosterWeekBoundaryConfig '[ Field VenueId 'WireUUID ]
 type TimePickerConfigResource = Resource TimePickerConfig '[ Field VenueId 'WireUUID ]
 
@@ -555,6 +558,7 @@ type RosterFragmentBundle =
          , 'Live
          , 'DependsOn RosterWeekStructureResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ]
          , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]
+         , 'DependsOn RosterLayoutConfigResource '[ 'FromScope VenueId ]
          , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
          , 'Contains RosterDayColumns
          , 'Contains RosterDayRail
@@ -566,7 +570,7 @@ type RosterFragmentBundle =
      , Fragment RosterDayRail '[] '[ 'MountTarget RosterDayRail '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterWageRail '[] '[ 'MountTarget RosterWageRail '[], 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterSlotsGrid '[] '[ 'MountTarget RosterSlotsGrid '[], 'Eager, 'Live, 'DependsOn RosterSlotsStructureResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterSlotsContentResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
-     , Fragment RosterStaffPanel '[] '[ 'MountTarget RosterStaffPanelFragment '[], 'Lazy '[ 'DependsOnFragment RosterContent, 'Contains RosterTemplateLibraryFragment ], 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterNotificationStatusResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ] ]
+     , Fragment RosterStaffPanel '[] '[ 'MountTarget RosterStaffPanelFragment '[], 'Lazy '[ 'DependsOnFragment RosterContent, 'Contains RosterTemplateLibraryFragment ], 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterNotificationStatusResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterLayoutConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterWeekOverview '[] '[ 'MountTarget RosterWeekOverviewMount '[ Field RosterGroupId 'WireUUID, Field WindowStartDate 'WireDay, Field WindowEndDate 'WireDay ], 'Lazy '[ 'DependsOnFragment RosterContent ], 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ] ]
      , Fragment RosterTemplateLibraryFragment
         '[ Field UserId 'WireUUID ]

@@ -426,6 +426,7 @@ fetchRosterStaffSelfServicePanel venueConfig rosterGroups rosterGroupId weekOffs
                             , quickToolsRosterGroupId = rosterGroupId
                             , quickToolsRosterGroups = rosterGroups
                             , quickToolsRosterWeekOffset = weekOffset
+                            , quickToolsRosterWeekStartDate = venueWeekStartDate venueConfig weekOffset
                             , quickToolsTimesheetEntries
                             , quickToolsStaffMembers = [staff]
                             , quickToolsShiftTypes

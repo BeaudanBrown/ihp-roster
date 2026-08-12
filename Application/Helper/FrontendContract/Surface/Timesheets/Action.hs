@@ -9,16 +9,13 @@ module Application.Helper.FrontendContract.Surface.Timesheets.Action
     , navigateTimesheetWeekActionFields
     , parseApproveTimesheetEntryActionParams
     , parseCreateTimesheetEntryFromSuggestionActionParams
-    , parseToggleTimesheetShowApprovedActionParams
+    , parseToggleTimesheetHideApprovedActionParams
     , parseToggleTimesheetShowSuggestionsActionParams
-    , parseToggleTimesheetWageEstimatesActionParams
     , parseUnapproveTimesheetEntryActionParams
-    , toggleTimesheetShowApprovedAction
-    , toggleTimesheetShowApprovedActionFields
+    , toggleTimesheetHideApprovedAction
+    , toggleTimesheetHideApprovedActionFields
     , toggleTimesheetShowSuggestionsAction
     , toggleTimesheetShowSuggestionsActionFields
-    , toggleTimesheetWageEstimatesAction
-    , toggleTimesheetWageEstimatesActionFields
     , unapproveTimesheetEntryAction
     , unapproveTimesheetEntryActionFields
     , updateTimesheetFiltersAction
@@ -35,16 +32,13 @@ import Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action (
                                                                                 navigateTimesheetWeekActionFields,
                                                                                 parseApproveTimesheetEntryActionParams,
                                                                                 parseCreateTimesheetEntryFromSuggestionActionParams,
-                                                                                parseToggleTimesheetShowApprovedActionParams,
+                                                                                parseToggleTimesheetHideApprovedActionParams,
                                                                                 parseToggleTimesheetShowSuggestionsActionParams,
-                                                                                parseToggleTimesheetWageEstimatesActionParams,
                                                                                 parseUnapproveTimesheetEntryActionParams,
-                                                                                toggleTimesheetShowApprovedAction,
-                                                                                toggleTimesheetShowApprovedActionFields,
+                                                                                toggleTimesheetHideApprovedAction,
+                                                                                toggleTimesheetHideApprovedActionFields,
                                                                                 toggleTimesheetShowSuggestionsAction,
                                                                                 toggleTimesheetShowSuggestionsActionFields,
-                                                                                toggleTimesheetWageEstimatesAction,
-                                                                                toggleTimesheetWageEstimatesActionFields,
                                                                                 unapproveTimesheetEntryAction,
                                                                                 unapproveTimesheetEntryActionFields,
                                                                                 updateTimesheetFiltersAction,

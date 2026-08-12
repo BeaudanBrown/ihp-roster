@@ -11,7 +11,7 @@ import Application.Helper.TimeRules (calendarDayForOperationalClock,
                                      venueShiftTimeIntervalMinutes,
                                      venueTimePickerFinalSelectableTimeText,
                                      venueTimePickerStartTimeText)
-import Application.Helper.UserPreferences (upsertCurrentUserTimesheetHideApproved,
+import Application.Helper.UserPreferences (upsertCurrentUserTimesheetShowApproved,
                                            upsertCurrentUserTimesheetShowSuggestions)
 import Application.Helper.WeekBoundaries (startOfWeekFor, venueWeekOffsetForDay,
                                           venueWeekStartDate)
@@ -213,7 +213,7 @@ instance Controller TimesheetsController where
                 let anchorDate = surfaceFieldValue @Surface.AnchorDate fields
                 weekOffset <- requireCurrentTimesheetCalendarValues anchorDate (surfaceFieldValue @Surface.RosterCalendarRevision fields)
                 selectedStaffFilterId <- canonicalTimesheetStaffFilter (surfaceFieldValue @Surface.StaffFilterId fields)
-                upsertCurrentUserTimesheetHideApproved (surfaceFieldValue @Surface.HideApproved fields)
+                upsertCurrentUserTimesheetShowApproved (not (surfaceFieldValue @Surface.HideApproved fields))
                 if isHtmxRequest
                     then respondWithTimesheetPreferenceUpdate weekOffset selectedStaffFilterId
                     else redirectToPath (timesheetWindowUrl anchorDate selectedStaffFilterId)

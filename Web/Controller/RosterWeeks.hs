@@ -64,7 +64,7 @@ import Data.Coerce (coerce)
 import Data.Either (fromRight)
 import Data.List (find, nub)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (catMaybes, fromJust, fromMaybe, isJust, mapMaybe)
+import Data.Maybe (catMaybes, fromJust, fromMaybe, isJust, listToMaybe, mapMaybe)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time (getCurrentTime, utctDay)
@@ -115,11 +115,12 @@ import Web.RosterWeeks.StaffOptions (buildRosterStaffOptionStates,
                                      fetchRosterShiftDialogStaff,
                                      fetchStaffPayConfigurationRequiredIds)
 import Web.RosterWeeks.Types
+import Web.RosterWeeks.VenueSettings (setVenueRosterLayoutMode)
 import Web.View.RosterWeeks.NotificationDialog (renderRosterNotificationConfirmation)
 import Web.View.RosterWeeks.OccurrenceDialog
 import Web.View.RosterWeeks.Overview (renderWeekOverviewPanelFragment)
 import Web.View.RosterWeeks.ShiftDialog
-import Web.View.RosterWeeks.Show (renderRosterWeekShell)
+import Web.View.RosterWeeks.Show (renderNoRosterGroupShell, renderRosterWeekShell)
 import Web.View.RosterWeeks.StaffPanel (renderrosterStaffPanelLiveFragment)
 import Web.View.RosterWeeks.Timeline (renderRosterDayTimelineContent)
 
@@ -227,28 +228,31 @@ instance Controller RosterWeeksController where
         venueConfig <- fetchVenueConfig
         today <- utctDay <$> getCurrentTime
         let currentWeekOffset = venueWeekOffsetForDay venueConfig today
-        currentRosterGroup <- resolveRequestedRosterGroup
-        let currentWeekPath = case paramOrNothing @Text "rosterView" of
-                Just "timeline" -> rosterTimelineWindowUrl today currentRosterGroup.id
-                _ -> rosterWindowUrl today currentRosterGroup.id
-
-        if isHtmxRequest
-            then case (paramOrNothing @Text "rosterView", paramOrNothing @Int "dayOffset") of
-                (Just "timeline", Nothing) -> do
-                    setHeader ("HX-Redirect", cs currentWeekPath)
-                    respondHtmlProfiled mempty
-                _ -> do
-                    setHtmxPushUrl currentWeekPath
-                    renderRosterWeekPage currentWeekOffset currentRosterGroup.id
-            else redirectToPath currentWeekPath
+        resolveRosterPageGroup >>= \case
+            Nothing -> renderNoRosterGroupPage
+            Just (currentRosterGroup, requestedGroupWasViewable) -> do
+                let currentWeekPath = case paramOrNothing @Text "rosterView" of
+                        Just "timeline" -> rosterTimelineWindowUrl today currentRosterGroup.id
+                        _ -> rosterWindowUrl today currentRosterGroup.id
+                if not requestedGroupWasViewable || not isHtmxRequest
+                    then redirectToPath currentWeekPath
+                    else case (paramOrNothing @Text "rosterView", paramOrNothing @Int "dayOffset") of
+                        (Just "timeline", Nothing) -> do
+                            setHeader ("HX-Redirect", cs currentWeekPath)
+                            respondHtmlProfiled mempty
+                        _ -> do
+                            setHtmxPushUrl currentWeekPath
+                            renderRosterWeekPage currentWeekOffset currentRosterGroup.id
 
     action currentAction@ShowRosterWindowAction { anchorDate = anchorDateParam } = runBepis currentAction BepisPageAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
-        rosterGroup <- resolveRequestedRosterGroup
         venueConfig <- fetchVenueConfig
         let windowStart = startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate
         let weekOffset = venueWeekOffsetForDay venueConfig windowStart
-        renderRosterWeekPage weekOffset rosterGroup.id
+        resolveRosterPageGroup >>= \case
+            Nothing -> renderNoRosterGroupPage
+            Just (rosterGroup, True) -> renderRosterWeekPage weekOffset rosterGroup.id
+            Just (rosterGroup, False) -> redirectToPath (rosterWindowUrl anchorDate rosterGroup.id)
 
     action currentAction@ShowRosterDayTimelineContentFragmentAction { anchorDate = anchorDateParam, rosterDayId } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
@@ -789,11 +793,17 @@ instance Controller RosterWeeksController where
                         setErrorMessage errorMessage
                         redirectToRosterWindow weekOffset rosterGroup.id
             Right layoutMode -> do
-                _ <- upsertCurrentUserRosterLayoutMode layoutMode
+                venueConfig <- fetchVenueConfig
+                mutationResult <- setVenueRosterLayoutMode venueConfig layoutMode
                 if isHtmxRequest
-                    then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset rosterGridStructuralAndStaffPanelFragments (successToast "Roster layout preference saved.")
+                    then respondWithRosterResourceInvalidation
+                        rosterGroup.id
+                        weekOffset
+                        mutationResult.liveMutationTouchedResources
+                        rosterGridStructuralAndStaffPanelFragments
+                        (renderToastOob ToastBottomCenter (successToast "Venue roster layout saved."))
                     else do
-                        setSuccessMessage "Roster layout preference saved."
+                        setSuccessMessage "Venue roster layout saved."
                         redirectToRosterWindow weekOffset rosterGroup.id
 
     action currentAction@MoveRosterShiftToSlotAction = runBepis currentAction BepisMutationAction do
@@ -1296,9 +1306,34 @@ sourceTimesheetWarningToast shouldWarn =
         then renderToastOob ToastBottomCenter (errorToast "A timesheet entry was already created from this roster shift. The timesheet snapshot was not changed. Edit the timesheet entry directly.")
         else mempty
 
+resolveRosterPageGroup :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Maybe (RosterGroup, Bool))
+resolveRosterPageGroup = do
+    let requestedRosterGroupId = paramOrNothing "rosterGroupId"
+    rosterGroups <- fetchViewableRosterGroups
+    pure $ case requestedRosterGroupId of
+        Nothing -> (\rosterGroup -> (rosterGroup, True)) <$> listToMaybe rosterGroups
+        Just rosterGroupId ->
+            case find ((== rosterGroupId) . (.id)) rosterGroups of
+                Just rosterGroup -> Just (rosterGroup, True)
+                Nothing          -> (\rosterGroup -> (rosterGroup, False)) <$> listToMaybe rosterGroups
+
 resolveRequestedRosterGroup :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO RosterGroup
-resolveRequestedRosterGroup =
-    fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
+resolveRequestedRosterGroup = do
+    let requestedRosterGroupId = paramOrNothing "rosterGroupId"
+    rosterGroups <- fetchViewableRosterGroups
+    let maybeRosterGroup = maybe (listToMaybe rosterGroups) (\rosterGroupId -> find ((== rosterGroupId) . (.id)) rosterGroups) requestedRosterGroupId
+    accessDeniedUnless (isJust maybeRosterGroup)
+    pure (fromMaybe (error "authorized roster group missing") maybeRosterGroup)
+
+renderNoRosterGroupPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ()
+renderNoRosterGroupPage = do
+    setTitle "Roster"
+    noRosterGroupPasskeySetupPrompt <- passkeySetupPromptFromSession
+    noRosterGroupPasskeyStrongAuthenticationRequired <- currentUserRequiresMandatoryPasskey
+    let view = NoRosterGroupView { .. }
+    if isHtmxRequest
+        then respondHtmlProfiled (renderNoRosterGroupShell view)
+        else renderProfiled view
 
 fetchRosterDayForMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterDay -> IO RosterDay
 fetchRosterDayForMutation rosterDayId = do

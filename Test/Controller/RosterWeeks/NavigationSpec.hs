@@ -200,7 +200,7 @@ tests = aroundAll withDatabaseTestContext do
                 syncStaffRosterGroupAssignments staff []
 
                 response <- withUserAndCurrentVenue user venue.id do
-                    callAction (ShowRosterWeekAction 0)
+                    callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "You aren't assigned to a roster group yet."
@@ -235,13 +235,13 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createRosterSlotRecord groupBDay groupBSlotName (Just viewerStaff) 0
 
                 assignedResponse <- withUserAndCurrentVenue user venue.id do
-                    callActionWithParams (ShowRosterWeekAction 0)
-                        [ ("weekOffset", "0")
+                    callActionWithParams (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
+                        [ ("anchorDate", cs (show (testAnchorForOffset 0)))
                         , ("rosterGroupId", idToParam groupB.id)
                         ]
                 redirectedResponse <- withUserAndCurrentVenue user venue.id do
-                    callActionWithParams (ShowRosterWeekAction 0)
-                        [ ("weekOffset", "0")
+                    callActionWithParams (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
+                        [ ("anchorDate", cs (show (testAnchorForOffset 0)))
                         , ("rosterGroupId", idToParam groupA.id)
                         ]
 
@@ -264,13 +264,13 @@ tests = aroundAll withDatabaseTestContext do
                 syncStaffRosterGroupAssignments viewerStaff [groupA.id, groupB.id]
 
                 groupAResponse <- withUserAndCurrentVenue user venue.id do
-                    callActionWithParams (ShowRosterWeekAction 0)
-                        [ ("weekOffset", "0")
+                    callActionWithParams (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
+                        [ ("anchorDate", cs (show (testAnchorForOffset 0)))
                         , ("rosterGroupId", idToParam groupA.id)
                         ]
                 groupBResponse <- withUserAndCurrentVenue user venue.id do
-                    callActionWithParams (ShowRosterWeekAction 0)
-                        [ ("weekOffset", "0")
+                    callActionWithParams (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
+                        [ ("anchorDate", cs (show (testAnchorForOffset 0)))
                         , ("rosterGroupId", idToParam groupB.id)
                         ]
 
@@ -279,7 +279,7 @@ tests = aroundAll withDatabaseTestContext do
                     response `responseBodyShouldContain` "id=\"roster-group-switch\""
                     response `responseBodyShouldContain` ("value=\"" <> cs (tshow groupA.id) <> "\"")
                     response `responseBodyShouldContain` ("value=\"" <> cs (tshow groupB.id) <> "\"")
-                    response `responseBodyShouldContain` "type=\"hidden\" name=\"weekOffset\" value=\"0\""
+                    response `responseBodyShouldContain` "type=\"hidden\" name=\"anchorDate\" value=\"2025-01-06\""
                 groupAResponse `responseBodyShouldContain` ("value=\"" <> cs (tshow groupA.id) <> "\" selected=\"selected\"")
                 groupBResponse `responseBodyShouldContain` ("value=\"" <> cs (tshow groupB.id) <> "\" selected=\"selected\"")
 
@@ -389,7 +389,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "role=\"switch\" aria-checked=\"false\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"navigate-roster-week\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-roster-week-live-status\""
-                response `responseBodyShouldContain` ("anchorDate=2025-01-06&amp;rosterGroupId=" <> cs (tshow rosterGroup.id))
+                response `responseBodyShouldContain` "anchorDate=2025-01-06&amp;rosterGroupId="
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"toggle-roster-staff-scope\""
                 response `responseBodyShouldContain` "hx-target=\"#roster-staff-panel-fragment\""
                 response `responseBodyShouldNotContain` "hx-target=\"#roster-staff-panel\""

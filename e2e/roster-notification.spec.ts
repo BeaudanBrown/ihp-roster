@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
-import { toggleRootDomAttr } from '../frontend/ts/generated/contracts';
 import {
     toggleInputDomAttr,
     toggleRootDomAttr,

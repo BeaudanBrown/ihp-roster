@@ -38,7 +38,7 @@ import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling
 import Application.Helper.RosterTimesheetBoundaries (projectRosterSlotTimesheetBoundaries)
 import Application.Helper.UserPreferences (fetchCurrentUserTimesheetPreferences,
-                                           userTimesheetHideApproved,
+                                           userTimesheetShowApproved,
                                            userTimesheetShowSuggestions)
 import Application.Helper.VenueScopedQueries (fetchLinkedActiveVenueStaff)
 import Application.Helper.WeekBoundaries (venueWeekOffsetForDay)
@@ -323,7 +323,7 @@ fetchTimesheetWeekProjection :: (?context :: ControllerContext, ?modelContext ::
 fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWindowStart = weekStartDate, projectionWindowEnd = weekEndExclusive, projectionStaffFilterId = staffFilterId } = do
     venueConfig <- fetchVenueConfig
     preferences <- fetchCurrentUserTimesheetPreferences
-    let hideApproved = preferences.userTimesheetHideApproved
+    let hideApproved = not preferences.userTimesheetShowApproved
     let showTimesheetSuggestions = preferences.userTimesheetShowSuggestions
     let weekEndDate = addDays (-1) weekEndExclusive
 

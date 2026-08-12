@@ -317,7 +317,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
                     callActionWithParams
-                        (UpdateRosterLayoutPreferenceAction 0)
+                        UpdateRosterLayoutPreferenceAction
                         [("rosterLayoutMode", "day_columns")]
 
                 response `responseStatusShouldBe` status302

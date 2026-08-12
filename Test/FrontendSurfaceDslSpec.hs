@@ -639,7 +639,6 @@ tests = describe "FrontendSurface DSL foundation" do
         let actionFields =
                 surfaceField @TimesheetsSurface.AnchorDate (fromGregorian 2025 1 20)
                     &: surfaceOptionalField @TimesheetsSurface.StaffFilterId Nothing
-                    &: surfaceOptionalField @TimesheetsSurface.RosterGroupFilterId Nothing
                     &: noSurfaceFields
                 :: SurfaceFields (SurfaceActionFieldSpecs TimesheetsSurface.TimesheetsSurface TimesheetsSurface.NavigateTimesheetWeek)
         surfaceFieldNameFrom @TimesheetsSurface.AnchorDate actionFields `shouldBe` "anchorDate"
@@ -761,7 +760,6 @@ tests = describe "FrontendSurface DSL foundation" do
                         &: noSurfaceFields
                     )
                     ( surfaceField @TimesheetsSurface.StaffFilterId Nothing
-                        &: surfaceField @TimesheetsSurface.RosterGroupFilterId Nothing
                         &: noSurfaceFields
                     )
                     [fragment]
@@ -930,14 +928,10 @@ tests = describe "FrontendSurface DSL foundation" do
             |> fmap (.mountStateFields)
             |> fmap (map (\field -> (field.fieldName, field.fieldWire)))
             `shouldBe` Just
-                [ ("staffFilterId", WireOptionalIR WireUuidIR)
-                , ("rosterGroupFilterId", WireOptionalIR WireUuidIR)
-                ]
+                [("staffFilterId", WireOptionalIR WireUuidIR)]
         let navigateAction = fromMaybe (error "missing navigate action") (find ((== "navigate-timesheet-week") . (.htmxActionName)) surface.surfaceHtmxActions)
         navigateAction.htmxActionOptions
-            `shouldContain` [HtmxOption (HtmxActionTargetIR (HtmxTypedSyntaxIR "#timesheet-week-shell" ["timesheet-week-shell"]))]
-        navigateAction.htmxActionOptions
-            `shouldContain` [HtmxOption (HtmxActionSwapIR (HtmxTypedSyntaxIR "outerHTML" []))]
+            `shouldContain` [HtmxOption (HtmxActionSwapIR (HtmxTypedSyntaxIR "none" []))]
         navigateAction.htmxActionOptions
             `shouldContain` [HtmxOption (HtmxActionSyncIR (HtmxTypedSyntaxIR "closest #timesheet-week-shell:replace" ["timesheet-week-shell"]))]
         navigateAction.htmxActionOptions

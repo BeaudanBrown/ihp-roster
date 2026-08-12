@@ -25,7 +25,8 @@ import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        TimesheetsMountStateValue (..),
                                        timesheetsDaySurfaceImpl)
 import Web.View.Prelude
-import Web.View.RosterWeeks.SettingsPanel (renderRosterOwnLiveShiftHighlightPreferenceForm)
+import Web.View.RosterWeeks.SettingsPanel (renderRosterGroupSwitcher,
+                                           renderRosterOwnLiveShiftHighlightPreferenceForm)
 import Web.View.Timesheets.Index (TimesheetDayRenderModel (..),
                                   renderDaySection)
 
@@ -90,6 +91,7 @@ renderRosterStaffSelfServicePanelFragmentWithSwap maybeSwapOob (Just panel)
                                  aria-labelledby={rosterSelfServiceSettingsTabId}
                                  tabindex="0">
                                 <div class="roster-settings-stack">
+                                    {renderRosterGroupSetting panel}
                                     <section class="roster-settings-section">
                                         <div class="roster-settings-section-heading">
                                             <i class="bi bi-eye" aria-hidden="true"></i>
@@ -108,6 +110,24 @@ renderRosterStaffSelfServicePanelFragmentWithSwap maybeSwapOob (Just panel)
         [ SidePanelTabConfig rosterSelfServiceQuickToolsTabId rosterSelfServiceQuickToolsPaneId "Quick tools" "bi bi-lightning" True "roster-staff-panel-tab" (rosterSelfServicePanelTabAttrs RosterQuickToolsTab)
         , SidePanelTabConfig rosterSelfServiceSettingsTabId rosterSelfServiceSettingsPaneId "Settings" "bi bi-sliders" False "roster-staff-panel-tab" (rosterSelfServicePanelTabAttrs RosterSelfServiceSettingsTab)
         ]
+
+renderRosterGroupSetting :: RosterStaffSelfServicePanel -> Html
+renderRosterGroupSetting panel
+    | length panel.quickToolsRosterGroups <= 1 = mempty
+    | otherwise = [hsx|
+        <section class="roster-settings-section">
+            <div class="roster-settings-section-heading">
+                <i class="bi bi-people" aria-hidden="true"></i>
+                <h2 class="h6 mb-0">Roster group</h2>
+            </div>
+            {renderRosterGroupSwitcher panel.quickToolsRosterWeekStartDate panel.quickToolsRosterGroups currentRosterGroup}
+        </section>
+    |]
+  where
+    currentRosterGroup =
+        fromMaybe
+            (error "current roster group missing")
+            (find ((== panel.quickToolsRosterGroupId) . (.id)) panel.quickToolsRosterGroups)
 
 timesheetDayModel :: RosterStaffSelfServicePanel -> TimesheetDayRenderModel
 timesheetDayModel panel =

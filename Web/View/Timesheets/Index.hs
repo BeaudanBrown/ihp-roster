@@ -242,7 +242,6 @@ renderTimesheetSidePanelWithSwap maybeSwapOob view =
         ( renderSidePanelCard
             SidePanelCardConfig
                 { sidePanelCardClass = "timesheet-side-panel-card"
-                , sidePanelCardBodyClass = "app-side-panel-scroll-body"
                 }
             (if currentUserIsManager then renderManagerTimesheetSidePanel view else renderWorkerTimesheetSettings view)
         )

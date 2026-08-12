@@ -188,9 +188,8 @@ registeredSurfaceActionAdapterRegistrations =
         (requestAdapterOperationsWithoutParser "The endpoint consumes the routed week offset and canonical optional staff filter rather than a complete Surface request envelope")
     , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.UpdateTimesheetFilters
         (requestAdapterOperationsWithoutParser "The shared navigation endpoint cannot distinguish this filter form from week navigation at the request boundary")
-    , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.ToggleTimesheetShowApproved allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.ToggleTimesheetHideApproved allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.ToggleTimesheetShowSuggestions allRequestAdapterOperations
-    , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.ToggleTimesheetWageEstimates allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.CreateTimesheetEntryFromSuggestion allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.ApproveTimesheetEntry allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @TimesheetsAdapterFamily @Timesheets.UnapproveTimesheetEntry allRequestAdapterOperations

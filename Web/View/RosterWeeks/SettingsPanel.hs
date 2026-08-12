@@ -2,7 +2,8 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Web.View.RosterWeeks.SettingsPanel
-    ( renderRosterOwnLiveShiftHighlightPreferenceForm
+    ( renderRosterGroupSwitcher
+    , renderRosterOwnLiveShiftHighlightPreferenceForm
     , renderRosterSettingsPanel
     ) where
 
