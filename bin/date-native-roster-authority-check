@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+fail() {
+    echo "date-native-roster-authority-check: $*" >&2
+    exit 1
+}
+
+extract_controller() {
+    local controller="$1"
+    awk -v controller="$controller" '
+        $0 ~ "^data " controller { capture = 1 }
+        capture { print }
+        capture && /^    deriving / { exit }
+    ' Web/Types.hs
+}
+
+roster_routes="$(extract_controller RosterWeeksController)"
+timesheet_routes="$(extract_controller TimesheetsController)"
+
+[[ "$roster_routes" == *'ShowRosterWindowAction { anchorDate :: !Text }'* ]] \
+    || fail "Roster canonical route must carry anchorDate"
+[[ "$timesheet_routes" == *'ShowTimesheetWindowAction { anchorDate :: !Text }'* ]] \
+    || fail "Timesheets canonical route must carry anchorDate"
+if grep -q 'weekOffset' <<<"$roster_routes$timesheet_routes"; then
+    fail "Roster/Timesheets public route constructors must not carry weekOffset"
+fi
+
+surface_offset_fields="$(
+    rg -n 'WeekOffset|weekOffset' \
+        Application/Helper/FrontendContract/Surface/Roster.hs \
+        Application/Helper/FrontendContract/Surface/Timesheets.hs \
+        || true
+)"
+[[ -z "$surface_offset_fields" ]] \
+    || fail $'Roster/Timesheets Surface contracts must use explicit windows, not weekOffset:\n'"$surface_offset_fields"
+
+legacy_authority_queries="$(
+    rg -n 'filterWhere[[:space:]]*\(#weekOffset|week_offset[[:space:]]*=' \
+        Application/RosterPublication.hs \
+        Application/RosterPublication/Mutations.hs \
+        Application/Helper/Export/ReadModel.hs \
+        Application/Xero/Timesheets/Buckets.hs \
+        Application/Xero/Timesheets/Preview.hs \
+        Web/Admin/RosterWindowStartDay.hs \
+        Web/Timesheets/Projection.hs \
+        Web/Timesheets/Suggestion.hs \
+        || true
+)"
+[[ -z "$legacy_authority_queries" ]] \
+    || fail $'Authoritative date-native reads/mutations must not select by legacy offset:\n'"$legacy_authority_queries"
+
+rg -q 'operationalDate' Web/Timesheets/Projection.hs \
+    || fail "Timesheets projection must retain explicit Operational-date authority"
+rg -q 'operationalDate' Application/Helper/Export/ReadModel.hs \
+    || fail "exports must retain explicit Operational-date selection"
+rg -q 'operationalDate' Application/Xero/Timesheets/Buckets.hs \
+    || fail "Xero buckets must retain explicit Operational-date ownership"
+
+echo "date-native-roster-authority-check: ok"

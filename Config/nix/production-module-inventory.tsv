@@ -372,6 +372,7 @@ Application/Xero/ReferenceTrust.hs	production	runtime	Main	Reachable from Main
 Application/Xero/ReferenceTrust/Presentation.hs	production	runtime	Main	Reachable from Main
 Application/Xero/ReferenceTrust/ReadModel.hs	production	runtime	Main	Reachable from Main
 Application/Xero/ReferenceTrust/Service.hs	production	runtime	Main	Reachable from Main
+Application/Xero/Timesheets/BucketKey.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Timesheets/Buckets.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Timesheets/Diagnostic.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Timesheets/Prepare.hs	production	runtime	Main	Reachable from Main
@@ -387,6 +388,7 @@ Config/Config.hs	production	runtime	Main	Reachable from Main
 Main.hs	production	runtime	Main	Reachable from Main
 Web/Admin/FrontendSurface.hs	production	runtime	Main	Reachable from Main
 Web/Admin/Mutations.hs	production	runtime	Main	Reachable from Main
+Web/Admin/RosterWindowStartDay.hs	production	runtime	Main	Reachable from Main
 Web/Admin/Xero/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/Billing/FrontendSurface.hs	production	runtime	Main	Reachable from Main
 Web/Billing/Mutations.hs	production	runtime	Main	Reachable from Main

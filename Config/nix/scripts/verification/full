@@ -58,6 +58,9 @@ production-build-budget-check
 echo "verify-full: canonical wage authority and fixtures"
 bash ./bin/wage-authority-check
 
+echo "verify-full: date-native Roster runtime authority"
+bash ./bin/date-native-roster-authority-check
+
 echo "verify-full: billing production-readiness"
 billing-production-readiness
 

@@ -1102,6 +1102,53 @@ tests = describe "Schema" do
             automaticMealBreakForShift (TimeOfDay 9 0 0) (TimeOfDay 15 15 0) `shouldBe` Just (TimeOfDay 14 30 0, TimeOfDay 15 0 0, 30)
             automaticMealBreakForShift (TimeOfDay 20 0 0) (TimeOfDay 2 15 0) `shouldBe` Just (TimeOfDay 1 30 0, TimeOfDay 2 0 0, 30)
 
+    describe "date-native Roster production readiness" do
+        it "keeps the reconciliation command read-only, bounded, and operator-gated" do
+            command <- TextIO.readFile "bin/date-native-roster-readiness"
+            migrationCheck <- TextIO.readFile "bin/date-native-roster-migration-check"
+            auditSql <- TextIO.readFile "scripts/operations/date-native-roster-readiness-373.sql"
+
+            command `shouldSatisfy` Text.isInfixOf "DATE_NATIVE_ROSTER_READINESS_APPROVAL must equal read-only-issue-373"
+            command `shouldSatisfy` Text.isInfixOf "default_transaction_read_only=on"
+            command `shouldSatisfy` Text.isInfixOf "output directory must be outside the Git checkout"
+            command `shouldSatisfy` Text.isInfixOf "DATABASE_URL is forbidden"
+            command `shouldSatisfy` Text.isInfixOf "PGPASSWORD is forbidden"
+            command `shouldSatisfy` Text.isInfixOf "PGPASSFILE must have mode 600"
+            command `shouldSatisfy` Text.isInfixOf "(.sampleEntityIds | length) <= 25"
+            migrationCheck `shouldSatisfy` Text.isInfixOf "regen-types"
+            migrationCheck `shouldSatisfy` Text.isInfixOf "date-native roster foundation migration"
+            migrationCheck `shouldSatisfy` Text.isInfixOf "Operational payroll sealing migration"
+            auditSql `shouldSatisfy` Text.isInfixOf "BEGIN TRANSACTION READ ONLY"
+            auditSql `shouldSatisfy` Text.isInfixOf "LIMIT 25"
+            auditSql `shouldSatisfy` Text.isInfixOf "totalViolationCount"
+            auditSql `shouldSatisfy` (not . Text.isInfixOf "UPDATE ")
+            auditSql `shouldSatisfy` (not . Text.isInfixOf "DELETE ")
+
+        it "covers migration identities, Operational ownership, templates, publication, notifications, and approved ledgers" do
+            auditSql <- TextIO.readFile "scripts/operations/date-native-roster-readiness-373.sql"
+            let requiredChecks =
+                    [ "roster_day_cross_scope"
+                    , "roster_day_identity_collision"
+                    , "roster_slot_operational_day_contradiction"
+                    , "roster_lane_day_mismatch"
+                    , "roster_slot_legacy_definition_mismatch"
+                    , "legacy_lane_definition_mismatch"
+                    , "template_weekday_identity"
+                    , "template_weekday_duplicate"
+                    , "timesheet_source_operational_day_mismatch"
+                    , "approved_entry_active_ledger_mismatch"
+                    , "current_publication_window_mixed"
+                    , "notification_window_invalid"
+                    ]
+            forEach requiredChecks (\checkName -> auditSql `shouldSatisfy` Text.isInfixOf checkName)
+
+        it "retains a non-destructive rollback and observation approval boundary" do
+            runbook <- TextIO.readFile "Application/Migration/date-native-roster-readiness-373-runbook.md"
+            runbook `shouldSatisfy` Text.isInfixOf "Do not reverse migrations"
+            runbook `shouldSatisfy` Text.isInfixOf "one complete seven-Operational-day window"
+            runbook `shouldSatisfy` Text.isInfixOf "#374 remains blocked"
+            runbook `shouldSatisfy` Text.isInfixOf "restoring an old backup is a last-resort incident recovery"
+
     describe "TimeRules roster operational day" do
         it "exposes the 06:00 to 05:45 next-day roster window" do
             rosterOperationalStartMinuteOfDay `shouldBe` 360
