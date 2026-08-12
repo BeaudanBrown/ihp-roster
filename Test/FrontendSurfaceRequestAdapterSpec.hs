@@ -537,7 +537,7 @@ tests = describe "FrontendSurfaceRequestAdapter" do
 
         let renderedForms = map renderIntentFormText (rosterForms <> timelineForms)
         let expectedFormMetadata =
-                [ ("set-roster-layout-mode", "/UpdateRosterLayoutPreference?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 1)
+                [ ("set-roster-layout-mode", "/UpdateRosterLayoutPreference?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222&amp;rosterCalendarRevision=1", 1)
                 , ("move-roster-shift-to-slot", "/MoveRosterShiftToSlot?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 14)
                 , ("duplicate-roster-shift-to-day", "/DuplicateRosterShiftToDay?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 14)
                 , ("drop-roster-staff", "/DropRosterStaff?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 12)

@@ -349,7 +349,7 @@ rosterLayoutModeRequest :: RosterWeekScopeValue -> FrontendSurfaceHtmxRequest
 rosterLayoutModeRequest scope =
     FrontendSurfaceHtmxRequest
         { htmxRequestMethod = FrontendSurfacePost
-        , htmxRequestUrl = rosterLayoutPreferenceUrl scope.rosterWeekWindowStart scope.rosterWeekGroupId
+        , htmxRequestUrl = rosterLayoutPreferenceUrl scope.rosterWeekWindowStart scope.rosterWeekGroupId scope.rosterWeekCalendarRevision
         , htmxRequestTarget = "#" <> rosterContentFragmentId
         , htmxRequestSwap = "none"
         }

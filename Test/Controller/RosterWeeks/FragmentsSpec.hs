@@ -140,7 +140,7 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (UpdateRosterLayoutPreferenceAction)
-                            [("anchorDate", "2025-01-06"), ("rosterLayoutMode", "day_columns")]
+                            [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("rosterLayoutMode", "day_columns")]
 
                 let refreshesPersonalRosterSettings response = do
                         let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
@@ -620,7 +620,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (UpdateRosterLayoutPreferenceAction) [("anchorDate", "2025-01-06"), ("rosterLayoutMode", "day_columns")]
+                        callActionWithParams (UpdateRosterLayoutPreferenceAction) [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("rosterLayoutMode", "day_columns")]
 
                 response `responseStatusShouldBe` status200
                 lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
@@ -663,7 +663,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 _ <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (UpdateRosterLayoutPreferenceAction) [("anchorDate", "2025-01-06"), ("rosterLayoutMode", "day_columns")]
+                        callActionWithParams (UpdateRosterLayoutPreferenceAction) [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("rosterLayoutMode", "day_columns")]
                 dayColumnResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekDayColumnsFragmentAction (tshow (testAnchorForOffset 0)))
                 dayColumnResponse `responseBodyShouldContain` "title=\"Front of House Supervisor and Closing Coordinator\""
@@ -681,7 +681,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (UpdateRosterLayoutPreferenceAction) [("anchorDate", "2025-01-06"), ("rosterLayoutMode", "day_columns")]
+                        callActionWithParams (UpdateRosterLayoutPreferenceAction) [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("rosterLayoutMode", "day_columns")]
 
                 response `responseStatusShouldBe` status200
                 lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
@@ -773,7 +773,7 @@ tests = aroundAll withDatabaseTestContext do
                 managerText `shouldNotContain` "data-bepis-dropzone-ref=\"existing-shift-dropzone\""
 
                 _ <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (UpdateRosterLayoutPreferenceAction) [("anchorDate", "2025-01-06"), ("rosterLayoutMode", "day_columns")]
+                    callActionWithParams (UpdateRosterLayoutPreferenceAction) [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("rosterLayoutMode", "day_columns")]
                 dayColumnsResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekDayColumnsFragmentAction (tshow (testAnchorForOffset 0)))
                 dayColumnsBody <- responseBody dayColumnsResponse

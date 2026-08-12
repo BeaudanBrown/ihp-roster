@@ -160,9 +160,11 @@ rosterAssignmentFiltersUrl :: Day -> Id RosterGroup -> Text
 rosterAssignmentFiltersUrl anchorDate rosterGroupId =
     appendQueryParams (pathTo UpdateRosterAssignmentFiltersAction) (rosterWindowActionQuery anchorDate rosterGroupId)
 
-rosterLayoutPreferenceUrl :: Day -> Id RosterGroup -> Text
-rosterLayoutPreferenceUrl anchorDate rosterGroupId =
-    appendQueryParams (pathTo UpdateRosterLayoutPreferenceAction) (rosterWindowActionQuery anchorDate rosterGroupId)
+rosterLayoutPreferenceUrl :: Day -> Id RosterGroup -> Int -> Text
+rosterLayoutPreferenceUrl anchorDate rosterGroupId calendarRevision =
+    appendQueryParams
+        (pathTo UpdateRosterLayoutPreferenceAction)
+        (rosterWindowActionQuery anchorDate rosterGroupId <> [("rosterCalendarRevision", tshow calendarRevision)])
 
 rosterMoveShiftUrl :: Day -> Id RosterGroup -> Text
 rosterMoveShiftUrl anchorDate rosterGroupId =

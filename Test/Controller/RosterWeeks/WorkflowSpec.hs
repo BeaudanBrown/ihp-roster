@@ -1560,7 +1560,7 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (UpdateRosterLayoutPreferenceAction)
-                            [("anchorDate", "2025-01-06"), ("rosterLayoutMode", "day_columns")]
+                            [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("rosterLayoutMode", "day_columns")]
 
                 dayColumnsManagerResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
@@ -1792,7 +1792,7 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (UpdateRosterLayoutPreferenceAction)
-                            [("anchorDate", "2025-01-06"), ("rosterLayoutMode", "day_columns")]
+                            [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("rosterLayoutMode", "day_columns")]
 
                 dayColumnsResponse `responseStatusShouldBe` status200
                 lookup "HX-Reswap" (responseHeaders dayColumnsResponse) `shouldBe` Just "none"
@@ -2260,6 +2260,27 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "showShiftTypeHighlights"
                 response `responseBodyShouldNotContain` "roster-shift-type-highlights-toggle"
 
+        it "rejects a stale venue roster layout change after the calendar revision advances" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Stale roster layout venue"
+                manager <- createUserRecord "stale-roster-layout@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- venueConfig |> set #rosterLayoutMode DayRows |> set #rosterWeekStartsOn 2 |> updateRecord
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams UpdateRosterLayoutPreferenceAction
+                            [ ("anchorDate", "2025-01-06")
+                            , ("rosterCalendarRevision", "1")
+                            , ("rosterLayoutMode", "day_columns")
+                            ]
+
+                response `responseStatusShouldBe` status409
+                lookup "HX-Refresh" (responseHeaders response) `shouldBe` Just "true"
+                refreshed <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                refreshed.rosterLayoutMode `shouldBe` DayRows
+
         it "persists the venue roster layout and renders it for managers and workers" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
@@ -2283,7 +2304,7 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (UpdateRosterLayoutPreferenceAction)
-                            [("anchorDate", "2025-01-06"), ("rosterLayoutMode", "day_columns")]
+                            [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("rosterLayoutMode", "day_columns")]
 
                 response `responseStatusShouldBe` status200
                 lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
