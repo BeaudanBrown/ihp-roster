@@ -902,6 +902,32 @@ tests = aroundAll withDatabaseTestContext do
                 let body = cs responseBodyText :: Text
                 body `shouldSatisfy` (\html -> containsTextInOrder html [inputValue alpha.id, "Alpha Crew", inputValue zulu.id, "zulu Crew"])
 
+        it "uses Admin shift type order for the dropdown and new-entry default" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Ordered Timesheet Shift Types Venue"
+                user <- createUserRecord "ordered-timesheet-shifts@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user Worker
+                staff <- createStaffRecord venue (Just user) "Tess" "Ordered"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel staff
+                laterShiftType <- createShiftTypeRecord venue payLevel "Later shift"
+                defaultShiftType <- createShiftTypeRecord venue payLevel "Default shift"
+                _ <- updateRecord (laterShiftType |> set #sortOrder 1)
+                _ <- updateRecord (defaultShiftType |> set #sortOrder 0)
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams NewTimesheetEntryAction
+                            [ ("weekOffset", "0")
+                            , ("workedOn", "2025-01-07")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                responseBodyText <- responseBody response
+                let body = cs responseBodyText :: Text
+                body `shouldSatisfy` (\html -> containsTextInOrder html [inputValue defaultShiftType.id, "Default shift", inputValue laterShiftType.id, "Later shift"])
+                body `shouldSatisfy` Text.isInfixOf ("<option value=\"" <> inputValue defaultShiftType.id <> "\" selected=\"selected\">")
+
         it "renders HTMX timesheet forms with javascript submission disabled" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"

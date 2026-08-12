@@ -29,6 +29,7 @@ import Application.Helper.TimeRules (defaultShiftTimesForVenueConfig,
                                      venueShiftTimeValidationMessage,
                                      venueTimePickerFinalSelectableTimeText,
                                      venueTimePickerStartTimeText)
+import Application.Helper.VenueScopedQueries (fetchVenueShiftTypes)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           applyRosterShiftAssignment)
 import Application.VenueTime (RepeatedTimeOccurrence (..), VenueTimeError (..))
@@ -166,12 +167,7 @@ buildRosterShiftDialogStaffOptionStates rosterGroupId rosterWeek targetSlot staf
 
 fetchCurrentVenueRosterShiftTypesForDialog :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [ShiftType]
 fetchCurrentVenueRosterShiftTypesForDialog =
-    query @ShiftType
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#archivedAt, Nothing)
-        |> orderByAsc #sortOrder
-        |> orderByAsc #createdAt
-        |> fetch
+    fetchVenueShiftTypes currentVenueId
 
 validateLiveOpenShiftFill :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> RosterSlot -> RosterShiftDialogSubmission -> IO (Either RosterShiftDialogValues RosterShiftAssignment)
 validateLiveOpenShiftFill rosterGroupId rosterSlot submission = do

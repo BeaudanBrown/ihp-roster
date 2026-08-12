@@ -15,6 +15,7 @@ import Application.Helper.RosterTemplateScale (parseRosterTemplateScale,
                                                rosterTemplateScaleValue)
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.Url (appendQueryParams)
+import Application.Helper.VenueScopedQueries (fetchActiveVenueShiftTypes)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..))
 import Application.RosterTemplates
 import Application.VenueTime.Model (ShiftCopyOccurrenceSelections (..))
@@ -183,12 +184,7 @@ instance Controller RosterTemplatesController where
         let draft = fromMaybe (error "authorized template draft missing") maybeDraft
         rosterGroup <- fetchScopedRosterGroup (Id draft.draftDesign.rosterGroupId)
         designerStaff <- fetchDesignerStaff rosterGroup
-        designerShiftTypes <- query @ShiftType
-            |> filterWhere (#venueId, rosterGroup.venueId)
-            |> filterWhere (#isActive, True)
-            |> filterWhere (#archivedAt, Nothing)
-            |> orderByAsc #sortOrder
-            |> fetch
+        designerShiftTypes <- fetchActiveVenueShiftTypes (Id rosterGroup.venueId)
         render DesignerView { .. }
 
     action currentAction@UpdateRosterTemplateDayAction { rosterTemplateDesignId, dayIndex } = runBepis currentAction BepisMutationAction do

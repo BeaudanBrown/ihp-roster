@@ -20,6 +20,7 @@ import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.RosterWagePrediction
 import Application.Helper.UserPreferences
+import Application.Helper.VenueScopedQueries (fetchVenueShiftTypes)
 import qualified Application.RosterNotification as Notification
 import Application.RosterTemplates (RosterTemplateLibrary,
                                     currentRosterTemplateActor,
@@ -652,9 +653,4 @@ renderRequestedDaySectionFragment isEditable weekStartDate orderedSlotNames assi
 
 fetchCurrentVenueRosterShiftTypes :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [ShiftType]
 fetchCurrentVenueRosterShiftTypes =
-    query @ShiftType
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#archivedAt, Nothing)
-        |> orderByAsc #sortOrder
-        |> orderByAsc #createdAt
-        |> fetch
+    fetchVenueShiftTypes currentVenueId

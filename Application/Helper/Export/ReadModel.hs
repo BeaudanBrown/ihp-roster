@@ -2,6 +2,7 @@ module Application.Helper.Export.ReadModel where
 
 import Application.Helper.Controller
 import Application.Helper.Pay (payVersionManifestForEntry)
+import Application.Helper.VenueScopedQueries (fetchActiveVenueShiftTypes)
 import Application.VenueTime.Model (requireMelbourneDateRangeUTC)
 import Application.WageEngine (AwardClassification (..),
                                awardClassificationFromFixedId)
@@ -15,12 +16,7 @@ import IHP.ControllerPrelude
 
 fetchCurrentVenueActiveShiftTypes :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [ShiftType]
 fetchCurrentVenueActiveShiftTypes =
-    query @ShiftType
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#isActive, True)
-        |> orderByAsc #sortOrder
-        |> orderByAsc #name
-        |> fetch
+    fetchActiveVenueShiftTypes currentVenueId
 
 fetchReportStaffMap :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Map.Map UUID Staff)
 fetchReportStaffMap entries =

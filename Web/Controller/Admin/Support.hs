@@ -9,6 +9,7 @@ import Application.Helper.Pay
 import Application.Helper.RosterGroups
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.VenueInvitation
+import Application.Helper.VenueScopedQueries (fetchVenueShiftTypes)
 import Application.Helper.View (ToastOverlayPosition (..), errorToast,
                                 renderToastOob)
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay,
@@ -29,12 +30,7 @@ import Web.View.Admin.ShiftTypes
 
 fetchCurrentVenueShiftTypes :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [ShiftType]
 fetchCurrentVenueShiftTypes =
-    query @ShiftType
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#archivedAt, Nothing)
-        |> orderByAsc #sortOrder
-        |> orderByAsc #createdAt
-        |> fetch
+    fetchVenueShiftTypes currentVenueId
 
 fetchActiveAwardLevels :: (?modelContext :: ModelContext) => IO [AwardLevel]
 fetchActiveAwardLevels =

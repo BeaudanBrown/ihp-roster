@@ -43,7 +43,9 @@ import Application.Helper.UserPreferences (fetchCurrentUserTimesheetPreferences,
                                            userTimesheetShowApproved,
                                            userTimesheetShowSuggestions,
                                            userTimesheetShowWageEstimates)
-import Application.Helper.VenueScopedQueries (fetchLinkedActiveVenueStaff)
+import Application.Helper.VenueScopedQueries (fetchActiveVenueShiftTypes,
+                                               fetchLinkedActiveVenueStaff,
+                                               sortShiftTypesForDisplay)
 import Application.Helper.WeekBoundaries (venueWeekOffsetForDay)
 import Application.PayAssignment (ShiftPayAssignment (..),
                                   StaffPayAssignment (..),
@@ -330,15 +332,8 @@ fetchStaffForFormIncluding staffId = do
             pure (sortStaffForDisplay (maybe eligible (: eligible) retained))
 
 fetchShiftTypesForForm :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [ShiftType]
-fetchShiftTypesForForm = do
-    shiftTypes <-
-        query @ShiftType
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> filterWhere (#isActive, True)
-            |> filterWhere (#archivedAt, Nothing)
-            |> orderByAsc #createdAt
-            |> fetch
-    pure (filter shiftTypeCanProduceTimesheets shiftTypes)
+fetchShiftTypesForForm =
+    filter shiftTypeCanProduceTimesheets <$> fetchActiveVenueShiftTypes currentVenueId
 
 fetchShiftTypesForFormIncluding :: (?modelContext :: ModelContext, ?context :: ControllerContext) => UUID.UUID -> IO [ShiftType]
 fetchShiftTypesForFormIncluding shiftTypeId = do
@@ -353,7 +348,7 @@ fetchShiftTypesForFormIncluding shiftTypeId = do
                     |> filterWhere (#isActive, True)
                     |> filterWhere (#archivedAt, Nothing)
                     |> fetchOneOrNothing
-            pure (maybe eligible (: eligible) retained)
+            pure (sortShiftTypesForDisplay (maybe eligible (: eligible) retained))
 
 staffCanProduceTimesheets :: Staff -> Bool
 staffCanProduceTimesheets = staffAssignmentAllowsTimesheets . staffPayAssignment
@@ -371,12 +366,7 @@ shiftPayAssignment shiftType =
 
 fetchShiftTypesForProjection :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [ShiftType]
 fetchShiftTypesForProjection =
-    query @ShiftType
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#isActive, True)
-        |> filterWhere (#archivedAt, Nothing)
-        |> orderByAsc #createdAt
-        |> fetch
+    fetchActiveVenueShiftTypes currentVenueId
 
 fetchTimesheetWeekProjection :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetProjectionRequest -> IO TimesheetWeekProjection
 fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset = weekOffset, projectionFilters = requestedFilters } = do
