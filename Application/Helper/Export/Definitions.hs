@@ -37,16 +37,9 @@ reportWeekSelection weekStart =
         }
 
 
-rangeWeekSlices ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    Day ->
-    Day ->
-    IO [ReportWeekSlice]
-rangeWeekSlices rangeStart rangeEnd = do
-    venueConfig <- fetchVenueConfig
-    let firstWeekStart = startOfWeekFor venueConfig.rosterWeekStartsOn rangeStart
-    let weekStarts = takeWhile (<= rangeEnd) (iterate (addDays 7) firstWeekStart)
-    pure (map toSlice weekStarts)
+rangeWeekSlices :: Day -> Day -> Day -> [ReportWeekSlice]
+rangeWeekSlices rangeStart rangeEnd firstWeekStart =
+    map toSlice (takeWhile (<= rangeEnd) (iterate (addDays 7) firstWeekStart))
     where
         toSlice weekStart =
             let weekEnd = addDays 6 weekStart

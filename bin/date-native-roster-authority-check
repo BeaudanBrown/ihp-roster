@@ -37,9 +37,8 @@ surface_offset_fields="$(
 
 payroll_offset_fields="$(
     rg -n 'WeekOffset|weekOffset|week_offset' \
-        Application/Helper/Export/Definitions.hs \
-        Application/Helper/Export/Types.hs \
-        Application/Xero/Timesheets \
+        Application/Helper/Export \
+        Application/Xero \
         || true
 )"
 [[ -z "$payroll_offset_fields" ]] \

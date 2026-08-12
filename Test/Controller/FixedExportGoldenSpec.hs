@@ -208,17 +208,17 @@ tests = aroundAll withDatabaseTestContext do
         it "keeps explicit Operational-date export windows stable after the venue roster start day changes" $ withContext do
             withCleanDb do
                 fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
-                beforeChange <- generatePayrollExportJob fixture.admin fixture.venue PayrollEarningsCsv
+                beforeChange <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetchOne
                 _ <- venueConfig |> set #rosterWeekStartsOn 5 |> updateRecord
 
-                afterChange <- generatePayrollExportJob fixture.admin fixture.venue PayrollEarningsCsv
+                afterChange <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
 
                 afterChange.id `shouldNotBe` beforeChange.id
                 afterChange.rangeStart `shouldBe` beforeChange.rangeStart
                 afterChange.rangeEnd `shouldBe` beforeChange.rangeEnd
-                afterChange.fileName `shouldBe` Just "payroll_earnings-2025-01-07-to-2025-01-13.csv"
-                fromMaybe "" afterChange.fileContents `shouldSatisfy` Text.isInfixOf "2025-01-07"
+                afterChange.fileName `shouldBe` beforeChange.fileName
+                afterChange.fileContents `shouldBe` beforeChange.fileContents
 
         it "keeps relational-version-pinned payroll CSV output stable after later pay-config changes" $ withContext do
             withCleanDb do

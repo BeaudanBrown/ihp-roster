@@ -49,7 +49,10 @@ requestFixedStaffPayCsvExport rangeStart rangeEnd = do
     enforceFinalWageEntries includedEntries >>= \case
         Left failures -> pure (Left (renderWageEntryFailures "Payroll output blocked: " failures))
         Right calculations -> do
-            weekSelections <- rangeWeekSlices rangeStart rangeEnd
+            venueConfig <- fetchVenueConfig
+            sealedWindowStart <- fetchApprovedEntryRosterWindowStart includedEntries
+            let firstWeekStart = fromMaybe (startOfWeekFor venueConfig.rosterWeekStartsOn rangeStart) sealedWindowStart
+            let weekSelections = rangeWeekSlices rangeStart rangeEnd firstWeekStart
             let calculationsByEntryId = calculationMap includedEntries calculations
             payloadResults <- mapM (buildFixedStaffPayCsvPayload calculationsByEntryId) weekSelections
             case lefts payloadResults of
