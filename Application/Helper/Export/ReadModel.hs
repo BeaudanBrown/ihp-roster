@@ -78,17 +78,16 @@ fetchApproverMap entries =
     where
         approverIds = List.nub (mapMaybe (.approvedByUserId) entries)
 
-fetchApprovedEntryRosterWindowStart :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Maybe Day)
-fetchApprovedEntryRosterWindowStart entries = do
+fetchApprovedEntryRosterWindowStarts :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Map.Map UUID Day)
+fetchApprovedEntryRosterWindowStarts entries = do
     let calculationIds = List.nub (mapMaybe (.activePayCalculationId) entries)
     if null calculationIds
-        then pure Nothing
+        then pure Map.empty
         else do
             calculations <- query @TimesheetPayCalculation
                 |> filterWhereIn (#id, calculationIds)
-                |> orderByAsc #operationalDate
                 |> fetch
-            pure ((.rosterWindowStart) <$> listToMaybe calculations)
+            pure (Map.fromList [(calculation.timesheetEntryId, calculation.rosterWindowStart) | calculation <- calculations])
 
 fetchVersionManifestsForEntries :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Map.Map UUID Text)
 fetchVersionManifestsForEntries entries =

@@ -50,11 +50,17 @@ requestFixedStaffPayCsvExport rangeStart rangeEnd = do
         Left failures -> pure (Left (renderWageEntryFailures "Payroll output blocked: " failures))
         Right calculations -> do
             venueConfig <- fetchVenueConfig
-            sealedWindowStart <- fetchApprovedEntryRosterWindowStart includedEntries
-            let firstWeekStart = fromMaybe (startOfWeekFor venueConfig.rosterWeekStartsOn rangeStart) sealedWindowStart
-            let weekSelections = rangeWeekSlices rangeStart rangeEnd firstWeekStart
+            sealedWindowStartsByEntryId <- fetchApprovedEntryRosterWindowStarts includedEntries
+            let fallbackWindowStart = startOfWeekFor venueConfig.rosterWeekStartsOn rangeStart
+            let sealedWindowStarts = Map.elems sealedWindowStartsByEntryId
+            let needsFallbackWindows = null includedEntries || any (\entry -> Map.notMember (unpackId entry.id) sealedWindowStartsByEntryId) includedEntries
+            let fallbackWindowStarts =
+                    if needsFallbackWindows
+                        then map (.weekStart) (map (.weekSelection) (rangeWeekSlices rangeStart rangeEnd fallbackWindowStart))
+                        else []
+            let weekStarts = List.sort (List.nub (sealedWindowStarts <> fallbackWindowStarts))
             let calculationsByEntryId = calculationMap includedEntries calculations
-            payloadResults <- mapM (buildFixedStaffPayCsvPayload calculationsByEntryId) weekSelections
+            payloadResults <- mapM (buildFixedStaffPayCsvPayload calculationsByEntryId sealedWindowStartsByEntryId rangeStart rangeEnd) weekStarts
             case lefts payloadResults of
                 err : _ -> pure (Left err)
                 [] -> do

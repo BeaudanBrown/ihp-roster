@@ -11,17 +11,29 @@ import Data.Coerce (coerce)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
+import Data.Time.Calendar (Day, addDays)
 import Generated.Types
 import IHP.ControllerPrelude
 
 buildFixedStaffPayCsvPayload ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     Map.Map UUID WageCalculation ->
-    ReportWeekSlice ->
+    Map.Map UUID Day ->
+    Day ->
+    Day ->
+    Day ->
     IO (Either Text StaffPayCsvPayload)
-buildFixedStaffPayCsvPayload calculationsByEntryId reportWeekSlice = do
-    entries <- fetchApprovedTimesheetEntries reportWeekSlice.sliceStart reportWeekSlice.sliceEnd
+buildFixedStaffPayCsvPayload calculationsByEntryId sealedWindowStartsByEntryId rangeStart rangeEnd weekStart = do
+    let reportWeekSlice =
+            ReportWeekSlice
+                { weekSelection = reportWeekSelection weekStart
+                , sliceStart = max rangeStart weekStart
+                , sliceEnd = min rangeEnd (addDays 6 weekStart)
+                }
+    windowEntries <- fetchApprovedTimesheetEntries reportWeekSlice.sliceStart reportWeekSlice.sliceEnd
+    let entries = filter belongsToSealedWindow windowEntries
+        belongsToSealedWindow entry =
+            Map.findWithDefault weekStart (unpackId entry.id) sealedWindowStartsByEntryId == weekStart
     staffById <- fetchReportStaffMap entries
     labelsByEntryId <- fetchApprovedEntryStaffHoursLabels entries
     versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
