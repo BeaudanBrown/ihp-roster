@@ -24,6 +24,7 @@ import qualified Data.List as List
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Data.Time.Clock (NominalDiffTime, diffUTCTime)
+import qualified Data.UUID.V4 as UUIDv4
 import qualified Database.PostgreSQL.Simple as PG
 import Generated.Types
 import qualified Hasql.Errors as Hasql
@@ -258,15 +259,12 @@ persistReservation run (reservation, existing, decision) = do
             Just value -> pure value
             Nothing -> error "Non-write Xero reconciliation decision reached reservation persistence"
     supersedeExisting existing
-    let idempotencyKey =
-            xeroTimesheetWriteIdempotencyKey
-                reservation.reservationXeroEmployeeId
-                reservation.reservationPayPeriodStart
-                reservation.reservationPayPeriodEnd
-                operation
+    submissionId <- UUIDv4.nextRandom
+    let idempotencyKey = xeroTimesheetWriteIdempotencyKey submissionId 0 operation
         requestPayload = xeroTimesheetRequestForOperation operation reservation.reservationRequestPayloadJson
     submission <-
         newRecord @XeroTimesheetSubmission
+            |> set #id (Id submissionId)
             |> set #xeroSubmissionRunId (unpackId run.id)
             |> set #venueId run.venueId
             |> set #xeroConnectionId run.xeroConnectionId

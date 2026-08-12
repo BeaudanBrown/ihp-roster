@@ -1,6 +1,7 @@
 module Test.XeroTimesheetSubmissionSpec where
 
 import Application.Helper.Xero
+import Application.Xero.Timesheets.ProviderWrite
 import Application.Xero.Timesheets.ReconciliationReview
 import Application.Xero.Timesheets.Submission
 import Control.Monad (void)
@@ -109,7 +110,8 @@ tests =
                             submissions `shouldSatisfy` ((== 1) . length)
                             case submissions of
                                 [submission] -> do
-                                    submission.idempotencyKey `shouldSatisfy` ("xero-timesheet:update:" `Text.isPrefixOf`)
+                                    submission.idempotencyKey
+                                        `shouldBe` xeroTimesheetWriteIdempotencyKey (unpackId submission.id) 0 (UpdateXeroTimesheetDraft "timesheet-id")
                                     submission.requestPayloadJson `shouldSatisfy` jsonValueContainsText "timesheet-id"
                                     submission.xeroTimesheetId `shouldBe` Just "timesheet-id"
                                 _ -> expectationFailure "expected one Xero timesheet submission row"
@@ -129,8 +131,8 @@ tests =
                     refreshedFirst <- fetch firstSubmission.id
                     refreshedFirst.status `shouldBe` XeroTimesheetSubmissionStatusEnumSuperseded
                     secondSubmission.idempotencyKey
-                        `shouldSatisfy` ("xero-timesheet:replace:employee-a:" `Text.isPrefixOf`)
-                    secondSubmission.idempotencyKey `shouldSatisfy` ("timesheet-id" `Text.isSuffixOf`)
+                        `shouldBe` xeroTimesheetWriteIdempotencyKey (unpackId secondSubmission.id) 0 (ReplaceMissingXeroTimesheetDraft)
+                    secondSubmission.idempotencyKey `shouldNotBe` firstSubmission.idempotencyKey
                     submissionExistingTimesheetIdForTest secondSubmission `shouldBe` Nothing
 
             it "reviews a confirmed-missing Bepis draft as an explicit replacement warning" $ withContext do
@@ -199,8 +201,8 @@ tests =
 
                     submission.status `shouldBe` XeroTimesheetSubmissionStatusEnumSubmitted
                     submission.attemptCount `shouldBe` 2
-                    submission.idempotencyKey `shouldSatisfy` ("xero-timesheet:replace:employee-id:" `Text.isPrefixOf`)
-                    submission.idempotencyKey `shouldSatisfy` ("timesheet-id" `Text.isSuffixOf`)
+                    submission.idempotencyKey
+                        `shouldBe` xeroTimesheetWriteIdempotencyKey (unpackId submission.id) 1 (ReplaceMissingXeroTimesheetDraft)
 
             it "blocks when an update 404 refetch observes a non-draft transition" $ withContext do
                 withCleanDb do
@@ -244,7 +246,8 @@ tests =
                     run.status `shouldBe` XeroSubmissionRunStatusEnumFailed
                     submission.status `shouldBe` XeroTimesheetSubmissionStatusEnumFailed
                     submission.attemptCount `shouldBe` 1
-                    submission.idempotencyKey `shouldSatisfy` ("xero-timesheet:update:employee-id:" `Text.isPrefixOf`)
+                    submission.idempotencyKey
+                        `shouldBe` xeroTimesheetWriteIdempotencyKey (unpackId submission.id) 0 (UpdateXeroTimesheetDraft "timesheet-id")
 
             it "refetches a create conflict and updates exactly one confirmed draft" $ withContext do
                 withCleanDb do
@@ -264,8 +267,8 @@ tests =
 
                     submission.status `shouldBe` XeroTimesheetSubmissionStatusEnumSubmitted
                     submission.attemptCount `shouldBe` 2
-                    submission.idempotencyKey `shouldSatisfy` ("xero-timesheet:update:employee-a:" `Text.isPrefixOf`)
-                    submission.idempotencyKey `shouldSatisfy` ("timesheet-id" `Text.isSuffixOf`)
+                    submission.idempotencyKey
+                        `shouldBe` xeroTimesheetWriteIdempotencyKey (unpackId submission.id) 1 (UpdateXeroTimesheetDraft "timesheet-id")
 
             it "handles an update-404 replacement racing with a newly created draft" $ withContext do
                 withCleanDb do
@@ -291,7 +294,8 @@ tests =
 
                     submission.status `shouldBe` XeroTimesheetSubmissionStatusEnumSubmitted
                     submission.attemptCount `shouldBe` 3
-                    submission.idempotencyKey `shouldSatisfy` ("xero-timesheet:update:employee-id:" `Text.isPrefixOf`)
+                    submission.idempotencyKey
+                        `shouldBe` xeroTimesheetWriteIdempotencyKey (unpackId submission.id) 2 (UpdateXeroTimesheetDraft "timesheet-id")
 
             it "handles a create-conflict update racing with draft deletion" $ withContext do
                 withCleanDb do
@@ -316,8 +320,8 @@ tests =
 
                     submission.status `shouldBe` XeroTimesheetSubmissionStatusEnumSubmitted
                     submission.attemptCount `shouldBe` 3
-                    submission.idempotencyKey `shouldSatisfy` ("xero-timesheet:replace:employee-a:" `Text.isPrefixOf`)
-                    submission.idempotencyKey `shouldSatisfy` ("timesheet-id" `Text.isSuffixOf`)
+                    submission.idempotencyKey
+                        `shouldBe` xeroTimesheetWriteIdempotencyKey (unpackId submission.id) 2 (ReplaceMissingXeroTimesheetDraft)
 
             it "fails an uncertain write with guidance to reconcile through fresh preparation" $ withContext do
                 withCleanDb do

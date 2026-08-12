@@ -18,14 +18,14 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
 import qualified Data.Vector as Vector
 import IHP.Prelude
+import Text.Read (readMaybe)
 
 data XeroTimesheetWriteOperation
     = InitialXeroTimesheetCreate
     | UpdateXeroTimesheetDraft !Text
-    | ReplaceMissingXeroTimesheetDraft !Text
+    | ReplaceMissingXeroTimesheetDraft
     deriving (Eq, Show)
 
 data XeroTimesheetWriteFailureAction
@@ -38,7 +38,7 @@ data XeroTimesheetWriteFailureAction
 xeroTimesheetOperationForDecision :: XeroTimesheetReconciliationDecision -> Maybe XeroTimesheetWriteOperation
 xeroTimesheetOperationForDecision CreateXeroTimesheet = Just InitialXeroTimesheetCreate
 xeroTimesheetOperationForDecision (UpdateXeroDraft timesheetId) = Just (UpdateXeroTimesheetDraft timesheetId)
-xeroTimesheetOperationForDecision (ReplaceMissingXeroDraft priorTimesheetId) = Just (ReplaceMissingXeroTimesheetDraft priorTimesheetId)
+xeroTimesheetOperationForDecision (ReplaceMissingXeroDraft _) = Just ReplaceMissingXeroTimesheetDraft
 xeroTimesheetOperationForDecision XeroSubmissionInProgress = Nothing
 xeroTimesheetOperationForDecision BlockXeroNonDraft {} = Nothing
 xeroTimesheetOperationForDecision BlockDistinctXeroTimesheets {} = Nothing
@@ -46,36 +46,28 @@ xeroTimesheetOperationForDecision BlockUnknownXeroStatus {} = Nothing
 xeroTimesheetOperationForDecision BlockMissingXeroTimesheetId {} = Nothing
 
 xeroTimesheetOperationCreatesTimesheet :: XeroTimesheetWriteOperation -> Bool
-xeroTimesheetOperationCreatesTimesheet InitialXeroTimesheetCreate = True
-xeroTimesheetOperationCreatesTimesheet UpdateXeroTimesheetDraft {} = False
-xeroTimesheetOperationCreatesTimesheet ReplaceMissingXeroTimesheetDraft {} = True
+xeroTimesheetOperationCreatesTimesheet InitialXeroTimesheetCreate       = True
+xeroTimesheetOperationCreatesTimesheet UpdateXeroTimesheetDraft {}      = False
+xeroTimesheetOperationCreatesTimesheet ReplaceMissingXeroTimesheetDraft = True
 
 xeroTimesheetWriteIdempotencyKey ::
-    Text ->
-    Day ->
-    Day ->
+    UUID ->
+    Int ->
     XeroTimesheetWriteOperation ->
     Text
-xeroTimesheetWriteIdempotencyKey employeeId periodStart periodEnd operation =
-    Text.take 128 $
-        Text.intercalate
-            ":"
-            ( [ "xero-timesheet"
-              , operationName operation
-              , employeeId
-              , tshow periodStart
-              , tshow periodEnd
-              ]
-                <> operationTarget operation
-            )
-  where
-    operationName InitialXeroTimesheetCreate          = "create"
-    operationName UpdateXeroTimesheetDraft {}         = "update"
-    operationName ReplaceMissingXeroTimesheetDraft {} = "replace"
+xeroTimesheetWriteIdempotencyKey submissionId operationSequence operation =
+    Text.intercalate
+        ":"
+        [ "xero-timesheet"
+        , tshow submissionId
+        , tshow operationSequence
+        , xeroTimesheetWriteOperationName operation
+        ]
 
-    operationTarget InitialXeroTimesheetCreate = []
-    operationTarget (UpdateXeroTimesheetDraft timesheetId) = [timesheetId]
-    operationTarget (ReplaceMissingXeroTimesheetDraft priorTimesheetId) = [priorTimesheetId]
+xeroTimesheetWriteOperationName :: XeroTimesheetWriteOperation -> Text
+xeroTimesheetWriteOperationName InitialXeroTimesheetCreate       = "create"
+xeroTimesheetWriteOperationName UpdateXeroTimesheetDraft {}      = "update"
+xeroTimesheetWriteOperationName ReplaceMissingXeroTimesheetDraft = "replace"
 
 xeroTimesheetRequestForOperation :: XeroTimesheetWriteOperation -> Aeson.Value -> Aeson.Value
 xeroTimesheetRequestForOperation operation (Aeson.Array values) =
@@ -86,32 +78,35 @@ xeroTimesheetRequestForOperation operation (Aeson.Array values) =
             case operation of
                 InitialXeroTimesheetCreate -> AesonKeyMap.delete timesheetIdKey object
                 UpdateXeroTimesheetDraft timesheetId -> AesonKeyMap.insert timesheetIdKey (Aeson.String timesheetId) object
-                ReplaceMissingXeroTimesheetDraft _ -> AesonKeyMap.delete timesheetIdKey object
+                ReplaceMissingXeroTimesheetDraft -> AesonKeyMap.delete timesheetIdKey object
     updateRequestObject value = value
     timesheetIdKey = AesonKey.fromText "TimesheetID"
 xeroTimesheetRequestForOperation _ value = value
 
 xeroTimesheetWriteOperationFromPersistence ::
-    Text ->
-    Day ->
-    Day ->
+    UUID ->
     Text ->
     Aeson.Value ->
     Either Text XeroTimesheetWriteOperation
-xeroTimesheetWriteOperationFromPersistence employeeId periodStart periodEnd idempotencyKey requestPayload =
-    case requestTimesheetId requestPayload of
-        Just timesheetId -> verifyPersistedKey (UpdateXeroTimesheetDraft timesheetId)
-        Nothing ->
-            case Text.stripPrefix replacementPrefix idempotencyKey of
-                Just priorTimesheetId
-                    | not (Text.null priorTimesheetId) -> verifyPersistedKey (ReplaceMissingXeroTimesheetDraft priorTimesheetId)
-                _ -> verifyPersistedKey InitialXeroTimesheetCreate
+xeroTimesheetWriteOperationFromPersistence submissionId idempotencyKey requestPayload = do
+    persistedOperationName <-
+        case Text.splitOn ":" idempotencyKey of
+            ["xero-timesheet", persistedSubmissionId, operationSequence, operationName]
+                | persistedSubmissionId == tshow submissionId
+                , Just sequenceNumber <- readMaybe (cs operationSequence) :: Maybe Int
+                , sequenceNumber >= 0 -> Right operationName
+            _ -> Left invalidKeyMessage
+    let operation =
+            case requestTimesheetId requestPayload of
+                Just timesheetId -> UpdateXeroTimesheetDraft timesheetId
+                Nothing
+                    | persistedOperationName == "replace" -> ReplaceMissingXeroTimesheetDraft
+                    | otherwise -> InitialXeroTimesheetCreate
+    if xeroTimesheetWriteOperationName operation == persistedOperationName
+        then Right operation
+        else Left invalidKeyMessage
   where
-    replacementPrefix =
-        Text.intercalate ":" ["xero-timesheet", "replace", employeeId, tshow periodStart, tshow periodEnd] <> ":"
-    verifyPersistedKey operation
-        | xeroTimesheetWriteIdempotencyKey employeeId periodStart periodEnd operation == idempotencyKey = Right operation
-        | otherwise = Left "Persisted Xero timesheet operation does not match its idempotency key."
+    invalidKeyMessage = "Persisted Xero timesheet operation does not match its idempotency key."
 
 requestTimesheetId :: Aeson.Value -> Maybe Text
 requestTimesheetId (Aeson.Array values) =

@@ -197,8 +197,12 @@ The exact paging, lease, retry, and trust implementation is authoritative in
 - A fresh preparation may update a matching Xero draft after local entries are
   corrected and reapproved. Bepis does not delete or clear a prior Xero draft when
   an employee no longer has approved local entries; owners resolve obsolete drafts
-  in Xero. Stable idempotency is tied to employee, selected period, and
-  create/update target—not a transient local run.
+  in Xero. Each persisted provider mutation receives a bounded idempotency key
+  derived from its immutable local submission identity and operation sequence.
+  Re-entering that exact persisted operation reuses its key; a fresh preparation
+  or recovery transition to a different provider operation receives a new key.
+  Legacy employee/period keys fail closed after deployment and require fresh
+  preparation rather than risking reuse across independent draft updates.
 - Provider outcomes that cannot be confirmed are recorded as failed with explicit
   check-Xero guidance; persisted payloads are never replayed. Fresh preparation is
   the only retry path. A pending reservation blocks concurrent writes for two

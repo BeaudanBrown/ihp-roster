@@ -24,6 +24,8 @@ import Application.PublicHolidays.Job (enqueuePublicHolidayRefreshJob,
                                        publicHolidayRefreshJobKind)
 import Application.Support.LiveUpdates
 import Application.VenueOnboardingInvitation.Mutations (withVenueOnboardingInvitationRenewalLock)
+import Application.Xero.Timesheets.Diagnostic (XeroTimesheetDiagnosticError (..),
+                                               fetchXeroTimesheetDiagnostic)
 import Control.Monad (forM, forM_, void)
 import Data.Char (isControl)
 import Data.Coerce (coerce)
@@ -54,6 +56,50 @@ instance Controller SupportController where
         feedbackRows <- fetchSupportFeedbackRows
         SupportUnreadFeedbackCount unreadFeedbackCount <- fetchSupportUnreadFeedbackCount
         let onboardingInvitation = buildSupportVenueOnboardingInvitationForm
+        let xeroDiagnosticSubmissionId = ""
+        let xeroTimesheetDiagnostic = Nothing
+        let xeroTimesheetDiagnosticError = Nothing
+        render IndexView { .. }
+
+    action currentAction@RunXeroTimesheetDiagnosticAction = runBepis currentAction BepisMutationAction do
+        ensureCurrentVenue
+        ensureFreshPasskeyReady
+        onboardingInvitations <- fetchVenueOnboardingInvitations
+        passkeys <- fetchCurrentUserPasskeys
+        canAddPasskey <- supportCanAddPasskey passkeys
+        now <- getCurrentTime
+        (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
+        (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
+        feedbackRows <- fetchSupportFeedbackRows
+        SupportUnreadFeedbackCount unreadFeedbackCount <- fetchSupportUnreadFeedbackCount
+        let onboardingInvitation = buildSupportVenueOnboardingInvitationForm
+        let xeroDiagnosticSubmissionId = Text.strip (paramOrDefault @Text "" "submissionId")
+        let maybeSubmissionUuid
+                | Text.null xeroDiagnosticSubmissionId || Text.length xeroDiagnosticSubmissionId > 64 = Nothing
+                | otherwise = parseUUIDText xeroDiagnosticSubmissionId
+        (xeroTimesheetDiagnostic, xeroTimesheetDiagnosticError) <-
+            case maybeSubmissionUuid of
+                Nothing -> pure (Nothing, Just "Enter a valid Bepis Xero submission ID.")
+                Just submissionUuid -> do
+                    maybeSubmission <-
+                        query @XeroTimesheetSubmission
+                            |> filterWhere (#id, Id submissionUuid)
+                            |> filterWhere (#venueId, unpackId currentVenue.id)
+                            |> fetchOneOrNothing
+                    case maybeSubmission of
+                        Nothing -> pure (Nothing, Just "No Xero submission was found for the current support venue.")
+                        Just submission -> do
+                            maybeConnection <-
+                                query @XeroConnection
+                                    |> filterWhere (#id, Id submission.xeroConnectionId)
+                                    |> filterWhere (#venueId, unpackId currentVenue.id)
+                                    |> fetchOneOrNothing
+                            case maybeConnection of
+                                Nothing -> pure (Nothing, Just "The submission's Xero connection is unavailable for this venue.")
+                                Just connection ->
+                                    fetchXeroTimesheetDiagnostic submission connection >>= \case
+                                        Left diagnosticError -> pure (Nothing, Just (xeroTimesheetDiagnosticErrorMessage diagnosticError))
+                                        Right diagnostic -> pure (Just diagnostic, Nothing)
         render IndexView { .. }
 
     action currentAction@ShowFwcMapdAwardRatesSectionAction = runBepis currentAction BepisPageAction do
@@ -73,6 +119,9 @@ instance Controller SupportController where
         feedbackRows <- fetchSupportFeedbackRows
         SupportUnreadFeedbackCount unreadFeedbackCount <- fetchSupportUnreadFeedbackCount
         now <- getCurrentTime
+        let xeroDiagnosticSubmissionId = ""
+        let xeroTimesheetDiagnostic = Nothing
+        let xeroTimesheetDiagnosticError = Nothing
         let onboardingInvitation = buildSupportVenueOnboardingInvitationForm |> fill @'["email"] |> normalizeTextField #email |> modify #email Text.toLower
         onboardingInvitation
             |> validateField #email nonEmpty
@@ -289,6 +338,14 @@ instance Controller SupportController where
                 if isSafeReturnPath nextPath
                     then redirectToPath (supportVenueSwitchReturnPath nextPath)
                     else redirectTo SupportAction
+
+xeroTimesheetDiagnosticErrorMessage :: XeroTimesheetDiagnosticError -> Text
+xeroTimesheetDiagnosticErrorMessage = \case
+    DiagnosticMissingTimesheetReference -> "The selected submission has no stored Xero timesheet reference."
+    DiagnosticXeroConfigurationUnavailable -> "Xero configuration is unavailable."
+    DiagnosticXeroConnectionUnavailable -> "The Xero connection could not be refreshed. Reconnect Xero and try again."
+    DiagnosticXeroTimesheetUnavailable -> "Xero could not return the selected timesheet."
+    DiagnosticXeroTimesheetScopeMismatch -> "Xero returned a timesheet outside the selected submission scope."
 
 buildSupportVenueOnboardingInvitationForm :: VenueOnboardingInvitation
 buildSupportVenueOnboardingInvitationForm =

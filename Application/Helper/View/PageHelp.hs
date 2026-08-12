@@ -277,6 +277,9 @@ pageHelpTopics =
             , iconItem HelpOwnerPlus "bi-cloud-download" "Import" "Import optional pay items" "Use Import pay items to search by name or account code, then select supported hourly earnings rates to bring into Bepis. If trusted reference data is not ready, the dialog updates from the background sync without periodic requests and shows candidates automatically when ready."
             , iconItem HelpOwnerPlus "bi-send-check" "Prepare" "Review before submitting" "Upload timesheets opens the guided workflow for staff decisions, pay items, readiness, preview, and draft submission. The period selector initially shows periods overlapping today by seven days in either direction; use Show past and future periods to reveal the remaining eligible history. Wage-source or calculation blockers identify the affected entry and stop the complete preview or submission until resolved. Export and Xero history never locks an entry: correct it, reapprove it, then start a fresh preparation to update the matching Xero draft. Bepis does not remove an obsolete Xero draft when no approved local entries remain. An approved entry pinned to a Xero rate that is no longer available must be corrected and reapproved; Bepis never silently remaps it."
             ]
+        , section HelpSupportOnly "Founder support"
+            [ iconItem HelpSupportOnly "bi-clipboard-data" "Timesheet diagnostic" "Compare a submitted draft safely" "Switch to the affected venue, copy the Bepis submission ID from the submission record, then run the Xero Timesheet Diagnostic on Support after fresh passkey verification. It compares the persisted request and response with the current Xero draft using redacted references and does not write payroll data."
+            ]
         ]
     , topic "billing" "Billing"
         [ section HelpOwnerOnly "Billing tasks"

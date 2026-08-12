@@ -204,6 +204,7 @@ data SupportController
     = SupportAction
     | ShowFwcMapdAwardRatesSectionAction
     | ShowPublicHolidaysSectionAction
+    | RunXeroTimesheetDiagnosticAction
     | CreateSupportVenueOnboardingInvitationAction
     | RenewSupportVenueOnboardingInvitationAction { onboardingInvitationId :: !(Id VenueOnboardingInvitation) }
     | CreateFwcMapdRefreshJobAction

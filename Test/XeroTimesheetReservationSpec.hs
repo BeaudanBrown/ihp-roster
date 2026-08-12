@@ -1,6 +1,8 @@
 module Test.XeroTimesheetReservationSpec where
 
 import Application.Helper.Xero.Types (XeroTimesheetRef (..))
+import Application.Xero.Timesheets.ProviderWrite (XeroTimesheetWriteOperation (..),
+                                                  xeroTimesheetWriteIdempotencyKey)
 import Application.Xero.Timesheets.Reconciliation (XeroTimesheetReconciliationDecision (..))
 import Application.Xero.Timesheets.Reservation
 import Control.Concurrent.Async (concurrently)
@@ -50,6 +52,28 @@ tests =
                     length retainedLinks `shouldBe` length fixture.entries
                     runs <- query @XeroSubmissionRun |> fetch
                     map (.id) runs `shouldContain` [firstRun.id]
+
+            it "assigns distinct keys to independent updates of the same Xero draft" $ withContext do
+                withCleanDb do
+                    fixture <- reservationFixture
+                    first <- reserveWithRemote fixture fixture.entries [remoteDraft fixture "existing-draft-id"]
+                    (_, firstSubmission) <- expectCreated first
+                    submittedFirst <-
+                        firstSubmission
+                            |> set #status XeroTimesheetSubmissionStatusEnumSubmitted
+                            |> set #xeroTimesheetId (Just "existing-draft-id")
+                            |> set #xeroTimesheetStatus (Just "DRAFT")
+                            |> updateRecord
+
+                    second <- reserveWithRemote fixture fixture.entries [remoteDraft fixture "existing-draft-id"]
+                    (_, secondSubmission) <- expectCreated second
+
+                    firstSubmission.idempotencyKey
+                        `shouldBe` xeroTimesheetWriteIdempotencyKey (unpackId firstSubmission.id) 0 (UpdateXeroTimesheetDraft "existing-draft-id")
+                    secondSubmission.idempotencyKey
+                        `shouldBe` xeroTimesheetWriteIdempotencyKey (unpackId secondSubmission.id) 0 (UpdateXeroTimesheetDraft "existing-draft-id")
+                    secondSubmission.idempotencyKey `shouldNotBe` firstSubmission.idempotencyKey
+                    fetch submittedFirst.id >>= (\record -> record.status `shouldBe` XeroTimesheetSubmissionStatusEnumSuperseded)
 
             it "joins existing pending work without creating an orphan or duplicate run" $ withContext do
                 withCleanDb do

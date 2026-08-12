@@ -6,6 +6,8 @@ import Application.Helper.ControllerContext
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment (..))
 import Application.Helper.Impersonation
 import Application.Helper.LiveUpdate
+import Application.Helper.OpaqueToken (hashOpaqueToken)
+import Application.Helper.Xero
 import Application.Support.LiveUpdates
 import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar)
@@ -14,6 +16,10 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as AesonKeyMap
 import Data.Bits (xor)
 import qualified Data.ByteString as ByteString
+import Data.Scientific (Scientific)
+import qualified Data.Text as Text
+import Data.Time.Calendar (fromGregorian)
+import Data.Time.Clock (addUTCTime)
 import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude
@@ -26,6 +32,7 @@ import qualified Network.Wai as Wai
 import Test.Hspec
 import Test.Support
 import Test.Support.SurfaceContract
+import Test.Support.XeroAdmin (testXeroConfig)
 import qualified Web.ClientSession as ClientSession
 import Web.Controller.Support ()
 import Web.FrontController ()
@@ -65,6 +72,128 @@ tests = aroundAll withDatabaseTestContext do
 
                 liveFragmentResponseShouldRenderTarget awardRatesResponse (supportFragmentRef SupportAwardRatesLiveFragment)
                 liveFragmentResponseShouldRenderTarget publicHolidaysResponse (supportFragmentRef SupportPublicHolidaysLiveFragment)
+
+        it "reads a current Xero timesheet into a redacted support diagnostic" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Diagnostic Venue"
+                founder <- createUserRecordWithPlatformRole "xero-diagnostic-founder@example.com" "staff" (Just SuperAdmin) True
+                staff <- createStaffRecord venue Nothing "Sensitive" "Employee"
+                connectionRecord <- createXeroConnectionRecord venue founder "sensitive-tenant-id"
+                encryptedAccessToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "sensitive-access-token"
+                now <- getCurrentTime
+                connection <-
+                    connectionRecord
+                        |> set #encryptedAccessToken (Just encryptedAccessToken)
+                        |> set #accessTokenExpiresAt (Just (addUTCTime 3600 now))
+                        |> updateRecord
+                let periodStart = fromGregorian 2026 8 10
+                let periodEnd = fromGregorian 2026 8 16
+                run <-
+                    newRecord @XeroSubmissionRun
+                        |> set #venueId (unpackId venue.id)
+                        |> set #xeroConnectionId (unpackId connection.id)
+                        |> set #submittedByUserId (unpackId founder.id)
+                        |> set #payPeriodStart periodStart
+                        |> set #payPeriodEnd periodEnd
+                        |> createRecord
+                let rawLine =
+                        Aeson.object
+                            [ "EarningsRateID" Aeson..= ("sensitive-earnings-rate-id" :: Text)
+                            , "NumberOfUnits" Aeson..= ([8.5, 0, 0, 0, 0, 0, 0] :: [Scientific])
+                            ]
+                let rawTimesheet =
+                        Aeson.object
+                            [ "TimesheetID" Aeson..= ("sensitive-timesheet-id" :: Text)
+                            , "EmployeeID" Aeson..= ("sensitive-employee-id" :: Text)
+                            , "StartDate" Aeson..= periodStart
+                            , "EndDate" Aeson..= periodEnd
+                            , "Status" Aeson..= ("DRAFT" :: Text)
+                            , "UpdatedDateUTC" Aeson..= ("2026-08-12T08:15:00Z" :: Text)
+                            , "TimesheetLines" Aeson..= [rawLine]
+                            ]
+                submission <-
+                    newRecord @XeroTimesheetSubmission
+                        |> set #xeroSubmissionRunId (unpackId run.id)
+                        |> set #venueId (unpackId venue.id)
+                        |> set #xeroConnectionId (unpackId connection.id)
+                        |> set #staffId (unpackId staff.id)
+                        |> set #xeroEmployeeId "sensitive-employee-id"
+                        |> set #payPeriodStart periodStart
+                        |> set #payPeriodEnd periodEnd
+                        |> set #status XeroTimesheetSubmissionStatusEnumSubmitted
+                        |> set #idempotencyKey "persisted-key"
+                        |> set #requestPayloadJson (Aeson.Array (pure (Aeson.object ["TimesheetLines" Aeson..= [rawLine]])))
+                        |> set #responsePayloadJson (Aeson.object ["Timesheets" Aeson..= [Aeson.object ["Raw" Aeson..= rawTimesheet]]])
+                        |> set #xeroTimesheetId (Just "sensitive-timesheet-id")
+                        |> createRecord
+                _ <-
+                    newRecord @XeroEarningsRate
+                        |> set #venueId (unpackId venue.id)
+                        |> set #xeroConnectionId (unpackId connection.id)
+                        |> set #xeroEarningsRateId "sensitive-earnings-rate-id"
+                        |> set #name "Sensitive pay item name"
+                        |> set #rateType (Just "RatePerUnit")
+                        |> set #isActive True
+                        |> set #providerAvailable True
+                        |> set #rawPayload (Aeson.object ["RatePerUnit" Aeson..= (39.13 :: Scientific), "TypeOfUnits" Aeson..= ("Hours" :: Text)])
+                        |> set #syncedAt now
+                        |> createRecord
+                baseClient <- currentXeroClient
+                let remote =
+                        XeroTimesheetRef
+                            { xeroTimesheetId = Just "sensitive-timesheet-id"
+                            , xeroTimesheetEmployeeId = "sensitive-employee-id"
+                            , xeroTimesheetStartDate = periodStart
+                            , xeroTimesheetEndDate = periodEnd
+                            , xeroTimesheetStatus = Just "DRAFT"
+                            , xeroTimesheetHours = Just 8.5
+                            , xeroTimesheetLines = [XeroTimesheetLineRef (Just "sensitive-earnings-rate-id") Nothing [8.5, 0, 0, 0, 0, 0, 0] rawLine]
+                            , xeroTimesheetRaw = rawTimesheet
+                            }
+                let diagnosticClient = baseClient { fetchTimesheet = \_ _ _ -> pure (Right remote) }
+
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest diagnosticClient do
+                        withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                            callActionWithParams
+                                RunXeroTimesheetDiagnosticAction
+                                [("submissionId", cs (inputValue submission.id))]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Submitted request"
+                response `responseBodyShouldContain` "Stored Xero response"
+                response `responseBodyShouldContain` "Current Xero draft"
+                response `responseBodyShouldContain` "39.13"
+                response `responseBodyShouldContain` cs (Text.take 16 (hashOpaqueToken "sensitive-earnings-rate-id"))
+                let secrets :: [Text] = ["sensitive-timesheet-id", "sensitive-employee-id", "sensitive-earnings-rate-id", "Sensitive pay item name", "sensitive-access-token", "sensitive-tenant-id"]
+                forM_ secrets \secret ->
+                    response `responseBodyShouldNotContain` cs secret
+
+                otherVenue <- createVenueWithConfig "Other Xero Diagnostic Venue"
+                crossVenueResponse <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest diagnosticClient do
+                        withPasskeyVerifiedUserAndCurrentVenue founder otherVenue.id do
+                            callActionWithParams
+                                RunXeroTimesheetDiagnosticAction
+                                [("submissionId", cs (inputValue submission.id))]
+                crossVenueResponse `responseStatusShouldBe` status200
+                crossVenueResponse `responseBodyShouldContain` "No Xero submission was found for the current support venue."
+                forM_ secrets \secret ->
+                    crossVenueResponse `responseBodyShouldNotContain` cs secret
+
+                missingIdResponse <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    callAction RunXeroTimesheetDiagnosticAction
+                blankIdResponse <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    callActionWithParams RunXeroTimesheetDiagnosticAction [("submissionId", "   ")]
+                malformedIdResponse <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    callActionWithParams RunXeroTimesheetDiagnosticAction [("submissionId", "not-a-uuid")]
+                oversizedIdResponse <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
+                    callActionWithParams RunXeroTimesheetDiagnosticAction [("submissionId", ByteString.replicate 65 97)]
+                forM_ [missingIdResponse, blankIdResponse, malformedIdResponse, oversizedIdResponse] \invalidResponse -> do
+                    invalidResponse `responseStatusShouldBe` status200
+                    invalidResponse `responseBodyShouldContain` "Enter a valid Bepis Xero submission ID."
+                    forM_ secrets \secret ->
+                        invalidResponse `responseBodyShouldNotContain` cs secret
 
         it "starts a signed impersonation session with distinct actual and effective context" $ withContext do
             withCleanDb do

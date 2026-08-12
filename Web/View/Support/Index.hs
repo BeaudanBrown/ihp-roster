@@ -23,6 +23,9 @@ import Application.PublicHolidays.Coverage (PublicHolidayCoverageStatus (..),
                                             PublicHolidayCoverageYear (..),
                                             publicHolidayCoverageHasWarning)
 import Application.Support.LiveUpdates (supportSurface)
+import Application.Xero.Timesheets.Diagnostic (XeroTimesheetDiagnostic (..),
+                                               XeroTimesheetDiagnosticLine (..),
+                                               XeroTimesheetDiagnosticSnapshot (..))
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
@@ -52,6 +55,9 @@ data IndexView = IndexView
     , activePublicHolidayRefreshJob :: Maybe AppJob
     , feedbackRows                  :: [SupportFeedbackRow]
     , unreadFeedbackCount           :: Int
+    , xeroDiagnosticSubmissionId    :: Text
+    , xeroTimesheetDiagnostic       :: Maybe XeroTimesheetDiagnostic
+    , xeroTimesheetDiagnosticError  :: Maybe Text
     }
 
 data SupportFeedbackRow = SupportFeedbackRow
@@ -88,6 +94,8 @@ instance View IndexView where
                     |]
             feedbackPanel =
                 renderFeedbackPanel unreadFeedbackCount feedbackRows
+            xeroDiagnosticPanel =
+                renderXeroTimesheetDiagnosticPanel xeroDiagnosticSubmissionId xeroTimesheetDiagnostic xeroTimesheetDiagnosticError
             signInMethodsPanel =
                 simpleAppPanel
                     "Sign-In Methods"
@@ -113,6 +121,7 @@ instance View IndexView where
                     , appPageBody = [hsx|
                         <div class="app-page-stack">
                             {feedbackPanel}
+                            {xeroDiagnosticPanel}
                             {signInMethodsPanel}
                             {awardRatesPanel}
                             {publicHolidaysPanel}
@@ -125,6 +134,115 @@ instance View IndexView where
                 {renderFrontendSurfaceMount supportSurface page}
             </section>
         |]
+
+renderXeroTimesheetDiagnosticPanel :: Text -> Maybe XeroTimesheetDiagnostic -> Maybe Text -> Html
+renderXeroTimesheetDiagnosticPanel submissionId maybeDiagnostic maybeError =
+    simpleAppPanel
+        "Xero Timesheet Diagnostic"
+        (Just "Read the current Xero draft and compare it with Bepis's persisted request and response. Provider and employee identifiers remain redacted.")
+        [hsx|
+            <form method="POST" action={RunXeroTimesheetDiagnosticAction} class="row g-3">
+                <div class="col-12 col-lg-9">
+                    <label class="form-label" for="support-xero-submission-id">Bepis submission ID</label>
+                    <input
+                        id="support-xero-submission-id"
+                        class={classes [("form-control", True), ("is-invalid", isJust maybeError)]}
+                        type="text"
+                        name="submissionId"
+                        value={submissionId}
+                        required="required"
+                        autocomplete="off"
+                    />
+                    <div class="form-text">Switch to the affected venue first. This does not write payroll data.</div>
+                    {renderXeroDiagnosticError maybeError}
+                </div>
+                <div class="col-12 col-lg-3 d-flex align-items-end">
+                    <button class="btn btn-outline-primary w-100" type="submit">Run diagnostic</button>
+                </div>
+            </form>
+            {maybe mempty renderXeroTimesheetDiagnostic maybeDiagnostic}
+        |]
+
+renderXeroDiagnosticError :: Maybe Text -> Html
+renderXeroDiagnosticError Nothing = mempty
+renderXeroDiagnosticError (Just message) = [hsx|<div class="invalid-feedback">{message}</div>|]
+
+renderXeroTimesheetDiagnostic :: XeroTimesheetDiagnostic -> Html
+renderXeroTimesheetDiagnostic diagnostic = [hsx|
+    <div class="d-flex flex-column gap-3 mt-4">
+        <dl class="row small mb-0">
+            <dt class="col-sm-3">Submission ref</dt>
+            <dd class="col-sm-9"><code>{diagnostic.diagnosticSubmissionRef}</code></dd>
+            <dt class="col-sm-3">Timesheet ref</dt>
+            <dd class="col-sm-9"><code>{diagnostic.diagnosticTimesheetRef}</code></dd>
+            <dt class="col-sm-3">Employee ref</dt>
+            <dd class="col-sm-9"><code>{diagnostic.diagnosticEmployeeRef}</code></dd>
+            <dt class="col-sm-3">Period</dt>
+            <dd class="col-sm-9">{tshow diagnostic.diagnosticPeriodStart} – {tshow diagnostic.diagnosticPeriodEnd}</dd>
+        </dl>
+        {forEach diagnostic.diagnosticSnapshots renderXeroDiagnosticSnapshot}
+    </div>
+|]
+
+renderXeroDiagnosticSnapshot :: XeroTimesheetDiagnosticSnapshot -> Html
+renderXeroDiagnosticSnapshot snapshot = [hsx|
+    <section class="d-flex flex-column gap-2">
+        <div class="d-flex flex-wrap justify-content-between gap-2">
+            <h3 class="h6 mb-0">{snapshot.diagnosticSnapshotLabel}</h3>
+            <div class="small app-muted">
+                Status: {fromMaybe "Not reported" snapshot.diagnosticSnapshotStatus}
+                · Updated: {fromMaybe "Not reported" snapshot.diagnosticSnapshotProviderUpdatedAt}
+                · Validation errors: {diagnosticValidationErrorsLabel snapshot.diagnosticSnapshotHasValidationErrors}
+            </div>
+        </div>
+        {if null snapshot.diagnosticSnapshotLines then renderEmptyState "No timesheet lines were reported." else renderXeroDiagnosticLines snapshot.diagnosticSnapshotLines}
+    </section>
+|]
+
+diagnosticValidationErrorsLabel :: Bool -> Text
+diagnosticValidationErrorsLabel True  = "yes"
+diagnosticValidationErrorsLabel False = "no"
+
+renderXeroDiagnosticLines :: [XeroTimesheetDiagnosticLine] -> Html
+renderXeroDiagnosticLines lines = [hsx|
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Line</th>
+                    <th>Earnings rate ref</th>
+                    <th>Units</th>
+                    <th>Pay item</th>
+                    <th>Rate type</th>
+                    <th>Unit type</th>
+                    <th>Rate</th>
+                    <th>Reference sync</th>
+                </tr>
+            </thead>
+            <tbody>{forEach lines renderXeroDiagnosticLine}</tbody>
+        </table>
+    </div>
+|]
+
+renderXeroDiagnosticLine :: XeroTimesheetDiagnosticLine -> Html
+renderXeroDiagnosticLine line = [hsx|
+    <tr>
+        <td>{tshow line.diagnosticLineOrdinal}</td>
+        <td><code>{fromMaybe "missing" line.diagnosticLineEarningsRateRef}</code></td>
+        <td>{Text.intercalate ", " (map tshow line.diagnosticLineUnits)}</td>
+        <td>{renderXeroDiagnosticPayItemStatus line}</td>
+        <td>{fromMaybe "Not found" line.diagnosticLineRateType}</td>
+        <td>{fromMaybe "Not found" line.diagnosticLineTypeOfUnits}</td>
+        <td>{maybe "Not found" tshow line.diagnosticLineRatePerUnit}</td>
+        <td>{maybe "Not found" formatTimestamp line.diagnosticLineReferenceSyncedAt}</td>
+    </tr>
+|]
+
+renderXeroDiagnosticPayItemStatus :: XeroTimesheetDiagnosticLine -> Html
+renderXeroDiagnosticPayItemStatus line
+    | not line.diagnosticLinePayItemFound = [hsx|<span class="badge text-bg-danger">not found</span>|]
+    | line.diagnosticLineActive == Just True && line.diagnosticLineProviderAvailable == Just True = [hsx|<span class="badge text-bg-success">active</span>|]
+    | otherwise = [hsx|<span class="badge text-bg-warning">unavailable</span>|]
 
 renderFeedbackPanel :: Int -> [SupportFeedbackRow] -> Html
 renderFeedbackPanel unreadCount feedbackRows =

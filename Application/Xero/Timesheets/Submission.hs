@@ -286,9 +286,7 @@ submitExistingSubmission xeroClient accessToken connection submission =
 persistedWriteOperation :: XeroTimesheetSubmission -> Either Text XeroTimesheetWriteOperation
 persistedWriteOperation submission =
     xeroTimesheetWriteOperationFromPersistence
-        submission.xeroEmployeeId
-        submission.payPeriodStart
-        submission.payPeriodEnd
+        (unpackId submission.id)
         submission.idempotencyKey
         submission.requestPayloadJson
 
@@ -342,7 +340,7 @@ performXeroTimesheetWrite xeroClient accessToken connection submission operation
         InitialXeroTimesheetCreate -> create
         UpdateXeroTimesheetDraft timesheetId ->
             updateTimesheet xeroClient accessToken connection.tenantId submission.idempotencyKey timesheetId submission.requestPayloadJson
-        ReplaceMissingXeroTimesheetDraft _ -> create
+        ReplaceMissingXeroTimesheetDraft -> create
   where
     create = createTimesheet xeroClient accessToken connection.tenantId submission.idempotencyKey submission.requestPayloadJson
 
@@ -397,15 +395,15 @@ recoverFromReconciliation ::
     IO XeroTimesheetSubmission
 recoverFromReconciliation remainingRecoveries xeroClient accessToken connection submission operation now writeError decision =
     case (operation, decision) of
-        (UpdateXeroTimesheetDraft priorTimesheetId, CreateXeroTimesheet) ->
-            continueWith (ReplaceMissingXeroTimesheetDraft priorTimesheetId)
+        (UpdateXeroTimesheetDraft _, CreateXeroTimesheet) ->
+            continueWith ReplaceMissingXeroTimesheetDraft
         (_, UpdateXeroDraft timesheetId) -> continueWith (UpdateXeroTimesheetDraft timesheetId)
         (_, blocked@BlockXeroNonDraft {}) -> block blocked
         (_, blocked@BlockDistinctXeroTimesheets {}) -> block blocked
         (_, blocked@BlockUnknownXeroStatus {}) -> block blocked
         (_, blocked@BlockMissingXeroTimesheetId {}) -> block blocked
         (InitialXeroTimesheetCreate, CreateXeroTimesheet) -> failOriginal
-        (ReplaceMissingXeroTimesheetDraft _, CreateXeroTimesheet) -> failOriginal
+        (ReplaceMissingXeroTimesheetDraft, CreateXeroTimesheet) -> failOriginal
         (_, ReplaceMissingXeroDraft _) -> failOriginal
         (_, XeroSubmissionInProgress) -> failOriginal
   where
@@ -435,19 +433,20 @@ transitionSubmissionOperationAfterAttempt ::
     XeroTimesheetWriteOperation ->
     IO XeroTimesheetSubmission
 transitionSubmissionOperationAfterAttempt submission now writeError operation =
-    submission
-        |> set #status XeroTimesheetSubmissionStatusEnumPending
-        |> set #idempotencyKey (operationIdempotencyKey submission operation)
-        |> set #requestPayloadJson (xeroTimesheetRequestForOperation operation submission.requestPayloadJson)
-        |> set #responsePayloadJson (Aeson.object ["error" Aeson..= xeroClientErrorText writeError])
-        |> set #attemptCount (submission.attemptCount + 1)
-        |> set #lastError (Just (xeroClientErrorText writeError))
-        |> set #submittedAt (Just now)
-        |> updateRecord
+    let nextOperationSequence = submission.attemptCount + 1
+     in submission
+            |> set #status XeroTimesheetSubmissionStatusEnumPending
+            |> set #idempotencyKey (operationIdempotencyKey submission nextOperationSequence operation)
+            |> set #requestPayloadJson (xeroTimesheetRequestForOperation operation submission.requestPayloadJson)
+            |> set #responsePayloadJson (Aeson.object ["error" Aeson..= xeroClientErrorText writeError])
+            |> set #attemptCount nextOperationSequence
+            |> set #lastError (Just (xeroClientErrorText writeError))
+            |> set #submittedAt (Just now)
+            |> updateRecord
 
-operationIdempotencyKey :: XeroTimesheetSubmission -> XeroTimesheetWriteOperation -> Text
+operationIdempotencyKey :: XeroTimesheetSubmission -> Int -> XeroTimesheetWriteOperation -> Text
 operationIdempotencyKey submission =
-    xeroTimesheetWriteIdempotencyKey submission.xeroEmployeeId submission.payPeriodStart submission.payPeriodEnd
+    xeroTimesheetWriteIdempotencyKey (unpackId submission.id)
 
 xeroTimesheetSubmissionRequestJson :: XeroTimesheetPreview -> Aeson.Value
 xeroTimesheetSubmissionRequestJson preview =
