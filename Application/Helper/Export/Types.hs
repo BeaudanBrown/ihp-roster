@@ -28,10 +28,9 @@ data FixedExportDefinition = FixedExportDefinition
     deriving (Eq, Show)
 
 data ReportWeekSelection = ReportWeekSelection
-    { weekOffset :: !Int
-    , weekStart  :: !Day
-    , weekEnd    :: !Day
-    , dayLabels  :: ![Text]
+    { weekStart :: !Day
+    , weekEnd   :: !Day
+    , dayLabels :: ![Text]
     }
     deriving (Eq, Show)
 

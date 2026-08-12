@@ -35,6 +35,16 @@ surface_offset_fields="$(
 [[ -z "$surface_offset_fields" ]] \
     || fail $'Roster/Timesheets Surface contracts must use explicit windows, not weekOffset:\n'"$surface_offset_fields"
 
+payroll_offset_fields="$(
+    rg -n 'WeekOffset|weekOffset|week_offset' \
+        Application/Helper/Export/Definitions.hs \
+        Application/Helper/Export/Types.hs \
+        Application/Xero/Timesheets \
+        || true
+)"
+[[ -z "$payroll_offset_fields" ]] \
+    || fail $'Payroll export/Xero authority must use explicit Operational-date ranges, not legacy offsets:\n'"$payroll_offset_fields"
+
 legacy_authority_queries="$(
     rg -n 'filterWhere[[:space:]]*\(#weekOffset|week_offset[[:space:]]*=' \
         Application/RosterPublication.hs \
