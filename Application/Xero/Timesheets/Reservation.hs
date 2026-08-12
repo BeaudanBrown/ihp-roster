@@ -5,6 +5,7 @@
 module Application.Xero.Timesheets.Reservation
     ( XeroTimesheetReservation (..)
     , XeroTimesheetReservationOutcome (..)
+    , failAbandonedXeroTimesheetSubmissionsForPeriod
     , reserveXeroTimesheetSubmissionRun
     , reviewXeroTimesheetReservations
     ) where
@@ -13,13 +14,16 @@ import Application.Helper.Xero.Types (XeroTimesheetRef (..))
 import Application.Xero.Timesheets.ProviderWrite
 import Application.Xero.Timesheets.Reconciliation
 import Application.Xero.Timesheets.ReconciliationReview
-import Application.Xero.WorkflowState (xeroSubmissionIsInProgress)
+import Application.Xero.WorkflowState (xeroSubmissionIsInProgress,
+                                       xeroSubmissionIsSuperseded,
+                                       xeroSubmissionRunStatusFromStatuses)
 import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.List as List
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
+import Data.Time.Clock (NominalDiffTime, diffUTCTime)
 import qualified Database.PostgreSQL.Simple as PG
 import Generated.Types
 import qualified Hasql.Errors as Hasql
@@ -122,11 +126,78 @@ reconcileReservation ::
     XeroTimesheetReservation ->
     IO (XeroTimesheetReservation, Maybe XeroTimesheetSubmission, XeroTimesheetReconciliationDecision)
 reconcileReservation remoteTimesheets reservation = do
-    existing <- fetchActiveReservation reservation
+    active <- fetchActiveReservation reservation
+    existing <- mapM failAbandonedPendingSubmission active
     let local = existingSubmission <$> existing
         scopedRemote = filter (remoteMatchesReservation reservation) remoteTimesheets
         decision = reconcileXeroTimesheet local scopedRemote
     pure (reservation, existing, decision)
+
+stalePendingTimeout :: NominalDiffTime
+stalePendingTimeout = 120
+
+failAbandonedXeroTimesheetSubmissionsForPeriod ::
+    (?modelContext :: ModelContext) =>
+    UUID ->
+    Day ->
+    Day ->
+    IO ()
+failAbandonedXeroTimesheetSubmissionsForPeriod connectionId periodStart periodEnd = do
+    pendingSubmissions <-
+        query @XeroTimesheetSubmission
+            |> filterWhere (#xeroConnectionId, connectionId)
+            |> filterWhere (#payPeriodStart, periodStart)
+            |> filterWhere (#payPeriodEnd, periodEnd)
+            |> filterWhere (#status, XeroTimesheetSubmissionStatusEnumPending)
+            |> fetch
+    void (mapM failAbandonedPendingSubmission pendingSubmissions)
+
+abandonedPendingMessage :: Text
+abandonedPendingMessage =
+    "Bepis could not confirm whether Xero received this timesheet because the submission was interrupted. Check Xero, then start a fresh preparation to retry."
+
+failAbandonedPendingSubmission ::
+    (?modelContext :: ModelContext) =>
+    XeroTimesheetSubmission ->
+    IO XeroTimesheetSubmission
+failAbandonedPendingSubmission submission
+    | not (xeroSubmissionIsInProgress submission.status) = pure submission
+    | otherwise = do
+        now <- getCurrentTime
+        if diffUTCTime now submission.updatedAt < stalePendingTimeout
+            then pure submission
+            else do
+                failed <-
+                    submission
+                        |> set #status XeroTimesheetSubmissionStatusEnumFailed
+                        |> set #responsePayloadJson (Aeson.object ["error" Aeson..= abandonedPendingMessage, "outcome" Aeson..= ("uncertain" :: Text)])
+                        |> set #lastError (Just abandonedPendingMessage)
+                        |> set #submittedAt (Just now)
+                        |> updateRecord
+                refreshAbandonedSubmissionRun now failed
+                pure failed
+
+refreshAbandonedSubmissionRun ::
+    (?modelContext :: ModelContext) =>
+    UTCTime ->
+    XeroTimesheetSubmission ->
+    IO ()
+refreshAbandonedSubmissionRun now failedSubmission = do
+    let runId = Id failedSubmission.xeroSubmissionRunId :: Id XeroSubmissionRun
+    run <- fetch runId
+    submissions <-
+        query @XeroTimesheetSubmission
+            |> filterWhere (#xeroSubmissionRunId, failedSubmission.xeroSubmissionRunId)
+            |> fetch
+    let activeSubmissions = filter (not . xeroSubmissionIsSuperseded . (.status)) submissions
+        hasPending = any (xeroSubmissionIsInProgress . (.status)) activeSubmissions
+        errors = List.nub (mapMaybe (.lastError) activeSubmissions)
+    void $
+        run
+            |> set #status (xeroSubmissionRunStatusFromStatuses (map (.status) submissions))
+            |> set #completedAt (if hasPending then Nothing else Just now)
+            |> set #errorSummary (if null errors then Nothing else Just (Text.intercalate "\n" errors))
+            |> updateRecord
 
 existingSubmission :: XeroTimesheetSubmission -> ExistingXeroTimesheetSubmission
 existingSubmission submission =

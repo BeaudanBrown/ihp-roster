@@ -7,6 +7,7 @@ import Control.Concurrent.Async (concurrently)
 import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import Data.Either (isLeft)
+import Data.Time.Clock (addUTCTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
@@ -63,6 +64,45 @@ tests =
                     query @XeroTimesheetSubmission |> fetchCount >>= (`shouldBe` 1)
                     activeSubmissions <- activeFor fixture
                     map (.id) activeSubmissions `shouldBe` [submission.id]
+
+            it "fails an abandoned period reservation even when no replacement entry remains" $ withContext do
+                withCleanDb do
+                    fixture <- reservationFixture
+                    first <- reserve fixture fixture.entries
+                    (firstRun, firstSubmission) <- expectCreated first
+                    now <- getCurrentTime
+                    _ <- firstSubmission |> set #updatedAt (addUTCTime (-121) now) |> updateRecord
+
+                    failAbandonedXeroTimesheetSubmissionsForPeriod
+                        (unpackId fixture.connection.id)
+                        fixture.periodStart
+                        fixture.periodEnd
+
+                    abandoned <- fetch firstSubmission.id
+                    abandoned.status `shouldBe` XeroTimesheetSubmissionStatusEnumFailed
+                    abandoned.lastError `shouldSatisfy` maybe False ("could not confirm whether Xero received" `isInfixOf`)
+                    failedRun <- fetch firstRun.id
+                    failedRun.status `shouldBe` XeroSubmissionRunStatusEnumFailed
+                    failedRun.completedAt `shouldSatisfy` isJust
+
+            it "fails and supersedes an abandoned pending reservation after two minutes" $ withContext do
+                withCleanDb do
+                    fixture <- reservationFixture
+                    first <- reserve fixture fixture.entries
+                    (firstRun, firstSubmission) <- expectCreated first
+                    now <- getCurrentTime
+                    _ <- firstSubmission |> set #updatedAt (addUTCTime (-121) now) |> updateRecord
+
+                    second <- reserve fixture fixture.entries
+                    (_, secondSubmission) <- expectCreated second
+
+                    abandoned <- fetch firstSubmission.id
+                    abandoned.status `shouldBe` XeroTimesheetSubmissionStatusEnumSuperseded
+                    abandoned.lastError `shouldSatisfy` maybe False ("could not confirm whether Xero received" `isInfixOf`)
+                    failedRun <- fetch firstRun.id
+                    failedRun.status `shouldBe` XeroSubmissionRunStatusEnumFailed
+                    failedRun.completedAt `shouldSatisfy` isJust
+                    secondSubmission.status `shouldBe` XeroTimesheetSubmissionStatusEnumPending
 
             it "rejects a mixed pending and unreserved employee batch without omitting work" $ withContext do
                 withCleanDb do

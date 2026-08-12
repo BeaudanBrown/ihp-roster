@@ -51,7 +51,7 @@ tests =
                 , response 503
                 , response 504
                 ]
-                `shouldBe` replicate 6 PreservePendingXeroTimesheetWrite
+                `shouldBe` replicate 6 FailUncertainXeroTimesheetWrite
             map (xeroTimesheetWriteFailureAction InitialXeroTimesheetCreate)
                 [ response 400
                 , response 404

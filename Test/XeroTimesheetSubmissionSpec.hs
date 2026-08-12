@@ -128,8 +128,6 @@ tests =
 
                     refreshedFirst <- fetch firstSubmission.id
                     refreshedFirst.status `shouldBe` XeroTimesheetSubmissionStatusEnumSuperseded
-                    retryXeroDraftTimesheetSubmission refreshedFirst.id
-                        `shouldReturn` Left "Xero timesheet submission has been superseded by a newer attempt."
                     secondSubmission.idempotencyKey
                         `shouldSatisfy` ("xero-timesheet:replace:employee-a:" `Text.isPrefixOf`)
                     secondSubmission.idempotencyKey `shouldSatisfy` ("timesheet-id" `Text.isSuffixOf`)
@@ -321,12 +319,12 @@ tests =
                     submission.idempotencyKey `shouldSatisfy` ("xero-timesheet:replace:employee-a:" `Text.isPrefixOf`)
                     submission.idempotencyKey `shouldSatisfy` ("timesheet-id" `Text.isSuffixOf`)
 
-            it "keeps an indeterminate write pending and recovers by reconciliation with the same key" $ withContext do
+            it "fails an uncertain write with guidance to reconcile through fresh preparation" $ withContext do
                 withCleanDb do
                     fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                     prepareConnectionForStrictMock fixture.connection
 
-                    initialResult <-
+                    result <-
                         submitWithStrictResponses
                             identitySpec
                             payrollSpec
@@ -334,36 +332,16 @@ tests =
                             [emptyTimesheetsResponse]
                             [XeroMock.jsonResponse status504 (Aeson.object ["error" Aeson..= ("timeout" :: Text)])]
                             []
-                    initialRun <- expectRun initialResult
-                    pendingSubmission <- onlySubmissionForRun initialRun
-                    let stableKey = pendingSubmission.idempotencyKey
-                    initialRun.status `shouldBe` XeroSubmissionRunStatusEnumPending
-                    initialRun.completedAt `shouldBe` Nothing
-                    pendingSubmission.status `shouldBe` XeroTimesheetSubmissionStatusEnumPending
-                    pendingSubmission.attemptCount `shouldBe` 1
+                    run <- expectRun result
+                    submission <- onlySubmissionForRun run
+                    run.status `shouldBe` XeroSubmissionRunStatusEnumFailed
+                    run.completedAt `shouldSatisfy` isJust
+                    submission.status `shouldBe` XeroTimesheetSubmissionStatusEnumFailed
+                    submission.attemptCount `shouldBe` 1
+                    submission.lastError `shouldSatisfy` maybe False ("could not confirm whether Xero received" `Text.isInfixOf`)
+                    submission.lastError `shouldSatisfy` maybe False ("start a fresh preparation" `Text.isInfixOf`)
 
-                    retryResult <-
-                        XeroMock.withStrictXeroMockTimesheetResponses
-                            identitySpec
-                            payrollSpec
-                            [timesheetsResponse fixture "employee-a" "DRAFT"]
-                            [successfulTimesheetResponse]
-                            []
-                            \urls ->
-                                withXeroRequestBaseUrlsForTest urls do
-                                    withXeroConfigForTest (Right testXeroConfig) do
-                                        retryXeroDraftTimesheetSubmission pendingSubmission.id
-                    case retryResult of
-                        Left message -> expectationFailure (cs message)
-                        Right recovered -> do
-                            recovered.status `shouldBe` XeroTimesheetSubmissionStatusEnumSubmitted
-                            recovered.attemptCount `shouldBe` 2
-                            recovered.idempotencyKey `shouldBe` stableKey
-                            refreshedRun <- fetch initialRun.id
-                            refreshedRun.status `shouldBe` XeroSubmissionRunStatusEnumSubmitted
-                            refreshedRun.completedAt `shouldSatisfy` isJust
-
-            it "keeps a multi-employee run pending when one write is indeterminate" $ withContext do
+            it "marks a multi-employee run partially failed when one write outcome is uncertain" $ withContext do
                 withCleanDb do
                     fixture <-
                         createPreviewFixture
@@ -386,10 +364,10 @@ tests =
                     run <- expectRun result
                     submissions <- submissionsForRun run
 
-                    run.status `shouldBe` XeroSubmissionRunStatusEnumPending
-                    run.completedAt `shouldBe` Nothing
+                    run.status `shouldBe` PartiallyFailed
+                    run.completedAt `shouldSatisfy` isJust
                     sort (map (.status) submissions)
-                        `shouldBe` [XeroTimesheetSubmissionStatusEnumPending, XeroTimesheetSubmissionStatusEnumSubmitted]
+                        `shouldBe` [XeroTimesheetSubmissionStatusEnumSubmitted, XeroTimesheetSubmissionStatusEnumFailed]
 
             it "submits only mapped employees assigned to the selected synced Xero payroll calendar" $ withContext do
                 withCleanDb do
@@ -483,42 +461,6 @@ tests =
                             submissions <- submissionsForRun run
                             sort (map (.status) submissions) `shouldBe` [XeroTimesheetSubmissionStatusEnumSubmitted, XeroTimesheetSubmissionStatusEnumFailed]
                             run.errorSummary `shouldSatisfy` maybe False ("ValidationException" `isInfixOf`)
-
-            it "retries a failed submission with the persisted idempotency key and submission row" $ withContext do
-                withCleanDb do
-                    fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
-                    prepareConnectionForStrictMock fixture.connection
-
-                    initialResult <-
-                        XeroMock.withStrictXeroMockTimesheetCreateResponses identitySpec payrollSpec [transportFailureResponse] \urls ->
-                            withXeroRequestBaseUrlsForTest urls do
-                                withXeroConfigForTest (Right testXeroConfig) do
-                                    submitXeroDraftTimesheets fixture.owner.id fixture.request
-
-                    failedSubmission <-
-                        case initialResult of
-                            Left message -> expectationFailure (cs message) >> error "unreachable"
-                            Right run -> onlySubmissionForRun run
-                    let originalSubmissionId = failedSubmission.id
-                        originalIdempotencyKey = failedSubmission.idempotencyKey
-
-                    retryResult <-
-                        XeroMock.withStrictXeroMock identitySpec payrollSpec \urls ->
-                            withXeroRequestBaseUrlsForTest urls do
-                                withXeroConfigForTest (Right testXeroConfig) do
-                                    retryXeroDraftTimesheetSubmission failedSubmission.id
-
-                    case retryResult of
-                        Left message -> expectationFailure (cs message)
-                        Right retriedSubmission -> do
-                            retriedSubmission.id `shouldBe` originalSubmissionId
-                            retriedSubmission.status `shouldBe` XeroTimesheetSubmissionStatusEnumSubmitted
-                            retriedSubmission.attemptCount `shouldBe` 2
-                            retriedSubmission.idempotencyKey `shouldBe` originalIdempotencyKey
-                            submissions <- submissionsForRunId retriedSubmission.xeroSubmissionRunId
-                            submissions `shouldSatisfy` ((== 1) . length)
-                            run <- fetch (Id retriedSubmission.xeroSubmissionRunId :: Id XeroSubmissionRun)
-                            run.status `shouldBe` XeroSubmissionRunStatusEnumSubmitted
 
 submitWithStrictResponses ::
     (?modelContext :: ModelContext) =>

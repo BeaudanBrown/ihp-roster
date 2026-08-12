@@ -23,7 +23,8 @@ import Application.VenueTime.Model (ShiftBoundaryInput (..),
                                     authoritativeElapsedSeconds,
                                     resolveShiftBoundaries,
                                     storedInstantOccurrence,
-                                    timesheetEntryElapsedSeconds)
+                                    timesheetEntryElapsedSeconds,
+                                    timesheetEntryWorkedOn)
 import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar)
 import Control.Exception (SomeException, try)
@@ -32,7 +33,7 @@ import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
-import Data.Time.Clock (UTCTime (..), getCurrentTime, utctDay)
+import Data.Time.Clock (UTCTime (..), addUTCTime, getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude
@@ -2767,6 +2768,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Una" "Shift"
                 entry <- createApprovedTimesheetEntryRecord venue staff manager (fromGregorian 2025 1 8)
+                recordPayrollAuditProvenance venue manager entry
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams UnapproveTimesheetEntryAction { timesheetEntryId = entry.id }
@@ -2787,6 +2789,7 @@ tests = aroundAll withDatabaseTestContext do
                 auditEvent <- query @AuditEvent |> fetchOne
                 auditEvent.eventType `shouldBe` "timesheet_unapproved"
                 auditEvent.targetId `shouldBe` unpackId entry.id
+                assertPayrollAuditProvenanceRetained entry
 
         it "writes an audit event when editing resets a prior approval" $ withContext do
             withCleanDb do
@@ -2797,6 +2800,7 @@ tests = aroundAll withDatabaseTestContext do
                 payLevel <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
                 entry <- createApprovedTimesheetEntryRecord venue staff manager (fromGregorian 2025 1 9)
+                recordPayrollAuditProvenance venue manager entry
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (UpdateTimesheetEntryAction entry.id)
@@ -2821,6 +2825,7 @@ tests = aroundAll withDatabaseTestContext do
                 auditEvent <- query @AuditEvent |> fetchOne
                 auditEvent.eventType `shouldBe` "timesheet_approval_reset"
                 auditEvent.targetId `shouldBe` unpackId entry.id
+                assertPayrollAuditProvenanceRetained entry
 
         it "records a version row before deleting an unapproved timesheet entry" $ withContext do
             withCleanDb do
@@ -2851,6 +2856,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue manager Manager
                 staff <- createStaffRecord venue Nothing "Ada" "Shift"
                 entry <- createApprovedTimesheetEntryRecord venue staff manager (fromGregorian 2025 1 11)
+                recordPayrollAuditProvenance venue manager entry
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (DeleteTimesheetEntryAction entry.id)
@@ -2864,6 +2870,79 @@ tests = aroundAll withDatabaseTestContext do
 
                 versionCount <- query @TimesheetEntryVersion |> fetchCount
                 versionCount `shouldBe` 1
+                assertPayrollAuditProvenanceRetained entry
+
+recordPayrollAuditProvenance ::
+    (?modelContext :: ModelContext) =>
+    Venue ->
+    User ->
+    TimesheetEntry ->
+    IO ()
+recordPayrollAuditProvenance venue actor entry = do
+    now <- getCurrentTime
+    let staffPayVersionId = fromMaybe (error "approved fixture missing staff pay version") entry.staffPayVersionId
+        shiftTypePayVersionId = fromMaybe (error "approved fixture missing shift type pay version") entry.shiftTypePayVersionId
+        approvedAt = fromMaybe (error "approved fixture missing approval timestamp") entry.approvedAt
+    exportJob <-
+        newRecord @ExportJob
+            |> set #venueId (unpackId venue.id)
+            |> set #requestedByUserId (unpackId actor.id)
+            |> set #exportType ("approved_timesheets_csv" :: Text)
+            |> set #status ("ready" :: Text)
+            |> set #expiresAt (addUTCTime 3600 now)
+            |> createRecord
+    _ <-
+        newRecord @ExportJobEntry
+            |> set #exportJobId (unpackId exportJob.id)
+            |> set #timesheetEntryId (unpackId entry.id)
+            |> set #staffPayVersionId staffPayVersionId
+            |> set #shiftTypePayVersionId shiftTypePayVersionId
+            |> set #entryUpdatedAtAtExport entry.updatedAt
+            |> set #entryApprovedAtAtExport approvedAt
+            |> createRecord
+    connection <- createXeroConnectionRecord venue actor "timesheet-audit-provenance"
+    submissionRun <-
+        newRecord @XeroSubmissionRun
+            |> set #venueId (unpackId venue.id)
+            |> set #xeroConnectionId (unpackId connection.id)
+            |> set #submittedByUserId (unpackId actor.id)
+            |> set #payPeriodStart (timesheetEntryWorkedOn entry)
+            |> set #payPeriodEnd (timesheetEntryWorkedOn entry)
+            |> set #status XeroSubmissionRunStatusEnumSubmitted
+            |> createRecord
+    submission <-
+        newRecord @XeroTimesheetSubmission
+            |> set #xeroSubmissionRunId (unpackId submissionRun.id)
+            |> set #venueId (unpackId venue.id)
+            |> set #xeroConnectionId (unpackId connection.id)
+            |> set #staffId entry.staffId
+            |> set #xeroEmployeeId ("audit-employee" :: Text)
+            |> set #payPeriodStart (timesheetEntryWorkedOn entry)
+            |> set #payPeriodEnd (timesheetEntryWorkedOn entry)
+            |> set #status XeroTimesheetSubmissionStatusEnumSubmitted
+            |> set #idempotencyKey ("audit-provenance" :: Text)
+            |> createRecord
+    _ <-
+        newRecord @XeroTimesheetSubmissionEntry
+            |> set #xeroTimesheetSubmissionId (unpackId submission.id)
+            |> set #timesheetEntryId (unpackId entry.id)
+            |> set #staffPayVersionId staffPayVersionId
+            |> set #shiftTypePayVersionId shiftTypePayVersionId
+            |> set #entryUpdatedAtAtPreview entry.updatedAt
+            |> set #entryApprovedAtAtPreview approvedAt
+            |> createRecord
+    pure ()
+
+assertPayrollAuditProvenanceRetained :: (?modelContext :: ModelContext) => TimesheetEntry -> IO ()
+assertPayrollAuditProvenanceRetained entry = do
+    query @ExportJobEntry
+        |> filterWhere (#timesheetEntryId, unpackId entry.id)
+        |> fetchCount
+        >>= (`shouldBe` 1)
+    query @XeroTimesheetSubmissionEntry
+        |> filterWhere (#timesheetEntryId, unpackId entry.id)
+        |> fetchCount
+        >>= (`shouldBe` 1)
 
 makeStaffTimesheetProducing :: (?modelContext :: ModelContext) => AwardLevel -> Staff -> IO Staff
 makeStaffTimesheetProducing payLevel staff =

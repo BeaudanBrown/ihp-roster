@@ -333,6 +333,16 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER prevent_hard_delete_xero_timesheet_submissions BEFORE DELETE ON xero_timesheet_submissions"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER prevent_hard_delete_xero_timesheet_submission_entries BEFORE DELETE ON xero_timesheet_submission_entries"
 
+    it "makes pre-deployment pending Xero submissions recoverable without deleting audit history" do
+        migrationSqlText <- TextIO.readFile "Application/Migration/1788000100.sql"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "UPDATE xero_timesheet_submissions"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "WHERE status = 'pending'"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "UPDATE xero_submission_runs AS run"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "'outcome', 'uncertain'"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DELETE FROM"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP TABLE"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP COLUMN"
+
     it "enforces case-insensitive uniqueness for login emails" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         schemaSqlText `shouldSatisfy`

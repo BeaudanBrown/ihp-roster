@@ -101,8 +101,10 @@ only their own; managers see their normal venue scope.
 - Approval enters the shared strict wage-source boundary and is all-or-nothing.
   Approved/final reads consume sealed immutable ledger facts and never
   recalculate mutable rates.
-- Xero and exports consume approved locked facts; no subsystem may introduce a
-  parallel payroll calculation path.
+- Xero and exports consume approved sealed facts; no subsystem may introduce a
+  parallel payroll calculation path. Export and Xero source snapshots are immutable
+  audit history, but they never lock the Timesheet entry. A core edit resets approval;
+  corrected entries must be reapproved before a fresh export or Xero preparation.
 
 ## Live Updates
 

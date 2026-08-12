@@ -31,7 +31,7 @@ data XeroTimesheetWriteOperation
 data XeroTimesheetWriteFailureAction
     = RefetchAfterMissingUpdate
     | RefetchAfterCreateConflict
-    | PreservePendingXeroTimesheetWrite
+    | FailUncertainXeroTimesheetWrite
     | FailXeroTimesheetWrite
     deriving (Eq, Show)
 
@@ -126,10 +126,10 @@ requestTimesheetId _ = Nothing
 xeroTimesheetWriteFailureAction :: XeroTimesheetWriteOperation -> XeroClientError -> XeroTimesheetWriteFailureAction
 xeroTimesheetWriteFailureAction operation error =
     case error of
-        XeroHttpError _ -> PreservePendingXeroTimesheetWrite
-        XeroDecodeError _ -> PreservePendingXeroTimesheetWrite
+        XeroHttpError _ -> FailUncertainXeroTimesheetWrite
+        XeroDecodeError _ -> FailUncertainXeroTimesheetWrite
         XeroHttpResponseError { statusCode }
-            | statusCode `elem` [408, 502, 503, 504] -> PreservePendingXeroTimesheetWrite
+            | statusCode `elem` [408, 502, 503, 504] -> FailUncertainXeroTimesheetWrite
             | statusCode == 404
             , UpdateXeroTimesheetDraft {} <- operation -> RefetchAfterMissingUpdate
             | statusCode == 409

@@ -404,8 +404,6 @@ instance Controller TimesheetsController where
                     ensureStaffAssignmentAllowedForExisting existingEntry timesheetEntry.staffId
                     ensureShiftTypeAllowedForExisting existingEntry timesheetEntry.shiftTypeId
                     let coreChanged = timesheetCoreChanged existingEntry timesheetEntry
-                    when (wasApproved && coreChanged) do
-                        ensureTimesheetEntryNotPayrollLocked existingEntry weekOffset viewFilters
                     let successMessage =
                             if wasApproved && coreChanged
                                 then "Timesheet entry updated (approval reset)"
@@ -427,7 +425,6 @@ instance Controller TimesheetsController where
 
         weekOffset <- weekOffsetFromParamOrEntry workedOn
         viewFilters <- canonicalTimesheetFilters timesheetFiltersFromRequest
-        ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset viewFilters
         mutationResult <- deleteTimesheetEntryMutation weekOffset timesheetEntry
         if isHtmxRequest
             then respondWithTimesheetMutationUpdate weekOffset viewFilters mutationResult.liveMutationTouchedResources "Timesheet entry removed" True
@@ -466,7 +463,6 @@ instance Controller TimesheetsController where
         state <- requireTimesheetSurfaceState parseUnapproveTimesheetEntryState
         let weekOffset = state.surfaceRequestWeekOffset
         viewFilters <- canonicalTimesheetFilters state.surfaceRequestFilters
-        ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset viewFilters
 
         mutationResult <- unapproveTimesheetEntryMutation weekOffset timesheetEntry
         if isHtmxRequest

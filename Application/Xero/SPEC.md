@@ -182,19 +182,28 @@ The exact paging, lease, retry, and trust implementation is authoritative in
 - Readiness, proposals, preview, and submission use the same venue-effective
   rate resolution and strict wage-source boundary. Any included calculation or
   source failure blocks the complete operation.
-- Submission consumes approved, locked Timesheet/pay facts. Every positive
+- Submission consumes approved, sealed Timesheet/pay facts. Every positive
   sealed earnings component is consumed exactly once; imported components retain
   their approval-pinned imported-item identity. Provider availability changes
-  cannot reroute sealed components.
+  cannot reroute sealed components. Submission source links retain immutable audit
+  snapshots but do not lock Timesheet entries; corrected entries reset approval and
+  enter Xero only after reapproval and a fresh preparation.
 - An effective staff-level imported Xero rate maps that staff member's imported
   components to the one approval-pinned Xero earnings rate; an explicit shift
   override still follows the shared pay-assignment precedence. Imported-rate
   selectors present the human Xero name before account-code metadata.
 - Xero quantities preserve canonical sealed units and precision. Xero remains
   payroll, tax, and STP authority; Bepis does not calculate tax.
-- Submitted entries require explicit correction/reversal behavior. Stable
-  idempotency is tied to employee, selected period, and create/update target—not
-  a transient local run.
+- A fresh preparation may update a matching Xero draft after local entries are
+  corrected and reapproved. Bepis does not delete or clear a prior Xero draft when
+  an employee no longer has approved local entries; owners resolve obsolete drafts
+  in Xero. Stable idempotency is tied to employee, selected period, and
+  create/update target—not a transient local run.
+- Provider outcomes that cannot be confirmed are recorded as failed with explicit
+  check-Xero guidance; persisted payloads are never replayed. Fresh preparation is
+  the only retry path. A pending reservation blocks concurrent writes for two
+  minutes, after which the next reconciliation fails it as abandoned and proceeds
+  from fresh provider state.
 
 Canonical calculation and bucket behavior lives in `Timesheets/Prepare.hs`,
 `Timesheets/Buckets.hs`, `Timesheets/Preview.hs`, `Timesheets/Submission.hs`, and
