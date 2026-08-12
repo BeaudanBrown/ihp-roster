@@ -746,6 +746,37 @@ CREATE TABLE public_holidays (
     UNIQUE(jurisdiction, holiday_date, name, region)
 );
 
+-- schema-nav: live-invalidations
+-- Durable handoff for typed Surface resources. Payloads are versioned JSON so
+-- adding a resource never requires database DDL.
+CREATE SEQUENCE live_invalidation_events_sequence_number_seq;
+CREATE TABLE live_invalidation_events (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    sequence_number INT DEFAULT nextval('live_invalidation_events_sequence_number_seq') NOT NULL UNIQUE,
+    source TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    CHECK ((char_length(btrim(source)) > 0) AND (char_length(source) <= 120))
+);
+CREATE TABLE live_invalidation_event_resources (
+    event_id UUID NOT NULL,
+    resource_key TEXT NOT NULL,
+    resource_payload JSONB NOT NULL,
+    PRIMARY KEY (event_id, resource_key),
+    FOREIGN KEY (event_id) REFERENCES live_invalidation_events (id) ON DELETE CASCADE,
+    CHECK (char_length(resource_key) <= 8192),
+    CHECK (octet_length(resource_payload::TEXT) <= 8192)
+);
+CREATE TABLE live_resource_versions (
+    resource_key TEXT PRIMARY KEY NOT NULL,
+    resource_payload JSONB NOT NULL,
+    latest_event_id UUID NOT NULL,
+    latest_event_sequence INT NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (latest_event_id) REFERENCES live_invalidation_events (id) ON DELETE RESTRICT,
+    CHECK (char_length(resource_key) <= 8192),
+    CHECK (octet_length(resource_payload::TEXT) <= 8192)
+);
+
 -- schema-nav: async-jobs
 CREATE TABLE app_jobs (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -1973,6 +2004,8 @@ CREATE INDEX idx_award_level_base_rates_lookup ON award_level_base_rates (award_
 CREATE INDEX idx_award_level_penalty_rates_lookup ON award_level_penalty_rates (award_level_id, employment_basis, penalty_kind, operative_from, operative_to);
 CREATE INDEX idx_award_time_penalty_allowances_lookup ON award_time_penalty_allowances (award_fixed_id, penalty_kind, operative_from, operative_to);
 CREATE INDEX idx_public_holidays_lookup ON public_holidays (jurisdiction, holiday_date);
+CREATE INDEX idx_live_invalidation_events_created_at ON live_invalidation_events (created_at, id);
+CREATE INDEX idx_live_invalidation_event_resources_resource_key ON live_invalidation_event_resources (resource_key);
 CREATE UNIQUE INDEX idx_public_holidays_unique_null_safe ON public_holidays (jurisdiction, holiday_date, name, COALESCE(region, ''));
 CREATE INDEX idx_app_jobs_pending ON app_jobs (status, run_at, created_at);
 CREATE INDEX idx_app_jobs_kind_created_at ON app_jobs (job_kind, created_at DESC);

@@ -24,6 +24,7 @@ import Application.Helper.FrontendContract.Surface.DependencyPlanner (SurfaceInv
                                                                       planFrontendSurfaceInvalidations)
 import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
 import Application.Helper.LiveUpdate.Runtime
+import Application.Helper.LiveUpdate.DurablePublisher (publishDurableInvalidation)
 import Application.Helper.Profiling (profileActionSpanWithDetail)
 import Application.Helper.SurfaceResource
 import qualified Data.Set as Set
@@ -66,6 +67,9 @@ invalidateTouchedResources label result =
     profileActionSpanWithDetail "surface_resources.invalidate" do
         startedAtNs <- getMonotonicTimeNSec
         (observed, observeDurationMs) <- measureDuration (recordLiveMutationDiagnostics label result)
+        -- Compatibility stage: publication follows the existing business commit;
+        -- #389/#390 move this into each business transaction.
+        _eventId <- publishDurableInvalidation label observed.liveMutationTouchedResources
         (activeSubscriptions, activeSubscriptionDurationMs) <- measureDuration activeSurfaceSubscriptions
         (activeRosterScopes, activeRosterDurationMs) <- measureDuration activeRosterWeekScopes
         let activeDurationMs = activeSubscriptionDurationMs + activeRosterDurationMs

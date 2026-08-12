@@ -11,6 +11,8 @@ import qualified Application.Helper.FrontendContract.Surface.Roster.Resource as 
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as TimesheetsSurface
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.SurfaceResource
+import Application.Helper.LiveUpdate.DurableCodec (DurableResource (..), decodeDurableResource, encodeDurableResource)
+import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import Data.UUID (nil)
 import IHP.Prelude
@@ -26,6 +28,24 @@ tests = do
             observed <- recordLiveMutationDiagnostics "test.disabled" result
             liveMutationValue observed `shouldBe` "ok"
             liveMutationTouchedResources observed `shouldBe` Set.fromList [AdminResource.adminVenueSettingsResource nil]
+
+        it "encodes registered resources as canonical versioned durable payloads" do
+            let resource = AdminResource.adminVenueSettingsResource nil
+            let Right encoded = encodeDurableResource resource
+            encoded.durableResourceKey `shouldBe` "admin-venue-settings:{\"venueId\":\"00000000-0000-0000-0000-000000000000\"}"
+            encoded.durableResourcePayload `shouldBe`
+                Aeson.object
+                    [ "version" Aeson..= (1 :: Int)
+                    , "resource" Aeson..= ("admin-venue-settings" :: Text)
+                    , "fields" Aeson..= Aeson.object ["venueId" Aeson..= nil]
+                    ]
+            decodeDurableResource encoded.durableResourceKey encoded.durableResourcePayload `shouldBe` Right encoded
+
+        it "rejects durable payloads with unknown resources, changed keys, or malformed fields" do
+            decodeDurableResource "unknown:{}" (Aeson.object ["version" Aeson..= (1 :: Int), "resource" Aeson..= ("unknown" :: Text), "fields" Aeson..= Aeson.object []])
+                `shouldBe` Left "unknown live resource"
+            decodeDurableResource "wrong-key" (Aeson.object ["version" Aeson..= (1 :: Int), "resource" Aeson..= ("admin-venue-settings" :: Text), "fields" Aeson..= Aeson.object ["venueId" Aeson..= ("not-a-uuid" :: Text)]])
+                `shouldBe` Left "malformed live resource field: venueId"
 
         it "constructs and matches declaration-complete typed resources" do
             let resourceValue =
