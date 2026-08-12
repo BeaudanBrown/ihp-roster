@@ -1453,6 +1453,7 @@ export function isAdminXeroAdminXeroPayItemImportWaitFragmentFragmentParams(valu
 
 export type VenueId = FrontendContractUuid;
 export type StaffFilterId = FrontendContractUuid;
+export type RosterGroupFilterId = FrontendContractUuid;
 export type RosterGroupId = FrontendContractUuid;
 export type UserId = FrontendContractUuid;
 export type TemplateId = FrontendContractUuid;

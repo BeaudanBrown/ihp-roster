@@ -11,11 +11,14 @@ module Application.Helper.FrontendContract.Surface.Timesheets.Action
     , parseCreateTimesheetEntryFromSuggestionActionParams
     , parseToggleTimesheetHideApprovedActionParams
     , parseToggleTimesheetShowSuggestionsActionParams
+    , parseToggleTimesheetWageEstimatesActionParams
     , parseUnapproveTimesheetEntryActionParams
     , toggleTimesheetHideApprovedAction
     , toggleTimesheetHideApprovedActionFields
     , toggleTimesheetShowSuggestionsAction
     , toggleTimesheetShowSuggestionsActionFields
+    , toggleTimesheetWageEstimatesAction
+    , toggleTimesheetWageEstimatesActionFields
     , unapproveTimesheetEntryAction
     , unapproveTimesheetEntryActionFields
     , updateTimesheetFiltersAction
@@ -34,11 +37,14 @@ import Application.Helper.FrontendContract.Surface.Timesheets.Generated.Action (
                                                                                 parseCreateTimesheetEntryFromSuggestionActionParams,
                                                                                 parseToggleTimesheetHideApprovedActionParams,
                                                                                 parseToggleTimesheetShowSuggestionsActionParams,
+                                                                                parseToggleTimesheetWageEstimatesActionParams,
                                                                                 parseUnapproveTimesheetEntryActionParams,
                                                                                 toggleTimesheetHideApprovedAction,
                                                                                 toggleTimesheetHideApprovedActionFields,
                                                                                 toggleTimesheetShowSuggestionsAction,
                                                                                 toggleTimesheetShowSuggestionsActionFields,
+                                                                                toggleTimesheetWageEstimatesAction,
+                                                                                toggleTimesheetWageEstimatesActionFields,
                                                                                 unapproveTimesheetEntryAction,
                                                                                 unapproveTimesheetEntryActionFields,
                                                                                 updateTimesheetFiltersAction,

@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import {
-    toggleInputDomAttr,
     toggleRootDomAttr,
 } from '../frontend/ts/generated/contracts';
 import {
@@ -31,8 +30,9 @@ test.describe('Roster notification workflow', () => {
 
             const liveToggle = page.locator('[data-week-toolbar="roster"]')
                 .locator(`[${toggleRootDomAttr}]`)
-                .filter({ hasText: 'Live' });
-            await expect(liveToggle.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
+                .filter({ hasText: 'Published' });
+            const publicationSwitch = liveToggle.getByRole('switch');
+            await expect(publicationSwitch).not.toBeChecked();
             await expect(page.locator('#roster-email-button')).toHaveCount(0);
             await expect(viewerPage.locator('#roster-email-button')).toHaveCount(0);
 
@@ -42,7 +42,7 @@ test.describe('Roster notification workflow', () => {
             );
             await liveToggle.click();
             expect((await publishResponse).ok()).toBe(true);
-            await expect(liveToggle.locator(`[${toggleInputDomAttr}]`)).toBeChecked();
+            await expect(publicationSwitch).toBeChecked();
             await expect(page.locator('#roster-email-button')).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
             await expect(viewerPage.locator('#roster-email-button')).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
 
@@ -52,7 +52,7 @@ test.describe('Roster notification workflow', () => {
             );
             await liveToggle.click();
             expect((await unpublishResponse).ok()).toBe(true);
-            await expect(liveToggle.locator(`[${toggleInputDomAttr}]`)).not.toBeChecked();
+            await expect(publicationSwitch).not.toBeChecked();
             await expect(page.locator('#roster-email-button')).toHaveCount(0);
             await expect(viewerPage.locator('#roster-email-button')).toHaveCount(0, { timeout: E2E_TIMEOUT.liveUpdate });
         } finally {

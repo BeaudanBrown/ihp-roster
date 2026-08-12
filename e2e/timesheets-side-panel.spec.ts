@@ -95,14 +95,14 @@ test.describe('Timesheets shared SidePanel', () => {
         const rosterGroupFilter = page.locator('#timesheet-roster-group-filter');
         await expect(rosterGroupFilter.locator(`option[value="${defaultE2ERosterGroupId}"]`)).toHaveText('Main');
 
-        await rosterGroupFilter.selectOption(defaultE2ERosterGroupId);
-        await expect(page).toHaveURL(new RegExp(`rosterGroupFilterId=${defaultE2ERosterGroupId}`), { timeout: E2E_TIMEOUT.navigation });
+        await rosterGroupFilter.selectOption(secondRosterGroupId);
+        await expect(page).toHaveURL(new RegExp(`rosterGroupFilterId=${secondRosterGroupId}`), { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('.timesheet-entry-card')).toHaveCount(0);
         await expect(page.locator(`[${timesheetsTimesheetSidePanelTabDomAttr}="settings"]`)).toHaveAttribute('aria-selected', 'true');
 
         await page.getByRole('link', { name: '>' }).click();
-        await expect(page).toHaveURL(new RegExp(`rosterGroupFilterId=${defaultE2ERosterGroupId}`), { timeout: E2E_TIMEOUT.navigation });
-        await expect(page.locator('#timesheet-roster-group-filter')).toHaveValue(defaultE2ERosterGroupId);
+        await expect(page).toHaveURL(new RegExp(`rosterGroupFilterId=${secondRosterGroupId}`), { timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('#timesheet-roster-group-filter')).toHaveValue(secondRosterGroupId);
         await expect(page.locator(`[${timesheetsTimesheetSidePanelTabDomAttr}="settings"]`)).toHaveAttribute('aria-selected', 'true');
     });
 
@@ -110,8 +110,8 @@ test.describe('Timesheets shared SidePanel', () => {
         runSql(`UPDATE roster_groups SET is_active = FALSE, updated_at = NOW() WHERE id = '${secondRosterGroupId}';`);
         await page.setViewportSize({ width: 1440, height: 900 });
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-        await gotoWhenReady(page, `/ShowTimesheetWeek?weekOffset=0&rosterGroupFilterId=${defaultE2ERosterGroupId}`, '#timesheet-week-shell');
-        await expect(page).toHaveURL(/\/ShowTimesheetWeek\?weekOffset=0$/);
+        await gotoWhenReady(page, `/Timesheets?rosterGroupFilterId=${defaultE2ERosterGroupId}`, '#timesheet-week-shell');
+        await expect(page).toHaveURL(/\/ShowTimesheetWindow\?anchorDate=\d{4}-\d{2}-\d{2}$/);
         await openTimesheetSettings(page);
         await expect(page.locator('#timesheet-roster-group-filter')).toHaveCount(0);
     });

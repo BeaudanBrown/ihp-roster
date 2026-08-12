@@ -143,6 +143,8 @@ timesheetDayModel panel =
         , dayWeekStartDate = panel.quickToolsTimesheetWeekStartDate
         , dayCalendarRevision = panel.quickToolsCalendarRevision
         , dayStaffFilterId = Nothing
+        , dayRosterGroupFilterId = Nothing
+        , dayWageEstimates = Nothing
         , dayOffset = operationalDayOffset
         }
 
@@ -155,7 +157,9 @@ timesheetSurface panel =
             , timesheetCalendarRevision = panel.quickToolsCalendarRevision
             }
         mountState = TimesheetsMountStateValue
-            { timesheetsMountStaffFilterId = Nothing }
+            { timesheetsMountStaffFilterId = Nothing
+            , timesheetsMountRosterGroupFilterId = Nothing
+            }
      in timesheetsDaySurfaceImpl scope mountState (quickToolsTimesheetDayOffset panel)
 
 quickToolsTimesheetDayOffset :: RosterStaffSelfServicePanel -> Int

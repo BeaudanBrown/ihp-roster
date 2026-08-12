@@ -254,22 +254,22 @@ test.describe('Live fragment multi-view coverage', () => {
         `);
         await gotoWhenReady(actorPage, '/LeaveRequests', '#leave-requests-content');
 
-        const leaveRow = actorPage.locator('#leave-requests-content article').filter({ hasText: note });
+        const pendingLeaveRow = actorPage.locator('#leave-requests-content article').filter({ hasText: note }).filter({ hasText: 'Pending' });
 
-        await expect(leaveRow).toContainText('Pending');
+        await expect(pendingLeaveRow).toContainText('Pending');
         await expect(viewerPage.locator('#roster-content')).toBeVisible();
         await expect(viewerTargetStaffCell).not.toHaveAttribute('title', /approved unavailable period/i);
 
         const approvalResponsePromise = actorPage.waitForResponse((response) =>
             response.request().method() === 'POST' && response.url().includes('/ApproveLeaveRequest'),
         );
-        await leaveRow.getByRole('button', { name: 'Approve' }).click();
+        await pendingLeaveRow.getByRole('button', { name: 'Approve' }).click();
         const approvalResponse = await approvalResponsePromise;
         expect(approvalResponse.status(), await approvalResponse.text()).toBe(200);
         await approvalResponse.finished();
 
-        await expect(leaveRow).toHaveCount(1, { timeout: E2E_TIMEOUT.liveUpdate });
-        await expect(leaveRow).toContainText('Approved');
+        const approvedLeaveRow = actorPage.locator('#leave-requests-content article').filter({ hasText: note }).filter({ hasText: 'Approved' });
+        await expect(approvedLeaveRow).toHaveCount(1, { timeout: E2E_TIMEOUT.liveUpdate });
         await viewerPage.reload();
         await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await expect(viewerTargetStaffCell).toHaveAttribute('title', /approved unavailable period/i, { timeout: E2E_TIMEOUT.liveUpdate });

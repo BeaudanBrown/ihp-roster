@@ -7,6 +7,7 @@ module Web.Timesheets.Responses
     , respondWithTimesheetDaySectionUpdate
     , respondWithTimesheetWindowFragmentsUpdate
     , respondWithTimesheetWeekView
+    , renderTimesheetWindowPage
     ) where
 
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
@@ -27,12 +28,13 @@ import Data.Time.Calendar (Day, addDays)
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
+import Web.Timesheets.Filters (TimesheetViewFilters (..))
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        TimesheetsMountStateValue (..),
                                        timesheetsCandidateMountedFragments,
                                        timesheetsSurfaceFragmentKeys,
                                        timesheetsSurfaceScope)
-import Web.Timesheets.Paths (timesheetWindowUrl)
+import Web.Timesheets.Paths (timesheetWindowUrl, timesheetWindowUrlWithFilters)
 import Web.Timesheets.Projection
 import Web.View.Timesheets.Index
 
@@ -54,7 +56,7 @@ respondWithTimesheetActorFragments :: (?context :: ControllerContext, ?modelCont
 respondWithTimesheetActorFragments requestKey fragments extraHtml = do
     projection <- fetchTimesheetWeekProjection requestKey
     let scope = timesheetScopeFromProjection projection
-    let mountState = TimesheetsMountStateValue requestKey.projectionStaffFilterId
+    let mountState = TimesheetsMountStateValue requestKey.projectionStaffFilterId requestKey.projectionRosterGroupFilterId
     let selectedMountedFragments = selectTimesheetMountedFragments projection (normalizeTimesheetFragments fragments) (timesheetsCandidateMountedFragments scope mountState)
     setActorLocalFragmentsRefresh (timesheetsSurfaceScope scope) (timesheetsSurfaceFragmentKeys selectedMountedFragments)
     respondHtmlProfiled extraHtml
@@ -63,7 +65,7 @@ respondWithTimesheetResourceInvalidation :: (?context :: ControllerContext, ?mod
 respondWithTimesheetResourceInvalidation requestKey touchedResources extraHtml = do
     projection <- fetchTimesheetWeekProjection requestKey
     let scope = timesheetScopeFromProjection projection
-    let mountState = TimesheetsMountStateValue requestKey.projectionStaffFilterId
+    let mountState = TimesheetsMountStateValue requestKey.projectionStaffFilterId requestKey.projectionRosterGroupFilterId
     setActorLiveResourcesRefresh (timesheetsSurfaceScope scope) touchedResources (timesheetsCandidateMountedFragments scope mountState)
     respondHtmlProfiled extraHtml
 
@@ -112,8 +114,10 @@ respondWithTimesheetWindowFragmentsUpdate windowStart staffFilterId =
 respondWithTimesheetPreferenceUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Maybe UUID.UUID -> IO ()
 respondWithTimesheetPreferenceUpdate weekOffset staffFilterId = do
     venueConfig <- fetchVenueConfig
+    filters <- canonicalTimesheetFilters timesheetFiltersFromRequest
     respondWithTimesheetActorFragments
         (timesheetProjectionRequestForOffset venueConfig weekOffset staffFilterId)
+            { projectionRosterGroupFilterId = filters.filterRosterGroupId }
         [TimesheetProjectionToolbar, TimesheetProjectionDayColumns, TimesheetProjectionSidePanel]
         mempty
 
@@ -140,6 +144,13 @@ respondWithTimesheetMutationUpdate weekOffset staffFilterId touchedResources suc
             <> renderToastOob ToastBottomCenter (successToast successMessage)
         )
 
+renderTimesheetWindowPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Day -> TimesheetViewFilters -> IO ()
+renderTimesheetWindowPage windowStart filters =
+    profileActionSpan "timesheets.page.render" do
+        let requestKey = TimesheetProjectionRequest windowStart (addDays 7 windowStart) filters.filterStaffId filters.filterRosterGroupId
+        projection <- profileActionSpan "timesheets.page.fetch_read_model" (fetchTimesheetWeekProjection requestKey)
+        profileActionSpan "timesheets.page.respond" (respondWithTimesheetWeekView (timesheetIndexView projection))
+
 renderTimesheetWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Int -> Maybe UUID.UUID -> IO ()
 renderTimesheetWeekPage weekOffset staffFilterId =
     profileActionSpan "timesheets.page.render" do
@@ -158,10 +169,13 @@ timesheetProjectionRequestForWindow windowStart staffFilterId =
         { projectionWindowStart = windowStart
         , projectionWindowEnd = addDays 7 windowStart
         , projectionStaffFilterId = staffFilterId
+        , projectionRosterGroupFilterId = Nothing
         }
 
 respondWithTimesheetWeekView :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IndexView -> IO ()
 respondWithTimesheetWeekView indexView =
     if isHtmxRequest
-        then respondWithTimesheetWindowFragmentsUpdate indexView.weekStartDate indexView.selectedStaffFilterId
+        then do
+            setHtmxPushUrl (timesheetWindowUrlWithFilters indexView.weekStartDate indexView.viewFilters)
+            profileActionSpan "timesheets.page.render_response" (respondHtmlProfiled (renderTimesheetWeekShell indexView))
         else profileActionSpan "timesheets.page.render_response" (renderProfiled indexView)

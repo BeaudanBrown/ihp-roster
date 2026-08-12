@@ -11,10 +11,12 @@ import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Data.Coerce (coerce)
 import Data.List (find, sortOn)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromJust)
+import qualified Data.Set as Set
+import Data.Maybe (fromJust, fromMaybe)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import qualified Data.Time.Calendar as Calendar
+import qualified Data.UUID as UUID
 import Data.Time.Clock (getCurrentTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
@@ -28,12 +30,25 @@ import Web.RosterWeeks.DateRange (RosterWindowLane (..))
 import Web.RosterWeeks.DirectReadModel
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.RenderData
+import Web.RosterWeeks.StaffOptions (rosterAssignmentOptionStatesFor)
 import Web.RosterWeeks.Types
 
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "RosterWeeksController direct read model" do
+        it "hides another same-day assignment from a dated shift dialog" $ withContext do
+            let dayId = Id (fromMaybe (error "day uuid") (UUID.fromString "10000000-0000-0000-0000-000000000001")) :: Id RosterDay
+            let firstSlotId = Id (fromMaybe (error "first slot uuid") (UUID.fromString "20000000-0000-0000-0000-000000000001")) :: Id RosterSlot
+            let targetSlotId = Id (fromMaybe (error "target slot uuid") (UUID.fromString "30000000-0000-0000-0000-000000000001")) :: Id RosterSlot
+            let staffId = Id (fromMaybe (error "staff uuid") (UUID.fromString "40000000-0000-0000-0000-000000000001")) :: Id Staff
+            let day = newRecord @RosterDay |> set #id dayId |> set #dayOffset 0
+            let assignedSlot = newRecord @RosterSlot |> set #id firstSlotId |> set #rosterDayId (unpackId dayId) |> set #assignmentState "staff" |> set #staffId (Just (unpackId staffId))
+            let targetSlot = newRecord @RosterSlot |> set #id targetSlotId |> set #rosterDayId (unpackId dayId)
+            let staff = newRecord @Staff |> set #id staffId |> set #idealShiftsPerWeek 5
+            let states = rosterAssignmentOptionStatesFor allAssignmentFilters (Calendar.fromGregorian 2025 1 6) [day] [assignedSlot, targetSlot] [staff] Set.empty Set.empty
+            fmap (.optionHiddenByAssignedToday) (Map.lookup (unpackId targetSlotId, unpackId staffId) states) `shouldBe` Just True
+
         it "reads manager-visible base facts directly" $ withContext do
             withCleanDb do
                 fixture <- createDirectReadModelFixture

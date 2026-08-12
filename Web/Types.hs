@@ -75,6 +75,7 @@ data TimesheetsController
     | ShowTimesheetDaySectionFragmentAction { anchorDate :: !Text, operationalDate :: !Text }
     | ToggleTimesheetHideApprovedAction
     | ToggleTimesheetShowSuggestionsAction
+    | ToggleTimesheetWageEstimatesAction
     | NewTimesheetEntryAction
     | CreateTimesheetEntryAction
     | NewTimesheetEntryFromSuggestionAction { rosterSlotId :: !(Id RosterSlot) }

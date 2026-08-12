@@ -93,7 +93,7 @@ rosterShiftDialogForCreateHtml rosterDay rosterWeek slotDefinition rowIndex valu
                 |> set #rosterLaneId (unpackId slotDefinition.id)
                 |> set #slotSortOrder slotDefinition.sortOrder
                 |> set #rowIndex rowIndex
-    staffOptionStates <- buildRosterShiftDialogStaffOptionStates (coerce rosterWeek.rosterGroupId) rosterWeek targetSlot staffMembers
+    staffOptionStates <- buildRosterShiftDialogStaffOptionStates (coerce rosterWeek.rosterGroupId) rosterDay rosterWeek targetSlot staffMembers
     pure $ renderRosterShiftDialog RosterShiftDialogData
         { rosterShiftDialogMode = NewRosterShiftDialog rosterDay.id slotDefinition.id rowIndex
         , rosterShiftDialogTitle = "Add shift"
@@ -110,12 +110,12 @@ rosterShiftDialogForCreateHtml rosterDay rosterWeek slotDefinition rowIndex valu
         , rosterShiftDialogCalendarRevision = venueConfig.rosterCalendarRevision
         }
 
-rosterShiftDialogForEditHtml :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterSlot -> RosterWeek -> RosterShiftDialogValues -> IO Blaze.Html
-rosterShiftDialogForEditHtml rosterSlot rosterWeek values = do
+rosterShiftDialogForEditHtml :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterSlot -> RosterDay -> RosterWeek -> RosterShiftDialogValues -> IO Blaze.Html
+rosterShiftDialogForEditHtml rosterSlot rosterDay rosterWeek values = do
     (staffMembers, payInvalidStaffIds) <- fetchRosterShiftDialogStaff (coerce rosterWeek.rosterGroupId) rosterSlot.staffId
     shiftTypes <- fetchCurrentVenueRosterShiftTypesForDialog
     venueConfig <- fetchVenueConfig
-    staffOptionStates <- buildRosterShiftDialogStaffOptionStates (coerce rosterWeek.rosterGroupId) rosterWeek rosterSlot staffMembers
+    staffOptionStates <- buildRosterShiftDialogStaffOptionStates (coerce rosterWeek.rosterGroupId) rosterDay rosterWeek rosterSlot staffMembers
     pure $ renderRosterShiftDialog RosterShiftDialogData
         { rosterShiftDialogMode = EditRosterShiftDialog rosterSlot.id
         , rosterShiftDialogTitle = if rosterWeek.isLive then "Fill Open shift" else "Edit shift"
@@ -140,10 +140,13 @@ defaultRosterShiftDialogValuesForVenue venueConfig =
             , rosterShiftEndTime = timeOfDayToStorageValue defaultEnd
             }
 
-buildRosterShiftDialogStaffOptionStates :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterSlot -> [Staff] -> IO (Map.Map UUID.UUID RosterAssignmentOptionState)
-buildRosterShiftDialogStaffOptionStates rosterGroupId rosterWeek targetSlot staffMembers = do
+buildRosterShiftDialogStaffOptionStates :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterDay -> RosterWeek -> RosterSlot -> [Staff] -> IO (Map.Map UUID.UUID RosterAssignmentOptionState)
+buildRosterShiftDialogStaffOptionStates rosterGroupId targetDay rosterWeek targetSlot staffMembers = do
     venueConfig <- fetchVenueConfig
     assignmentFilters <- fetchRosterAssignmentFilters
+    let assignmentFiltersForDialog = assignmentFilters
+            { hideStaffAlreadyAssignedToday = assignmentFilters.hideStaffAlreadyAssignedToday || paramOrDefault @Bool False "hideStaffAlreadyAssignedToday"
+            }
     let weekStartDate = venueWeekStartDate venueConfig rosterWeek.weekOffset
     rosterDays <- query @RosterDay
         |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
@@ -159,7 +162,9 @@ buildRosterShiftDialogStaffOptionStates rosterGroupId rosterWeek targetSlot staf
                 |> fetch
     let targetSlotId = coerce targetSlot.id
     let slotsForOptions = targetSlot : filter (\slot -> coerce slot.id /= targetSlotId) visibleSlots
-    optionStates <- buildRosterStaffOptionStates rosterGroupId assignmentFilters weekStartDate rosterDays slotsForOptions staffMembers
+    let targetDayId = unpackId targetDay.id
+    let rosterDaysForOptions = targetDay : filter (\day -> coerce day.id /= targetDayId) rosterDays
+    optionStates <- buildRosterStaffOptionStates rosterGroupId assignmentFiltersForDialog weekStartDate rosterDaysForOptions slotsForOptions staffMembers
     pure $ Map.fromList
         [ (coerce staff.id, optionState)
         | staff <- staffMembers

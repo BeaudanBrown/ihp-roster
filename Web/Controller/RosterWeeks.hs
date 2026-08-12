@@ -1252,8 +1252,8 @@ respondWithRosterShiftCreateDialogOob rosterDay rosterWeek slotDefinition rowInd
     |]
 
 renderRosterShiftDialogForEdit :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterSlot -> RosterDay -> RosterWeek -> RosterShiftDialogValues -> IO ()
-renderRosterShiftDialogForEdit rosterSlot _rosterDay rosterWeek values =
-    respondHtmlProfiled =<< rosterShiftDialogForEditHtml rosterSlot rosterWeek values
+renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek values =
+    respondHtmlProfiled =<< rosterShiftDialogForEditHtml rosterSlot rosterDay rosterWeek values
 
 respondToRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> Int -> LiveMutationResult RosterSlotMutationResult -> Text -> IO ()
 respondToRosterSlotMutation rosterGroupId rosterWeek rosterDay rowIndex mutationResult successMessage = do

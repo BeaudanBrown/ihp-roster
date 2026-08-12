@@ -479,7 +479,7 @@ Web/Staff/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/Staff/ProfileSurfaceRequest.hs	production	runtime	Main	Reachable from Main
 Web/StaffDocuments/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/SurfaceInvalidation.hs	production	runtime	Main	Reachable from Main
-Web/Timesheets/Filters.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Web/Timesheets/Filters.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/FrontendSurface.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/Paths.hs	production	runtime	Main	Reachable from Main
@@ -487,7 +487,7 @@ Web/Timesheets/Projection.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/Responses.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/Suggestion.hs	production	runtime	Main	Reachable from Main
 Web/Timesheets/Validation.hs	production	runtime	Main	Reachable from Main
-Web/Timesheets/WageEstimates.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Web/Timesheets/WageEstimates.hs	production	runtime	Main	Reachable from Main
 Web/Types.hs	production	runtime	Main	Reachable from Main
 Web/Users/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/View/Admin/Common.hs	production	runtime	Main	Reachable from Main

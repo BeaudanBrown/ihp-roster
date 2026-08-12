@@ -10,7 +10,9 @@ module Web.Timesheets.Paths
     , timesheetSidePanelFragmentUrl
     , timesheetToolbarFragmentUrl
     , timesheetWindowStateQueryParams
+    , timesheetWindowStateQueryParamsWithFilters
     , timesheetWindowUrl
+    , timesheetWindowUrlWithFilters
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Action as TimesheetsAction
@@ -22,13 +24,18 @@ import Generated.Types
 import IHP.Prelude
 import IHP.Router.UrlGenerator (pathTo)
 import Web.Routes ()
+import Web.Timesheets.Filters (TimesheetViewFilters (..))
 import Web.Types
 
 timesheetWindowUrl :: Day -> Maybe UUID -> Text
 timesheetWindowUrl anchorDate staffFilterId =
+    timesheetWindowUrlWithFilters anchorDate (TimesheetViewFilters staffFilterId Nothing)
+
+timesheetWindowUrlWithFilters :: Day -> TimesheetViewFilters -> Text
+timesheetWindowUrlWithFilters anchorDate filters =
     replaceQueryParams
         (pathTo (ShowTimesheetWindowAction (tshow anchorDate)))
-        (timesheetWindowStateQueryParams anchorDate staffFilterId)
+        (timesheetWindowStateQueryParamsWithFilters anchorDate filters)
 
 timesheetToolbarFragmentUrl :: Day -> Maybe UUID -> Text
 timesheetToolbarFragmentUrl anchorDate staffFilterId =
@@ -80,4 +87,8 @@ editTimesheetEntryUrl timesheetEntryId anchorDate staffFilterId =
 
 timesheetWindowStateQueryParams :: Day -> Maybe UUID -> [(Text, Text)]
 timesheetWindowStateQueryParams anchorDate staffFilterId =
-    surfaceFieldsText (TimesheetsAction.navigateTimesheetWeekActionFields anchorDate staffFilterId)
+    timesheetWindowStateQueryParamsWithFilters anchorDate (TimesheetViewFilters staffFilterId Nothing)
+
+timesheetWindowStateQueryParamsWithFilters :: Day -> TimesheetViewFilters -> [(Text, Text)]
+timesheetWindowStateQueryParamsWithFilters anchorDate filters =
+    surfaceFieldsText (TimesheetsAction.navigateTimesheetWeekActionFields anchorDate filters.filterStaffId filters.filterRosterGroupId)

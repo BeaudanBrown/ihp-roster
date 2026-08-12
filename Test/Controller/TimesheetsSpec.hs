@@ -96,7 +96,7 @@ tests = aroundAll withDatabaseTestContext do
                 (response, mountConfig, expectedRefs) <- withUserAndCurrentVenue user venue.id do
                     withCurrentControllerContext do
                         let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = unpackId venue.id, timesheetWindowStart = testAnchorForOffset (0 ), timesheetWindowEnd = addDays 7 (testAnchorForOffset (0 )), timesheetCalendarRevision = 1}
-                        let mountState = TimesheetsMountStateValue { timesheetsMountStaffFilterId = Nothing }
+                        let mountState = TimesheetsMountStateValue { timesheetsMountStaffFilterId = Nothing, timesheetsMountRosterGroupFilterId = Nothing }
                         let impl = timesheetsSurfaceImpl scope mountState
                         response <- callAction (ShowTimesheetWindowAction (tshow (testAnchorForOffset 0)))
                         pure (response, impl.surfaceImplMountConfig, impl.surfaceImplMountConfig.mountFragments)
@@ -207,7 +207,7 @@ tests = aroundAll withDatabaseTestContext do
             withCurrentControllerContext do
                 let venueId = fromMaybe (error "invalid test UUID") (UUID.fromString "00000000-0000-0000-0000-000000000123")
                 let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = venueId, timesheetWindowStart = testAnchorForOffset (2 ), timesheetWindowEnd = addDays 7 (testAnchorForOffset (2 )), timesheetCalendarRevision = 1}
-                let mountState = TimesheetsMountStateValue { timesheetsMountStaffFilterId = Nothing }
+                let mountState = TimesheetsMountStateValue { timesheetsMountStaffFilterId = Nothing, timesheetsMountRosterGroupFilterId = Nothing }
                 let impl = timesheetsSurfaceImpl scope mountState
                 let mountConfig = impl.surfaceImplMountConfig
                 let fragmentKeys = map (.mountedFragmentKey) mountConfig.mountFragments
@@ -218,7 +218,9 @@ tests = aroundAll withDatabaseTestContext do
                 mountConfig.mountSurfaceName `shouldBe` "timesheets"
                 mountConfig.mountScopeKey `shouldBe` "timesheets:00000000-0000-0000-0000-000000000123:2025-01-20:2025-01-27:1"
                 mountConfig.mountState `shouldBe` Aeson.object
-                    ["staffFilterId" Aeson..= (Nothing :: Maybe Text)]
+                    [ "staffFilterId" Aeson..= (Nothing :: Maybe Text)
+                    , "rosterGroupFilterId" Aeson..= (Nothing :: Maybe Text)
+                    ]
                 fragmentKeys
                     `shouldBe` [ TimesheetsLive.timesheetToolbarLiveFragment
                                , TimesheetsLive.timesheetDayColumnsLiveFragment
@@ -294,7 +296,7 @@ tests = aroundAll withDatabaseTestContext do
                 (response, fragmentRef) <- withUserAndCurrentVenue user venue.id do
                     withCurrentControllerContext do
                         let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = unpackId venue.id, timesheetWindowStart = testAnchorForOffset (0 ), timesheetWindowEnd = addDays 7 (testAnchorForOffset (0 )), timesheetCalendarRevision = 1}
-                        let mountState = TimesheetsMountStateValue { timesheetsMountStaffFilterId = Nothing }
+                        let mountState = TimesheetsMountStateValue { timesheetsMountStaffFilterId = Nothing, timesheetsMountRosterGroupFilterId = Nothing }
                         let daySectionRef =
                                 timesheetsCandidateMountedFragments scope mountState
                                     |> find (\fragment -> fragment.mountedFragmentKey == TimesheetsLive.timesheetDaySectionLiveFragment (testAnchorForOffset 0))
@@ -305,7 +307,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 liveFragmentResponseShouldRenderTarget response fragmentRef
 
-        it "renders unified toolbar and day-columns fragments for HTMX week navigation" $ withContext do
+        it "renders the typed outerHTML Timesheets shell for HTMX window navigation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet HTMX Fragment Venue"
                 manager <- createUserRecord "timesheet-htmx-fragment-manager@example.com" "staff" True
@@ -319,11 +321,11 @@ tests = aroundAll withDatabaseTestContext do
                             ]
 
                 response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "id=\"timesheet-week-shell\""
                 response `responseBodyShouldContain` "id=\"timesheet-week-toolbar\""
                 response `responseBodyShouldContain` "id=\"timesheet-day-columns\""
-                response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
-                response `responseBodyShouldNotContain` "data-live-update-surface="
-                response `responseBodyShouldNotContain` "id=\"timesheet-week-shell\" hx-history-elt"
+                response `responseBodyShouldContain` "data-bepis-surface=\"timesheets\""
+                response `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
 
         it "renders declared Timesheets toolbar, day-columns, and side-panel fragment targets" $ withContext do
             withCleanDb do
