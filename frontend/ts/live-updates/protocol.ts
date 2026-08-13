@@ -32,11 +32,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-export function buildSurfaceSubscription(scope: SurfaceScope, scopeKey: string, fragments: SurfaceFragmentKey[]): SurfaceSubscription {
+export function buildSurfaceSubscription(scope: SurfaceScope, scopeKey: string, fragments: SurfaceFragmentKey[], renderedDependencyWatermark: number): SurfaceSubscription {
     return {
         scope,
         scopeKey,
         fragments,
+        renderedDependencyWatermark,
     };
 }
 
@@ -100,8 +101,10 @@ export function resolveMountedFragmentsForInvalidation(
     return resolved;
 }
 
-export function liveUpdateInvalidationShouldResync(previousVersion: number | null, nextVersion: number | null, fragmentCount: number): "gap" | "empty" | null {
-    if (nextVersion !== null && previousVersion !== null && nextVersion > previousVersion + 1) return "gap";
+export function liveUpdateInvalidationShouldResync(_previousVersion: number | null, _nextVersion: number | null, fragmentCount: number): "gap" | "empty" | null {
+    // Durable versions are global event sequences, so gaps can represent
+    // unrelated scopes. Reconnect freshness is decided by the server against
+    // the dependency watermark; a connected WebSocket remains ordered.
     if (fragmentCount === 0) return "empty";
     return null;
 }

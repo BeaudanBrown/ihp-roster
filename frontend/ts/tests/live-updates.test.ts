@@ -47,6 +47,7 @@ test("modular invalidation owner routes passive and actor keys through mounted d
         path: "/live-updates",
         resyncFragments: [fragment],
         decorateRequestsWithin: ["#timesheet-day-1"],
+        renderedDependencyWatermark: 7,
         ownerEls: [],
         resync: () => { resyncCount += 1; },
     };
@@ -93,7 +94,7 @@ test("modular invalidation owner routes passive and actor keys through mounted d
     assertEqual(resyncCount, 0);
 });
 
-test("Admin Xero reconnect and version gaps refetch the canonical reference-sync fragment", () => {
+test("Admin Xero reconnect refetches while unrelated global version gaps do not", () => {
     const xeroScope: SurfaceScope = {
         surface: "admin-xero",
         scope: { venueId: "00000000-0000-0000-0000-000000000001" },
@@ -117,6 +118,7 @@ test("Admin Xero reconnect and version gaps refetch the canonical reference-sync
         path: "/live-updates",
         resyncFragments: [xeroFragment],
         decorateRequestsWithin: [],
+        renderedDependencyWatermark: 7,
         ownerEls: [],
         resync: (current) => current.resyncFragments.forEach(refresher.request),
     };
@@ -157,6 +159,7 @@ test("connection cleanup resets versions when the mounted subscription set becom
         path: "/live-updates",
         resyncFragments: [fragment],
         decorateRequestsWithin: [],
+        renderedDependencyWatermark: 7,
         ownerEls: [],
         resync: () => undefined,
     };
@@ -192,11 +195,12 @@ test("connection cleanup resets versions when the mounted subscription set becom
 });
 
 test("live update command builder preserves backend-owned surface subscription contract", () => {
-    const subscription = buildSurfaceSubscription(scope, "timesheets:v:0", [fragment.fragmentKey]);
+    const subscription = buildSurfaceSubscription(scope, "timesheets:v:0", [fragment.fragmentKey], 7);
     assertDeepEqual(subscription, {
         scope,
         scopeKey: "timesheets:v:0",
         fragments: [fragment.fragmentKey],
+        renderedDependencyWatermark: 7,
     });
     assertDeepEqual(buildLiveUpdateSubscribeCommand(subscription, "client-1", null), {
         type: "subscribe",
@@ -264,7 +268,7 @@ test("live update fragment merge key includes structural fragment key and target
 });
 
 test("live update invalidations request resync on version gaps and empty payloads", () => {
-    assertEqual(liveUpdateInvalidationShouldResync(2, 4, 1), "gap");
+    assertEqual(liveUpdateInvalidationShouldResync(2, 4, 1), null);
     assertEqual(liveUpdateInvalidationShouldResync(2, 3, 0), "empty");
     assertEqual(liveUpdateInvalidationShouldResync(null, 10, 1), null);
     assertEqual(liveUpdateInvalidationShouldResync(3, 3, 1), null);

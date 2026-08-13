@@ -15,6 +15,7 @@ export type ParsedFrontendSurfaceSubscriptionConfig = {
     socketPath: string;
     resyncFragments: FrontendSurfaceMountedFragmentConfig[];
     decorateRequestsWithin: string[];
+    renderedDependencyWatermark: number;
 };
 
 export type FrontendSurfaceMountedInstance = {
@@ -51,6 +52,7 @@ export function parseFrontendSurfaceSubscriptionConfig(value: unknown): ParsedFr
         socketPath: `/${liveUpdateSocketPath}`,
         resyncFragments,
         decorateRequestsWithin: resyncFragments.map((fragment) => `#${fragment.targetId}`),
+        renderedDependencyWatermark: config.subscription.renderedDependencyWatermark,
     };
 }
 

@@ -27,6 +27,7 @@ export type SurfaceSubscription = {
     path: string;
     resyncFragments: LiveUpdateFragmentWithState[];
     decorateRequestsWithin: string[];
+    renderedDependencyWatermark: number;
     ownerEls: HTMLElement[];
     resync: (subscription: SurfaceSubscription) => void;
 };

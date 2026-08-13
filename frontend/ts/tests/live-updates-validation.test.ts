@@ -34,6 +34,7 @@ const exactTimesheetsMount = {
     ],
     subscription: {
         scope: { surface: "timesheets", scope: { venueId: "venue-1", weekOffset: 3 } },
+        renderedDependencyWatermark: 7,
     },
 };
 
@@ -92,6 +93,7 @@ function withSurfaceSubscription(config: SurfaceMountFixture, scopeFields: unkno
         ...exactMountConfig(config),
         subscription: {
             scope: { surface: config.surface, scope: scopeFields },
+            renderedDependencyWatermark: 7,
         },
     };
 }
@@ -112,6 +114,7 @@ test("FrontendSurface config parser derives Timesheets live subscriptions from m
 
     assertDeepEqual(config?.scope, { surface: "timesheets", scope: { venueId: "venue-1", weekOffset: 3 } });
     assertEqual(config?.scopeKey, "timesheets:venue-1:3");
+    assertEqual(config?.renderedDependencyWatermark, 7);
     assertEqual(config?.resyncFragments[0]?.targetId, "timesheet-day-section-2");
     assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { surface: "timesheets", kind: "timesheet-day-section", params: { dayOffset: 2 } });
 });

@@ -225,7 +225,7 @@ tests = describe "Frontend contract generator foundation" do
         forM_ ["SurfaceWireFragment", "SurfaceFragmentProtection"] \name ->
             generatedTypes `shouldNotContain` [name]
         frontendContractsTypeScript
-            `shouldSatisfy` Text.isInfixOf "export type SurfaceSubscription = { scope: SurfaceScope; scopeKey: string; fragments: ReadonlyArray<SurfaceFragmentKey> };"
+            `shouldSatisfy` Text.isInfixOf "export type SurfaceSubscription = { scope: SurfaceScope; scopeKey: string; fragments: ReadonlyArray<SurfaceFragmentKey>; renderedDependencyWatermark: number };"
 
     it "embeds the checked Surface topology directly in the unified registry" do
         registeredFrontendContractIR.contractSurfaces
@@ -457,7 +457,7 @@ tests = describe "Frontend contract generator foundation" do
     it "validates records, refs, arrays, nullable fields, and tagged unions through the IR JSON interpreter" do
         let scope = Live.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "weekOffset" Aeson..= (4 :: Int)])
         let fragmentKey = Live.SurfaceFragmentKey "timesheets" "timesheet-day-section" (Aeson.object ["dayOffset" Aeson..= (2 :: Int)])
-        let subscription = Live.SurfaceSubscription scope "timesheets:11111111-1111-1111-1111-111111111111:4" [fragmentKey]
+        let subscription = Live.SurfaceSubscription scope "timesheets:11111111-1111-1111-1111-111111111111:4" [fragmentKey] 0
         let command = Live.Subscribe subscription "client-1" (Just 9)
         let message = Live.Invalidate scope "timesheets:11111111-1111-1111-1111-111111111111:4" 10 [fragmentKey] (Just "client-2")
 

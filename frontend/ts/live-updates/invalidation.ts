@@ -79,13 +79,6 @@ export function createLiveUpdateInvalidationRuntime(options: {
 
         const previousVersion = versions.get(scopeKey);
         if (nextVersion !== null) {
-            if (previousVersion !== null && nextVersion > previousVersion + 1) {
-                versions.set(scopeKey, nextVersion);
-                subscription.resync(subscription);
-                diagnostics.emitDebugEvent("resync_version_gap", { scopeKey, previousVersion, nextVersion });
-                diagnostics.endPerfSpan(perfSpan, { outcome: "resync_gap", scopeKey, previousVersion, nextVersion });
-                return;
-            }
             if (previousVersion !== null && nextVersion <= previousVersion) {
                 diagnostics.endPerfSpan(perfSpan, { outcome: "stale", scopeKey, previousVersion, nextVersion });
                 return;

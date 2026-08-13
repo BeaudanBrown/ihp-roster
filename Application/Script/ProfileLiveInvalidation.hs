@@ -251,6 +251,7 @@ benchmarkSubscription scope fragmentKeys =
         { subscriptionScope = scope
         , subscriptionScopeKey = surfaceScopeKey scope
         , subscriptionFragmentKeys = fragmentKeys
+        , subscriptionRenderedDependencyWatermark = 0
         }
 
 venueIdFor :: Int -> UUID

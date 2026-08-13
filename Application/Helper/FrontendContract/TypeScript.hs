@@ -816,15 +816,16 @@ renderFrontendSurfaceMountConfig surface =
         liveFragmentNames = surfaceLiveFragmentNames surface
         subscriptionType
             | null liveFragmentNames = "null"
-            | otherwise = "{ scope: Extract<SurfaceScope, { surface: " <> quote surface.surfaceName <> " }> } | null"
+            | otherwise = "{ scope: Extract<SurfaceScope, { surface: " <> quote surface.surfaceName <> " }>; renderedDependencyWatermark: number } | null"
         liveFragmentTest =
             "value[\"fragments\"].some((fragment) => isFrontendSurfaceLiveFragmentName("
                 <> quote surface.surfaceName
                 <> ", fragment.fragmentKey.kind))"
         validSubscription =
             "isRecord(value[\"subscription\"])"
-                <> " && hasExactKeys(value[\"subscription\"], [\"scope\"])"
+                <> " && hasExactKeys(value[\"subscription\"], [\"scope\", \"renderedDependencyWatermark\"])"
                 <> " && isSurfaceScope(value[\"subscription\"].scope)"
+                <> " && typeof value[\"subscription\"].renderedDependencyWatermark === \"number\" && Number.isInteger(value[\"subscription\"].renderedDependencyWatermark) && value[\"subscription\"].renderedDependencyWatermark >= 0"
                 <> " && value[\"subscription\"].scope.surface === "
                 <> quote surface.surfaceName
         subscriptionGuard

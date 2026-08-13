@@ -272,7 +272,7 @@ tests = describe "LiveUpdate runtime types" do
         let otherVenueId = "99999999-9999-9999-9999-999999999999"
         let scope = Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= venueId, "weekOffset" Aeson..= (0 :: Int)])
         let fragmentKey = Wire.SurfaceFragmentKey "timesheets" "timesheet-toolbar" (Aeson.object [])
-        let command key keyValue = Wire.Subscribe (Wire.SurfaceSubscription scope key [keyValue]) "client-1" Nothing
+        let command key keyValue = Wire.Subscribe (Wire.SurfaceSubscription scope key [keyValue] 0) "client-1" Nothing
 
         decodeValueAs @LiveUpdateCommand (Aeson.toJSON (command ("timesheets:" <> venueId <> ":0") fragmentKey)) `shouldSatisfy` isRight
         decodeValueAs @LiveUpdateCommand (Aeson.toJSON (command ("timesheets:" <> otherVenueId <> ":0") fragmentKey)) `shouldSatisfy` isLeft
@@ -280,13 +280,13 @@ tests = describe "LiveUpdate runtime types" do
         decodeValueAs @LiveUpdateCommand (Aeson.toJSON (command ("timesheets:" <> venueId <> ":0") (Wire.SurfaceFragmentKey "leave-requests" "leave-section-count" (Aeson.object ["leaveSection" Aeson..= ("pending" :: Text)])))) `shouldSatisfy` isLeft
 
         let malformedScope = Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= ("not-a-uuid" :: Text), "weekOffset" Aeson..= (0 :: Int)])
-        let malformedCommand = Wire.Subscribe (Wire.SurfaceSubscription malformedScope "timesheets:not-a-uuid:0" [fragmentKey]) "client-1" Nothing
+        let malformedCommand = Wire.Subscribe (Wire.SurfaceSubscription malformedScope "timesheets:not-a-uuid:0" [fragmentKey] 0) "client-1" Nothing
         decodeValueAs @LiveUpdateCommand (Aeson.toJSON malformedCommand) `shouldSatisfy` isLeft
 
     it "rejects unknown fields when decoding live-update wire carrier types directly" do
         let scope = Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "weekOffset" Aeson..= (4 :: Int)])
         let fragmentKey = Wire.SurfaceFragmentKey "timesheets" "timesheet-day-section" (Aeson.object ["dayOffset" Aeson..= (2 :: Int)])
-        let subscription = Wire.SurfaceSubscription scope "timesheets:11111111-1111-1111-1111-111111111111:4" [fragmentKey]
+        let subscription = Wire.SurfaceSubscription scope "timesheets:11111111-1111-1111-1111-111111111111:4" [fragmentKey] 0
         let refreshDetail = Wire.LiveFragmentsRefreshEventDetail scope subscription.scopeKey [fragmentKey]
         let command = Wire.Subscribe subscription "client-1" (Just 9)
         let message = Wire.Invalidate scope subscription.scopeKey 10 [fragmentKey] (Just "client-2")
@@ -312,7 +312,7 @@ tests = describe "LiveUpdate runtime types" do
     it "validates every live-update wire carrier constructor against FrontendContract IR on encode" do
         let scope = Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "weekOffset" Aeson..= (4 :: Int)])
         let fragmentKey = Wire.SurfaceFragmentKey "timesheets" "timesheet-day-section" (Aeson.object ["dayOffset" Aeson..= (2 :: Int)])
-        let subscription = Wire.SurfaceSubscription scope "timesheets:11111111-1111-1111-1111-111111111111:4" [fragmentKey]
+        let subscription = Wire.SurfaceSubscription scope "timesheets:11111111-1111-1111-1111-111111111111:4" [fragmentKey] 0
         let commands =
                 [ Wire.Subscribe subscription "client-1" Nothing
                 , Wire.Subscribe subscription "client-1" (Just 9)
@@ -331,6 +331,11 @@ tests = describe "LiveUpdate runtime types" do
         forM_ commands \value -> AesonTypes.parseEither (validateContractMarkerValue @LiveContract.LiveUpdateCommand) (Aeson.toJSON value) `shouldSatisfy` isRight
         forM_ messages \value -> AesonTypes.parseEither (validateContractMarkerValue @LiveContract.LiveUpdateMessage) (Aeson.toJSON value) `shouldSatisfy` isRight
 
+    it "cannot suppress initial authoritative resync with a forged high rendered watermark" do
+        liveUpdateSubscriptionNeedsResync maxBound 4 Nothing 4 `shouldBe` True
+        liveUpdateSubscriptionNeedsResync 4 4 (Just 4) 4 `shouldBe` False
+        liveUpdateSubscriptionNeedsResync 3 4 (Just 4) 4 `shouldBe` True
+
     it "round-trips commands and encodes subscribed, invalidation, and error payloads as JSON" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
@@ -341,6 +346,7 @@ tests = describe "LiveUpdate runtime types" do
                     { subscriptionScope = scope
                     , subscriptionScopeKey = surfaceScopeKey scope
                     , subscriptionFragmentKeys = [fragmentKey]
+                    , subscriptionRenderedDependencyWatermark = 0
                     }
         let commands =
                 [ SubscribeLiveUpdates { subscription, clientId = "client-1", lastSeenVersion = Nothing }
@@ -385,6 +391,7 @@ tests = describe "LiveUpdate runtime types" do
                     { subscriptionScope = scope
                     , subscriptionScopeKey = surfaceScopeKey scope
                     , subscriptionFragmentKeys = [fragmentKey]
+                    , subscriptionRenderedDependencyWatermark = 0
                     }
         registerSurfaceSubscriptionWithBus firstBus venueId subscription (error "unused websocket connection")
         activeSurfaceSubscriptionsWithBus firstBus `shouldReturn` [subscription]
@@ -395,6 +402,11 @@ tests = describe "LiveUpdate runtime types" do
         incrementLiveUpdateVersionWithBus firstBus scope `shouldReturn` 1
         currentLiveUpdateVersionWithBus firstBus scope `shouldReturn` 1
         currentLiveUpdateVersionWithBus secondBus scope `shouldReturn` 0
+        advanceLiveUpdateVersionWithBus secondBus scope 9 `shouldReturn` True
+        advanceLiveUpdateVersionWithBus secondBus scope 7 `shouldReturn` False
+        duplicate <- broadcastLiveInvalidationAtVersionWithBus secondBus scope 9 Nothing [fragmentKey]
+        duplicate.broadcastSubscriberCount `shouldBe` 0
+        currentLiveUpdateVersionWithBus secondBus scope `shouldReturn` 9
 
         result <- broadcastLiveInvalidationDetailedWithBus firstBus scope Nothing [fragmentKey, fragmentKey]
 
@@ -413,6 +425,7 @@ tests = describe "LiveUpdate runtime types" do
                     { subscriptionScope = scope
                     , subscriptionScopeKey = surfaceScopeKey scope
                     , subscriptionFragmentKeys = [TimesheetsLive.timesheetToolbarLiveFragment]
+                    , subscriptionRenderedDependencyWatermark = 0
                     }
         bus <- newInMemoryLiveBus
 
@@ -471,6 +484,7 @@ tests = describe "LiveUpdate runtime types" do
                     { subscriptionScope = scope
                     , subscriptionScopeKey = surfaceScopeKey scope
                     , subscriptionFragmentKeys = [TimesheetsLive.timesheetDaySectionLiveFragment 1]
+                    , subscriptionRenderedDependencyWatermark = 0
                     }
 
         validateFrontendSurfaceLiveSubscription subscription `shouldBe` True

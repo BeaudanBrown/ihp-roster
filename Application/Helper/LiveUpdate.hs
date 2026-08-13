@@ -56,6 +56,7 @@ actorLiveFragmentsRefreshKeys scope touchedResources mountedFragments =
         { subscriptionScope = scope
         , subscriptionScopeKey = surfaceScopeKey scope
         , subscriptionFragmentKeys = map (.mountedFragmentKey) mountedFragments
+        , subscriptionRenderedDependencyWatermark = 0
         }
 
 actorLiveFragmentsRefreshTriggerPayload :: SurfaceScope -> [SurfaceFragmentKey] -> Aeson.Value

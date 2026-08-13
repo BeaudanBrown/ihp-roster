@@ -10,6 +10,7 @@ module Application.Helper.FrontendContract.LiveUpdate
     , Scope
     , ScopeKey
     , Fragments
+    , RenderedDependencyWatermark
     , LiveUpdateCommand
     , Subscribe
     , Unsubscribe
@@ -44,6 +45,7 @@ data SurfaceSubscription
 data Scope
 data ScopeKey
 data Fragments
+data RenderedDependencyWatermark
 
 data LiveUpdateCommand
 data Subscribe
@@ -72,6 +74,7 @@ type LiveUpdateContract =
             '[ Field Scope 'WireSurfaceScope
              , Field ScopeKey 'WireText
              , Field Fragments ('WireList 'WireSurfaceFragmentKey)
+             , Field RenderedDependencyWatermark 'WireInt
              ])
          , BrowserOutboundSchema (TaggedUnionWithTag LiveUpdateCommand "type"
             '[ Case Subscribe

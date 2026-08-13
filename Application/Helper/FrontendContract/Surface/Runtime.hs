@@ -71,6 +71,8 @@ import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurf
                                                                     intentFormName,
                                                                     intentFormSubmit)
 import Application.Helper.FrontendContract.Surface.Values
+import Application.Helper.LiveUpdate.DurableState (currentDurableDependencyWatermark)
+import Application.Helper.LiveUpdate.Runtime (SurfaceSubscription (..))
 import Application.Helper.UiRegion (UiRegionDomAttributes (..),
                                     canonicalUiRegionDomAttributes,
                                     uiRegionFragmentEnabledValue)
@@ -82,6 +84,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.Encoding
 import Data.Typeable (Typeable)
 import IHP.ViewPrelude
+import System.IO.Unsafe (unsafePerformIO)
 import Text.Blaze (toValue)
 import qualified Text.Blaze.Html as Blaze
 import Text.Blaze.Html ((!))
@@ -628,8 +631,26 @@ mountConfigToJson config =
 frontendSurfaceLiveSubscription :: Live.SurfaceScope -> FrontendSurfaceMountConfig -> Maybe Aeson.Value
 frontendSurfaceLiveSubscription liveScope config
     | any (.mountedFragmentIsLive) config.mountFragments =
-        Just (Aeson.object ["scope" Aeson..= liveScope])
+        Just (Aeson.object
+            [ "scope" Aeson..= liveScope
+            , "renderedDependencyWatermark" Aeson..= renderedDependencyWatermark
+            ])
     | otherwise = Nothing
+  where
+    liveFragments = filter (.mountedFragmentIsLive) config.mountFragments
+    subscription = SurfaceSubscription
+        { subscriptionScope = liveScope
+        , subscriptionScopeKey = Live.surfaceScopeKey liveScope
+        , subscriptionFragmentKeys = map (.mountedFragmentKey) liveFragments
+        , subscriptionRenderedDependencyWatermark = 0
+        }
+    -- Rendering is pure at the view boundary; the cache is hydrated from
+    -- PostgreSQL before listener service and monotonically advanced thereafter.
+    renderedDependencyWatermark = renderedDependencyWatermarkFor subscription
+
+renderedDependencyWatermarkFor :: SurfaceSubscription -> Int
+renderedDependencyWatermarkFor subscription = unsafePerformIO (currentDurableDependencyWatermark subscription)
+{-# NOINLINE renderedDependencyWatermarkFor #-}
 
 mountedFragmentToJson :: FrontendSurfaceMountedFragment -> Aeson.Value
 mountedFragmentToJson fragment =

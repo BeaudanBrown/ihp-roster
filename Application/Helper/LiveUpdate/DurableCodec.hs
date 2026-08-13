@@ -8,6 +8,7 @@
 -- event history.
 module Application.Helper.LiveUpdate.DurableCodec
     ( DurableResource (..)
+    , canonicalDurableResourceKey
     , decodeDurableResource
     , encodeDurableResource
     ) where
@@ -24,8 +25,8 @@ import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LazyByteString
 import Data.Scientific (Scientific)
 import qualified Data.Text.Encoding as TextEncoding
-import qualified Data.UUID as UUID
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
+import qualified Data.UUID as UUID
 import IHP.Prelude
 
 data DurableResource = DurableResource
@@ -59,10 +60,14 @@ encodeDurableResource resource = do
     let encodedPayload = LazyByteString.toStrict (Aeson.encode payload)
     unless (ByteString.length encodedPayload <= maximumPayloadBytes) do
         Left "live resource payload exceeds 8192 bytes"
-    let key = name <> ":" <> TextEncoding.decodeUtf8 (LazyByteString.toStrict (Aeson.encode fields))
+    let key = canonicalDurableResourceKey name fields
     unless (ByteString.length (TextEncoding.encodeUtf8 key) <= maximumResourceKeyBytes) do
         Left "live resource key exceeds 2048 bytes"
     pure DurableResource { durableResourceKey = key, durableResourcePayload = payload, durableResourceValue = resource }
+
+canonicalDurableResourceKey :: Text -> Aeson.Value -> Text
+canonicalDurableResourceKey name fields =
+    name <> ":" <> TextEncoding.decodeUtf8 (LazyByteString.toStrict (Aeson.encode fields))
 
 -- | Decode a stored envelope only if it still describes a registered resource
 -- with its exact field names and JSON wire shapes.

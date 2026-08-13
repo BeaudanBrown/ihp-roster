@@ -11,6 +11,10 @@ module Application.Helper.LiveUpdate.Runtime
     , activeSurfaceScopeMatches
     , activeSurfaceScopeMatchesWithBus
     , activeSurfaceScopesWithBus
+    , advanceLiveUpdateVersion
+    , advanceLiveUpdateVersionWithBus
+    , broadcastLiveInvalidationAtVersion
+    , broadcastLiveInvalidationAtVersionWithBus
     , broadcastLiveInvalidationDetailed
     , broadcastLiveInvalidationDetailedWithBus
     , broadcastLiveInvalidationDetailedWithoutContext
@@ -21,6 +25,7 @@ module Application.Helper.LiveUpdate.Runtime
     , surfaceScopeKey
     , surfaceScopeToWire
     , liveUpdateSourceClientId
+    , liveUpdateSubscriptionNeedsResync
     , surfaceFragmentKeyFromWire
     , surfaceFragmentKeyToWire
     , newInMemoryLiveBus

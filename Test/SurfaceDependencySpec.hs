@@ -152,7 +152,9 @@ tests = do
             let configJson = frontendSurfaceMountConfigJson (leaveRequestsSurfaceImpl scopeValue).surfaceImplMountConfig
 
             Text.count "\"fragmentKey\":" configJson `shouldBe` 11
-            configJson `shouldSatisfy` Text.isInfixOf "\"subscription\":{\"scope\":{"
+            configJson `shouldSatisfy` Text.isInfixOf "\"subscription\":{"
+            configJson `shouldSatisfy` Text.isInfixOf "\"renderedDependencyWatermark\":"
+            configJson `shouldSatisfy` Text.isInfixOf "\"scope\":{"
             configJson `shouldSatisfy` (not . Text.isInfixOf "\"resyncFragments\"")
             configJson `shouldSatisfy` (not . Text.isInfixOf "\"mountState\"")
             configJson `shouldSatisfy` (not . Text.isInfixOf "\"loadPolicy\"")
@@ -439,4 +441,5 @@ liveTestSubscription scope fragmentKeys =
         { subscriptionScope = scope
         , subscriptionScopeKey = surfaceScopeKey scope
         , subscriptionFragmentKeys = fragmentKeys
+        , subscriptionRenderedDependencyWatermark = 0
         }

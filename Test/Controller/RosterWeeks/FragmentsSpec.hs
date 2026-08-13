@@ -170,6 +170,7 @@ tests = aroundAll withDatabaseTestContext do
                                     { subscriptionScope = scope
                                     , subscriptionScopeKey = surfaceScopeKey scope
                                     , subscriptionFragmentKeys = rosterSurfaceFragmentKeys (rosterCandidateMountedFragments scopeValue mountedPlan)
+                                    , subscriptionRenderedDependencyWatermark = 0
                                     }
                         pure $ planSurfaceInvalidations
                             (Set.singleton (rosterWeekResource rosterWeek.rosterGroupId rosterWeek.weekOffset))

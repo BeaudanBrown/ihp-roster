@@ -4,6 +4,8 @@ module Web.SurfaceInvalidation
     , SurfaceInvalidationTarget (..)
     , authorizeSurfaceScope
     , bepisLiveFactFromProfile
+    , dispatchDurableInvalidation
+    , dispatchDurableInvalidationWithBus
     , expandSurfaceResources
     , expandSurfaceResourcesWithoutContext
     , invalidateTouchedResources
@@ -23,11 +25,15 @@ import Application.Helper.FrontendContract.Surface.Authorization (authorizeFront
 import Application.Helper.FrontendContract.Surface.DependencyPlanner (SurfaceInvalidationTarget (..),
                                                                       planFrontendSurfaceInvalidations)
 import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
+import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
+import Application.Helper.LiveUpdate.DurableCodec (DurableResource (..))
+import Application.Helper.LiveUpdate.DurablePublisher (DurablePublication (..),
+                                                       publishDurableInvalidation)
 import Application.Helper.LiveUpdate.Runtime
-import Application.Helper.LiveUpdate.DurablePublisher (DurablePublication (..), publishDurableInvalidation)
-import qualified Control.Exception as Exception
 import Application.Helper.Profiling (profileActionSpanWithDetail)
 import Application.Helper.SurfaceResource
+import qualified Control.Exception as Exception
+import Control.Monad (void)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
@@ -37,6 +43,22 @@ import qualified System.Environment as Environment
 import Web.Controller.Prelude
 import Web.RosterWeeks.SurfaceInvalidation (expandRosterSurfaceResources,
                                             expandRosterSurfaceResourcesWithoutContext)
+
+dispatchDurableInvalidation :: Int -> [DurableResource] -> IO ()
+dispatchDurableInvalidation = dispatchDurableInvalidationWithBus Nothing
+
+dispatchDurableInvalidationWithBus :: Maybe LiveBus -> Int -> [DurableResource] -> IO ()
+dispatchDurableInvalidationWithBus maybeBus eventSequence resources = do
+    activeSubscriptions <- maybe activeSurfaceSubscriptions activeSurfaceSubscriptionsWithBus maybeBus
+    activeRosterScopes <- maybe activeRosterWeekScopes RosterLive.activeRosterWeekScopesWithBus maybeBus
+    let touchedResources = Set.fromList (map (.durableResourceValue) resources)
+    let expandedResources = expandSurfaceResourcesWithoutContext activeRosterScopes touchedResources
+    let targets = planSurfaceInvalidationsWithoutContext expandedResources activeSubscriptions
+    void $ forM targets \target ->
+        maybe
+            (broadcastLiveInvalidationAtVersion target.targetScope eventSequence Nothing target.targetFragments)
+            (\bus -> broadcastLiveInvalidationAtVersionWithBus bus target.targetScope eventSequence Nothing target.targetFragments)
+            maybeBus
 
 authorizeSurfaceScope :: (?context :: ControllerContext, ?modelContext :: ModelContext) => SurfaceScope -> IO Bool
 authorizeSurfaceScope = authorizeFrontendSurfaceScope
@@ -52,6 +74,10 @@ performSurfaceInvalidationTarget target = broadcastLiveInvalidationDetailed targ
 
 performSurfaceInvalidationTargetWithoutContext :: SurfaceInvalidationTarget -> IO LiveUpdateBroadcastResult
 performSurfaceInvalidationTargetWithoutContext target = broadcastLiveInvalidationDetailedWithoutContext target.targetScope Nothing target.targetFragments
+
+performSurfaceInvalidationTargetAtVersion :: Int -> Maybe Text -> SurfaceInvalidationTarget -> IO LiveUpdateBroadcastResult
+performSurfaceInvalidationTargetAtVersion version sourceClientId target =
+    broadcastLiveInvalidationAtVersion target.targetScope version sourceClientId target.targetFragments
 
 expandSurfaceResources ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -81,7 +107,7 @@ invalidateTouchedResources label result =
                 Just _ -> expandSurfaceResources activeRosterScopes (liveMutationTouchedResources observed)
                 Nothing -> pure (expandSurfaceResourcesWithoutContext activeRosterScopes (liveMutationTouchedResources observed))
         (dependencyTargets, planDurationMs) <- measureDuration (pure (planSurfaceInvalidations expandedResources activeSubscriptions))
-        (broadcastResults, broadcastDurationMs) <- measureDuration (mapM performSurfaceInvalidationTarget dependencyTargets)
+        (broadcastResults, broadcastDurationMs) <- measureDuration (mapM (performSurfaceInvalidationTargetAtVersion publication.durablePublicationEventSequence liveUpdateSourceClientId) dependencyTargets)
         completedAtNs <- getMonotonicTimeNSec
         let profile =
                 liveInvalidationProfile
@@ -106,24 +132,23 @@ invalidateTouchedResourcesWithoutContext label result = do
     (observed, observeDurationMs) <- measureDuration (recordLiveMutationDiagnostics label result)
     publication <- publishDurableInvalidation label observed.liveMutationTouchedResources `Exception.onException` emitDurablePublicationFailure label
     emitDurablePublicationLog label publication
-    (activeSubscriptions, activeDurationMs) <- measureDuration activeSurfaceSubscriptions
-    let activeScopes = coalesceScopes (map (.subscriptionScope) activeSubscriptions)
-    (activeRosterScopes, activeRosterDurationMs) <- measureDuration activeRosterWeekScopes
-    let activeDurationMs' = activeDurationMs + activeRosterDurationMs
-    (expandedResources, expandDurationMs) <- measureDuration (pure (expandSurfaceResourcesWithoutContext activeRosterScopes (liveMutationTouchedResources observed)))
-    (dependencyTargets, planDurationMs) <- measureDuration (pure (planSurfaceInvalidationsWithoutContext expandedResources activeSubscriptions))
-    (broadcastResults, broadcastDurationMs) <- measureDuration (mapM performSurfaceInvalidationTargetWithoutContext dependencyTargets)
     completedAtNs <- getMonotonicTimeNSec
     let profile =
             liveInvalidationProfile
                 label
                 (durationBetweenMs startedAtNs completedAtNs)
                 (liveMutationTouchedResources observed)
-                activeScopes
-                expandedResources
-                dependencyTargets
-                broadcastResults
-                LiveInvalidationStageDurations { observeDurationMs, activeDurationMs = activeDurationMs', expandDurationMs, planDurationMs, broadcastDurationMs }
+                []
+                (liveMutationTouchedResources observed)
+                []
+                []
+                LiveInvalidationStageDurations
+                    { observeDurationMs
+                    , activeDurationMs = 0
+                    , expandDurationMs = 0
+                    , planDurationMs = 0
+                    , broadcastDurationMs = 0
+                    }
     emitLiveInvalidationProfileLog profile
     emitLiveFactFromProfile BepisBackgroundLiveInvalidation profile
     pure observed

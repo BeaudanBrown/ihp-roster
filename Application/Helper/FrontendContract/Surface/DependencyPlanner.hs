@@ -1,5 +1,6 @@
 module Application.Helper.FrontendContract.Surface.DependencyPlanner
     ( SurfaceInvalidationTarget (..)
+    , surfaceSubscriptionDependencyIdentities
     , planFrontendSurfaceInvalidations
     ) where
 
@@ -51,6 +52,11 @@ frontendSurfaceFragmentKeyDependsOnTouchedResource touchedIdentities scope fragm
 -- Dependency identities are projected directly from checked reflected IR and
 -- exact live identities. The planner never constructs a free resource value;
 -- every touched value entered through a marker-indexed feature constructor.
+surfaceSubscriptionDependencyIdentities :: SurfaceSubscription -> [(Text, Aeson.Value)]
+surfaceSubscriptionDependencyIdentities subscription =
+    Set.toAscList . Set.fromList $
+        concatMap (fragmentKeyDependencyIdentities subscription.subscriptionScope) subscription.subscriptionFragmentKeys
+
 fragmentKeyDependencyIdentities :: SurfaceScope -> SurfaceFragmentKey -> [(Text, Aeson.Value)]
 fragmentKeyDependencyIdentities scope fragmentKey = do
     let Wire.SurfaceScope { surface = scopeSurface, scope = scopePayload } = LiveUpdateInternal.surfaceScopeToWire scope

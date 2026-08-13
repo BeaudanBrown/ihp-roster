@@ -38,9 +38,10 @@ data SurfaceFragmentKey = SurfaceFragmentKey
     deriving (Eq, Show)
 
 data SurfaceSubscription = SurfaceSubscription
-    { scope     :: !SurfaceScope
-    , scopeKey  :: !Text
-    , fragments :: ![SurfaceFragmentKey]
+    { scope                       :: !SurfaceScope
+    , scopeKey                    :: !Text
+    , fragments                   :: ![SurfaceFragmentKey]
+    , renderedDependencyWatermark :: !Int
     }
     deriving (Eq, Show)
 
@@ -111,18 +112,19 @@ instance Aeson.FromJSON SurfaceFragmentKey where
         pure SurfaceFragmentKey { surface, kind, params }
 
 instance Aeson.ToJSON SurfaceSubscription where
-    toJSON SurfaceSubscription { scope, scopeKey, fragments } =
+    toJSON SurfaceSubscription { scope, scopeKey, fragments, renderedDependencyWatermark } =
         recordValue @Contract.SurfaceSubscription
             ( requiredField @Contract.Scope scope
                 &: requiredField @Contract.ScopeKey scopeKey
                 &: requiredField @Contract.Fragments fragments
+                &: requiredField @Contract.RenderedDependencyWatermark renderedDependencyWatermark
                 &: noFields
             )
 
 instance Aeson.FromJSON SurfaceSubscription where
     parseJSON =
         parseRecord @Contract.SurfaceSubscription
-            (\(scope, (scopeKey, (fragments, ()))) -> pure SurfaceSubscription { scope, scopeKey, fragments })
+            (\(scope, (scopeKey, (fragments, (renderedDependencyWatermark, ())))) -> pure SurfaceSubscription { scope, scopeKey, fragments, renderedDependencyWatermark })
 
 instance Aeson.ToJSON LiveFragmentsRefreshEventDetail where
     toJSON LiveFragmentsRefreshEventDetail { scope, scopeKey, fragments } =

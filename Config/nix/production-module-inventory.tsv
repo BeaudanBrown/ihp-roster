@@ -216,7 +216,9 @@ Application/Helper/InvitationStatus.hs	production	runtime	Main	Reachable from Ma
 Application/Helper/JobStatus.hs	production	runtime	Main	Reachable from Main
 Application/Helper/LiveUpdate.hs	production	runtime	Main	Reachable from Main
 Application/Helper/LiveUpdate/DurableCodec.hs	production	runtime	Main	Reachable from Main
+Application/Helper/LiveUpdate/DurableListener.hs	production	runtime	Main	Reachable from Main
 Application/Helper/LiveUpdate/DurablePublisher.hs	production	runtime	Main	Reachable from Main
+Application/Helper/LiveUpdate/DurableState.hs	production	runtime	Main	Reachable from Main
 Application/Helper/LiveUpdate/Internal.hs	production	runtime	Main	Reachable from Main
 Application/Helper/LiveUpdate/Runtime.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Mail.hs	production	runtime	Main	Reachable from Main

@@ -35,6 +35,7 @@ export function readSurfaceSubscription(
         path: parsed.socketPath,
         resyncFragments: parsed.resyncFragments,
         decorateRequestsWithin: parsed.decorateRequestsWithin,
+        renderedDependencyWatermark: parsed.renderedDependencyWatermark,
         ownerEls: [ownerEl],
         resync: (subscription) => subscription.resyncFragments.forEach(requestRefresh),
     };
@@ -82,6 +83,7 @@ export function wireSurfaceSubscription(subscription: SurfaceSubscription) {
         subscription.scope,
         subscription.scopeKey,
         subscription.resyncFragments.map((fragment) => fragment.fragmentKey),
+        subscription.renderedDependencyWatermark,
     );
 }
 
@@ -94,7 +96,7 @@ function subscriptionSignature(subscription: SurfaceSubscription): string {
         .map((fragment) => ({ key: liveUpdateFragmentMergeKey(fragment) || JSON.stringify(fragment.fragmentKey), fragment }))
         .sort((left, right) => left.key.localeCompare(right.key))
         .map((entry) => entry.fragment);
-    return JSON.stringify({ path: subscription.path, scope: subscription.scope, resyncFragments: fragments });
+    return JSON.stringify({ path: subscription.path, scope: subscription.scope, resyncFragments: fragments, renderedDependencyWatermark: subscription.renderedDependencyWatermark });
 }
 
 function mergeSubscription(existing: SurfaceSubscription | undefined, next: SurfaceSubscription): SurfaceSubscription {
@@ -104,6 +106,7 @@ function mergeSubscription(existing: SurfaceSubscription | undefined, next: Surf
         resyncFragments: mergeFragments(existing.resyncFragments, next.resyncFragments),
         decorateRequestsWithin: mergeStrings(existing.decorateRequestsWithin, next.decorateRequestsWithin),
         ownerEls: existing.ownerEls.concat(next.ownerEls),
+        renderedDependencyWatermark: Math.min(existing.renderedDependencyWatermark, next.renderedDependencyWatermark),
     };
 }
 

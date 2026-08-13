@@ -2,6 +2,7 @@ module Web.Controller.LiveUpdates where
 
 import Application.Helper.Controller
 import Application.Helper.FrontendContract.Surface.Authorization (validateFrontendSurfaceLiveSubscription)
+import Application.Helper.LiveUpdate.DurableState (fetchDurableDependencyWatermark)
 import Application.Helper.LiveUpdate.Runtime
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LByteString
@@ -52,13 +53,19 @@ handleCommand command =
                     subscriptionId <- UUIDv4.nextRandom
                     registerSurfaceSubscription subscriptionId liveSubscription ?connection
                     addScopeSubscription subscriptionId scope
+                    durableWatermark <- fetchDurableDependencyWatermark liveSubscription
+                    _ <- advanceLiveUpdateVersion scope durableWatermark
                     currentVersion <- liftIO (currentLiveUpdateVersion scope)
                     sendJSON
                         LiveUpdatesSubscribed
                             { scope
                             , scopeKey = liveSubscription.subscriptionScopeKey
                             , currentVersion
-                            , resync = maybe False (/= currentVersion) lastSeenVersion
+                            , resync = liveUpdateSubscriptionNeedsResync
+                                liveSubscription.subscriptionRenderedDependencyWatermark
+                                durableWatermark
+                                lastSeenVersion
+                                currentVersion
                             }
                 else
                     sendJSON

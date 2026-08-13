@@ -153,6 +153,7 @@ tests = aroundAll withDatabaseTestContext do
                             { subscriptionScope = scope
                             , subscriptionScopeKey = surfaceScopeKey scope
                             , subscriptionFragmentKeys = mountedFragments
+                            , subscriptionRenderedDependencyWatermark = 0
                             }
                 let planFragments resource = withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         withCurrentControllerContext do
