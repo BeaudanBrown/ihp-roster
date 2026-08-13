@@ -16,7 +16,7 @@ CREATE TABLE live_invalidation_event_resources (
     resource_payload JSONB NOT NULL,
     PRIMARY KEY (event_id, resource_key),
     FOREIGN KEY (event_id) REFERENCES live_invalidation_events (id) ON DELETE CASCADE,
-    CHECK (char_length(resource_key) <= 8192),
+    CHECK (octet_length(resource_key) <= 2048),
     CHECK (octet_length(resource_payload::TEXT) <= 8192)
 );
 
@@ -27,7 +27,7 @@ CREATE TABLE live_resource_versions (
     latest_event_sequence INT NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (latest_event_id) REFERENCES live_invalidation_events (id) ON DELETE RESTRICT,
-    CHECK (char_length(resource_key) <= 8192),
+    CHECK (octet_length(resource_key) <= 2048),
     CHECK (octet_length(resource_payload::TEXT) <= 8192)
 );
 

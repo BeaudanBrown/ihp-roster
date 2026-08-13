@@ -24,7 +24,8 @@ import Application.Helper.FrontendContract.Surface.DependencyPlanner (SurfaceInv
                                                                       planFrontendSurfaceInvalidations)
 import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWeekScopes)
 import Application.Helper.LiveUpdate.Runtime
-import Application.Helper.LiveUpdate.DurablePublisher (publishDurableInvalidation)
+import Application.Helper.LiveUpdate.DurablePublisher (DurablePublication (..), publishDurableInvalidation)
+import qualified Control.Exception as Exception
 import Application.Helper.Profiling (profileActionSpanWithDetail)
 import Application.Helper.SurfaceResource
 import qualified Data.Set as Set
@@ -69,7 +70,8 @@ invalidateTouchedResources label result =
         (observed, observeDurationMs) <- measureDuration (recordLiveMutationDiagnostics label result)
         -- Compatibility stage: publication follows the existing business commit;
         -- #389/#390 move this into each business transaction.
-        _eventId <- publishDurableInvalidation label observed.liveMutationTouchedResources
+        publication <- publishDurableInvalidation label observed.liveMutationTouchedResources `Exception.onException` emitDurablePublicationFailure label
+        emitDurablePublicationLog label publication
         (activeSubscriptions, activeSubscriptionDurationMs) <- measureDuration activeSurfaceSubscriptions
         (activeRosterScopes, activeRosterDurationMs) <- measureDuration activeRosterWeekScopes
         let activeDurationMs = activeSubscriptionDurationMs + activeRosterDurationMs
@@ -95,10 +97,15 @@ invalidateTouchedResources label result =
         emitLiveFactFromProfile BepisWebSocketFragmentRefetch profile
         pure (observed, Just (renderLiveInvalidationProfile profile))
 
-invalidateTouchedResourcesWithoutContext :: Text -> LiveMutationResult a -> IO (LiveMutationResult a)
+-- | Worker/background compatibility seam. It deliberately still has no
+-- controller/request context, but durable publication requires its database
+-- context just as it does for request-originated mutations.
+invalidateTouchedResourcesWithoutContext :: (?modelContext :: ModelContext) => Text -> LiveMutationResult a -> IO (LiveMutationResult a)
 invalidateTouchedResourcesWithoutContext label result = do
     startedAtNs <- getMonotonicTimeNSec
     (observed, observeDurationMs) <- measureDuration (recordLiveMutationDiagnostics label result)
+    publication <- publishDurableInvalidation label observed.liveMutationTouchedResources `Exception.onException` emitDurablePublicationFailure label
+    emitDurablePublicationLog label publication
     (activeSubscriptions, activeDurationMs) <- measureDuration activeSurfaceSubscriptions
     let activeScopes = coalesceScopes (map (.subscriptionScope) activeSubscriptions)
     (activeRosterScopes, activeRosterDurationMs) <- measureDuration activeRosterWeekScopes
@@ -202,6 +209,23 @@ bepisLiveFactFromProfile mechanism profile =
         , liveFactTargetFragmentCount = profile.profileTargetFragmentCount
         , liveFactMechanism = mechanism
         }
+
+emitDurablePublicationLog :: Text -> DurablePublication -> IO ()
+emitDurablePublicationLog label publication = do
+    enabled <- liveInvalidationProfilingLogEnabled
+    when enabled do
+        TextIO.putStrLn $
+            "[live-invalidation] publication"
+                <> " label=" <> label
+                <> " event_id=" <> tshow publication.durablePublicationEventId
+                <> " resources=" <> tshow publication.durablePublicationResourceCount
+                <> " payload_bytes=" <> tshow publication.durablePublicationPayloadBytes
+                <> " publish_ms=" <> renderDuration publication.durablePublicationDurationMs
+
+emitDurablePublicationFailure :: Text -> IO ()
+emitDurablePublicationFailure label = do
+    enabled <- liveInvalidationProfilingLogEnabled
+    when enabled (TextIO.putStrLn ("[live-invalidation] publication_failed=true label=" <> label))
 
 emitLiveInvalidationProfileLog :: LiveInvalidationProfile -> IO ()
 emitLiveInvalidationProfileLog profile = do

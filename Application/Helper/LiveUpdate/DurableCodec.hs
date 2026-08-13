@@ -41,6 +41,9 @@ codecVersion = 1
 maximumPayloadBytes :: Int
 maximumPayloadBytes = 8192
 
+maximumResourceKeyBytes :: Int
+maximumResourceKeyBytes = 2048
+
 -- | Encode only resources declared by the checked production registry.  This
 -- rejects invalid opaque values before they can enter the durable handoff.
 encodeDurableResource :: SurfaceResourceValue -> Either Text DurableResource
@@ -57,15 +60,21 @@ encodeDurableResource resource = do
     unless (ByteString.length encodedPayload <= maximumPayloadBytes) do
         Left "live resource payload exceeds 8192 bytes"
     let key = name <> ":" <> TextEncoding.decodeUtf8 (LazyByteString.toStrict (Aeson.encode fields))
+    unless (ByteString.length (TextEncoding.encodeUtf8 key) <= maximumResourceKeyBytes) do
+        Left "live resource key exceeds 2048 bytes"
     pure DurableResource { durableResourceKey = key, durableResourcePayload = payload, durableResourceValue = resource }
 
 -- | Decode a stored envelope only if it still describes a registered resource
 -- with its exact field names and JSON wire shapes.
 decodeDurableResource :: Text -> Aeson.Value -> Either Text DurableResource
 decodeDurableResource expectedKey payload = do
+    unless (LazyByteString.length (Aeson.encode payload) <= fromIntegral maximumPayloadBytes) do
+        Left "live resource payload exceeds 8192 bytes"
     (version, name, fields) <-
         case payload of
             Aeson.Object object -> do
+                unless (sort (map AesonKey.toText (AesonKeyMap.keys object)) == ["fields", "resource", "version"]) do
+                    Left "live resource payload fields do not match envelope"
                 version <- maybeToRight "live resource payload has no version" (AesonKeyMap.lookup "version" object >>= asInt)
                 name <- maybeToRight "live resource payload has no resource name" (AesonKeyMap.lookup "resource" object >>= asText)
                 fields <- maybeToRight "live resource payload has no fields" (AesonKeyMap.lookup "fields" object)

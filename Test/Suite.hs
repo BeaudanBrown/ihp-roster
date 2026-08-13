@@ -58,6 +58,7 @@ import qualified Test.Controller.TimesheetsSpec
 import qualified Test.Controller.UsersSpec
 import qualified Test.Controller.VenueAccessSpec
 import qualified Test.DatabaseProtectionSpec
+import qualified Test.DurableLiveInvalidationSpec
 import qualified Test.DevSeedSpec
 import qualified Test.EnumAuthoritySpec
 import qualified Test.FrontendContractSpec
@@ -481,6 +482,7 @@ allSuites =
     , pureSuite SuiteDefinition{definitionLabel = "FrontendSurfaceRequestAdapter", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = FrontendContractsAndLiveUpdate, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.FrontendSurfaceRequestAdapterSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "FrontendSurfaceNaming", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = FrontendContractsAndLiveUpdate, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.FrontendSurfaceNamingSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "FrontendSurfaceDSL", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = FrontendContractsAndLiveUpdate, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.FrontendSurfaceDslSpec.tests
+    , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "DurableLiveInvalidation", definitionEstimatedRuntimeSeconds = 0.2, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = FrontendContractsAndLiveUpdate, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.DurableLiveInvalidationSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "LiveUpdate", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = FrontendContractsAndLiveUpdate, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.LiveUpdateSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "SurfaceResource", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = FrontendContractsAndLiveUpdate, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.SurfaceResourceSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "SurfaceInvalidation", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = FrontendContractsAndLiveUpdate, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.SurfaceInvalidationSpec.tests

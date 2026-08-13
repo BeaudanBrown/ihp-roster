@@ -36,7 +36,7 @@ instance Controller StripeWebhooksController where
                                 _ <- try (invalidateBillingWebhookResult result) :: IO (Either SomeException ())
                                 renderPlain "ok"
 
-invalidateBillingWebhookResult :: BillingWebhookResult -> IO ()
+invalidateBillingWebhookResult :: (?modelContext :: ModelContext) => BillingWebhookResult -> IO ()
 invalidateBillingWebhookResult result =
     forM_ (billingWebhookVenueId result) \venueId ->
         void $

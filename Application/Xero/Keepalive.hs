@@ -178,7 +178,7 @@ performLeasedXeroConnectionKeepaliveJob appJob connection =
                                 )
                         else fail (cs message)
 
-invalidateXeroKeepaliveConnection :: XeroConnection -> Text -> IO (LiveMutationResult XeroConnection)
+invalidateXeroKeepaliveConnection :: (?modelContext :: ModelContext) => XeroConnection -> Text -> IO (LiveMutationResult XeroConnection)
 invalidateXeroKeepaliveConnection connection label =
     invalidateTouchedResourcesWithoutContext label $
         liveMutationResult connection [xeroConnectionResource connection.venueId]
