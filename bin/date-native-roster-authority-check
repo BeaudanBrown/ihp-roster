@@ -28,6 +28,8 @@ fi
 
 surface_offset_fields="$(
     rg -n 'WeekOffset|weekOffset' \
+        Application/Helper/FrontendContract/AppShell.hs \
+        Application/Helper/FrontendContract/Surface/Profile.hs \
         Application/Helper/FrontendContract/Surface/Roster.hs \
         Application/Helper/FrontendContract/Surface/Timesheets.hs \
         || true

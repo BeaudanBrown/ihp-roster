@@ -370,9 +370,10 @@ instance Controller StaffController where
 staffAnchorDateFromParamOrCurrent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Day
 staffAnchorDateFromParamOrCurrent = do
     venueConfig <- fetchVenueConfig
-    case paramOrNothing @Text "anchorDate" of
+    requestedDay <- case paramOrNothing @Text "anchorDate" of
         Just rawAnchorDate -> parseIsoDayRouteParam rawAnchorDate
-        Nothing -> startOfWeekFor venueConfig.rosterWeekStartsOn <$> currentOperationalDayForVenue venueConfig
+        Nothing -> currentOperationalDayForVenue venueConfig
+    pure (startOfWeekFor venueConfig.rosterWeekStartsOn requestedDay)
 
 staffCompatibilityWeekOffset :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Day -> IO Int
 staffCompatibilityWeekOffset anchorDate = do

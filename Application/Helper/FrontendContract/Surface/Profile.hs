@@ -32,7 +32,6 @@ module Application.Helper.FrontendContract.Surface.Profile
     , EmergencyContactNameField
     , EmergencyContactPhoneField
     , SectionField
-    , WeekOffsetField
     , RosterGroupIdField
     , VenueRoleField
     , EmploymentBasisField
@@ -104,7 +103,6 @@ data IdealShiftsPerWeekField
 data EmergencyContactNameField
 data EmergencyContactPhoneField
 data SectionField
-data WeekOffsetField
 data RosterGroupIdField
 data VenueRoleField
 data EmploymentBasisField

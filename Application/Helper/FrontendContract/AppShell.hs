@@ -20,7 +20,6 @@ module Application.Helper.FrontendContract.AppShell
     , CreateTimesheetEntryOverlay
     , UpdateTimesheetEntryOverlay
     , DeleteTimesheetEntryOverlay
-    , WeekOffsetField
     , StaffFilterIdField
     , StaffIdField
     , ShiftTypeIdField
@@ -114,7 +113,6 @@ data EditTimesheetEntryDialog
 data CreateTimesheetEntryOverlay
 data UpdateTimesheetEntryOverlay
 data DeleteTimesheetEntryOverlay
-data WeekOffsetField
 data StaffFilterIdField
 data StaffIdField
 data ShiftTypeIdField
@@ -380,7 +378,7 @@ type StaffProfileFields =
      , Field EmergencyContactNameField 'WireText
      , Field EmergencyContactPhoneField 'WireText
      , Field SectionField ('WireClosed StaffProfileSectionValue)
-     , Field WeekOffsetField 'WireText
+     , Field AnchorDateField 'WireText
      , Field RosterGroupIdField 'WireText
      , Field VenueRoleField ('WireClosed VenueRoleEnum)
      , Field EmploymentBasisField ('WireClosed StaffEmploymentBasisEnum)
@@ -390,7 +388,7 @@ type StaffProfileFields =
 
 type StaffShiftPreferenceFields =
     '[ Field SectionField ('WireClosed StaffProfileSectionValue)
-     , Field WeekOffsetField 'WireText
+     , Field AnchorDateField 'WireText
      , Field RosterGroupIdField 'WireText
      , Field ShiftPreferenceKeysField 'WireText
      ]
