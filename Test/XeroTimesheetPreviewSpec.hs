@@ -1,6 +1,7 @@
 module Test.XeroTimesheetPreviewSpec where
 
-import Application.Fixture.PayrollFixtures (createAndApproveEntry)
+import Application.Fixture.PayrollFixtures (TimesheetFixtureValues,
+                                            createAndApproveEntry)
 import Application.Helper.Pay
 import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculation)
 import Application.Helper.Xero
@@ -14,6 +15,7 @@ import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays, diffDays, fromGregorian)
+import Data.Time.Clock (addUTCTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
@@ -32,6 +34,54 @@ tests =
 
                     let line = onlyPreviewLine previewRun
                     line.previewLineNumberOfUnits `shouldBe` [4, 0, 0, 0, 0, 0, 0]
+
+            it "allocates every final-day overnight component to the shift start day" $ withContext do
+                withCleanDb do
+                    fixture <-
+                        createPreviewFixture
+                            "weekly"
+                            [ EntrySpecWithBreak
+                                6
+                                fixtureStaffA
+                                (TimeOfDay 15 0 0)
+                                (TimeOfDay 1 14 0)
+                                (TimeOfDay 20 30 0)
+                                (TimeOfDay 21 0 0)
+                            ]
+                    previewRun <- buildFixturePreview fixture
+
+                    let lines = (onlyPreview previewRun).previewLines
+                        lineFor keyPart =
+                            case find (Text.isInfixOf keyPart . (.previewLineLocalBucketKey)) lines of
+                                Just line -> line
+                                Nothing   -> error ("expected Xero line containing " <> cs keyPart)
+                    (lineFor "penalty:sunday_penalty").previewLineNumberOfUnits `shouldBe` replicate 6 0 <> [8.5]
+                    (lineFor ":ordinary:").previewLineNumberOfUnits `shouldBe` replicate 6 0 <> [1.233333333333]
+                    (lineFor "penalty:late_night_after_midnight").previewLineNumberOfUnits `shouldBe` replicate 6 0 <> [2]
+                    map (.previewLineLocalBucketKey) lines `shouldSatisfy` all (not . Text.isInfixOf "penalty:missed_meal_break_addition")
+
+            it "keeps a mid-period overnight shift in its start-day Xero position" $ withContext do
+                withCleanDb do
+                    fixture <- createPreviewFixture "weekly" [EntrySpec 2 fixtureStaffA (TimeOfDay 22 0 0) (TimeOfDay 2 0 0)]
+                    previewRun <- buildFixturePreview fixture
+
+                    let lines = (onlyPreview previewRun).previewLines
+                    lines `shouldSatisfy` all (\line -> take 2 line.previewLineNumberOfUnits == [0, 0])
+                    lines `shouldSatisfy` all (\line -> drop 3 line.previewLineNumberOfUnits == replicate 4 0)
+                    lines `shouldSatisfy` all (\line -> line.previewLineNumberOfUnits !! 2 > 0)
+
+            it "rejects a preview whose shift start day is outside the selected period" $ withContext do
+                withCleanDb do
+                    fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                    input <- fetchPreviewInput fixture.request fixture.connection
+                    let moveAfterPeriod entry =
+                            entry
+                                |> set #startsAt (addUTCTime (7 * 24 * 60 * 60) entry.startsAt)
+                                |> set #endsAt (addUTCTime (7 * 24 * 60 * 60) entry.endsAt)
+                        invalidInput = input { previewTimesheetEntries = map moveAfterPeriod input.previewTimesheetEntries }
+
+                    buildXeroTimesheetPreviewRun invalidInput
+                        `shouldBe` Left "Timesheet start day is outside the selected Xero period."
 
             it "preserves minute-level hourly Xero quantities" $ withContext do
                 withCleanDb do
@@ -283,12 +333,21 @@ fixtureStaffA = FixtureStaffA
 fixtureStaffB :: FixtureStaff
 fixtureStaffB = FixtureStaffB
 
-data EntrySpec = EntrySpec
-    { entryDayOffset :: !Integer
-    , entryStaff     :: !FixtureStaff
-    , entryStartTime :: !TimeOfDay
-    , entryEndTime   :: !TimeOfDay
-    }
+data EntrySpec
+    = EntrySpec
+        { entryDayOffset :: !Integer
+        , entryStaff     :: !FixtureStaff
+        , entryStartTime :: !TimeOfDay
+        , entryEndTime   :: !TimeOfDay
+        }
+    | EntrySpecWithBreak
+        { entryDayOffset      :: !Integer
+        , entryStaff          :: !FixtureStaff
+        , entryStartTime      :: !TimeOfDay
+        , entryEndTime        :: !TimeOfDay
+        , entryBreakStartTime :: !TimeOfDay
+        , entryBreakEndTime   :: !TimeOfDay
+        }
 
 data PreviewFixture = PreviewFixture
     { venue       :: !Venue
@@ -369,10 +428,21 @@ createFixtureEntry :: (?modelContext :: ModelContext) => Venue -> User -> Staff 
 createFixtureEntry venue owner staffA staffB periodStart spec = do
     let staff = if spec.entryStaff == FixtureStaffA then staffA else staffB
     approvedAt <- getCurrentTime
-    createAndApproveEntry venue staff (addDays spec.entryDayOffset periodStart) () owner approvedAt
-        [ setTestStartTime spec.entryStartTime
-        , setTestEndTime spec.entryEndTime
-        ]
+    createAndApproveEntry venue staff (addDays spec.entryDayOffset periodStart) () owner approvedAt (entryTransforms spec)
+
+entryTransforms :: EntrySpec -> [TimesheetFixtureValues -> TimesheetFixtureValues]
+entryTransforms spec =
+    [ setTestStartTime spec.entryStartTime
+    , setTestEndTime spec.entryEndTime
+    ]
+        <> case spec of
+            EntrySpec {} -> []
+            EntrySpecWithBreak { entryBreakStartTime, entryBreakEndTime } ->
+                [ setTestHadBreak True
+                , setTestBreakMinutes 30
+                , setTestBreakStartTime (Just entryBreakStartTime)
+                , setTestBreakEndTime (Just entryBreakEndTime)
+                ]
 
 createPreviewXeroConnection :: (?modelContext :: ModelContext) => Venue -> User -> IO XeroConnection
 createPreviewXeroConnection venue owner =

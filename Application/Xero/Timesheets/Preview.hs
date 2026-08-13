@@ -17,7 +17,8 @@ import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculatio
 import Application.Helper.WeekBoundaries (WeekdayIndex)
 import Application.Helper.Xero (XeroTimesheetRef (..))
 import Application.Helper.XeroTimesheetReadiness
-import Application.VenueTime.Model (requireMelbourneDateRangeUTC)
+import Application.VenueTime.Model (requireMelbourneDateRangeUTC,
+                                    timesheetEntryWorkedOn)
 import Application.WageEngine
 import Application.WagePublication (datedEarningsComponents)
 import Application.WageSourceEnforcement (enforceFinalWageEntries,
@@ -96,7 +97,7 @@ data SegmentContribution = SegmentContribution
     , contributionEntryId        :: !UUID
     , contributionStaffVersionId :: !UUID
     , contributionShiftVersionId :: !UUID
-    , contributionWorkedOn       :: !Day
+    , contributionOwnershipDate  :: !Day
     , contributionLocalBucketKey :: !Text
     , contributionEarningsRateId :: !Text
     , contributionUnit           :: !EarningsUnit
@@ -343,13 +344,18 @@ entryContributions input entry = do
     staffVersionId <- maybeToEither ("Missing staff pay version for timesheet entry " <> tshow (unpackId entry.id)) entry.staffPayVersionId
     shiftVersionId <- maybeToEither ("Missing shift type pay version for timesheet entry " <> tshow (unpackId entry.id)) entry.shiftTypePayVersionId
     calculation <- maybeToEither ("Missing sealed pay calculation for timesheet entry " <> tshow (unpackId entry.id)) (Map.lookup (unpackId entry.id) input.previewCalculationsByEntryId)
+    let ownershipDate = timesheetEntryWorkedOn entry
+    unless
+        (ownershipDate >= input.previewPeriodStart && ownershipDate <= input.previewPeriodEnd)
+        (Left "Timesheet start day is outside the selected Xero period.")
     entry.approvedAt |> maybeToEither ("Missing approval timestamp for timesheet entry " <> tshow (unpackId entry.id)) |> const (pure ())
     datedEarningsComponents calculation
         |> filter ((> 0) . (.quantity) . snd)
-        |> mapM (componentContribution input entry staff xeroEmployeeId staffVersionId shiftVersionId)
+        |> mapM (componentContribution input ownershipDate entry staff xeroEmployeeId staffVersionId shiftVersionId)
 
 componentContribution ::
     XeroTimesheetPreviewInput ->
+    Day ->
     TimesheetEntry ->
     Staff ->
     Text ->
@@ -357,7 +363,7 @@ componentContribution ::
     UUID ->
     (Day, EarningsComponent) ->
     Either Text SegmentContribution
-componentContribution input entry staff xeroEmployeeId staffVersionId shiftVersionId (componentDate, component) = do
+componentContribution input ownershipDate entry staff xeroEmployeeId staffVersionId shiftVersionId (componentDate, component) = do
     localBucketKey <- componentBucketKey (previewBucketContext input) entry staff component componentDate
     earningsRateId <- case component.sourceCondition of
         ImportedFlatRateCondition itemId -> do
@@ -372,7 +378,7 @@ componentContribution input entry staff xeroEmployeeId staffVersionId shiftVersi
         , contributionEntryId = unpackId entry.id
         , contributionStaffVersionId = staffVersionId
         , contributionShiftVersionId = shiftVersionId
-        , contributionWorkedOn = componentDate
+        , contributionOwnershipDate = ownershipDate
         , contributionLocalBucketKey = localBucketKey
         , contributionEarningsRateId = earningsRateId
         , contributionUnit = component.unitType
@@ -445,7 +451,7 @@ newLineAggregation _ contribution =
         { lineAggregationLocalBucketKey = contribution.contributionLocalBucketKey
         , lineAggregationEarningsRateId = contribution.contributionEarningsRateId
         , lineAggregationUnit = contribution.contributionUnit
-        , lineAggregationUnitsByDay = Map.singleton contribution.contributionWorkedOn contribution.contributionUnits
+        , lineAggregationUnitsByDay = Map.singleton contribution.contributionOwnershipDate contribution.contributionUnits
         , lineAggregationEntryIds = [contribution.contributionEntryId]
         , lineAggregationStaffVersionIds = [contribution.contributionStaffVersionId]
         , lineAggregationShiftVersionIds = [contribution.contributionShiftVersionId]

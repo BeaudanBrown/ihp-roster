@@ -192,8 +192,12 @@ The exact paging, lease, retry, and trust implementation is authoritative in
   components to the one approval-pinned Xero earnings rate; an explicit shift
   override still follows the shared pay-assignment precedence. Imported-rate
   selectors present the human Xero name before account-code metadata.
-- Xero quantities preserve canonical sealed units and precision. Xero remains
-  payroll, tax, and STP authority; Bepis does not calculate tax.
+- Xero quantities preserve canonical sealed units and precision. Every positive
+  component is placed in the provider period position for the Timesheet entry's
+  local start day, keeping an overnight shift whole while actual component dates
+  remain authoritative for rates, conditions, public holidays, breaks, and DST.
+  Preview fails closed if that ownership day is outside the selected period. Xero
+  remains payroll, tax, and STP authority; Bepis does not calculate tax.
 - A fresh preparation may update a matching Xero draft after local entries are
   corrected and reapproved. Bepis does not delete or clear a prior Xero draft when
   an employee no longer has approved local entries; owners resolve obsolete drafts
