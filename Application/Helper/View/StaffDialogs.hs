@@ -14,14 +14,14 @@ staffEditDialogClass :: Text
 staffEditDialogClass = "app-staff-edit-dialog"
 
 
-renderStaffEditPageModalWithButtons :: Int -> [OverlayButton] -> Html -> Html
+renderStaffEditPageModalWithButtons :: [OverlayButton] -> Html -> Html
 renderStaffEditPageModalWithButtons = renderStaffPageModalWithTitle "Edit Staff Member"
 
-renderStaffAddTrialPageModalWithButtons :: Int -> [OverlayButton] -> Html -> Html
+renderStaffAddTrialPageModalWithButtons :: [OverlayButton] -> Html -> Html
 renderStaffAddTrialPageModalWithButtons = renderStaffPageModalWithTitle "Add Trial"
 
-renderStaffPageModalWithTitle :: Text -> Int -> [OverlayButton] -> Html -> Html
-renderStaffPageModalWithTitle title weekOffset buttons formContent =
+renderStaffPageModalWithTitle :: Text -> [OverlayButton] -> Html -> Html
+renderStaffPageModalWithTitle title buttons formContent =
     renderPageDialogModal
         (pathTo RosterWeeksAction)
         DialogOverlayConfig

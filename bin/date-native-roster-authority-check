@@ -35,6 +35,15 @@ surface_offset_fields="$(
 [[ -z "$surface_offset_fields" ]] \
     || fail $'Roster/Timesheets Surface contracts must use explicit windows, not weekOffset:\n'"$surface_offset_fields"
 
+public_offset_fields="$(
+    rg -n 'name="weekOffset"|\("weekOffset"|paramOr[A-Za-z]*[^\n]*"weekOffset"' \
+        Web/Controller \
+        Web/View \
+        || true
+)"
+[[ -z "$public_offset_fields" ]] \
+    || fail $'Public controllers/forms must carry anchorDate, not legacy weekOffset:\n'"$public_offset_fields"
+
 payroll_offset_fields="$(
     rg -n 'WeekOffset|weekOffset|week_offset' \
         Application/Helper/Export \

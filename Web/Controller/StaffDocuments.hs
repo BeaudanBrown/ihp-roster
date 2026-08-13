@@ -288,7 +288,6 @@ parseRsaReturnContext :: (?request :: Request) => RsaReturnContext
 parseRsaReturnContext =
     RsaReturnContext
         { rsaReturnTo = paramOrDefault @Text "profile" "returnTo"
-        , rsaReturnWeekOffset = paramOrNothing @Int "weekOffset"
         , rsaReturnRosterGroupId = parseRosterGroupIdParam =<< paramOrNothing @Text "rosterGroupId"
         }
 
@@ -296,7 +295,7 @@ rsaReturnPath :: (?request :: Request) => Text
 rsaReturnPath =
     case parseRsaReturnContext of
         RsaReturnContext { rsaReturnTo = "admin" } -> pathTo AdminAction <> "#compliance"
-        RsaReturnContext { rsaReturnTo = "staff", rsaReturnWeekOffset, rsaReturnRosterGroupId } ->
+        RsaReturnContext { rsaReturnTo = "staff", rsaReturnRosterGroupId } ->
             appendQueryParams
                 (pathTo RosterWeeksAction)
                 (maybe [] (\rosterGroupId -> [("rosterGroupId", tshow rosterGroupId)]) rsaReturnRosterGroupId)

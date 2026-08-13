@@ -196,7 +196,7 @@ fetchProfileStaffManagementFields (Just staff) maybeSubmittedRosterGroupIds
                     , managementImportedPayItems = importedPayItems
                     , managementSelectedRosterGroupIds = selectedRosterGroupIds
                     , managementVenueMembership = Nothing
-                    , managementWeekOffset = Nothing
+                    , managementAnchorDate = Nothing
                     , managementRosterGroupId = Nothing
                     }
 

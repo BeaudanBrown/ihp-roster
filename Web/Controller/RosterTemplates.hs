@@ -391,8 +391,9 @@ instance Controller RosterTemplatesController where
         rosterGroup <- fetchScopedRosterGroup rosterGroupId
         maybeSaved <- fetchSavedRosterTemplate actor rosterTemplateId
         case maybeSaved of
-            Just saved | saved.savedTemplate.rosterGroupId == unpackId rosterGroup.id ->
-                respondHtml (renderRosterTemplateDeleteConfirmation saved.savedTemplate rosterGroupId weekOffset)
+            Just saved | saved.savedTemplate.rosterGroupId == unpackId rosterGroup.id -> do
+                venueConfig <- fetchVenueConfig
+                respondHtml (renderRosterTemplateDeleteConfirmation saved.savedTemplate rosterGroupId (venueWeekStartDate venueConfig weekOffset))
             _ -> invalidTemplateApplication rosterGroup weekOffset "The template no longer exists."
 
     action currentAction@DeleteRosterTemplateAction { rosterTemplateId } = runBepis currentAction BepisMutationAction do
@@ -612,11 +613,11 @@ renderDraftOccupied ::
     Text ->
     RosterTemplateScaleEnum ->
     Text ->
-    Maybe Int ->
+    Maybe Day ->
     Maybe Int ->
     Maybe Text ->
     IO ()
-renderDraftOccupied actor rosterGroup pendingName pendingScale pendingStartingPoint pendingWeekOffset pendingDayOffset pendingConfirmationToken = do
+renderDraftOccupied actor rosterGroup pendingName pendingScale pendingStartingPoint pendingAnchorDate pendingDayOffset pendingConfirmationToken = do
     maybeDraft <- fetchPrivateRosterTemplateDraft actor
     accessDeniedUnless (isJust maybeDraft)
     let existingDraft = fromMaybe (error "occupied template draft missing") maybeDraft
@@ -631,11 +632,14 @@ restartFromReference ::
     RosterTemplateScaleEnum ->
     IO ()
 restartFromReference actor existingDesignId rosterGroup templateName templateScale = do
-    let maybeWeekOffset = paramOrNothing @Text "weekOffset" >>= readMaybe . cs
+    let maybeRawAnchorDate = paramOrNothing @Text "anchorDate"
     let selectedDayOffset = paramOrNothing @Text "dayOffset" >>= readMaybe . cs
     let maybeConfirmationToken = paramOrNothing @Text "confirmationToken"
-    case (maybeWeekOffset, maybeConfirmationToken) of
-        (Just weekOffset, Just confirmationToken) -> do
+    case (maybeRawAnchorDate, maybeConfirmationToken) of
+        (Just rawAnchorDate, Just confirmationToken) -> do
+            anchorDate <- parseIsoDayRouteParam rawAnchorDate
+            venueConfig <- fetchVenueConfig
+            let weekOffset = venueWeekOffsetForDay venueConfig (startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate)
             maybeReferenceWeek <- fetchRosterTemplateReferenceWeekForOffset actor rosterGroup weekOffset
             let maybeReference = maybeReferenceWeek >>= selectedReference templateScale selectedDayOffset
             case maybeReference of
@@ -680,8 +684,9 @@ startFromReference actor rosterGroup templateName templateScale weekOffset selec
             deleteSession rosterTemplateReferenceConfirmationSessionKey
             redirectToSeeOther ShowRosterTemplateDesignerAction
                 { rosterTemplateDesignId = draft.draftDesign.id }
-        Left RosterTemplateDraftSlotOccupied ->
-            renderDraftOccupied actor rosterGroup templateName templateScale "reference" (Just weekOffset) selectedDayOffset (if isJust confirmedDraftRevision then maybeConfirmationToken else Nothing)
+        Left RosterTemplateDraftSlotOccupied -> do
+            venueConfig <- fetchVenueConfig
+            renderDraftOccupied actor rosterGroup templateName templateScale "reference" (Just (venueWeekStartDate venueConfig weekOffset)) selectedDayOffset (if isJust confirmedDraftRevision then maybeConfirmationToken else Nothing)
         Left templateError -> do
             deleteSession rosterTemplateReferenceConfirmationSessionKey
             renderCreationFailure rosterGroup templateError

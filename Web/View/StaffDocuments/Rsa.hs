@@ -11,7 +11,6 @@ import Web.View.Prelude
 
 data RsaReturnContext = RsaReturnContext
     { rsaReturnTo            :: !Text
-    , rsaReturnWeekOffset    :: !(Maybe Int)
     , rsaReturnRosterGroupId :: !(Maybe (Id RosterGroup))
     }
 
@@ -36,13 +35,7 @@ data RsaPanelConfig = RsaPanelConfig
 renderRsaReturnInputs :: RsaReturnContext -> Html
 renderRsaReturnInputs RsaReturnContext { .. } = [hsx|
     <input type="hidden" name="returnTo" value={rsaReturnTo}/>
-    {forEach rsaReturnWeekOffset renderWeekOffsetInput}
     {forEach rsaReturnRosterGroupId renderRosterGroupInput}
-|]
-
-renderWeekOffsetInput :: Int -> Html
-renderWeekOffsetInput weekOffset = [hsx|
-    <input type="hidden" name="weekOffset" value={tshow weekOffset}/>
 |]
 
 renderRosterGroupInput :: Id RosterGroup -> Html

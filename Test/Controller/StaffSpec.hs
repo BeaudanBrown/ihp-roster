@@ -53,7 +53,7 @@ tests = aroundAll withDatabaseTestContext do
         let sampleStaffId = Id "6f9638dc-f13c-4ed3-b4f1-a2f860532cab"
         it "redirects unauthenticated users through shared controller middleware" $ withContext do
             actionResponsesShouldHaveStatus status302
-                [ ("edit", callActionWithParams (EditStaffAction sampleStaffId) [("weekOffset", "7")])
+                [ ("edit", callActionWithParams (EditStaffAction sampleStaffId) [("anchorDate", "2025-02-24")])
                 , ( "update"
                   , callActionWithParams (UpdateStaffAction sampleStaffId)
                         [ ("section", "profile")
@@ -64,7 +64,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("emergencyContactName", "Casey User")
                         , ("emergencyContactPhone", "0411111111")
                         , ("idealShiftsPerWeek", "3")
-                        , ("weekOffset", "7")
+                        , ("anchorDate", "2025-02-24")
                         ]
                   )
                 , ("new trial", callAction NewStaffAction)
@@ -186,7 +186,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("emergencyContactPhone", "Trial placeholder")
                         , ("idealShiftsPerWeek", "2")
                         , ("isActive", "on")
-                        , ("weekOffset", "0")
+                        , ("anchorDate", "2025-01-06")
                         , ("rosterGroupIds", cs (tshow frontOfHouse.id))
                         , ("rosterGroupIds", cs (tshow backOfHouse.id))
                         ]
@@ -450,7 +450,7 @@ tests = aroundAll withDatabaseTestContext do
                             , ("emergencyContactPhone", "0411111111")
                             , ("idealShiftsPerWeek", "4")
                             , ("isActive", "on")
-                            , ("weekOffset", "0")
+                            , ("anchorDate", "2025-01-06")
                             , ("rosterGroupIds", cs (tshow rosterGroup.id))
                             ]
 
@@ -473,7 +473,7 @@ tests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue Nothing "Trial" "Invite"
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "name=\"invitationEmail\""
@@ -489,7 +489,7 @@ tests = aroundAll withDatabaseTestContext do
                     >>= updateRecord . set #staffId (Just staff.id)
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "Pending invite"
@@ -510,7 +510,7 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (NewTrialStaffInvitationAction staff.id)
-                            [ ("weekOffset", "3")
+                            [ ("anchorDate", "2025-01-27")
                             , ("rosterGroupId", cs (tshow rosterGroup.id))
                             ]
 
@@ -519,7 +519,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "app-staff-edit-dialog"
                 response `responseBodyShouldContain` "id=\"trial-staff-invite-form\""
                 response `responseBodyShouldContain` "pending-dialog@example.com"
-                response `responseBodyShouldContain` "name=\"weekOffset\" value=\"3\""
+                response `responseBodyShouldContain` "name=\"anchorDate\" value=\"2025-01-27\""
 
         it "shows expired trial invitations with corrected-email renewal controls" $ withContext do
             withCleanDb do
@@ -965,7 +965,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                        callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-bepis-surface=\"staff\""
@@ -1001,7 +1001,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> createRecord
 
                 editResponse <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
                 editResponse `responseStatusShouldBe` status200
                 editResponse `responseBodyShouldNotContain` ">Roster Groups</label>"
                 editResponse `responseBodyShouldContain` cs ("name=\"rosterGroupIds\" value=\"" <> tshow (unpackId activeGroup.id) <> "\"")
@@ -1017,7 +1017,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("emergencyContactName", "Jordan Keeper")
                         , ("emergencyContactPhone", "0411111111")
                         , ("idealShiftsPerWeek", "4")
-                        , ("weekOffset", "0")
+                        , ("anchorDate", "2025-01-06")
                         , ("rosterGroupIds", cs (tshow activeGroup.id))
                         , ("rosterGroupIds", cs (tshow inactiveGroup.id))
                         ]
@@ -1049,7 +1049,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("emergencyContactPhone", "0411111111")
                         , ("idealShiftsPerWeek", "4")
                         , ("isActive", "on")
-                        , ("weekOffset", "0")
+                        , ("anchorDate", "2025-01-06")
                         , ("rosterGroupIds", cs (tshow frontOfHouse.id))
                         , ("rosterGroupIds", cs (tshow backOfHouse.id))
                         ]
@@ -1089,7 +1089,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("emergencyContactPhone", "0411111111")
                         , ("idealShiftsPerWeek", "4")
                         , ("isActive", "on")
-                        , ("weekOffset", "0")
+                        , ("anchorDate", "2025-01-06")
                         , ("rosterGroupIds", cs (tshow rosterGroup.id))
                         ]
 
@@ -1111,7 +1111,7 @@ tests = aroundAll withDatabaseTestContext do
                     callActionWithParams
                         (UpdateStaffAction staff.id)
                         [ ("section", "preferences")
-                        , ("weekOffset", "0")
+                        , ("anchorDate", "2025-01-06")
                         , ("shiftPreferenceKeys", cs preferenceKey)
                         , (cs (shiftPreferenceStartHourParamName preferenceKey), "8")
                         , (cs (shiftPreferenceEndHourParamName preferenceKey), "14")
@@ -1143,7 +1143,7 @@ tests = aroundAll withDatabaseTestContext do
                             , ("emergencyContactPhone", "0411111111")
                             , ("idealShiftsPerWeek", "4")
                             , ("isActive", "on")
-                            , ("weekOffset", "0")
+                            , ("anchorDate", "2025-01-06")
                             , ("rosterGroupIds", "not-a-uuid")
                             , ("shiftPreferenceKeys", "bad|key|not-a-uuid")
                             ]
@@ -1176,7 +1176,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("isActive", "on")
                         , ("employmentBasis", "permanent")
                         , ("payRateSelection", cs ("award:" <> tshow payLevel.id))
-                        , ("weekOffset", "0")
+                        , ("anchorDate", "2025-01-06")
                         , ("rosterGroupIds", cs (tshow rosterGroup.id))
                         ]
 
@@ -1197,7 +1197,7 @@ tests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue Nothing "Alpha" "Crew"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin (get #id venue) do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Default Pay Rate"
@@ -1218,7 +1218,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> updateRecord
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Profile Details"
@@ -1232,7 +1232,7 @@ tests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue Nothing "Removal" "Target"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "name=\"isActive\""
@@ -1248,7 +1248,7 @@ tests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue Nothing "Confirm" "Removal"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams (NewRemoveStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (NewRemoveStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Remove staff member"
@@ -1497,7 +1497,7 @@ tests = aroundAll withDatabaseTestContext do
                             callActionWithParams
                                 (UpdateStaffAction staff.id)
                                 [ ("section", "preferences")
-                                , ("weekOffset", "0")
+                                , ("anchorDate", "2025-01-06")
                                 , ("shiftPreferenceKeys", cs preferenceKey)
                                 , (cs (shiftPreferenceStartHourParamName preferenceKey), "9")
                                 , (cs (shiftPreferenceEndHourParamName preferenceKey), "17")
@@ -1913,7 +1913,7 @@ tests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue Nothing "Trial" "Role"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Staff Role"
@@ -1931,7 +1931,7 @@ tests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue (Just workerUser) "Role" "Target"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Staff Role"
@@ -1953,7 +1953,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("employmentBasis", "casual")
                         , ("payRateSelection", "")
                         , ("venueRole", "manager")
-                        , ("weekOffset", "0")
+                        , ("anchorDate", "2025-01-06")
                         , ("rosterGroupIds", cs (tshow rosterGroup.id))
                         ]
 
@@ -1979,7 +1979,7 @@ tests = aroundAll withDatabaseTestContext do
                     _ <- callActionWithParams
                         StartSupportImpersonationAction
                         [("userId", cs (inputValue effectiveAdmin.id))]
-                    editResponse <- callActionWithParams (EditStaffAction targetStaff.id) [("weekOffset", "0")]
+                    editResponse <- callActionWithParams (EditStaffAction targetStaff.id) [("anchorDate", "2025-01-06")]
                     updateResponse <- callActionWithParams (UpdateStaffAction targetStaff.id)
                         [ ("section", "profile")
                         , ("firstName", "Role")
@@ -1993,7 +1993,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("employmentBasis", "casual")
                         , ("payRateSelection", "")
                         , ("venueRole", "venue_owner")
-                        , ("weekOffset", "0")
+                        , ("anchorDate", "2025-01-06")
                         , ("rosterGroupIds", cs (tshow rosterGroup.id))
                         ]
                     pure (editResponse, updateResponse)
@@ -2017,7 +2017,7 @@ tests = aroundAll withDatabaseTestContext do
                 importedPayItem <- createImportedXeroPayItemRecord venue admin "Imported Staff Rate" "imported-staff-rate" 55.25
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Default Pay Rate"
@@ -2042,7 +2042,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("isActive", "on")
                         , ("employmentBasis", "permanent")
                         , ("payRateSelection", cs ("xero:" <> tshow importedPayItem.id))
-                        , ("weekOffset", "0")
+                        , ("anchorDate", "2025-01-06")
                         , ("rosterGroupIds", cs (tshow rosterGroup.id))
                         ]
                 updateResponse `responseStatusShouldBe` status302
@@ -2066,7 +2066,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> updateRecord
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Default Pay Rate"
@@ -2082,7 +2082,7 @@ tests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue (Just worker) "Access" "Worker"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Sign-in access"
@@ -2118,7 +2118,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("isActive", "on")
                         , ("employmentBasis", "permanent")
                         , ("payRateSelection", cs ("award:" <> tshow payLevel.id))
-                        , ("weekOffset", "0")
+                        , ("anchorDate", "2025-01-06")
                         , ("rosterGroupIds", cs (tshow rosterGroup.id))
                         ]
 

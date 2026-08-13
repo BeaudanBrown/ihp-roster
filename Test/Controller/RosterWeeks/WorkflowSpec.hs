@@ -2415,7 +2415,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "aria-label=\"Invite Alpha\""
                 response `responseBodyShouldNotContain` "&quot;staffName&quot;:&quot;Bravo&quot;"
                 response `responseBodyShouldContain` "Add trial staff"
-                response `responseBodyShouldContain` "hx-get=\"/NewStaff?weekOffset=0&amp;rosterGroupId="
+                response `responseBodyShouldContain` "hx-get=\"/NewStaff?anchorDate=2025-01-06&amp;rosterGroupId="
                 response `responseBodyShouldContain` "Show all staff"
 
         it "hides the all-staff staff panel toggle when the venue has one roster group" $ withContext do

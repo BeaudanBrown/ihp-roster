@@ -238,7 +238,7 @@ tests = describe "Frontend contract generator foundation" do
         let actionOptions :: [Contract.HtmxActionOptionIR] = concatMap (Contract.optionHtmxActionOptions . (.htmxActionOptions)) fixture.surfaceHtmxActions
 
         map (\field -> (field.fieldName, field.fieldWire)) scopeFields
-            `shouldBe` [("venueId", Contract.WireUuidIR), ("weekOffset", Contract.WireIntIR)]
+            `shouldBe` [("venueId", Contract.WireUuidIR), ("anchorDate", Contract.WireDayIR)]
         map Contract.schemaNameAndMarker dtoSchemas
             `shouldBe` [("FixturePayload", "FixturePayload"), ("FixtureRelatedPayload", "FixtureRelatedPayload")]
         actionOptions `shouldContain` [Contract.HtmxActionMethodIR Contract.HtmxPostIR]

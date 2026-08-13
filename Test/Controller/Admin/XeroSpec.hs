@@ -988,7 +988,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 managedRequirement.requirementStatus `shouldBe` XeroPayItemRequirementStatusEnumStale
                 managedRequirement.lastVerifiedAt `shouldBe` Nothing
                 staffEditResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
-                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction staff.id) [("anchorDate", "2025-01-06")]
                 staffEditResponse `responseBodyShouldContain` "Pay configuration required"
                 staffEditResponse `responseBodyShouldNotContain` "Venue ordinary"
                 staffPayAssignmentRequiresRemediation [] [] (StaffPayAssignment XeroRate Nothing (Just importedItem.id)) `shouldBe` True

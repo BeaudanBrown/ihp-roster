@@ -26,7 +26,7 @@ data StaffManagementFieldData = StaffManagementFieldData
     , managementImportedPayItems       :: [XeroImportedPayItem]
     , managementSelectedRosterGroupIds :: [Id RosterGroup]
     , managementVenueMembership        :: Maybe VenueMembership
-    , managementWeekOffset             :: Maybe Int
+    , managementAnchorDate             :: Maybe Day
     , managementRosterGroupId          :: Maybe (Id RosterGroup)
     }
 
@@ -333,8 +333,8 @@ hasStaffErrorFor :: Staff -> Text -> Bool
 hasStaffErrorFor staff fieldName = isJust (lookup fieldName staff.meta.annotations)
 
 renderStaffManagementFields :: SurfaceFieldBundleOf Surface.StaffProfileFields fields => fields -> StaffManagementFieldData -> Html
-renderStaffManagementFields fields StaffManagementFieldData { managementStaff = staff, managementRosterGroups = rosterGroups, managementAwardLevels = awardLevels, managementAwardLevelBaseRates = awardLevelBaseRates, managementImportedPayItems = importedPayItems, managementSelectedRosterGroupIds = selectedRosterGroupIds, managementVenueMembership = maybeMembership, managementWeekOffset = maybeWeekOffset, managementRosterGroupId = maybeRosterGroupId } = [hsx|
-    {maybe mempty renderWeekOffsetHiddenInput maybeWeekOffset}
+renderStaffManagementFields fields StaffManagementFieldData { managementStaff = staff, managementRosterGroups = rosterGroups, managementAwardLevels = awardLevels, managementAwardLevelBaseRates = awardLevelBaseRates, managementImportedPayItems = importedPayItems, managementSelectedRosterGroupIds = selectedRosterGroupIds, managementVenueMembership = maybeMembership, managementAnchorDate = maybeAnchorDate, managementRosterGroupId = maybeRosterGroupId } = [hsx|
+    {maybe mempty renderAnchorDateHiddenInput maybeAnchorDate}
     {renderRosterGroupHiddenInput maybeRosterGroupId}
     {forEach retainedRosterGroupIds (renderStaffRosterGroupAssignmentHiddenInput fields)}
     {when currentUserIsAdmin (renderStaffRoleField fields maybeMembership)}
@@ -368,8 +368,8 @@ renderStaffRosterGroupAssignmentHiddenInput fields rosterGroupId =
         (surfaceToggleListItemField @Surface.RosterGroupIdsField fields (unpackId rosterGroupId))
         True
 
-renderWeekOffsetHiddenInput :: Int -> Html
-renderWeekOffsetHiddenInput weekOffset = [hsx|<input type="hidden" name="weekOffset" value={tshow weekOffset} />|]
+renderAnchorDateHiddenInput :: Day -> Html
+renderAnchorDateHiddenInput anchorDate = [hsx|<input type="hidden" name="anchorDate" value={tshow anchorDate} />|]
 
 renderStaffRoleField :: SurfaceFieldBundleOf Surface.StaffProfileFields fields => fields -> Maybe VenueMembership -> Html
 renderStaffRoleField _ Nothing = [hsx|

@@ -9,7 +9,7 @@ module Test.Support.FrontendSurfaceFixture
     , ShowArchived
     , StaffFilterId
     , VenueId
-    , WeekOffset
+    , AnchorDate
     , MoveCard
     , PanelId
     , RefreshPanel
@@ -29,7 +29,7 @@ data ContractFixture
 
 data FixtureScope
 data VenueId
-data WeekOffset
+data AnchorDate
 
 data FixtureViewState
 data ShowArchived
@@ -73,7 +73,7 @@ data Panel
 type FixtureScopeBundle =
     '[ Scope FixtureScope
         '[ Field VenueId 'WireUUID
-         , Field WeekOffset 'WireInt
+         , Field AnchorDate 'WireDay
          ]
         '[ 'NoAuth ]
      , MountState FixtureViewState

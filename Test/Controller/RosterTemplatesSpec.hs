@@ -358,7 +358,7 @@ tests = aroundAll withDatabaseTestContext do
                         [ ("name", "Replacement reference")
                         , ("scale", "day")
                         , ("startingPoint", "reference")
-                        , ("weekOffset", "0")
+                        , ("anchorDate", "2025-01-06")
                         , ("dayOffset", "0")
                         , ("confirmationToken", cs confirmationToken)
                         ]

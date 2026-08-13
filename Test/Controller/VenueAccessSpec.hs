@@ -66,7 +66,7 @@ tests = aroundAll withDatabaseTestContext do
                 foreignStaff <- createStaffRecord venueB Nothing "Brie" "Foreign"
 
                 response <- withUser manager do
-                    callActionWithParams (EditStaffAction foreignStaff.id) [("weekOffset", "0")]
+                    callActionWithParams (EditStaffAction foreignStaff.id) [("anchorDate", "2025-01-06")]
 
                 response `responseStatusShouldBe` status403
 
