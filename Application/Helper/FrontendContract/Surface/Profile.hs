@@ -149,6 +149,14 @@ type StaffProfileSubmitOptions =
      , 'CustomHtmx StaffProfileSectionHtmxAttrs "profile and staff forms provide their concrete section target and swap modifier at the route boundary"
      ]
 
+type StaffShiftPreferenceSubmitOptions =
+    '[ 'HtmxMethod 'HtmxPost
+     , 'HtmxTrigger 'HtmxChange
+     , 'HtmxSync ('HtmxSyncOn 'HtmxThis 'HtmxSyncQueueLast)
+     , 'HtmxPushUrl 'HtmxPushUrlFalse
+     , 'CustomHtmx StaffProfileSectionHtmxAttrs "profile and staff forms provide their concrete section target and swap modifier at the route boundary"
+     ]
+
 type ProfileSurface =
     Surface Profile
         '[ Scope ProfileScope
@@ -166,7 +174,7 @@ type ProfileSurface =
              ]
          , Fragment ProfilePreferencesSection '[] '[ 'MountTarget ProfilePreferences '[], 'Eager, 'Live, 'DependsOn StaffPreferencesResource '[ 'FromScope StaffId ] ]
          , Action UpdateProfileDetails StaffProfileFields StaffProfileSubmitOptions
-         , Action UpdateProfileShiftPreferences StaffShiftPreferenceFields StaffProfileSubmitOptions
+         , Action UpdateProfileShiftPreferences StaffShiftPreferenceFields StaffShiftPreferenceSubmitOptions
          , Fragment ProfileSecuritySection '[] '[ 'MountTarget ProfileSecurity '[], 'Eager, 'Live, 'ResyncOnly ]
          , Fragment ProfileLeaveSection
             '[]
@@ -203,7 +211,7 @@ type StaffSurface =
              ]
          , Fragment StaffLeaveSection '[] '[ 'MountTarget StaffProfileLeave '[], 'Eager, 'Live, 'DependsOn StaffLeaveRequestsResource '[ 'FromScope StaffId ] ]
          , Action UpdateStaffProfile StaffProfileFields StaffProfileSubmitOptions
-         , Action UpdateStaffShiftPreferences StaffShiftPreferenceFields StaffProfileSubmitOptions
+         , Action UpdateStaffShiftPreferences StaffShiftPreferenceFields StaffShiftPreferenceSubmitOptions
          , Action CreateStaffLeaveRequest
             '[ Field StartDate 'WireDay
              , Field EndDate 'WireDay

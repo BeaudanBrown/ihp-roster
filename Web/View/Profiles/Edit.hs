@@ -261,7 +261,6 @@ renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences =
                 Just (StaffShiftPreferencesSurfaceAction ProfileAction.updateProfileShiftPreferencesAction (profileSectionActionRoute (pathTo UpdateProfileAction) profilePreferencesSectionId "outerHTML show:none"))
             , staffShiftPreferencesSurfaceFields = fields
             , staffShiftPreferencesFormHiddenInputs = [hsx|<input type="hidden" name={surfaceFieldNameFrom @Surface.SectionField fields} value={inputValue StaffProfilePreferencesSection}/>|]
-            , staffShiftPreferencesFormSubmitLabel = "Save shift preferences"
             }
         preferenceWeekdays
         selectedShiftPreferences

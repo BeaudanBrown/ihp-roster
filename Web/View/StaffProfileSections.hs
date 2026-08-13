@@ -61,7 +61,6 @@ data StaffShiftPreferencesFormConfig fields = StaffShiftPreferencesFormConfig
     , staffShiftPreferencesFormRequestMode  :: Maybe (StaffShiftPreferencesFormRequestMode fields)
     , staffShiftPreferencesSurfaceFields    :: fields
     , staffShiftPreferencesFormHiddenInputs :: Html
-    , staffShiftPreferencesFormSubmitLabel  :: Text
     }
 
 renderStaffProfileAccordion :: StaffProfileAccordionConfig -> Html
@@ -216,7 +215,4 @@ renderStaffShiftPreferencesFormBody :: SurfaceFieldBundleOf Surface.StaffShiftPr
 renderStaffShiftPreferencesFormBody StaffShiftPreferencesFormConfig { .. } preferenceWeekdays selectedShiftPreferences = [hsx|
     {staffShiftPreferencesFormHiddenInputs}
     {renderShiftPreferenceSections staffShiftPreferencesSurfaceFields preferenceWeekdays selectedShiftPreferences}
-    <div class="d-grid mt-4 app-modal-sticky-actions">
-        <button type="submit" class="btn btn-primary">{staffShiftPreferencesFormSubmitLabel}</button>
-    </div>
 |]

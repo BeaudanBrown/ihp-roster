@@ -579,7 +579,6 @@ renderStaffShiftPreferencesEditForm formMode preferenceWeekdays selectedShiftPre
                 {renderWeekOffsetHiddenInput weekOffset}
                 {renderRosterGroupHiddenInput maybeRosterGroupId}
             |]
-            , staffShiftPreferencesFormSubmitLabel = "Save shift preferences"
             }
         preferenceWeekdays
         selectedShiftPreferences
