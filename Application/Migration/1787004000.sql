@@ -47,8 +47,15 @@ CREATE UNIQUE INDEX idx_roster_template_days_design_weekday
 ALTER TABLE roster_notification_runs
     ADD COLUMN window_end DATE;
 
+-- Retained notification runs are immutable at runtime. This migration-only
+-- exception backfills explicit window identity without changing snapshots,
+-- recipients, delivery state, or provenance. Re-enable the guard immediately.
+ALTER TABLE roster_notification_runs DISABLE TRIGGER enforce_roster_notification_runs_immutable;
+
 UPDATE roster_notification_runs
 SET window_end = week_start + 7;
+
+ALTER TABLE roster_notification_runs ENABLE TRIGGER enforce_roster_notification_runs_immutable;
 
 ALTER TABLE roster_notification_runs
     ALTER COLUMN window_end SET NOT NULL,

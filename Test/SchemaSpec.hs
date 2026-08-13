@@ -493,6 +493,8 @@ tests = describe "Schema" do
         migrationSqlText `shouldSatisfy` Text.isInfixOf "roster template weekday backfill failed"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "window_end DATE NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_week_id UUID DEFAULT NULL"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ALTER TABLE roster_notification_runs DISABLE TRIGGER enforce_roster_notification_runs_immutable"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ALTER TABLE roster_notification_runs ENABLE TRIGGER enforce_roster_notification_runs_immutable"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "ALTER COLUMN roster_week_id DROP NOT NULL"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "ALTER COLUMN week_offset DROP NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "IF NEW.window_end <> NEW.week_start + 7 THEN"
