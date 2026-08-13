@@ -11,6 +11,7 @@ import Web.View.Prelude
 
 data RsaReturnContext = RsaReturnContext
     { rsaReturnTo            :: !Text
+    , rsaReturnAnchorDate    :: !(Maybe Day)
     , rsaReturnRosterGroupId :: !(Maybe (Id RosterGroup))
     }
 
@@ -35,7 +36,13 @@ data RsaPanelConfig = RsaPanelConfig
 renderRsaReturnInputs :: RsaReturnContext -> Html
 renderRsaReturnInputs RsaReturnContext { .. } = [hsx|
     <input type="hidden" name="returnTo" value={rsaReturnTo}/>
+    {forEach rsaReturnAnchorDate renderAnchorDateInput}
     {forEach rsaReturnRosterGroupId renderRosterGroupInput}
+|]
+
+renderAnchorDateInput :: Day -> Html
+renderAnchorDateInput anchorDate = [hsx|
+    <input type="hidden" name="anchorDate" value={tshow anchorDate}/>
 |]
 
 renderRosterGroupInput :: Id RosterGroup -> Html

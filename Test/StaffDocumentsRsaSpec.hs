@@ -112,7 +112,7 @@ tests = aroundAll withDatabaseTestContext do
                         , scanContentType = "application/pdf"
                         , scanFileContents = "bWlzbWF0Y2g="
                         , scanExtractionResult = scanResult
-                        , scanReturnContext = RsaReturnContext "profile" Nothing
+                        , scanReturnContext = RsaReturnContext "profile" Nothing Nothing
                         }
 
                 rendered <- withUserAndCurrentVenue user venue.id do

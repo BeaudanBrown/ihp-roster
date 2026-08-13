@@ -400,7 +400,11 @@ instance Controller RosterTemplatesController where
         actor <- authorizedDesignerActor
         deleted <- TemplateMutations.softDeleteRosterTemplateMutation actor rosterTemplateId "Deleted from template designer"
         either (setErrorMessage . templateErrorMessage) (const (setSuccessMessage "Template deleted.")) deleted
-        redirectTo RosterWeeksAction
+        case (paramOrNothing @Text "anchorDate", paramOrNothing @(Id RosterGroup) "rosterGroupId") of
+            (Just rawAnchorDate, Just rosterGroupId) -> do
+                anchorDate <- parseIsoDayRouteParam rawAnchorDate
+                redirectToPath (rosterWindowUrl anchorDate rosterGroupId)
+            _ -> redirectTo RosterWeeksAction
 
 resolveTemplateApplicationRequest ::
     (?modelContext :: ModelContext) =>
