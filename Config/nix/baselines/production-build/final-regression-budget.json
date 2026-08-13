@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "issue": 350,
-  "authority": "Stable production app-library and inventory regression ceilings; measured memory is opt-in and builder-specific",
+  "authority": "Stable production app-library and inventory regression ceilings reconciled after date-native roster runtime cutover; measured memory is opt-in and builder-specific",
   "app_library": {
     "self_size_bytes_max": 1073741824,
     "module_count_max": 516,
@@ -15,7 +15,7 @@
       {
         "path": "Application/Helper/FrontendContract/Surface/Roster/Generated/Resource.hi",
         "bytes_max": 100663296,
-        "reason": "GHC 9.10 serializes generated canonical Roster resource declarations consumed by runtime authority"
+        "reason": "GHC 9.10 serializes generated canonical dated Roster resource declarations consumed by runtime authority; #395 measured 89,457,295 bytes after the staging/date-native reconciliation"
       },
       {
         "path": "Application/Helper/FrontendContract/Surface/Roster/Generated/Live.hi",
@@ -40,7 +40,7 @@
       {
         "path": "Application/Helper/FrontendContract/Surface/Roster/Resource.hi",
         "bytes_max": 33554432,
-        "reason": "GHC 9.10 retains the typed Roster resource bridge required by runtime parsing"
+        "reason": "GHC 9.10 retains the typed dated Roster resource bridge required by runtime parsing; #395 measured 29,698,512 bytes after the staging/date-native reconciliation"
       },
       {
         "path": "Web/RosterWeeks/FrontendSurface.hi",
@@ -49,8 +49,8 @@
       },
       {
         "path": "Application/Helper/FrontendContract/Surface/Roster/Chrome.hi",
-        "bytes_max": 22020096,
-        "reason": "GHC 9.10 retains typed Roster chrome surface evidence required by runtime rendering"
+        "bytes_max": 25165824,
+        "reason": "GHC 9.10 retains typed dated Roster chrome surface evidence required by runtime rendering; #395 measured 22,102,748 bytes after the staging/date-native reconciliation"
       },
       {
         "path": "Web/RosterWeeks/Dom.hi",
