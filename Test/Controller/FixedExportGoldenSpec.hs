@@ -66,6 +66,38 @@ tests = aroundAll withDatabaseTestContext do
                 lookup hContentDisposition (responseHeaders downloadResponse)
                     `shouldBe` Just "attachment; filename=\"staff_hrs_starting-2025-01-07.csv\""
 
+        it "places final-day overnight staff hours in the matching weekday columns while retaining factual earnings dates" $ withContext do
+            withCleanDb do
+                let weekStart = fromGregorian 2025 1 6
+                    weekEnd = addDays 6 weekStart
+                fixture <- seedCanonicalPayrollFixtureForWeek weekStart
+                overnightEntry <- createAndApproveEntry fixture.venue fixture.avaStaff weekEnd fixture.snapshot fixture.admin fixture.approvedAt
+                    [ set #shiftTypeId (unpackId fixture.barShift.id)
+                    , setTestStartTime (TimeOfDay 15 0 0)
+                    , setTestEndTime (TimeOfDay 1 14 0)
+                    , setTestHadBreak True
+                    , setTestBreakMinutes 30
+                    , setTestBreakStartTime (Just (TimeOfDay 20 30 0))
+                    , setTestBreakEndTime (Just (TimeOfDay 21 0 0))
+                    ]
+
+                expectedStaffHours <- readExportFixtureText "overnight-staff-hours-expected.csv"
+                expectedPayrollEarnings <- readExportFixtureText "overnight-payroll-earnings-expected.normalized.csv"
+                firstStaffHours <- generatePayrollExportJobForRange fixture.admin fixture.venue weekStart weekEnd StaffPayCsv
+                secondStaffHours <- generatePayrollExportJobForRange fixture.admin fixture.venue weekStart weekEnd StaffPayCsv
+                firstEarnings <- generatePayrollExportJobForRange fixture.admin fixture.venue weekStart weekEnd PayrollEarningsCsv
+                secondEarnings <- generatePayrollExportJobForRange fixture.admin fixture.venue weekStart weekEnd PayrollEarningsCsv
+
+                let actualStaffHours = unsafeStripCarriageReturns (fromMaybe "" firstStaffHours.fileContents)
+                    actualEarnings = normalizePayrollEarningsCsv (fromMaybe "" firstEarnings.fileContents)
+                    entryRows = filter (Text.isInfixOf (tshow (unpackId overnightEntry.id))) (Text.lines (fromMaybe "" firstEarnings.fileContents))
+                actualStaffHours `shouldBe` unsafeStripCarriageReturns expectedStaffHours
+                actualEarnings `shouldBe` normalizeExpectedPayrollEarningsCsv expectedPayrollEarnings
+                secondStaffHours.fileContents `shouldBe` firstStaffHours.fileContents
+                secondEarnings.fileContents `shouldBe` firstEarnings.fileContents
+                entryRows `shouldSatisfy` any (Text.isInfixOf ",2025-01-12,")
+                entryRows `shouldSatisfy` any (Text.isInfixOf ",2025-01-13,")
+
         it "aggregates exact staff time before one quarter-hour tie-up transform" $ withContext do
             withCleanDb do
                 fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
@@ -436,12 +468,23 @@ generatePayrollExportJob ::
     Venue ->
     ExportJobType ->
     IO ExportJob
-generatePayrollExportJob user venue exportType = do
+generatePayrollExportJob user venue =
+    generatePayrollExportJobForRange user venue goldenWeekStart goldenWeekEnd
+
+generatePayrollExportJobForRange ::
+    (?mocking :: MockContext WebApplication, ?request :: Request, ?respond :: Respond, ?modelContext :: ModelContext, ?application :: WebApplication) =>
+    User ->
+    Venue ->
+    Day ->
+    Day ->
+    ExportJobType ->
+    IO ExportJob
+generatePayrollExportJobForRange user venue rangeStart rangeEnd exportType = do
     response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
         callActionWithParams CreateExportJobAction
             [ ("exportType", cs (exportJobTypeToText exportType))
-            , ("rangeStart", "2025-01-07")
-            , ("rangeEnd", "2025-01-13")
+            , ("rangeStart", cs (tshow rangeStart))
+            , ("rangeEnd", cs (tshow rangeEnd))
             ]
 
     response `responseStatusShouldBe` status302

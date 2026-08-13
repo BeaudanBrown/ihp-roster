@@ -35,7 +35,11 @@ cross-module safety and payroll contracts.
   and earnings components; they never recalculate from mutable rates or the
   retired SQL pay renderer.
 - Every positive approved component contributes to exactly one final earnings
-  bucket. Approval and calculation provenance remain attached to exported facts.
+  bucket. Payroll Earnings retains actual component dates, including overnight
+  spill beyond the selected range. Staff Hours keeps in-range dates and places
+  out-of-range overnight spill in the selected report's matching weekday and
+  clock-category column. Approval and calculation provenance remain attached to
+  exported facts.
 - The complete requested batch passes the shared strict wage-source boundary
   before output is persisted. Any included-entry failure rejects the whole
   export; entries are never silently omitted.

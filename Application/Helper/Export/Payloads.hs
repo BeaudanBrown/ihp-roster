@@ -11,7 +11,7 @@ import Data.Coerce (coerce)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
+import Data.Time.Calendar (Day, addDays, diffDays)
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -76,7 +76,11 @@ buildFixedStaffPayCsvRecords reportWeekSelection entries staffById calculationsB
             _ -> acc
 
     accumulateContribution staff payLabel acc contribution =
-        case staffPayContributionBucketIndex buckets contribution of
+        let publicationContribution =
+                contribution
+                    { staffHoursDate = staffHoursPublicationDate reportWeekSelection contribution.staffHoursDate
+                    }
+         in case staffPayContributionBucketIndex buckets publicationContribution of
             Nothing -> acc
             Just bucketIndex ->
                 let key = (staff.lastName, staff.firstName, payLabel)
@@ -89,6 +93,11 @@ buildFixedStaffPayCsvRecords reportWeekSelection entries staffById calculationsB
             , label = payLabel
             , bucketHours = hoursByBucket
             }
+
+staffHoursPublicationDate :: ReportWeekSelection -> Day -> Day
+staffHoursPublicationDate selection actualDate
+    | actualDate >= selection.weekStart && actualDate <= selection.weekEnd = actualDate
+    | otherwise = addDays (diffDays actualDate selection.weekStart `mod` 7) selection.weekStart
 
 shouldIncludeFixedStaffPayEntry :: Map.Map UUID Staff -> TimesheetEntry -> Bool
 shouldIncludeFixedStaffPayEntry staffById entry =
