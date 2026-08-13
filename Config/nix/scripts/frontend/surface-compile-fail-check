@@ -222,7 +222,7 @@ expect_compile_failure \
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongScopeField.hs" \
     "FrontendSurface declaration Fixture.FixtureScope does not declare field marker Fixture.PanelId" \
-    "Declared fields: [Fixture.VenueId :: required WireUUID, Fixture.WeekOffset :: required WireInt]"
+    "Declared fields: [Fixture.VenueId :: required WireUUID, Fixture.AnchorDate :: required WireDay]"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongLiveScopeMarker.hs" \
