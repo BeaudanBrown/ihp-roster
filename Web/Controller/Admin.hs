@@ -159,9 +159,14 @@ staffPasskeyReturnPath =
     case paramOrDefault @Text "admin" "returnTo" of
         "staff" ->
             appendQueryParams
-                (pathTo RosterWeeksAction)
+                rosterPath
                 (maybe [] (\rosterGroupId -> [("rosterGroupId", tshow (rosterGroupId :: Id RosterGroup))]) (paramOrNothing "rosterGroupId"))
         _ -> pathTo AdminAction
+  where
+    rosterPath =
+        case paramOrNothing @Text "anchorDate" of
+            Just anchorDate -> pathTo (ShowRosterWindowAction anchorDate)
+            Nothing -> pathTo RosterWeeksAction
 
 fetchCurrentVenueStaffUser :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id Staff -> IO (Maybe User)
 fetchCurrentVenueStaffUser staffId = do

@@ -284,7 +284,7 @@ tests = do
             withCleanDb do
                 let periodStart = fromGregorian 2026 5 2
                     periodEnd = fromGregorian 2026 5 8
-                fixture <- createReadinessFixture "weekly" periodStart periodEnd
+                fixture <- createReadyMappedFixture "weekly" periodStart periodEnd
                 penaltyRates <-
                     query @AwardLevelPenaltyRate
                         |> filterWhere (#employmentBasis, Permanent)

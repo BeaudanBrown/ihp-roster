@@ -1,13 +1,17 @@
 module Test.Controller.Admin.XeroSpec where
 
 import Application.Async.Queue (EnqueueAppJobResult (EnqueuedAppJob))
-import Application.Fixture.PayrollFixtures (createAndApproveEntry)
+import Application.Fixture.PayrollFixtures (approveEntryWithVersions,
+                                             createAndApproveEntry)
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.LiveUpdate
+import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
+                               lockPayVersionsForApproval)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         fetchActiveRosterGroupSlotNames)
 import Application.Helper.SurfaceResource
+import Application.Helper.TimesheetPayLedger (backfillApprovedTimesheetPayCalculations)
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes (XeroLocalEarningsBucket (..))
@@ -1773,7 +1777,15 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         |> set #importedXeroPayItemId (Just previousPayItem.id)
                         |> updateRecord
                 now <- getCurrentTime
-                _ <- createAndApproveEntry fixture.venue previousStaff (addDays 1 fixture.periodStart) () fixture.owner now []
+                historicalEntry <- createTimesheetEntryRecord fixture.venue previousStaff (addDays 1 fixture.periodStart)
+                (historicalStaffPayVersion, historicalShiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval fixture.owner.id historicalEntry
+                lockPayVersionsForApproval fixture.owner.id now historicalStaffPayVersion historicalShiftTypePayVersion
+                _ <- Test.Support.withLegacyPayBackfillFixture do
+                    historicalEntry
+                        |> approveEntryWithVersions historicalStaffPayVersion historicalShiftTypePayVersion fixture.owner now
+                        |> updateRecord
+                Right 1 <- backfillApprovedTimesheetPayCalculations
+                pure ()
                 encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
                 _ <-
                     fixture.connection

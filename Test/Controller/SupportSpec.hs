@@ -298,7 +298,7 @@ tests = aroundAll withDatabaseTestContext do
                         [("userId", cs (inputValue worker.id))]
                     callActionWithParams
                         UpdateRosterLayoutPreferenceAction
-                        [("anchorDate", "2025-01-06"), ("rosterLayoutMode", "day_columns")]
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("rosterLayoutMode", "day_columns")]
 
                 response `responseStatusShouldBe` status302
                 venueConfig <- query @VenueConfig
@@ -318,7 +318,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
                     callActionWithParams
                         UpdateRosterLayoutPreferenceAction
-                        [("rosterLayoutMode", "day_columns")]
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("rosterLayoutMode", "day_columns")]
 
                 response `responseStatusShouldBe` status302
                 venueConfig <- query @VenueConfig

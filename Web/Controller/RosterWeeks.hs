@@ -777,6 +777,7 @@ instance Controller RosterWeeksController where
                                 redirectToRosterWindow rosterWeek.weekOffset rosterGroupId
 
     action currentAction@UpdateRosterLayoutPreferenceAction = runBepis currentAction BepisPreferenceAction do
+        ensureManagerRole
         weekOffset <- rosterMutationWeekOffset
         rosterGroup <- resolveRequestedRosterGroup
         let requestedLayoutMode =

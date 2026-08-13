@@ -668,12 +668,12 @@ tests = aroundAll withDatabaseTestContext do
 
                 responses <- withUserAndCurrentVenue admin venue.id do
                     setupResponse <- callActionWithParams (SendStaffPasskeySetupEmailAction targetStaff.id)
-                        [("returnTo", "staff"), ("weekOffset", "4")]
-                    getSession @Text passkeyStepUpRedirectSessionKey `shouldReturn` Just "/ShowRosterWeek?weekOffset=4"
+                        [("returnTo", "staff"), ("anchorDate", "2025-02-03")]
+                    getSession @Text passkeyStepUpRedirectSessionKey `shouldReturn` Just "/ShowRosterWindow?anchorDate=2025-02-03"
                     recoveryResponse <- callActionWithParams (SendStaffPasskeyRecoveryEmailAction targetStaff.id)
-                        [("returnTo", "staff"), ("weekOffset", "4")]
+                        [("returnTo", "staff"), ("anchorDate", "2025-02-03")]
                     passwordResponse <- callActionWithParams (SendStaffPasswordResetEmailAction targetStaff.id)
-                        [("returnTo", "staff"), ("weekOffset", "4")]
+                        [("returnTo", "staff"), ("anchorDate", "2025-02-03")]
                     pure [setupResponse, recoveryResponse, passwordResponse]
 
                 forM_ responses \response -> do
@@ -696,10 +696,10 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue founder venue.id do
                     callActionWithParams (SendStaffPasswordResetEmailAction targetStaff.id)
-                        [("returnTo", "staff"), ("weekOffset", "2")]
+                        [("returnTo", "staff"), ("anchorDate", "2025-01-20")]
 
                 response `responseStatusShouldBe` status302
-                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/ShowRosterWeek?weekOffset=2"
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/ShowRosterWindow?anchorDate=2025-01-20"
                 resetToken <- query @PasswordResetToken |> fetchOne
                 resetToken.userId `shouldBe` unpackId target.id
                 resetToken.venueId `shouldBe` unpackId venue.id

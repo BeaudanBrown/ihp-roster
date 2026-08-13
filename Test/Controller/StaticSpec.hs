@@ -10,6 +10,7 @@ import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import IHP.Prelude
 import IHP.Test.Mocking
+import IHP.ViewSupport (liveReloadWebsocketUrl)
 import Test.Hspec
 import Test.Support
 
