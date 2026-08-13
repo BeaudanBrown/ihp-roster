@@ -2,9 +2,6 @@ module Test.Controller.RosterWeeks.NavigationSpec where
 
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
-import Application.RosterTemplates (RosterTemplateDraft (..),
-                                    rosterTemplateActor,
-                                    saveRosterTemplateDraft)
 import Config
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy.Char8 as LByteString
@@ -26,7 +23,6 @@ import Web.Controller.RosterWeeks ()
 import Web.FrontController ()
 import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterDaySectionDomId,
                             rosterRowDomIdText, rosterStaffPanelFragmentId)
-import Web.RosterWeeks.TemplateDesigner (startBlankRosterTemplateDesignerDraft)
 import Web.Routes
 import Web.Types
 
@@ -399,9 +395,6 @@ tests = aroundAll withDatabaseTestContext do
                 manager <- createUserRecord "live-template-target@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager Manager
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                let templateActor = rosterTemplateActor manager venue True
-                Right dayDraft <- startBlankRosterTemplateDesignerDraft templateActor rosterGroup Day "Lunch service"
-                Right _ <- saveRosterTemplateDraft templateActor dayDraft.draftDesign.id
                 rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 True
                 _ <- forM [0 .. 6] (createRosterDayRecord rosterWeek)
 

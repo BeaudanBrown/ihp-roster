@@ -815,78 +815,49 @@ CREATE TABLE roster_templates (
     roster_group_id UUID NOT NULL,
     name TEXT NOT NULL,
     scale roster_template_scale_enum NOT NULL,
-    current_version INT DEFAULT 0 NOT NULL,
+    completion_id UUID DEFAULT uuid_generate_v4() NOT NULL,
+    created_by_user_id UUID NOT NULL,
     deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     deleted_by_user_id UUID DEFAULT NULL,
     delete_reason TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE RESTRICT,
+    FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK ((char_length(btrim(name)) > 0) AND (char_length(name) <= 120)),
-    CHECK (name = btrim(name)),
-    CHECK (current_version >= 0)
-);
-CREATE TABLE roster_template_designs (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
-    roster_group_id UUID NOT NULL,
-    scale roster_template_scale_enum NOT NULL,
-    draft_owner_user_id UUID DEFAULT NULL,
-    draft_name TEXT DEFAULT NULL,
-    template_id UUID DEFAULT NULL,
-    version_number INT DEFAULT NULL,
-    source_template_id UUID DEFAULT NULL,
-    base_version_number INT DEFAULT NULL,
-    created_by_user_id UUID NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE RESTRICT,
-    FOREIGN KEY (draft_owner_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    FOREIGN KEY (template_id) REFERENCES roster_templates (id) ON DELETE RESTRICT,
-    FOREIGN KEY (source_template_id) REFERENCES roster_templates (id) ON DELETE RESTRICT,
-    FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    CONSTRAINT roster_template_designs_kind_check CHECK (
-        (draft_owner_user_id IS NOT NULL AND draft_name IS NOT NULL AND template_id IS NULL AND version_number IS NULL)
-        OR (draft_owner_user_id IS NULL AND draft_name IS NULL AND template_id IS NOT NULL AND version_number IS NOT NULL)
-    ),
-    CONSTRAINT roster_template_designs_source_check CHECK (
-        (source_template_id IS NULL AND base_version_number IS NULL)
-        OR (source_template_id IS NOT NULL AND base_version_number IS NOT NULL)
-    ),
-    CHECK (draft_name IS NULL OR ((char_length(btrim(draft_name)) > 0) AND (char_length(draft_name) <= 120) AND draft_name = btrim(draft_name))),
-    CHECK (version_number IS NULL OR version_number > 0),
-    CHECK (base_version_number IS NULL OR base_version_number > 0)
+    CHECK (name = btrim(name))
 );
 CREATE TABLE roster_template_days (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
-    roster_template_design_id UUID NOT NULL,
+    roster_template_id UUID NOT NULL,
     day_index INT NOT NULL,
     weekday_index INT DEFAULT NULL,
     is_closed BOOLEAN DEFAULT FALSE NOT NULL,
     row_count INT DEFAULT 4 NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    UNIQUE(roster_template_design_id, day_index),
-    FOREIGN KEY (roster_template_design_id) REFERENCES roster_template_designs (id) ON DELETE CASCADE,
+    UNIQUE(roster_template_id, day_index),
+    FOREIGN KEY (roster_template_id) REFERENCES roster_templates (id) ON DELETE CASCADE,
     CHECK ((day_index >= 0) AND (day_index <= 6)),
     CHECK (weekday_index IS NULL OR ((weekday_index >= 0) AND (weekday_index <= 6))),
     CHECK (row_count >= 0)
 );
 CREATE TABLE roster_template_columns (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
-    roster_template_design_id UUID NOT NULL,
+    roster_template_id UUID NOT NULL,
     name TEXT NOT NULL,
     sort_order INT DEFAULT 0 NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (roster_template_design_id) REFERENCES roster_template_designs (id) ON DELETE CASCADE,
+    FOREIGN KEY (roster_template_id) REFERENCES roster_templates (id) ON DELETE CASCADE,
     CHECK ((char_length(btrim(name)) > 0) AND (char_length(name) <= 120)),
     CHECK (name = btrim(name)),
     CHECK (sort_order >= 0)
 );
 CREATE TABLE roster_template_shifts (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
-    roster_template_design_id UUID NOT NULL,
+    roster_template_id UUID NOT NULL,
     roster_template_day_id UUID NOT NULL,
     roster_template_column_id UUID NOT NULL,
     assignment_state TEXT NOT NULL,
@@ -906,12 +877,23 @@ CREATE TABLE roster_template_shifts (
     CHECK (row_index >= 0),
     CHECK (start_minute >= 0),
     CHECK (end_minute <= 2880),
-    FOREIGN KEY (roster_template_design_id) REFERENCES roster_template_designs (id) ON DELETE CASCADE,
+    FOREIGN KEY (roster_template_id) REFERENCES roster_templates (id) ON DELETE CASCADE,
     FOREIGN KEY (roster_template_day_id) REFERENCES roster_template_days (id) ON DELETE CASCADE,
     FOREIGN KEY (roster_template_column_id) REFERENCES roster_template_columns (id) ON DELETE CASCADE,
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
     FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE RESTRICT
 );
+CREATE TABLE roster_template_completions (
+    id UUID PRIMARY KEY NOT NULL,
+    roster_template_id UUID UNIQUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (roster_template_id) REFERENCES roster_templates (id) ON DELETE CASCADE
+);
+ALTER TABLE roster_templates
+    ADD CONSTRAINT roster_templates_complete_content_fk
+    FOREIGN KEY (completion_id)
+    REFERENCES roster_template_completions (id)
+    DEFERRABLE INITIALLY DEFERRED;
 CREATE TABLE roster_days (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -2022,15 +2004,12 @@ CREATE INDEX idx_slot_names_group_sort ON slot_names (roster_group_id, sort_orde
 CREATE UNIQUE INDEX idx_slot_names_active_name ON slot_names (roster_group_id, name) WHERE is_active = TRUE AND archived_at IS NULL;
 CREATE UNIQUE INDEX idx_shift_types_active_name ON shift_types (venue_id, name) WHERE is_active = TRUE AND archived_at IS NULL;
 CREATE INDEX idx_shift_types_imported_xero_pay_item ON shift_types (imported_xero_pay_item_id) WHERE imported_xero_pay_item_id IS NOT NULL;
-CREATE UNIQUE INDEX idx_roster_templates_name ON roster_templates (roster_group_id, LOWER(btrim(name)));
+CREATE UNIQUE INDEX idx_roster_templates_active_name ON roster_templates (roster_group_id, LOWER(btrim(name))) WHERE deleted_at IS NULL;
 CREATE INDEX idx_roster_templates_group_updated ON roster_templates (roster_group_id, updated_at DESC) WHERE deleted_at IS NULL;
-CREATE UNIQUE INDEX idx_roster_template_designs_one_draft_per_user ON roster_template_designs (draft_owner_user_id) WHERE draft_owner_user_id IS NOT NULL;
-CREATE UNIQUE INDEX idx_roster_template_designs_saved_version ON roster_template_designs (template_id, version_number) WHERE template_id IS NOT NULL;
-CREATE INDEX idx_roster_template_designs_group ON roster_template_designs (roster_group_id);
-CREATE UNIQUE INDEX idx_roster_template_days_design_weekday ON roster_template_days (roster_template_design_id, weekday_index) WHERE weekday_index IS NOT NULL;
-CREATE UNIQUE INDEX idx_roster_template_columns_design_name ON roster_template_columns (roster_template_design_id, LOWER(btrim(name)));
-CREATE UNIQUE INDEX idx_roster_template_columns_design_sort ON roster_template_columns (roster_template_design_id, sort_order);
-CREATE UNIQUE INDEX idx_roster_template_shifts_cell ON roster_template_shifts (roster_template_day_id, row_index, roster_template_column_id);
+CREATE UNIQUE INDEX idx_roster_template_days_template_weekday ON roster_template_days (roster_template_id, weekday_index) WHERE weekday_index IS NOT NULL;
+CREATE UNIQUE INDEX idx_roster_template_columns_template_name ON roster_template_columns (roster_template_id, LOWER(btrim(name)));
+CREATE UNIQUE INDEX idx_roster_template_columns_template_sort ON roster_template_columns (roster_template_id, sort_order);
+CREATE UNIQUE INDEX idx_roster_template_shifts_cell ON roster_template_shifts (roster_template_id, roster_template_day_id, row_index, roster_template_column_id);
 CREATE INDEX idx_roster_template_shifts_staff ON roster_template_shifts (staff_id) WHERE staff_id IS NOT NULL;
 CREATE INDEX idx_roster_template_shifts_shift_type ON roster_template_shifts (shift_type_id);
 CREATE INDEX idx_roster_days_venue_date ON roster_days (venue_id, operational_date);
@@ -2313,52 +2292,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION prevent_saved_roster_template_design_mutation()
+CREATE OR REPLACE FUNCTION enforce_roster_template_identity_immutable()
 RETURNS TRIGGER
 AS $$
 BEGIN
-    IF OLD.draft_owner_user_id IS NULL THEN
-        RAISE EXCEPTION 'saved roster template versions are immutable';
-    END IF;
-    IF TG_OP = 'DELETE' THEN
-        RETURN OLD;
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION prevent_saved_roster_template_content_mutation()
-RETURNS TRIGGER
-AS $$
-DECLARE
-    old_design_id UUID;
-    new_design_id UUID;
-BEGIN
-    IF TG_OP <> 'INSERT' THEN
-        old_design_id := OLD.roster_template_design_id;
-    END IF;
-    IF TG_OP <> 'DELETE' THEN
-        new_design_id := NEW.roster_template_design_id;
-    END IF;
-    IF TG_OP = 'INSERT' AND EXISTS (
-        SELECT 1
-        FROM roster_template_designs d
-        JOIN roster_templates t ON t.id = d.template_id
-        WHERE d.id = new_design_id
-          AND d.draft_owner_user_id IS NULL
-          AND d.version_number = t.current_version + 1
-    ) THEN
-        RETURN NEW;
-    END IF;
-    IF EXISTS (
-        SELECT 1 FROM roster_template_designs d
-        WHERE (d.id = old_design_id OR d.id = new_design_id)
-          AND d.draft_owner_user_id IS NULL
-    ) THEN
-        RAISE EXCEPTION 'sealed roster template version content is immutable';
-    END IF;
-    IF TG_OP = 'DELETE' THEN
-        RETURN OLD;
+    IF NEW.roster_group_id <> OLD.roster_group_id
+        OR NEW.scale <> OLD.scale
+        OR NEW.completion_id <> OLD.completion_id THEN
+        RAISE EXCEPTION 'roster template group, scale, and completion identity are immutable';
     END IF;
     RETURN NEW;
 END;
@@ -2375,41 +2316,62 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION enforce_roster_template_integrity()
+CREATE OR REPLACE FUNCTION enforce_roster_template_content_integrity()
 RETURNS TRIGGER
 AS $$
 DECLARE
-    design_group_id UUID;
-    design_scale TEXT;
+    template_group_id UUID;
+    template_scale TEXT;
     group_venue_id UUID;
 BEGIN
+    SELECT t.roster_group_id, t.scale, rg.venue_id
+    INTO template_group_id, template_scale, group_venue_id
+    FROM roster_templates t
+    JOIN roster_groups rg ON rg.id = t.roster_group_id
+    WHERE t.id = NEW.roster_template_id;
+
+    IF template_group_id IS NULL THEN
+        RAISE EXCEPTION 'roster template content must reference an existing template';
+    END IF;
+
     IF TG_TABLE_NAME = 'roster_template_days' THEN
-        SELECT roster_group_id, scale INTO design_group_id, design_scale
-        FROM roster_template_designs WHERE id = NEW.roster_template_design_id;
-        IF design_scale = 'day' AND (NEW.day_index <> 0 OR NEW.weekday_index IS NOT NULL) THEN
+        IF template_scale = 'day' AND (NEW.day_index <> 0 OR NEW.weekday_index IS NOT NULL) THEN
             RAISE EXCEPTION 'day roster templates may contain only target-relative day index zero';
         END IF;
-        IF design_scale = 'week' AND NEW.weekday_index IS NULL THEN
+        IF template_scale = 'week' AND NEW.weekday_index IS NULL THEN
             RAISE EXCEPTION 'week roster template days require explicit weekday identity';
+        END IF;
+        IF EXISTS (
+            SELECT 1 FROM roster_template_shifts s
+            WHERE s.roster_template_day_id = NEW.id
+              AND (s.row_index >= NEW.row_count OR s.roster_template_id <> NEW.roster_template_id)
+        ) THEN
+            RAISE EXCEPTION 'roster template day must contain every shift row in one template';
         END IF;
         RETURN NEW;
     END IF;
 
-    SELECT d.roster_group_id, d.scale, rg.venue_id
-    INTO design_group_id, design_scale, group_venue_id
-    FROM roster_template_designs d
-    JOIN roster_groups rg ON rg.id = d.roster_group_id
-    WHERE d.id = NEW.roster_template_design_id;
+    IF TG_TABLE_NAME = 'roster_template_columns' THEN
+        IF EXISTS (
+            SELECT 1 FROM roster_template_shifts s
+            WHERE s.roster_template_column_id = NEW.id
+              AND s.roster_template_id <> NEW.roster_template_id
+        ) THEN
+            RAISE EXCEPTION 'roster template column and shifts must stay in one template';
+        END IF;
+        RETURN NEW;
+    END IF;
 
     IF NOT EXISTS (
         SELECT 1
         FROM roster_template_days d
-        JOIN roster_template_columns c ON c.roster_template_design_id = d.roster_template_design_id
+        JOIN roster_template_columns c ON c.roster_template_id = d.roster_template_id
         WHERE d.id = NEW.roster_template_day_id
           AND c.id = NEW.roster_template_column_id
-          AND d.roster_template_design_id = NEW.roster_template_design_id
+          AND d.roster_template_id = NEW.roster_template_id
+          AND NEW.row_index < d.row_count
     ) THEN
-        RAISE EXCEPTION 'roster template shift content must belong to one design';
+        RAISE EXCEPTION 'roster template shift must occupy a valid cell in one template';
     END IF;
 
     IF NOT EXISTS (
@@ -2430,31 +2392,92 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION enforce_roster_template_design_integrity()
+CREATE OR REPLACE FUNCTION invalidate_roster_template_completion()
 RETURNS TRIGGER
 AS $$
 BEGIN
-    IF NEW.template_id IS NOT NULL AND NOT EXISTS (
-        SELECT 1 FROM roster_templates t
-        WHERE t.id = NEW.template_id
-          AND t.roster_group_id = NEW.roster_group_id
-          AND t.scale = NEW.scale
-    ) THEN
-        RAISE EXCEPTION 'saved roster template design must match template group and scale';
+    DELETE FROM roster_template_completions
+    WHERE roster_template_id IN (
+        CASE WHEN TG_OP = 'INSERT' THEN NEW.roster_template_id ELSE OLD.roster_template_id END,
+        CASE WHEN TG_OP = 'DELETE' THEN OLD.roster_template_id ELSE NEW.roster_template_id END
+    );
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION certify_roster_template_completion()
+RETURNS TRIGGER
+AS $$
+DECLARE
+    template_scale TEXT;
+    template_venue_id UUID;
+    day_count INT;
+    column_count INT;
+BEGIN
+    SELECT t.scale, rg.venue_id
+    INTO template_scale, template_venue_id
+    FROM roster_templates t
+    JOIN roster_groups rg ON rg.id = t.roster_group_id
+    WHERE t.id = NEW.roster_template_id
+      AND t.completion_id = NEW.id;
+
+    IF template_scale IS NULL THEN
+        RAISE EXCEPTION 'roster template completion token must match its template';
     END IF;
 
-    IF NEW.source_template_id IS NOT NULL AND NOT EXISTS (
-        SELECT 1 FROM roster_templates t
-        JOIN roster_template_designs d
-          ON d.template_id = t.id AND d.version_number = NEW.base_version_number
-        WHERE t.id = NEW.source_template_id
-          AND t.roster_group_id = NEW.roster_group_id
-          AND t.scale = NEW.scale
+    SELECT COUNT(*) INTO day_count FROM roster_template_days WHERE roster_template_id = NEW.roster_template_id;
+    SELECT COUNT(*) INTO column_count FROM roster_template_columns WHERE roster_template_id = NEW.roster_template_id;
+    IF (template_scale = 'week' AND day_count <> 7)
+        OR (template_scale = 'day' AND day_count <> 1) THEN
+        RAISE EXCEPTION 'roster template content must contain every day required by its scale';
+    END IF;
+    IF column_count = 0 THEN
+        RAISE EXCEPTION 'roster template content must contain at least one column';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM roster_template_shifts s
+        JOIN roster_template_days d ON d.id = s.roster_template_day_id
+        JOIN roster_template_columns c ON c.id = s.roster_template_column_id
+        LEFT JOIN staff ON staff.id = s.staff_id
+        JOIN shift_types ON shift_types.id = s.shift_type_id
+        WHERE s.roster_template_id = NEW.roster_template_id
+          AND (
+            d.roster_template_id <> s.roster_template_id
+            OR c.roster_template_id <> s.roster_template_id
+            OR s.row_index >= d.row_count
+            OR shift_types.venue_id <> template_venue_id
+            OR (staff.id IS NOT NULL AND staff.venue_id <> template_venue_id)
+          )
     ) THEN
-        RAISE EXCEPTION 'roster template draft source version must match group and scale';
+        RAISE EXCEPTION 'roster template completion contains invalid shift structure or scope';
     END IF;
 
     RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION remediate_roster_template_assignments(p_roster_template_id UUID, p_shift_ids UUID[])
+RETURNS BOOLEAN
+AS $$
+BEGIN
+    DELETE FROM roster_template_completions
+    WHERE roster_template_id = p_roster_template_id;
+
+    UPDATE roster_template_shifts
+    SET assignment_state = 'open', staff_id = NULL, updated_at = NOW()
+    WHERE roster_template_id = p_roster_template_id
+      AND id = ANY(p_shift_ids);
+
+    INSERT INTO roster_template_completions (id, roster_template_id)
+    SELECT completion_id, id
+    FROM roster_templates
+    WHERE id = p_roster_template_id;
+
+    RETURN TRUE;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -2776,13 +2799,14 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER validate_roster_notification_window BEFORE INSERT OR UPDATE ON roster_notification_runs FOR EACH ROW EXECUTE FUNCTION validate_roster_notification_window();
-CREATE TRIGGER prevent_saved_roster_template_design_mutation BEFORE UPDATE OR DELETE ON roster_template_designs FOR EACH ROW EXECUTE FUNCTION prevent_saved_roster_template_design_mutation();
-CREATE TRIGGER prevent_saved_roster_template_days_mutation BEFORE INSERT OR UPDATE OR DELETE ON roster_template_days FOR EACH ROW EXECUTE FUNCTION prevent_saved_roster_template_content_mutation();
-CREATE TRIGGER prevent_saved_roster_template_columns_mutation BEFORE INSERT OR UPDATE OR DELETE ON roster_template_columns FOR EACH ROW EXECUTE FUNCTION prevent_saved_roster_template_content_mutation();
-CREATE TRIGGER prevent_saved_roster_template_shifts_mutation BEFORE INSERT OR UPDATE OR DELETE ON roster_template_shifts FOR EACH ROW EXECUTE FUNCTION prevent_saved_roster_template_content_mutation();
-CREATE TRIGGER enforce_roster_template_design_integrity BEFORE INSERT OR UPDATE ON roster_template_designs FOR EACH ROW EXECUTE FUNCTION enforce_roster_template_design_integrity();
-CREATE TRIGGER enforce_roster_template_day_integrity BEFORE INSERT OR UPDATE ON roster_template_days FOR EACH ROW EXECUTE FUNCTION enforce_roster_template_integrity();
-CREATE TRIGGER enforce_roster_template_shift_integrity BEFORE INSERT OR UPDATE ON roster_template_shifts FOR EACH ROW EXECUTE FUNCTION enforce_roster_template_integrity();
+CREATE TRIGGER enforce_roster_template_identity_immutable BEFORE UPDATE ON roster_templates FOR EACH ROW EXECUTE FUNCTION enforce_roster_template_identity_immutable();
+CREATE TRIGGER enforce_roster_template_day_integrity BEFORE INSERT OR UPDATE ON roster_template_days FOR EACH ROW EXECUTE FUNCTION enforce_roster_template_content_integrity();
+CREATE TRIGGER enforce_roster_template_column_integrity BEFORE INSERT OR UPDATE ON roster_template_columns FOR EACH ROW EXECUTE FUNCTION enforce_roster_template_content_integrity();
+CREATE TRIGGER enforce_roster_template_shift_integrity BEFORE INSERT OR UPDATE ON roster_template_shifts FOR EACH ROW EXECUTE FUNCTION enforce_roster_template_content_integrity();
+CREATE TRIGGER invalidate_roster_template_completion_from_days AFTER INSERT OR UPDATE OR DELETE ON roster_template_days FOR EACH ROW EXECUTE FUNCTION invalidate_roster_template_completion();
+CREATE TRIGGER invalidate_roster_template_completion_from_columns AFTER INSERT OR UPDATE OR DELETE ON roster_template_columns FOR EACH ROW EXECUTE FUNCTION invalidate_roster_template_completion();
+CREATE TRIGGER invalidate_roster_template_completion_from_shifts AFTER INSERT OR UPDATE OR DELETE ON roster_template_shifts FOR EACH ROW EXECUTE FUNCTION invalidate_roster_template_completion();
+CREATE TRIGGER certify_roster_template_completion BEFORE INSERT OR UPDATE ON roster_template_completions FOR EACH ROW EXECUTE FUNCTION certify_roster_template_completion();
 CREATE TRIGGER advance_roster_calendar_revision BEFORE UPDATE ON venue_config FOR EACH ROW EXECUTE FUNCTION advance_roster_calendar_revision();
 CREATE TRIGGER validate_roster_day_scope BEFORE INSERT OR UPDATE ON roster_days FOR EACH ROW EXECUTE FUNCTION validate_roster_day_scope();
 CREATE TRIGGER enforce_slot_name_venue_integrity BEFORE INSERT OR UPDATE ON slot_names FOR EACH ROW EXECUTE FUNCTION enforce_slot_name_venue_integrity();

@@ -1,6 +1,5 @@
 module Web.View.RosterTemplates.New where
 
-import Application.Helper.RosterTemplateScale (rosterTemplateScaleLabel)
 import Application.RosterTemplates
 import Web.View.Prelude
 
@@ -71,7 +70,6 @@ instance View NewView where
                                 <section aria-labelledby="roster-template-library-heading">
                                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                                         <h2 id="roster-template-library-heading" class="h4 mb-0">Saved templates</h2>
-                                        {forEach templateLibrary.libraryPrivateDraft renderPrivateDraft}
                                     </div>
                                     {if null templateLibrary.libraryTemplates
                                         then renderEmptyLibrary
@@ -84,11 +82,6 @@ instance View NewView where
             |]
             }
 
-renderPrivateDraft :: RosterTemplateDraft -> Html
-renderPrivateDraft draft = [hsx|
-    <a class="btn btn-outline-primary btn-sm" href={ShowRosterTemplateDesignerAction draft.draftDesign.id}>Continue private draft</a>
-|]
-
 renderEmptyLibrary :: Html
 renderEmptyLibrary = [hsx|<p class="text-muted mb-0">No saved templates yet.</p>|]
 
@@ -97,8 +90,7 @@ renderSavedTemplate template = [hsx|
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 border rounded-3 p-3 mb-2" data-roster-template-id={tshow template.id}>
         <div>
             <h3 class="h6 mb-1">{template.name}</h3>
-            <span class="badge text-bg-secondary">{rosterTemplateScaleLabel template.scale}</span>
-            <span class="small text-muted ms-2">Version {template.currentVersion}</span>
+            <span class="badge text-bg-secondary">Week snapshot</span>
         </div>
         <div class="d-flex gap-2">
             <form method="POST" action={EditRosterTemplateAction template.id}>

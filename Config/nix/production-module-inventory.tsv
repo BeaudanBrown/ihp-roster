@@ -450,7 +450,7 @@ Web/Mail/WageSourceAlert.hs	production	runtime	Main	Reachable from Main
 Web/Mail/WageSourceDrift.hs	production	runtime	Main	Reachable from Main
 Web/Profiles/FrontendSurface.hs	production	runtime	Main	Reachable from Main
 Web/Profiles/Mutations.hs	production	runtime	Main	Reachable from Main
-Web/RosterTemplates/FrontendSurface.hs	production	runtime	Main	Reachable from Main
+Web/RosterTemplates/FrontendSurface.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Web/RosterTemplates/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/AvailabilityInputs.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/Capabilities.hs	production	runtime	Main	Reachable from Main
@@ -474,7 +474,7 @@ Web/RosterWeeks/SurfaceInvalidation.hs	production	runtime	Main	Reachable from Ma
 Web/RosterWeeks/TemplateApplication.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/TemplateApplication/Persistence.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/TemplateApplication/Types.hs	production	runtime	Main	Reachable from Main
-Web/RosterWeeks/TemplateDesigner.hs	production	runtime	Main	Reachable from Main
+Web/RosterWeeks/TemplateDesigner.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Web/RosterWeeks/Types.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/VenueSettings.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/WageFilter.hs	production	runtime	Main	Reachable from Main
@@ -521,12 +521,12 @@ Web/View/PasswordResets/Edit.hs	production	runtime	Main	Reachable from Main
 Web/View/Prelude.hs	production	runtime	Main	Reachable from Main
 Web/View/Profiles/Edit.hs	production	runtime	Main	Reachable from Main
 Web/View/RosterTemplates/ApplicationConfirmation.hs	production	runtime	Main	Reachable from Main
-Web/View/RosterTemplates/ConfirmReference.hs	production	runtime	Main	Reachable from Main
+Web/View/RosterTemplates/ConfirmReference.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Web/View/RosterTemplates/DeleteConfirmation.hs	production	runtime	Main	Reachable from Main
-Web/View/RosterTemplates/Designer.hs	production	runtime	Main	Reachable from Main
-Web/View/RosterTemplates/DraftOccupied.hs	production	runtime	Main	Reachable from Main
-Web/View/RosterTemplates/New.hs	production	runtime	Main	Reachable from Main
-Web/View/RosterTemplates/Reference.hs	production	runtime	Main	Reachable from Main
+Web/View/RosterTemplates/Designer.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Web/View/RosterTemplates/DraftOccupied.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Web/View/RosterTemplates/New.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Web/View/RosterTemplates/Reference.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Web/View/RosterWeeks/Grid.hs	production	runtime	Main	Reachable from Main
 Web/View/RosterWeeks/Grid/Cells.hs	production	runtime	Main	Reachable from Main
 Web/View/RosterWeeks/Header.hs	production	runtime	Main	Reachable from Main

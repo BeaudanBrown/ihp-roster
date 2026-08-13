@@ -31,6 +31,11 @@ CREATE TABLE roster_weeks (
     marker TEXT NOT NULL
 );
 
+CREATE TABLE timesheet_entries (
+    id UUID PRIMARY KEY,
+    marker TEXT NOT NULL
+);
+
 INSERT INTO roster_groups (id, venue_id)
 VALUES ('10000000-0000-0000-0000-000000000010', '10000000-0000-0000-0000-000000000020');
 
@@ -38,3 +43,6 @@ INSERT INTO roster_weeks (id, roster_group_id, is_live, marker)
 VALUES
     ('10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000010', FALSE, 'legacy-draft-week'),
     ('10000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000010', TRUE, 'legacy-live-week');
+
+INSERT INTO timesheet_entries (id, marker)
+VALUES ('10000000-0000-0000-0000-000000000003', 'legacy-timesheet');

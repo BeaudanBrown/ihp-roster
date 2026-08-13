@@ -34,14 +34,9 @@ renderRosterTemplatePanel anchorDate calendarRevision rosterGroup maybeRosterWee
     <section class="roster-template-panel" aria-labelledby="roster-template-panel-heading">
         <div class="app-side-panel-content-header roster-staff-panel-header">
             <h2 id="roster-template-panel-heading" class="h5 mb-0">Templates</h2>
-            <div class="d-flex gap-2">
-                <button class="btn btn-sm btn-outline-secondary" type="button" hidden="hidden" {...rosterTemplateCancelAttrs}>Cancel</button>
-                <a class="btn btn-sm btn-outline-primary" href={NewRosterTemplateAction rosterGroup.id}>New</a>
-            </div>
+            <button class="btn btn-sm btn-outline-secondary" type="button" hidden="hidden" {...rosterTemplateCancelAttrs}>Cancel</button>
         </div>
-        {forEach library.libraryPrivateDraft renderPrivateDraft}
         {renderLiveRosterTemplateMessage maybeRosterWeek}
-        {renderTemplateScaleSection "Day templates" Day anchorDate calendarRevision rosterGroup maybeRosterWeek library.libraryTemplates}
         {renderTemplateScaleSection "Week templates" Week anchorDate calendarRevision rosterGroup maybeRosterWeek library.libraryTemplates}
     </section>
 |]
@@ -52,14 +47,6 @@ renderLiveRosterTemplateMessage (Just rosterWeek)
         <div class="alert alert-info small" role="status">Templates cannot be applied to a Published roster. Return this window to Draft to apply one.</div>
     |]
 renderLiveRosterTemplateMessage _ = mempty
-
-renderPrivateDraft :: (?context :: ControllerContext) => RosterTemplateDraft -> Html
-renderPrivateDraft draft = [hsx|
-    <div class="alert alert-light border d-flex justify-content-between align-items-center gap-2">
-        <span class="small">Private draft: <strong>{draft.draftName}</strong></span>
-        <a class="btn btn-sm btn-outline-primary" href={ShowRosterTemplateDesignerAction draft.draftDesign.id}>Continue</a>
-    </div>
-|]
 
 renderTemplateScaleSection :: (?context :: ControllerContext) => Text -> RosterTemplateScaleEnum -> Day -> Int -> RosterGroup -> Maybe RosterWindowState -> [RosterTemplate] -> Html
 renderTemplateScaleSection heading scale anchorDate calendarRevision rosterGroup maybeRosterWeek templates = [hsx|
@@ -84,11 +71,6 @@ renderTemplateCard anchorDate calendarRevision rosterGroup maybeRosterWeek templ
             <div class="d-flex align-items-stretch">
                 {applyButton}
                 <div class="d-flex align-items-center gap-1 pe-2 roster-template-card-actions">
-                    <form method="POST" action={EditRosterTemplateAction template.id}>
-                        <button class="btn btn-sm btn-outline-secondary app-icon-button" type="submit" title={"Edit " <> template.name} aria-label={"Edit " <> template.name}>
-                            <i class="bi bi-pencil" aria-hidden="true"></i>
-                        </button>
-                    </form>
                     <form method="POST" action={ConfirmDeleteRosterTemplateAction template.id rosterGroup.id}>
                         <input type="hidden" name="anchorDate" value={tshow anchorDate} />
                         <button class="btn btn-sm btn-outline-danger app-icon-button" type="submit" title={"Delete " <> template.name} aria-label={"Delete " <> template.name}>
@@ -107,7 +89,7 @@ renderTemplateCard anchorDate calendarRevision rosterGroup maybeRosterWeek templ
                 disabled={not applicationAvailable}
                 aria-label={"Apply " <> template.name}>
             <strong class="d-block">{template.name}</strong>
-            <span class="small text-muted">Version {template.currentVersion}</span>
+            <span class="small text-muted">Week snapshot</span>
         </button>
     |]
     previewForm

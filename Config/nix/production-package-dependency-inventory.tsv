@@ -102,7 +102,7 @@ IHP.EnvVar	ihp	Config/Config.hs via Main
 IHP.Environment	ihp	Config/Config.hs via Main
 IHP.Fetch	ihp	Application/Helper/LiveUpdate/DurableState.hs via Main
 IHP.FrameworkConfig	ihp	Main.hs via Main
-IHP.HaskellSupport	ihp	Application/RosterShiftAssignment.hs via Main
+IHP.HaskellSupport	ihp	Application/VenueTime/Model.hs via Main
 IHP.InputValue	ihp	Application/Helper/Passkeys.hs via Main
 IHP.Job.Runner	ihp	Web/Worker.hs via Main
 IHP.Job.Types	ihp	Main.hs via Main
@@ -156,5 +156,5 @@ Text.Blaze.Html.Renderer.Utf8	blaze-html	Application/Helper/Profiling.hs via Mai
 Text.Blaze.Html5	blaze-html	Web/View/Layout.hs via Main
 Text.Blaze.Html5.Attributes	blaze-html	Application/Helper/FrontendContract/FeedbackDiagnostics/Runtime.hs via Main
 Text.Blaze.Internal	blaze-markup	Application/Helper/FrontendContract/AppShell/Runtime.hs via Main
-Text.Printf	base	Web/View/RosterTemplates/Designer.hs via Main
+Text.Printf	base	Application/Helper/Export/HourlyBreakdown.hs via Main
 Text.Read	base	Application/Billing/Stripe.hs via Main

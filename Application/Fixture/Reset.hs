@@ -51,7 +51,7 @@ applicationTableNames =
     , "live_invalidation_events"
     , "app_jobs"
     , "roster_templates"
-    , "roster_template_designs"
+    , "roster_template_completions"
     , "roster_template_days"
     , "roster_template_columns"
     , "roster_template_shifts"

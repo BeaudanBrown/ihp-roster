@@ -8,8 +8,10 @@ import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           applyRosterShiftAssignment)
 import Application.RosterTemplates (RosterTemplateActor,
-                                    RosterTemplateSaved (..),
-                                    rosterTemplateActorUserId)
+                                    remediateRosterTemplateAssignmentsInCurrentTransaction,
+                                    rosterTemplateActorUserId,
+                                    snapshotColumns, snapshotDays,
+                                    snapshotTemplate)
 import Application.VenueTime (melbourneTimeZoneName)
 import Control.Monad (void)
 import qualified Data.Map.Strict as Map
@@ -32,7 +34,7 @@ applyPreparedApplication actor prepared = do
             |> set #deleteReason (Just "roster_template_applied")
             |> updateRecord
             |> void
-    appliedVersion <- persistCleanedTemplateVersion actor prepared
+    appliedVersion <- persistCleanedTemplateSnapshot actor prepared
     applyDayStates prepared
     lanes <- ensureTargetLanes prepared
     let laneByDayAndName = Map.fromList [((lane.rosterDayId, Text.toCaseFold (Text.strip lane.name)), lane) | lane <- lanes]
@@ -52,88 +54,33 @@ applyPreparedApplication actor prepared = do
             |> void
     pure appliedVersion
 
-persistCleanedTemplateVersion ::
+persistCleanedTemplateSnapshot ::
     (?modelContext :: ModelContext) =>
     RosterTemplateActor ->
     PreparedApplication ->
     IO Int
-persistCleanedTemplateVersion actor prepared
-    | not (any (isJust . (.preparedAssignmentIssue)) prepared.preparedShiftPlans) =
-        pure prepared.preparedSaved.savedTemplate.currentVersion
+persistCleanedTemplateSnapshot actor prepared
+    | null invalidShiftIds = pure 0
     | otherwise = do
-        let template = prepared.preparedSaved.savedTemplate
-        let sourceDesign = prepared.preparedSaved.savedDesign
-        let nextVersion = template.currentVersion + 1
-        nextDesign <-
-            newRecord @RosterTemplateDesign
-                |> set #rosterGroupId sourceDesign.rosterGroupId
-                |> set #scale sourceDesign.scale
-                |> set #draftOwnerUserId Nothing
-                |> set #draftName Nothing
-                |> set #templateId (Just (unpackId template.id))
-                |> set #versionNumber (Just nextVersion)
-                |> set #sourceTemplateId Nothing
-                |> set #baseVersionNumber Nothing
-                |> set #createdByUserId (unpackId (rosterTemplateActorUserId actor))
-                |> createRecord
-        nextDays <- forM prepared.preparedSaved.savedDays \sourceDay ->
-            newRecord @RosterTemplateDay
-                |> set #rosterTemplateDesignId (unpackId nextDesign.id)
-                |> set #dayIndex sourceDay.dayIndex
-                |> set #weekdayIndex sourceDay.weekdayIndex
-                |> set #isClosed sourceDay.isClosed
-                |> set #rowCount sourceDay.rowCount
-                |> createRecord
-        nextColumns <- forM prepared.preparedSaved.savedColumns \sourceColumn ->
-            newRecord @RosterTemplateColumn
-                |> set #rosterTemplateDesignId (unpackId nextDesign.id)
-                |> set #name sourceColumn.name
-                |> set #sortOrder sourceColumn.sortOrder
-                |> createRecord
-        let nextDayByIndex = Map.fromList [(day.dayIndex, day) | day <- nextDays]
-        let sourceDayIndexById = Map.fromList [(unpackId day.id, day.dayIndex) | day <- prepared.preparedSaved.savedDays]
-        let nextColumnBySort = Map.fromList [(column.sortOrder, column) | column <- nextColumns]
-        let sourceColumnSortById = Map.fromList [(unpackId column.id, column.sortOrder) | column <- prepared.preparedSaved.savedColumns]
-        let planByShiftId = Map.fromList [(unpackId plan.preparedTemplateShift.id, plan) | plan <- prepared.preparedShiftPlans]
-        forM_ prepared.preparedSaved.savedShifts \sourceShift -> do
-            let dayIndex = sourceDayIndexById Map.! sourceShift.rosterTemplateDayId
-            let columnSort = sourceColumnSortById Map.! sourceShift.rosterTemplateColumnId
-            let targetDay = nextDayByIndex Map.! dayIndex
-            let targetColumn = nextColumnBySort Map.! columnSort
-            let assignment = maybe OpenAssignment (.preparedAssignment) (Map.lookup (unpackId sourceShift.id) planByShiftId)
-            newRecord @RosterTemplateShift
-                |> set #rosterTemplateDesignId (unpackId nextDesign.id)
-                |> set #rosterTemplateDayId (unpackId targetDay.id)
-                |> set #rosterTemplateColumnId (unpackId targetColumn.id)
-                |> set #rowIndex sourceShift.rowIndex
-                |> set #startMinute sourceShift.startMinute
-                |> set #endMinute sourceShift.endMinute
-                |> set #shiftTypeId sourceShift.shiftTypeId
-                |> applyTemplateShiftAssignment assignment
-                |> createRecord
-                |> void
-        template |> set #currentVersion nextVersion |> updateRecord |> void
-        pure nextVersion
-
-applyTemplateShiftAssignment :: RosterShiftAssignment -> RosterTemplateShift -> RosterTemplateShift
-applyTemplateShiftAssignment assignment shift = case assignment of
-    StaffAssignment staffId ->
-        shift
-            |> set #assignmentState "staff"
-            |> set #staffId (Just (unpackId staffId))
-    OpenAssignment ->
-        shift
-            |> set #assignmentState "open"
-            |> set #staffId Nothing
+        remediated <- remediateRosterTemplateAssignmentsInCurrentTransaction actor prepared.preparedSaved invalidShiftIds
+        case remediated of
+            Left templateError -> error ("validated roster template remediation failed: " <> show templateError)
+            Right _ -> pure 0
+  where
+    invalidShiftIds =
+        [ plan.preparedTemplateShift.id
+        | plan <- prepared.preparedShiftPlans
+        , isJust plan.preparedAssignmentIssue
+        ]
 
 applyDayStates :: (?modelContext :: ModelContext) => PreparedApplication -> IO ()
 applyDayStates prepared = do
     let templateDayByIndex = Map.fromList
             [ (fromMaybe day.dayIndex day.weekdayIndex, day)
-            | day <- prepared.preparedSaved.savedDays
+            | day <- prepared.preparedSaved.snapshotDays
             ]
     forM_ prepared.preparedTargetDays \targetDay -> do
-        let templateIndex = case prepared.preparedSaved.savedTemplate.scale of
+        let templateIndex = case prepared.preparedSaved.snapshotTemplate.scale of
                 Day  -> 0
                 Week -> weekdayIndexForDay targetDay.operationalDate
         case Map.lookup templateIndex templateDayByIndex of
@@ -156,7 +103,7 @@ ensureTargetLanes prepared = do
         |> filterWhere (#deletedAt, Nothing)
         |> orderByAsc #sortOrder
         |> fetch
-    case prepared.preparedSaved.savedTemplate.scale of
+    case prepared.preparedSaved.snapshotTemplate.scale of
         Week -> do
             now <- getCurrentTime
             forM_ existing \lane ->
@@ -166,11 +113,11 @@ ensureTargetLanes prepared = do
                     |> updateRecord
                     |> void
             concat <$> forM prepared.preparedTargetDays (\targetDay ->
-                forM prepared.preparedSaved.savedColumns (createLane targetDay))
+                forM prepared.preparedSaved.snapshotColumns (createLane targetDay))
         Day -> do
             let targetDay = prepared.preparedFirstTargetDay
             let existingNames = Map.fromList [(Text.toCaseFold (Text.strip lane.name), lane) | lane <- existing]
-            let missing = filter (\column -> Map.notMember (Text.toCaseFold (Text.strip column.name)) existingNames) prepared.preparedSaved.savedColumns
+            let missing = filter (\column -> Map.notMember (Text.toCaseFold (Text.strip column.name)) existingNames) prepared.preparedSaved.snapshotColumns
             created <- forM (zip missing [nextSortOrder existing ..]) \(column, sortOrder) ->
                 createLaneAtSort targetDay column sortOrder
             pure (existing <> created)

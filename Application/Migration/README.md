@@ -52,6 +52,8 @@ destructive changes:
 - `date-native-roster-retirement-374-runbook.md` — destructive retirement of
   redundant roster-week/offset identity after approved observation, backup,
   restore rehearsal, and forward-recovery planning.
+- `roster-template-snapshot-cutover-397-runbook.md` — guarded retirement of
+  the confirmed-empty draft/version template schema and direct snapshot cutover.
 
 Do not infer production approval from a committed migration or runbook; use the
 named approval boundary in that runbook.

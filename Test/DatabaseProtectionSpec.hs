@@ -525,12 +525,13 @@ tests = aroundAll withDatabaseTestContext do
                     `shouldBe` replicate 8 True
                 wholeShiftBreak `shouldSatisfy` isRight
 
-    describe "roster template persistence constraints" do
-        it "adds roster templates without changing representative legacy roster rows" $ withContext do
+    describe "roster template snapshot persistence" do
+        it "cuts over empty legacy templates without changing Roster or Timesheet rows" $ withContext do
             withCleanDb do
                 legacyFixture <- TextIO.readFile "Test/Fixtures/roster-templates/pre-template-schema.sql"
                 templateMigration <- TextIO.readFile "Application/Migration/1785826000.sql"
                 sealingMigration <- TextIO.readFile "Application/Migration/1785839000.sql"
+                snapshotMigration <- TextIO.readFile "Application/Migration/1789000000.sql"
                 withTransaction do
                     case transactionRunner ?modelContext of
                         Nothing -> error "Roster template migration acceptance requires a transaction runner"
@@ -538,137 +539,107 @@ tests = aroundAll withDatabaseTestContext do
                             runInTransaction runner (HasqlSession.script legacyFixture)
                             runInTransaction runner (HasqlSession.script templateMigration)
                             runInTransaction runner (HasqlSession.script sealingMigration)
-                    retainedRows :: [Only Text] <- sqlQuery
+                            runInTransaction runner (HasqlSession.script snapshotMigration)
+                    retainedRosterRows :: [Only Text] <- sqlQuery
                         "SELECT marker FROM roster_template_migration_acceptance.roster_weeks ORDER BY marker"
                         ()
-                    createdTables :: [Only (Maybe Text)] <- sqlQuery
-                        "SELECT to_regclass('roster_template_migration_acceptance.' || table_name)::text FROM unnest(ARRAY['roster_templates', 'roster_template_designs', 'roster_template_days', 'roster_template_columns', 'roster_template_shifts']) table_name"
+                    retainedTimesheetRows :: [Only Text] <- sqlQuery
+                        "SELECT marker FROM roster_template_migration_acceptance.timesheet_entries ORDER BY marker"
                         ()
-                    map fromOnly retainedRows `shouldBe` ["legacy-draft-week", "legacy-live-week"]
-                    createdTables `shouldSatisfy` all (isJust . fromOnly)
+                    directTables :: [Only (Maybe Text)] <- sqlQuery
+                        "SELECT to_regclass('roster_template_migration_acceptance.' || table_name)::text FROM unnest(ARRAY['roster_templates', 'roster_template_completions', 'roster_template_days', 'roster_template_columns', 'roster_template_shifts']) table_name"
+                        ()
+                    removedDesign :: Maybe Text <- sqlQueryScalar
+                        "SELECT to_regclass('roster_template_migration_acceptance.roster_template_designs')::text"
+                        ()
+                    directForeignKeys :: [Only Text] <- sqlQuery
+                        "SELECT column_name::text FROM information_schema.columns WHERE table_schema = 'roster_template_migration_acceptance' AND table_name IN ('roster_template_days', 'roster_template_columns', 'roster_template_shifts') AND column_name = 'roster_template_id' ORDER BY table_name"
+                        ()
+                    map fromOnly retainedRosterRows `shouldBe` ["legacy-draft-week", "legacy-live-week"]
+                    map fromOnly retainedTimesheetRows `shouldBe` ["legacy-timesheet"]
+                    directTables `shouldSatisfy` all (isJust . fromOnly)
+                    removedDesign `shouldBe` Nothing
+                    map fromOnly directForeignKeys `shouldBe` replicate 3 "roster_template_id"
+                    sqlExecDiscardResult "SET search_path TO public" ()
                     sqlExecDiscardResult "DROP SCHEMA roster_template_migration_acceptance CASCADE" ()
 
-        it "enforces reserved names, one private draft, structurally valid shifts, and next-version sealing" $ withContext do
+        it "enforces direct content structure and active-name reuse" $ withContext do
             withCleanDb do
-                sealingMigration <- TextIO.readFile "Application/Migration/1785839000.sql"
-                withTransaction do
-                    case transactionRunner ?modelContext of
-                        Nothing -> error "Roster template sealing migration fixture requires a transaction runner"
-                        Just runner -> runInTransaction runner (HasqlSession.script sealingMigration)
                 venue <- createVenueWithConfig "Template constraints"
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 owner <- createUserRecord "template-owner@example.com" "staff" True
-                otherOwner <- createUserRecord "other-template-owner@example.com" "staff" True
                 staff <- createStaffRecord venue Nothing "Template" "Worker"
                 shiftType <- ensureVenueDefaultShiftType venue
 
-                sqlExecDiscardResult
-                    "INSERT INTO roster_templates (roster_group_id, name, scale) VALUES (?, 'Opening', 'day')"
-                    (Only (unpackId rosterGroup.id))
+                (templateId, dayId, columnId) <- withTransaction do
+                    templateId :: UUID <- sqlQueryScalar
+                        "INSERT INTO roster_templates (roster_group_id, name, scale, created_by_user_id) VALUES (?, 'Opening', 'week', ?) RETURNING id"
+                        (unpackId rosterGroup.id, unpackId owner.id)
+                    forM_ [0 .. 6 :: Int] \dayIndex ->
+                        sqlExecDiscardResult
+                            "INSERT INTO roster_template_days (roster_template_id, day_index, weekday_index, row_count) VALUES (?, ?, ?, 1)"
+                            (templateId, dayIndex, dayIndex)
+                    dayId :: UUID <- sqlQueryScalar
+                        "SELECT id FROM roster_template_days WHERE roster_template_id = ? AND day_index = 0"
+                        (Only templateId)
+                    columnId :: UUID <- sqlQueryScalar
+                        "INSERT INTO roster_template_columns (roster_template_id, name, sort_order) VALUES (?, 'Early', 0) RETURNING id"
+                        (Only templateId)
+                    sqlExecDiscardResult
+                        "INSERT INTO roster_template_shifts (roster_template_id, roster_template_day_id, roster_template_column_id, assignment_state, row_index, start_minute, end_minute, shift_type_id) VALUES (?, ?, ?, 'open', 0, 540, 1020, ?)"
+                        (templateId, dayId, columnId, unpackId shiftType.id)
+                    sqlExecDiscardResult
+                        "INSERT INTO roster_template_completions (id, roster_template_id) SELECT completion_id, id FROM roster_templates WHERE id = ?"
+                        (Only templateId)
+                    pure (templateId, dayId, columnId)
+
+                changedScale <- try
+                    (sqlExecDiscardResult
+                        "UPDATE roster_templates SET scale = 'day' WHERE id = ?"
+                        (Only templateId))
+                    :: IO (Either SomeException ())
+                changedCompletion <- try
+                    (sqlExecDiscardResult
+                        "UPDATE roster_templates SET completion_id = uuid_generate_v4() WHERE id = ?"
+                        (Only templateId))
+                    :: IO (Either SomeException ())
+                malformedAssignment <- try
+                    (sqlExecDiscardResult
+                        "INSERT INTO roster_template_shifts (roster_template_id, roster_template_day_id, roster_template_column_id, assignment_state, staff_id, row_index, start_minute, end_minute, shift_type_id) VALUES (?, ?, ?, 'open', ?, 0, 600, 1080, ?)"
+                        (templateId, dayId, columnId, unpackId staff.id, unpackId shiftType.id))
+                    :: IO (Either SomeException ())
+                outsideRows <- try
+                    (sqlExecDiscardResult
+                        "INSERT INTO roster_template_shifts (roster_template_id, roster_template_day_id, roster_template_column_id, assignment_state, row_index, start_minute, end_minute, shift_type_id) VALUES (?, ?, ?, 'open', 2, 600, 1080, ?)"
+                        (templateId, dayId, columnId, unpackId shiftType.id))
+                    :: IO (Either SomeException ())
                 duplicateName <- try
                     (sqlExecDiscardResult
-                        "INSERT INTO roster_templates (roster_group_id, name, scale) VALUES (?, 'opening', 'week')"
-                        (Only (unpackId rosterGroup.id)))
+                        "INSERT INTO roster_templates (roster_group_id, name, scale, created_by_user_id) VALUES (?, 'opening', 'week', ?)"
+                        (unpackId rosterGroup.id, unpackId owner.id))
                     :: IO (Either SomeException ())
-
-                firstDesignId :: UUID <- sqlQueryScalar
-                    "INSERT INTO roster_template_designs (roster_group_id, scale, draft_owner_user_id, draft_name, created_by_user_id) VALUES (?, 'day', ?, 'Private day', ?) RETURNING id"
-                    (unpackId rosterGroup.id, unpackId owner.id, unpackId owner.id)
-                duplicateDraft <- try
-                    (sqlExecDiscardResult
-                        "INSERT INTO roster_template_designs (roster_group_id, scale, draft_owner_user_id, draft_name, created_by_user_id) VALUES (?, 'week', ?, 'Second draft', ?)"
-                        (unpackId rosterGroup.id, unpackId owner.id, unpackId owner.id))
-                    :: IO (Either SomeException ())
-                invalidDayIndex <- try
-                    (sqlExecDiscardResult
-                        "INSERT INTO roster_template_days (roster_template_design_id, day_index) VALUES (?, 1)"
-                        (Only (firstDesignId :: UUID)))
-                    :: IO (Either SomeException ())
-
-                firstDayId :: UUID <- sqlQueryScalar
-                    "INSERT INTO roster_template_days (roster_template_design_id, day_index) VALUES (?, 0) RETURNING id"
-                    (Only firstDesignId)
-                firstColumnId :: UUID <- sqlQueryScalar
-                    "INSERT INTO roster_template_columns (roster_template_design_id, name, sort_order) VALUES (?, 'Early', 0) RETURNING id"
-                    (Only firstDesignId)
-                secondDesignId :: UUID <- sqlQueryScalar
-                    "INSERT INTO roster_template_designs (roster_group_id, scale, draft_owner_user_id, draft_name, created_by_user_id) VALUES (?, 'day', ?, 'Other day', ?) RETURNING id"
-                    (unpackId rosterGroup.id, unpackId otherOwner.id, unpackId otherOwner.id)
-                secondColumnId :: UUID <- sqlQueryScalar
-                    "INSERT INTO roster_template_columns (roster_template_design_id, name, sort_order) VALUES (?, 'Late', 0) RETURNING id"
-                    (Only secondDesignId)
-
-                validOpen <- try
-                    (sqlExecDiscardResult
-                        "INSERT INTO roster_template_shifts (roster_template_design_id, roster_template_day_id, roster_template_column_id, assignment_state, row_index, start_minute, end_minute, shift_type_id) VALUES (?, ?, ?, 'open', 0, 540, 1020, ?)"
-                        (firstDesignId, firstDayId :: UUID, firstColumnId :: UUID, unpackId shiftType.id))
-                    :: IO (Either SomeException ())
-                malformedAssigned <- try
-                    (sqlExecDiscardResult
-                        "INSERT INTO roster_template_shifts (roster_template_design_id, roster_template_day_id, roster_template_column_id, assignment_state, staff_id, row_index, start_minute, end_minute, shift_type_id) VALUES (?, ?, ?, 'open', ?, 1, 540, 1020, ?)"
-                        (firstDesignId, firstDayId, firstColumnId, unpackId staff.id, unpackId shiftType.id))
-                    :: IO (Either SomeException ())
-                mixedDesign <- try
-                    (sqlExecDiscardResult
-                        "INSERT INTO roster_template_shifts (roster_template_design_id, roster_template_day_id, roster_template_column_id, assignment_state, row_index, start_minute, end_minute, shift_type_id) VALUES (?, ?, ?, 'open', 2, 540, 1020, ?)"
-                        (firstDesignId, firstDayId, secondColumnId, unpackId shiftType.id))
-                    :: IO (Either SomeException ())
-
-                templateId :: UUID <- sqlQueryScalar
-                    "SELECT id FROM roster_templates WHERE roster_group_id = ? AND name = 'Opening'"
-                    (Only (unpackId rosterGroup.id))
                 sqlExecDiscardResult "UPDATE roster_templates SET deleted_at = NOW() WHERE id = ?" (Only templateId)
-                duplicateDeletedName <- try
-                    (sqlExecDiscardResult
-                        "INSERT INTO roster_templates (roster_group_id, name, scale) VALUES (?, 'OPENING', 'week')"
-                        (Only (unpackId rosterGroup.id)))
+                reusedName <- try
+                    (withTransaction do
+                        sqlExecDiscardResult
+                            "INSERT INTO roster_templates (roster_group_id, name, scale, created_by_user_id) VALUES (?, 'OPENING', 'week', ?)"
+                            (unpackId rosterGroup.id, unpackId owner.id)
+                        sqlExecDiscardResult "DELETE FROM roster_templates WHERE name = 'OPENING'" ())
                     :: IO (Either SomeException ())
-                sqlExecDiscardResult
-                    "UPDATE roster_template_designs SET draft_owner_user_id = NULL, draft_name = NULL, template_id = ?, version_number = 1 WHERE id = ?"
-                    (templateId, firstDesignId)
-                sqlExecDiscardResult "UPDATE roster_templates SET current_version = 1 WHERE id = ?" (Only templateId)
-                mutateSavedShift <- try
-                    (sqlExecDiscardResult
-                        "UPDATE roster_template_shifts SET start_minute = 600 WHERE roster_template_design_id = ?"
-                        (Only firstDesignId))
-                    :: IO (Either SomeException ())
-                deleteSavedDay <- try
-                    (sqlExecDiscardResult
-                        "DELETE FROM roster_template_days WHERE id = ?"
-                        (Only firstDayId))
-                    :: IO (Either SomeException ())
-                mutateSavedDesign <- try
-                    (sqlExecDiscardResult
-                        "UPDATE roster_template_designs SET updated_at = NOW() WHERE id = ?"
-                        (Only firstDesignId))
-                    :: IO (Either SomeException ())
-                nextDesignId :: UUID <- sqlQueryScalar
-                    "INSERT INTO roster_template_designs (roster_group_id, scale, template_id, version_number, created_by_user_id) VALUES (?, 'day', ?, 2, ?) RETURNING id"
-                    (unpackId rosterGroup.id, templateId, unpackId owner.id)
-                buildNextVersion <- try
-                    (sqlExecDiscardResult
-                        "INSERT INTO roster_template_columns (roster_template_design_id, name, sort_order) VALUES (?, 'Next', 0)"
-                        (Only nextDesignId))
-                    :: IO (Either SomeException ())
-                sqlExecDiscardResult "UPDATE roster_templates SET current_version = 2 WHERE id = ?" (Only templateId)
-                mutateSealedNextVersion <- try
-                    (sqlExecDiscardResult
-                        "INSERT INTO roster_template_columns (roster_template_design_id, name, sort_order) VALUES (?, 'Sealed', 1)"
-                        (Only nextDesignId))
+                incompleteMutation <- try
+                    (withTransaction do
+                        sqlExecDiscardResult
+                            "UPDATE roster_template_shifts SET start_minute = 600 WHERE roster_template_id = ?"
+                            (Only templateId))
                     :: IO (Either SomeException ())
 
+                changedScale `shouldSatisfy` isLeft
+                changedCompletion `shouldSatisfy` isLeft
+                malformedAssignment `shouldSatisfy` isLeft
+                outsideRows `shouldSatisfy` isLeft
                 duplicateName `shouldSatisfy` isLeft
-                duplicateDraft `shouldSatisfy` isLeft
-                duplicateDeletedName `shouldSatisfy` isLeft
-                invalidDayIndex `shouldSatisfy` isLeft
-                validOpen `shouldSatisfy` isRight
-                malformedAssigned `shouldSatisfy` isLeft
-                mixedDesign `shouldSatisfy` isLeft
-                mutateSavedShift `shouldSatisfy` isLeft
-                deleteSavedDay `shouldSatisfy` isLeft
-                mutateSavedDesign `shouldSatisfy` isLeft
-                buildNextVersion `shouldSatisfy` isRight
-                mutateSealedNextVersion `shouldSatisfy` isLeft
+                reusedName `shouldSatisfy` isRight
+                incompleteMutation `shouldSatisfy` isLeft
 
     describe "roster shift assignment constraints" do
         it "accepts only structurally complete explicit Staff or Open active shifts" $ withContext do

@@ -246,17 +246,17 @@ data RosterTemplatesController
     | ShowRosterTemplateReferenceAction { rosterGroupId :: !(Id RosterGroup) }
     | ConfirmRosterTemplateReferenceAction { rosterGroupId :: !(Id RosterGroup) }
     | CreateRosterTemplateFromReferenceAction { rosterGroupId :: !(Id RosterGroup) }
-    | DiscardAndRestartRosterTemplateDraftAction { rosterGroupId :: !(Id RosterGroup), rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
-    | ShowRosterTemplateDesignerAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
-    | UpdateRosterTemplateDayAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign), dayIndex :: !Int }
-    | AddRosterTemplateColumnAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
-    | UpdateRosterTemplateColumnAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign), columnSortOrder :: !Int }
-    | DeleteRosterTemplateColumnAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign), columnSortOrder :: !Int }
-    | UpsertRosterTemplateShiftAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
-    | DeleteRosterTemplateShiftAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign), dayIndex :: !Int, columnSortOrder :: !Int, rowIndex :: !Int }
-    | SaveRosterTemplateAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
-    | ReloadRosterTemplateDraftAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
-    | SaveRosterTemplateDraftAsNewAction { rosterTemplateDesignId :: !(Id RosterTemplateDesign) }
+    | DiscardAndRestartRosterTemplateDraftAction { rosterGroupId :: !(Id RosterGroup), rosterTemplateDesignId :: !(Id RosterTemplate) }
+    | ShowRosterTemplateDesignerAction { rosterTemplateDesignId :: !(Id RosterTemplate) }
+    | UpdateRosterTemplateDayAction { rosterTemplateDesignId :: !(Id RosterTemplate), dayIndex :: !Int }
+    | AddRosterTemplateColumnAction { rosterTemplateDesignId :: !(Id RosterTemplate) }
+    | UpdateRosterTemplateColumnAction { rosterTemplateDesignId :: !(Id RosterTemplate), columnSortOrder :: !Int }
+    | DeleteRosterTemplateColumnAction { rosterTemplateDesignId :: !(Id RosterTemplate), columnSortOrder :: !Int }
+    | UpsertRosterTemplateShiftAction { rosterTemplateDesignId :: !(Id RosterTemplate) }
+    | DeleteRosterTemplateShiftAction { rosterTemplateDesignId :: !(Id RosterTemplate), dayIndex :: !Int, columnSortOrder :: !Int, rowIndex :: !Int }
+    | SaveRosterTemplateAction { rosterTemplateDesignId :: !(Id RosterTemplate) }
+    | ReloadRosterTemplateDraftAction { rosterTemplateDesignId :: !(Id RosterTemplate) }
+    | SaveRosterTemplateDraftAsNewAction { rosterTemplateDesignId :: !(Id RosterTemplate) }
     | EditRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate) }
     | DeleteRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate) }
     | PreviewRosterTemplateDropAction { rosterGroupId :: !(Id RosterGroup) }

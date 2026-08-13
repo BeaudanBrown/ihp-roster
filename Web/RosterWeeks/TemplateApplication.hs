@@ -121,7 +121,7 @@ applyRosterTemplateApplicationInCurrentTransaction actor request expectedVersion
                 Left failure -> pure (Left failure)
                 Right prepared
                     | prepared.preparedCalendarRevision /= expectedCalendarRevision -> pure (Left RosterTemplateApplicationCalendarConflict)
-                    | prepared.preparedSaved.savedTemplate.currentVersion /= expectedVersion -> pure (Left (RosterTemplateApplicationVersionConflict prepared.preparedSaved.savedTemplate.currentVersion))
+                    | expectedVersion /= 0 -> pure (Left (RosterTemplateApplicationVersionConflict 0))
                     | targetRevision prepared /= expectedTargetRevision -> pure (Left RosterTemplateApplicationTargetConflict)
                     | otherwise -> do
                         appliedVersion <- applyPreparedApplication actor prepared
@@ -154,8 +154,8 @@ prepareRosterTemplateApplication actor request
             (Nothing, _) -> pure (Left RosterTemplateApplicationNotFound)
             (_, Nothing) -> pure (Left RosterTemplateApplicationNotFound)
             (Just saved, Just targetGroup)
-                | targetGroup.id /= Id saved.savedTemplate.rosterGroupId -> pure (Left RosterTemplateApplicationScopeMismatch)
-                | not (requestMatchesScale saved.savedTemplate.scale request.applicationTargetOperationalDate) -> pure (Left RosterTemplateApplicationScaleMismatch)
+                | targetGroup.id /= Id saved.snapshotTemplate.rosterGroupId -> pure (Left RosterTemplateApplicationScopeMismatch)
+                | not (requestMatchesScale saved.snapshotTemplate.scale request.applicationTargetOperationalDate) -> pure (Left RosterTemplateApplicationScaleMismatch)
                 | otherwise -> prepareContent request saved targetGroup
 
 requestMatchesScale :: RosterTemplateScaleEnum -> Maybe Day -> Bool
@@ -175,18 +175,18 @@ templateStructureError Week days
 prepareContent ::
     (?modelContext :: ModelContext) =>
     RosterTemplateApplicationRequest ->
-    RosterTemplateSaved ->
+    RosterTemplateSnapshot ->
     RosterGroup ->
     IO (Either RosterTemplateApplicationError PreparedApplication)
 prepareContent request saved targetGroup =
-    case templateStructureError saved.savedTemplate.scale saved.savedDays of
+    case templateStructureError saved.snapshotTemplate.scale saved.snapshotDays of
         Just message -> pure (Left (RosterTemplateApplicationInvalidStructure message))
         Nothing -> prepareStructurallyValidContent request saved targetGroup
 
 prepareStructurallyValidContent ::
     (?modelContext :: ModelContext) =>
     RosterTemplateApplicationRequest ->
-    RosterTemplateSaved ->
+    RosterTemplateSnapshot ->
     RosterGroup ->
     IO (Either RosterTemplateApplicationError PreparedApplication)
 prepareStructurallyValidContent request saved targetGroup = do
@@ -205,7 +205,7 @@ prepareStructurallyValidContent request saved targetGroup = do
         else case targetDays of
             [] -> pure (Left RosterTemplateApplicationInvalidTargetDay)
             firstTargetDay : _
-                | rosterTemplateScaleIsWeek saved.savedTemplate.scale
+                | rosterTemplateScaleIsWeek saved.snapshotTemplate.scale
                     && map (.operationalDate) targetDays /= map (`addDays` request.applicationTargetWindowStart) [0 .. 6] ->
                         pure (Left RosterTemplateApplicationInvalidTargetDay)
                 | otherwise -> do
@@ -214,11 +214,11 @@ prepareStructurallyValidContent request saved targetGroup = do
                             Nothing -> Map.fromList [(weekdayIndexForDay day.operationalDate, day) | day <- targetDays]
                     let templateDayIndexById = Map.fromList
                             [ (unpackId day.id, fromMaybe day.dayIndex day.weekdayIndex)
-                            | day <- saved.savedDays
+                            | day <- saved.snapshotDays
                             ]
-                    let templateColumnById = Map.fromList [(unpackId column.id, column) | column <- saved.savedColumns]
+                    let templateColumnById = Map.fromList [(unpackId column.id, column) | column <- saved.snapshotColumns]
                     venueConfig <- query @VenueConfig |> filterWhere (#venueId, targetGroup.venueId) |> fetchOne
-                    let shiftPlans = traverse (prepareShift venueConfig targetDayByTemplateIndex templateDayIndexById templateColumnById request.applicationOccurrenceSelections) saved.savedShifts
+                    let shiftPlans = traverse (prepareShift venueConfig targetDayByTemplateIndex templateDayIndexById templateColumnById request.applicationOccurrenceSelections) saved.snapshotShifts
                     case shiftPlans of
                         Left failure -> pure (Left failure)
                         Right boundaryPlans -> do
@@ -375,14 +375,14 @@ resolveTemplateMinute shiftId boundary timezone rosterDate minute occurrence =
 toPreview :: PreparedApplication -> RosterTemplateApplicationPreview
 toPreview prepared =
     RosterTemplateApplicationPreview
-        { applicationPreviewTemplateName = prepared.preparedSaved.savedTemplate.name
-        , applicationPreviewScale = prepared.preparedSaved.savedTemplate.scale
+        { applicationPreviewTemplateName = prepared.preparedSaved.snapshotTemplate.name
+        , applicationPreviewScale = prepared.preparedSaved.snapshotTemplate.scale
         , applicationPreviewTargetWindowStart = prepared.preparedTargetWindowStart
         , applicationPreviewTargetWindowEnd = prepared.preparedTargetWindowEnd
-        , applicationPreviewTargetOperationalDate = case prepared.preparedSaved.savedTemplate.scale of
+        , applicationPreviewTargetOperationalDate = case prepared.preparedSaved.snapshotTemplate.scale of
             Day  -> Just prepared.preparedFirstTargetDay.operationalDate
             Week -> Nothing
-        , applicationExpectedVersion = prepared.preparedSaved.savedTemplate.currentVersion
+        , applicationExpectedVersion = 0
         , applicationExpectedTargetRevision = targetRevision prepared
         , applicationRosterCalendarRevision = prepared.preparedCalendarRevision
         , applicationReplacementShiftCount = length prepared.preparedShiftPlans
@@ -404,7 +404,7 @@ toPreview prepared =
         | plan <- prepared.preparedShiftPlans
         , Just issue <- [plan.preparedAssignmentIssue]
         ]
-    destructiveWarning = case prepared.preparedSaved.savedTemplate.scale of
+    destructiveWarning = case prepared.preparedSaved.snapshotTemplate.scale of
         Day -> RosterTemplateApplicationClearsDay (fromInteger (diffDays prepared.preparedFirstTargetDay.operationalDate prepared.preparedTargetWindowStart))
         Week -> RosterTemplateApplicationClearsWeek
     timesheetWarnings =
@@ -415,7 +415,8 @@ targetRevision prepared =
     tshow (Hash.hash (TextEncoding.encodeUtf8 payload) :: Hash.Digest Hash.SHA256)
   where
     payload = Text.intercalate "|"
-        [ tshow (prepared.preparedTargetGroup.id, prepared.preparedTargetWindowStart, prepared.preparedTargetWindowEnd)
+        [ rosterTemplateSnapshotRevision prepared.preparedSaved
+        , tshow (prepared.preparedTargetGroup.id, prepared.preparedTargetWindowStart, prepared.preparedTargetWindowEnd)
         , tshow
             [ (day.id, day.operationalDate, day.publicationState, day.isClosed, day.rowCount, day.updatedAt)
             | day <- prepared.preparedTargetDays
@@ -455,7 +456,7 @@ touchedResources prepared =
   where
     templateResources
         | any (isJust . (.preparedAssignmentIssue)) prepared.preparedShiftPlans =
-            [ rosterTemplateResource (unpackId prepared.preparedSaved.savedTemplate.id)
+            [ rosterTemplateResource (unpackId prepared.preparedSaved.snapshotTemplate.id)
             , rosterTemplateLibraryResource groupId
             ]
         | otherwise = []

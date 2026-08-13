@@ -2,7 +2,7 @@ module Web.RosterWeeks.TemplateApplication.Types where
 
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)
 import Application.RosterShiftAssignment (RosterShiftAssignment)
-import Application.RosterTemplates (RosterTemplateSaved)
+import Application.RosterTemplates (RosterTemplateSnapshot)
 import Application.VenueTime.Model (BoundaryModelError,
                                     ShiftCopyOccurrenceSelections)
 import Generated.Types
@@ -87,7 +87,7 @@ data RosterTemplateApplicationError
     deriving (Eq, Show)
 
 data PreparedApplication = PreparedApplication
-    { preparedSaved             :: !RosterTemplateSaved
+    { preparedSaved             :: !RosterTemplateSnapshot
     , preparedTargetGroup       :: !RosterGroup
     , preparedTargetWindowStart :: !Day
     , preparedTargetWindowEnd   :: !Day

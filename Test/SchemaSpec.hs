@@ -498,7 +498,7 @@ tests = describe "Schema" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         migrationSqlText <- TextIO.readFile "Application/Migration/1787004000.sql"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "weekday_index INT DEFAULT NULL"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "idx_roster_template_days_design_weekday"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "idx_roster_template_days_template_weekday"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "(venue_config.roster_week_starts_on + roster_template_days.day_index) % 7"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "roster_template_designs.scale = 'week'"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "roster template weekday backfill failed"
