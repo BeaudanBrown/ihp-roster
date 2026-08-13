@@ -120,10 +120,12 @@ module Application.Helper.FrontendContract.Surface.Roster
     , ImageExportRowRole
     , ImageExportCellRole
     , ImageExportFormat
-    , Jpg
+    , Png
+    , RosterImageExportStyle (..)
     , RosterImageExportConfig
     , RosterImageExportCell
     , ImageExportFilename
+    , ImageExportStyle
     , ImageExportMimeType
     , ImageExportQualityPercent
     , ImageExportPixelRatio
@@ -366,10 +368,21 @@ data ImageExportProjectionRole
 data ImageExportRowRole
 data ImageExportCellRole
 data ImageExportFormat
-data Jpg
+data Png
+
+data RosterImageExportStyle
+    = RosterImageExportColour
+    | RosterImageExportPrint
+    deriving (Eq, Show, Enum, Bounded)
+
+instance InputValue RosterImageExportStyle where
+    inputValue RosterImageExportColour = "colour"
+    inputValue RosterImageExportPrint = "print"
+
 data RosterImageExportConfig
 data RosterImageExportCell
 data ImageExportFilename
+data ImageExportStyle
 data ImageExportMimeType
 data ImageExportQualityPercent
 data ImageExportPixelRatio
@@ -861,9 +874,10 @@ type RosterImageExportBrowserBundle =
      , BrowserRole ImageExportProjectionRole
      , BrowserRole ImageExportRowRole
      , BrowserRole ImageExportCellRole
-     , BrowserClosedState ImageExportFormat '[ Jpg ]
+     , BrowserClosedState ImageExportFormat '[ Png ]
      , BrowserInboundDto RosterImageExportConfig
         '[ Field ImageExportFilename 'WireText
+         , Field ImageExportStyle ('WireClosed RosterImageExportStyle)
          , Field ImageExportMimeType 'WireText
          , Field ImageExportQualityPercent 'WireInt
          , Field ImageExportPixelRatio 'WireInt

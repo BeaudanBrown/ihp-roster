@@ -1368,7 +1368,8 @@ tests = aroundAll withDatabaseTestContext do
                 draftManagerResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekAction 0)
                 draftManagerResponse `responseStatusShouldBe` status200
-                draftManagerResponse `responseBodyShouldNotContain` "Export JPG"
+                draftManagerResponse `responseBodyShouldNotContain` "Export colour PNG"
+                draftManagerResponse `responseBodyShouldNotContain` "Export print PNG"
                 draftManagerResponse `responseBodyShouldContain` "roster-shift-create-grid"
                 draftManagerResponse `responseBodyShouldContain` "class=\"roster-shift-unit-cell slot-empty-cell\" data-bepis-roster-image-export-cell=\"{&quot;imageExportEndEllipsis&quot;:false,&quot;imageExportText&quot;:&quot;&quot;}\""
 
@@ -1377,11 +1378,14 @@ tests = aroundAll withDatabaseTestContext do
                 liveManagerResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekAction 0)
                 liveManagerResponse `responseStatusShouldBe` status200
-                liveManagerResponse `responseBodyShouldContain` "Export JPG"
+                liveManagerResponse `responseBodyShouldContain` "Export colour PNG"
+                liveManagerResponse `responseBodyShouldContain` "Export print PNG"
                 liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-trigger=\"true\""
                 liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-format=\"jpg\""
                 liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-config="
                 liveManagerResponse `responseBodyShouldContain` "&quot;imageExportFilename&quot;:&quot;roster-"
+                liveManagerResponse `responseBodyShouldContain` "&quot;imageExportStyle&quot;:&quot;colour&quot;"
+                liveManagerResponse `responseBodyShouldContain` "&quot;imageExportStyle&quot;:&quot;print&quot;"
                 liveManagerResponse `responseBodyShouldContain` "class=\"roster-grid-frame\""
                 liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-projection=\"true\""
                 liveManagerResponse `responseBodyShouldContain` "class=\"roster-day-rail-head\" data-bepis-roster-image-export-row=\"true\" data-bepis-roster-image-export-cell=\"{&quot;imageExportEndEllipsis&quot;:false,&quot;imageExportText&quot;:&quot;Day&quot;}\""
@@ -1414,7 +1418,8 @@ tests = aroundAll withDatabaseTestContext do
                 workerResponse <- withUserAndCurrentVenue worker venue.id do
                     callAction (ShowRosterWeekAction 0)
                 workerResponse `responseStatusShouldBe` status200
-                workerResponse `responseBodyShouldNotContain` "Export JPG"
+                workerResponse `responseBodyShouldNotContain` "Export colour PNG"
+                workerResponse `responseBodyShouldNotContain` "Export print PNG"
 
         it "shows week wage estimates to admins only" $ withContext do
             withCleanDb do

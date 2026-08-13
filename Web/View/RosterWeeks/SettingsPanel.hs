@@ -10,7 +10,8 @@ import qualified Application.Helper.FrontendContract.Surface.Interaction as Surf
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Roster.ImageExport (rosterImageExportFilename,
-                                                                       rosterJpgImageExportTriggerAttrs)
+                                                                       rosterPngImageExportTriggerAttrs)
+import Application.Helper.FrontendContract.Surface.Roster (RosterImageExportStyle (..))
 import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as RosterIntent
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
@@ -357,10 +358,18 @@ renderRosterEmailAction _ _ = mempty
 
 renderRosterExportSection :: Text -> Day -> Html
 renderRosterExportSection rosterGroupName weekStartDate = [hsx|
-    <button type="button"
-            class="btn btn-outline-secondary btn-sm w-100 roster-export-button"
-            {...rosterJpgImageExportTriggerAttrs (rosterImageExportFilename rosterGroupName weekStartDate)}>
-        <i class="bi bi-download me-1" aria-hidden="true"></i>
-        Export JPG
-    </button>
+    <div class="d-flex gap-2">
+        {renderRosterExportButton RosterImageExportColour "Export colour PNG"}
+        {renderRosterExportButton RosterImageExportPrint "Export print PNG"}
+    </div>
 |]
+  where
+    renderRosterExportButton :: RosterImageExportStyle -> Text -> Html
+    renderRosterExportButton exportStyle label = [hsx|
+        <button type="button"
+                class="btn btn-outline-secondary btn-sm flex-fill roster-export-button"
+                {...rosterPngImageExportTriggerAttrs exportStyle (rosterImageExportFilename exportStyle rosterGroupName weekStartDate)}>
+            <i class="bi bi-download me-1" aria-hidden="true"></i>
+            {label}
+        </button>
+    |]

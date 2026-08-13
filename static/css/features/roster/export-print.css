@@ -17,6 +17,10 @@
         linear-gradient(180deg, var(--app-export-gradient-start), var(--app-input-bg));
 }
 
+.roster-export-surface--print {
+    background: var(--app-white);
+}
+
 .roster-export-grid {
     width: 100%;
     margin: 0;
@@ -51,6 +55,50 @@
     display: none !important;
 }
 
+.roster-export-grid [data-bepis-roster-image-export-cell] {
+    text-align: center !important;
+}
+
+.roster-export-surface--print .roster-export-grid .roster-day-rail-head,
+.roster-export-surface--print .roster-export-grid .roster-grid-head {
+    display: none !important;
+}
+
+.roster-export-surface--print .roster-export-grid .day-alt-light {
+    background-color: var(--roster-export-day-light) !important;
+}
+
+.roster-export-surface--print .roster-export-grid .day-alt-dark {
+    background-color: var(--roster-export-day-dark) !important;
+}
+
+.roster-export-surface--print .roster-export-grid [data-bepis-roster-image-export-cell] {
+    border-color: var(--roster-export-border) !important;
+    color: var(--roster-export-text) !important;
+    text-align: center !important;
+}
+
+.roster-export-surface--print .roster-export-grid .roster-shift-unit-cell,
+.roster-export-surface--print .roster-export-grid .slot-closed-cell,
+.roster-export-surface--print .roster-export-grid .slot-shift-type-cell[data-roster-shift-colour^="palette-"] {
+    background-color: inherit !important;
+}
+
+.roster-export-surface--print .roster-export-grid .roster-block-start {
+    border-left: 3px solid var(--roster-export-border) !important;
+}
+
+.roster-export-surface--print .roster-export-grid .roster-shift-unit.is-roster-shift-open {
+    box-shadow: none !important;
+}
+
+.roster-export-surface--print .roster-export-grid .slot-staff-cell.is-roster-shift-open {
+    background-color: inherit !important;
+    color: var(--roster-export-text) !important;
+    font-weight: 700;
+    letter-spacing: normal;
+}
+
 .roster-export-grid .slot-cell-export-value {
     height: var(--roster-grid-row-height);
     min-height: var(--roster-grid-row-height);
@@ -67,6 +115,10 @@
     color: var(--app-text);
     font-size: var(--roster-text-sm);
     font-variant-numeric: tabular-nums;
+}
+
+.roster-export-surface--print .roster-export-grid .slot-cell-export-value {
+    color: var(--roster-export-text);
 }
 
 @media (max-width: 991.98px) {

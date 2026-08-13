@@ -24,16 +24,36 @@ test.describe('Roster week overview', () => {
     });
 
     test('exports the live roster as a jpg from the roster actions menu', async ({ page }) => {
-        runSql("UPDATE roster_weeks SET is_live = TRUE WHERE id = 'a1000000-0000-0000-0000-000000000053';");
+        runSql(`
+            UPDATE roster_weeks SET is_live = TRUE WHERE id = 'a1000000-0000-0000-0000-000000000053';
+            UPDATE roster_slots
+            SET staff_id = NULL, assignment_state = 'open'
+            WHERE id = 'a1000000-0000-0000-0000-000000000074';
+            INSERT INTO roster_days (id, roster_week_id, day_offset, is_closed, row_count)
+            VALUES ('a1000000-0000-0000-0000-000000000064', 'a1000000-0000-0000-0000-000000000053', 1, FALSE, 1)
+            ON CONFLICT (id) DO UPDATE
+            SET roster_week_id = EXCLUDED.roster_week_id, day_offset = EXCLUDED.day_offset, is_closed = EXCLUDED.is_closed, row_count = EXCLUDED.row_count;
+            INSERT INTO roster_week_slot_definitions (id, roster_week_id, name, sort_order)
+            VALUES ('a1000000-0000-0000-0000-000000000084', 'a1000000-0000-0000-0000-000000000053', 'Late', 1)
+            ON CONFLICT (id) DO UPDATE
+            SET roster_week_id = EXCLUDED.roster_week_id, name = EXCLUDED.name, sort_order = EXCLUDED.sort_order, deleted_at = NULL;
+        `);
         await openRoster(page, { weekOffset: 1, ensureDraft: false, ensureEditable: false });
 
         await openRosterSettings(page);
-        const exportButton = page.locator(`[${rosterImageExportTriggerDomAttr}="true"]`);
-        await expect(exportButton).toBeVisible();
-        await expect(exportButton).toHaveText('Export JPG');
-        const rawConfig = await exportButton.getAttribute(rosterImageExportConfigDomAttr);
-        expect(rawConfig).not.toBeNull();
-        const config = parseRosterImageExportConfig(JSON.parse(rawConfig ?? '{}'));
+        const exportButtons = page.locator(`[${rosterImageExportTriggerDomAttr}="true"]`);
+        await expect(exportButtons).toHaveCount(2);
+        const colourExportButton = exportButtons.nth(0);
+        const printExportButton = exportButtons.nth(1);
+        await expect(colourExportButton).toHaveText('Export colour PNG');
+        await expect(printExportButton).toHaveText('Export print PNG');
+        const colourConfig = parseRosterImageExportConfig(JSON.parse(await colourExportButton.getAttribute(rosterImageExportConfigDomAttr) ?? '{}'));
+        const config = parseRosterImageExportConfig(JSON.parse(await printExportButton.getAttribute(rosterImageExportConfigDomAttr) ?? '{}'));
+        expect(colourConfig.imageExportStyle).toBe('colour');
+        expect(colourConfig.imageExportMaximumWidth).toBe(1240);
+        expect(config.imageExportStyle).toBe('print');
+        expect(config.imageExportMinimumWidth).toBe(920);
+        expect(config.imageExportMaximumWidth).toBe(1240);
         const renderedDayCellCount = await page.locator('.roster-day-rail-section').count();
         expect(renderedDayCellCount).toBeGreaterThan(0);
 
@@ -45,6 +65,15 @@ test.describe('Roster week overview', () => {
             dayRight: number | null;
             firstSlotLeft: number | null;
             alignedRowCount: number;
+            dayRailHeaderDisplay: string | null;
+            slotHeaderDisplay: string | null;
+            lightDayBackground: string | null;
+            darkDayBackground: string | null;
+            cellTextAlign: string | null;
+            laneBorderWidth: string | null;
+            openShiftBoxShadow: string | null;
+            openShiftBackground: string | null;
+            openShiftFontWeight: string | null;
         }>((resolve) => {
             const observer = new MutationObserver(() => {
                 const projection = document.querySelector<HTMLElement>(`.roster-export-stage [${projectionAttr}]`);
@@ -54,6 +83,10 @@ test.describe('Roster week overview', () => {
                 const wageRail = projection.querySelector<HTMLElement>('.roster-wage-rail');
                 const firstDay = dayCells[0]?.getBoundingClientRect() ?? null;
                 const firstSlot = slotCells[0]?.getBoundingClientRect() ?? null;
+                const lightDay = projection.querySelector<HTMLElement>('.day-alt-light');
+                const darkDay = projection.querySelector<HTMLElement>('.day-alt-dark');
+                const laneCell = projection.querySelector<HTMLElement>('.roster-block-start');
+                const openShift = projection.querySelector<HTMLElement>('.is-roster-shift-open');
                 const dayTops = new Set(dayCells.map((cell) => Math.round(cell.getBoundingClientRect().top)));
                 const slotTops = new Set(slotCells.map((cell) => Math.round(cell.getBoundingClientRect().top)));
                 observer.disconnect();
@@ -63,6 +96,27 @@ test.describe('Roster week overview', () => {
                     dayRight: firstDay?.right ?? null,
                     firstSlotLeft: firstSlot?.left ?? null,
                     alignedRowCount: Array.from(dayTops).filter((top) => slotTops.has(top)).length,
+                    dayRailHeaderDisplay: (() => {
+                        const header = projection.querySelector<HTMLElement>('.roster-day-rail-head');
+                        return header === null ? null : getComputedStyle(header).display;
+                    })(),
+                    slotHeaderDisplay: (() => {
+                        const header = projection.querySelector<HTMLElement>('.roster-grid-head');
+                        return header === null ? null : getComputedStyle(header).display;
+                    })(),
+                    lightDayBackground: lightDay === null ? null : getComputedStyle(lightDay).backgroundColor,
+                    darkDayBackground: darkDay === null ? null : getComputedStyle(darkDay).backgroundColor,
+                    cellTextAlign: firstSlot === null ? null : getComputedStyle(slotCells[0]).textAlign,
+                    laneBorderWidth: laneCell === null ? null : getComputedStyle(laneCell).borderLeftWidth,
+                    openShiftBoxShadow: openShift === null ? null : getComputedStyle(openShift).boxShadow,
+                    openShiftBackground: (() => {
+                        const cell = projection.querySelector<HTMLElement>('.slot-staff-cell.is-roster-shift-open');
+                        return cell === null ? null : getComputedStyle(cell).backgroundColor;
+                    })(),
+                    openShiftFontWeight: (() => {
+                        const cell = projection.querySelector<HTMLElement>('.slot-staff-cell.is-roster-shift-open');
+                        return cell === null ? null : getComputedStyle(cell).fontWeight;
+                    })(),
                 });
             });
             observer.observe(document.body, { childList: true });
@@ -71,7 +125,7 @@ test.describe('Roster week overview', () => {
             cellAttr: rosterImageExportCellDomAttr,
         });
         const downloadPromise = page.waitForEvent('download');
-        await exportButton.click();
+        await printExportButton.click();
         const [download, exportGeometry] = await Promise.all([downloadPromise, exportGeometryPromise]);
 
         expect(exportGeometry.dayCellCount).toBe(sourceDayCellCount);
@@ -80,21 +134,37 @@ test.describe('Roster week overview', () => {
         expect(exportGeometry.firstSlotLeft).not.toBeNull();
         expect(exportGeometry.firstSlotLeft ?? 0).toBeGreaterThanOrEqual((exportGeometry.dayRight ?? 0) - 1);
         expect(exportGeometry.alignedRowCount).toBeGreaterThan(0);
+        expect(exportGeometry.dayRailHeaderDisplay).toBe('none');
+        expect(exportGeometry.slotHeaderDisplay).toBe('none');
+        expect(exportGeometry.lightDayBackground).toBe('rgb(255, 255, 255)');
+        expect(exportGeometry.darkDayBackground).toBe('rgb(198, 204, 212)');
+        expect(exportGeometry.cellTextAlign).toBe('center');
+        expect(exportGeometry.laneBorderWidth).toBe('3px');
+        expect(exportGeometry.openShiftBoxShadow).toBe('none');
+        expect(exportGeometry.openShiftBackground).toBe('rgba(0, 0, 0, 0)');
+        expect(exportGeometry.openShiftFontWeight).toBe('700');
 
         expect(download.suggestedFilename()).toBe(config.imageExportFilename);
-        await expect(exportButton).toHaveText(config.imageExportDownloadedLabel);
+        await expect(printExportButton).toHaveText('Export print PNG');
         const downloadPath = await download.path();
         expect(downloadPath).not.toBeNull();
         const bytes = readFileSync(downloadPath ?? '');
-        expect(Array.from(bytes.subarray(0, 3))).toEqual([0xff, 0xd8, 0xff]);
+        expect(Array.from(bytes.subarray(0, 8))).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
         expect(bytes.length).toBeGreaterThan(1000);
+
+        const colourDownloadPromise = page.waitForEvent('download');
+        await colourExportButton.click();
+        const colourDownload = await colourDownloadPromise;
+        expect(colourDownload.suggestedFilename()).toBe(colourConfig.imageExportFilename);
+        await expect(colourExportButton).toHaveText('Export colour PNG');
     });
 
-    test('does not show roster JPG export on draft weeks', async ({ page }) => {
+    test('does not show roster JPG exports on draft weeks', async ({ page }) => {
         await openRoster(page, { weekOffset: 2 });
 
         await openRosterSettings(page);
-        await expect(page.getByRole('button', { name: 'Export JPG' })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Export colour PNG' })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Export print PNG' })).toHaveCount(0);
     });
 
     test('keeps a large desktop roster grid fitted without requiring local horizontal scrolling', async ({ page }) => {
@@ -181,7 +251,8 @@ test.describe('Roster week overview', () => {
         await expect(page.getByLabel('Live')).toHaveCount(0);
         await expect(page.getByRole('button', { name: 'Copy Previous Week' })).toHaveCount(0);
 
-        await expect(page.getByRole('button', { name: 'Export JPG' })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Export colour PNG' })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Export print PNG' })).toHaveCount(0);
         await expect(page.getByText('Hide from dropdowns')).toHaveCount(0);
         await expect(page.getByRole('button', { name: 'Sync Slots' })).toHaveCount(0);
 

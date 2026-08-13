@@ -94,6 +94,10 @@
     --app-overview-gradient-end: #161d2a;
     --app-overview-detail-bg: rgba(16, 24, 37, 0.92);
     --app-export-gradient-start: #1a2331;
+    --roster-export-day-light: var(--app-white);
+    --roster-export-day-dark: #c6ccd4;
+    --roster-export-border: #000000;
+    --roster-export-text: #000000;
     --app-success-border: rgba(66, 184, 131, 0.55);
     --app-success-action-border: rgba(73, 181, 126, 0.55);
     --app-success-action-start: #0e6944;

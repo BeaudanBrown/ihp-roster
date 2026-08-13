@@ -127,6 +127,9 @@
   function isRosterTemplateScaleEnum(value) {
     return typeof value === "string" && ["day", "week"].includes(value);
   }
+  function isRosterImageExportStyle(value) {
+    return typeof value === "string" && ["colour", "print"].includes(value);
+  }
   function isLeaveSectionValue(value) {
     return typeof value === "string" && ["pending", "approved", "denied", "archive"].includes(value);
   }
@@ -176,7 +179,7 @@
     throw new Error("Invalid TemplateApplicationCardConfig");
   }
   function isRosterImageExportConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["imageExportFilename", "imageExportMimeType", "imageExportQualityPercent", "imageExportPixelRatio", "imageExportMinimumWidth", "imageExportMaximumWidth", "imageExportIdleLabel", "imageExportPreparingLabel", "imageExportDownloadedLabel", "imageExportFailedLabel", "imageExportFailureMessage", "imageExportMissingProjectionMessage", "imageExportCloneFailureMessage", "imageExportRenderFailureMessage", "imageExportCanvasFailureMessage", "imageExportEncodingFailureMessage"], ["imageExportFilename", "imageExportMimeType", "imageExportQualityPercent", "imageExportPixelRatio", "imageExportMinimumWidth", "imageExportMaximumWidth", "imageExportIdleLabel", "imageExportPreparingLabel", "imageExportDownloadedLabel", "imageExportFailedLabel", "imageExportFailureMessage", "imageExportMissingProjectionMessage", "imageExportCloneFailureMessage", "imageExportRenderFailureMessage", "imageExportCanvasFailureMessage", "imageExportEncodingFailureMessage"]) && typeof value["imageExportFilename"] === "string" && typeof value["imageExportMimeType"] === "string" && (typeof value["imageExportQualityPercent"] === "number" && Number.isInteger(value["imageExportQualityPercent"])) && (typeof value["imageExportPixelRatio"] === "number" && Number.isInteger(value["imageExportPixelRatio"])) && (typeof value["imageExportMinimumWidth"] === "number" && Number.isInteger(value["imageExportMinimumWidth"])) && (typeof value["imageExportMaximumWidth"] === "number" && Number.isInteger(value["imageExportMaximumWidth"])) && typeof value["imageExportIdleLabel"] === "string" && typeof value["imageExportPreparingLabel"] === "string" && typeof value["imageExportDownloadedLabel"] === "string" && typeof value["imageExportFailedLabel"] === "string" && typeof value["imageExportFailureMessage"] === "string" && typeof value["imageExportMissingProjectionMessage"] === "string" && typeof value["imageExportCloneFailureMessage"] === "string" && typeof value["imageExportRenderFailureMessage"] === "string" && typeof value["imageExportCanvasFailureMessage"] === "string" && typeof value["imageExportEncodingFailureMessage"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["imageExportFilename", "imageExportStyle", "imageExportMimeType", "imageExportQualityPercent", "imageExportPixelRatio", "imageExportMinimumWidth", "imageExportMaximumWidth", "imageExportIdleLabel", "imageExportPreparingLabel", "imageExportDownloadedLabel", "imageExportFailedLabel", "imageExportFailureMessage", "imageExportMissingProjectionMessage", "imageExportCloneFailureMessage", "imageExportRenderFailureMessage", "imageExportCanvasFailureMessage", "imageExportEncodingFailureMessage"], ["imageExportFilename", "imageExportStyle", "imageExportMimeType", "imageExportQualityPercent", "imageExportPixelRatio", "imageExportMinimumWidth", "imageExportMaximumWidth", "imageExportIdleLabel", "imageExportPreparingLabel", "imageExportDownloadedLabel", "imageExportFailedLabel", "imageExportFailureMessage", "imageExportMissingProjectionMessage", "imageExportCloneFailureMessage", "imageExportRenderFailureMessage", "imageExportCanvasFailureMessage", "imageExportEncodingFailureMessage"]) && typeof value["imageExportFilename"] === "string" && isRosterImageExportStyle(value["imageExportStyle"]) && typeof value["imageExportMimeType"] === "string" && (typeof value["imageExportQualityPercent"] === "number" && Number.isInteger(value["imageExportQualityPercent"])) && (typeof value["imageExportPixelRatio"] === "number" && Number.isInteger(value["imageExportPixelRatio"])) && (typeof value["imageExportMinimumWidth"] === "number" && Number.isInteger(value["imageExportMinimumWidth"])) && (typeof value["imageExportMaximumWidth"] === "number" && Number.isInteger(value["imageExportMaximumWidth"])) && typeof value["imageExportIdleLabel"] === "string" && typeof value["imageExportPreparingLabel"] === "string" && typeof value["imageExportDownloadedLabel"] === "string" && typeof value["imageExportFailedLabel"] === "string" && typeof value["imageExportFailureMessage"] === "string" && typeof value["imageExportMissingProjectionMessage"] === "string" && typeof value["imageExportCloneFailureMessage"] === "string" && typeof value["imageExportRenderFailureMessage"] === "string" && typeof value["imageExportCanvasFailureMessage"] === "string" && typeof value["imageExportEncodingFailureMessage"] === "string";
   }
   function parseRosterImageExportConfig(value) {
     if (isRosterImageExportConfig(value)) return value;
@@ -315,9 +318,9 @@
   function isRosterColumnEditingState(value) {
     return typeof value === "string" && ["inactive", "active"].includes(value);
   }
-  var rosterImageExportFormatStates = { "jpg": "jpg" };
+  var rosterImageExportFormatStates = { "png": "png" };
   function isRosterImageExportFormatState(value) {
-    return typeof value === "string" && ["jpg"].includes(value);
+    return typeof value === "string" && ["png"].includes(value);
   }
   var rosterWeekOverviewAvailabilityStates = { "loaded": "loaded", "unloaded": "unloaded" };
   function isRosterWeekOverviewAvailabilityState(value) {
@@ -975,7 +978,7 @@
       return null;
     }
     const format = button.getAttribute(rosterImageExportFormatDomAttr);
-    if (!isRosterImageExportFormatState(format) || format !== rosterImageExportFormatStates.jpg) {
+    if (!isRosterImageExportFormatState(format) || format !== rosterImageExportFormatStates.png) {
       report(diagnostic2(button, "invalid-format", "Roster image-export format is not declared by the Surface contract"));
       return null;
     }
@@ -1113,7 +1116,37 @@
     const tspans = fittedLines.map((line, index) => `<tspan x="${textX}" y="${startY + index * lineHeight}">${escapeXml(line)}</tspan>`).join("");
     return `<text font-family="${fontFamily}" font-size="${fontSize}" font-weight="${fontWeight}" fill="${escapeXml(textColor)}" text-anchor="${textAnchor}">${tspans}</text>`;
   }
-  function buildProjectionSvgMarkup(surface, projection) {
+  function exportSurfaceClass(exportStyle) {
+    switch (exportStyle) {
+      case "colour":
+        return "roster-export-surface--colour";
+      case "print":
+        return "roster-export-surface--print";
+      default:
+        return assertNever(exportStyle);
+    }
+  }
+  function buildExportBackgroundSvg(exportStyle, surface, width, height) {
+    switch (exportStyle) {
+      case "colour":
+        return [
+          "<defs>",
+          '<linearGradient id="rosterExportBg" x1="0%" y1="0%" x2="0%" y2="100%">',
+          '<stop offset="0%" stop-color="#1a2331" />',
+          '<stop offset="100%" stop-color="#0f1622" />',
+          "</linearGradient>",
+          "</defs>",
+          `<rect x="0" y="0" width="${width}" height="${height}" fill="url(#rosterExportBg)" />`
+        ];
+      case "print": {
+        const surfaceBackground = window.getComputedStyle(surface).backgroundColor;
+        return !isTransparentColor(surfaceBackground) ? [`<rect x="0" y="0" width="${width}" height="${height}" fill="${escapeXml(surfaceBackground)}" />`] : [];
+      }
+      default:
+        return assertNever(exportStyle);
+    }
+  }
+  function buildProjectionSvgMarkup(surface, projection, config) {
     const surfaceRect = surface.getBoundingClientRect();
     const projectionRect = projection.getBoundingClientRect();
     const width = Math.ceil(surfaceRect.width);
@@ -1121,13 +1154,7 @@
     const projectionLeft = projectionRect.left - surfaceRect.left;
     const parts = [
       `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
-      "<defs>",
-      '<linearGradient id="rosterExportBg" x1="0%" y1="0%" x2="0%" y2="100%">',
-      '<stop offset="0%" stop-color="#1a2331" />',
-      '<stop offset="100%" stop-color="#0f1622" />',
-      "</linearGradient>",
-      "</defs>",
-      `<rect x="0" y="0" width="${width}" height="${height}" fill="url(#rosterExportBg)" />`
+      ...buildExportBackgroundSvg(config.imageExportStyle, surface, width, height)
     ];
     projection.querySelectorAll(rowSelector).forEach((row) => {
       const rowRect = row.getBoundingClientRect();
@@ -1148,16 +1175,23 @@
       const fill = isTransparentColor(cellStyle.backgroundColor) ? "none" : escapeXml(cellStyle.backgroundColor);
       const stroke = escapeXml(cellStyle.borderTopColor || "#3a4658");
       const strokeWidth = Math.max(1, parsePixelValue(cellStyle.borderTopWidth, 1));
+      const leftBorderWidth = parsePixelValue(cellStyle.borderLeftWidth, 0);
+      const leftBorderColor = escapeXml(cellStyle.borderLeftColor || "#3a4658");
       parts.push(
         `<rect x="${x}" y="${y}" width="${cellRect.width}" height="${cellRect.height}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" shape-rendering="crispEdges" />`
       );
+      if (leftBorderWidth > strokeWidth) {
+        parts.push(
+          `<line x1="${x}" y1="${y}" x2="${x}" y2="${y + cellRect.height}" stroke="${leftBorderColor}" stroke-width="${leftBorderWidth}" shape-rendering="crispEdges" />`
+        );
+      }
       parts.push(buildCellTextSvg(cell, x, y, cellRect.width, cellRect.height));
     });
     parts.push("</svg>");
     return { width, height, svgMarkup: parts.join("") };
   }
   async function exportSurfaceToBlob(surface, projection, config) {
-    const renderSpec = buildProjectionSvgMarkup(surface, projection);
+    const renderSpec = buildProjectionSvgMarkup(surface, projection, config);
     const svgBlob = new Blob([renderSpec.svgMarkup], { type: "image/svg+xml;charset=utf-8" });
     const svgUrl = URL.createObjectURL(svgBlob);
     try {
@@ -1191,7 +1225,7 @@
     const stage = document.createElement("div");
     stage.className = "roster-export-stage";
     const surface = document.createElement("div");
-    surface.className = "roster-export-surface";
+    surface.className = `roster-export-surface ${exportSurfaceClass(config.imageExportStyle)}`;
     const measuredWidth = Math.ceil(source.getBoundingClientRect().width);
     const exportWidth = Math.max(
       config.imageExportMinimumWidth,
@@ -1223,30 +1257,16 @@
   }
   async function handleRosterExport(button, validated, report) {
     const { config, projection } = validated;
-    button.disabled = true;
-    button.textContent = config.imageExportPreparingLabel;
     try {
       const blob = await buildRosterExportBlob(projection, config, report);
       triggerBlobDownload(blob, config.imageExportFilename);
-      button.textContent = config.imageExportDownloadedLabel;
-      window.setTimeout(() => {
-        button.textContent = config.imageExportIdleLabel;
-      }, 1200);
     } catch (error) {
       report(diagnostic2(
         button,
         "export-failed",
         error instanceof Error ? error.message : String(error)
       ));
-      button.textContent = config.imageExportFailedLabel;
-      window.setTimeout(() => {
-        button.textContent = config.imageExportIdleLabel;
-      }, 1600);
       window.alert(config.imageExportFailureMessage);
-    } finally {
-      window.setTimeout(() => {
-        button.disabled = false;
-      }, 200);
     }
   }
   function enableRosterImageExport(report = defaultDiagnosticReporter2) {

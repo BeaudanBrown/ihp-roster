@@ -981,8 +981,8 @@ tests = describe "FrontendSurface DSL foundation" do
         rosterColumnEditDoneAttrs `shouldBe` [("data-bepis-roster-column-edit-done", "true")]
 
     it "renders the exact roster JPG export boundary from Haskell" do
-        let filename = rosterImageExportFilename "Front Bar" (Calendar.fromGregorian 2025 1 6)
-        filename `shouldBe` "roster-front-bar-week-of-6-jan.jpg"
+        let filename = rosterImageExportFilename RosterSurface.RosterImageExportPrint "Front Bar" (Calendar.fromGregorian 2025 1 6)
+        filename `shouldBe` "roster-front-bar-week-of-6-jan-print.png"
         rosterImageExportProjectionAttrs `shouldBe` [("data-bepis-roster-image-export-projection", "true")]
         rosterImageExportRowAttrs `shouldBe` [("data-bepis-roster-image-export-row", "true")]
         rosterImageExportCellAttrs "09:00"
@@ -993,7 +993,7 @@ tests = describe "FrontendSurface DSL foundation" do
             `shouldBe`
                 [ ("data-bepis-roster-image-export-cell", "{\"imageExportEndEllipsis\":true,\"imageExportText\":\"Front of House Supervisor\"}")
                 ]
-        let triggerAttrs = rosterJpgImageExportTriggerAttrs filename
+        let triggerAttrs = rosterPngImageExportTriggerAttrs RosterSurface.RosterImageExportPrint filename
         triggerAttrs `shouldContain` [("data-bepis-roster-image-export-trigger", "true")]
         triggerAttrs `shouldContain` [("data-bepis-roster-image-export-format", "jpg")]
         let rawConfig = fromMaybe (error "missing roster image export config") (lookup "data-bepis-roster-image-export-config" triggerAttrs)
@@ -1001,12 +1001,13 @@ tests = describe "FrontendSurface DSL foundation" do
             `shouldBe` Just
                 ( Aeson.object
                     [ "imageExportFilename" Aeson..= filename
-                    , "imageExportMimeType" Aeson..= ("image/jpeg" :: Text)
-                    , "imageExportQualityPercent" Aeson..= (92 :: Int)
-                    , "imageExportPixelRatio" Aeson..= (2 :: Int)
+                    , "imageExportStyle" Aeson..= ("print" :: Text)
+                    , "imageExportMimeType" Aeson..= ("image/png" :: Text)
+                    , "imageExportQualityPercent" Aeson..= (100 :: Int)
+                    , "imageExportPixelRatio" Aeson..= (3 :: Int)
                     , "imageExportMinimumWidth" Aeson..= (920 :: Int)
-                    , "imageExportMaximumWidth" Aeson..= (1240 :: Int)
-                    , "imageExportIdleLabel" Aeson..= ("Export JPG" :: Text)
+                    , "imageExportMaximumWidth" Aeson..= (920 :: Int)
+                    , "imageExportIdleLabel" Aeson..= ("Export PNG" :: Text)
                     , "imageExportPreparingLabel" Aeson..= ("Preparing..." :: Text)
                     , "imageExportDownloadedLabel" Aeson..= ("Downloaded" :: Text)
                     , "imageExportFailedLabel" Aeson..= ("Export failed" :: Text)
@@ -1249,7 +1250,7 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterStaffHighlightSourceDomAttr = \"data-bepis-roster-staff-highlight-source\" as const;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterDayTimelineShiftGroupHighlightMemberDomAttr = \"data-bepis-roster-day-timeline-shift-group-highlight-member\" as const;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterStaffPanelSortRow = { staffRowKey: string; staffName: string; staffRole: string; assignedShifts: number; idealShifts: number };"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterImageExportConfig = { imageExportFilename: string; imageExportMimeType: string; imageExportQualityPercent: number; imageExportPixelRatio: number; imageExportMinimumWidth: number; imageExportMaximumWidth: number; imageExportIdleLabel: string; imageExportPreparingLabel: string;"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterImageExportConfig = { imageExportFilename: string; imageExportStyle: RosterImageExportStyle; imageExportMimeType: string; imageExportQualityPercent: number; imageExportPixelRatio: number; imageExportMinimumWidth: number; imageExportMaximumWidth: number; imageExportIdleLabel: string; imageExportPreparingLabel: string;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export function parseRosterImageExportConfig(value: unknown): RosterImageExportConfig"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterImageExportCell = { imageExportText: string; imageExportEndEllipsis: boolean };"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterWageFilterConfig = { wageFilterEnabled: boolean; wageFilterRefreshTargetIds: ReadonlyArray<string>; wageFilterRequestTargetIds: ReadonlyArray<string> };"

@@ -359,6 +359,18 @@ export function parseRosterTemplateScaleEnum(value: unknown): RosterTemplateScal
     throw new Error("Invalid RosterTemplateScaleEnum");
 }
 
+export type RosterImageExportStyle =
+    "colour"
+  | "print";
+export function isRosterImageExportStyle(value: unknown): value is RosterImageExportStyle {
+    return typeof value === "string" && ["colour", "print"].includes(value);
+}
+
+export function parseRosterImageExportStyle(value: unknown): RosterImageExportStyle {
+    if (isRosterImageExportStyle(value)) return value;
+    throw new Error("Invalid RosterImageExportStyle");
+}
+
 export type LeaveSectionValue =
     "pending"
   | "approved"
@@ -1058,9 +1070,9 @@ export function parseRosterStaffPanelSortRow(value: unknown): RosterStaffPanelSo
     throw new Error("Invalid RosterStaffPanelSortRow");
 }
 
-export type RosterImageExportConfig = { imageExportFilename: string; imageExportMimeType: string; imageExportQualityPercent: number; imageExportPixelRatio: number; imageExportMinimumWidth: number; imageExportMaximumWidth: number; imageExportIdleLabel: string; imageExportPreparingLabel: string; imageExportDownloadedLabel: string; imageExportFailedLabel: string; imageExportFailureMessage: string; imageExportMissingProjectionMessage: string; imageExportCloneFailureMessage: string; imageExportRenderFailureMessage: string; imageExportCanvasFailureMessage: string; imageExportEncodingFailureMessage: string };
+export type RosterImageExportConfig = { imageExportFilename: string; imageExportStyle: RosterImageExportStyle; imageExportMimeType: string; imageExportQualityPercent: number; imageExportPixelRatio: number; imageExportMinimumWidth: number; imageExportMaximumWidth: number; imageExportIdleLabel: string; imageExportPreparingLabel: string; imageExportDownloadedLabel: string; imageExportFailedLabel: string; imageExportFailureMessage: string; imageExportMissingProjectionMessage: string; imageExportCloneFailureMessage: string; imageExportRenderFailureMessage: string; imageExportCanvasFailureMessage: string; imageExportEncodingFailureMessage: string };
 export function isRosterImageExportConfig(value: unknown): value is RosterImageExportConfig {
-    return isRecord(value) && hasExactKeys(value, ["imageExportFilename", "imageExportMimeType", "imageExportQualityPercent", "imageExportPixelRatio", "imageExportMinimumWidth", "imageExportMaximumWidth", "imageExportIdleLabel", "imageExportPreparingLabel", "imageExportDownloadedLabel", "imageExportFailedLabel", "imageExportFailureMessage", "imageExportMissingProjectionMessage", "imageExportCloneFailureMessage", "imageExportRenderFailureMessage", "imageExportCanvasFailureMessage", "imageExportEncodingFailureMessage"], ["imageExportFilename", "imageExportMimeType", "imageExportQualityPercent", "imageExportPixelRatio", "imageExportMinimumWidth", "imageExportMaximumWidth", "imageExportIdleLabel", "imageExportPreparingLabel", "imageExportDownloadedLabel", "imageExportFailedLabel", "imageExportFailureMessage", "imageExportMissingProjectionMessage", "imageExportCloneFailureMessage", "imageExportRenderFailureMessage", "imageExportCanvasFailureMessage", "imageExportEncodingFailureMessage"]) && (typeof value["imageExportFilename"] === "string") && (typeof value["imageExportMimeType"] === "string") && (typeof value["imageExportQualityPercent"] === "number" && Number.isInteger(value["imageExportQualityPercent"])) && (typeof value["imageExportPixelRatio"] === "number" && Number.isInteger(value["imageExportPixelRatio"])) && (typeof value["imageExportMinimumWidth"] === "number" && Number.isInteger(value["imageExportMinimumWidth"])) && (typeof value["imageExportMaximumWidth"] === "number" && Number.isInteger(value["imageExportMaximumWidth"])) && (typeof value["imageExportIdleLabel"] === "string") && (typeof value["imageExportPreparingLabel"] === "string") && (typeof value["imageExportDownloadedLabel"] === "string") && (typeof value["imageExportFailedLabel"] === "string") && (typeof value["imageExportFailureMessage"] === "string") && (typeof value["imageExportMissingProjectionMessage"] === "string") && (typeof value["imageExportCloneFailureMessage"] === "string") && (typeof value["imageExportRenderFailureMessage"] === "string") && (typeof value["imageExportCanvasFailureMessage"] === "string") && (typeof value["imageExportEncodingFailureMessage"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["imageExportFilename", "imageExportStyle", "imageExportMimeType", "imageExportQualityPercent", "imageExportPixelRatio", "imageExportMinimumWidth", "imageExportMaximumWidth", "imageExportIdleLabel", "imageExportPreparingLabel", "imageExportDownloadedLabel", "imageExportFailedLabel", "imageExportFailureMessage", "imageExportMissingProjectionMessage", "imageExportCloneFailureMessage", "imageExportRenderFailureMessage", "imageExportCanvasFailureMessage", "imageExportEncodingFailureMessage"], ["imageExportFilename", "imageExportStyle", "imageExportMimeType", "imageExportQualityPercent", "imageExportPixelRatio", "imageExportMinimumWidth", "imageExportMaximumWidth", "imageExportIdleLabel", "imageExportPreparingLabel", "imageExportDownloadedLabel", "imageExportFailedLabel", "imageExportFailureMessage", "imageExportMissingProjectionMessage", "imageExportCloneFailureMessage", "imageExportRenderFailureMessage", "imageExportCanvasFailureMessage", "imageExportEncodingFailureMessage"]) && (typeof value["imageExportFilename"] === "string") && (isRosterImageExportStyle(value["imageExportStyle"])) && (typeof value["imageExportMimeType"] === "string") && (typeof value["imageExportQualityPercent"] === "number" && Number.isInteger(value["imageExportQualityPercent"])) && (typeof value["imageExportPixelRatio"] === "number" && Number.isInteger(value["imageExportPixelRatio"])) && (typeof value["imageExportMinimumWidth"] === "number" && Number.isInteger(value["imageExportMinimumWidth"])) && (typeof value["imageExportMaximumWidth"] === "number" && Number.isInteger(value["imageExportMaximumWidth"])) && (typeof value["imageExportIdleLabel"] === "string") && (typeof value["imageExportPreparingLabel"] === "string") && (typeof value["imageExportDownloadedLabel"] === "string") && (typeof value["imageExportFailedLabel"] === "string") && (typeof value["imageExportFailureMessage"] === "string") && (typeof value["imageExportMissingProjectionMessage"] === "string") && (typeof value["imageExportCloneFailureMessage"] === "string") && (typeof value["imageExportRenderFailureMessage"] === "string") && (typeof value["imageExportCanvasFailureMessage"] === "string") && (typeof value["imageExportEncodingFailureMessage"] === "string");
 }
 
 export function parseRosterImageExportConfig(value: unknown): RosterImageExportConfig {
@@ -1559,10 +1571,10 @@ export function isRosterColumnEditingState(value: unknown): value is RosterColum
     return typeof value === "string" && ["inactive","active"].includes(value);
 }
 
-export const rosterImageExportFormatStates = {"jpg":"jpg"} as const;
-export type RosterImageExportFormatState = "jpg";
+export const rosterImageExportFormatStates = {"png":"png"} as const;
+export type RosterImageExportFormatState = "png";
 export function isRosterImageExportFormatState(value: unknown): value is RosterImageExportFormatState {
-    return typeof value === "string" && ["jpg"].includes(value);
+    return typeof value === "string" && ["png"].includes(value);
 }
 
 export const rosterWeekOverviewAvailabilityStates = {"loaded":"loaded","unloaded":"unloaded"} as const;

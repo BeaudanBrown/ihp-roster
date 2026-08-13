@@ -9,7 +9,9 @@ import {
     rosterImageExportTriggerDomAttr,
     surfaceDomAttr,
     type RosterImageExportConfig,
+    type RosterImageExportStyle,
 } from "../generated/contracts";
+import { assertNever } from "../shared/exhaustive";
 import {
     parseRosterImageExportCellConfiguration,
     parseRosterImageExportConfiguration,
@@ -109,7 +111,7 @@ function readImageExport(
     }
 
     const format = button.getAttribute(rosterImageExportFormatDomAttr);
-    if (!isRosterImageExportFormatState(format) || format !== rosterImageExportFormatStates.jpg) {
+    if (!isRosterImageExportFormatState(format) || format !== rosterImageExportFormatStates.png) {
         report(diagnostic(button, "invalid-format", "Roster image-export format is not declared by the Surface contract"));
         return null;
     }
@@ -282,7 +284,46 @@ function buildCellTextSvg(cell: HTMLElement, x: number, y: number, width: number
     return `<text font-family="${fontFamily}" font-size="${fontSize}" font-weight="${fontWeight}" fill="${escapeXml(textColor)}" text-anchor="${textAnchor}">${tspans}</text>`;
 }
 
-function buildProjectionSvgMarkup(surface: HTMLElement, projection: HTMLElement): RosterExportRenderSpec {
+function exportSurfaceClass(exportStyle: RosterImageExportStyle): string {
+    switch (exportStyle) {
+        case "colour": return "roster-export-surface--colour";
+        case "print": return "roster-export-surface--print";
+        default: return assertNever(exportStyle);
+    }
+}
+
+function buildExportBackgroundSvg(
+    exportStyle: RosterImageExportStyle,
+    surface: HTMLElement,
+    width: number,
+    height: number,
+): string[] {
+    switch (exportStyle) {
+        case "colour":
+            return [
+                "<defs>",
+                '<linearGradient id="rosterExportBg" x1="0%" y1="0%" x2="0%" y2="100%">',
+                '<stop offset="0%" stop-color="#1a2331" />',
+                '<stop offset="100%" stop-color="#0f1622" />',
+                "</linearGradient>",
+                "</defs>",
+                `<rect x="0" y="0" width="${width}" height="${height}" fill="url(#rosterExportBg)" />`,
+            ];
+        case "print": {
+            const surfaceBackground = window.getComputedStyle(surface).backgroundColor;
+            return !isTransparentColor(surfaceBackground)
+                ? [`<rect x="0" y="0" width="${width}" height="${height}" fill="${escapeXml(surfaceBackground)}" />`]
+                : [];
+        }
+        default: return assertNever(exportStyle);
+    }
+}
+
+function buildProjectionSvgMarkup(
+    surface: HTMLElement,
+    projection: HTMLElement,
+    config: RosterImageExportConfig,
+): RosterExportRenderSpec {
     const surfaceRect = surface.getBoundingClientRect();
     const projectionRect = projection.getBoundingClientRect();
     const width = Math.ceil(surfaceRect.width);
@@ -291,13 +332,7 @@ function buildProjectionSvgMarkup(surface: HTMLElement, projection: HTMLElement)
 
     const parts = [
         `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
-        "<defs>",
-        '<linearGradient id="rosterExportBg" x1="0%" y1="0%" x2="0%" y2="100%">',
-        '<stop offset="0%" stop-color="#1a2331" />',
-        '<stop offset="100%" stop-color="#0f1622" />',
-        "</linearGradient>",
-        "</defs>",
-        `<rect x="0" y="0" width="${width}" height="${height}" fill="url(#rosterExportBg)" />`,
+        ...buildExportBackgroundSvg(config.imageExportStyle, surface, width, height),
     ];
 
     projection.querySelectorAll<HTMLElement>(rowSelector).forEach((row) => {
@@ -320,10 +355,17 @@ function buildProjectionSvgMarkup(surface: HTMLElement, projection: HTMLElement)
         const fill = isTransparentColor(cellStyle.backgroundColor) ? "none" : escapeXml(cellStyle.backgroundColor);
         const stroke = escapeXml(cellStyle.borderTopColor || "#3a4658");
         const strokeWidth = Math.max(1, parsePixelValue(cellStyle.borderTopWidth, 1));
+        const leftBorderWidth = parsePixelValue(cellStyle.borderLeftWidth, 0);
+        const leftBorderColor = escapeXml(cellStyle.borderLeftColor || "#3a4658");
 
         parts.push(
             `<rect x="${x}" y="${y}" width="${cellRect.width}" height="${cellRect.height}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" shape-rendering="crispEdges" />`,
         );
+        if (leftBorderWidth > strokeWidth) {
+            parts.push(
+                `<line x1="${x}" y1="${y}" x2="${x}" y2="${y + cellRect.height}" stroke="${leftBorderColor}" stroke-width="${leftBorderWidth}" shape-rendering="crispEdges" />`,
+            );
+        }
         parts.push(buildCellTextSvg(cell, x, y, cellRect.width, cellRect.height));
     });
 
@@ -336,7 +378,7 @@ async function exportSurfaceToBlob(
     projection: HTMLElement,
     config: RosterImageExportConfig,
 ): Promise<Blob> {
-    const renderSpec = buildProjectionSvgMarkup(surface, projection);
+    const renderSpec = buildProjectionSvgMarkup(surface, projection, config);
     const svgBlob = new Blob([renderSpec.svgMarkup], { type: "image/svg+xml;charset=utf-8" });
     const svgUrl = URL.createObjectURL(svgBlob);
 
@@ -382,7 +424,7 @@ async function buildRosterExportBlob(
     stage.className = "roster-export-stage";
 
     const surface = document.createElement("div");
-    surface.className = "roster-export-surface";
+    surface.className = `roster-export-surface ${exportSurfaceClass(config.imageExportStyle)}`;
     const measuredWidth = Math.ceil(source.getBoundingClientRect().width);
     const exportWidth = Math.max(
         config.imageExportMinimumWidth,
@@ -421,31 +463,17 @@ async function handleRosterExport(
     report: RosterImageExportDiagnosticReporter,
 ): Promise<void> {
     const { config, projection } = validated;
-    button.disabled = true;
-    button.textContent = config.imageExportPreparingLabel;
 
     try {
         const blob = await buildRosterExportBlob(projection, config, report);
         triggerBlobDownload(blob, config.imageExportFilename);
-        button.textContent = config.imageExportDownloadedLabel;
-        window.setTimeout(() => {
-            button.textContent = config.imageExportIdleLabel;
-        }, 1200);
     } catch (error) {
         report(diagnostic(
             button,
             "export-failed",
             error instanceof Error ? error.message : String(error),
         ));
-        button.textContent = config.imageExportFailedLabel;
-        window.setTimeout(() => {
-            button.textContent = config.imageExportIdleLabel;
-        }, 1600);
         window.alert(config.imageExportFailureMessage);
-    } finally {
-        window.setTimeout(() => {
-            button.disabled = false;
-        }, 200);
     }
 }
 

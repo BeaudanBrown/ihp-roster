@@ -10,7 +10,7 @@ module Application.Helper.FrontendContract.Surface.Roster.ImageExport
     , rosterImageExportRowAttrs
     , rosterImageExportCellAttrs
     , rosterImageExportEllipsizedCellAttrs
-    , rosterJpgImageExportTriggerAttrs
+    , rosterPngImageExportTriggerAttrs
     ) where
 
 import Application.Helper.FrontendContract.Surface.Attributes (roleAttrs)
@@ -23,19 +23,20 @@ import qualified Data.Char as Char
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import IHP.ModelSupport (InputValue (..))
 import IHP.Prelude
 
-rosterImageExportFilename :: Text -> Day -> Text
-rosterImageExportFilename rosterGroupName weekStartDate =
-    Text.intercalate "-" (filter (not . Text.null) ["roster", slug rosterGroupName, slug weekLabel]) <> ".jpg"
+rosterImageExportFilename :: Roster.RosterImageExportStyle -> Text -> Day -> Text
+rosterImageExportFilename exportStyle rosterGroupName weekStartDate =
+    Text.intercalate "-" (filter (not . Text.null) ["roster", slug rosterGroupName, slug weekLabel, inputValue exportStyle]) <> ".png"
   where
     weekLabel = "Week of " <> Text.pack (formatTime defaultTimeLocale "%-d %b" weekStartDate)
 
-rosterJpgImageExportTriggerAttrs :: Text -> [(Text, Text)]
-rosterJpgImageExportTriggerAttrs filename =
+rosterPngImageExportTriggerAttrs :: Roster.RosterImageExportStyle -> Text -> [(Text, Text)]
+rosterPngImageExportTriggerAttrs exportStyle filename =
     roleAttrs (surfaceBrowserRoleValue @Roster.RosterSurface @Roster.ImageExportTriggerRole)
         <> [ ( formatState.browserClosedStateAttribute.browserAttributeDomAttribute
-             , surfaceBrowserClosedStateLiteral @Roster.RosterSurface @Roster.ImageExportFormat @Roster.Jpg
+             , surfaceBrowserClosedStateLiteral @Roster.RosterSurface @Roster.ImageExportFormat @Roster.Png
              )
            ]
         <> surfaceBrowserDtoRoleAttrs
@@ -43,12 +44,13 @@ rosterJpgImageExportTriggerAttrs filename =
             @Roster.ImageExportConfigRole
             @Roster.RosterImageExportConfig
             ( surfaceField @Roster.ImageExportFilename filename
-                &: surfaceField @Roster.ImageExportMimeType "image/jpeg"
-                &: surfaceField @Roster.ImageExportQualityPercent (92 :: Int)
-                &: surfaceField @Roster.ImageExportPixelRatio (2 :: Int)
+                &: surfaceField @Roster.ImageExportStyle exportStyle
+                &: surfaceField @Roster.ImageExportMimeType "image/png"
+                &: surfaceField @Roster.ImageExportQualityPercent (100 :: Int)
+                &: surfaceField @Roster.ImageExportPixelRatio (3 :: Int)
                 &: surfaceField @Roster.ImageExportMinimumWidth (920 :: Int)
                 &: surfaceField @Roster.ImageExportMaximumWidth (1240 :: Int)
-                &: surfaceField @Roster.ImageExportIdleLabel "Export JPG"
+                &: surfaceField @Roster.ImageExportIdleLabel "Export PNG"
                 &: surfaceField @Roster.ImageExportPreparingLabel "Preparing..."
                 &: surfaceField @Roster.ImageExportDownloadedLabel "Downloaded"
                 &: surfaceField @Roster.ImageExportFailedLabel "Export failed"

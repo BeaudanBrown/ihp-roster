@@ -10,13 +10,14 @@ import { fitRosterExportText } from "../roster/image-export";
 import { assertDeepEqual, assertEqual, assertThrows, test } from "./harness";
 
 const validConfig = {
-    imageExportFilename: "roster-front-bar-week-of-6-jan.jpg",
-    imageExportMimeType: "image/jpeg",
+    imageExportFilename: "roster-front-bar-week-of-6-jan-print.png",
+    imageExportStyle: "print",
+    imageExportMimeType: "image/png",
     imageExportQualityPercent: 92,
     imageExportPixelRatio: 2,
     imageExportMinimumWidth: 920,
     imageExportMaximumWidth: 1240,
-    imageExportIdleLabel: "Export JPG",
+    imageExportIdleLabel: "Export PNG",
     imageExportPreparingLabel: "Preparing...",
     imageExportDownloadedLabel: "Downloaded",
     imageExportFailedLabel: "Export failed",
@@ -28,8 +29,8 @@ const validConfig = {
     imageExportEncodingFailureMessage: "Failed to encode roster export image.",
 };
 
-test("roster image export accepts only the generated JPG format and exact Haskell config", () => {
-    assertEqual(isRosterImageExportFormatState(rosterImageExportFormatStates.jpg), true);
+test("roster image export accepts only the generated PNG format and exact Haskell config", () => {
+    assertEqual(isRosterImageExportFormatState(rosterImageExportFormatStates.png), true);
     assertEqual(isRosterImageExportFormatState("png"), false);
     assertDeepEqual(parseRosterImageExportConfiguration(JSON.stringify(validConfig)), validConfig);
     assertThrows(
