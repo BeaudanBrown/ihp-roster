@@ -6,6 +6,9 @@ import Application.Async.Registry (dispatchAppJob)
 import Application.Billing.Notifications (billingNotificationJobKind)
 import Application.Billing.Reconciliation
 import Application.Billing.Stripe
+import Application.Helper.FrontendContract.Surface.Billing.Resource (billingResource)
+import Application.Helper.LiveUpdate.DurableCodec (DurableResource (..),
+                                                   decodeDurableResource)
 import Config (config)
 import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
@@ -250,6 +253,10 @@ tests = aroundAll withDatabaseTestContext do
                 updatedSubscription <- fetch subscription.id
                 updatedSubscription.status `shouldBe` "active"
                 updatedSubscription.stripePriceId `shouldBe` "price_current_123"
+                [durableEvent] <- query @LiveInvalidationEvent |> filterWhere (#source, "billing.reconciliation.complete" :: Text) |> fetch
+                [durableEventResource] <- query @LiveInvalidationEventResource |> filterWhere (#eventId, unpackId durableEvent.id) |> fetch
+                decoded <- either (\failure -> expectationFailure (cs failure) >> error "unreachable") pure (decodeDurableResource durableEventResource.resourceKey durableEventResource.resourcePayload)
+                decoded.durableResourceValue `shouldBe` billingResource (unpackId venue.id)
 
         it "sanitizes provider failures and notifies support only on the final retry" $ withContext do
             withCleanDb do

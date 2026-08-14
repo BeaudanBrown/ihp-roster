@@ -7,6 +7,7 @@ import Application.Xero.ReferenceSyncJob
 import Config
 import qualified Data.Aeson as Aeson
 import qualified Data.IORef as IORef
+import qualified Data.Text as Text
 import Data.Time.Clock (NominalDiffTime, addUTCTime, getCurrentTime)
 import Generated.Types
 import IHP.ControllerPrelude
@@ -109,6 +110,7 @@ tests = aroundAll withDatabaseTestContext do
                 updatedConnection.lastRefreshedAt `shouldSatisfy` isJust
                 updatedJob <- fetch job.id
                 updatedJob.status `shouldBe` JobStatusSucceeded
+                assertDurableXeroConnectionPublication "xero.connection.keepalive.refresh" connection
 
         it "marks expired Xero refresh tokens as requiring reauthorization without retrying forever" $ withContext do
             withCleanDb do
@@ -127,6 +129,17 @@ tests = aroundAll withDatabaseTestContext do
                 updatedConnection.lastError `shouldSatisfy` isJust
                 updatedJob <- fetch job.id
                 updatedJob.status `shouldBe` JobStatusSucceeded
+                assertDurableXeroConnectionPublication "xero.connection.keepalive.reauthorization_required" connection
+
+assertDurableXeroConnectionPublication :: (?modelContext :: ModelContext) => Text -> XeroConnection -> Expectation
+assertDurableXeroConnectionPublication source connection = do
+    [durableEvent] <- query @LiveInvalidationEvent |> filterWhere (#source, source) |> fetch
+    [durableResource] <- query @LiveInvalidationEventResource |> filterWhere (#eventId, unpackId durableEvent.id) |> fetch
+    durableResource.resourceKey `shouldSatisfy` Text.isPrefixOf "xero-connection:"
+    durableResource.resourcePayload `shouldSatisfy` (not . isNull)
+  where
+    isNull Aeson.Null = True
+    isNull _ = False
 
 oneDay :: NominalDiffTime
 oneDay = 24 * 60 * 60

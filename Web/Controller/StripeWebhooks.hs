@@ -10,7 +10,7 @@ import Network.HTTP.Types.Status (Status, status400, status500)
 import qualified Network.Wai as Wai
 import Web.Billing.Mutations (billingTouchedResources)
 import Web.Controller.Prelude
-import Web.SurfaceInvalidation (invalidateTouchedResourcesWithoutContext)
+import Web.SurfaceInvalidation (publishTouchedResourcesWithoutContext)
 
 instance Controller StripeWebhooksController where
     beforeAction = bepisBeforeAction BepisPublicController annotateTelemetryAction
@@ -33,14 +33,14 @@ instance Controller StripeWebhooksController where
                             Right (Left message) ->
                                 renderPlainWithStatus status400 message
                             Right (Right result) -> do
-                                _ <- try (invalidateBillingWebhookResult result) :: IO (Either SomeException ())
+                                invalidateBillingWebhookResult result
                                 renderPlain "ok"
 
 invalidateBillingWebhookResult :: (?modelContext :: ModelContext) => BillingWebhookResult -> IO ()
 invalidateBillingWebhookResult result =
     forM_ (billingWebhookVenueId result) \venueId ->
         void $
-            invalidateTouchedResourcesWithoutContext "billing.webhook" $
+            publishTouchedResourcesWithoutContext "billing.webhook" $
                 liveMutationResult result (billingTouchedResources (Id venueId))
 
 billingWebhookVenueId :: BillingWebhookResult -> Maybe UUID

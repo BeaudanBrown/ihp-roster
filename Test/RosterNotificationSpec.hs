@@ -187,10 +187,14 @@ tests = aroundAll withDatabaseTestContext do
                         { deliveryBaseUrl = "https://app.example"
                         , deliveryMailSettings = AppMailSettings "rosters@example.com" "support@example.com" "support@example.com"
                         , deliverRosterNotificationMail = \mail -> modifyIORef' delivered (mail :)
-                        , invalidateRosterNotificationStatus = \_ _ -> pure ()
+                        , invalidateRosterNotificationStatus = publishRosterNotificationStatusResource
                         }
 
                 forM_ appJobs (performRosterNotificationDeliveryJobWith runtime)
+                durableEvents <- query @LiveInvalidationEvent |> filterWhere (#source, "roster.notification.delivery.complete" :: Text) |> fetch
+                length durableEvents `shouldBe` length appJobs
+                forM_ durableEvents \durableEvent ->
+                    query @LiveInvalidationEventResource |> filterWhere (#eventId, unpackId durableEvent.id) |> fetchCount `shouldReturn` 1
 
                 deliveredMails <- readIORef delivered
                 length deliveredMails `shouldBe` 3

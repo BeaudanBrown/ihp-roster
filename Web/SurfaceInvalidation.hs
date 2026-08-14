@@ -9,7 +9,7 @@ module Web.SurfaceInvalidation
     , expandSurfaceResources
     , expandSurfaceResourcesWithoutContext
     , invalidateTouchedResources
-    , invalidateTouchedResourcesWithoutContext
+    , publishTouchedResourcesWithoutContext
     , liveInvalidationProfile
     , performSurfaceInvalidationTarget
     , performSurfaceInvalidationTargetWithoutContext
@@ -126,8 +126,8 @@ invalidateTouchedResources label result =
 -- | Worker/background compatibility seam. It deliberately still has no
 -- controller/request context, but durable publication requires its database
 -- context just as it does for request-originated mutations.
-invalidateTouchedResourcesWithoutContext :: (?modelContext :: ModelContext) => Text -> LiveMutationResult a -> IO (LiveMutationResult a)
-invalidateTouchedResourcesWithoutContext label result = do
+publishTouchedResourcesWithoutContext :: (?modelContext :: ModelContext) => Text -> LiveMutationResult a -> IO (LiveMutationResult a)
+publishTouchedResourcesWithoutContext label result = do
     startedAtNs <- getMonotonicTimeNSec
     (observed, observeDurationMs) <- measureDuration (recordLiveMutationDiagnostics label result)
     publication <- publishDurableInvalidation label observed.liveMutationTouchedResources `Exception.onException` emitDurablePublicationFailure label

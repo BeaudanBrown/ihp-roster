@@ -27,7 +27,7 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Job.Types (JobStatus (JobStatusSucceeded))
 import IHP.ModelSupport (withTransaction)
-import Web.SurfaceInvalidation (invalidateTouchedResourcesWithoutContext)
+import Web.SurfaceInvalidation (publishTouchedResourcesWithoutContext)
 
 data BillingReconciliationFailure = BillingReconciliationFailure
     { reconciliationFailureCode    :: !Text
@@ -634,7 +634,7 @@ completeBillingReconciliationJob appJob outcome = do
             |> set #lastError Nothing
             |> updateRecord
     void $
-        invalidateTouchedResourcesWithoutContext "billing.reconciliation.complete" $
+        publishTouchedResourcesWithoutContext "billing.reconciliation.complete" $
             liveMutationResult outcome [billingResource (billingReconciliationOutcomeVenueId outcome)]
 
 billingReconciliationResultPayload :: BillingReconciliationOutcome -> Aeson.Value

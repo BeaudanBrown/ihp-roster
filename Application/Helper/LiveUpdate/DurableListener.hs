@@ -36,6 +36,7 @@ startDurableInvalidationListener dispatch = do
                 supervise databaseUrl (attempt + 1)
 
     runConnection databaseUrl = Exception.bracket (PG.connectPostgreSQL (cs databaseUrl)) PG.close \connection -> do
+        _ <- PG.execute_ connection "SET application_name = 'bepis-live-invalidation-listener'"
         _ <- PG.execute_ connection "LISTEN live_invalidation_events"
         hydrated <- durableStateIsHydrated
         cursor <- currentDurableCursor

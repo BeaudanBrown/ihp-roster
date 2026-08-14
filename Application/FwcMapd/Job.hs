@@ -3,6 +3,8 @@ module Application.FwcMapd.Job
     , fwcMapdRefreshJobDedupeKey
     , fwcMapdRefreshJobKind
     , performFwcMapdRefreshJob
+    , performFwcMapdRefreshJobWith
+    , publishFwcMapdRefresh
     ) where
 
 import Application.Async.Queue
@@ -14,7 +16,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
-import Web.SurfaceInvalidation (invalidateTouchedResourcesWithoutContext)
+import Web.SurfaceInvalidation (publishTouchedResourcesWithoutContext)
 
 fwcMapdRefreshJobKind :: Text
 fwcMapdRefreshJobKind = "fwc_mapd_refresh"
@@ -44,8 +46,15 @@ performFwcMapdRefreshJob ::
     (?modelContext :: ModelContext) =>
     AppJob ->
     IO ()
-performFwcMapdRefreshJob appJob = do
-    syncResult <- runConfiguredMapdSync
+performFwcMapdRefreshJob = performFwcMapdRefreshJobWith runConfiguredMapdSync
+
+performFwcMapdRefreshJobWith
+    :: (?modelContext :: ModelContext)
+    => IO (Either Text MapdSyncSummary)
+    -> AppJob
+    -> IO ()
+performFwcMapdRefreshJobWith syncAction appJob = do
+    syncResult <- syncAction
     case syncResult of
         Left err ->
             fail (Text.unpack err)
@@ -63,6 +72,10 @@ performFwcMapdRefreshJob appJob = do
                     |> set #status JobStatusSucceeded
                     |> updateRecord
                 )
-            void $
-                invalidateTouchedResourcesWithoutContext "support.award_rates.refresh" $
-                    liveMutationResult summary [supportAwardRatesResource]
+            publishFwcMapdRefresh
+
+publishFwcMapdRefresh :: (?modelContext :: ModelContext) => IO ()
+publishFwcMapdRefresh =
+    void $
+        publishTouchedResourcesWithoutContext "support.award_rates.refresh" $
+            liveMutationResult () [supportAwardRatesResource]

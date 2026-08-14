@@ -3,6 +3,7 @@ module Application.RosterNotification.Delivery
     , rosterNotificationDeliveryJobKind
     , performRosterNotificationDeliveryJob
     , performRosterNotificationDeliveryJobWith
+    , publishRosterNotificationStatusResource
     ) where
 
 import Application.Async.Queue (appJobMaxAttempts)
@@ -23,7 +24,7 @@ import IHP.FrameworkConfig (ConfigProvider, FrameworkConfig)
 import IHP.Mail (sendMail)
 import Web.Mail.RosterNotification
 import Web.RosterWeeks.Paths (rosterWeekUrl)
-import Web.SurfaceInvalidation (invalidateTouchedResourcesWithoutContext)
+import Web.SurfaceInvalidation (publishTouchedResourcesWithoutContext)
 
 data RosterNotificationDeliveryRuntime = RosterNotificationDeliveryRuntime
     { deliveryBaseUrl               :: !Text
@@ -42,7 +43,7 @@ performRosterNotificationDeliveryJob appJob = do
     emailDeliveryDisabled <- isEmailDeliveryDisabled
     let deliverRosterNotificationMail mail =
             unless emailDeliveryDisabled (sendMail mail)
-    let invalidateRosterNotificationStatus = invalidateRosterNotificationStatusResource
+    let invalidateRosterNotificationStatus = publishRosterNotificationStatusResource
     performRosterNotificationDeliveryJobWith RosterNotificationDeliveryRuntime { .. } appJob
 
 performRosterNotificationDeliveryJobWith ::
@@ -119,14 +120,14 @@ recordRosterNotificationDeliveryFailure runtime appJob run exception = do
             |> updateRecord
     runtime.invalidateRosterNotificationStatus "roster.notification.delivery.failed" run
 
-invalidateRosterNotificationStatusResource ::
+publishRosterNotificationStatusResource ::
     (?modelContext :: ModelContext) =>
     Text ->
     RosterNotificationRun ->
     IO ()
-invalidateRosterNotificationStatusResource label run =
+publishRosterNotificationStatusResource label run =
     void $
-        invalidateTouchedResourcesWithoutContext label $
+        publishTouchedResourcesWithoutContext label $
             liveMutationResult () [rosterNotificationStatusResource run.rosterGroupId run.weekOffset]
 
 decodeAndValidatePayload :: AppJob -> IO RosterNotificationDeliveryPayload

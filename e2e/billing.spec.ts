@@ -7,6 +7,8 @@ import {
     E2E_TIMEOUT,
     gotoWhenReady,
     loginAsPrivilegedUserWithSeededPasskeySession,
+    querySql,
+    runSql,
     markCurrentSessionPasskeyVerified,
 } from './test-helpers';
 
@@ -18,6 +20,69 @@ const retrySessionId = 'cs_e2e-retry-456';
 const subscriptionId = 'sub_e2e-123';
 const webhookSecret = 'whsec_e2e_strict_boundary';
 let providerEventSequence = 0;
+
+function deferBillingReconciliationJobs() {
+    runSql(`
+        CREATE OR REPLACE FUNCTION e2e_defer_billing_reconciliation_jobs()
+        RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+            NEW.run_at := NOW() + INTERVAL '1 hour';
+            RETURN NEW;
+        END;
+        $$;
+        DROP TRIGGER IF EXISTS e2e_defer_billing_reconciliation_jobs ON app_jobs;
+        CREATE TRIGGER e2e_defer_billing_reconciliation_jobs
+            BEFORE INSERT ON app_jobs
+            FOR EACH ROW
+            WHEN (NEW.job_kind = 'billing_reconciliation')
+            EXECUTE FUNCTION e2e_defer_billing_reconciliation_jobs();
+    `);
+}
+
+function releaseBillingReconciliationJobs() {
+    runSql(`
+        DROP TRIGGER IF EXISTS e2e_defer_billing_reconciliation_jobs ON app_jobs;
+        UPDATE app_jobs
+        SET run_at = NOW(), status = 'job_status_retry', updated_at = NOW()
+        WHERE job_kind = 'billing_reconciliation'
+          AND status = 'job_status_not_started';
+        DROP FUNCTION IF EXISTS e2e_defer_billing_reconciliation_jobs();
+    `);
+}
+
+function cleanupDeferredBillingReconciliationJobs() {
+    runSql(`
+        DROP TRIGGER IF EXISTS e2e_defer_billing_reconciliation_jobs ON app_jobs;
+        DROP FUNCTION IF EXISTS e2e_defer_billing_reconciliation_jobs();
+        UPDATE app_jobs
+        SET run_at = NOW(), status = 'job_status_retry', updated_at = NOW()
+        WHERE job_kind = 'billing_reconciliation'
+          AND status = 'job_status_not_started'
+          AND run_at > NOW();
+    `);
+}
+
+function disconnectDurableInvalidationListeners() {
+    const listenerCount = Number(querySql(`
+        SELECT COUNT(*)
+        FROM pg_stat_activity
+        WHERE application_name = 'bepis-live-invalidation-listener'
+          AND datname = current_database();
+    `).trim());
+    expect(listenerCount).toBeGreaterThan(0);
+    runSql(`
+        SELECT pg_terminate_backend(pid)
+        FROM pg_stat_activity
+        WHERE application_name = 'bepis-live-invalidation-listener'
+          AND datname = current_database();
+    `);
+    expect(Number(querySql(`
+        SELECT COUNT(*)
+        FROM pg_stat_activity
+        WHERE application_name = 'bepis-live-invalidation-listener'
+          AND datname = current_database();
+    `).trim())).toBe(0);
+}
 
 function nextProviderCreatedAt() {
     providerEventSequence += 1;
@@ -147,6 +212,8 @@ async function deliverSignedWebhook(page: import('@playwright/test').Page, paylo
 }
 
 test.describe('Billing through the strict local Stripe boundary', () => {
+    test.afterEach(() => cleanupDeferredBillingReconciliationJobs());
+
     test('shows a blocking loading dialog before a Stripe navigation request completes', async ({ page }) => {
         await page.addInitScript(() => {
             const captureLoadingDialog = () => {
@@ -245,12 +312,18 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         const failedAttemptId = mockStatus.attemptIds?.[0];
         expect(failedAttemptId).toBeTruthy();
 
+        deferBillingReconciliationJobs();
+        const firstPendingRender = page.waitForResponse((response) =>
+            response.url().includes('/Billing?checkout=success') && response.request().resourceType() === 'document',
+        );
         await gotoWhenReady(
             page,
             `/BillingSuccess?attempt_id=${encodeURIComponent(failedAttemptId ?? '')}&session_id=${firstSessionId}`,
             '[data-billing-owner-view="true"]',
         );
+        expect(await (await firstPendingRender).text()).toContain('Finalising subscription');
         await expect(page.getByText('Finalising subscription', { exact: true })).toBeVisible();
+        releaseBillingReconciliationJobs();
         await expect.poll(
             () => page.evaluate(() => (window as Window & { __billingLiveSubscriptionReady?: boolean }).__billingLiveSubscriptionReady ?? false),
             { timeout: E2E_TIMEOUT.liveUpdate },
@@ -265,12 +338,6 @@ test.describe('Billing through the strict local Stripe boundary', () => {
             'GET /v1/checkout/sessions/cs_e2e-123',
         ] });
 
-        await deliverSignedWebhook(page, checkoutEvent(
-            'evt_e2e-checkout_async_failed',
-            'checkout.session.async_payment_failed',
-            firstSessionId,
-            'sub_e2e-failed-123',
-        ));
         await expect(page.getByText('Subscription needs attention', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
 
         await gotoWhenReady(page, '/Billing', '[data-billing-owner-view="true"]');
@@ -294,12 +361,27 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         const confirmedAttemptId = mockStatus.attemptIds?.[1];
         expect(confirmedAttemptId).toBeTruthy();
 
+        deferBillingReconciliationJobs();
+        const secondPendingRender = page.waitForResponse((response) =>
+            response.url().includes('/Billing?checkout=success') && response.request().resourceType() === 'document',
+        );
         await gotoWhenReady(
             page,
             `/BillingSuccess?attempt_id=${encodeURIComponent(confirmedAttemptId ?? '')}&session_id=${retrySessionId}`,
             '[data-billing-owner-view="true"]',
         );
+        expect(await (await secondPendingRender).text()).toContain('Finalising subscription');
         await expect(page.getByText('Finalising subscription', { exact: true })).toBeVisible();
+        await expect.poll(
+            () => page.evaluate(() => (window as Window & { __billingLiveSubscriptionReady?: boolean }).__billingLiveSubscriptionReady ?? false),
+            { timeout: E2E_TIMEOUT.liveUpdate },
+        ).toBe(true);
+        const preDisconnectEventSequence = Number(querySql(`
+            SELECT COALESCE(MAX(sequence_number), 0)
+            FROM live_invalidation_events;
+        `).trim());
+        disconnectDurableInvalidationListeners();
+        releaseBillingReconciliationJobs();
         await expect.poll(async () => {
             const response = await request.get(`${mockBaseUrl}/__status`);
             return response.json();
@@ -311,23 +393,32 @@ test.describe('Billing through the strict local Stripe boundary', () => {
             'GET /v1/prices#2',
             'POST /v1/checkout/sessions#2',
             'GET /v1/checkout/sessions/cs_e2e-retry-456',
+            'GET /v1/subscriptions/sub_e2e-123',
         ] });
 
-        await deliverSignedWebhook(page, checkoutEvent(
-            'evt_e2e-checkout_completed',
-            'checkout.session.completed',
-            retrySessionId,
-            subscriptionId,
-        ));
-        await deliverSignedWebhook(page, subscriptionEvent('evt_e2e-subscription_created', 'customer.subscription.created', 'active'));
-        const confirmedFragmentRefresh = page.waitForResponse(
-            (response) => response.url().includes('/ShowbillingStatusLiveFragment'),
-            { timeout: E2E_TIMEOUT.liveUpdate },
-        );
-        await deliverSignedWebhook(page, subscriptionEvent('evt_e2e-subscription_active_refresh', 'customer.subscription.updated', 'active'));
-        await confirmedFragmentRefresh;
         await expect(page.getByText('Subscription confirmed', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
         await expect(page.getByText('Active', { exact: true })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Check again' })).toHaveCount(0);
+        const replayedAfterReconnect = querySql(`
+            SELECT EXISTS (
+                SELECT 1
+                FROM pg_stat_activity listener
+                JOIN live_invalidation_events event
+                  ON event.source = 'billing.reconciliation.complete'
+                WHERE listener.application_name = 'bepis-live-invalidation-listener'
+                  AND listener.datname = current_database()
+                  AND event.sequence_number > ${preDisconnectEventSequence}
+                  AND listener.backend_start > event.created_at
+                ORDER BY event.sequence_number DESC
+                LIMIT 1
+            );
+        `).trim();
+        expect(replayedAfterReconnect).toBe('t');
+
+        const duplicateProviderEvent = subscriptionEvent('evt_e2e-subscription_duplicate', 'customer.subscription.updated', 'active');
+        await deliverSignedWebhook(page, duplicateProviderEvent);
+        await deliverSignedWebhook(page, duplicateProviderEvent);
+        await expect(page.getByText('Subscription confirmed', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
 
         const ownerHtml = await page.locator('[data-billing-owner-view="true"]').innerHTML();
         for (const forbidden of [customerId, firstSessionId, retrySessionId, subscriptionId, 'evt_e2e', 'processing failed', 'Stripe synchronization']) {
@@ -361,6 +452,7 @@ test.describe('Billing through the strict local Stripe boundary', () => {
                 'GET /v1/prices#2',
                 'POST /v1/checkout/sessions#2',
                 'GET /v1/checkout/sessions/cs_e2e-retry-456',
+                'GET /v1/subscriptions/sub_e2e-123',
                 'POST /v1/billing_portal/sessions',
             ],
             failures: [],

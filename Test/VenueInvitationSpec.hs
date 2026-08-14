@@ -8,6 +8,7 @@ import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob,
                                            performVenueInvitationDeliveryJob,
                                            venueInvitationDeliveryJobKind)
 import Config (config)
+import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig (withFrameworkConfig)
@@ -47,7 +48,7 @@ tests = aroundAll withDatabaseTestContext do
                 appJob.relatedTable `shouldBe` Just "venue_invitations"
                 appJob.relatedId `shouldBe` Just (unpackId invitation.id)
 
-        it "delivers pending venue invitations from the app job and broadcasts invite resync" $ withContext do
+        it "delivers pending venue invitations and durably publishes invite resync without a browser hub" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Invite Delivery Venue"
                 invitation <- createVenueInvitationRecord venue Nothing "deliver-invite@example.com" Manager
@@ -66,6 +67,9 @@ tests = aroundAll withDatabaseTestContext do
                 updatedJob.status `shouldBe` JobStatusSucceeded
                 versionAfter <- currentLiveUpdateVersion (AdminLive.adminInvitesLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore
+                [durableEvent] <- query @LiveInvalidationEvent |> filterWhere (#source, "admin.invites.delivery" :: Text) |> fetch
+                [durableResource] <- query @LiveInvalidationEventResource |> filterWhere (#eventId, unpackId durableEvent.id) |> fetch
+                durableResource.resourceKey `shouldSatisfy` Text.isPrefixOf "admin-invites:"
 
         it "treats legacy invitations without an explicit expiry as expired two weeks after creation" $ withContext do
             withCleanDb do

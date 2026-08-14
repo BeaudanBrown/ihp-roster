@@ -194,7 +194,7 @@ classifyCheckoutOutcome :: BillingCheckoutAttempt -> Maybe BillingEvent -> Maybe
 classifyCheckoutOutcome attempt maybeCompletionEvent maybeSubscription
     | Just subscription <- matchingConfirmedSubscription attempt maybeCompletionEvent maybeSubscription =
         BillingCheckoutConfirmed subscription
-    | attempt.status == "failed" = BillingCheckoutFailed attempt
+    | attempt.status `elem` ["failed", "expired"] = BillingCheckoutFailed attempt
     | otherwise = BillingCheckoutPending
 
 matchingConfirmedSubscription

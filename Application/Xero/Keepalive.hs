@@ -22,7 +22,7 @@ import qualified Data.Text.IO as TextIO
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Job.Types
-import Web.SurfaceInvalidation (invalidateTouchedResourcesWithoutContext)
+import Web.SurfaceInvalidation (publishTouchedResourcesWithoutContext)
 
 data XeroKeepaliveSweepSummary = XeroKeepaliveSweepSummary
     { dueConnectionCount              :: !Int
@@ -180,7 +180,7 @@ performLeasedXeroConnectionKeepaliveJob appJob connection =
 
 invalidateXeroKeepaliveConnection :: (?modelContext :: ModelContext) => XeroConnection -> Text -> IO (LiveMutationResult XeroConnection)
 invalidateXeroKeepaliveConnection connection label =
-    invalidateTouchedResourcesWithoutContext label $
+    publishTouchedResourcesWithoutContext label $
         liveMutationResult connection [xeroConnectionResource connection.venueId]
 
 completeKeepaliveJob ::

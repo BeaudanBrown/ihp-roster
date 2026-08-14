@@ -1142,6 +1142,23 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` (cs ("&quot;url&quot;:&quot;/ShowbillingStatusLiveFragment?checkout=success&amp;attempt_id=" <> inputValue attempt.id <> "&quot;"))
                 response `responseBodyShouldNotContain` "&quot;mountState&quot;"
 
+        it "transitions an expired reconciled Checkout from pending to customer-safe failure" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Expired Modal Venue"
+                owner <- createUserRecord "billing-expired-modal-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner VenueOwner
+                attempt <- createOpenBillingCheckoutAttempt venue owner "cs_expired_123"
+                _ <- attempt |> set #status ("expired" :: Text) |> updateRecord
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    withRequestQuery (cs ("checkout=success&attempt_id=" <> inputValue attempt.id <> "&session_id=cs_expired_123")) do
+                        callAction ShowbillingStatusLiveFragmentAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Subscription needs attention"
+                response `responseBodyShouldNotContain` "cs_expired_123"
+                response `responseBodyShouldNotContain` "expired"
+
         it "does not render Checkout progress for uncorrelated direct query parameters" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Forged Return Query Venue"

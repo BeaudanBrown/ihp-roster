@@ -693,6 +693,9 @@ tests = aroundAll withDatabaseTestContext do
                 subscription.stripeSubscriptionId `shouldBe` "sub_controller_subscription_123"
                 subscription.stripePriceId `shouldBe` "price_monthly_123"
                 subscription.status `shouldBe` "active"
+                [durableEvent] <- query @LiveInvalidationEvent |> filterWhere (#source, "billing.webhook" :: Text) |> fetch
+                [durableResource] <- query @LiveInvalidationEventResource |> filterWhere (#eventId, unpackId durableEvent.id) |> fetch
+                durableResource.resourceKey `shouldSatisfy` Text.isPrefixOf "billing:"
 
         it "rejects invalid webhook signatures before parsing" $ withContext do
             withCleanDb do

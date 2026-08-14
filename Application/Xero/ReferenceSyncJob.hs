@@ -6,6 +6,7 @@ module Application.Xero.ReferenceSyncJob
     , performXeroReferenceSyncJob
     , requestXeroReferenceSyncJob
     , performXeroReferenceSyncJobWith
+    , publishReferenceSyncTransitionLive
     , releaseXeroReferenceSyncLease
     , withXeroReferenceSyncRuntimeForTest
     , xeroReferenceSyncDedupeKey
@@ -33,7 +34,7 @@ import IHP.Job.Types
 import IHP.ModelSupport (sqlExec, sqlQuery)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Random (randomRIO)
-import Web.SurfaceInvalidation (invalidateTouchedResourcesWithoutContext)
+import Web.SurfaceInvalidation (publishTouchedResourcesWithoutContext)
 
 data XeroReferenceDataSource = XeroReferenceDataSource
     { refreshReferenceAccess                 :: XeroConnection -> IO (Either XeroClientError (XeroConnection, Text))
@@ -514,7 +515,7 @@ defaultXeroReferenceSyncRuntime =
 
 publishReferenceSyncTransitionLive :: (?modelContext :: ModelContext) => Text -> UUID -> IO ()
 publishReferenceSyncTransitionLive label venueId =
-    void $ invalidateTouchedResourcesWithoutContext label $
+    void $ publishTouchedResourcesWithoutContext label $
         liveMutationResult () [xeroReferenceSyncStateResource venueId]
 
 defaultXeroReferenceDataSource :: (?modelContext :: ModelContext) => XeroReferenceDataSource

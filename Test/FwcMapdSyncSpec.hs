@@ -1,5 +1,7 @@
 module Test.FwcMapdSyncSpec where
 
+import Application.FwcMapd.Job (fwcMapdRefreshJobKind,
+                                performFwcMapdRefreshJobWith)
 import Application.FwcMapd.Client (MapdPageMeta (..), MapdResultsPage (..),
                                    assembleCanonicalClassificationValues,
                                    assemblePagedResults)
@@ -277,6 +279,14 @@ databaseTests :: Spec
 databaseTests = do
     aroundAll withDatabaseTestContext do
         describe "FWC MAPD admin data" do
+            it "durably publishes the support award-rate resource without a local browser hub" $ withContext do
+                withCleanDb do
+                    appJob <- newRecord @AppJob |> set #jobKind fwcMapdRefreshJobKind |> createRecord
+                    let summary = MapdPayload.MapdSyncSummary [] 0 0 0 0 0
+                    performFwcMapdRefreshJobWith (pure (Right summary)) appJob
+                    [durableEvent] <- query @LiveInvalidationEvent |> filterWhere (#source, "support.award_rates.refresh" :: Text) |> fetch
+                    query @LiveInvalidationEventResource |> filterWhere (#eventId, unpackId durableEvent.id) |> fetchCount `shouldReturn` 1
+
             it "projects every fixture classification and expected rate category without asserting current dollar amounts" $ withContext do
                 withCleanDb do
                     fixture <- loadFwcMapdFixture

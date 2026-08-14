@@ -1,8 +1,10 @@
 module Application.PublicHolidays.Job
     ( enqueuePublicHolidayRefreshJob
     , performPublicHolidayRefreshJob
+    , performPublicHolidayRefreshJobWith
     , publicHolidayRefreshJobDedupeKey
     , publicHolidayRefreshJobKind
+    , publishPublicHolidayRefresh
     ) where
 
 import Application.Async.Queue
@@ -14,7 +16,7 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Generated.Types
 import IHP.ControllerPrelude
-import Web.SurfaceInvalidation (invalidateTouchedResourcesWithoutContext)
+import Web.SurfaceInvalidation (publishTouchedResourcesWithoutContext)
 
 publicHolidayRefreshJobKind :: Text
 publicHolidayRefreshJobKind = "public_holiday_refresh"
@@ -44,8 +46,15 @@ performPublicHolidayRefreshJob ::
     (?modelContext :: ModelContext) =>
     AppJob ->
     IO ()
-performPublicHolidayRefreshJob appJob = do
-    summary <- runDataVicPublicHolidaySync
+performPublicHolidayRefreshJob = performPublicHolidayRefreshJobWith runDataVicPublicHolidaySync
+
+performPublicHolidayRefreshJobWith
+    :: (?modelContext :: ModelContext)
+    => IO PublicHolidaySyncSummary
+    -> AppJob
+    -> IO ()
+performPublicHolidayRefreshJobWith syncAction appJob = do
+    summary <- syncAction
     let resultPayload =
             Aeson.object
                 [ "targetYears" Aeson..= summary.targetYears
@@ -63,6 +72,10 @@ performPublicHolidayRefreshJob appJob = do
             |> set #status JobStatusSucceeded
             |> updateRecord
         )
+    publishPublicHolidayRefresh
+
+publishPublicHolidayRefresh :: (?modelContext :: ModelContext) => IO ()
+publishPublicHolidayRefresh =
     void $
-        invalidateTouchedResourcesWithoutContext "support.public_holidays.refresh" $
-            liveMutationResult summary [supportPublicHolidaysResource]
+        publishTouchedResourcesWithoutContext "support.public_holidays.refresh" $
+            liveMutationResult () [supportPublicHolidaysResource]

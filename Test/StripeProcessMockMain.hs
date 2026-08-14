@@ -40,6 +40,7 @@ retryCheckoutSequence =
         <> [ "GET /v1/prices#2"
            , "POST /v1/checkout/sessions#2"
            , "GET /v1/checkout/sessions/cs_e2e-retry-456"
+           , "GET /v1/subscriptions/sub_e2e-123"
            ]
 
 main :: IO ()
@@ -96,7 +97,7 @@ handleStripeRequest stateRef waiRequest rawBody = do
             validateCheckout stateRef request rawBody "POST /v1/checkout/sessions#1" "cs_e2e-123" "https://checkout.stripe.com/c/pay/cs_test_e2e-sanitized"
         ("GET", "/v1/checkout/sessions/cs_e2e-123", consumedBeforeRetrieve)
             | consumedBeforeRetrieve == take 3 initialCheckoutSequence ->
-                finish stateRef request Nothing "GET /v1/checkout/sessions/cs_e2e-123" Nothing =<< checkoutFixture "cs_e2e-123" "https://checkout.stripe.com/c/pay/cs_test_e2e-sanitized"
+                finish stateRef request Nothing "GET /v1/checkout/sessions/cs_e2e-123" Nothing =<< checkoutReconciliationFixture "cs_e2e-123" "https://checkout.stripe.com/c/pay/cs_test_e2e-sanitized" "expired" Nothing
         ("GET", "/v1/prices", completedFirstSequence)
             | completedFirstSequence == initialCheckoutSequence ->
                 validatePriceLookup stateRef waiRequest request "GET /v1/prices#2"
@@ -105,7 +106,10 @@ handleStripeRequest stateRef waiRequest rawBody = do
                 validateCheckout stateRef request rawBody "POST /v1/checkout/sessions#2" "cs_e2e-retry-456" "https://checkout.stripe.com/c/pay/cs_test_e2e-retry-sanitized"
         ("GET", "/v1/checkout/sessions/cs_e2e-retry-456", consumedBeforeRetryRetrieve)
             | consumedBeforeRetryRetrieve == take 6 retryCheckoutSequence ->
-                finish stateRef request Nothing "GET /v1/checkout/sessions/cs_e2e-retry-456" Nothing =<< checkoutFixture "cs_e2e-retry-456" "https://checkout.stripe.com/c/pay/cs_test_e2e-retry-sanitized"
+                finish stateRef request Nothing "GET /v1/checkout/sessions/cs_e2e-retry-456" Nothing =<< checkoutReconciliationFixture "cs_e2e-retry-456" "https://checkout.stripe.com/c/pay/cs_test_e2e-retry-sanitized" "complete" (Just "sub_e2e-123")
+        ("GET", "/v1/subscriptions/sub_e2e-123", consumedBeforeSubscriptionRetrieve)
+            | consumedBeforeSubscriptionRetrieve == take 7 retryCheckoutSequence ->
+                finish stateRef request Nothing "GET /v1/subscriptions/sub_e2e-123" Nothing =<< reconciliationSubscriptionFixture
         ("POST", "/v1/billing_portal/sessions", completedSecondSequence)
             | completedSecondSequence == retryCheckoutSequence ->
                 validatePortal stateRef request rawBody
@@ -217,6 +221,23 @@ checkoutFixture sessionId hostedUrl = do
                 setJsonText "url" hostedUrl $
                     setJsonText "id" sessionId value
 
+checkoutReconciliationFixture :: Text -> Text -> Text -> Maybe Text -> IO LByteString.ByteString
+checkoutReconciliationFixture sessionId hostedUrl status maybeSubscriptionId = do
+    fixtureValue' <- fixtureValue "checkout-session-created.json"
+    let value = replaceFixtureText "venue-123" "a1000000-0000-0000-0000-000000000001" fixtureValue'
+    pure $
+        Aeson.encode $
+            setJsonValue "subscription" (maybe Aeson.Null Aeson.String maybeSubscriptionId) $
+                setJsonText "status" status $
+                    setJsonText "customer" "cus_e2e-123" $
+                        setJsonText "url" hostedUrl $
+                            setJsonText "id" sessionId value
+
+reconciliationSubscriptionFixture :: IO LByteString.ByteString
+reconciliationSubscriptionFixture = do
+    value <- fixtureValue "subscription.json"
+    pure $ Aeson.encode $ setJsonValue "cancel_at_period_end" (Aeson.Bool False) $ replaceFixtureText "venue-123" "a1000000-0000-0000-0000-000000000001" $ replaceFixtureText "cus_123" "cus_e2e-123" $ replaceFixtureText "sub_123" "sub_e2e-123" value
+
 fixture :: FilePath -> IO LByteString.ByteString
 fixture name = LByteString.readFile ("Test/Fixtures/stripe/2026-06-24.dahlia/" <> name)
 
@@ -226,5 +247,15 @@ fixtureValue name = do
     maybe (fail ("Invalid fixture " <> name)) pure (Aeson.decode body)
 
 setJsonText :: Aeson.Key -> Text -> Aeson.Value -> Aeson.Value
-setJsonText key value (Aeson.Object object) = Aeson.Object (KeyMap.insert key (Aeson.String value) object)
-setJsonText _ _ value = value
+setJsonText key value = setJsonValue key (Aeson.String value)
+
+setJsonValue :: Aeson.Key -> Aeson.Value -> Aeson.Value -> Aeson.Value
+setJsonValue key value (Aeson.Object object) = Aeson.Object (KeyMap.insert key value object)
+setJsonValue _ _ value = value
+
+replaceFixtureText :: Text -> Text -> Aeson.Value -> Aeson.Value
+replaceFixtureText old new = \case
+    Aeson.String value | value == old -> Aeson.String new
+    Aeson.Object object -> Aeson.Object (fmap (replaceFixtureText old new) object)
+    Aeson.Array values -> Aeson.Array (fmap (replaceFixtureText old new) values)
+    value -> value

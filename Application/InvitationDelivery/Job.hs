@@ -21,7 +21,7 @@ import qualified Data.Aeson as Aeson
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig (FrameworkConfig)
-import Web.SurfaceInvalidation (invalidateTouchedResourcesWithoutContext)
+import Web.SurfaceInvalidation (publishTouchedResourcesWithoutContext)
 
 venueInvitationDeliveryJobKind :: Text
 venueInvitationDeliveryJobKind = "venue_invitation_delivery"
@@ -85,7 +85,7 @@ performVenueInvitationDeliveryJob appJob = do
             |> updateRecord
         )
     void $
-        invalidateTouchedResourcesWithoutContext "admin.invites.delivery" $
+        publishTouchedResourcesWithoutContext "admin.invites.delivery" $
             liveMutationResult invitation [adminInvitesResource invitation.venueId]
 
 performVenueOnboardingInvitationDeliveryJob ::
