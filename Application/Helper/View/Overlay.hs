@@ -39,6 +39,7 @@ data OverlayFormMode
 data OverlayButtonAction
     = OverlayCloseAction
     | OverlaySubmitFormAction !Text
+    | OverlaySubmitFormLoadingAction !Text !Text
     | OverlayNavigateAction !Text
     | DialogFormAction !Text !Text ![(Text, Text)] !(Maybe Text)
     | DialogNavigationLoadingFormAction !Text !Text ![(Text, Text)] !(Maybe Text) !Text !Text
@@ -150,6 +151,14 @@ renderDialogOverlayButton button =
                     class={button.overlayButtonClass}
                     form={formId}
                     {...dialogSubmitAttrs "Working..."}>
+                {button.overlayButtonLabel}
+            </button>
+        |]
+        OverlaySubmitFormLoadingAction formId loadingLabel -> [hsx|
+            <button type="submit"
+                    class={button.overlayButtonClass}
+                    form={formId}
+                    {...dialogSubmitAttrs loadingLabel}>
                 {button.overlayButtonLabel}
             </button>
         |]
@@ -267,6 +276,14 @@ renderPageDialogButton closeUrl button =
                     class={button.overlayButtonClass}
                     form={formId}
                     {...dialogSubmitAttrs "Working..."}>
+                {button.overlayButtonLabel}
+            </button>
+        |]
+        OverlaySubmitFormLoadingAction formId loadingLabel -> [hsx|
+            <button type="submit"
+                    class={button.overlayButtonClass}
+                    form={formId}
+                    {...dialogSubmitAttrs loadingLabel}>
                 {button.overlayButtonLabel}
             </button>
         |]

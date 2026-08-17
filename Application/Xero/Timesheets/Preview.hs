@@ -5,7 +5,6 @@ module Application.Xero.Timesheets.Preview
     , XeroTimesheetPreviewRun (..)
     , buildXeroTimesheetPreviewRun
     , createPersistedXeroTimesheetPreview
-    , createPersistedXeroTimesheetPreparationPreview
     , fetchPreviewInput
     , periodDays
     , xeroReadinessSnapshotJson
@@ -151,17 +150,6 @@ createPersistedXeroTimesheetPreview ::
     IO (Either Text XeroSubmissionRun)
 createPersistedXeroTimesheetPreview submittedByUserId =
     createPersistedXeroTimesheetPreviewWithPreparation submittedByUserId Nothing
-
-createPersistedXeroTimesheetPreparationPreview ::
-    (?modelContext :: ModelContext) =>
-    Id User ->
-    Id XeroTimesheetPreparationRun ->
-    XeroTimesheetReadinessRequest ->
-    XeroTimesheetReadiness ->
-    Aeson.Value ->
-    IO (Either Text XeroSubmissionRun)
-createPersistedXeroTimesheetPreparationPreview submittedByUserId preparationRunId =
-    createPersistedXeroTimesheetPreviewWithPreparation submittedByUserId (Just preparationRunId)
 
 createPersistedXeroTimesheetPreviewWithPreparation ::
     (?modelContext :: ModelContext) =>

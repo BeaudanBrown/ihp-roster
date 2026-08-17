@@ -15,6 +15,7 @@ import Application.Helper.FrontendContract.AppShell (OpenXeroPayItemImportOverla
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              renderAppShellActionForm)
+import Application.Helper.FrontendContract.Overlay.Runtime (navigationLoadingAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
@@ -151,7 +152,6 @@ renderXeroActionControls connection connectionActionsAllowed referenceRefreshAll
                 <button class="btn btn-outline-danger" type="submit" disabled={not connectionActionsAllowed}>Disconnect</button>
             </form>
         </div>
-        <div class="small app-muted">Before submission, Bepis checks Xero again, warns before replacing a missing Bepis-created draft, and blocks timesheets that are no longer safe to update.</div>
     </div>
 |]
     where
@@ -210,7 +210,9 @@ renderOpenXeroTimesheetPreparationForm connectionActionsAllowed =
     renderAppShellActionForm
         (appShellActionByMarker @OpenXeroTimesheetPreparationOverlay)
         (xeroAppShellActionRoute (pathTo OpenXeroTimesheetPreparationAction))
-            { appShellActionRouteExtraAttrs = [("data-xero-timesheet-preparation-form", "true")]
+            { appShellActionRouteExtraAttrs =
+                [("data-xero-timesheet-preparation-form", "true")]
+                    <> navigationLoadingAttrs "Loading…" "Please wait."
             }
         [hsx|
             <button type="submit"

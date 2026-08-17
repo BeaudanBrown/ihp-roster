@@ -19,7 +19,6 @@ import Application.Xero.Keepalive (XeroKeepaliveSweepSummary (..),
                                    enqueueDueXeroMaintenanceJobsAt)
 import Application.Xero.ReferenceSyncJob
 import Application.Xero.ReferenceSyncRequest
-import Application.Xero.Timesheets.ReconciliationReview (reconciliationReviewSnapshotIsConfirmed)
 import Config
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
@@ -1499,15 +1498,15 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                                     [("periodKey", fixturePeriodKey fixture)]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Step 2 of 4"
-                response `responseBodyShouldContain` "Choose the Xero payroll period"
-                response `responseBodyShouldContain` "Show past and future periods"
-                response `responseBodyShouldContain` "aria-controls=\"xero-preparation-period-select\""
+                response `responseBodyShouldContain` "Pay period"
+                response `responseBodyShouldContain` "Choose the Xero payroll period to upload."
+                response `responseBodyShouldNotContain` "Show past and future periods"
                 response `responseBodyShouldContain` "name=\"periodKey\""
-                response `responseBodyShouldContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
+                response `responseBodyShouldContain` ("value=\"" <> fixturePeriodKey fixture <> "\" selected=\"selected\"")
                 let oldPeriodKey = "calendar-preview:" <> tshow (addDays (-63) fixture.periodStart) <> ":" <> tshow (addDays (-57) fixture.periodStart)
-                response `responseBodyShouldContain` ("value=\"" <> oldPeriodKey <> "\" hidden=\"hidden\"")
-                response `responseBodyShouldNotContain` "Step 1 of 3"
+                response `responseBodyShouldContain` ("value=\"" <> oldPeriodKey <> "\"")
+                response `responseBodyShouldNotContain` "hidden=\"hidden\""
+                response `responseBodyShouldNotContain` "Step "
                 response `responseBodyShouldNotContain` "Staff mappings"
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
 
@@ -1524,14 +1523,13 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                                     [("periodKey", fixturePeriodKey fixture)]
 
                 summaryResponse `responseStatusShouldBe` status200
-                summaryResponse `responseBodyShouldContain` "Pay period:"
-                summaryResponse `responseBodyShouldContain` "Step 3 of 3"
-                summaryResponse `responseBodyShouldContain` "Timesheet summary"
-                summaryResponse `responseBodyShouldContain` "Approved shifts"
-                summaryResponse `responseBodyShouldContain` "4.01"
-                summaryResponse `responseBodyShouldContain` "Ada Lovelace"
+                summaryResponse `responseBodyShouldContain` "Confirm Xero draft timesheets"
+                summaryResponse `responseBodyShouldContain` "Confirm Xero draft timesheet submission? Existing draft timesheets will be replaced."
+                summaryResponse `responseBodyShouldContain` "Confirm and submit"
+                summaryResponse `responseBodyShouldNotContain` "Timesheet summary"
+                summaryResponse `responseBodyShouldNotContain` "Approved shifts"
+                summaryResponse `responseBodyShouldNotContain` "Ada Lovelace"
                 summaryResponse `responseBodyShouldNotContain` "Grace Hopper"
-                summaryResponse `responseBodyShouldContain` "Review Xero and continue"
                 summaryResponse `responseBodyShouldNotContain` "Readiness validation"
                 summaryResponse `responseBodyShouldNotContain` "· payment"
                 summaryResponse `responseBodyShouldNotContain` "Setup"
@@ -1544,7 +1542,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         callActionWithParams (ShowXeroTimesheetPreparationStaffMappingsFragmentAction preparationRun.id)
                             [("showMatched", "true")]
                 matchedResponse `responseStatusShouldBe` status200
-                matchedResponse `responseBodyShouldNotContain` "Ada Lovelace"
+                matchedResponse `responseBodyShouldContain` "Ada Lovelace"
                 matchedResponse `responseBodyShouldNotContain` "Show matched"
                 matchedResponse `responseBodyShouldNotContain` "app-toggle-button btn-success"
                 preparationRun.status `shouldBe` ReadyForPreview
@@ -1552,7 +1550,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 preparationRun.payPeriodEnd `shouldBe` Just fixture.periodEnd
                 (AesonTypes.parseMaybe AesonTypes.parseJSON preparationRun.eventsJson :: Maybe [Aeson.Value]) `shouldSatisfy` maybe False (not . null)
 
-        it "shows suggested staff matches as approve-only rows until edited in guided preparation" $ withContext do
+        it "keeps staff rows visible while manual changes auto-save and Continue approves suggestions" $ withContext do
             withCleanDb do
                 fixture <-
                     Preview.createPreviewFixture
@@ -1587,10 +1585,10 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 response `responseBodyShouldNotContain` "Show matched"
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"show-xero-timesheet-preparation-staff-mappings\""
                 response `responseBodyShouldContain` "Xero employee"
-                response `responseBodyShouldContain` "Suggested match — click Approve to confirm"
+                response `responseBodyShouldContain` "Suggested match — Continue to confirm"
                 response `responseBodyShouldContain` "Ada Lovelace"
                 response `responseBodyShouldContain` "Edit"
-                assertEveryDialogSubmitUsesLoading response
+                response `responseBodyShouldContain` "data-bepis-dialog-submit-config=\"{&quot;loadingLabel&quot;:&quot;Loading…&quot;}\""
                 pendingStaffDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, StaffAutoMatch) |> filterWhere (#decisionStatus, XeroTimesheetPreparationDecisionStatusEnumPending) |> fetchCount
                 pendingStaffDecisions `shouldBe` 2
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
@@ -1617,8 +1615,13 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                             , ("editStaffId", idToParam fixture.staffA.id)
                             ]
                 editedResponse `responseStatusShouldBe` status200
-                editedResponse `responseBodyShouldContain` "Confirm match"
-                assertEveryDialogSubmitUsesLoading editedResponse
+                editedResponse `responseBodyShouldContain` "value=\"employee-a\" selected"
+                editedResponse `responseBodyShouldContain` "value=\"not_applicable\""
+                editedResponse `responseBodyShouldContain` "hx-trigger=\"change, submit\""
+                editedResponse `responseBodyShouldContain` "hx-sync=\"#xero-preparation-staff-mappings:queue all\""
+                editedResponse `responseBodyShouldNotContain` "Confirm match"
+                editedResponse `responseBodyShouldNotContain` ">Save</button>"
+                editedResponse `responseBodyShouldNotContain` "data-bepis-dialog-submit"
 
                 continueResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -1662,6 +1665,9 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                             ]
 
                 response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Staff mappings"
+                response `responseBodyShouldContain` "Ada Lovelace"
+                response `responseBodyShouldContain` "Approved"
                 response `responseBodyShouldNotContain` "Confirm match"
                 mapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId fixture.staffA.id) |> fetchOne
                 mapping.mappingStatus `shouldBe` XeroStaffMappingStatusEnumVerified
@@ -1669,6 +1675,19 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 decision <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, StaffAutoMatch) |> fetchOne
                 decision.decisionStatus `shouldBe` Applied
                 decision.xeroEmployeeId `shouldBe` Just "employee-a"
+
+                duplicateResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (ApplyXeroTimesheetPreparationStaffDecisionAction run.id)
+                            [ ("staffId", idToParam fixture.staffB.id)
+                            , ("decision", "select_employee")
+                            , ("xeroEmployeeSelection", "employee-a")
+                            ]
+                duplicateResponse `responseStatusShouldBe` status200
+                duplicateResponse `responseBodyShouldContain` "That Xero employee is already mapped to another staff member."
+                duplicateResponse `responseBodyShouldContain` "Ada Lovelace"
+                duplicateMapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId fixture.staffB.id) |> fetchOne
+                duplicateMapping.xeroEmployeeId `shouldNotBe` Just "employee-a"
 
         it "shows proposed managed pay item creation instead of manual earnings-rate mapping in the preparation modal" $ withContext do
             withCleanDb do
@@ -1696,7 +1715,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                                     [("periodKey", fixturePeriodKey fixture)]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Step 2 of 4"
+                response `responseBodyShouldContain` "Pay period"
                 assertEveryDialogSubmitUsesLoading response
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
                 payItemResponse <- withXeroConfigForTest (Right testXeroConfig) do
@@ -1706,13 +1725,12 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                                 callActionWithParams (SelectXeroTimesheetPreparationPeriodAction preparationRun.id)
                                     [("periodKey", fixturePeriodKey fixture)]
                 payItemResponse `responseStatusShouldBe` status200
-                payItemResponse `responseBodyShouldContain` "Step 2 of 3"
-                payItemResponse `responseBodyShouldContain` "Managed pay items"
+                payItemResponse `responseBodyShouldContain` "Xero account"
+                payItemResponse `responseBodyShouldContain` "Account for new Xero pay items"
                 assertEveryDialogSubmitUsesLoading payItemResponse
-                payItemResponse `responseBodyShouldNotContain` "will be created on submit"
-                payItemResponse `responseBodyShouldNotContain` "1 will be created on submit"
-                payItemResponse `responseBodyShouldContain` "Ordinary - "
-                payItemResponse `responseBodyShouldContain` " - PERM - Bepis - 6-January-2020"
+                payItemResponse `responseBodyShouldNotContain` "Managed pay items"
+                payItemResponse `responseBodyShouldNotContain` "will be created"
+                payItemResponse `responseBodyShouldNotContain` "Ordinary - "
                 payItemResponse `responseBodyShouldNotContain` "Approve creation"
                 payItemResponse `responseBodyShouldNotContain` "Earnings-rate mappings"
                 payItemResponse `responseBodyShouldNotContain` "name=\"xeroEarningsRateSelection\""
@@ -1777,6 +1795,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 _ <- createXeroEarningsRateRecord fixture.connection "Ordinary Hours" "earnings-account-code"
                 requestsRef <- liftIO $ IORef.newIORef []
                 remoteTimesheetsResultRef <- liftIO $ IORef.newIORef (Right [])
+                timesheetFetchCountRef <- liftIO $ IORef.newIORef (0 :: Int)
                 let tokenResponse = XeroTokenResponse "submit-access-token" "submit-refresh-token" 1800 (Just requiredXeroScopesText)
                 baseClient <- referenceSyncXeroClientForFixture tokenResponse fixture.connection
                 let xeroClient = (payItemCreateXeroClient tokenResponse requestsRef)
@@ -1784,7 +1803,9 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         , fetchPayrollCalendars = fetchPayrollCalendars baseClient
                         , fetchAccounts = fetchAccounts baseClient
                         , fetchPayrollSettingsAccounts = fetchPayrollSettingsAccounts baseClient
-                        , fetchTimesheetsForPeriod = \_ _ _ _ _ -> IORef.readIORef remoteTimesheetsResultRef
+                        , fetchTimesheetsForPeriod = \_ _ _ _ _ -> do
+                            IORef.modifyIORef' timesheetFetchCountRef (+ 1)
+                            IORef.readIORef remoteTimesheetsResultRef
                         }
                 _ <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest xeroClient do
@@ -1819,14 +1840,12 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                                     [("accountCode", "477")]
 
                 approvalResponse `responseStatusShouldBe` status200
-                approvalResponse `responseBodyShouldContain` "Step 3 of 3"
-                approvalResponse `responseBodyShouldContain` "Review the draft timesheets Bepis will submit to Xero."
+                approvalResponse `responseBodyShouldContain` "Confirm Xero draft timesheets"
+                approvalResponse `responseBodyShouldContain` "Confirm Xero draft timesheet submission? Existing draft timesheets will be replaced."
                 approvalResponse `responseBodyShouldContain` "excluded from Xero submission"
                 assertEveryDialogSubmitUsesLoading approvalResponse
-                approvalResponse `responseBodyShouldContain` "Approved shifts"
-                approvalResponse `responseBodyShouldContain` "Estimated wages"
-                approvalResponse `responseBodyShouldContain` "4.00"
-                approvalResponse `responseBodyShouldContain` "$"
+                approvalResponse `responseBodyShouldNotContain` "Approved shifts"
+                approvalResponse `responseBodyShouldNotContain` "Estimated wages"
                 approvalResponse `responseBodyShouldNotContain` "Managed Xero pay item requirements must be matched or created before timesheet readiness."
                 approvalResponse `responseBodyShouldNotContain` "Employee-level preview rows will be finalized"
                 approvalRequests <- liftIO $ IORef.readIORef requestsRef
@@ -1866,52 +1885,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         |> set #xeroTimesheetStatus (Just "DRAFT")
                         |> createRecord
 
-                let remoteTimesheet timesheetId status =
-                        XeroTimesheetRef
-                            { xeroTimesheetId = Just timesheetId
-                            , xeroTimesheetEmployeeId = "employee-a"
-                            , xeroTimesheetStartDate = fixture.periodStart
-                            , xeroTimesheetEndDate = fixture.periodEnd
-                            , xeroTimesheetStatus = Just status
-                            , xeroTimesheetHours = Nothing
-                            , xeroTimesheetLines = []
-                            , xeroTimesheetRaw = Aeson.object []
-                            }
-                    confirmCurrent = withXeroConfigForTest (Right testXeroConfig) do
-                        withXeroClientForTest xeroClient do
-                            withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                                withRequestHeaders [("HX-Request", "true")] do
-                                    callAction (ConfirmXeroTimesheetPreparationSubmissionAction run.id)
-                    expectBlockedConfirmation response message = do
-                        response `responseStatusShouldBe` status200
-                        response `responseBodyShouldContain` message
-                        response `responseBodyShouldNotContain` "Confirm and submit draft timesheets"
-
-                liftIO $ IORef.writeIORef remoteTimesheetsResultRef (Right [remoteTimesheet "approved-id" "APPROVED"])
-                nonDraftResponse <- confirmCurrent
-                expectBlockedConfirmation nonDraftResponse "Xero timesheet approved-id is APPROVED and cannot be changed by Bepis. Review it in Xero before trying again."
-
-                liftIO $ IORef.writeIORef remoteTimesheetsResultRef (Right [remoteTimesheet "one" "DRAFT", remoteTimesheet "two" "DRAFT"])
-                distinctResponse <- confirmCurrent
-                expectBlockedConfirmation distinctResponse "Xero has multiple distinct timesheets for this employee and period (one, two). Resolve them in Xero, then review again."
-
-                liftIO $ IORef.writeIORef remoteTimesheetsResultRef (Right [remoteTimesheet "future-id" "FUTURE"])
-                unknownResponse <- confirmCurrent
-                expectBlockedConfirmation unknownResponse "Xero returned an unsupported status for timesheet future-id (status FUTURE). Review it in Xero or contact support."
-
-                _ <- priorSubmission |> set #status XeroTimesheetSubmissionStatusEnumPending |> updateRecord
-                liftIO $ IORef.writeIORef remoteTimesheetsResultRef (Right [])
-                inProgressResponse <- confirmCurrent
-                expectBlockedConfirmation inProgressResponse "A Bepis Xero timesheet submission is still in progress. Wait for it to finish, then review again."
-                _ <- priorSubmission |> set #status XeroTimesheetSubmissionStatusEnumSubmitted |> updateRecord
-
-                liftIO $ IORef.writeIORef remoteTimesheetsResultRef (Left (XeroHttpError "provider unavailable"))
-                providerErrorResponse <- confirmCurrent
-                providerErrorResponse `responseStatusShouldBe` status200
-                providerErrorResponse `responseBodyShouldContain` "Xero duplicate check failed: provider unavailable"
-                lookup "HX-Reswap" (responseHeaders providerErrorResponse) `shouldBe` Just "none"
-
-                liftIO $ IORef.writeIORef remoteTimesheetsResultRef (Right [])
+                liftIO $ IORef.writeIORef remoteTimesheetsResultRef (Left (XeroHttpError "confirmation must not fetch Xero timesheets"))
                 confirmationResponse <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest xeroClient do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
@@ -1919,47 +1893,13 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                                 callAction (ConfirmXeroTimesheetPreparationSubmissionAction run.id)
 
                 confirmationResponse `responseStatusShouldBe` status200
-                confirmationResponse `responseBodyShouldContain` "Confirm Xero draft timesheets"
-                confirmationResponse `responseBodyShouldContain` "Bepis checked Xero again immediately before submission."
-                confirmationResponse `responseBodyShouldContain` "Bepis previously created Xero draft missing-draft-id, but it is now missing. Confirm to create a replacement draft."
-                confirmationResponse `responseBodyShouldContain` "Confirm and submit draft timesheets"
+                confirmationResponse `responseBodyShouldContain` "Confirm Xero draft timesheet submission? Existing draft timesheets will be replaced."
+                confirmationResponse `responseBodyShouldContain` "Confirm and submit"
+                confirmationResponse `responseBodyShouldNotContain` "Latest Xero check"
                 assertEveryDialogSubmitUsesLoading confirmationResponse
-                reviewedRun <- fetch run.id
-                reconciliationReviewSnapshotIsConfirmed reviewedRun.proposedActionsJson `shouldBe` True
-
-                liftIO $ IORef.writeIORef remoteTimesheetsResultRef $ Right
-                    [ XeroTimesheetRef
-                        { xeroTimesheetId = Just "new-draft-id"
-                        , xeroTimesheetEmployeeId = "employee-a"
-                        , xeroTimesheetStartDate = fixture.periodStart
-                        , xeroTimesheetEndDate = fixture.periodEnd
-                        , xeroTimesheetStatus = Just "DRAFT"
-                        , xeroTimesheetHours = Nothing
-                        , xeroTimesheetLines = []
-                        , xeroTimesheetRaw = Aeson.object []
-                        }
-                    ]
-                changedResponse <- withXeroConfigForTest (Right testXeroConfig) do
-                    withXeroClientForTest xeroClient do
-                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                            withRequestHeaders [("HX-Request", "true")] do
-                                callAction (RunXeroTimesheetPreparationSubmissionAction run.id)
-
-                changedResponse `responseStatusShouldBe` status200
-                changedResponse `responseBodyShouldContain` "Xero timesheet state changed after confirmation. Review the latest reconciliation outcome before submitting."
-                changedResponse `responseBodyShouldContain` "Review Xero and continue"
-                changedResponse `responseBodyShouldNotContain` "Submitted Xero draft timesheets."
-                query @XeroTimesheetSubmission |> fetchCount >>= (`shouldBe` 1)
-                changedRun <- fetch run.id
-                reconciliationReviewSnapshotIsConfirmed changedRun.proposedActionsJson `shouldBe` False
+                liftIO (IORef.readIORef timesheetFetchCountRef) `shouldReturn` 0
 
                 liftIO $ IORef.writeIORef remoteTimesheetsResultRef (Right [])
-                _ <- withXeroConfigForTest (Right testXeroConfig) do
-                    withXeroClientForTest xeroClient do
-                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                            withRequestHeaders [("HX-Request", "true")] do
-                                callAction (ConfirmXeroTimesheetPreparationSubmissionAction run.id)
-
                 response <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest xeroClient do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
@@ -1969,6 +1909,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Submitted Xero draft timesheets."
                 response `responseBodyShouldContain` "id=\"dialog-overlay-mount\" hx-swap-oob=\"innerHTML\""
+                liftIO (IORef.readIORef timesheetFetchCountRef) `shouldReturn` 1
                 createRequests <- liftIO $ IORef.readIORef requestsRef
                 length createRequests `shouldSatisfy` (> 0)
                 refreshedRun <- fetch run.id
@@ -1978,7 +1919,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 pendingPayItemDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, PayItemCreate) |> filterWhere (#decisionStatus, XeroTimesheetPreparationDecisionStatusEnumPending) |> fetchCount
                 pendingPayItemDecisions `shouldBe` 0
 
-        it "reports unverified managed pay item creation before preparation review" $ withContext do
+        it "reports unverified managed pay item creation during submission" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                 markOtherFixtureStaffNotPaid fixture
@@ -2028,7 +1969,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                     withXeroClientForTest xeroClient do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
-                                callAction (ConfirmXeroTimesheetPreparationSubmissionAction run.id)
+                                callAction (RunXeroTimesheetPreparationSubmissionAction run.id)
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Submitted 1 Xero pay item creates and verified 0 after pulling Xero pay items."
@@ -2056,7 +1997,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 pageResponse `responseBodyShouldNotContain` "Draft timesheet submission"
                 pageResponse `responseBodyShouldNotContain` "name=\"periodKey\""
                 pageResponse `responseBodyShouldContain` "Upload timesheets"
-                pageResponse `responseBodyShouldContain` "warns before replacing a missing Bepis-created draft"
+                pageResponse `responseBodyShouldNotContain` "warns before replacing a missing Bepis-created draft"
 
                 xeroClient <- referenceSyncXeroClientForFixture (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) fixture.connection
                 _ <- withXeroConfigForTest (Right testXeroConfig) do
@@ -2129,7 +2070,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 preparationRun.xeroPayRunId `shouldBe` Just "payrun-posted"
                 preparationRun.remotePayRunsJson `shouldSatisfy` Preview.jsonContainsKey "remotePayRuns"
 
-        it "checks the selected calendar and period for remote timesheets only when submission review begins" $ withContext do
+        it "checks the selected calendar and period for remote timesheets only after final confirmation" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                 markOtherFixtureStaffNotPaid fixture
@@ -2174,18 +2115,26 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                                     [("periodKey", fixturePeriodKey fixture)]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Timesheet summary"
+                response `responseBodyShouldContain` "Confirm Xero draft timesheets"
                 response `responseBodyShouldNotContain` "Xero already has a non-draft timesheet for this employee and period"
 
-                reviewResponse <- withXeroConfigForTest (Right testXeroConfig) do
+                submissionResponse <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest client do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
-                                callAction (ConfirmXeroTimesheetPreparationSubmissionAction preparationRunBeforeSelect.id)
+                                callAction (RunXeroTimesheetPreparationSubmissionAction preparationRunBeforeSelect.id)
 
-                reviewResponse `responseStatusShouldBe` status200
-                reviewResponse `responseBodyShouldContain` "Xero timesheet ts-existing is APPROVED and cannot be changed by Bepis"
-                reviewResponse `responseBodyShouldNotContain` "Confirm and submit draft timesheets"
+                submissionResponse `responseStatusShouldBe` status200
+                submissionResponse `responseBodyShouldContain` "Xero submission blocked"
+                submissionResponse `responseBodyShouldContain` "Xero already has a non-draft timesheet for this employee and period"
+                submissionResponse `responseBodyShouldContain` ">Back<"
+                submissionResponse `responseBodyShouldNotContain` "Confirm and submit"
+
+                backResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (ShowXeroTimesheetPreparationSummaryAction preparationRunBeforeSelect.id)
+                backResponse `responseStatusShouldBe` status200
+                backResponse `responseBodyShouldContain` ("value=\"" <> fixturePeriodKey fixture <> "\" selected=\"selected\"")
 
         it "rejects missing, malformed, and repeated nominal preparation payloads without mutation" $ withContext do
             withCleanDb do
@@ -2238,6 +2187,32 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 accountSelectionAfter `shouldBe` accountSelectionBefore
                 query @XeroTimesheetPreparationDecision |> fetchCount `shouldReturn` 0
 
+        it "saves untouched unmatched staff as not paid through Xero on Continue" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                mappings <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId fixture.staffA.id) |> fetch
+                forM_ mappings \mapping ->
+                    mapping
+                        |> set #mappingStatus XeroStaffMappingStatusEnumStale
+                        |> set #xeroEmployeeId Nothing
+                        |> updateRecord
+                        >>= const (pure ())
+                run <- createPreparationRunForFixture fixture NeedsApproval
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (ContinueXeroTimesheetPreparationStaffStepAction run.id)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "There are no timesheet entries in the selected period."
+                mapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId fixture.staffA.id) |> fetchOne
+                mapping.mappingStatus `shouldBe` NotApplicable
+                mapping.xeroEmployeeId `shouldBe` Nothing
+                decision <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, StaffNotPaid) |> fetchOne
+                decision.decisionStatus `shouldBe` Applied
+                staffStepApprovals <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, StaffStepApproved) |> filterWhere (#decisionStatus, Applied) |> fetchCount
+                staffStepApprovals `shouldBe` 1
+
         it "persists not-paid decisions from the guided preparation modal" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
@@ -2268,8 +2243,9 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 matchedResponse `responseStatusShouldBe` status200
                 matchedResponse `responseBodyShouldContain` "Not paid through Xero"
                 matchedResponse `responseBodyShouldContain` "value=\"not_applicable\" selected"
-                matchedResponse `responseBodyShouldNotContain` "value=\"\""
+                matchedResponse `responseBodyShouldContain` "hx-trigger=\"change, submit\""
                 matchedResponse `responseBodyShouldNotContain` "Choose Xero employee"
+                matchedResponse `responseBodyShouldNotContain` ">Save</button>"
                 matchedResponse `responseBodyShouldNotContain` "Edit"
                 mapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId fixture.staffA.id) |> fetchOne
                 mapping.mappingStatus `shouldBe` NotApplicable

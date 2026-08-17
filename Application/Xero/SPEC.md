@@ -78,7 +78,10 @@ issue and, when cross-system design remains unresolved, a new workstream.
   future-dated payroll approval value or later mutable staff edit, determines
   whether another mapping refresh is required. Effective `roster_only` work
   does not request Xero data or block eligible payroll work.
-  Suggested staff matches remain pending until explicit owner approval.
+  Suggested staff matches remain pending until explicit owner approval. In the
+  preparation dialog, unmatched staff default to Not paid through Xero without
+  an immediate write; Continue persists those defaults while approving all
+  unchanged suggestions. Manual dropdown changes save immediately.
 - Owners do not receive or access manual reference refresh. Founder support sees
   last success, aggregate queued/running/retry-chain state, retry timing,
   canonical progress and sanitized failure, and may request the same coalescing
@@ -168,17 +171,16 @@ The exact paging, lease, retry, and trust implementation is authoritative in
 
 - Each preparation run explicitly selects one synced calendar and period. Only
   mapped employees assigned by Xero to that calendar are eligible. The period
-  selector initially shows periods overlapping the inclusive window from seven
-  days before today through seven days after today. The selector checkbox reveals
-  all other eligible past and future periods; this is display
-  filtering only and does not change readiness or submission authority.
-  Selecting a period checks its Xero pay run and renders the local summary without
-  downloading remote timesheet history. Reconciliation begins at the explicit
-  Xero review step and runs again immediately before submission. Every remote
-  reconciliation read uses the Payroll AU v2 timesheet endpoint scoped to the
-  selected payroll calendar and period. The initial read omits the optional
-  `page` query parameter because live Xero returns 400 for an explicitly
-  requested empty page 1; later full-result pages use page 2 onward.
+  selector shows every eligible past and future period and selects the newest
+  non-posted option by default. Selecting a period checks its current Xero pay
+  run without downloading remote timesheet history. After concise owner
+  confirmation, submission performs one fresh reconciliation read and
+  immediately creates or updates safe drafts from that state; unsafe provider
+  states block before writes. Every remote reconciliation read uses the Payroll
+  AU v2 timesheet endpoint scoped to the selected payroll calendar and period.
+  The initial read omits the optional `page` query parameter because live Xero
+  returns 400 for an explicitly requested empty page 1; later full-result pages
+  use page 2 onward.
 - Readiness, proposals, preview, and submission use the same venue-effective
   rate resolution and strict wage-source boundary. Any included calculation or
   source failure blocks the complete operation.

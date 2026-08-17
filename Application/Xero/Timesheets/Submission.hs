@@ -6,6 +6,7 @@ module Application.Xero.Timesheets.Submission
     , fetchRemoteTimesheetsForDuplicateCheck
     , reviewXeroDraftTimesheets
     , submitReviewedXeroDraftTimesheetsForPreparation
+    , submitXeroDraftTimesheetsForPreparation
     , submitXeroDraftTimesheets
     , xeroTimesheetSubmissionRequestJson
     )
@@ -84,6 +85,15 @@ submitReviewedXeroDraftTimesheetsForPreparation ::
 submitReviewedXeroDraftTimesheetsForPreparation submittedByUserId preparationRunId reviewedSnapshot =
     submitXeroDraftTimesheetsWithPreparation submittedByUserId (Just preparationRunId) (Just reviewedSnapshot)
 
+submitXeroDraftTimesheetsForPreparation ::
+    (?modelContext :: ModelContext) =>
+    Id User ->
+    Id XeroTimesheetPreparationRun ->
+    XeroTimesheetReadinessRequest ->
+    IO (Either Text XeroTimesheetReviewedSubmissionOutcome)
+submitXeroDraftTimesheetsForPreparation submittedByUserId preparationRunId =
+    submitXeroDraftTimesheetsWithPreparation submittedByUserId (Just preparationRunId) Nothing
+
 submitXeroDraftTimesheetsWithPreparation ::
     (?modelContext :: ModelContext) =>
     Id User ->
@@ -115,16 +125,16 @@ submitXeroDraftTimesheetsWithPreparation submittedByUserId maybePreparationRunId
                             Left message -> pure (Left message)
                             Right (XeroTimesheetSubmissionPersisted run) ->
                                 pure (Right (XeroTimesheetReviewedSubmissionCompleted run))
-                            Right (XeroTimesheetSubmissionReservationInProgress runIds) ->
-                                case maybeReviewedSnapshot of
-                                    Just _ -> pure (Right (reservationStateChanged plan XeroSubmissionInProgress))
-                                    Nothing -> case runIds of
-                                        [runId] -> Right . XeroTimesheetReviewedSubmissionCompleted <$> fetch runId
-                                        _ -> pure (Left "Xero timesheet submission is already in progress in more than one run.")
-                            Right (XeroTimesheetSubmissionReservationBlocked decision) ->
-                                case maybeReviewedSnapshot of
-                                    Just _ -> pure (Right (reservationStateChanged plan decision))
-                                    Nothing -> pure (Left (reconciliationBlockedMessage decision))
+                            Right (XeroTimesheetSubmissionReservationInProgress runIds)
+                                | isJust maybeReviewedSnapshot || isJust maybePreparationRunId ->
+                                    pure (Right (reservationStateChanged plan XeroSubmissionInProgress))
+                                | otherwise -> case runIds of
+                                    [runId] -> Right . XeroTimesheetReviewedSubmissionCompleted <$> fetch runId
+                                    _ -> pure (Left "Xero timesheet submission is already in progress in more than one run.")
+                            Right (XeroTimesheetSubmissionReservationBlocked decision)
+                                | isJust maybeReviewedSnapshot || isJust maybePreparationRunId ->
+                                    pure (Right (reservationStateChanged plan decision))
+                                | otherwise -> pure (Left (reconciliationBlockedMessage decision))
   where
     reservationStateChanged plan decision =
         XeroTimesheetReviewedStateChanged

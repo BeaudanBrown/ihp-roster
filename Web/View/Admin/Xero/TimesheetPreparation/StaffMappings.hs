@@ -15,7 +15,6 @@ import Application.Helper.FrontendContract.AppShell.Request (AppShellActionField
                                                              appShellActionFor)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              renderAppShellActionForm)
-import Application.Helper.FrontendContract.Overlay.Runtime (dialogSubmitAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
@@ -81,10 +80,7 @@ renderXeroTimesheetPreparationStaffMappingsFragment _showMatched editStaffId vie
         </section>
     |]
     where
-        visibleRows = filter rowVisible view.preparationStaffRows
-        rowVisible row =
-            staffRowNeedsAttention row
-                || editStaffId == Just row.preparationStaffMappingRow.mappingRowStaff.id
+        visibleRows = view.preparationStaffRows
 
 renderStaffMappingRow :: XeroTimesheetPreparationView -> Maybe (Id Staff) -> XeroPreparationStaffRow -> Html
 renderStaffMappingRow view editStaffId row = [hsx|
@@ -135,7 +131,7 @@ renderStaffEmployeeEditForm view row =
         [hsx|
             <input type="hidden" name={surfaceFieldNameFrom @Surface.ShowMatched fields} value="true" />
             <input type="hidden" name={surfaceFieldNameFrom @Surface.EditStaffId fields} value={tshow row.preparationStaffMappingRow.mappingRowStaff.id} />
-            <button type="submit" class="btn btn-sm btn-outline-secondary" {...dialogSubmitAttrs "Working..."}>Edit</button>
+            <button type="submit" class="btn btn-sm btn-outline-secondary">Edit</button>
         |]
   where
     fields = AdminAction.showXeroTimesheetPreparationStaffMappingsActionFields True (Just (unpackId row.preparationStaffMappingRow.mappingRowStaff.id))
@@ -152,7 +148,7 @@ staffEmployeeDisplay row
 
 staffEmployeeStatusLabel :: XeroPreparationStaffRow -> Text
 staffEmployeeStatusLabel row
-    | staffRowHasPendingAutoMatch row = "Suggested match — click Approve to confirm"
+    | staffRowHasPendingAutoMatch row = "Suggested match — Continue to confirm"
     | staffRowIsConfirmed row = "Approved"
     | otherwise = "Selected"
 
@@ -168,9 +164,8 @@ renderStaffEmployeeSelectionForm view row =
             <input type="hidden" name={surfaceFieldNameFrom @StaffIdField fields} value={tshow staff.id} />
             <select name={surfaceFieldNameFrom @XeroEmployeeSelectionField fields} class="form-select form-select-sm w-auto xero-employee-selection" aria-label={"Xero employee for " <> staffName staff}>
                 {forEach selectableEmployees (renderEmployeeOption currentSelection)}
-                <option value="not_applicable" selected={currentSelection == "not_applicable" || (Text.null currentSelection && null selectableEmployees)}>Not paid through Xero</option>
+                <option value="not_applicable" selected={Text.null currentSelection || currentSelection == "not_applicable"}>Not paid through Xero</option>
             </select>
-            {renderStaffSelectionSubmitButton row currentSelection}
         |]
     where
         staff = row.preparationStaffMappingRow.mappingRowStaff
@@ -240,15 +235,6 @@ xeroEmployeeLabel :: XeroEmployee -> Text
 xeroEmployeeLabel employee =
     employee.displayName
 
-
-
-
-
-renderStaffSelectionSubmitButton :: XeroPreparationStaffRow -> Text -> Html
-renderStaffSelectionSubmitButton row currentSelection
-    | staffRowHasPendingAutoMatch row = [hsx|<button class="btn btn-sm btn-primary" type="submit" {...dialogSubmitAttrs "Working..."}>Confirm match</button>|]
-    | Text.null currentSelection = [hsx|<button class="btn btn-sm btn-primary" type="submit" {...dialogSubmitAttrs "Working..."}>Save</button>|]
-    | otherwise = mempty
 
 staffRowIsConfirmed :: XeroPreparationStaffRow -> Bool
 staffRowIsConfirmed row =

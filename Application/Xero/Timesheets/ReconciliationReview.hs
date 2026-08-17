@@ -6,14 +6,12 @@ module Application.Xero.Timesheets.ReconciliationReview
     , XeroTimesheetReconciliationReview (..)
     , reconciliationReviewAllowsSubmission
     , reconciliationReviewNotices
-    , reconciliationReviewRequiresReviewJson
     , reconciliationReviewSnapshotIsConfirmed
     , reconciliationReviewSnapshotJson
     ) where
 
 import Application.Xero.Timesheets.Reconciliation
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.Bifunctor as Bifunctor
 import qualified Data.List as List
@@ -52,15 +50,6 @@ reconciliationReviewSnapshotJson reviews =
         , "stateChanged" Aeson..= False
         , "employees" Aeson..= map reviewJson (List.sortOn (.reconciliationReviewEmployeeId) reviews)
         ]
-
-reconciliationReviewRequiresReviewJson :: Aeson.Value -> Aeson.Value
-reconciliationReviewRequiresReviewJson (Aeson.Object object) =
-    Aeson.Object
-        ( object
-            |> AesonKeyMap.insert "confirmed" (Aeson.Bool False)
-            |> AesonKeyMap.insert "stateChanged" (Aeson.Bool True)
-        )
-reconciliationReviewRequiresReviewJson value = value
 
 reconciliationReviewSnapshotIsConfirmed :: Aeson.Value -> Bool
 reconciliationReviewSnapshotIsConfirmed snapshot =

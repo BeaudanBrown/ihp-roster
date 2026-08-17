@@ -130,14 +130,6 @@ data XeroTimesheetPreviewRowView = XeroTimesheetPreviewRowView
     }
     deriving (Eq, Show)
 
-data XeroPreparationReviewRow = XeroPreparationReviewRow
-    { reviewRowStaff       :: Staff
-    , reviewRowEntryCount  :: Int
-    , reviewRowTotalUnits  :: Rational
-    , reviewRowTotalAmount :: Scientific
-    }
-    deriving (Eq, Show)
-
 data XeroTimesheetPeriodOption = XeroTimesheetPeriodOption
     { periodOptionKey                    :: Text
     , periodOptionPayrollCalendarId      :: Text
@@ -208,12 +200,7 @@ data XeroTimesheetPreparationView = XeroTimesheetPreparationView
     , preparationManualStaffDecisionCount    :: Int
     , preparationStaffStepApproved           :: Bool
     , preparationPostedPayRunBlocked         :: Bool
-    , preparationCanPreview                  :: Bool
     , preparationCanSubmit                   :: Bool
-    , preparationReconciliationReviewed      :: Bool
-    , preparationReconciliationCanSubmit     :: Bool
-    , preparationReconciliationNotices       :: [XeroTimesheetIssueView]
-    , preparationReviewRows                  :: [XeroPreparationReviewRow]
     , preparationPreviewRows                 :: [XeroTimesheetPreviewRowView]
     , preparationSubmissionRun               :: Maybe XeroSubmissionRun
     }

@@ -271,6 +271,7 @@ type AppShellContract =
              , AppShellHtmxSwap "innerHTML"
              , AppShellHtmxPushUrl 'AppShellPushUrlFalse
              , AppShellHtmxTrigger "change, submit"
+             , AppShellHtmxSync "#xero-preparation-staff-mappings:queue all"
              ]
          , AppShellAction RefreshXeroTimesheetPreparationOverlay '[] DialogSubmitOptions
          , AppShellAction SubmitXeroTimesheetPreparationOverlay

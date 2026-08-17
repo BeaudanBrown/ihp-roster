@@ -8,18 +8,20 @@ module Web.View.Admin.Xero.TimesheetPreparation
     , renderXeroTimesheetPreparationReferenceSyncWaitFragmentError
     , renderXeroTimesheetPreparationStaffMappingsFragment
     , renderXeroTimesheetPreparationSubmittingDialog
+    , renderXeroTimesheetPreparationBlockingDialog
+    , renderXeroTimesheetPreparationPeriodSelectionDialog
+    , renderXeroTimesheetPreparationStaffSelectionDialog
+    , renderXeroTimesheetPreparationStaffSelectionErrorDialog
     ) where
 
 import Application.Helper.FrontendContract.AppShell (AccountCodeField,
                                                      ApproveXeroTimesheetPreparationPayItemsOverlay,
-                                                     ConfirmXeroTimesheetPreparationSubmissionOverlay,
                                                      ContinueXeroTimesheetPreparationStaffOverlay,
                                                      PeriodKeyField,
                                                      RefreshXeroTimesheetPreparationOverlay,
                                                      RunXeroTimesheetPreparationOverlay,
                                                      RunXeroTimesheetPreparationSubmissionOverlay,
-                                                     SelectXeroTimesheetPreparationPeriodOverlay,
-                                                     SubmitXeroTimesheetPreparationOverlay)
+                                                     SelectXeroTimesheetPreparationPeriodOverlay)
 import Application.Helper.FrontendContract.AppShell.Request (AppShellActionFields,
                                                              appShellActionFields,
                                                              appShellActionFor,
@@ -37,6 +39,7 @@ import Application.Xero.ReferenceTrust.Presentation
 import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..))
 import Application.Xero.WorkflowState
 import Control.Monad (guard)
+import qualified Data.List as List
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
@@ -67,10 +70,11 @@ renderXeroTimesheetPreparationDialog :: XeroTimesheetPreparationView -> Html
 renderXeroTimesheetPreparationDialog view
     | needsStaffStep view = renderXeroTimesheetPreparationStaffStep view
     | needsPeriodStep view = renderXeroTimesheetPreparationPeriodStep view
-    | needsPayItemStep view = renderXeroTimesheetPreparationPayItemsStep view
     | view.preparationState == XeroPreparationSubmitted = renderXeroTimesheetPreparationSubmittedDialog view
     | view.preparationState == XeroPreparationFailed = renderXeroTimesheetPreparationFailureDialog view
-    | otherwise = renderXeroTimesheetPreparationSummaryStep view
+    | Just message <- preparationBlockingMessage view = renderXeroTimesheetPreparationBlockingDialog view message
+    | needsPayItemStep view = renderXeroTimesheetPreparationPayItemsStep view
+    | otherwise = renderXeroTimesheetPreparationSubmittingDialog view
 
 
 
@@ -138,12 +142,23 @@ renderPreparationCompletedPayItemsPage Nothing = mempty
 renderPreparationCompletedPayItemsPage (Just page) = [hsx|<div class="small app-muted">Completed page {page}</div>|]
 
 renderXeroTimesheetPreparationStaffStep :: XeroTimesheetPreparationView -> Html
-renderXeroTimesheetPreparationStaffStep view =
+renderXeroTimesheetPreparationStaffStep = renderXeroTimesheetPreparationStaffStepWithError Nothing
+
+renderXeroTimesheetPreparationStaffSelectionDialog :: XeroTimesheetPreparationView -> Html
+renderXeroTimesheetPreparationStaffSelectionDialog = renderXeroTimesheetPreparationStaffStep
+
+renderXeroTimesheetPreparationStaffSelectionErrorDialog :: Text -> XeroTimesheetPreparationView -> Html
+renderXeroTimesheetPreparationStaffSelectionErrorDialog message =
+    renderXeroTimesheetPreparationStaffStepWithError (Just message)
+
+renderXeroTimesheetPreparationStaffStepWithError :: Maybe Text -> XeroTimesheetPreparationView -> Html
+renderXeroTimesheetPreparationStaffStepWithError maybeError view =
     renderDialogOverlay DialogOverlayConfig
         { dialogOverlayTitle = preparationDialogTitle view
         , dialogOverlayBody = [hsx|
             <div class="d-flex flex-column gap-3" data-xero-timesheet-preparation-dialog="true">
-                {renderStepNotice "Step 1 of 3" "Confirm proposed staff matches or choose the right Xero employee before continuing."}
+                {renderStepNotice "Staff matches" "Confirm proposed matches or choose the right Xero employee."}
+                {maybe mempty renderStaffSelectionError maybeError}
                 {renderConnectionNotice view}
                 {renderStaffMappings view}
                 {renderXeroPreparationOverlayForm (noAppShellActionFields @ContinueXeroTimesheetPreparationStaffOverlay) (pathTo (ContinueXeroTimesheetPreparationStaffStepAction view.preparationRun.id)) [("id", "xero-preparation-staff-continue-form")] mempty}
@@ -154,13 +169,16 @@ renderXeroTimesheetPreparationStaffStep view =
         , dialogOverlayDialogClass = "modal-xl"
         }
 
+renderStaffSelectionError :: Text -> Html
+renderStaffSelectionError message = [hsx|<div class="alert alert-danger mb-0">{message}</div>|]
+
 renderXeroTimesheetPreparationPeriodStep :: XeroTimesheetPreparationView -> Html
 renderXeroTimesheetPreparationPeriodStep view =
     renderDialogOverlay DialogOverlayConfig
         { dialogOverlayTitle = preparationDialogTitle view
         , dialogOverlayBody = [hsx|
             <div class="d-flex flex-column gap-3" data-xero-timesheet-preparation-dialog="true">
-                {renderStepNotice "Step 2 of 4" "Choose the Xero payroll period after staff Xero mappings have been resolved."}
+                {renderStepNotice "Pay period" "Choose the Xero payroll period to upload."}
                 {renderPeriodSelection view}
                 {renderXeroPreparationPeriodForm view}
             </div>
@@ -177,23 +195,14 @@ renderXeroPreparationPeriodForm view =
         (pathTo (SelectXeroTimesheetPreparationPeriodAction view.preparationRun.id))
         [("id", "xero-preparation-period-form")]
         [hsx|
-            <div class="d-flex flex-column gap-2">
-                <div class="form-check">
-                    <input type="checkbox"
-                           id="xero-preparation-show-all-periods"
-                           class="form-check-input"
-                           aria-controls="xero-preparation-period-select"/>
-                    <label class="form-check-label" for="xero-preparation-show-all-periods">Show past and future periods</label>
-                </div>
-                <select name={surfaceFieldNameFrom @PeriodKeyField fields}
-                        id="xero-preparation-period-select"
-                        class="form-select"
-                        aria-label="Xero pay period"
-                        disabled={null view.preparationPeriodOptions}>
-                    {renderEmptyPreparationPeriodOption view}
-                    {forEach view.preparationPeriodOptions renderPreparationPeriodOption}
-                </select>
-            </div>
+            <select name={surfaceFieldNameFrom @PeriodKeyField fields}
+                    id="xero-preparation-period-select"
+                    class="form-select"
+                    aria-label="Xero pay period"
+                    disabled={null view.preparationPeriodOptions}>
+                {renderEmptyPreparationPeriodOption view}
+                {forEach view.preparationPeriodOptions (renderPreparationPeriodOption (firstSelectablePeriodKey view))}
+            </select>
         |]
   where
     fields =
@@ -207,14 +216,15 @@ renderXeroTimesheetPreparationPayItemsStep view =
         { dialogOverlayTitle = preparationDialogTitle view
         , dialogOverlayBody = [hsx|
             <div class="d-flex flex-column gap-3" data-xero-timesheet-preparation-dialog="true">
-                {renderStepNotice "Step 2 of 3" "Review the managed pay items Bepis will create during final submission, and choose the Xero account code to use."}
-                {renderPayItemDecisions view}
+                {renderStepNotice "Xero account" "Choose the account for new Xero pay items."}
+                {renderExclusionWarnings view}
+                {renderAccountCodeSelection view}
                 {renderXeroPreparationOverlayForm fields (pathTo (ApproveXeroTimesheetPreparationPayItemsAction view.preparationRun.id)) [("id", "xero-preparation-pay-items-form")] mempty}
             </div>
         |]
         , dialogOverlayStartButtons = []
         , dialogOverlayButtons = closeButton : [approvePayItemsButton]
-        , dialogOverlayDialogClass = "modal-xl"
+        , dialogOverlayDialogClass = "modal-lg"
         }
   where
     fields =
@@ -222,39 +232,37 @@ renderXeroTimesheetPreparationPayItemsStep view =
             (surfaceOptionalField @AccountCodeField (selectedAccountCode view))
             noSurfaceFields
 
-renderXeroTimesheetPreparationSummaryStep :: XeroTimesheetPreparationView -> Html
-renderXeroTimesheetPreparationSummaryStep view =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = preparationDialogTitle view
-        , dialogOverlayBody = [hsx|
-            <div class="d-flex flex-column gap-3" data-xero-timesheet-preparation-dialog="true">
-                {renderStepNotice "Step 3 of 3" "Review the draft timesheets Bepis will submit to Xero."}
-                {if null view.preparationReconciliationNotices then mempty else renderReconciliationReview view}
-                {renderPreparationReview view}
-                {renderXeroPreparationOverlayForm (noAppShellActionFields @ConfirmXeroTimesheetPreparationSubmissionOverlay) (pathTo (ConfirmXeroTimesheetPreparationSubmissionAction view.preparationRun.id)) [("id", "xero-preparation-confirm-submit-form")] mempty}
-            </div>
-        |]
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons = closeButton : [confirmSubmitButton view | view.preparationCanSubmit]
-        , dialogOverlayDialogClass = "modal-xl"
-        }
-
 renderXeroTimesheetPreparationSubmittingDialog :: XeroTimesheetPreparationView -> Html
 renderXeroTimesheetPreparationSubmittingDialog view =
     renderDialogOverlay DialogOverlayConfig
         { dialogOverlayTitle = "Confirm Xero draft timesheets"
         , dialogOverlayBody = [hsx|
-            <div class="d-flex flex-column gap-3" data-xero-timesheet-reconciliation-review="true">
-                <div>Bepis checked Xero again immediately before submission.</div>
-                {renderReconciliationReview view}
-                <div class="small app-muted">After confirmation, Bepis will create new drafts, update confirmed drafts, or create the explicitly warned replacement drafts shown above.</div>
+            <div class="d-flex flex-column gap-3" data-xero-timesheet-preparation-dialog="true">
+                {renderExclusionWarnings view}
+                <div>Confirm Xero draft timesheet submission? Existing draft timesheets will be replaced.</div>
                 {renderXeroPreparationOverlayForm (noAppShellActionFields @RunXeroTimesheetPreparationSubmissionOverlay) (pathTo (RunXeroTimesheetPreparationSubmissionAction view.preparationRun.id)) [("id", "xero-preparation-reviewed-submit-form")] mempty}
             </div>
         |]
         , dialogOverlayStartButtons = []
-        , dialogOverlayButtons = closeButton : [reviewedSubmitButton | view.preparationReconciliationCanSubmit]
+        , dialogOverlayButtons = closeButton : [reviewedSubmitButton | view.preparationCanSubmit]
         , dialogOverlayDialogClass = "modal-lg"
         }
+
+renderXeroTimesheetPreparationBlockingDialog :: XeroTimesheetPreparationView -> Text -> Html
+renderXeroTimesheetPreparationBlockingDialog view message =
+    renderDialogOverlay DialogOverlayConfig
+        { dialogOverlayTitle = "Xero submission blocked"
+        , dialogOverlayBody = [hsx|
+            <div class="alert alert-danger mb-0">{message}</div>
+            {renderXeroPreparationOverlayForm (noAppShellActionFields @RefreshXeroTimesheetPreparationOverlay) (pathTo (ShowXeroTimesheetPreparationSummaryAction view.preparationRun.id)) [("id", "xero-preparation-back-form")] mempty}
+        |]
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons = [closeButton, backButton]
+        , dialogOverlayDialogClass = "modal-lg"
+        }
+
+renderXeroTimesheetPreparationPeriodSelectionDialog :: XeroTimesheetPreparationView -> Html
+renderXeroTimesheetPreparationPeriodSelectionDialog = renderXeroTimesheetPreparationPeriodStep
 
 renderXeroTimesheetPreparationFailureDialog :: XeroTimesheetPreparationView -> Html
 renderXeroTimesheetPreparationFailureDialog view =
@@ -314,37 +322,37 @@ closeButton = OverlayButton
 
 continueStaffButton :: XeroTimesheetPreparationView -> OverlayButton
 continueStaffButton _view = OverlayButton
-    { overlayButtonLabel = "Approve"
+    { overlayButtonLabel = "Continue"
     , overlayButtonClass = "btn btn-primary"
-    , overlayButtonAction = OverlaySubmitFormAction "xero-preparation-staff-continue-form"
+    , overlayButtonAction = OverlaySubmitFormLoadingAction "xero-preparation-staff-continue-form" "Loading…"
     }
 
 selectPeriodButton :: XeroTimesheetPreparationView -> OverlayButton
 selectPeriodButton view = OverlayButton
     { overlayButtonLabel = "Continue"
     , overlayButtonClass = "btn btn-primary"
-    , overlayButtonAction = OverlaySubmitFormAction "xero-preparation-period-form"
+    , overlayButtonAction = OverlaySubmitFormLoadingAction "xero-preparation-period-form" "Loading…"
     }
 
 approvePayItemsButton :: OverlayButton
 approvePayItemsButton = OverlayButton
-    { overlayButtonLabel = "Approve pay items and continue"
+    { overlayButtonLabel = "Continue"
     , overlayButtonClass = "btn btn-primary"
-    , overlayButtonAction = OverlaySubmitFormAction "xero-preparation-pay-items-form"
+    , overlayButtonAction = OverlaySubmitFormLoadingAction "xero-preparation-pay-items-form" "Loading…"
     }
 
-confirmSubmitButton :: XeroTimesheetPreparationView -> OverlayButton
-confirmSubmitButton _view = OverlayButton
-    { overlayButtonLabel = "Review Xero and continue"
-    , overlayButtonClass = "btn btn-primary"
-    , overlayButtonAction = OverlaySubmitFormAction "xero-preparation-confirm-submit-form"
+backButton :: OverlayButton
+backButton = OverlayButton
+    { overlayButtonLabel = "Back"
+    , overlayButtonClass = "btn btn-outline-primary"
+    , overlayButtonAction = OverlaySubmitFormLoadingAction "xero-preparation-back-form" "Loading…"
     }
 
 reviewedSubmitButton :: OverlayButton
 reviewedSubmitButton = OverlayButton
-    { overlayButtonLabel = "Confirm and submit draft timesheets"
+    { overlayButtonLabel = "Confirm and submit"
     , overlayButtonClass = "btn btn-primary"
-    , overlayButtonAction = OverlaySubmitFormAction "xero-preparation-reviewed-submit-form"
+    , overlayButtonAction = OverlaySubmitFormLoadingAction "xero-preparation-reviewed-submit-form" "Loading…"
     }
 
 needsStaffStep :: XeroTimesheetPreparationView -> Bool
@@ -382,13 +390,22 @@ renderPeriodSelection view
 renderEmptyPreparationPeriodOption :: XeroTimesheetPreparationView -> Html
 renderEmptyPreparationPeriodOption view
     | null view.preparationPeriodOptions = [hsx|<option value="">No eligible Xero pay periods available</option>|]
-    | otherwise = [hsx|<option value="">Choose a Xero pay period</option>|]
+    | otherwise = mempty
 
-renderPreparationPeriodOption :: XeroTimesheetPeriodOption -> Html
-renderPreparationPeriodOption option = [hsx|
+firstSelectablePeriodKey :: XeroTimesheetPreparationView -> Maybe Text
+firstSelectablePeriodKey view =
+    preservedSelection <|> ((.periodOptionKey) <$> List.find (not . (.periodOptionBlocked)) view.preparationPeriodOptions)
+  where
+    preservedSelection = do
+        selected <- view.preparationPeriodOption
+        option <- List.find (\candidate -> candidate.periodOptionKey == selected.periodOptionKey && not candidate.periodOptionBlocked) view.preparationPeriodOptions
+        pure option.periodOptionKey
+
+renderPreparationPeriodOption :: Maybe Text -> XeroTimesheetPeriodOption -> Html
+renderPreparationPeriodOption selectedPeriodKey option = [hsx|
     <option value={option.periodOptionKey}
             disabled={option.periodOptionBlocked}
-            hidden={not option.periodOptionWithinDefaultWindow}>{preparationPeriodOptionLabel option}</option>
+            selected={selectedPeriodKey == Just option.periodOptionKey}>{preparationPeriodOptionLabel option}</option>
 |]
 
 preparationPeriodOptionLabel :: XeroTimesheetPeriodOption -> Text
@@ -415,60 +432,45 @@ renderConnectionNotice view
         </div>
     |]
 
-renderPayItemDecisions :: XeroTimesheetPreparationView -> Html
-renderPayItemDecisions view
-    | null proposedRows = mempty
-    | otherwise = [hsx|
-        <section>
-            <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-                <h6 class="mb-0">Managed pay items</h6>
-            </div>
-            <div class={appSurfaceClasses "p-3"}>
-                <div class="table-responsive mb-3">
-                    <table class="table table-sm align-middle mb-0">
-                        <thead>
-                            <tr>
-                                <th>Pay item</th>
-                                <th>Value</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>{forEach proposedRows renderPayItemCreationRow}</tbody>
-                    </table>
-                </div>
-                <label class="form-label small fw-semibold" for="xero-preparation-submit-account-code">Account code for created pay items</label>
-                <select id="xero-preparation-submit-account-code"
-                        form="xero-preparation-pay-items-form"
-                        name={surfaceFieldNameFrom @AccountCodeField fields}
-                        class="form-select form-select-sm"
-                        aria-label="Xero account code"
-                        required={isNothing (selectedAccountCode view)}>
-                    <option value="">Choose account code</option>
-                    {forEach view.preparationPayItemAccountCodeOptions (renderAccountCodeOption (fromMaybe "" (selectedAccountCode view)))}
-                </select>
-            </div>
-        </section>
-    |]
+renderAccountCodeSelection :: XeroTimesheetPreparationView -> Html
+renderAccountCodeSelection view = [hsx|
+    <div>
+        <label class="form-label small fw-semibold" for="xero-preparation-submit-account-code">Account for new Xero pay items</label>
+        <select id="xero-preparation-submit-account-code"
+                form="xero-preparation-pay-items-form"
+                name={surfaceFieldNameFrom @AccountCodeField fields}
+                class="form-select"
+                aria-label="Xero account code"
+                required={isNothing (selectedAccountCode view)}>
+            <option value="">Choose account code</option>
+            {forEach view.preparationPayItemAccountCodeOptions (renderAccountCodeOption (fromMaybe "" (selectedAccountCode view)))}
+        </select>
+    </div>
+|]
     where
         fields =
             appShellActionFields @ApproveXeroTimesheetPreparationPayItemsOverlay
                 (surfaceOptionalField @AccountCodeField (selectedAccountCode view))
                 noSurfaceFields
-        proposedRows =
-            view.preparationPayItemRows
-                |> filter \row ->
-                    xeroPayItemRequirementIsProposed row.preparationPayItemRequirement.payItemRequirementStatus
 
-renderPayItemCreationRow :: XeroPreparationPayItemRow -> Html
-renderPayItemCreationRow row = [hsx|
-    <tr>
-        <td>{requirement.payItemRequirementName}</td>
-        <td>{fromMaybe "per employee ordinary rate" requirement.payItemRequirementValue}</td>
-        <td>{renderAppStatusBadge AppStatusNeutral "will be created"}</td>
-    </tr>
-|]
-    where
-        requirement = row.preparationPayItemRequirement
+renderExclusionWarnings :: XeroTimesheetPreparationView -> Html
+renderExclusionWarnings view =
+    forEach exclusionWarnings \warning -> [hsx|
+        <div class="alert alert-warning mb-0">{warning.timesheetIssueMessage}</div>
+    |]
+  where
+    exclusionWarnings =
+        view.preparationReadiness.timesheetReadinessWarnings
+            |> filter \warning -> warning.timesheetIssueCode `elem` ["entry_not_approved", "imported_pay_item_previous_connection", "staff_mapping_not_verified"]
+
+preparationBlockingMessage :: XeroTimesheetPreparationView -> Maybe Text
+preparationBlockingMessage view =
+    ((.timesheetIssueMessage) <$> listToMaybe actionableBlockers)
+        <|> (if view.preparationPostedPayRunBlocked then view.preparationRun.errorSummary else Nothing)
+  where
+    actionableBlockers =
+        view.preparationReadiness.timesheetReadinessBlockers
+            |> filter \blocker -> blocker.timesheetIssueCode `notElem` ["managed_pay_item_not_ready", "missing_pay_item_account_code"]
 
 renderAccountCodeOption :: Text -> XeroPayItemAccountCodeOption -> Html
 renderAccountCodeOption currentSelection option = [hsx|
