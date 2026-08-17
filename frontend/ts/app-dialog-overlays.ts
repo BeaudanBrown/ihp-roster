@@ -304,9 +304,10 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
 
         const mountEl = getMount();
         const wasBlocking = dialogEl.hasAttribute(dialogBlockingDomAttr);
-        if (wasBlocking && mountEl !== null) setBlockingBackgroundInert(mountEl, false);
-        const returnFocus = wasBlocking ? blockingDialogReturnFocus : null;
-        if (wasBlocking) blockingDialogReturnFocus = null;
+        const inheritedBlockingState = blockingBackgroundInertStates.size > 0;
+        if ((wasBlocking || inheritedBlockingState) && mountEl !== null) setBlockingBackgroundInert(mountEl, false);
+        const returnFocus = wasBlocking || inheritedBlockingState ? blockingDialogReturnFocus : null;
+        if (wasBlocking || inheritedBlockingState) blockingDialogReturnFocus = null;
         if (mountEl !== null && mountEl.contains(dialogEl)) {
             mountEl.innerHTML = "";
             syncDialogState();
@@ -322,6 +323,15 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
             });
         }
         syncDialogState();
+        if (returnFocus?.isConnected) returnFocus.focus();
+    }
+
+    function releaseInheritedBlockingStateWhenDialogAbsent(mountEl: HTMLElement): void {
+        if (getActiveDialog() !== null || blockingBackgroundInertStates.size === 0) return;
+
+        setBlockingBackgroundInert(mountEl, false);
+        const returnFocus = blockingDialogReturnFocus;
+        blockingDialogReturnFocus = null;
         if (returnFocus?.isConnected) returnFocus.focus();
     }
 
@@ -481,6 +491,7 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
 
         submitAutoFormsOnce(target);
         initializeKeyboardDialogs(target);
+        releaseInheritedBlockingStateWhenDialogAbsent(target);
 
         syncDialogState();
     });
@@ -492,6 +503,7 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
 
         submitAutoFormsOnce(target);
         initializeKeyboardDialogs(target);
+        releaseInheritedBlockingStateWhenDialogAbsent(target);
         syncDialogState();
     });
 

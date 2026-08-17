@@ -320,9 +320,10 @@
       dialogEl.dispatchEvent(new CustomEvent(dialogDismissedEvent, { bubbles: true }));
       const mountEl = getMount();
       const wasBlocking = dialogEl.hasAttribute(dialogBlockingDomAttr);
-      if (wasBlocking && mountEl !== null) setBlockingBackgroundInert(mountEl, false);
-      const returnFocus = wasBlocking ? blockingDialogReturnFocus : null;
-      if (wasBlocking) blockingDialogReturnFocus = null;
+      const inheritedBlockingState = blockingBackgroundInertStates.size > 0;
+      if ((wasBlocking || inheritedBlockingState) && mountEl !== null) setBlockingBackgroundInert(mountEl, false);
+      const returnFocus = wasBlocking || inheritedBlockingState ? blockingDialogReturnFocus : null;
+      if (wasBlocking || inheritedBlockingState) blockingDialogReturnFocus = null;
       if (mountEl !== null && mountEl.contains(dialogEl)) {
         mountEl.innerHTML = "";
         syncDialogState();
@@ -337,6 +338,13 @@
         });
       }
       syncDialogState();
+      if (returnFocus?.isConnected) returnFocus.focus();
+    }
+    function releaseInheritedBlockingStateWhenDialogAbsent(mountEl) {
+      if (getActiveDialog() !== null || blockingBackgroundInertStates.size === 0) return;
+      setBlockingBackgroundInert(mountEl, false);
+      const returnFocus = blockingDialogReturnFocus;
+      blockingDialogReturnFocus = null;
       if (returnFocus?.isConnected) returnFocus.focus();
     }
     function submitAutoFormsOnce(container) {
@@ -470,6 +478,7 @@
       if (target.id !== mountId) return;
       submitAutoFormsOnce(target);
       initializeKeyboardDialogs(target);
+      releaseInheritedBlockingStateWhenDialogAbsent(target);
       syncDialogState();
     });
     document.addEventListener("htmx:oobAfterSwap", function(event) {
@@ -478,6 +487,7 @@
       if (target.id !== mountId) return;
       submitAutoFormsOnce(target);
       initializeKeyboardDialogs(target);
+      releaseInheritedBlockingStateWhenDialogAbsent(target);
       syncDialogState();
     });
     window.addEventListener("pageshow", function(event) {

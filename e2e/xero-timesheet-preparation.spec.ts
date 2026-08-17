@@ -310,10 +310,44 @@ test.describe('Xero timesheet preparation', () => {
 
         await expect(dialog).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
         await expect(page.getByRole('heading', { name: 'Staff mappings' })).toBeVisible();
-        await expect(preparationDialog).toContainText('Step 1 of 3');
-        await expect(preparationDialog).toContainText('Confirm proposed staff matches');
-        const approveButton = page.getByRole('button', { name: 'Approve', exact: true });
-        await expect(approveButton).toBeVisible();
-        await expect(preparationDialog.getByRole('combobox', { name: /Xero employee for/ }).first()).toBeVisible();
+        await expect(preparationDialog).toContainText('Staff matches');
+        await expect(preparationDialog).toContainText('Confirm proposed matches');
+        await expect(preparationDialog).not.toContainText('Step 1 of');
+        const continueButton = page.getByRole('button', { name: 'Continue', exact: true });
+        await expect(continueButton).toBeVisible();
+        const firstSelection = preparationDialog.getByRole('combobox', { name: /Xero employee for/ }).first();
+        await expect(firstSelection).toBeVisible();
+        const firstStaffRow = firstSelection.locator('xpath=ancestor::tr');
+        const firstStaffName = (await firstStaffRow.locator('td').first().innerText()).trim();
+
+        await page.route('**/ApplyXeroTimesheetPreparationStaffDecision**', async (route) => {
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            await route.continue();
+        });
+        const saveResponsePromise = page.waitForResponse((response) =>
+            response.request().method() === 'POST' && response.url().includes('/ApplyXeroTimesheetPreparationStaffDecision')
+        );
+        await firstSelection.selectOption({ index: 0 });
+        await expect(dialog).not.toHaveAttribute('aria-busy', 'true');
+        const saveResponse = await saveResponsePromise;
+        expect(saveResponse.status()).toBe(200);
+        await expect(preparationDialog).toContainText(firstStaffName);
+        await expect(continueButton).toBeVisible();
+
+        await dialog.evaluate((activeDialog) => {
+            const mount = activeDialog.parentElement;
+            if (!(mount instanceof HTMLElement)) throw new Error('Missing dialog mount');
+            mount.replaceChildren();
+            document.dispatchEvent(new CustomEvent('htmx:oobAfterSwap', { detail: { target: mount } }));
+        });
+        await expect(dialog).toHaveCount(0);
+        await expect(page.locator('body > [inert]')).toHaveCount(0);
+        await expect(form.getByRole('button', { name: 'Upload timesheets' })).toBeEnabled();
+
+        await form.getByRole('button', { name: 'Upload timesheets' }).click();
+        await expect(page.locator('[data-xero-timesheet-preparation-dialog="true"]')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+        await dialog.click({ position: { x: 5, y: 5 } });
+        await expect(dialog).toHaveCount(0);
+        await expect(page.locator('body > [inert]')).toHaveCount(0);
     });
 });
