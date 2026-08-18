@@ -766,13 +766,14 @@ CREATE TABLE live_invalidation_event_resources (
     CHECK (octet_length(resource_key) <= 2048),
     CHECK (octet_length(resource_payload::TEXT) <= 8192)
 );
+-- Historical event headers are prunable; latest_event_id is opaque publication
+-- provenance while latest_event_sequence remains authority.
 CREATE TABLE live_resource_versions (
     resource_key TEXT PRIMARY KEY NOT NULL,
     resource_payload JSONB NOT NULL,
     latest_event_id UUID NOT NULL,
     latest_event_sequence INT NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (latest_event_id) REFERENCES live_invalidation_events (id) ON DELETE RESTRICT,
     CHECK (octet_length(resource_key) <= 2048),
     CHECK (octet_length(resource_payload::TEXT) <= 8192)
 );

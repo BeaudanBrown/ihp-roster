@@ -32,7 +32,7 @@ import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.Profiling (profileActionSpanWithDetail)
 import Application.Helper.SurfaceResource
 import qualified Control.Exception as Exception
-import Control.Monad (void)
+import Control.Monad (forM_)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
@@ -53,7 +53,7 @@ dispatchDurableInvalidationWithBus maybeBus eventSequence resources = do
     let touchedResources = Set.fromList (map (.durableResourceValue) resources)
     let expandedResources = expandSurfaceResourcesWithoutContext activeRosterScopes touchedResources
     let targets = planSurfaceInvalidationsWithoutContext expandedResources activeSubscriptions
-    void $ forM targets \target ->
+    forM_ targets \target ->
         maybe
             (broadcastLiveInvalidationAtVersion target.targetScope eventSequence Nothing target.targetFragments)
             (\bus -> broadcastLiveInvalidationAtVersionWithBus bus target.targetScope eventSequence Nothing target.targetFragments)

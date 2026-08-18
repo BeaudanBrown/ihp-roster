@@ -123,8 +123,8 @@ validWire wire value = case wire of
     Contract.WireDayIR -> maybe False (isJust . (parseTimeM True defaultTimeLocale "%F" :: String -> Maybe Day)) (cs <$> asText value)
     Contract.WireClosedIR {} -> isText value
     Contract.WireUnknownIR -> False
-    Contract.WireListIR child -> fromMaybe False (all (validWire child) <$> asArray value)
-    Contract.WireMapIR _ child -> fromMaybe False (all (validWire child) <$> asObjectValues value)
+    Contract.WireListIR child -> maybe False (all (validWire child)) (asArray value)
+    Contract.WireMapIR _ child -> maybe False (all (validWire child)) (asObjectValues value)
     Contract.WireOptionalIR child -> value == Aeson.Null || validWire child value
     Contract.WireNullableIR child -> value == Aeson.Null || validWire child value
     Contract.WireRefIR _ -> case value of Aeson.Object _ -> True; _ -> False

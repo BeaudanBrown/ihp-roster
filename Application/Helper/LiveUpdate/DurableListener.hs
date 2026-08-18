@@ -1,5 +1,7 @@
 module Application.Helper.LiveUpdate.DurableListener
-    ( readDurableEventsAfter
+    ( hydrateDurableStateFromConnection
+    , readDurableEventsAfter
+    , runDurableInvalidationListenerConnection
     , startDurableInvalidationListener
     ) where
 
@@ -25,7 +27,7 @@ startDurableInvalidationListener dispatch = do
     pure ()
   where
     supervise databaseUrl attempt = do
-        outcome <- Exception.try (runConnection databaseUrl) :: IO (Either Exception.SomeException ())
+        outcome <- Exception.try (runDurableInvalidationListenerConnection databaseUrl dispatch) :: IO (Either Exception.SomeException ())
         case outcome of
             Right () -> supervise databaseUrl 0
             Left _exception -> do
@@ -35,45 +37,52 @@ startDurableInvalidationListener dispatch = do
                 threadDelay delayMicros
                 supervise databaseUrl (attempt + 1)
 
-    runConnection databaseUrl = Exception.bracket (PG.connectPostgreSQL (cs databaseUrl)) PG.close \connection -> do
+runDurableInvalidationListenerConnection :: String -> (Int -> [DurableResource] -> IO ()) -> IO ()
+runDurableInvalidationListenerConnection databaseUrl dispatch =
+    Exception.bracket (PG.connectPostgreSQL (cs databaseUrl)) PG.close \connection -> do
         _ <- PG.execute_ connection "SET application_name = 'bepis-live-invalidation-listener'"
         _ <- PG.execute_ connection "LISTEN live_invalidation_events"
-        hydrated <- durableStateIsHydrated
-        cursor <- currentDurableCursor
-        if hydrated
-            then replayAfter connection cursor
-            else hydrateCurrentVersions connection
+        -- Rehydrate on every connection. A process may have been offline longer
+        -- than event retention, so replay history alone cannot restore versions.
+        wasHydrated <- durableStateIsHydrated
+        previousCursor <- currentDurableCursor
+        (hydratedCursor, hydratedResources) <- hydrateDurableStateFromConnection connection
+        when wasHydrated (replayAfter connection previousCursor)
+        -- Existing local subscriptions need an authoritative refresh even when
+        -- every missed event was already pruned. Duplicate delivery is safe.
+        when (wasHydrated && not (null hydratedResources)) (dispatch hydratedCursor hydratedResources)
         TextIO.putStrLn "[live-invalidation-listener] healthy=true"
         forever do
             _ <- Notification.getNotification connection
             currentDurableCursor >>= replayAfter connection
-
-    hydrateCurrentVersions connection = do
-        (versions, cursor) <- Transaction.withTransactionMode
-            (Transaction.TransactionMode Transaction.RepeatableRead Transaction.ReadOnly)
-            connection do
-                versions :: [(Text, Int)] <- PG.query_ connection "SELECT resource_key, latest_event_sequence FROM live_resource_versions"
-                cursorRows :: [PG.Only (Maybe Int)] <- PG.query_ connection "SELECT MAX(sequence_number) FROM live_invalidation_events"
-                let cursor = case cursorRows of [PG.Only value] -> fromMaybe 0 value; _ -> 0
-                pure (versions, cursor)
-        replaceDurableResourceVersions versions cursor
-        TextIO.putStrLn ("[live-invalidation-listener] hydrated=true cursor=" <> tshow cursor <> " resources=" <> tshow (length versions))
-
+  where
     replayAfter connection cursor = do
         events <- readDurableEventsDetailedAfter connection cursor
         forM_ events \event ->
             do
                 advanceDurableResourceVersions (map (\resource -> (resource.durableResourceKey, event.sequence)) event.resources) event.sequence
-                advanced <- advanceDurableListenerCursor event.sequence
-                when (advanced && not (null event.resources)) (dispatch event.sequence event.resources)
+                _ <- advanceDurableListenerCursor event.sequence
+                unless (null event.resources) (dispatch event.sequence event.resources)
                 now <- getCurrentTime
                 TextIO.putStrLn ("[live-invalidation-listener] event_id=" <> tshow event.eventId <> " cursor=" <> tshow event.sequence <> " lag_events=" <> tshow (length events - 1) <> " event_age_ms=" <> tshow (round (diffUTCTime now event.createdAt * 1000) :: Int) <> " resources=" <> tshow (length event.resources) <> " decode_failures=" <> tshow event.decodeFailureCount)
 
+hydrateDurableStateFromConnection :: PG.Connection -> IO (Int, [DurableResource])
+hydrateDurableStateFromConnection connection = do
+    rows :: [(Text, Aeson.Value, Int)] <- Transaction.withTransactionMode
+        (Transaction.TransactionMode Transaction.RepeatableRead Transaction.ReadOnly)
+        connection do
+            PG.query_ connection "SELECT resource_key, resource_payload, latest_event_sequence FROM live_resource_versions ORDER BY resource_key"
+    let decoded = partitionEithers (map (\(key, payload, _) -> decodeDurableResource key payload) rows)
+    let cursor = maximum (0 : map (\(_, _, eventSequence) -> eventSequence) rows)
+    replaceDurableResourceVersions (map (\(key, _, eventSequence) -> (key, eventSequence)) rows) cursor
+    TextIO.putStrLn ("[live-invalidation-listener] hydrated=true cursor=" <> tshow cursor <> " resources=" <> tshow (length (snd decoded)) <> " decode_failures=" <> tshow (length (fst decoded)))
+    pure (cursor, snd decoded)
+
 data DurableReadEvent = DurableReadEvent
-    { eventId   :: !UUID
-    , sequence  :: !Int
-    , createdAt :: !UTCTime
-    , resources :: ![DurableResource]
+    { eventId            :: !UUID
+    , sequence           :: !Int
+    , createdAt          :: !UTCTime
+    , resources          :: ![DurableResource]
     , decodeFailureCount :: !Int
     }
 

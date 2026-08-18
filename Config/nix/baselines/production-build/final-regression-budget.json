@@ -4,7 +4,7 @@
   "authority": "Stable production app-library and inventory regression ceilings; measured memory is opt-in and builder-specific",
   "app_library": {
     "self_size_bytes_max": 1073741824,
-    "module_count_max": 492,
+    "module_count_max": 494,
     "default_interface_bytes_max": 16777216,
     "interface_exceptions": [
       {
@@ -69,7 +69,7 @@
       }
     ],
     "required_artifacts": {
-      ".hi": { "count": 492, "bytes_max": 629145600 },
+      ".hi": { "count": 494, "bytes_max": 629145600 },
       ".a": { "count": 1 },
       ".conf": { "count": 1 },
       "[no extension]": { "count": 1 }
@@ -78,9 +78,9 @@
     "allowed_artifacts": [".hi", ".a", ".conf", "[no extension]"]
   },
   "production_inventory": {
-    "module_rows_max": 493,
+    "module_rows_max": 495,
     "dependency_packages_max": 42,
-    "executable_rows_max": 9,
+    "executable_rows_max": 10,
     "module_inventory": "../../production-module-inventory.tsv",
     "dependency_inventory": "../../production-package-dependency-inventory.tsv",
     "executable_inventory": "../../production-executable-inventory.tsv"

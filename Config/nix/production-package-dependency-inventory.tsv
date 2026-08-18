@@ -45,6 +45,7 @@ Data.Functor	base	Web/Controller/Admin/Support.hs via Main
 Data.HashMap.Strict	unordered-containers	Application/Helper/Telemetry.hs via Main
 Data.Hourglass	hourglass	Web/Controller/Auth.hs via Main
 Data.IORef	base	Application/Helper/Profiling.hs via Main
+Data.Int	base	Application/Helper/LiveUpdate/OutboxPruning.hs via Application.Script.LiveInvalidationOutboxPrune
 Data.Kind	base	Application/Helper/FrontendContract/Surface/Request.hs via Main
 Data.List	base	Application/Helper/Profiling.hs via Main
 Data.List.NonEmpty	base	Web/Controller/Auth.hs via Main

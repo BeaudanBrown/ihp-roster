@@ -4,27 +4,37 @@ module Test.DurableLiveInvalidationSpec where
 
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import qualified Application.Helper.FrontendContract.Surface.Admin.Resource as AdminResource
+import qualified Application.Helper.FrontendContract.Surface.Support.Resource as SupportResource
 import Application.Helper.LiveUpdate.DurableCodec (DurableResource (..),
                                                    encodeDurableResource)
-import Application.Helper.LiveUpdate.DurableListener (readDurableEventsAfter)
+import Application.Helper.LiveUpdate.DurableListener (hydrateDurableStateFromConnection,
+                                                      readDurableEventsAfter,
+                                                      runDurableInvalidationListenerConnection)
 import Application.Helper.LiveUpdate.DurablePublisher (DurablePublication (..),
                                                        publishDurableInvalidation)
-import Application.Helper.LiveUpdate.DurableState (currentDurableDependencyWatermark,
+import Application.Helper.LiveUpdate.DurableState (currentDurableCursor,
+                                                   currentDurableDependencyWatermark,
                                                    fetchDurableDependencyWatermark,
                                                    replaceDurableResourceVersions)
+import Application.Helper.LiveUpdate.OutboxPruning
 import Application.Helper.LiveUpdate.Runtime (SurfaceSubscription (..),
                                               currentLiveUpdateVersionWithBus,
                                               newInMemoryLiveBus,
                                               registerSurfaceSubscriptionWithBus,
                                               surfaceScopeKey)
-import Control.Concurrent.Async (concurrently)
+import Control.Concurrent.Async (concurrently, withAsync)
+import Control.Concurrent.Chan (newChan, readChan, writeChan)
 import qualified Control.Exception as Exception
+import qualified Data.ByteString as ByteString
 import qualified Data.Set as Set
+import Data.Time.Calendar (fromGregorian)
+import Data.Time.Clock (UTCTime (..), addUTCTime, diffUTCTime)
 import Data.UUID (UUID, nil)
 import Database.PostgreSQL.Simple (Only (..))
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Notification as PGNotification
-import IHP.ModelSupport (sqlExec, sqlQueryScalar, withTransaction)
+import Database.PostgreSQL.Simple.Types (Query (..))
+import IHP.ModelSupport (sqlExec, sqlQuery, sqlQueryScalar, withTransaction)
 import IHP.Prelude
 import IHP.Test.Mocking (withContext)
 import System.Environment (getEnv)
@@ -165,3 +175,134 @@ tests =
                     resourceCount `shouldBe` 0
                     versionCount `shouldBe` 0
                     currentDurableDependencyWatermark subscription `shouldReturn` 0
+
+        describe "Durable live invalidation outbox pruning" do
+            it "prunes only events before the retention boundary, cascades children, and retains version authority" $ withContext do
+                withCleanDb do
+                    let now = pruningTestNow
+                    let retentionSeconds = 7 * 24 * 60 * 60
+                    let cutoff = addUTCTime (negate (fromIntegral retentionSeconds)) now
+                    let expiredResource = AdminResource.adminVenueSettingsResource nil
+                    expired <- publishDurableInvalidation "test.prune.expired" (Set.singleton expiredResource)
+                    boundary <- publishDurableInvalidation "test.prune.boundary" (Set.singleton SupportResource.supportAwardRatesResource)
+                    fresh <- publishDurableInvalidation "test.prune.fresh" (Set.singleton SupportResource.supportPublicHolidaysResource)
+                    sqlExec "UPDATE live_invalidation_events SET created_at = ? WHERE id = ?" (addUTCTime (-1) cutoff, expired.durablePublicationEventId)
+                    sqlExec "UPDATE live_invalidation_events SET created_at = ? WHERE id = ?" (cutoff, boundary.durablePublicationEventId)
+                    sqlExec "UPDATE live_invalidation_events SET created_at = ? WHERE id = ?" (addUTCTime 1 cutoff, fresh.durablePublicationEventId)
+
+                    summary <- pruneExpiredLiveInvalidationOutboxAt now defaultLiveInvalidationOutboxPruneConfig { batchSize = 1 }
+
+                    remainingSources :: [Only Text] <- sqlQuery "SELECT source FROM live_invalidation_events ORDER BY sequence_number" ()
+                    remainingSources `shouldBe` [Only "test.prune.boundary", Only "test.prune.fresh"]
+                    expiredChildCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_event_resources WHERE event_id = ?" (Only expired.durablePublicationEventId)
+                    expiredVersionEventId :: UUID <- sqlQueryScalar "SELECT latest_event_id FROM live_resource_versions WHERE latest_event_sequence = ?" (Only expired.durablePublicationEventSequence)
+                    expiredChildCount `shouldBe` 0
+                    expiredVersionEventId `shouldBe` expired.durablePublicationEventId
+                    summary.deletedEventCount `shouldBe` 1
+                    summary.completedBatchCount `shouldBe` 1
+                    summary.remainingExpiredEventCount `shouldBe` 0
+                    summary.eventCount `shouldBe` 2
+                    summary.eventResourceCount `shouldBe` 2
+                    summary.resourceVersionCount `shouldBe` 3
+                    summary.oldestEventCreatedAt `shouldSatisfy` maybe False (\observed -> abs (diffUTCTime observed cutoff) < 0.000001)
+                    summary.eventTableSizeBytes `shouldSatisfy` (> 0)
+                    summary.eventResourceTableSizeBytes `shouldSatisfy` (> 0)
+                    summary.resourceVersionTableSizeBytes `shouldSatisfy` (> 0)
+
+                    let scope = AdminLive.adminVenueConfigLiveScope nil
+                    let subscription = SurfaceSubscription
+                            { subscriptionScope = scope
+                            , subscriptionScopeKey = surfaceScopeKey scope
+                            , subscriptionFragmentKeys = [AdminLive.adminVenueSettingsLiveFragment]
+                            , subscriptionRenderedDependencyWatermark = 0
+                            }
+                    databaseUrl <- getEnv "DATABASE_URL"
+                    Exception.bracket_
+                        (pure ())
+                        (replaceDurableResourceVersions [] 0)
+                        (Exception.bracket (PG.connectPostgreSQL (cs databaseUrl)) PG.close \connection -> do
+                            replaceDurableResourceVersions [] 0
+                            (hydratedCursor, hydratedResources) <- hydrateDurableStateFromConnection connection
+                            hydratedCursor `shouldBe` fresh.durablePublicationEventSequence
+                            map (.durableResourceValue) hydratedResources `shouldContain` [expiredResource]
+                            currentDurableDependencyWatermark subscription `shouldReturn` expired.durablePublicationEventSequence
+                            currentDurableCursor `shouldReturn` fresh.durablePublicationEventSequence)
+                    fetchDurableDependencyWatermark subscription `shouldReturn` expired.durablePublicationEventSequence
+
+            it "deletes large expired sets through multiple bounded batches" $ withContext do
+                withCleanDb do
+                    let now = pruningTestNow
+                    let resource = AdminResource.adminVenueSettingsResource nil
+                    publications <- forM [1 .. 5 :: Int] \index ->
+                        publishDurableInvalidation ("test.prune.batch." <> tshow index) (Set.singleton resource)
+                    sqlExec "UPDATE live_invalidation_events SET created_at = ?" (Only (addUTCTime (negate (8 * 24 * 60 * 60)) now))
+
+                    summary <- pruneExpiredLiveInvalidationOutboxAt now defaultLiveInvalidationOutboxPruneConfig { batchSize = 2 }
+
+                    summary.deletedEventCount `shouldBe` length publications
+                    summary.completedBatchCount `shouldBe` 3
+                    summary.remainingExpiredEventCount `shouldBe` 0
+                    summary.eventCount `shouldBe` 0
+                    summary.eventResourceCount `shouldBe` 0
+                    summary.resourceVersionCount `shouldBe` 1
+
+            it "upgrades the deployed version foreign key without losing version authority" $ withContext do
+                withCleanDb do
+                    publication <- publishDurableInvalidation "test.prune.migration" (Set.singleton (AdminResource.adminVenueSettingsResource nil))
+                    databaseUrl <- getEnv "DATABASE_URL"
+                    migrationSql <- ByteString.readFile "Application/Migration/1788001100.sql"
+                    Exception.bracket (PG.connectPostgreSQL (cs databaseUrl)) PG.close \connection -> do
+                        _ <- PG.execute_ connection "ALTER TABLE live_resource_versions ADD CONSTRAINT live_resource_versions_latest_event_id_fkey FOREIGN KEY (latest_event_id) REFERENCES live_invalidation_events (id) ON DELETE RESTRICT"
+                        _ <- PG.execute_ connection (Query migrationSql)
+                        _ <- PG.execute connection "DELETE FROM live_invalidation_events WHERE id = ?" (Only publication.durablePublicationEventId)
+                        pure ()
+                    versionCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_resource_versions WHERE latest_event_id = ?" (Only publication.durablePublicationEventId)
+                    eventCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_events WHERE id = ?" (Only publication.durablePublicationEventId)
+                    versionCount `shouldBe` 1
+                    eventCount `shouldBe` 0
+
+            it "dispatches current authority after reconnect when missed events were pruned" $ withContext do
+                withCleanDb do
+                    let resource = AdminResource.adminVenueSettingsResource nil
+                    initial <- publishDurableInvalidation "test.prune.reconnect.initial" (Set.singleton resource)
+                    sqlExec "UPDATE live_invalidation_events SET created_at = ? WHERE id = ?" (pruningTestNow, initial.durablePublicationEventId)
+                    databaseUrl <- getEnv "DATABASE_URL"
+                    Exception.bracket (PG.connectPostgreSQL (cs databaseUrl)) PG.close hydrateDurableStateFromConnection
+                    let scope = AdminLive.adminVenueConfigLiveScope nil
+                    let subscription = SurfaceSubscription
+                            { subscriptionScope = scope
+                            , subscriptionScopeKey = surfaceScopeKey scope
+                            , subscriptionFragmentKeys = [AdminLive.adminVenueSettingsLiveFragment]
+                            , subscriptionRenderedDependencyWatermark = initial.durablePublicationEventSequence
+                            }
+                    bus <- newInMemoryLiveBus
+                    registerSurfaceSubscriptionWithBus bus nil subscription (error "closed test websocket")
+                    firstDispatches <- newChan
+                    let firstDispatch eventSequence _resources =
+                            writeChan firstDispatches eventSequence
+
+                    withAsync (runDurableInvalidationListenerConnection databaseUrl firstDispatch) \_ -> do
+                        timeout 2000000 (readChan firstDispatches) `shouldReturn` Just initial.durablePublicationEventSequence
+
+                    missed <- publishDurableInvalidation "test.prune.reconnect.missed" (Set.singleton resource)
+                    sqlExec "UPDATE live_invalidation_events SET created_at = ? WHERE id = ?" (addUTCTime (negate (8 * 24 * 60 * 60)) pruningTestNow, missed.durablePublicationEventId)
+                    _ <- pruneExpiredLiveInvalidationOutboxAt pruningTestNow defaultLiveInvalidationOutboxPruneConfig
+
+                    recoveredDispatches <- newChan
+                    let recoveredDispatch eventSequence resources = do
+                            dispatchDurableInvalidationWithBus (Just bus) eventSequence resources
+                            writeChan recoveredDispatches eventSequence
+                    withAsync (runDurableInvalidationListenerConnection databaseUrl recoveredDispatch) \_ -> do
+                        timeout 2000000 (readChan recoveredDispatches) `shouldReturn` Just missed.durablePublicationEventSequence
+                        currentLiveUpdateVersionWithBus bus scope `shouldReturn` missed.durablePublicationEventSequence
+                        fetchDurableDependencyWatermark subscription `shouldReturn` missed.durablePublicationEventSequence
+
+            it "rejects retention below seven days and batches above 1000" $ withContext do
+                withCleanDb do
+                    let unsafeRetention = defaultLiveInvalidationOutboxPruneConfig { retentionSeconds = 6 * 24 * 60 * 60 }
+                    let unsafeBatch = defaultLiveInvalidationOutboxPruneConfig { batchSize = 1001 }
+                    pruneExpiredLiveInvalidationOutboxAt pruningTestNow unsafeRetention `shouldThrow` anyException
+                    pruneExpiredLiveInvalidationOutboxAt pruningTestNow unsafeBatch `shouldThrow` anyException
+
+pruningTestNow :: UTCTime
+pruningTestNow = UTCTime (fromGregorian 2026 8 18) 0

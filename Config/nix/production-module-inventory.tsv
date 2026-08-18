@@ -220,6 +220,7 @@ Application/Helper/LiveUpdate/DurableListener.hs	production	runtime	Main	Reachab
 Application/Helper/LiveUpdate/DurablePublisher.hs	production	runtime	Main	Reachable from Main
 Application/Helper/LiveUpdate/DurableState.hs	production	runtime	Main	Reachable from Main
 Application/Helper/LiveUpdate/Internal.hs	production	runtime	Main	Reachable from Main
+Application/Helper/LiveUpdate/OutboxPruning.hs	production	operational-script-closure	Application.Script.LiveInvalidationOutboxPrune	Reachable from Application.Script.LiveInvalidationOutboxPrune
 Application/Helper/LiveUpdate/Runtime.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Mail.hs	production	runtime	Main	Reachable from Main
 Application/Helper/OpaqueToken.hs	production	runtime	Main	Reachable from Main
@@ -300,6 +301,7 @@ Application/Script/FwcMapdRefreshSweep.hs	production	operational-script-closure	
 Application/Script/GenerateBepisArchitectureContracts.hs	development	architecture-generator	-	Repository architecture generation only; runnable from the development shell
 Application/Script/GenerateFrontendContracts.hs	development	contract-generator	-	Checked frontend contract generation only; runnable from the development shell
 Application/Script/GenerateFrontendSurfaceAdapters.hs	development	contract-generator	-	Checked Haskell adapter generation only; runnable from the development shell
+Application/Script/LiveInvalidationOutboxPrune.hs	production	operational-script-closure	Application.Script.LiveInvalidationOutboxPrune	Reachable from Application.Script.LiveInvalidationOutboxPrune
 Application/Script/Prelude.hs	production	operational-script-closure	Application.Script.BackfillTimesheetPayLedger	Reachable from Application.Script.BackfillTimesheetPayLedger
 Application/Script/ProfileLiveInvalidation.hs	development	performance-probe	-	Low-rate profiling probe only; runnable from the development shell
 Application/Script/PublicHolidayRefreshSweep.hs	production	operational-script-closure	Application.Script.PublicHolidayRefreshSweep	Reachable from Application.Script.PublicHolidayRefreshSweep

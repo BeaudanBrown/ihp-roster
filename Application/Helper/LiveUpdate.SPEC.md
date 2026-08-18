@@ -97,13 +97,28 @@ forms, dialogs/pickers/toasts, navigation swaps, autosave controls, and one-off
 HTMX snippets do not become regions without a typed Haskell fragment contract.
 TypeScript does not infer regions from routes, targets, classes, or names.
 
+## Durable Handoff And Retention
+
+PostgreSQL is cross-process freshness authority. Each sequential compatibility
+publication persists one ordered event, deduplicated typed resource children,
+and monotonic current resource versions before transactional notification. App
+processes retain only local subscriptions and sockets; listeners replay durable
+events into their local `LiveBus`.
+
+Event replay history is retained for at least seven days and pruned in bounded,
+oldest-first transactions. Resource children cascade with event deletion, while
+`live_resource_versions` remains indefinitely and its latest event ID is opaque
+provenance rather than a foreign key. Every listener connection rehydrates those
+versions before replay, so an outage longer than retention still detects stale
+rendered dependencies and causes authoritative fragment refetching. See
+`docs/runbooks/live-invalidation-outbox-pruning.md` for deployment and recovery.
+
 ## LiveBus Contract
 
 The `LiveBus` interface exported by `Application.Helper.LiveUpdate.Runtime` owns
-subscriptions, monotonically increasing versions per scope, active-scope
-discovery, and key-only broadcasts.
-The current in-memory implementation may be replaced, but distributed transports
-must preserve those semantics and server-side authorization.
+process-local subscriptions, monotonically increasing versions per scope,
+active-scope discovery, and key-only broadcasts. Distributed durability must
+preserve those semantics and server-side authorization.
 
 ## Extension Rules
 

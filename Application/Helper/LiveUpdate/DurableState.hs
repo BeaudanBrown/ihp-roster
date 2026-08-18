@@ -34,8 +34,7 @@ replaceDurableResourceVersions :: [(Text, Int)] -> Int -> IO ()
 replaceDurableResourceVersions versions cursor =
     writeIORef durableStateRef DurableState { resourceVersions = Map.fromList versions, cursor, hydrated = True }
 
--- Publication may update local freshness immediately, but only ordered listener
--- replay advances the listener cursor.
+-- Ordered listener replay advances resource freshness before its cursor.
 advanceDurableResourceVersions :: [(Text, Int)] -> Int -> IO ()
 advanceDurableResourceVersions versions eventSequence =
     atomicModifyIORef' durableStateRef \state ->
@@ -52,11 +51,11 @@ advanceDurableListenerCursor eventSequence =
             then (state, False)
             else (state { cursor = eventSequence }, True)
 
-durableStateIsHydrated :: IO Bool
-durableStateIsHydrated = (.hydrated) <$> readIORef durableStateRef
-
 currentDurableCursor :: IO Int
 currentDurableCursor = (.cursor) <$> readIORef durableStateRef
+
+durableStateIsHydrated :: IO Bool
+durableStateIsHydrated = (.hydrated) <$> readIORef durableStateRef
 
 fetchDurableDependencyWatermark :: (?modelContext :: ModelContext) => SurfaceSubscription -> IO Int
 fetchDurableDependencyWatermark subscription = do

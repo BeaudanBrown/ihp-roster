@@ -67,6 +67,9 @@ nix eval --impure --json --file Config/nix/tests/wage-cutover-module.nix >/dev/n
 echo "verify-full: FWC MAPD refresh cadence"
 nix eval --impure --json --file Config/nix/tests/fwc-mapd-refresh-module.nix >/dev/null
 
+echo "verify-full: live-invalidation outbox pruning deployment"
+nix eval --impure --json --file Config/nix/tests/live-invalidation-outbox-pruning-module.nix >/dev/null
+
 echo "verify-full: E2E PostgreSQL lifecycle preflight"
 e2e-postgres-lifecycle-test
 

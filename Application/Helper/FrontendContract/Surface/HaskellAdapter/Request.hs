@@ -388,7 +388,7 @@ renderRequestImports renderer aliases adapters =
     isOperationLocal adapter =
         adapter.renderableAdapterPayload.surfaceRequestDeclarationEvidenceMode == OperationLocalRequestEvidence
     hasOperationLocal = any isOperationLocal adapters
-    hasWholeSurface = any (not . isOperationLocal) adapters
+    hasWholeSurface = not (all isOperationLocal adapters)
     builderAdapters = filter (hasGeneratedOperation (.surfaceAdapterFieldsBuilderOperation)) adapters
     emptyBuilderAdapters = filter (null . (.renderableAdapterFields)) builderAdapters
     nonEmptyBuilderAdapters = filter (not . null . (.renderableAdapterFields)) builderAdapters
@@ -398,11 +398,11 @@ renderRequestImports renderer aliases adapters =
     hasMetadata = not (null metadataAdapters)
     hasParser = not (null parserAdapters)
     hasOperationLocalParser = any isOperationLocal parserAdapters
-    hasWholeSurfaceParser = any (not . isOperationLocal) parserAdapters
+    hasWholeSurfaceParser = not (all isOperationLocal parserAdapters)
     presentAdapters = filter (hasGeneratedOperation (.surfaceAdapterParamsPresentOperation)) adapters
     hasOperationLocalPresence = any isOperationLocal presentAdapters
     hasOperationLocalMetadata = any isOperationLocal metadataAdapters
-    hasWholeSurfaceMetadata = any (not . isOperationLocal) metadataAdapters
+    hasWholeSurfaceMetadata = not (all isOperationLocal metadataAdapters)
     valueImports =
         List.sort
             ( List.nub
@@ -416,7 +416,7 @@ renderRequestImports renderer aliases adapters =
                     <> [renderer.requestAdapterEmptyFields | not (null emptyBuilderAdapters) && hasWholeSurface]
                     <> [renderer.requestAdapterOperationEmpty | any (\adapter -> isOperationLocal adapter && null adapter.renderableAdapterFields) builderAdapters]
                     <> (if null nonEmptyBuilderAdapters then [] else ["noSurfaceFields"])
-                    <> [renderer.requestAdapterBindFields | any (not . isOperationLocal) nonEmptyBuilderAdapters]
+                    <> [renderer.requestAdapterBindFields | not (all isOperationLocal nonEmptyBuilderAdapters)]
                     <> [renderer.requestAdapterOperationBind | any isOperationLocal nonEmptyBuilderAdapters]
                     <> ["surfaceField" | any ((== RequiredField) . (.fieldPresence) . (.resolvedAdapterFieldIR)) builderFields]
                     <> ["surfaceNullableField" | any ((== NullableFieldPresence) . (.fieldPresence) . (.resolvedAdapterFieldIR)) builderFields]
@@ -598,7 +598,7 @@ renderPromotedFieldList :: Map.Map Text Text -> [ResolvedAdapterField] -> [Text]
 renderPromotedFieldList _ [] = ["    '[]"]
 renderPromotedFieldList aliases (first : rest) =
     ["    '[ " <> renderPromotedField aliases first]
-        <> map ("     , " <>) (map (renderPromotedField aliases) rest)
+        <> map (("     , " <>) . renderPromotedField aliases) rest
         <> ["     ]"]
 
 renderPromotedField :: Map.Map Text Text -> ResolvedAdapterField -> Text

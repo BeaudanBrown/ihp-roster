@@ -107,5 +107,6 @@ done <<< "$expected"
 nix eval --impure --json --file Config/nix/tests/wage-cutover-module.nix >/dev/null
 nix eval --impure --json --file Config/nix/tests/billing-stripe-module.nix >/dev/null
 nix eval --impure --json --file Config/nix/tests/fwc-mapd-refresh-module.nix >/dev/null
+nix eval --impure --json --file Config/nix/tests/live-invalidation-outbox-pruning-module.nix >/dev/null
 
 echo "production-package-smoke: ok ($(printf '%s\n' "$expected" | wc -l) packaged executables)"
