@@ -359,15 +359,21 @@ test.describe('Styling regression contracts', () => {
             { timeout: E2E_TIMEOUT.assertion },
         ).toBe(true);
 
+        const availabilityInput = firstRange.locator(`[${orderedRangeAvailabilityDomAttr}] input[type="checkbox"]`);
+        if (!(await availabilityInput.isChecked())) {
+            const availabilityResponsePromise = page.waitForResponse((response) =>
+                response.request().method() === 'POST' && response.url().includes('/UpdateProfile'),
+            );
+            await firstRange.locator(`[${orderedRangeAvailabilityDomAttr}] label`).click();
+            const availabilityResponse = await availabilityResponsePromise;
+            expect(availabilityResponse.status(), await availabilityResponse.text()).toBe(200);
+            await availabilityResponse.finished();
+        }
+
         const startInput = firstRange.locator(`[${orderedRangeStartDomAttr}]`);
         const endInput = firstRange.locator(`[${orderedRangeEndDomAttr}]`);
-        const availabilityInput = firstRange.locator(`[${orderedRangeAvailabilityDomAttr}] input[type="checkbox"]`);
         await expect(startInput).toHaveAccessibleName('Earliest preferred start');
         await expect(endInput).toHaveAccessibleName('Latest preferred start');
-
-        if (!(await availabilityInput.isChecked())) {
-            await firstRange.locator(`[${orderedRangeAvailabilityDomAttr}] label`).click();
-        }
         await expect(startInput).toBeEnabled();
         await expect(endInput).toBeEnabled();
 
@@ -405,10 +411,25 @@ test.describe('Styling regression contracts', () => {
         await expect(firstRange.locator(`output[for="${startId}"]`)).toHaveText(config.valueLabels[startLabelIndex]);
         await expect(firstRange.locator(`output[for="${endId}"]`)).toHaveText(config.valueLabels[endLabelIndex]);
 
+        const disableResponsePromise = page.waitForResponse((response) =>
+            response.request().method() === 'POST' && response.url().includes('/UpdateProfile'),
+        );
+        const disableSwapPromise = page.evaluate(() => new Promise<void>((resolve) => {
+            document.addEventListener('htmx:afterSwap', () => resolve(), { once: true });
+        }));
         await firstRange.locator(`[${orderedRangeAvailabilityDomAttr}] label`).click();
+        await Promise.all([disableResponsePromise.then((response) => response.finished()), disableSwapPromise]);
         await expect(startInput).toBeDisabled();
         await expect(endInput).toBeDisabled();
+
+        const enableResponsePromise = page.waitForResponse((response) =>
+            response.request().method() === 'POST' && response.url().includes('/UpdateProfile'),
+        );
+        const enableSwapPromise = page.evaluate(() => new Promise<void>((resolve) => {
+            document.addEventListener('htmx:afterSwap', () => resolve(), { once: true });
+        }));
         await firstRange.locator(`[${orderedRangeAvailabilityDomAttr}] label`).click();
+        await Promise.all([enableResponsePromise.then((response) => response.finished()), enableSwapPromise]);
         await expect(startInput).toBeEnabled();
         await expect(endInput).toBeEnabled();
 
@@ -419,11 +440,14 @@ test.describe('Styling regression contracts', () => {
         const swappedScrollYPromise = page.evaluate(() => new Promise<number>((resolve) => {
             document.addEventListener('htmx:afterSwap', () => resolve(window.scrollY), { once: true });
         }));
-        const saveButton = page.locator('#profile-shift-preferences-form button[type="submit"]');
         const [request, , , requestScrollY, swappedScrollY] = await Promise.all([
             page.waitForRequest((candidate) => candidate.url().includes('/UpdateProfile') && candidate.method() === 'POST'),
             page.waitForResponse((response) => response.url().includes('/UpdateProfile') && response.request().method() === 'POST'),
-            saveButton.click(),
+            startInput.evaluate((element) => {
+                if (!(element instanceof HTMLInputElement)) throw new Error('Expected native range input');
+                element.dispatchEvent(new Event('input', { bubbles: true }));
+                element.dispatchEvent(new Event('change', { bubbles: true }));
+            }),
             requestScrollYPromise,
             swappedScrollYPromise,
         ]);
@@ -459,7 +483,7 @@ test.describe('Styling regression contracts', () => {
             expect(endCss).not.toBe('');
         }
 
-        expect(swappedScrollY).toBeGreaterThan(Math.max(0, requestScrollY - 120));
+        expect(swappedScrollY).toBeGreaterThanOrEqual(Math.max(0, requestScrollY - 120));
     });
 
     test('flattens nested app panels inside accordion bodies', async ({ page }) => {

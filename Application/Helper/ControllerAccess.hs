@@ -257,10 +257,6 @@ ensureFreshPasskeyReadyFor redirectPath = do
             redirectTo PasskeySetupAction
         else ensureFreshPasskeyVerifiedFor redirectPath
 
-ensureFreshPasskeyVerified :: (?context :: ControllerContext, ?request :: Request) => IO ()
-ensureFreshPasskeyVerified =
-    ensureFreshPasskeyVerifiedFor currentRequestPath
-
 ensureFreshPasskeyVerifiedFor :: (?context :: ControllerContext) => Text -> IO ()
 ensureFreshPasskeyVerifiedFor redirectPath = do
     verified <- isCurrentUserPasskeyVerified

@@ -154,6 +154,14 @@ tests =
                     eventCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_events" ()
                     resourceCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_event_resources" ()
                     versionCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_resource_versions" ()
+                    let scope = AdminLive.adminVenueConfigLiveScope nil
+                    let subscription = SurfaceSubscription
+                            { subscriptionScope = scope
+                            , subscriptionScopeKey = surfaceScopeKey scope
+                            , subscriptionFragmentKeys = [AdminLive.adminVenueSettingsLiveFragment]
+                            , subscriptionRenderedDependencyWatermark = 0
+                            }
                     eventCount `shouldBe` 0
                     resourceCount `shouldBe` 0
                     versionCount `shouldBe` 0
+                    currentDurableDependencyWatermark subscription `shouldReturn` 0

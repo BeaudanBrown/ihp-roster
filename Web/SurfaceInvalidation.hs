@@ -11,7 +11,6 @@ module Web.SurfaceInvalidation
     , invalidateTouchedResources
     , publishTouchedResourcesWithoutContext
     , liveInvalidationProfile
-    , performSurfaceInvalidationTarget
     , performSurfaceInvalidationTargetWithoutContext
     , planSurfaceInvalidations
     , planSurfaceInvalidationsWithoutContext
@@ -68,9 +67,6 @@ planSurfaceInvalidations = planSurfaceInvalidationsWithoutContext
 
 planSurfaceInvalidationsWithoutContext :: Set.Set SurfaceResourceValue -> [SurfaceSubscription] -> [SurfaceInvalidationTarget]
 planSurfaceInvalidationsWithoutContext = planFrontendSurfaceInvalidations
-
-performSurfaceInvalidationTarget :: (?context :: ControllerContext, ?request :: Request) => SurfaceInvalidationTarget -> IO LiveUpdateBroadcastResult
-performSurfaceInvalidationTarget target = broadcastLiveInvalidationDetailed target.targetScope liveUpdateSourceClientId target.targetFragments
 
 performSurfaceInvalidationTargetWithoutContext :: SurfaceInvalidationTarget -> IO LiveUpdateBroadcastResult
 performSurfaceInvalidationTargetWithoutContext target = broadcastLiveInvalidationDetailedWithoutContext target.targetScope Nothing target.targetFragments

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
-import { gotoWhenReady, loginAsPrivilegedUserWithSeededPasskeySession, runSql, webauthnBaseURL } from './test-helpers';
+import { gotoWhenReady, loginAsPrivilegedUserWithSeededPasskeySession, runSql, waitForLiveRecovery, webauthnBaseURL } from './test-helpers';
 
 test.use({ baseURL: webauthnBaseURL });
 
@@ -171,6 +171,7 @@ test.describe('Xero pay-item import live waiting', () => {
         await expect(waitingDialog).toContainText('Fetching Xero earnings rates');
         await expect(waitingDialog).toContainText('Completed page 5');
         await expect(waitingDialog.locator('[hx-trigger*="delay"]')).toHaveCount(0);
+        await waitForLiveRecovery(page);
         expect(importRequests).toEqual(['GET /OpenXeroPayItemImport']);
 
         runSql(`

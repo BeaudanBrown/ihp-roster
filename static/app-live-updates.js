@@ -1206,6 +1206,7 @@
       if (!subscription) return;
       versions.set(scopeKey, message.currentVersion);
       if (message.resync) subscription.resync(subscription);
+      diagnostics.emitDebugEvent("subscription_acknowledged", { scopeKey, resync: message.resync });
     }
     function handleInvalidateMessage(message) {
       if (liveUpdateInvalidationIsOwnEcho(message.sourceClientId, activeClientId())) return;

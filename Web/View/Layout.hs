@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeApplications #-}
 
-module Web.View.Layout (defaultLayout, Html) where
+module Web.View.Layout (defaultLayout, developmentLiveReloadWebsocketUrlForHost, Html) where
 
 import Application.Billing.Stripe (StripeOwnerNavigationVisibility (..))
 import Application.Helper.Controller (EffectiveUser (..),
@@ -20,9 +20,10 @@ import Application.Helper.View
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import Generated.Types
-import IHP.ControllerSupport (getHeader, getRequestPathAndQuery)
+import IHP.ControllerSupport (getRequestPathAndQuery)
 import IHP.Environment
 import IHP.ViewPrelude
+import qualified Network.Wai as Wai
 import qualified Text.Blaze.Html5 as Html5
 import Web.Routes
 import Web.Types
@@ -372,12 +373,16 @@ devScripts = [hsx|
 
 developmentLiveReloadWebsocketUrl :: (?request :: Request) => Text
 developmentLiveReloadWebsocketUrl =
-    case requestHost of
+    developmentLiveReloadWebsocketUrlForHost liveReloadWebsocketUrl (Wai.requestHeaderHost ?request)
+
+developmentLiveReloadWebsocketUrlForHost :: Text -> Maybe ByteString -> Text
+developmentLiveReloadWebsocketUrlForHost fallbackUrl requestHost =
+    case normalizedRequestHost of
         Just "dev.bepis.lol" -> "wss://dev.bepis.lol/__ihp-livereload"
-        _                    -> liveReloadWebsocketUrl
+        _                    -> fallbackUrl
   where
-    requestHost =
-        getHeader "Host"
+    normalizedRequestHost =
+        requestHost
             |> fmap (Text.takeWhile (/= ':') . Text.toCaseFold . TextEncoding.decodeUtf8)
 
 isPublicLegalPage :: (?context :: ControllerContext, ?request :: Request) => Bool

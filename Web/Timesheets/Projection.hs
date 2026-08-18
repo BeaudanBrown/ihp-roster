@@ -17,7 +17,6 @@ module Web.Timesheets.Projection
     , renderTimesheetProjectionFragment
     , renderTimesheetProjectionFragmentFromProjection
     , renderTimesheetWeekProjectionFragment
-    , timesheetDayOffset
     , timesheetDayRenderModelFromProjection
     , timesheetIndexView
     , parseApproveTimesheetEntryState
@@ -57,7 +56,7 @@ import Application.VenueTime.Model
 import Control.Monad (guard)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Data.Time.Calendar (Day, addDays, diffDays)
+import Data.Time.Calendar (Day, addDays)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
@@ -606,11 +605,6 @@ currentTimesheetWeekOffset = do
     venueConfig <- fetchVenueConfig
     today <- utctDay <$> getCurrentTime
     pure (venueWeekOffsetForDay venueConfig today)
-
-timesheetDayOffset :: Day -> Day -> Int
-timesheetDayOffset weekStartDate workedOn = fromInteger (diffDays workedOn weekStartDate)
-
-
 
 
 timesheetFiltersFromRequest :: (?request :: Request) => TimesheetViewFilters

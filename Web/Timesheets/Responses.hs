@@ -3,7 +3,6 @@ module Web.Timesheets.Responses
     , respondWithTimesheetMutationUpdate
     , respondWithTimesheetPreferenceUpdate
     , respondWithTimesheetFragment
-    , respondWithTimesheetDaySectionUpdate
     , respondWithTimesheetWeekView
     ) where
 
@@ -20,7 +19,6 @@ import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
 import Data.List (nub)
 import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
-import Data.Time.Calendar (Day)
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.Timesheets.Filters (TimesheetViewFilters (..))
@@ -95,20 +93,6 @@ respondWithTimesheetPreferenceUpdate weekOffset filters =
         (TimesheetProjectionRequest weekOffset filters)
         [TimesheetProjectionToolbar, TimesheetProjectionDayColumns, TimesheetProjectionSidePanel]
         mempty
-
-respondWithTimesheetDaySectionUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Day -> TimesheetViewFilters -> Text -> Bool -> IO ()
-respondWithTimesheetDaySectionUpdate weekOffset workedOn filters successMessage closeDialog = do
-    venueConfig <- fetchVenueConfig
-    let weekStartDate = venueWeekStartDate venueConfig weekOffset
-    let dayOffset = timesheetDayOffset weekStartDate workedOn
-    respondWithTimesheetActorFragments
-        requestKey
-        [TimesheetProjectionDaySection dayOffset]
-        ( when closeDialog [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
-            <> renderToastOob ToastBottomCenter (successToast successMessage)
-        )
-    where
-        requestKey = TimesheetProjectionRequest weekOffset filters
 
 respondWithTimesheetMutationUpdate :: (?context :: ControllerContext, ?request :: Request) => Int -> TimesheetViewFilters -> Set.Set SurfaceResourceValue -> Text -> Bool -> IO ()
 respondWithTimesheetMutationUpdate weekOffset filters touchedResources successMessage closeDialog =

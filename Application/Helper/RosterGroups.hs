@@ -122,9 +122,6 @@ fetchCurrentVenueRosterGroupOrDefault maybeRosterGroupId = do
                     |> fetchOneOrNothing
             pure (fromMaybe defaultRosterGroup rosterGroupOrNothing)
 
-fetchCurrentVenueRosterGroupIds :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [Id RosterGroup]
-fetchCurrentVenueRosterGroupIds = map (.id) <$> fetchCurrentVenueRosterGroups
-
 -- | Roster groups the effective viewer may open on the roster page.
 -- Managers and unimpersonated support retain venue-wide access. Ordinary staff
 -- are limited to explicit active assignments; this read intentionally does not

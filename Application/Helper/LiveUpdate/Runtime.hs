@@ -15,7 +15,6 @@ module Application.Helper.LiveUpdate.Runtime
     , advanceLiveUpdateVersionWithBus
     , broadcastLiveInvalidationAtVersion
     , broadcastLiveInvalidationAtVersionWithBus
-    , broadcastLiveInvalidationDetailed
     , broadcastLiveInvalidationDetailedWithBus
     , broadcastLiveInvalidationDetailedWithoutContext
     , coalesceSurfaceFragmentKeys

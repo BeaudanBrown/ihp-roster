@@ -11,7 +11,6 @@ module Application.Helper.LiveUpdate.Internal
     , activeSurfaceScopesWithBus
     , activeSurfaceScopeMatches
     , activeSurfaceScopeMatchesWithBus
-    , broadcastLiveInvalidationDetailed
     , broadcastLiveInvalidationDetailedWithBus
     , broadcastLiveInvalidationDetailedWithoutContext
     , coalesceSurfaceFragmentKeys
@@ -46,9 +45,7 @@ import qualified Data.Aeson.Types as Aeson
 import Data.IORef
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import qualified Data.Text as Text
 import qualified Data.UUID as UUID
-import IHP.Controller.Context (ControllerContext)
 import IHP.ControllerSupport (Request, getHeader)
 import IHP.Prelude
 import qualified Network.WebSockets as WebSocket
@@ -57,8 +54,6 @@ import System.IO.Unsafe (unsafePerformIO)
 import Application.Helper.FrontendContract.LiveUpdateValues (liveUpdateClientIdHeaderName)
 import Application.Helper.FrontendContract.Surface.Identity (canonicalFrontendSurfaceScopeKey)
 import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Wire
-import Application.Helper.Profiling (profileActionSpan,
-                                     profileActionSpanWithDetail)
 
 data SurfaceScope = FrontendSurfaceScope
     { surfaceScopeSurface   :: !Text
@@ -145,8 +140,7 @@ surfaceScopeKey = (.surfaceScopeStableKey)
 
 liveUpdateSubscriptionNeedsResync :: Int -> Int -> Maybe Int -> Int -> Bool
 liveUpdateSubscriptionNeedsResync renderedWatermark durableWatermark lastSeenVersion currentVersion =
-    isNothing lastSeenVersion
-        || renderedWatermark < durableWatermark
+    renderedWatermark /= durableWatermark
         || maybe False (/= currentVersion) lastSeenVersion
 
 liveUpdateSourceClientId :: (?request :: Request) => Maybe Text
@@ -314,12 +308,6 @@ incrementInMemoryVersion state scope =
             nextVersion = Map.findWithDefault 0 scopeKey versions + 1
          in (Map.insert scopeKey nextVersion versions, nextVersion)
 
-broadcastLiveInvalidationDetailed :: (?context :: ControllerContext) => SurfaceScope -> Maybe Text -> [SurfaceFragmentKey] -> IO LiveUpdateBroadcastResult
-broadcastLiveInvalidationDetailed scope sourceClientId fragments =
-    profileActionSpanWithDetail "live_updates.broadcast_invalidation" do
-        result <- broadcastLiveInvalidationDetailedWithoutContext scope sourceClientId fragments
-        pure (result, Just (liveUpdateBroadcastDetail result))
-
 broadcastLiveInvalidationDetailedWithoutContext :: SurfaceScope -> Maybe Text -> [SurfaceFragmentKey] -> IO LiveUpdateBroadcastResult
 broadcastLiveInvalidationDetailedWithoutContext =
     broadcastLiveInvalidationDetailedWithBus defaultLiveBus
@@ -382,17 +370,6 @@ coalesceSurfaceFragmentKeys fragments =
     step (kept, seen) fragmentKey
         | Set.member fragmentKey seen = (kept, seen)
         | otherwise = (fragmentKey : kept, Set.insert fragmentKey seen)
-
-liveUpdateBroadcastDetail :: LiveUpdateBroadcastResult -> Text
-liveUpdateBroadcastDetail result =
-    Text.intercalate
-        ","
-        [ "subscribers=" <> tshow result.broadcastSubscriberCount
-        , "fragments=" <> tshow result.broadcastFragmentCount
-        , "refetch=" <> tshow result.broadcastRefetchFragmentCount
-        , "coalesced=" <> tshow result.broadcastCoalescedFragmentCount
-        , "dropped=" <> tshow result.broadcastDroppedSubscriptions
-        ]
 
 sendInvalidation :: SurfaceScope -> Int -> Maybe Text -> [SurfaceFragmentKey] -> ActiveLiveSubscription -> IO (Maybe UUID.UUID)
 sendInvalidation scope version sourceClientId fragments subscription = do

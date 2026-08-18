@@ -16,15 +16,13 @@ module Application.Helper.FrontendContract.AppShell.Request
     , AppShellActionFields
     , appShellActionFields
     , appShellActionFor
-    , appShellActionRouteFieldValues
     , noAppShellActionFields
     , parseAppShellActionParamPairs
     , parseAppShellActionParams
     ) where
 
 import Application.Helper.FrontendContract.AppShell (AppShellContract)
-import Application.Helper.FrontendContract.AppShell.Runtime (AppShellFieldValue (..),
-                                                             appShellActionByMarker)
+import Application.Helper.FrontendContract.AppShell.Runtime (appShellActionByMarker)
 import qualified Application.Helper.FrontendContract.DSL as Global
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import Application.Helper.FrontendContract.Surface.Diagnostics (AssertSurfaceFieldHead,
@@ -41,8 +39,7 @@ import Application.Helper.FrontendContract.Surface.Values (DeclaredRequestFields
                                                           SurfaceFieldInput,
                                                           SurfaceFields,
                                                           declaredRequestFields,
-                                                          noDeclaredRequestFields,
-                                                          surfaceFieldsText)
+                                                          noDeclaredRequestFields)
 import Data.ByteString (ByteString)
 import Data.Kind (Type)
 import Data.Typeable (Typeable)
@@ -132,12 +129,6 @@ appShellActionFor ::
     AppShellActionFields action ->
     AppShellActionIR
 appShellActionFor _ = appShellActionByMarker @action
-
-appShellActionRouteFieldValues ::
-    AppShellActionFields action ->
-    [AppShellFieldValue]
-appShellActionRouteFieldValues =
-    map AppShellFieldValue . surfaceFieldsText
 
 parseAppShellActionParams ::
     forall action.

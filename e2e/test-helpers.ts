@@ -11,6 +11,7 @@ import {
     passkeyDismissalDomAttr,
     passkeyRegistrationDomAttr,
     passkeySetupPromptDomAttr,
+    surfaceConfigDomAttr,
 } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 
@@ -147,7 +148,51 @@ export function mailhogMessageText(message: MailHogMessage) {
     return mailhogMessageBody(message);
 }
 
+type LiveRecoveryTrackerWindow = Window & {
+    __bepisE2ELiveRecovery?: {
+        installed: boolean;
+        addedScopeKeys: string[];
+        acknowledgedScopeKeys: string[];
+    };
+};
+
+async function installLiveRecoveryTracker(page: Page) {
+    await page.addInitScript(() => {
+        const state = window as LiveRecoveryTrackerWindow;
+        if (state.__bepisE2ELiveRecovery?.installed) return;
+        state.__bepisE2ELiveRecovery = { installed: true, addedScopeKeys: [], acknowledgedScopeKeys: [] };
+        document.addEventListener('app:live-update-debug', (event) => {
+            const detail = (event as CustomEvent).detail;
+            if (typeof detail?.scopeKey !== 'string') return;
+            if (detail.name === 'subscription_added') state.__bepisE2ELiveRecovery?.addedScopeKeys.push(detail.scopeKey);
+            if (detail.name === 'subscription_acknowledged') state.__bepisE2ELiveRecovery?.acknowledgedScopeKeys.push(detail.scopeKey);
+        });
+    });
+}
+
+export async function waitForLiveRecovery(page: Page, timeoutMs = E2E_TIMEOUT.navigation) {
+    const expectedScopeKeys = await page.locator(`[${surfaceConfigDomAttr}]`).evaluateAll((elements, configAttribute) =>
+        Array.from(new Set(elements.flatMap((element) => {
+            const rawConfig = element.getAttribute(configAttribute);
+            if (!rawConfig) return [];
+            try {
+                const config = JSON.parse(rawConfig);
+                return config.subscription && typeof config.scopeKey === 'string' ? [config.scopeKey] : [];
+            } catch {
+                return [];
+            }
+        }))), surfaceConfigDomAttr);
+    if (expectedScopeKeys.length === 0) return;
+
+    await expect.poll(() => page.evaluate((scopeKeys) => {
+        const tracker = (window as LiveRecoveryTrackerWindow).__bepisE2ELiveRecovery;
+        return Boolean(tracker && scopeKeys.every((scopeKey) => tracker.acknowledgedScopeKeys.includes(scopeKey)));
+    }, expectedScopeKeys), { timeout: timeoutMs }).toBe(true);
+    await page.waitForLoadState('networkidle', { timeout: timeoutMs });
+}
+
 export async function gotoWhenReady(page: Page, path: string, readySelector: string, timeoutMs = E2E_TIMEOUT.navigation) {
+    await installLiveRecoveryTracker(page);
     const deadline = Date.now() + timeoutMs;
     let lastBodyText = '';
     let lastNavigationError = '';
@@ -163,6 +208,10 @@ export async function gotoWhenReady(page: Page, path: string, readySelector: str
 
         try {
             await page.locator(readySelector).waitFor({ state: 'visible', timeout: E2E_TIMEOUT.action });
+            // Durable subscriptions can authoritatively resync immediately after
+            // the server-rendered shell appears. Wait for the acknowledgement and
+            // resulting fragment fetches before callers capture locators.
+            await waitForLiveRecovery(page, timeoutMs);
             return;
         } catch {
             lastBodyText = (await page.locator('body').textContent().catch(() => '')) ?? '';
@@ -182,6 +231,7 @@ export async function gotoWhenReady(page: Page, path: string, readySelector: str
 
     const failureContext = [lastBodyText, lastNavigationError].filter(Boolean).join('\n\n');
     await expect(page.locator(readySelector), failureContext).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+    await waitForLiveRecovery(page, timeoutMs);
 }
 
 type CachedBrowserSession = Awaited<ReturnType<ReturnType<Page['context']>['cookies']>>;

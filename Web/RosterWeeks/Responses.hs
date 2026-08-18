@@ -23,7 +23,6 @@ import Application.Helper.View (ToastOverlayConfig,
                                 ToastOverlayPosition (ToastBottomCenter),
                                 dialogOverlayMountId, errorToast,
                                 renderToastOob, successToast)
-import Application.Helper.View.Oob (outerHtmlOobSwap)
 import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
 import qualified Text.Blaze.Html as Blaze

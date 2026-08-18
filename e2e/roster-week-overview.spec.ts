@@ -159,7 +159,7 @@ test.describe('Roster week overview', () => {
         await expect(colourExportButton).toHaveText('Export colour PNG');
     });
 
-    test('does not show roster JPG exports on draft weeks', async ({ page }) => {
+    test('does not show roster PNG exports on draft weeks', async ({ page }) => {
         await openRoster(page, { weekOffset: 2 });
 
         await openRosterSettings(page);

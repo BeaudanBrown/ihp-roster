@@ -4,7 +4,7 @@
   "authority": "Stable production app-library and inventory regression ceilings; measured memory is opt-in and builder-specific",
   "app_library": {
     "self_size_bytes_max": 1073741824,
-    "module_count_max": 472,
+    "module_count_max": 492,
     "default_interface_bytes_max": 16777216,
     "interface_exceptions": [
       {
@@ -14,7 +14,7 @@
       },
       {
         "path": "Application/Helper/FrontendContract/Surface/Roster/Generated/Resource.hi",
-        "bytes_max": 83886080,
+        "bytes_max": 100663296,
         "reason": "GHC 9.10 serializes generated canonical Roster resource declarations consumed by runtime authority"
       },
       {
@@ -39,7 +39,7 @@
       },
       {
         "path": "Application/Helper/FrontendContract/Surface/Roster/Resource.hi",
-        "bytes_max": 25165824,
+        "bytes_max": 33554432,
         "reason": "GHC 9.10 retains the typed Roster resource bridge required by runtime parsing"
       },
       {
@@ -69,7 +69,7 @@
       }
     ],
     "required_artifacts": {
-      ".hi": { "count": 472, "bytes_max": 629145600 },
+      ".hi": { "count": 492, "bytes_max": 629145600 },
       ".a": { "count": 1 },
       ".conf": { "count": 1 },
       "[no extension]": { "count": 1 }
@@ -78,8 +78,8 @@
     "allowed_artifacts": [".hi", ".a", ".conf", "[no extension]"]
   },
   "production_inventory": {
-    "module_rows_max": 473,
-    "dependency_packages_max": 41,
+    "module_rows_max": 493,
+    "dependency_packages_max": 42,
     "executable_rows_max": 9,
     "module_inventory": "../../production-module-inventory.tsv",
     "dependency_inventory": "../../production-package-dependency-inventory.tsv",

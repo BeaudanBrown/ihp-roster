@@ -636,6 +636,8 @@ tests = describe "FrontendSurfaceRequestAdapter" do
             `shouldBe`
                 [ ("hx-post", "/profile/preferences")
                 , ("data-bepis-surface-action", "update-profile-shift-preferences")
+                , ("hx-trigger", "change")
+                , ("hx-sync", "this:queue last")
                 , ("hx-push-url", "false")
                 , ("hx-target", "#profile-preferences")
                 , ("hx-swap", "outerHTML show:none")
@@ -656,6 +658,8 @@ tests = describe "FrontendSurfaceRequestAdapter" do
             `shouldBe`
                 [ ("hx-post", "/staff/preferences")
                 , ("data-bepis-surface-action", "update-staff-shift-preferences")
+                , ("hx-trigger", "change")
+                , ("hx-sync", "this:queue last")
                 , ("hx-push-url", "false")
                 , ("hx-target", "#staff-profile-preferences")
                 , ("hx-swap", "outerHTML show:none")

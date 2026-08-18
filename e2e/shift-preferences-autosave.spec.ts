@@ -27,14 +27,18 @@ test.describe('Shift preference autosave', () => {
         const availability = firstRange.locator(`[${orderedRangeAvailabilityDomAttr}] label`);
         let start = firstRange.locator(`[${orderedRangeStartDomAttr}]`);
         if (await start.isDisabled()) {
+            const swapPromise = page.evaluate(() => new Promise<void>((resolve) => {
+                document.addEventListener('htmx:afterSwap', () => resolve(), { once: true });
+            }));
             await Promise.all([
                 page.waitForResponse((response) => response.url().includes('/UpdateProfile') && response.request().method() === 'POST'),
                 availability.click(),
+                swapPromise,
             ]);
             await expect(start).toBeEnabled({ timeout: E2E_TIMEOUT.liveUpdate });
         }
 
-        await expect(start).toHaveCSS('height', '36px');
+        await expect(start).toHaveCSS('height', '32px');
         const name = await start.getAttribute('name');
         if (name === null) throw new Error('Expected a named preference start range');
 

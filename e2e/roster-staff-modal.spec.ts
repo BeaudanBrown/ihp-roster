@@ -8,7 +8,7 @@ import {
     rosterStaffPanelSortRowDomAttr,
     toastOverlayMountDomId,
 } from '../frontend/ts/generated/contracts';
-import { gotoWhenReady, openRoster, runSql, uniqueE2EValue } from './test-helpers';
+import { gotoWhenReady, openRoster, runSql, uniqueE2EValue, waitForLiveRecovery } from './test-helpers';
 import { E2E_TIMEOUT } from './timeouts';
 
 async function loginAndOpenRoster(page: Page) {
@@ -143,10 +143,11 @@ test.describe('Roster Staff Modal', () => {
         await expect(modalMount.locator(`[${dialogMountDomAttr}]`)).toBeVisible();
         await expect(modalMount).toContainText('Edit Staff Member');
         await blackoutResponsePromise;
+        await waitForLiveRecovery(page);
         expect(blackoutRequests).toBe(1);
         expect(pageErrors).toEqual([]);
         await expect(page.locator('html')).not.toHaveAttribute('data-e2e-htmx-swap-error', 'true');
-        await modalMount.getByRole('button', { name: 'Profile Details' }).click();
+        await modalMount.getByRole('button', { name: 'Profile Details', exact: true }).click();
 
         const staffEditForm = modalMount.locator('#staff-edit-form:visible');
         await expect(staffEditForm).toBeVisible();
@@ -187,7 +188,17 @@ test.describe('Roster Staff Modal', () => {
 
         await firstNameField.fill('Roster');
         await lastNameField.fill('Modal Spec');
+        const profileRefreshPromise = page.waitForResponse((response) => {
+            const url = new URL(response.url());
+            return url.pathname.includes('/ShowStaffContentLiveFragment') && url.searchParams.get('section') === 'profile';
+        });
+        const preferencesRefreshPromise = page.waitForResponse((response) => {
+            const url = new URL(response.url());
+            return url.pathname.includes('/ShowStaffContentLiveFragment') && url.searchParams.get('section') === 'preferences';
+        });
         await modalMount.getByRole('button', { name: 'Save' }).click();
+        const [profileRefresh, preferencesRefresh] = await Promise.all([profileRefreshPromise, preferencesRefreshPromise]);
+        await Promise.all([profileRefresh.finished(), preferencesRefresh.finished()]);
 
         await expect(page).toHaveURL(initialUrl);
         await expect(modalMount.locator('[data-bepis-surface="staff"]')).toBeVisible();
@@ -196,8 +207,20 @@ test.describe('Roster Staff Modal', () => {
         await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Staff member updated');
 
         await modalMount.getByRole('button', { name: 'Shift Preferences', exact: true }).click();
-        await expect(modalMount.locator('#staff-shift-preferences-form')).toBeVisible();
-        await modalMount.locator('#staff-shift-preferences-form button[type="submit"]').click();
+        const preferenceForm = modalMount.locator('#staff-shift-preferences-form');
+        await expect(preferenceForm).toBeVisible();
+        await expect(preferenceForm.locator('button[type="submit"]')).toHaveCount(0);
+        const preferenceResponsePromise = page.waitForResponse((response) =>
+            response.request().method() === 'POST' && response.url().includes('/UpdateStaff'),
+        );
+        await preferenceForm.evaluate((form) => {
+            const checkbox = form.querySelector<HTMLInputElement>('input[type="checkbox"]');
+            if (!checkbox) throw new Error('Missing staff shift-preference availability input');
+            checkbox.click();
+        });
+        const preferenceResponse = await preferenceResponsePromise;
+        expect(preferenceResponse.status(), await preferenceResponse.text()).toBe(200);
+        await preferenceResponse.finished();
         await expect(modalMount.locator('#staff-profile-preferences')).toBeVisible();
         await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText('Shift preferences updated');
 
@@ -224,7 +247,7 @@ test.describe('Roster Staff Modal', () => {
             );
             await expect(staffEntry.locator('[aria-label^="Pay configuration required"]')).toBeVisible();
             await staffEntry.click();
-            await modalMount.getByRole('button', { name: 'Profile Details' }).click();
+            await modalMount.getByRole('button', { name: 'Profile Details', exact: true }).click();
 
             const staffEditForm = modalMount.locator('#staff-edit-form:visible');
             await staffEditForm.locator('#payRateSelection').selectOption(`award:${awardLevelId}`);
@@ -266,7 +289,7 @@ test.describe('Roster Staff Modal', () => {
         await expect(rosterGrid).toContainText(assignedStaffName);
         await assignedEntry.click();
 
-        await modalMount.getByRole('button', { name: 'Profile Details' }).click();
+        await modalMount.getByRole('button', { name: 'Profile Details', exact: true }).click();
         const staffEditForm = modalMount.locator('#staff-edit-form:visible');
         const venueRole = staffEditForm.locator('#venueRole');
         await expect(venueRole).toBeVisible();
@@ -336,6 +359,9 @@ test.describe('Roster Staff Modal', () => {
             INSERT INTO staff_roster_groups (id, staff_id, roster_group_id)
             VALUES ('${staffRosterGroupId}', '${staffId}', 'a1000000-0000-0000-0000-000000000211');
             UPDATE roster_weeks SET is_live = TRUE WHERE id = 'a1000000-0000-0000-0000-000000000051';
+            UPDATE roster_days
+            SET day_offset = (SELECT EXTRACT(ISODOW FROM operational_day)::int - 1 FROM e2e_staff_removal_operational_day)
+            WHERE id = 'a1000000-0000-0000-0000-000000000061';
             WITH target_day AS (
                 SELECT roster_days.id
                 FROM roster_days, e2e_staff_removal_operational_day
@@ -398,7 +424,7 @@ test.describe('Roster Staff Modal', () => {
 
             const modalMount = actorPage.locator(`#${dialogOverlayMountDomId}`);
             await actorPage.locator(staffSelector).click();
-            await modalMount.getByRole('button', { name: 'Profile Details' }).click();
+            await modalMount.getByRole('button', { name: 'Profile Details', exact: true }).click();
             await modalMount.getByRole('link', { name: 'Remove staff member' }).click();
 
             await expect(modalMount.getByRole('heading', { name: 'Remove staff member' })).toBeVisible();
@@ -422,6 +448,7 @@ test.describe('Roster Staff Modal', () => {
                 DELETE FROM staff WHERE id = '${staffId}';
                 DELETE FROM users WHERE id = '${userId}';
                 UPDATE roster_weeks SET is_live = FALSE WHERE id = 'a1000000-0000-0000-0000-000000000051';
+                UPDATE roster_days SET day_offset = 0 WHERE id = 'a1000000-0000-0000-0000-000000000061';
                 COMMIT;
             `);
         }

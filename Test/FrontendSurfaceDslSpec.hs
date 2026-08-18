@@ -980,7 +980,7 @@ tests = describe "FrontendSurface DSL foundation" do
         rosterColumnEditStartAttrs `shouldBe` [("data-bepis-roster-column-edit-start", "true")]
         rosterColumnEditDoneAttrs `shouldBe` [("data-bepis-roster-column-edit-done", "true")]
 
-    it "renders the exact roster JPG export boundary from Haskell" do
+    it "renders the exact roster PNG export boundary from Haskell" do
         let filename = rosterImageExportFilename RosterSurface.RosterImageExportPrint "Front Bar" (Calendar.fromGregorian 2025 1 6)
         filename `shouldBe` "roster-front-bar-week-of-6-jan-print.png"
         rosterImageExportProjectionAttrs `shouldBe` [("data-bepis-roster-image-export-projection", "true")]
@@ -995,7 +995,7 @@ tests = describe "FrontendSurface DSL foundation" do
                 ]
         let triggerAttrs = rosterPngImageExportTriggerAttrs RosterSurface.RosterImageExportPrint filename
         triggerAttrs `shouldContain` [("data-bepis-roster-image-export-trigger", "true")]
-        triggerAttrs `shouldContain` [("data-bepis-roster-image-export-format", "jpg")]
+        triggerAttrs `shouldContain` [("data-bepis-roster-image-export-format", "png")]
         let rawConfig = fromMaybe (error "missing roster image export config") (lookup "data-bepis-roster-image-export-config" triggerAttrs)
         Aeson.decodeStrict (TextEncoding.encodeUtf8 rawConfig)
             `shouldBe` Just
@@ -1006,7 +1006,7 @@ tests = describe "FrontendSurface DSL foundation" do
                     , "imageExportQualityPercent" Aeson..= (100 :: Int)
                     , "imageExportPixelRatio" Aeson..= (3 :: Int)
                     , "imageExportMinimumWidth" Aeson..= (920 :: Int)
-                    , "imageExportMaximumWidth" Aeson..= (920 :: Int)
+                    , "imageExportMaximumWidth" Aeson..= (1240 :: Int)
                     , "imageExportIdleLabel" Aeson..= ("Export PNG" :: Text)
                     , "imageExportPreparingLabel" Aeson..= ("Preparing..." :: Text)
                     , "imageExportDownloadedLabel" Aeson..= ("Downloaded" :: Text)
@@ -1200,7 +1200,7 @@ tests = describe "FrontendSurface DSL foundation" do
             `shouldBe`
                 [ ("side-panel", ["collapsed", "expanded"])
                 , ("column-editing", ["inactive", "active"])
-                , ("image-export-format", ["jpg"])
+                , ("image-export-format", ["png"])
                 , ("week-overview-availability", ["loaded", "unloaded"])
                 , ("week-overview-closure", ["open", "closed"])
                 , ("week-overview-calendar-day", ["today", "other-day"])

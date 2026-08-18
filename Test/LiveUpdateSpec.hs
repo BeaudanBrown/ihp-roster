@@ -331,10 +331,12 @@ tests = describe "LiveUpdate runtime types" do
         forM_ commands \value -> AesonTypes.parseEither (validateContractMarkerValue @LiveContract.LiveUpdateCommand) (Aeson.toJSON value) `shouldSatisfy` isRight
         forM_ messages \value -> AesonTypes.parseEither (validateContractMarkerValue @LiveContract.LiveUpdateMessage) (Aeson.toJSON value) `shouldSatisfy` isRight
 
-    it "cannot suppress initial authoritative resync with a forged high rendered watermark" do
+    it "resyncs stale or forged rendered watermarks without refetching an exact initial render" do
         liveUpdateSubscriptionNeedsResync maxBound 4 Nothing 4 `shouldBe` True
+        liveUpdateSubscriptionNeedsResync 4 4 Nothing 4 `shouldBe` False
+        liveUpdateSubscriptionNeedsResync 3 4 Nothing 4 `shouldBe` True
         liveUpdateSubscriptionNeedsResync 4 4 (Just 4) 4 `shouldBe` False
-        liveUpdateSubscriptionNeedsResync 3 4 (Just 4) 4 `shouldBe` True
+        liveUpdateSubscriptionNeedsResync 4 4 (Just 3) 4 `shouldBe` True
 
     it "round-trips commands and encodes subscribed, invalidation, and error payloads as JSON" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"

@@ -182,7 +182,7 @@ tests = describe "Frontend contract generator foundation" do
             , "export const rosterImageExportRowDomAttr = \"data-bepis-roster-image-export-row\" as const;"
             , "export const rosterImageExportCellDomAttr = \"data-bepis-roster-image-export-cell\" as const;"
             , "export const rosterImageExportFormatDomAttr = \"data-bepis-roster-image-export-format\" as const;"
-            , "export type RosterImageExportFormatState = \"jpg\";"
+            , "export type RosterImageExportFormatState = \"png\";"
             , "export function isRosterImageExportFormatState(value: unknown): value is RosterImageExportFormatState"
             , "export type RosterImageExportStyle ="
             , "export type RosterImageExportConfig = { imageExportFilename: string; imageExportStyle: RosterImageExportStyle;"

@@ -102,7 +102,6 @@ test.describe('Unavailable-staff threshold warnings', () => {
 
             await gotoWhenReady(adminPage, '/EditStaff?staffId=a1000000-0000-0000-0000-000000000031&section=profile', '#staff-edit-form');
             const staffEditForm = adminPage.locator('#staff-edit-form:visible');
-            await staffEditForm.locator('#firstName').fill('Alpha Live');
             const invalidFieldNames = await staffEditForm.evaluate((form) =>
                 Array.from((form as HTMLFormElement).elements)
                     .filter((element): element is HTMLInputElement | HTMLSelectElement =>
@@ -116,6 +115,9 @@ test.describe('Unavailable-staff threshold warnings', () => {
             );
             await staffEditForm.evaluate(async (formElement) => {
                 const form = formElement as HTMLFormElement;
+                const firstName = form.querySelector<HTMLInputElement>('#firstName');
+                if (!firstName) throw new Error('Missing staff first name field');
+                firstName.value = 'Alpha Live';
                 const body = new URLSearchParams();
                 new FormData(form).forEach((value, key) => {
                     if (typeof value === 'string') body.append(key, value);

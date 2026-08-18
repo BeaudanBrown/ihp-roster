@@ -1353,7 +1353,7 @@ tests = aroundAll withDatabaseTestContext do
                 workerResponse `responseBodyShouldNotContain` "Warnings disabled"
                 workerResponse `responseBodyShouldContain` "data-roster-warnings=\"hidden\""
 
-        it "shows roster JPG export only to managers on live row-grid weeks" $ withContext do
+        it "shows roster PNG export only to managers on live row-grid weeks" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-export-live-only@example.com" "staff" True
@@ -1381,7 +1381,7 @@ tests = aroundAll withDatabaseTestContext do
                 liveManagerResponse `responseBodyShouldContain` "Export colour PNG"
                 liveManagerResponse `responseBodyShouldContain` "Export print PNG"
                 liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-trigger=\"true\""
-                liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-format=\"jpg\""
+                liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-format=\"png\""
                 liveManagerResponse `responseBodyShouldContain` "data-bepis-roster-image-export-config="
                 liveManagerResponse `responseBodyShouldContain` "&quot;imageExportFilename&quot;:&quot;roster-"
                 liveManagerResponse `responseBodyShouldContain` "&quot;imageExportStyle&quot;:&quot;colour&quot;"

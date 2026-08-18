@@ -5,7 +5,6 @@ module Application.Helper.LiveUpdate.DurablePublisher
 
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)
 import Application.Helper.LiveUpdate.DurableCodec
-import Application.Helper.LiveUpdate.DurableState (advanceDurableResourceVersions)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LazyByteString
@@ -37,6 +36,10 @@ publishDurableInvalidation source resources = do
     unless (validSource source) (error "invalid live invalidation source")
     encoded <- either (error . cs) pure (mapM encodeDurableResource (Set.toAscList resources))
     (eventId, eventSequence) <- withTransaction do
+        -- Deliberate focused raw-SQL boundary: QueryBuilder cannot express the
+        -- commit-ordered advisory lock, RETURNING allocation, monotonic
+        -- ON CONFLICT version guard, and transactional NOTIFY as one primitive.
+        -- Feature-owned business writes remain outside this module.
         -- Serialize sequence allocation through commit. A PostgreSQL sequence
         -- alone is not commit ordered, while retained-event replay is.
         void (sqlQueryScalar "SELECT 1 FROM pg_advisory_xact_lock(?)" (Only durablePublicationLockKey) :: IO Int)
@@ -47,7 +50,6 @@ publishDurableInvalidation source resources = do
             void $ sqlExec "INSERT INTO live_resource_versions (resource_key, resource_payload, latest_event_id, latest_event_sequence) VALUES (?, ?::jsonb, ?, ?) ON CONFLICT (resource_key) DO UPDATE SET resource_payload = EXCLUDED.resource_payload, latest_event_id = EXCLUDED.latest_event_id, latest_event_sequence = EXCLUDED.latest_event_sequence, updated_at = NOW() WHERE live_resource_versions.latest_event_sequence < EXCLUDED.latest_event_sequence" (resource.durableResourceKey, resource.durableResourcePayload, eventId, eventSequence)
         void (sqlQueryScalar "SELECT 1 FROM pg_notify('live_invalidation_events', ?)" (Only (tshow eventId)) :: IO Int)
         pure (eventId, eventSequence)
-    advanceDurableResourceVersions (map (\resource -> (resource.durableResourceKey, eventSequence)) encoded) eventSequence
     completedAtNs <- getMonotonicTimeNSec
     pure DurablePublication
         { durablePublicationEventId = eventId
