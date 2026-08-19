@@ -10,6 +10,7 @@ module Application.Helper.Export.HourlyBreakdown
 
 import Application.Helper.Export.Types
 import Application.Helper.TimeRules (normalizeWindowEndMinute)
+import Application.Helper.TimesheetPayLedger (roundWageLedgerRational)
 import Application.VenueTime (RepeatedTimeOccurrence (..))
 import Application.VenueTime.Model (civilBoundaryIsRepeated,
                                     resolveBoundaryInstant,
@@ -188,7 +189,7 @@ sharesForPaidComponent workedSegments workedSeconds segment component = do
 validatePaidComponent :: PaidTimeSegment -> EarningsComponent -> Either Text ()
 validatePaidComponent segment component
     | component.unitType /= Hours = Left "Approved wage calculation base component is not hourly."
-    | component.quantity /= paidTimeDurationSeconds segment / 3600 = Left "Approved wage calculation base component quantity does not match its paid-time segment."
+    | component.quantity /= roundWageLedgerRational (paidTimeDurationSeconds segment / 3600) = Left "Approved wage calculation base component quantity does not match its paid-time segment."
     | component.sourceCondition /= segment.paidTimeSourceCondition = Left "Approved wage calculation base component condition does not match its paid-time segment."
     | otherwise = Right ()
 

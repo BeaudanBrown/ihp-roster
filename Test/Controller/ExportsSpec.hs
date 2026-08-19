@@ -6,11 +6,13 @@ import Application.Fixture.PayrollFixtures (createAndApproveEntry,
 import Application.Helper.Export
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsResource)
 import Application.Helper.SurfaceResource
+import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculation)
 import qualified Codec.Archive.Zip as Zip
 import Config
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
+import Data.Either (isRight)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -440,6 +442,39 @@ tests = aroundAll withDatabaseTestContext do
                         . setTestStartTime (TimeOfDay 8 37 0)
                         . setTestEndTime (TimeOfDay 3 10 0)
                 buildHourlyReportWindow configured [entry] `shouldBe` HourlyReportWindow 8 28
+
+        it "accepts ledger-rounded repeating hourly quantities in wage totals" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Hourly Repeating Quantity Venue"
+                admin <- createUserRecord "hourly-repeating-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                dayNames <- seedWeekDayNames venue
+                level <- createPayLevelRecordWithRates venue "Bar Level" 30 0 0 1 1.5 1.75
+                shiftType <- createShiftTypeRecord venue level "Bar"
+                staff <- createStaffRecord venue Nothing "Rae" "Repeating"
+                snapshot <- createPayrollSnapshot venue admin [level] [shiftType] dayNames []
+                let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 0)
+                entry <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                    [ set #shiftTypeId (unpackId shiftType.id)
+                    , setTestStartTime (TimeOfDay 9 0 0)
+                    , setTestEndTime (TimeOfDay 11 1 0)
+                    ]
+
+                calculationResult <- loadApprovedTimesheetPayCalculation entry
+                let calculation = case calculationResult of
+                        Right (Just value) -> value
+                        _ -> error "Expected sealed wage calculation"
+                buildHourlyWageCents [entry] (Map.singleton (unpackId entry.id) calculation) `shouldSatisfy` isRight
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateExportJobAction
+                        [ ("exportType", cs (exportJobTypeToText HourlyWageTotalsZip))
+                        , ("rangeStart", "2025-01-06")
+                        , ("rangeEnd", "2025-01-12")
+                        ]
+                response `responseStatusShouldBe` status302
+                exportJobs <- query @ExportJob |> fetch
+                map (.exportType) exportJobs `shouldBe` [exportJobTypeToText HourlyWageTotalsZip]
 
         it "buckets exact repeated and skipped DST hours in hourly breakdowns" $ withContext do
             withCleanDb do

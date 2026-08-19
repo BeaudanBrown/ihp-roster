@@ -3,6 +3,7 @@ module Application.Helper.TimesheetPayLedger
     , loadApprovedTimesheetPayCalculation
     , loadApprovedTimesheetPayCalculations
     , persistApprovedTimesheetPayCalculation
+    , roundWageLedgerRational
     ) where
 
 import Application.VenueTime.Model
@@ -332,7 +333,11 @@ unitValue CommencedHours = "commenced_hours"
 -- is applied later and Xero uses the same twelve-place protocol boundary.
 exactScientific :: Rational -> Scientific.Scientific
 exactScientific value =
-    Scientific.scientific (round (value * fromInteger scale)) (-12)
-  where
-    scale :: Integer
-    scale = 10 ^ (12 :: Int)
+    Scientific.scientific (round (value * fromInteger wageLedgerScale)) (-12)
+
+roundWageLedgerRational :: Rational -> Rational
+roundWageLedgerRational value =
+    fromInteger (round (value * fromInteger wageLedgerScale)) / fromInteger wageLedgerScale
+
+wageLedgerScale :: Integer
+wageLedgerScale = 10 ^ (12 :: Int)
