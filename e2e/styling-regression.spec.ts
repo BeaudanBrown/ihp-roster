@@ -359,8 +359,23 @@ test.describe('Styling regression contracts', () => {
             { timeout: E2E_TIMEOUT.assertion },
         ).toBe(true);
 
+        const preferencesForm = page.locator('#profile-shift-preferences-form');
+        const preferencesTargetSelector = await preferencesForm.getAttribute('hx-target');
+        if (preferencesTargetSelector === null) throw new Error('Expected a shift-preferences HTMX target');
+        const capturePreferencesTarget = async () => {
+            const target = await page.locator(preferencesTargetSelector).elementHandle();
+            if (target === null) throw new Error('Expected a mounted shift-preferences target');
+            return target;
+        };
+        const expectPreferencesTargetReplaced = (target: Awaited<ReturnType<typeof capturePreferencesTarget>>) =>
+            expect.poll(
+                () => target.evaluate((element) => element.isConnected),
+                { timeout: E2E_TIMEOUT.liveUpdate },
+            ).toBe(false);
+
         const availabilityInput = firstRange.locator(`[${orderedRangeAvailabilityDomAttr}] input[type="checkbox"]`);
         if (!(await availabilityInput.isChecked())) {
+            const previousPreferencesTarget = await capturePreferencesTarget();
             const availabilityResponsePromise = page.waitForResponse((response) =>
                 response.request().method() === 'POST' && response.url().includes('/UpdateProfile'),
             );
@@ -368,6 +383,7 @@ test.describe('Styling regression contracts', () => {
             const availabilityResponse = await availabilityResponsePromise;
             expect(availabilityResponse.status(), await availabilityResponse.text()).toBe(200);
             await availabilityResponse.finished();
+            await expectPreferencesTargetReplaced(previousPreferencesTarget);
         }
 
         const startInput = firstRange.locator(`[${orderedRangeStartDomAttr}]`);
@@ -411,25 +427,23 @@ test.describe('Styling regression contracts', () => {
         await expect(firstRange.locator(`output[for="${startId}"]`)).toHaveText(config.valueLabels[startLabelIndex]);
         await expect(firstRange.locator(`output[for="${endId}"]`)).toHaveText(config.valueLabels[endLabelIndex]);
 
+        const previousEnabledPreferencesTarget = await capturePreferencesTarget();
         const disableResponsePromise = page.waitForResponse((response) =>
             response.request().method() === 'POST' && response.url().includes('/UpdateProfile'),
         );
-        const disableSwapPromise = page.evaluate(() => new Promise<void>((resolve) => {
-            document.addEventListener('htmx:afterSwap', () => resolve(), { once: true });
-        }));
         await firstRange.locator(`[${orderedRangeAvailabilityDomAttr}] label`).click();
-        await Promise.all([disableResponsePromise.then((response) => response.finished()), disableSwapPromise]);
+        await disableResponsePromise.then((response) => response.finished());
+        await expectPreferencesTargetReplaced(previousEnabledPreferencesTarget);
         await expect(startInput).toBeDisabled();
         await expect(endInput).toBeDisabled();
 
+        const previousDisabledPreferencesTarget = await capturePreferencesTarget();
         const enableResponsePromise = page.waitForResponse((response) =>
             response.request().method() === 'POST' && response.url().includes('/UpdateProfile'),
         );
-        const enableSwapPromise = page.evaluate(() => new Promise<void>((resolve) => {
-            document.addEventListener('htmx:afterSwap', () => resolve(), { once: true });
-        }));
         await firstRange.locator(`[${orderedRangeAvailabilityDomAttr}] label`).click();
-        await Promise.all([enableResponsePromise.then((response) => response.finished()), enableSwapPromise]);
+        await enableResponsePromise.then((response) => response.finished());
+        await expectPreferencesTargetReplaced(previousDisabledPreferencesTarget);
         await expect(startInput).toBeEnabled();
         await expect(endInput).toBeEnabled();
 
@@ -440,25 +454,26 @@ test.describe('Styling regression contracts', () => {
         const swappedScrollYPromise = page.evaluate(() => new Promise<number>((resolve) => {
             document.addEventListener('htmx:afterSwap', () => resolve(window.scrollY), { once: true });
         }));
+        const submittedStartValue = config.defaultStartValue + config.stepValue;
+        if (submittedStartValue > config.defaultEndValue) throw new Error('Expected room to advance the default start value');
+        const previousAdjustedPreferencesTarget = await capturePreferencesTarget();
+        await startInput.focus();
         const [request, , , requestScrollY, swappedScrollY] = await Promise.all([
             page.waitForRequest((candidate) => candidate.url().includes('/UpdateProfile') && candidate.method() === 'POST'),
             page.waitForResponse((response) => response.url().includes('/UpdateProfile') && response.request().method() === 'POST'),
-            startInput.evaluate((element) => {
-                if (!(element instanceof HTMLInputElement)) throw new Error('Expected native range input');
-                element.dispatchEvent(new Event('input', { bubbles: true }));
-                element.dispatchEvent(new Event('change', { bubbles: true }));
-            }),
+            startInput.press('ArrowRight'),
             requestScrollYPromise,
             swappedScrollYPromise,
         ]);
+        await expectPreferencesTargetReplaced(previousAdjustedPreferencesTarget);
         const submitted = new URLSearchParams(request.postData() ?? '');
-        expect(submitted.get(startName)).toBe(String(config.defaultStartValue));
+        expect(submitted.get(startName)).toBe(String(submittedStartValue));
         expect(submitted.get(endName)).toBe(String(config.defaultEndValue));
         await expect(page.locator('#profile-content-fragment')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
 
         const refreshedStart = page.locator(`[${orderedRangeStartDomAttr}][name="${startName}"]`);
         const refreshedEnd = page.locator(`[${orderedRangeEndDomAttr}][name="${endName}"]`);
-        await expect(refreshedStart).toHaveValue(String(config.defaultStartValue));
+        await expect(refreshedStart).toHaveValue(String(submittedStartValue));
         await expect(refreshedEnd).toHaveValue(String(config.defaultEndValue));
 
         for (let index = 0; index < await rangeRoots.count(); index += 1) {
