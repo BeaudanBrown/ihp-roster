@@ -16,9 +16,6 @@ import Application.VenueTime.Model (civilBoundaryIsRepeated,
                                     storedInstantLocalTime,
                                     timesheetEntryWorkedOn)
 import Application.WageEngine
-import Application.WagePublication (PublishedEarningsLine (..),
-                                    derivePublishedEarnings,
-                                    publicationBucketKey)
 import Control.Monad (foldM, zipWithM)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
@@ -157,7 +154,7 @@ wageCentsForEntry :: TimesheetEntry -> WageCalculation -> Either Text (Map.Map I
 wageCentsForEntry entry calculation = do
     intervalShares <- intervalSharesForCalculation entry.timezone entry.startsAt entry.endsAt calculation
     let timedShares = concatMap (splitIntervalShareIntoHours entry) intervalShares
-    allocatePublishedCents calculation timedShares
+    allocateFinalEarningsCents calculation timedShares
 
 intervalSharesForCalculation :: Text -> UTCTime -> UTCTime -> WageCalculation -> Either Text [IntervalEarningsShare]
 intervalSharesForCalculation timezone entryStartsAt entryEndsAt calculation = do
@@ -252,7 +249,7 @@ shareForInterval component start end amount =
     IntervalEarningsShare
         { intervalShareStart = start
         , intervalShareEnd = end
-        , intervalShareBucketKey = publicationBucketKey component
+        , intervalShareBucketKey = finalEarningsBucketKey component
         , intervalShareAmount = amount
         }
 
@@ -272,21 +269,21 @@ splitIntervalShareIntoHours entry share =
     localSegments = storedIntervalLocalHourSegments entry.timezone share.intervalShareStart share.intervalShareEnd
     totalSeconds = toRational (diffUTCTime share.intervalShareEnd share.intervalShareStart)
 
-allocatePublishedCents :: WageCalculation -> [TimedEarningsShare] -> Either Text (Map.Map Int Integer)
-allocatePublishedCents calculation shares = do
+allocateFinalEarningsCents :: WageCalculation -> [TimedEarningsShare] -> Either Text (Map.Map Int Integer)
+allocateFinalEarningsCents calculation shares = do
     allocated <- traverse allocateLine publishedLines
-    let knownKeys = Map.fromList [(line.publishedBucketKey, ()) | line <- publishedLines]
+    let knownKeys = Map.fromList [(line.finalEarningsLineBucketKey, ()) | line <- publishedLines]
         unknownShares = filter (\share -> Map.notMember share.timedShareBucketKey knownKeys) shares
     unless (null unknownShares) $
         Left "Approved wage calculation contains timed earnings that were not published."
     pure (Map.fromListWith (+) (concat allocated))
   where
-    publishedLines = derivePublishedEarnings calculation.earningsComponents
+    publishedLines = (deriveFinalEarnings calculation.earningsComponents).finalEarningsLines
     sharesByKey = Map.fromListWith (<>) [(share.timedShareBucketKey, [share]) | share <- shares, share.timedShareAmount > 0]
 
     allocateLine line = do
-        let lineShares = Map.findWithDefault [] line.publishedBucketKey sharesByKey
-            targetCents = round (line.publishedAmount * 100)
+        let lineShares = Map.findWithDefault [] line.finalEarningsLineBucketKey sharesByKey
+            targetCents = round (line.finalEarningsLineRoundedAmount * 100)
         when (targetCents > 0 && null lineShares) $
             Left "Approved wage earnings line has no hourly attribution."
         pure (allocateCents targetCents lineShares)
