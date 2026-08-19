@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test';
-import { E2E_TIMEOUT, ensureRosterLayout, openRoster } from './test-helpers';
+import { E2E_TIMEOUT, ensureRosterLayout, openRoster, resetCanonicalRosterAssignedShiftFixture } from './test-helpers';
 
 async function expectShiftModificationHighlight(target: Locator) {
     await expect(target).toHaveClass(/bepis-dropzone-highlight/, { timeout: E2E_TIMEOUT.assertion });
@@ -47,6 +47,42 @@ test.describe('roster pointer session effects', () => {
         await expect(shadow).toHaveCount(0, { timeout: E2E_TIMEOUT.assertion });
         await expect(target).not.toHaveClass(/bepis-dropzone-highlight/, { timeout: E2E_TIMEOUT.assertion });
         await page.mouse.up();
+    });
+
+    test('deletes a dropped roster shift through an explicit HTMX confirmation', async ({ page }) => {
+        resetCanonicalRosterAssignedShiftFixture();
+        await openRoster(page, { email: 'e2e-admin@example.com' });
+
+        const source = page.locator('.roster-grid-frame[data-roster-layout="day_rows"] [data-bepis-source-ref="shift-drag-source"][data-roster-shift-launcher="true"]').first();
+        const target = page.locator('[data-bepis-dropzone-ref="delete-shift-dropzone"]');
+        await expect(source).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+        await expect(target).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+
+        const sourceKey = await source.getAttribute('data-bepis-source-key');
+        expect(sourceKey).toMatch(/^existing:/);
+        const deletedSource = page.locator(`[data-bepis-source-ref="shift-drag-source"][data-bepis-source-key="${sourceKey}"]`);
+        const sourceBox = await source.boundingBox();
+        const targetBox = await target.boundingBox();
+        expect(sourceBox).toBeTruthy();
+        expect(targetBox).toBeTruthy();
+        if (!sourceBox || !targetBox) return;
+
+        await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 6 });
+        await page.mouse.up();
+
+        const dialog = page.getByRole('dialog', { name: 'Delete roster shift?' });
+        await expect(dialog).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+        await expect(dialog).toContainText('Delete this shift?');
+
+        const deleteResponse = page.waitForResponse((response) =>
+            new URL(response.url()).pathname === '/DeleteRosterSlot'
+            && response.request().method() === 'DELETE',
+        );
+        await dialog.getByRole('button', { name: 'Delete shift' }).click();
+        expect((await deleteResponse).status()).toBe(200);
+        await expect(deletedSource).toHaveCount(0, { timeout: E2E_TIMEOUT.assertion });
     });
 
     test('staff drag highlights the full empty row-grid shift span', async ({ page }) => {

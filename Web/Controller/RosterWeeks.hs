@@ -7,12 +7,12 @@
 module Web.Controller.RosterWeeks where
 
 import Application.Helper.Controller
-import Application.Helper.FrontendContract.AppShell (ConfirmRemoveRosterRowOverlay,
+import Application.Helper.FrontendContract.AppShell (ConfirmDeleteRosterSlotOverlay,
+                                                     ConfirmRemoveRosterRowOverlay,
                                                      DeleteRosterSlotOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              renderAppShellActionForm)
-import Application.Helper.FrontendContract.Overlay.Runtime (dialogAutoSubmitOnceAttr)
 import Application.Helper.FrontendContract.Passkey.Runtime (PasskeySetupPromptMode,
                                                             passkeySetupPromptModeFromValue)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
@@ -1274,17 +1274,33 @@ respondWithDeleteRosterSlotDropConfirmation :: (?context :: ControllerContext, ?
 respondWithDeleteRosterSlotDropConfirmation rosterSlot =
     respondHtmlProfiled [hsx|
         <div id={dialogOverlayMountId} hx-swap-oob="innerHTML">
-            {renderAppShellActionForm
-                (appShellActionByMarker @DeleteRosterSlotOverlay)
-                (rosterDeleteSlotActionRoute (pathTo (DeleteRosterSlotAction rosterSlot.id)))
-                    { appShellActionRouteExtraAttrs =
-                        [ ("class", "d-none")
-                        , dialogAutoSubmitOnceAttr
-                        ]
-                    }
-                mempty}
+            {confirmationDialog}
         </div>
     |]
+  where
+    confirmationDialog =
+        renderDialogOverlay DialogOverlayConfig
+            { dialogOverlayTitle = "Delete roster shift?"
+            , dialogOverlayBody = [hsx|<p class="mb-0">Delete this shift?</p>|]
+            , dialogOverlayStartButtons = []
+            , dialogOverlayButtons =
+                [ OverlayButton
+                    { overlayButtonLabel = "Cancel"
+                    , overlayButtonClass = "btn btn-outline-secondary"
+                    , overlayButtonAction = OverlayCloseAction
+                    }
+                , OverlayButton
+                    { overlayButtonLabel = "Delete shift"
+                    , overlayButtonClass = "btn btn-danger"
+                    , overlayButtonAction = GeneratedDialogFormAction
+                        (appShellActionByMarker @ConfirmDeleteRosterSlotOverlay)
+                        (rosterDeleteSlotActionRoute (pathTo (DeleteRosterSlotAction rosterSlot.id)))
+                        []
+                        Nothing
+                    }
+                ]
+            , dialogOverlayDialogClass = ""
+            }
 
 rosterDeleteSlotActionRoute :: Text -> AppShellActionRoute
 rosterDeleteSlotActionRoute actionUrl =

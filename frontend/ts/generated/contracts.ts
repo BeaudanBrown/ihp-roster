@@ -431,8 +431,6 @@ export const dialogSubmitDomAttr = "data-bepis-dialog-submit" as const;
 
 export const dialogSubmitConfigDomAttr = "data-bepis-dialog-submit-config" as const;
 
-export const dialogAutoSubmitOnceDomAttr = "data-bepis-dialog-auto-submit-once" as const;
-
 export const dialogBlockingDomAttr = "data-bepis-dialog-blocking" as const;
 
 export const dialogKeyboardDomAttr = "data-bepis-dialog-keyboard" as const;

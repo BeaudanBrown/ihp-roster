@@ -55,6 +55,7 @@ module Application.Helper.FrontendContract.AppShell
     , CreateRosterShiftOverlay
     , UpdateRosterShiftOverlay
     , DeleteRosterSlotOverlay
+    , ConfirmDeleteRosterSlotOverlay
     , ConfirmRemoveRosterRowOverlay
     , CreateTrialStaffOverlay
     , UpdateStaffProfileOverlay
@@ -147,6 +148,7 @@ data OpenStaffRemovalDialog
 data CreateRosterShiftOverlay
 data UpdateRosterShiftOverlay
 data DeleteRosterSlotOverlay
+data ConfirmDeleteRosterSlotOverlay
 data ConfirmRemoveRosterRowOverlay
 data CreateTrialStaffOverlay
 data UpdateStaffProfileOverlay
@@ -302,6 +304,13 @@ type AppShellContract =
              , AppShellHtmxSwap "innerHTML"
              , AppShellHtmxPushUrl 'AppShellPushUrlFalse
              , AppShellHtmxConfirm "Delete this shift?"
+             ]
+         , AppShellAction ConfirmDeleteRosterSlotOverlay
+            '[]
+            '[ AppShellHtmxMethod 'AppShellDelete
+             , AppShellHtmxTarget DialogOverlayMount
+             , AppShellHtmxSwap "innerHTML"
+             , AppShellHtmxPushUrl 'AppShellPushUrlFalse
              ]
          , AppShellAction ConfirmRemoveRosterRowOverlay
             '[ Field ConfirmDeletePopulatedRowField 'WireText

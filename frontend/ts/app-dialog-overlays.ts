@@ -1,5 +1,4 @@
 import {
-    dialogAutoSubmitOnceDomAttr,
     dialogBackdropDomAttr,
     dialogBlockingDomAttr,
     dialogCloseDomAttr,
@@ -27,7 +26,6 @@ const dialogFocusRegionSelector = `[${dialogFocusRegionDomAttr}]`;
 const dialogBackdropSelector = `[${dialogBackdropDomAttr}]`;
 const dialogCloseSelector = `[${dialogCloseDomAttr}]`;
 const navigationLoadingSelector = `form[${navigationLoadingDomAttr}]`;
-const autoSubmittedForms = new WeakSet<HTMLFormElement>();
 const originalSubmitHtml = new WeakMap<HTMLButtonElement, string>();
 interface DialogLoadingState {
     contentChildren: Array<{ element: HTMLElement; hidden: boolean }>;
@@ -335,16 +333,6 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         if (returnFocus?.isConnected) returnFocus.focus();
     }
 
-    function submitAutoFormsOnce(container: HTMLElement): void {
-        container.querySelectorAll(`form[${dialogAutoSubmitOnceDomAttr}]`).forEach(function (form) {
-            if (!(form instanceof HTMLFormElement)) return;
-            if (autoSubmittedForms.has(form)) return;
-
-            autoSubmittedForms.add(form);
-            form.requestSubmit();
-        });
-    }
-
     document.addEventListener("click", function (event) {
         const closeEl = closestHTMLElement(event.target, dialogCloseSelector);
         const closeDialog = closeEl?.closest(dialogMountSelector);
@@ -489,7 +477,6 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         if (!isHTMLElement(target)) return;
         if (target.id !== mountId) return;
 
-        submitAutoFormsOnce(target);
         initializeKeyboardDialogs(target);
         releaseInheritedBlockingStateWhenDialogAbsent(target);
 
@@ -501,7 +488,6 @@ function restoreDialogSubmitLoading(dialog: HTMLElement): void {
         if (!isHTMLElement(target)) return;
         if (target.id !== mountId) return;
 
-        submitAutoFormsOnce(target);
         initializeKeyboardDialogs(target);
         releaseInheritedBlockingStateWhenDialogAbsent(target);
         syncDialogState();

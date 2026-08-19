@@ -3,7 +3,6 @@
 module Application.Helper.FrontendContract.Overlay.Runtime
     ( OverlayDom (..)
     , canonicalOverlayDom
-    , dialogAutoSubmitOnceAttr
     , dialogBackdropAttrs
     , dialogCloseAttrs
     , dialogFocusRegionAttrs
@@ -34,7 +33,6 @@ data OverlayDom = OverlayDom
     , overlayDialogCloseAttribute        :: !Text
     , overlayDialogSubmitAttribute       :: !Text
     , overlayDialogSubmitConfigAttribute :: !Text
-    , overlayDialogAutoSubmitAttribute   :: !Text
     , overlayDialogBlockingAttribute     :: !Text
     , overlayDialogKeyboardAttribute     :: !Text
     , overlayDialogFocusRegionAttribute  :: !Text
@@ -56,7 +54,6 @@ canonicalOverlayDom = OverlayDom
     , overlayDialogCloseAttribute = domAttrValue @Contract.DialogClose
     , overlayDialogSubmitAttribute = domAttrValue @Contract.DialogSubmit
     , overlayDialogSubmitConfigAttribute = domAttrValue @Contract.DialogSubmitConfig
-    , overlayDialogAutoSubmitAttribute = domAttrValue @Contract.DialogAutoSubmitOnce
     , overlayDialogBlockingAttribute = domAttrValue @Contract.DialogBlocking
     , overlayDialogKeyboardAttribute = domAttrValue @Contract.DialogKeyboard
     , overlayDialogFocusRegionAttribute = domAttrValue @Contract.DialogFocusRegion
@@ -99,9 +96,6 @@ toastMountAttrs autoHideMs =
 
 toastCloseAttrs :: [(Text, Text)]
 toastCloseAttrs = roleAttrs canonicalOverlayDom.overlayToastCloseAttribute
-
-dialogAutoSubmitOnceAttr :: (Text, Text)
-dialogAutoSubmitOnceAttr = (canonicalOverlayDom.overlayDialogAutoSubmitAttribute, "true")
 
 dialogSubmitConfigJson :: Text -> Text
 dialogSubmitConfigJson loadingLabel

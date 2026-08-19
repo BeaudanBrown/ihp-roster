@@ -18,7 +18,6 @@ module Application.Helper.FrontendContract.Overlay
     , DialogClose
     , DialogDismissed
     , DialogSubmit
-    , DialogAutoSubmitOnce
     , DialogBlocking
     , DialogKeyboard
     , DialogFocusRegion
@@ -52,7 +51,6 @@ data DialogBackdrop
 data DialogClose
 data DialogDismissed
 data DialogSubmit
-data DialogAutoSubmitOnce
 data DialogBlocking
 data DialogKeyboard
 data DialogFocusRegion
@@ -80,7 +78,6 @@ type OverlayContract =
          , DomAttr DialogClose
          , DomAttr DialogSubmit
          , DomAttr DialogSubmitConfig
-         , DomAttr DialogAutoSubmitOnce
          , DomAttr DialogBlocking
          , DomAttr DialogKeyboard
          , DomAttr DialogFocusRegion

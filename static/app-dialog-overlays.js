@@ -30,7 +30,6 @@
   var dialogCloseDomAttr = "data-bepis-dialog-close";
   var dialogSubmitDomAttr = "data-bepis-dialog-submit";
   var dialogSubmitConfigDomAttr = "data-bepis-dialog-submit-config";
-  var dialogAutoSubmitOnceDomAttr = "data-bepis-dialog-auto-submit-once";
   var dialogBlockingDomAttr = "data-bepis-dialog-blocking";
   var dialogKeyboardDomAttr = "data-bepis-dialog-keyboard";
   var dialogFocusRegionDomAttr = "data-bepis-dialog-focus-region";
@@ -85,7 +84,6 @@
   var dialogBackdropSelector = `[${dialogBackdropDomAttr}]`;
   var dialogCloseSelector = `[${dialogCloseDomAttr}]`;
   var navigationLoadingSelector = `form[${navigationLoadingDomAttr}]`;
-  var autoSubmittedForms = /* @__PURE__ */ new WeakSet();
   var originalSubmitHtml = /* @__PURE__ */ new WeakMap();
   var dialogLoadingStates = /* @__PURE__ */ new WeakMap();
   var checkboxControlledHiddenOptions = /* @__PURE__ */ new WeakMap();
@@ -347,14 +345,6 @@
       blockingDialogReturnFocus = null;
       if (returnFocus?.isConnected) returnFocus.focus();
     }
-    function submitAutoFormsOnce(container) {
-      container.querySelectorAll(`form[${dialogAutoSubmitOnceDomAttr}]`).forEach(function(form) {
-        if (!(form instanceof HTMLFormElement)) return;
-        if (autoSubmittedForms.has(form)) return;
-        autoSubmittedForms.add(form);
-        form.requestSubmit();
-      });
-    }
     document.addEventListener("click", function(event) {
       const closeEl = closestHTMLElement(event.target, dialogCloseSelector);
       const closeDialog = closeEl?.closest(dialogMountSelector);
@@ -476,7 +466,6 @@
       const target = detailRoot(event, "target");
       if (!isHTMLElement(target)) return;
       if (target.id !== mountId) return;
-      submitAutoFormsOnce(target);
       initializeKeyboardDialogs(target);
       releaseInheritedBlockingStateWhenDialogAbsent(target);
       syncDialogState();
@@ -485,7 +474,6 @@
       const target = detailRoot(event, "target");
       if (!isHTMLElement(target)) return;
       if (target.id !== mountId) return;
-      submitAutoFormsOnce(target);
       initializeKeyboardDialogs(target);
       releaseInheritedBlockingStateWhenDialogAbsent(target);
       syncDialogState();

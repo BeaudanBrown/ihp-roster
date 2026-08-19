@@ -1152,8 +1152,13 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` ("id=\"" <> cs dialogOverlayMountId <> "\"")
                 response `responseBodyShouldContain` "hx-swap-oob=\"innerHTML\""
-                response `responseBodyShouldContain` "hx-confirm=\"Delete this shift?\""
-                response `responseBodyShouldContain` "data-bepis-dialog-auto-submit-once=\"true\""
+                response `responseBodyShouldContain` "Delete roster shift?"
+                response `responseBodyShouldContain` "Delete this shift?"
+                response `responseBodyShouldContain` "hx-delete=\"/DeleteRosterSlot?rosterSlotId="
+                response `responseBodyShouldContain` ">Cancel</button>"
+                response `responseBodyShouldContain` ">Delete shift</button>"
+                response `responseBodyShouldNotContain` "hx-confirm="
+                response `responseBodyShouldNotContain` "data-bepis-dialog-auto-submit-once="
                 response `responseBodyShouldNotContain` "data-bepis-app-shell-action="
                 persistedSlot <- fetch sourceSlot.id
                 persistedSlot.deletedAt `shouldBe` Nothing
