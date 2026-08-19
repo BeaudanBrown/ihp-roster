@@ -155,12 +155,12 @@ buildHourlyWageCents entries calculationsByEntryId =
 
 wageCentsForEntry :: TimesheetEntry -> WageCalculation -> Either Text (Map.Map Int Integer)
 wageCentsForEntry entry calculation = do
-    intervalShares <- intervalSharesForCalculation entry.timezone calculation
+    intervalShares <- intervalSharesForCalculation entry.timezone entry.startsAt entry.endsAt calculation
     let timedShares = concatMap (splitIntervalShareIntoHours entry) intervalShares
     allocatePublishedCents calculation timedShares
 
-intervalSharesForCalculation :: Text -> WageCalculation -> Either Text [IntervalEarningsShare]
-intervalSharesForCalculation timezone calculation = do
+intervalSharesForCalculation :: Text -> UTCTime -> UTCTime -> WageCalculation -> Either Text [IntervalEarningsShare]
+intervalSharesForCalculation timezone entryStartsAt entryEndsAt calculation = do
     let paidSegments = calculation.paidTimeSegments
         (paidComponents, extraComponents) = List.splitAt (length paidSegments) calculation.earningsComponents
         workedSegments = filter ((== Worked) . (.paidTimeKind)) paidSegments
@@ -168,7 +168,7 @@ intervalSharesForCalculation timezone calculation = do
     when (length paidComponents /= length paidSegments) $
         Left "Approved wage calculation does not contain one base earnings component per paid-time segment."
     paidShares <- concat <$> zipWithM (sharesForPaidComponent workedSegments workedSeconds) paidSegments paidComponents
-    extraShares <- sharesForExtraComponents timezone workedSegments extraComponents
+    extraShares <- sharesForExtraComponents timezone entryStartsAt entryEndsAt workedSegments extraComponents
     pure (paidShares <> extraShares)
 
 sharesForPaidComponent :: [PaidTimeSegment] -> Rational -> PaidTimeSegment -> EarningsComponent -> Either Text [IntervalEarningsShare]
@@ -195,16 +195,16 @@ validatePaidComponent segment component
     | component.sourceCondition /= segment.paidTimeSourceCondition = Left "Approved wage calculation base component condition does not match its paid-time segment."
     | otherwise = Right ()
 
-sharesForExtraComponents :: Text -> [PaidTimeSegment] -> [EarningsComponent] -> Either Text [IntervalEarningsShare]
-sharesForExtraComponents timezone workedSegments components = snd <$> foldM allocate (Map.empty, []) components
+sharesForExtraComponents :: Text -> UTCTime -> UTCTime -> [PaidTimeSegment] -> [EarningsComponent] -> Either Text [IntervalEarningsShare]
+sharesForExtraComponents timezone entryStartsAt entryEndsAt workedSegments components = snd <$> foldM allocate (Map.empty, []) components
   where
     allocate (conditionCounts, shares) component =
         case (component.unitType, component.sourceCondition) of
             (CommencedHours, condition@EveningAdditionCondition) -> allocateCommenced conditionCounts shares condition component
             (CommencedHours, condition@EarlyMorningAdditionCondition) -> allocateCommenced conditionCounts shares condition component
             (Hours, MissedMealBreakAdditionCondition) -> do
-                missedShares <- sharesForMissedBreak workedSegments component
-                pure (conditionCounts, shares <> missedShares)
+                missedShare <- shareForMissedBreak entryStartsAt entryEndsAt component
+                pure (conditionCounts, shares <> [missedShare])
             _ -> Left "Approved wage calculation contains an unsupported extra earnings component for hourly attribution."
 
     allocateCommenced conditionCounts shares condition component = do
@@ -229,42 +229,13 @@ sharesForExtraComponents timezone workedSegments components = snd <$> foldM allo
                 ]
         pure (Map.insert condition (occurrence + 1) conditionCounts, shares <> componentShares)
 
-sharesForMissedBreak :: [PaidTimeSegment] -> EarningsComponent -> Either Text [IntervalEarningsShare]
-sharesForMissedBreak workedSegments component =
-    case listToMaybe (List.sortOn (.paidTimeStart) workedSegments) of
-        Nothing -> Left "Approved missed-meal-break addition has no worked interval."
-        Just firstWorked -> do
-            let missedStart = addUTCTime (6 * 60 * 60) firstWorked.paidTimeStart
-                available =
-                    [ (max missedStart segment.paidTimeStart, segment.paidTimeEnd)
-                    | segment <- List.sortOn (.paidTimeStart) workedSegments
-                    , segment.paidTimeEnd > missedStart
-                    ]
-                requiredSeconds = component.quantity * 3600
-                selected = takeElapsedIntervals requiredSeconds available
-                selectedSeconds = sum [toRational (diffUTCTime end start) | (start, end) <- selected]
-            when (selectedSeconds /= requiredSeconds) $
-                Left "Approved missed-meal-break quantity cannot be matched to its penalised worked interval."
-            pure
-                [ shareForInterval
-                    component
-                    start
-                    end
-                    (component.amount * toRational (diffUTCTime end start) / requiredSeconds)
-                | (start, end) <- selected
-                ]
-
-takeElapsedIntervals :: Rational -> [(UTCTime, UTCTime)] -> [(UTCTime, UTCTime)]
-takeElapsedIntervals remaining intervals
-    | remaining <= 0 = []
-    | otherwise =
-        case intervals of
-            [] -> []
-            (start, end) : rest ->
-                let available = toRational (diffUTCTime end start)
-                    selected = min remaining available
-                    selectedEnd = addUTCTime (fromRational selected) start
-                 in (start, selectedEnd) : takeElapsedIntervals (remaining - selected) rest
+shareForMissedBreak :: UTCTime -> UTCTime -> EarningsComponent -> Either Text IntervalEarningsShare
+shareForMissedBreak entryStartsAt entryEndsAt component = do
+    let missedStart = addUTCTime (6 * 60 * 60) entryStartsAt
+        missedEnd = addUTCTime (fromRational (component.quantity * 3600)) missedStart
+    when (component.quantity <= 0 || missedEnd > entryEndsAt) $
+        Left "Approved missed-meal-break quantity falls outside its timesheet interval."
+    pure (shareForInterval component missedStart missedEnd component.amount)
 
 qualifiesForCommenced :: Text -> SourceCondition -> PaidTimeSegment -> Bool
 qualifiesForCommenced timezone condition segment

@@ -616,6 +616,10 @@ tests = aroundAll withDatabaseTestContext do
                     [ set #shiftTypeId (unpackId shiftType.id)
                     , setTestStartTime (TimeOfDay 9 0 0)
                     , setTestEndTime (TimeOfDay 16 0 0)
+                    , setTestHadBreak True
+                    , setTestBreakMinutes 15
+                    , setTestBreakStartTime (Just (TimeOfDay 15 15 0))
+                    , setTestBreakEndTime (Just (TimeOfDay 15 30 0))
                     ]
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -636,8 +640,8 @@ tests = aroundAll withDatabaseTestContext do
                             |> fmap (decodeUtf8 . LBS.toStrict . Zip.fromEntry)
                             |> fromMaybe ""
                 mondayWages `shouldSatisfy` Text.isInfixOf "14:00-15:00,37.50,37.50"
-                mondayWages `shouldSatisfy` Text.isInfixOf "15:00-16:00,52.50,52.50"
-                mondayWages `shouldSatisfy` Text.isInfixOf "Total,277.50,277.50"
+                mondayWages `shouldSatisfy` Text.isInfixOf "15:00-16:00,43.13,43.13"
+                mondayWages `shouldSatisfy` Text.isInfixOf "Total,268.13,268.13"
 
         it "downloads a ready export and audits the download" $ withContext do
             withCleanDb do
