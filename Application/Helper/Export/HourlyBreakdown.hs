@@ -236,6 +236,7 @@ shareForMissedBreak entryStartsAt entryEndsAt component = do
 
 qualifiesForCommenced :: Text -> SourceCondition -> PaidTimeSegment -> Bool
 qualifiesForCommenced timezone condition segment
+    | segment.paidTimeSourceCondition == PublicHolidayCondition = False
     | dayOfWeek segment.paidTimeLocalDate `elem` [Saturday, Sunday] = False
     | otherwise =
         let localHour = (storedInstantLocalTime timezone segment.paidTimeStart).localTimeOfDay.todHour
