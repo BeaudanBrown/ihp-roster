@@ -6,6 +6,7 @@ import Application.Helper.VenueScopedQueries (fetchActiveVenueShiftTypes)
 import Application.VenueTime.Model (requireMelbourneDateRangeUTC)
 import Application.WageEngine (AwardClassification (..),
                                awardClassificationFromFixedId)
+import Control.Monad (guard)
 import Data.Coerce (coerce)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
@@ -176,5 +177,6 @@ fetchApprovedEntryShiftLabels entries = do
     versionIds = List.nub (mapMaybe (.shiftTypePayVersionId) entries)
     entryLabel labels entry = do
         versionId <- entry.shiftTypePayVersionId
-        label <- Map.lookup versionId labels
+        label <- Text.strip <$> Map.lookup versionId labels
+        guard (not (Text.null label))
         pure (unpackId entry.id, label)

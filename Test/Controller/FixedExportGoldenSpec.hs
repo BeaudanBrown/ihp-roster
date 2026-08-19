@@ -3,12 +3,16 @@ module Test.Controller.FixedExportGoldenSpec where
 import Application.Fixture.PayrollFixtures
 import Application.Helper.Export
 import Application.WageEngine (AwardClassification (..))
+import qualified Codec.Archive.Zip as Zip
 import Config
 import Control.Monad (void)
+import qualified Data.ByteString.Base64 as Base64
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -124,6 +128,23 @@ tests = aroundAll withDatabaseTestContext do
                 get #fileName exportJob `shouldBe` Just "payroll_earnings-2025-01-07-to-2025-01-13.csv"
                 get #payConfigVersionManifest exportJob `shouldBe` Just "mixed"
                 normalizePayrollEarningsCsv (fromMaybe "" (get #fileContents exportJob)) `shouldBe` normalizeExpectedPayrollEarningsCsv expectedCsv
+
+        it "renders canonical hourly staff-hours and wage-total CSV files exactly" $ withContext do
+            withCleanDb do
+                fixture <- seedCanonicalPayrollFixtureForWeek goldenWeekStart
+                expectedStaffHours <- readExportFixtureText "hourly_staff_hours-expected.csv"
+                expectedWageTotals <- readExportFixtureText "hourly_wage_totals-expected.csv"
+                firstStaffHours <- generatePayrollExportJob fixture.admin fixture.venue HourlyBreakdownZip
+                secondStaffHours <- generatePayrollExportJob fixture.admin fixture.venue HourlyBreakdownZip
+                firstWageTotals <- generatePayrollExportJob fixture.admin fixture.venue HourlyWageTotalsZip
+                secondWageTotals <- generatePayrollExportJob fixture.admin fixture.venue HourlyWageTotalsZip
+                let staffPath = "2025-01-07_Tuesday_staff_hours.csv"
+                    wagePath = "2025-01-07_Tuesday_wage_totals.csv"
+
+                extractZipTextFile staffPath firstStaffHours `shouldBe` expectedStaffHours
+                extractZipTextFile wagePath firstWageTotals `shouldBe` expectedWageTotals
+                secondStaffHours.fileContents `shouldBe` firstStaffHours.fileContents
+                secondWageTotals.fileContents `shouldBe` firstWageTotals.fileContents
 
         it "keeps repeated CSV and ZIP jobs distinct with deterministic contents" $ withContext do
             withCleanDb do
@@ -494,6 +515,16 @@ generatePayrollExportJobForRange user venue rangeStart rangeEnd exportType = do
         |> filterWhere (#requestedByUserId, unpackId user.id)
         |> orderByDesc #createdAt
         |> fetchOne
+
+extractZipTextFile :: FilePath -> ExportJob -> Text
+extractZipTextFile filePath exportJob =
+    case Base64.decode (encodeUtf8 (fromMaybe "" exportJob.fileContents)) of
+        Left message -> error ("Invalid export ZIP base64: " <> cs message)
+        Right bytes ->
+            Zip.toArchive (LBS.fromStrict bytes)
+                |> Zip.findEntryByPath filePath
+                |> fmap (decodeUtf8 . LBS.toStrict . Zip.fromEntry)
+                |> fromMaybe (error ("Missing export ZIP file: " <> cs filePath))
 
 readExportFixtureText :: FilePath -> IO Text
 readExportFixtureText fixtureName =

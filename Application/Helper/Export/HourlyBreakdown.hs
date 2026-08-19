@@ -155,12 +155,12 @@ buildHourlyWageCents entries calculationsByEntryId =
 
 wageCentsForEntry :: TimesheetEntry -> WageCalculation -> Either Text (Map.Map Int Integer)
 wageCentsForEntry entry calculation = do
-    intervalShares <- intervalSharesForCalculation calculation
+    intervalShares <- intervalSharesForCalculation entry.timezone calculation
     let timedShares = concatMap (splitIntervalShareIntoHours entry) intervalShares
     allocatePublishedCents calculation timedShares
 
-intervalSharesForCalculation :: WageCalculation -> Either Text [IntervalEarningsShare]
-intervalSharesForCalculation calculation = do
+intervalSharesForCalculation :: Text -> WageCalculation -> Either Text [IntervalEarningsShare]
+intervalSharesForCalculation timezone calculation = do
     let paidSegments = calculation.paidTimeSegments
         (paidComponents, extraComponents) = List.splitAt (length paidSegments) calculation.earningsComponents
         workedSegments = filter ((== Worked) . (.paidTimeKind)) paidSegments
@@ -168,7 +168,7 @@ intervalSharesForCalculation calculation = do
     when (length paidComponents /= length paidSegments) $
         Left "Approved wage calculation does not contain one base earnings component per paid-time segment."
     paidShares <- concat <$> zipWithM (sharesForPaidComponent workedSegments workedSeconds) paidSegments paidComponents
-    extraShares <- sharesForExtraComponents workedSegments extraComponents
+    extraShares <- sharesForExtraComponents timezone workedSegments extraComponents
     pure (paidShares <> extraShares)
 
 sharesForPaidComponent :: [PaidTimeSegment] -> Rational -> PaidTimeSegment -> EarningsComponent -> Either Text [IntervalEarningsShare]
@@ -195,8 +195,8 @@ validatePaidComponent segment component
     | component.sourceCondition /= segment.paidTimeSourceCondition = Left "Approved wage calculation base component condition does not match its paid-time segment."
     | otherwise = Right ()
 
-sharesForExtraComponents :: [PaidTimeSegment] -> [EarningsComponent] -> Either Text [IntervalEarningsShare]
-sharesForExtraComponents workedSegments components = snd <$> foldM allocate (Map.empty, []) components
+sharesForExtraComponents :: Text -> [PaidTimeSegment] -> [EarningsComponent] -> Either Text [IntervalEarningsShare]
+sharesForExtraComponents timezone workedSegments components = snd <$> foldM allocate (Map.empty, []) components
   where
     allocate (conditionCounts, shares) component =
         case (component.unitType, component.sourceCondition) of
@@ -208,7 +208,7 @@ sharesForExtraComponents workedSegments components = snd <$> foldM allocate (Map
             _ -> Left "Approved wage calculation contains an unsupported extra earnings component for hourly attribution."
 
     allocateCommenced conditionCounts shares condition component = do
-        let eligible = filter (qualifiesForCommenced condition) workedSegments
+        let eligible = filter (qualifiesForCommenced timezone condition) workedSegments
             dates = List.sort (List.nub (map (.paidTimeLocalDate) eligible))
             occurrence = Map.findWithDefault 0 condition conditionCounts
         date <- maybe
@@ -266,11 +266,11 @@ takeElapsedIntervals remaining intervals
                     selectedEnd = addUTCTime (fromRational selected) start
                  in (start, selectedEnd) : takeElapsedIntervals (remaining - selected) rest
 
-qualifiesForCommenced :: SourceCondition -> PaidTimeSegment -> Bool
-qualifiesForCommenced condition segment
+qualifiesForCommenced :: Text -> SourceCondition -> PaidTimeSegment -> Bool
+qualifiesForCommenced timezone condition segment
     | dayOfWeek segment.paidTimeLocalDate `elem` [Saturday, Sunday] = False
     | otherwise =
-        let localHour = (storedInstantLocalTime "Australia/Melbourne" segment.paidTimeStart).localTimeOfDay.todHour
+        let localHour = (storedInstantLocalTime timezone segment.paidTimeStart).localTimeOfDay.todHour
          in case condition of
                 EveningAdditionCondition      -> localHour >= 19
                 EarlyMorningAdditionCondition -> localHour < 7
