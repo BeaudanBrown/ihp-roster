@@ -11,6 +11,7 @@ import Config
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Calendar (Day, fromGregorian)
@@ -423,6 +424,23 @@ tests = aroundAll withDatabaseTestContext do
                 csvContents `shouldSatisfy`
                     (not . Text.isInfixOf "Trial")
 
+        it "rounds the venue window outward and expands it for approved timesheets" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Hourly Window Venue"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                configured <- venueConfig
+                    |> set #timePickerStartMinuteOfDay (9 * 60 + 15)
+                    |> set #timePickerFinalSelectableMinuteOfDay (2 * 60 + 45)
+                    |> updateRecord
+                buildHourlyReportWindow configured [] `shouldBe` HourlyReportWindow 9 27
+
+                staff <- createStaffRecord venue Nothing "Window" "Worker"
+                entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 6)
+                    >>= updateRecord
+                        . setTestStartTime (TimeOfDay 8 37 0)
+                        . setTestEndTime (TimeOfDay 3 10 0)
+                buildHourlyReportWindow configured [entry] `shouldBe` HourlyReportWindow 8 28
+
         it "buckets exact repeated and skipped DST hours in hourly breakdowns" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Hourly DST Venue"
@@ -438,13 +456,15 @@ tests = aroundAll withDatabaseTestContext do
                         . set #shiftTypeId (unpackId shiftType.id)
                         . setTestTimesheetBoundaries (fromGregorian 2026 10 3) (TimeOfDay 22 0 0) (TimeOfDay 4 0 0)
 
-                let autumnCsv = Text.lines (renderHourlyBreakdownDateCsv (fromGregorian 2026 4 4) [shiftType] [autumnEntry])
-                let springCsv = Text.lines (renderHourlyBreakdownDateCsv (fromGregorian 2026 10 3) [shiftType] [springEntry])
+                let window = HourlyReportWindow 8 28
+                let columns = [HourlyShiftTypeColumn (unpackId shiftType.id) "Bar"]
+                let autumnCsv = Text.lines (renderHourlyBreakdownDateCsv (fromGregorian 2026 4 4) window columns [autumnEntry])
+                let springCsv = Text.lines (renderHourlyBreakdownDateCsv (fromGregorian 2026 10 3) window columns [springEntry])
 
-                autumnCsv `shouldContain` ["02:00+1,2.000000"]
-                autumnCsv `shouldContain` ["03:00+1,1.000000"]
-                springCsv `shouldContain` ["02:00+1,"]
-                springCsv `shouldContain` ["03:00+1,1.000000"]
+                autumnCsv `shouldContain` ["02:00-03:00+1,2.000000,2.000000"]
+                autumnCsv `shouldContain` ["03:00-04:00+1,1.000000,1.000000"]
+                springCsv `shouldContain` ["02:00-03:00+1,,0.000000"]
+                springCsv `shouldContain` ["03:00-04:00+1,1.000000,1.000000"]
 
         it "creates and downloads an hourly breakdown ZIP export" $ withContext do
             withCleanDb do
@@ -456,6 +476,10 @@ tests = aroundAll withDatabaseTestContext do
                 floorLevel <- createPayLevelRecordWithRates venue "Floor Level" 28 0 0 1.25 1.5 1.75
                 barShift <- createShiftTypeRecord venue barLevel "Bar" >>= updateRecord . set #sortOrder 10
                 floorShift <- createShiftTypeRecord venue floorLevel "Floor" >>= updateRecord . set #sortOrder 20
+                let duplicateColumns = buildHourlyShiftTypeColumns [barShift, floorShift |> set #name "Bar"] [] [] Map.empty
+                map (.hourlyShiftTypeLabel) duplicateColumns `shouldBe` ["Bar (1)", "Bar (2)"]
+                let reservedColumns = buildHourlyShiftTypeColumns [barShift |> set #name "Time", floorShift |> set #name "Total"] [] [] Map.empty
+                map (.hourlyShiftTypeLabel) reservedColumns `shouldBe` ["Time (1)", "Total (1)"]
                 staff <- createStaffRecord venue Nothing "Nia" "Night"
                 snapshot <- createPayrollSnapshot venue admin [barLevel, floorLevel] [barShift, floorShift] dayNames []
                 let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 0)
@@ -481,7 +505,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 exportJob <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
                 exportJob.exportType `shouldBe` exportJobTypeToText HourlyBreakdownZip
-                exportJob.fileName `shouldBe` Just "hourly_breakdown-2025-01-06-to-2025-01-12.zip"
+                exportJob.fileName `shouldBe` Just "hourly_staff_hours-2025-01-06-to-2025-01-12.zip"
                 exportJob.contentType `shouldBe` Just "application/zip"
                 exportJob.fileEncoding `shouldBe` "base64"
                 exportJob.payConfigVersionManifest `shouldSatisfy` isJust
@@ -492,20 +516,128 @@ tests = aroundAll withDatabaseTestContext do
 
                 downloadResponse `responseStatusShouldBe` status200
                 lookup hContentType (responseHeaders downloadResponse) `shouldBe` Just "application/zip"
-                lookup hContentDisposition (responseHeaders downloadResponse) `shouldBe` Just "attachment; filename=\"hourly_breakdown-2025-01-06-to-2025-01-12.zip\""
+                lookup hContentDisposition (responseHeaders downloadResponse) `shouldBe` Just "attachment; filename=\"hourly_staff_hours-2025-01-06-to-2025-01-12.zip\""
 
                 downloadBody <- responseBody downloadResponse
                 let archive = Zip.toArchive downloadBody
-                Zip.filesInArchive archive `shouldContain` ["2025-01-06_Monday.csv"]
+                Zip.filesInArchive archive `shouldContain` ["2025-01-06_Monday_staff_hours.csv"]
                 let mondayCsv =
                         archive
-                            |> Zip.findEntryByPath "2025-01-06_Monday.csv"
+                            |> Zip.findEntryByPath "2025-01-06_Monday_staff_hours.csv"
                             |> fmap (decodeUtf8 . LBS.toStrict . Zip.fromEntry)
                             |> fromMaybe ""
-                mondayCsv `shouldSatisfy` Text.isInfixOf "Time,Bar,Floor"
-                mondayCsv `shouldSatisfy` Text.isInfixOf "08:00,1.000000,"
-                mondayCsv `shouldSatisfy` Text.isInfixOf "09:00,1.000000,1.000000"
-                mondayCsv `shouldSatisfy` Text.isInfixOf "10:00,0.500000,1.000000"
+                mondayCsv `shouldSatisfy` Text.isInfixOf "Time,Bar,Floor,Total"
+                mondayCsv `shouldSatisfy` Text.isInfixOf "08:00-09:00,1.000000,,1.000000"
+                mondayCsv `shouldSatisfy` Text.isInfixOf "09:00-10:00,1.000000,1.000000,2.000000"
+                mondayCsv `shouldSatisfy` Text.isInfixOf "10:00-11:00,0.500000,1.000000,1.500000"
+                mondayCsv `shouldSatisfy` Text.isInfixOf "Total,2.500000,2.000000,4.500000"
+
+                wageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateExportJobAction
+                        [ ("exportType", cs (exportJobTypeToText HourlyWageTotalsZip))
+                        , ("rangeStart", "2025-01-06")
+                        , ("rangeEnd", "2025-01-12")
+                        ]
+                wageResponse `responseStatusShouldBe` status302
+
+                wageExportJob <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
+                wageExportJob.exportType `shouldBe` exportJobTypeToText HourlyWageTotalsZip
+                wageExportJob.fileName `shouldBe` Just "hourly_wage_totals-2025-01-06-to-2025-01-12.zip"
+                wageDownloadResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (DownloadExportJobAction wageExportJob.id)
+                        [("token", cs (tshow wageExportJob.downloadToken))]
+                wageDownloadBody <- responseBody wageDownloadResponse
+                let wageArchive = Zip.toArchive wageDownloadBody
+                Zip.filesInArchive wageArchive `shouldContain` ["2025-01-06_Monday_wage_totals.csv"]
+                let mondayWages =
+                        wageArchive
+                            |> Zip.findEntryByPath "2025-01-06_Monday_wage_totals.csv"
+                            |> fmap (decodeUtf8 . LBS.toStrict . Zip.fromEntry)
+                            |> fromMaybe ""
+                mondayWages `shouldSatisfy` Text.isInfixOf "Time,Bar,Floor,Total"
+                mondayWages `shouldSatisfy` Text.isInfixOf "08:00-09:00,37.50,,37.50"
+                mondayWages `shouldSatisfy` Text.isInfixOf "09:00-10:00,37.50,37.50,75.00"
+                mondayWages `shouldSatisfy` Text.isInfixOf "10:00-11:00,18.75,37.50,56.25"
+                mondayWages `shouldSatisfy` Text.isInfixOf "Total,93.75,75.00,168.75"
+
+        it "spreads minimum top-ups and commenced-hour additions across worked wage buckets" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Hourly Wage Attribution Venue"
+                admin <- createUserRecord "hourly-attribution-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                dayNames <- seedWeekDayNames venue
+                level <- createPayLevelRecordWithRates venue "Bar Level" 30 2.5 3 1 1.5 1.75
+                shiftType <- createShiftTypeRecord venue level "Bar"
+                staff <- createStaffRecord venue Nothing "Ari" "Attribution"
+                snapshot <- createPayrollSnapshot venue admin [level] [shiftType] dayNames []
+                let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 0)
+                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                    [ set #shiftTypeId (unpackId shiftType.id)
+                    , setTestStartTime (TimeOfDay 18 30 0)
+                    , setTestEndTime (TimeOfDay 20 15 0)
+                    ]
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateExportJobAction
+                        [ ("exportType", cs (exportJobTypeToText HourlyWageTotalsZip))
+                        , ("rangeStart", "2025-01-06")
+                        , ("rangeEnd", "2025-01-12")
+                        ]
+                response `responseStatusShouldBe` status302
+
+                exportJob <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
+                downloadResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (DownloadExportJobAction exportJob.id)
+                        [("token", cs (tshow exportJob.downloadToken))]
+                downloadBody <- responseBody downloadResponse
+                let archive = Zip.toArchive downloadBody
+                let mondayWages =
+                        archive
+                            |> Zip.findEntryByPath "2025-01-06_Monday_wage_totals.csv"
+                            |> fmap (decodeUtf8 . LBS.toStrict . Zip.fromEntry)
+                            |> fromMaybe ""
+                mondayWages `shouldSatisfy` Text.isInfixOf "18:00-19:00,21.43,21.43"
+                mondayWages `shouldSatisfy` Text.isInfixOf "19:00-20:00,46.86,46.86"
+                mondayWages `shouldSatisfy` Text.isInfixOf "20:00-21:00,11.71,11.71"
+                mondayWages `shouldSatisfy` Text.isInfixOf "Total,80.00,80.00"
+
+        it "allocates missed-meal-break additions only during the penalised interval" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Hourly Missed Break Venue"
+                admin <- createUserRecord "hourly-missed-break-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin VenueAdmin
+                dayNames <- seedWeekDayNames venue
+                level <- createPayLevelRecordWithRates venue "Bar Level" 30 0 0 1 1.5 1.75
+                shiftType <- createShiftTypeRecord venue level "Bar"
+                staff <- createStaffRecord venue Nothing "Mia" "Mealbreak"
+                snapshot <- createPayrollSnapshot venue admin [level] [shiftType] dayNames []
+                let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 0)
+                _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
+                    [ set #shiftTypeId (unpackId shiftType.id)
+                    , setTestStartTime (TimeOfDay 9 0 0)
+                    , setTestEndTime (TimeOfDay 16 0 0)
+                    ]
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateExportJobAction
+                        [ ("exportType", cs (exportJobTypeToText HourlyWageTotalsZip))
+                        , ("rangeStart", "2025-01-06")
+                        , ("rangeEnd", "2025-01-12")
+                        ]
+                response `responseStatusShouldBe` status302
+                exportJob <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
+                downloadResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (DownloadExportJobAction exportJob.id)
+                        [("token", cs (tshow exportJob.downloadToken))]
+                downloadBody <- responseBody downloadResponse
+                let mondayWages =
+                        Zip.toArchive downloadBody
+                            |> Zip.findEntryByPath "2025-01-06_Monday_wage_totals.csv"
+                            |> fmap (decodeUtf8 . LBS.toStrict . Zip.fromEntry)
+                            |> fromMaybe ""
+                mondayWages `shouldSatisfy` Text.isInfixOf "14:00-15:00,37.50,37.50"
+                mondayWages `shouldSatisfy` Text.isInfixOf "15:00-16:00,52.50,52.50"
+                mondayWages `shouldSatisfy` Text.isInfixOf "Total,277.50,277.50"
 
         it "downloads a ready export and audits the download" $ withContext do
             withCleanDb do

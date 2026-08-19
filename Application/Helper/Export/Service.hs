@@ -2,6 +2,7 @@ module Application.Helper.Export.Service where
 
 import Application.Helper.Controller
 import Application.Helper.Export.Definitions
+import Application.Helper.Export.HourlyBreakdown
 import Application.Helper.Export.Payloads
 import Application.Helper.Export.Persistence
 import Application.Helper.Export.ReadModel
@@ -33,6 +34,7 @@ requestFixedExport exportType rangeStart rangeEnd
             ApprovedTimesheetsCsv -> requestApprovedTimesheetsCsvExport rangeStart rangeEnd
             StaffPayCsv -> requestFixedStaffPayCsvExport rangeStart rangeEnd
             HourlyBreakdownZip -> requestFixedHourlyBreakdownZipExport rangeStart rangeEnd
+            HourlyWageTotalsZip -> requestFixedHourlyWageTotalsZipExport rangeStart rangeEnd
             PayrollEarningsCsv -> requestFixedPayrollEarningsCsvExport rangeStart rangeEnd
 
 requestFixedStaffPayCsvExport ::
@@ -135,15 +137,20 @@ requestFixedHourlyBreakdownZipExport rangeStart rangeEnd = do
         Right ()     -> requestWithEnforcedEntries entries
   where
     requestWithEnforcedEntries entries = do
-        shiftTypes <- fetchCurrentVenueActiveShiftTypes
+        venueConfig <- fetchVenueConfig
+        activeShiftTypes <- fetchCurrentVenueActiveShiftTypes
+        reportShiftTypes <- fetchReportShiftTypes entries
+        shiftLabelsByEntryId <- fetchApprovedEntryShiftLabels entries
         versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
         let dates = [rangeStart .. rangeEnd]
+        let window = buildHourlyReportWindow venueConfig entries
+        let columns = buildHourlyShiftTypeColumns activeShiftTypes reportShiftTypes entries shiftLabelsByEntryId
         let versionManifests = List.sort (List.nub (Map.elems versionManifestsByEntryId))
         let exportVersionManifest = collapseVersionManifests versionManifests
-        let fileName = "hourly_breakdown-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".zip"
+        let fileName = "hourly_staff_hours-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".zip"
         let fileContents =
                 renderTextZipBase64
-                    [ (tshow date <> "_" <> fallbackReportDayLabel date 0 <> ".csv", renderHourlyBreakdownDateCsv date shiftTypes entries)
+                    [ (tshow date <> "_" <> fallbackReportDayLabel date 0 <> "_staff_hours.csv", renderHourlyBreakdownDateCsv date window columns entries)
                     | date <- dates
                     ]
         exportJob <- withTransaction do
@@ -158,6 +165,10 @@ requestFixedHourlyBreakdownZipExport rangeStart rangeEnd = do
                     , "approvedOnly" Aeson..= True
                     , "entryCount" Aeson..= length entries
                     , "fileCount" Aeson..= length dates
+                    , "configuredWindowStartMinute" Aeson..= venueConfig.timePickerStartMinuteOfDay
+                    , "configuredWindowEndMinute" Aeson..= venueConfig.timePickerFinalSelectableMinuteOfDay
+                    , "effectiveWindowStartHour" Aeson..= window.hourlyWindowStartHour
+                    , "effectiveWindowEndHour" Aeson..= window.hourlyWindowEndHour
                     , "versionManifests" Aeson..= versionManifests
                     ])
                 fileName
@@ -172,10 +183,81 @@ requestFixedHourlyBreakdownZipExport rangeStart rangeEnd = do
                     , "rangeEnd" Aeson..= rangeEnd
                     , "entryCount" Aeson..= length entries
                     , "fileCount" Aeson..= length dates
+                    , "effectiveWindowStartHour" Aeson..= window.hourlyWindowStartHour
+                    , "effectiveWindowEndHour" Aeson..= window.hourlyWindowEndHour
                     , "payConfigVersionManifest" Aeson..= exportVersionManifest
                     , "deliveryMethod" Aeson..= browserDownloadMethod
                     ])
         pure (Right exportJob)
+
+requestFixedHourlyWageTotalsZipExport ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Day ->
+    Day ->
+    IO (Either Text ExportJob)
+requestFixedHourlyWageTotalsZipExport rangeStart rangeEnd = do
+    entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
+    enforceFinalWageEntries entries >>= \case
+        Left failures -> pure (Left (renderWageEntryFailures "Payroll output blocked: " failures))
+        Right calculations -> requestWithCalculations entries calculations
+  where
+    requestWithCalculations entries calculations = do
+        venueConfig <- fetchVenueConfig
+        activeShiftTypes <- fetchCurrentVenueActiveShiftTypes
+        reportShiftTypes <- fetchReportShiftTypes entries
+        shiftLabelsByEntryId <- fetchApprovedEntryShiftLabels entries
+        versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
+        let dates = [rangeStart .. rangeEnd]
+        let window = buildHourlyReportWindow venueConfig entries
+        let columns = buildHourlyShiftTypeColumns activeShiftTypes reportShiftTypes entries shiftLabelsByEntryId
+        let calculationsByEntryId = calculationMap entries calculations
+        case buildHourlyWageCents entries calculationsByEntryId of
+            Left message -> pure (Left ("Hourly wage totals blocked: " <> message))
+            Right wageCents -> do
+                let versionManifests = List.sort (List.nub (Map.elems versionManifestsByEntryId))
+                let exportVersionManifest = collapseVersionManifests versionManifests
+                let fileName = "hourly_wage_totals-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".zip"
+                let fileContents =
+                        renderTextZipBase64
+                            [ (tshow date <> "_" <> fallbackReportDayLabel date 0 <> "_wage_totals.csv", renderHourlyWageTotalsDateCsv date window columns wageCents)
+                            | date <- dates
+                            ]
+                exportJob <- withTransaction do
+                    now <- getCurrentTime
+                    persistReadyExportJob
+                        (exportJobTypeToText HourlyWageTotalsZip)
+                        rangeStart
+                        rangeEnd
+                        (Aeson.object
+                            [ "rangeStart" Aeson..= rangeStart
+                            , "rangeEnd" Aeson..= rangeEnd
+                            , "approvedOnly" Aeson..= True
+                            , "entryCount" Aeson..= length entries
+                            , "fileCount" Aeson..= length dates
+                            , "configuredWindowStartMinute" Aeson..= venueConfig.timePickerStartMinuteOfDay
+                            , "configuredWindowEndMinute" Aeson..= venueConfig.timePickerFinalSelectableMinuteOfDay
+                            , "effectiveWindowStartHour" Aeson..= window.hourlyWindowStartHour
+                            , "effectiveWindowEndHour" Aeson..= window.hourlyWindowEndHour
+                            , "versionManifests" Aeson..= versionManifests
+                            ])
+                        fileName
+                        "application/zip"
+                        "base64"
+                        fileContents
+                        exportVersionManifest
+                        (addUTCTime exportExpirySeconds now)
+                        (Aeson.object
+                            [ "exportType" Aeson..= exportJobTypeToText HourlyWageTotalsZip
+                            , "rangeStart" Aeson..= rangeStart
+                            , "rangeEnd" Aeson..= rangeEnd
+                            , "entryCount" Aeson..= length entries
+                            , "fileCount" Aeson..= length dates
+                            , "effectiveWindowStartHour" Aeson..= window.hourlyWindowStartHour
+                            , "effectiveWindowEndHour" Aeson..= window.hourlyWindowEndHour
+                            , "payConfigVersionManifest" Aeson..= exportVersionManifest
+                            , "deliveryMethod" Aeson..= browserDownloadMethod
+                            ])
+                pure (Right exportJob)
 
 requestFixedPayrollEarningsCsvExport ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

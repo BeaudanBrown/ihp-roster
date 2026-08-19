@@ -389,6 +389,8 @@ tests = aroundAll withDatabaseTestContext do
                 exportsResponse `responseBodyShouldNotContain` "Recent Exports"
                 exportsResponse `responseBodyShouldNotContain` "Approved Timesheets CSV"
                 exportsResponse `responseBodyShouldContain` "Hourly Breakdown ZIP"
+                exportsResponse `responseBodyShouldContain` "Download staff hours"
+                exportsResponse `responseBodyShouldContain` "Download wage totals"
                 exportsResponse `responseBodyShouldContain` "Payroll Earnings CSV"
                 exportsResponse `responseBodyShouldNotContain` "admin-export-range-start"
                 exportsResponse `responseBodyShouldNotContain` "admin-export-range-end"

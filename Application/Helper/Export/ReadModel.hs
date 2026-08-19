@@ -18,6 +18,17 @@ fetchCurrentVenueActiveShiftTypes :: (?context :: ControllerContext, ?modelConte
 fetchCurrentVenueActiveShiftTypes =
     fetchActiveVenueShiftTypes currentVenueId
 
+fetchReportShiftTypes :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO [ShiftType]
+fetchReportShiftTypes entries =
+    if null shiftTypeIds
+        then pure []
+        else
+            query @ShiftType
+                |> filterWhereIn (#id, map Id shiftTypeIds)
+                |> fetch
+  where
+    shiftTypeIds = List.nub (map (.shiftTypeId) entries)
+
 fetchReportStaffMap :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Map.Map UUID Staff)
 fetchReportStaffMap entries =
     if null staffIds

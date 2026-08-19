@@ -176,7 +176,7 @@ tests = describe "Schema" do
         allVenueRoleValues `shouldBe` ["worker", "supervisor", "manager", "venue_admin", "venue_owner"]
         allPlatformRoleValues `shouldBe` ["super_admin"]
         allLeaveRequestStatusValues `shouldBe` ["pending", "approved", "denied"]
-        allExportJobTypeValues `shouldBe` ["approved_timesheets_csv", "staff_pay_csv", "hourly_breakdown_zip", "payroll_earnings_csv"]
+        allExportJobTypeValues `shouldBe` ["approved_timesheets_csv", "staff_pay_csv", "hourly_breakdown_zip", "hourly_wage_totals_zip", "payroll_earnings_csv"]
         allExportJobStatusValues `shouldBe` ["pending", "ready", "expired"]
 
         parseUserRole ("staff" :: Text) `shouldBe` Just StaffRole
@@ -224,7 +224,7 @@ tests = describe "Schema" do
         canAssignVenueRole False (Just VenueAdmin) VenueOwner VenueAdmin `shouldBe` False
         canAssignVenueRole False (Just VenueOwner) VenueOwner VenueAdmin `shouldBe` True
         canAssignVenueRole True Nothing VenueOwner VenueAdmin `shouldBe` True
-        map exportJobTypeToText [ApprovedTimesheetsCsv, StaffPayCsv, HourlyBreakdownZip, PayrollEarningsCsv] `shouldBe` allExportJobTypeValues
+        map exportJobTypeToText [ApprovedTimesheetsCsv, StaffPayCsv, HourlyBreakdownZip, HourlyWageTotalsZip, PayrollEarningsCsv] `shouldBe` allExportJobTypeValues
         map exportJobStatusToText [ExportPending, ExportReady, ExportExpired] `shouldBe` allExportJobStatusValues
 
     it "avoids IN-based CHECK constraints that pg_dump rewrites into parser-hostile ANY(ARRAY ...)" do

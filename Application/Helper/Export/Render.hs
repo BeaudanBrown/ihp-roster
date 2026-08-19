@@ -1,12 +1,9 @@
 module Application.Helper.Export.Render where
 
 import Application.Helper.Controller
+import Application.Helper.Export.HourlyBreakdown
 import Application.Helper.Export.Types
-import Application.VenueTime (RepeatedTimeOccurrence (..))
-import Application.VenueTime.Model (civilBoundaryIsRepeated,
-                                    resolveBoundaryInstant,
-                                    storedInstantLocalTime,
-                                    timesheetEntryBreakElapsedSeconds,
+import Application.VenueTime.Model (timesheetEntryBreakElapsedSeconds,
                                     timesheetEntryBreakEndTime,
                                     timesheetEntryBreakStartTime,
                                     timesheetEntryEndTime,
@@ -25,9 +22,9 @@ import qualified Data.Scientific as Scientific
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Calendar (Day, addDays)
-import Data.Time.Clock (NominalDiffTime, UTCTime, diffUTCTime)
+import Data.Time.Clock (NominalDiffTime, UTCTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..), addLocalTime)
+import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
 import Text.Printf (printf)
@@ -221,88 +218,60 @@ rationalToScientificAt decimalPlaces value =
         scale :: Integer
         scale = 10 ^ decimalPlaces
 
-renderHourlyBreakdownDateCsv :: Day -> [ShiftType] -> [TimesheetEntry] -> Text
-renderHourlyBreakdownDateCsv date shiftTypes entries =
-    Text.unlines (csvHeader : map renderHourRow [8 .. 27])
-    where
-        csvHeader =
-            Text.intercalate ","
-                (map csvCell ("Time" : map (.name) shiftTypes))
-
-        dayEntries =
-            filter ((== date) . timesheetEntryWorkedOn) entries
-
-        renderHourRow hourOfWindow =
-            let windowLabel = formatHourlyWindow hourOfWindow
-                hourValues =
-                    map
-                        (\shiftType ->
-                            let hours = sum (map (entryHoursForHourlyWindow hourOfWindow shiftType) dayEntries)
-                             in if hours <= 0
-                                    then ""
-                                    else formatHourlyBreakdownHours hours
-                        )
-                        shiftTypes
-             in Text.intercalate "," (csvCell windowLabel : map csvCell hourValues)
-
-entryHoursForHourlyWindow :: Int -> ShiftType -> TimesheetEntry -> Rational
-entryHoursForHourlyWindow hourOfWindow shiftType entry
-    | entry.shiftTypeId /= unpackId (get #id shiftType) = 0
-    | otherwise =
-        let targetDate = addDays (toInteger (hourOfWindow `div` 24)) (timesheetEntryWorkedOn entry)
-            targetHour = hourOfWindow `mod` 24
-            shiftSeconds = intervalSecondsInLocalHour entry.timezone targetDate targetHour entry.startsAt entry.endsAt
-            breakSeconds = case (entry.breakStartsAt, entry.breakEndsAt) of
-                (Just breakStartsAt, Just breakEndsAt) -> intervalSecondsInLocalHour entry.timezone targetDate targetHour breakStartsAt breakEndsAt
-                _ -> 0
-         in toRational (max 0 (shiftSeconds - breakSeconds)) / 3600
-
-intervalSecondsInLocalHour :: Text -> Day -> Int -> UTCTime -> UTCTime -> NominalDiffTime
-intervalSecondsInLocalHour timezone targetDate targetHour startsAt endsAt =
-    sum
-        [ elapsed
-        | (localDate, localHour, elapsed) <- storedIntervalLocalHourSegments timezone startsAt endsAt
-        , localDate == targetDate
-        , localHour == targetHour
-        ]
-
-storedIntervalLocalHourSegments :: Text -> UTCTime -> UTCTime -> [(Day, Int, NominalDiffTime)]
-storedIntervalLocalHourSegments timezone startsAt endsAt = go startsAt
+renderHourlyBreakdownDateCsv :: Day -> HourlyReportWindow -> [HourlyShiftTypeColumn] -> [TimesheetEntry] -> Text
+renderHourlyBreakdownDateCsv date window columns entries =
+    Text.unlines (csvHeader : map renderHourRow reportHours <> [renderTotalRow])
   where
-    go cursor
-        | cursor >= endsAt = []
-        | otherwise =
-            let local = storedInstantLocalTime timezone cursor
-                segmentEnd = min endsAt (nextStoredLocalHourBoundary timezone cursor local)
-             in (local.localDay, local.localTimeOfDay.todHour, diffUTCTime segmentEnd cursor) : go segmentEnd
+    reportHours = hourlyReportHours window
+    dayEntries = filter ((== date) . timesheetEntryWorkedOn) entries
+    displayedHours hour column =
+        sum (map (entryHoursForHourlyWindow hour column.hourlyShiftTypeId) dayEntries)
+            |> roundRationalAt 1000000
+    hourMatrix =
+        Map.fromList
+            [ ((hour, column.hourlyShiftTypeId), displayedHours hour column)
+            | hour <- reportHours
+            , column <- columns
+            ]
+    csvHeader = Text.intercalate "," (map csvCell ("Time" : map (.hourlyShiftTypeLabel) columns <> ["Total"]))
 
-nextStoredLocalHourBoundary :: Text -> UTCTime -> LocalTime -> UTCTime
-nextStoredLocalHourBoundary timezone cursor local = findBoundary firstCandidateLocal
-  where
-    localHourStart = LocalTime local.localDay (TimeOfDay local.localTimeOfDay.todHour 0 0)
-    firstCandidateLocal = addLocalTime 3600 localHourStart
+    renderHourRow hour =
+        let values = [Map.findWithDefault 0 (hour, column.hourlyShiftTypeId) hourMatrix | column <- columns]
+            renderedValues = map (\value -> if value <= 0 then "" else formatHourlyBreakdownHours value) values
+            rowTotal = sum values
+         in Text.intercalate "," (map csvCell (formatHourlyWindowRange hour : renderedValues <> [formatHourlyBreakdownHours rowTotal]))
 
-    findBoundary candidateLocal =
-        case filter (> cursor) (resolvedCandidates candidateLocal) of
-            []         -> findBoundary (addLocalTime 3600 candidateLocal)
-            candidates -> minimum candidates
-
-    resolvedCandidates candidateLocal =
-        let occurrences =
-                if civilBoundaryIsRepeated candidateLocal.localDay candidateLocal.localTimeOfDay
-                    then [Just FirstOccurrence, Just SecondOccurrence]
-                    else [Nothing]
-         in mapMaybe
-                (either (const Nothing) Just . resolveBoundaryInstant timezone candidateLocal.localDay candidateLocal.localTimeOfDay)
-                occurrences
-
-formatHourlyWindow :: Int -> Text
-formatHourlyWindow hourOfWindow
-    | hourOfWindow < 24 = Text.pack (printf "%02d:00" hourOfWindow :: String)
-    | otherwise = Text.pack (printf "%02d:00+1" (hourOfWindow - 24) :: String)
+    renderTotalRow =
+        let columnTotals =
+                [ sum [Map.findWithDefault 0 (hour, column.hourlyShiftTypeId) hourMatrix | hour <- reportHours]
+                | column <- columns
+                ]
+         in Text.intercalate "," (map csvCell ("Total" : map formatHourlyBreakdownHours columnTotals <> [formatHourlyBreakdownHours (sum columnTotals)]))
 
 formatHourlyBreakdownHours :: Rational -> Text
 formatHourlyBreakdownHours = formatRationalDecimal 6
+
+renderHourlyWageTotalsDateCsv :: Day -> HourlyReportWindow -> [HourlyShiftTypeColumn] -> Map.Map (Day, Int, UUID) Integer -> Text
+renderHourlyWageTotalsDateCsv date window columns wageCents =
+    Text.unlines (csvHeader : map renderHourRow reportHours <> [renderTotalRow])
+  where
+    reportHours = hourlyReportHours window
+    centsFor hour column = Map.findWithDefault 0 (date, hour, column.hourlyShiftTypeId) wageCents
+    csvHeader = Text.intercalate "," (map csvCell ("Time" : map (.hourlyShiftTypeLabel) columns <> ["Total"]))
+
+    renderHourRow hour =
+        let values = map (centsFor hour) columns
+            renderedValues = map (\value -> if value <= 0 then "" else formatMoneyCents value) values
+         in Text.intercalate "," (map csvCell (formatHourlyWindowRange hour : renderedValues <> [formatMoneyCents (sum values)]))
+
+    renderTotalRow =
+        let columnTotals = [sum [centsFor hour column | hour <- reportHours] | column <- columns]
+         in Text.intercalate "," (map csvCell ("Total" : map formatMoneyCents columnTotals <> [formatMoneyCents (sum columnTotals)]))
+
+formatMoneyCents :: Integer -> Text
+formatMoneyCents cents =
+    let (whole, fraction) = cents `divMod` 100
+     in Text.pack (printf "%d.%02d" whole fraction :: String)
 
 fallbackReportDayLabels :: Day -> [Text]
 fallbackReportDayLabels reportWeekStart =
