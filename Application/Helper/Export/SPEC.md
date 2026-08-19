@@ -25,6 +25,15 @@ cross-module safety and payroll contracts.
 - Times and dates project from authoritative instants plus the stored timezone.
   Elapsed duration uses instant differences, so repeated and skipped DST hours
   remain exact.
+- Hourly Staff Hours and Hourly Wage Totals share one operational window. The
+  current venue picker window is the minimum, approved entry boundaries expand
+  it, and both ends round outward to clock hours. Every selected date is emitted;
+  overnight rows remain owned by the entry's start date.
+- Hourly Wage Totals consumes sealed earnings. Base earnings follow their paid
+  intervals; minimum top-ups spread across actual worked seconds; commenced-hour
+  additions spread across their qualifying worked seconds; missed-break
+  additions follow the penalised interval. Per-entry rounded cents are allocated
+  deterministically and every visible row, column, and daily total reconciles.
 - Aggregation retains exact quantities until the format's final transform.
   Published CSV and Xero precision, units, cent rounding, headers, filenames,
   and schema versions are executable contracts in renderers and golden tests.
