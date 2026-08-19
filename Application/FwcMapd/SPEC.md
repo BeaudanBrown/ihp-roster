@@ -46,6 +46,18 @@ actionable failed `fwc_mapd_sync_runs` row, does not inactivate an Award level, 
 leaves the last complete projection active. Projection rows retain provenance to the
 validated immediate-scope source records.
 
+## Operational refresh policy
+
+- A successful validated refresh must remain within the eight-day FWC wage-source
+  freshness limit. The packaged NixOS module therefore sweeps weekly by default.
+- Deployments should add daily sweeps from 20 June through 10 July so late-June
+  Annual Wage Review publication, the 1 July post-boundary validation requirement,
+  and delayed provider corrections are observed promptly.
+- FWC MAPD changes outside the annual window remain covered by weekly reconciliation.
+- A successful systemd sweep only proves that an app job was enqueued or already
+  active. The completed `fwc_mapd_refresh` job and succeeded `fwc_mapd_sync_runs`
+  row are the publication authority.
+
 ## Verification
 
 Run:

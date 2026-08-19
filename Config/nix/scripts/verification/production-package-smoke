@@ -100,10 +100,12 @@ while IFS= read -r executable; do
     "$wrapper" +RTS --info >/dev/null
 done <<< "$expected"
 
-# Focused deployed service evaluations retain the migration/recovery and Stripe
-# reconciliation consumers. Remaining executable consumers are checked against
-# their exact NixOS source markers by production-inventory-check.
+# Focused deployed service evaluations retain migration/recovery, Stripe
+# reconciliation, and reference-refresh cadence consumers. Remaining executable
+# consumers are checked against their exact NixOS source markers by
+# production-inventory-check.
 nix eval --impure --json --file Config/nix/tests/wage-cutover-module.nix >/dev/null
 nix eval --impure --json --file Config/nix/tests/billing-stripe-module.nix >/dev/null
+nix eval --impure --json --file Config/nix/tests/fwc-mapd-refresh-module.nix >/dev/null
 
 echo "production-package-smoke: ok ($(printf '%s\n' "$expected" | wc -l) packaged executables)"

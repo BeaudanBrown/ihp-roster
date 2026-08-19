@@ -64,6 +64,9 @@ billing-production-readiness
 echo "verify-full: wage-cutover deployment ordering"
 nix eval --impure --json --file Config/nix/tests/wage-cutover-module.nix >/dev/null
 
+echo "verify-full: FWC MAPD refresh cadence"
+nix eval --impure --json --file Config/nix/tests/fwc-mapd-refresh-module.nix >/dev/null
+
 echo "verify-full: E2E PostgreSQL lifecycle preflight"
 e2e-postgres-lifecycle-test
 

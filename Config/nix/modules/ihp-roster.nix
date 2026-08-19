@@ -830,8 +830,8 @@ in
 
       onCalendar = mkOption {
         type = types.str;
-        default = "*-*-02 03:00:00";
-        description = "systemd OnCalendar expression for the FWC MAPD refresh sweep.";
+        default = "Sun *-*-* 03:00:00";
+        description = "systemd OnCalendar expression for the weekly FWC MAPD refresh sweep. Keep successful refreshes within the eight-day wage-source freshness limit.";
       };
 
       randomizedDelaySec = mkOption {
