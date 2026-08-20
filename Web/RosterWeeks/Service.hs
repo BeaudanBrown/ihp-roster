@@ -62,10 +62,10 @@ rosterSlotTimesheetSourceChanged previous next =
         || previous.timezone /= next.timezone
         || previous.shiftTypeId /= next.shiftTypeId
 
-copyRosterSlotToDay :: VenueConfig -> RosterWeek -> RosterDay -> RosterWeek -> RosterDay -> ShiftCopyOccurrenceSelections -> RosterSlot -> Either BoundaryModelError RosterSlot
-copyRosterSlotToDay venueConfig sourceWeek sourceDay targetWeek targetDay selections slot = do
-    let sourceRosterDate = Calendar.addDays (toInteger sourceDay.dayOffset) (venueWeekStartDate venueConfig sourceWeek.weekOffset)
-        targetRosterDate = Calendar.addDays (toInteger targetDay.dayOffset) (venueWeekStartDate venueConfig targetWeek.weekOffset)
+copyRosterSlotToDay :: VenueConfig -> RosterDay -> RosterDay -> ShiftCopyOccurrenceSelections -> RosterSlot -> Either BoundaryModelError RosterSlot
+copyRosterSlotToDay venueConfig sourceDay targetDay selections slot = do
+    let sourceRosterDate = sourceDay.operationalDate
+        targetRosterDate = targetDay.operationalDate
     (copiedStartsAt, copiedEndsAt) <- copyRosterSlotBoundariesToDate venueConfig sourceRosterDate targetRosterDate selections slot
     pure $
         slot
@@ -93,12 +93,12 @@ copyRosterSlotBoundariesToDate venueConfig sourceRosterDate targetRosterDate sel
             targetOccurrence = if civilBoundaryIsRepeated targetDate localTime.localTimeOfDay then occurrence else Nothing
          in resolveBoundaryInstant venueConfig.timezone targetDate localTime.localTimeOfDay targetOccurrence
 
-rosterSlotCopyAmbiguousEndpoints :: VenueConfig -> RosterWeek -> RosterDay -> RosterWeek -> RosterDay -> RosterSlot -> (Bool, Bool)
-rosterSlotCopyAmbiguousEndpoints venueConfig sourceWeek sourceDay targetWeek targetDay slot =
+rosterSlotCopyAmbiguousEndpoints :: VenueConfig -> RosterDay -> RosterDay -> RosterSlot -> (Bool, Bool)
+rosterSlotCopyAmbiguousEndpoints venueConfig sourceDay targetDay slot =
     (endpointIsRepeated slot.startsAt, endpointIsRepeated slot.endsAt)
   where
-    sourceRosterDate = Calendar.addDays (toInteger sourceDay.dayOffset) (venueWeekStartDate venueConfig sourceWeek.weekOffset)
-    targetRosterDate = Calendar.addDays (toInteger targetDay.dayOffset) (venueWeekStartDate venueConfig targetWeek.weekOffset)
+    sourceRosterDate = sourceDay.operationalDate
+    targetRosterDate = targetDay.operationalDate
     endpointIsRepeated maybeInstant = fromMaybe False do
         instant <- maybeInstant
         let localTime = storedInstantLocalTime slot.timezone instant
@@ -370,9 +370,9 @@ materializeCopyTargetDays ::
     Id Venue -> Id RosterGroup -> Day -> Day -> [RosterDay] -> [RosterDay] -> IO (Map.Map Day RosterDay)
 materializeCopyTargetDays venueId rosterGroupId sourceStart targetStart sourceDays existingTargetDays = do
     let sourceByDate = Map.fromList [(day.operationalDate, day) | day <- sourceDays]
-    existingOrCreated <- forM [0 .. 6] \dayOffset -> do
-        let sourceDate = Calendar.addDays dayOffset sourceStart
-        let targetDate = Calendar.addDays dayOffset targetStart
+    existingOrCreated <- forM [0 .. 6] \dayIndex -> do
+        let sourceDate = Calendar.addDays dayIndex sourceStart
+        let targetDate = Calendar.addDays dayIndex targetStart
         let sourceDay = Map.lookup sourceDate sourceByDate
         case find ((== targetDate) . (.operationalDate)) existingTargetDays of
             Just targetDay -> targetDay
@@ -386,7 +386,7 @@ materializeCopyTargetDays venueId rosterGroupId sourceStart targetStart sourceDa
                 |> set #rosterGroupId (unpackId rosterGroupId)
                 |> set #operationalDate targetDate
                 |> set #publicationState Draft
-                |> set #dayOffset (fromInteger dayOffset)
+                |> set #dayOffset (fromInteger dayIndex)
                 |> set #isClosed (maybe False (.isClosed) sourceDay)
                 |> set #rowCount (maybe 4 (.rowCount) sourceDay)
                 |> createRecord

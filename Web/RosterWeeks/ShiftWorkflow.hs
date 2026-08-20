@@ -29,6 +29,7 @@ import Application.Helper.TimeRules (defaultShiftTimesForVenueConfig,
                                      venueTimePickerFinalSelectableTimeText,
                                      venueTimePickerStartTimeText)
 import Application.Helper.VenueScopedQueries (fetchVenueShiftTypes)
+import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           applyRosterShiftAssignment)
 import Application.VenueTime (RepeatedTimeOccurrence (..), VenueTimeError (..))
@@ -106,7 +107,7 @@ rosterShiftDialogForCreateHtml rosterDay rosterWeek slotDefinition rowIndex valu
         , rosterShiftDialogTimePickerStep = venueShiftTimeIntervalMinutes venueConfig
         , rosterShiftDialogValues = values
         , rosterShiftDialogAssignmentOnly = False
-        , rosterShiftDialogAnchorDate = venueWeekStartDate venueConfig rosterWeek.weekOffset
+        , rosterShiftDialogAnchorDate = startOfWeekFor venueConfig.rosterWeekStartsOn rosterDay.operationalDate
         , rosterShiftDialogCalendarRevision = venueConfig.rosterCalendarRevision
         }
 
@@ -128,7 +129,7 @@ rosterShiftDialogForEditHtml rosterSlot rosterDay rosterWeek values = do
         , rosterShiftDialogTimePickerStep = venueShiftTimeIntervalMinutes venueConfig
         , rosterShiftDialogValues = values
         , rosterShiftDialogAssignmentOnly = rosterWeek.isLive
-        , rosterShiftDialogAnchorDate = venueWeekStartDate venueConfig rosterWeek.weekOffset
+        , rosterShiftDialogAnchorDate = startOfWeekFor venueConfig.rosterWeekStartsOn rosterDay.operationalDate
         , rosterShiftDialogCalendarRevision = venueConfig.rosterCalendarRevision
         }
 
@@ -141,13 +142,13 @@ defaultRosterShiftDialogValuesForVenue venueConfig =
             }
 
 buildRosterShiftDialogStaffOptionStates :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterDay -> RosterWeek -> RosterSlot -> [Staff] -> IO (Map.Map UUID.UUID RosterAssignmentOptionState)
-buildRosterShiftDialogStaffOptionStates rosterGroupId targetDay rosterWeek targetSlot staffMembers = do
+buildRosterShiftDialogStaffOptionStates rosterGroupId targetDay _rosterWeek targetSlot staffMembers = do
     venueConfig <- fetchVenueConfig
     assignmentFilters <- fetchRosterAssignmentFilters
     let assignmentFiltersForDialog = assignmentFilters
             { hideStaffAlreadyAssignedToday = assignmentFilters.hideStaffAlreadyAssignedToday || paramOrDefault @Bool False "hideStaffAlreadyAssignedToday"
             }
-    let weekStartDate = venueWeekStartDate venueConfig rosterWeek.weekOffset
+    let weekStartDate = startOfWeekFor venueConfig.rosterWeekStartsOn targetDay.operationalDate
     rosterDays <- query @RosterDay
         |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
         |> filterWhereGreaterThanOrEqualTo (#operationalDate, weekStartDate)
@@ -209,9 +210,9 @@ validateLiveOpenShiftFill rosterGroupId rosterSlot submission = do
         _ -> pure (Left values)
 
 validateRosterShiftDialogSubmission :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> RosterDay -> RosterWeek -> Maybe RosterSlot -> RosterShiftDialogSubmission -> IO (Either RosterShiftDialogValues ValidatedRosterShift)
-validateRosterShiftDialogSubmission rosterGroupId rosterDay rosterWeek maybeExistingSlot submission = do
+validateRosterShiftDialogSubmission rosterGroupId rosterDay _rosterWeek maybeExistingSlot submission = do
     venueConfig <- fetchVenueConfig
-    let rosterDate = Calendar.addDays (toInteger rosterDay.dayOffset) (venueWeekStartDate venueConfig rosterWeek.weekOffset)
+    let rosterDate = rosterDay.operationalDate
     let staffParam = submission.submittedRosterShiftStaffId
     let startParam = submission.submittedRosterShiftStartTime
     let endParam = submission.submittedRosterShiftEndTime

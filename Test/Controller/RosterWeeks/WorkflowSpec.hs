@@ -47,9 +47,13 @@ import Web.RosterWeeks.Mutations (rosterDayTouchedResources,
                                   rosterWeekStructuralTouchedResources,
                                   rosterWeekTouchedResources)
 import Web.RosterWeeks.Service (rosterSlotHasValidStartEnd)
+import Web.RosterWeeks.ShiftWorkflow (RosterShiftDialogSubmission (..),
+                                      applyValidatedRosterShift,
+                                      validateRosterShiftDialogSubmission)
 import Web.Routes
 import Web.Timesheets.Projection (fetchTimesheetSuggestionForRosterSlot)
 import Web.Types
+import Web.View.RosterWeeks.ShiftDialog (RosterShiftDialogValues (..))
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
@@ -1237,7 +1241,7 @@ tests = aroundAll withDatabaseTestContext do
                 persistedTarget.deletedAt `shouldBe` Nothing
                 persistedTarget.staffId `shouldBe` Just (unpackId targetStaff.id)
 
-        it "requires an occurrence for an ambiguous after-midnight roster boundary" $ withContext do
+        it "uses the Operational date instead of a stale day offset for ambiguous boundaries" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Roster Autumn Boundary Venue"
                 manager <- createUserRecord "roster-autumn-manager@example.com" "staff" True
@@ -1247,37 +1251,33 @@ tests = aroundAll withDatabaseTestContext do
                 shiftType <- createShiftTypeRecord venue level "Floor"
                 rosterWeek <- createRosterWeekRecord venue 64 False
                 rosterDay <- createRosterDayRecord rosterWeek 5
-                slotName <- fetchSlotNameRecord venue "Early"
-                slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
-                let baseParams =
-                        [ ("staffId", idToParam staffMember.id)
-                        , ("startTime", "02:30")
-                        , ("endTime", "04:00")
-                        , ("shiftTypeId", idToParam shiftType.id)
-                        ]
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- venueConfig |> set #rosterWeekStartsOn 2 |> set #weekOffsetEpoch (addDays 1 venueConfig.weekOffsetEpoch) |> updateRecord
+                let submission startOccurrence = RosterShiftDialogSubmission
+                        { submittedRosterShiftStaffId = Just (tshow staffMember.id)
+                        , submittedRosterShiftStartTime = Just "02:30"
+                        , submittedRosterShiftEndTime = Just "04:00"
+                        , submittedRosterShiftTypeId = Just (tshow shiftType.id)
+                        , submittedRosterShiftStartOccurrence = startOccurrence
+                        , submittedRosterShiftEndOccurrence = ""
+                        }
+                (missingOccurrenceResult, selectedOccurrenceResult) <- withUserAndCurrentVenue manager venue.id do
+                    withCurrentControllerContext do
+                        missing <- validateRosterShiftDialogSubmission (Id rosterWeek.rosterGroupId) rosterDay rosterWeek Nothing (submission "")
+                        selected <- validateRosterShiftDialogSubmission (Id rosterWeek.rosterGroupId) rosterDay rosterWeek Nothing (submission "second")
+                        pure (missing, selected)
 
-                missingOccurrenceResponse <- withUserAndCurrentVenue manager venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0) (baseParams <> rosterMutationParams 64)
-
-                missingOccurrenceResponse `responseStatusShouldBe` status200
-                missingOccurrenceResponse `responseBodyShouldContain` "Choose whether this is the first or second occurrence."
-                missingOccurrenceResponse `responseBodyShouldContain` "data-time-occurrence-chooser=\"startOccurrence\""
-                missingOccurrenceResponse `responseBodyShouldNotContain` "data-time-occurrence-chooser=\"endOccurrence\""
-                query @RosterSlot |> fetchCount >>= (`shouldBe` 0)
-
-                createdResponse <- withUserAndCurrentVenue manager venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
-                            (CreateRosterSlotAction rosterDay.id (coerce slotDefinition.id) 0)
-                            (baseParams <> [("startOccurrence", "second")] <> rosterMutationParams 64)
-
-                createdResponse `responseStatusShouldBe` status200
-                slot <- query @RosterSlot |> fetchOne
-                startsAt <- maybe (expectationFailure "Expected roster start instant" >> error "unreachable") pure slot.startsAt
-                storedInstantOccurrence slot.timezone startsAt `shouldBe` Just SecondOccurrence
-                (storedInstantLocalTime slot.timezone startsAt).localDay `shouldBe` fromGregorian 2026 4 5
-                rosterSlotElapsedSeconds slot `shouldBe` Just (90 * 60)
+                case missingOccurrenceResult of
+                    Left values -> values.rosterShiftStartError `shouldBe` (Just "Choose whether this is the first or second occurrence." :: Maybe Text)
+                    Right _ -> expectationFailure "Expected the repeated start boundary to require an occurrence"
+                case selectedOccurrenceResult of
+                    Left _ -> expectationFailure "Expected the selected repeated occurrence to validate"
+                    Right valid -> do
+                        let slot = applyValidatedRosterShift valid (newRecord @RosterSlot)
+                        startsAt <- maybe (expectationFailure "Expected roster start instant" >> error "unreachable") pure slot.startsAt
+                        storedInstantOccurrence slot.timezone startsAt `shouldBe` Just SecondOccurrence
+                        (storedInstantLocalTime slot.timezone startsAt).localDay `shouldBe` fromGregorian 2026 4 5
+                        rosterSlotElapsedSeconds slot `shouldBe` Just (90 * 60)
 
         it "creates a positive repeated-hour roster shift with equal local clocks" $ withContext do
             withCleanDb do

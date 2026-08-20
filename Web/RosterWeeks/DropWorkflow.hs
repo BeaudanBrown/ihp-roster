@@ -29,7 +29,6 @@ import Control.Monad (guard)
 import Data.Either (isRight)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import qualified Data.Time.Calendar as Calendar
 import Data.Time.LocalTime (TimeOfDay)
 import qualified Text.Read as TextRead
 import Web.Controller.Prelude
@@ -146,18 +145,15 @@ validateMoveRosterTimelineShiftIntent rosterGroupId weekOffset sourceToken targe
 
 resolveRosterDayDropBoundaries :: (?context :: ControllerContext, ?modelContext :: ModelContext) => MoveRosterShiftIntent -> ShiftCopyOccurrenceSelections -> IO RosterDayDropBoundaryResolution
 resolveRosterDayDropBoundaries intent selections = do
-    sourceRosterWeek <- rosterPlanningWeekForDay intent.sourceRosterDay
     targetRosterWeek <- rosterPlanningWeekForDay intent.targetRosterDay
     venueConfig <- fetchVenueConfig
     let repeatedEndpoints =
             rosterSlotCopyAmbiguousEndpoints
                 venueConfig
-                sourceRosterWeek
                 intent.sourceRosterDay
-                targetRosterWeek
                 intent.targetRosterDay
                 intent.sourceSlot
-    pure $ case copyRosterSlotToDay venueConfig sourceRosterWeek intent.sourceRosterDay targetRosterWeek intent.targetRosterDay selections intent.sourceSlot of
+    pure $ case copyRosterSlotToDay venueConfig intent.sourceRosterDay intent.targetRosterDay selections intent.sourceSlot of
         Left failure -> RosterDayDropBoundaryFailure repeatedEndpoints failure
         Right copiedSlot -> RosterDayDropBoundaryReady targetRosterWeek copiedSlot
 
@@ -168,8 +164,7 @@ resolveRosterTimelineDropBoundaries intent startOccurrenceValue =
         Right startOccurrence -> do
             rosterWeek <- rosterPlanningWeekForDay intent.timelineTargetRosterDay
             venueConfig <- fetchVenueConfig
-            let targetRosterDate = Calendar.addDays (toInteger intent.timelineTargetRosterDay.dayOffset) (venueWeekStartDate venueConfig rosterWeek.weekOffset)
-                targetShiftDate = rosterShiftStartDate targetRosterDate intent.timelineTargetStartTime
+            let targetShiftDate = rosterShiftStartDate intent.timelineTargetRosterDay.operationalDate intent.timelineTargetStartTime
                 repeatedEndpoints = (civilBoundaryIsRepeated targetShiftDate intent.timelineTargetStartTime, False)
                 selections = noShiftCopyOccurrenceSelections { copyShiftStartOccurrence = startOccurrence }
             pure $ case rosterSlotElapsedSeconds intent.timelineSourceSlot of

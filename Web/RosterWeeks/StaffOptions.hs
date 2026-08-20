@@ -130,7 +130,7 @@ buildRosterStaffOptionStates _rosterGroupId assignmentFilters weekStartDate rost
             let visibleWeekdayIndexes =
                     Set.toList $
                         Set.fromList
-                            [ weekdayIndexForDay (Calendar.addDays (toInteger rosterDay.dayOffset) weekStartDate)
+                            [ weekdayIndexForDay rosterDay.operationalDate
                             | rosterDay <- rosterDays
                             ]
             leaveRequests <- fetchApprovedLeaveRequestsForRosterWindow staffIds weekStartDate weekEndExclusive
@@ -142,7 +142,7 @@ buildRosterStaffOptionStates _rosterGroupId assignmentFilters weekStartDate rost
                         | leaveRequest <- leaveRequests
                         , leaveRequest.status == LeaveRequestStatusEnumApproved
                         , rosterDay <- rosterDays
-                        , let dayDate = Calendar.addDays (toInteger rosterDay.dayOffset) weekStartDate
+                        , let dayDate = rosterDay.operationalDate
                         , dayDate >= leaveRequest.startDate
                         , dayDate < leaveRequest.endDate
                         ]
@@ -171,8 +171,8 @@ rosterAssignmentOptionStateFor assignmentFilters weekStartDate dayById assignedS
     let staffId = coerce (get #id staff)
         rosterDayDate =
             case Map.lookup slot.rosterDayId dayById of
-                Just rosterDay -> Calendar.addDays (toInteger rosterDay.dayOffset) weekStartDate
-                Nothing -> weekStartDate
+                Just rosterDay -> rosterDay.operationalDate
+                Nothing        -> weekStartDate
         assignedShiftCount = Map.findWithDefault 0 staffId assignedShiftCountByStaffId
         assignedTodayCount = Map.findWithDefault 0 (slot.rosterDayId, staffId) assignedDayCountByStaffId
         currentSlotContribution = if slot.staffId == Just staffId then 1 else 0

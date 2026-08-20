@@ -16,12 +16,15 @@ import Application.Helper.SurfaceResource
 import Application.Helper.View (dialogOverlayMountId)
 import Application.VenueTime (RepeatedTimeOccurrence (..))
 import Application.VenueTime.Model (ShiftBoundaryInput (..),
+                                    ShiftCopyOccurrenceSelections (..),
                                     applyRosterSlotBoundaries,
+                                    noShiftCopyOccurrenceSelections,
                                     resolveShiftBoundaries,
                                     rosterSlotElapsedSeconds,
                                     rosterSlotEndOccurrence, rosterSlotEndTime,
                                     rosterSlotStartOccurrence,
-                                    rosterSlotStartTime, storedInstantLocalTime)
+                                    rosterSlotStartTime, storedInstantLocalTime,
+                                    storedInstantOccurrence)
 import Config
 import Control.Monad (guard)
 import Data.ByteString (ByteString)
@@ -50,7 +53,12 @@ import Web.FrontController ()
 import Web.RosterWeeks.Dom (rosterDayColumnsFragmentId, rosterDaySectionDomId,
                             rosterGridFrameFragmentId, rosterRowDomIdText,
                             rosterStaffPanelFragmentId)
+import Web.RosterWeeks.DropWorkflow (MoveRosterTimelineShiftIntent (..),
+                                     RosterTimelineDropBoundaryResolution (..),
+                                     resolveRosterTimelineDropBoundaries)
 import Web.RosterWeeks.FrontendSurface
+import Web.RosterWeeks.Service (copyRosterSlotToDay,
+                                rosterSlotCopyAmbiguousEndpoints)
 import Web.Routes
 import Web.SurfaceInvalidation (SurfaceInvalidationTarget (..),
                                 planSurfaceInvalidations)
@@ -334,7 +342,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "selected=\"selected\">Alpha</option>"
                 response `responseBodyShouldNotContain` "ideal reached"
 
-        it "hides staff with no preferred shifts on that day when the unavailable filter is active" $ withContext do
+        it "uses the Operational date instead of a stale day offset for shift preferences" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-unavailable-filter@example.com" "staff" True
@@ -357,6 +365,8 @@ tests = aroundAll withDatabaseTestContext do
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 mondayRosterDay <- createRosterDayRecord rosterWeek 0
                 slot <- createRosterSlotRecord mondayRosterDay slotName (Just selectedStaff) 0
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- venueConfig |> set #rosterWeekStartsOn 2 |> set #weekOffsetEpoch (addDays 1 venueConfig.weekOffsetEpoch) |> updateRecord
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction)
@@ -1198,7 +1208,7 @@ tests = aroundAll withDatabaseTestContext do
                 updatedSlot.rowIndex `shouldBe` 1
                 response `responseBodyShouldContain` "Roster shift moved."
 
-        it "requires a target occurrence before moving a slot into the repeated autumn hour" $ withContext do
+        it "uses Operational dates when moving a slot into the repeated autumn hour" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Roster Move DST Venue"
                 manager <- createUserRecord "roster-manager-drag-move-dst@example.com" "staff" True
@@ -1211,6 +1221,18 @@ tests = aroundAll withDatabaseTestContext do
                 sourceSlot <- createCompleteRosterSlotRecord sourceDay slotName staffMember 0
                     >>= updateRecord
                         . setTestRosterSlotBoundaries (fromGregorian 2026 4 3) (TimeOfDay 2 30 0) (TimeOfDay 4 0 0)
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                let staleSourceDay = sourceDay |> set #dayOffset 1
+                let staleTargetDay = targetDay |> set #dayOffset 4
+                rosterSlotCopyAmbiguousEndpoints venueConfig staleSourceDay staleTargetDay sourceSlot
+                    `shouldBe` (True, False)
+                let selectedOccurrence = noShiftCopyOccurrenceSelections { copyShiftStartOccurrence = Just SecondOccurrence }
+                case copyRosterSlotToDay venueConfig staleSourceDay staleTargetDay selectedOccurrence sourceSlot of
+                    Left _ -> expectationFailure "Expected Operational dates to resolve the selected repeated occurrence"
+                    Right copiedSlot -> do
+                        copiedStartsAt <- maybe (expectationFailure "Expected copied roster start" >> error "unreachable") pure copiedSlot.startsAt
+                        storedInstantOccurrence copiedSlot.timezone copiedStartsAt `shouldBe` Just SecondOccurrence
+                        (storedInstantLocalTime copiedSlot.timezone copiedStartsAt).localDay `shouldBe` fromGregorian 2026 4 5
                 let sourceToken = "existing:" <> tshow sourceSlot.id
                 targetDefinition <- fetch (Id (fromJust sourceSlot.rosterWeekSlotDefinitionId) :: Id RosterWeekSlotDefinition)
                 targetLane <- fetchRosterLaneForDefinition targetDay targetDefinition
@@ -1351,6 +1373,22 @@ tests = aroundAll withDatabaseTestContext do
                 let sourceToken = "existing:" <> tshow sourceSlot.id
                 targetDefinition <- fetch (Id (fromJust sourceSlot.rosterWeekSlotDefinitionId) :: Id RosterWeekSlotDefinition)
                 targetLane <- fetchRosterLaneForDefinition targetDay targetDefinition
+                let staleTargetDay = targetDay |> set #dayOffset 2
+                let directIntent = MoveRosterTimelineShiftIntent
+                        { timelineSourceSlot = sourceSlot
+                        , timelineSourceRosterDay = sourceDay
+                        , timelineTargetRosterDay = staleTargetDay
+                        , timelineTargetSlotDefinition = targetLane
+                        , timelineTargetRowIndex = 0
+                        , timelineTargetStartTime = TimeOfDay 2 30 0
+                        , timelineMoveIsNoOp = False
+                        }
+                directResolution <- withUserAndCurrentVenue manager venue.id do
+                    withCurrentControllerContext do
+                        resolveRosterTimelineDropBoundaries directIntent ""
+                case directResolution of
+                    RosterTimelineDropBoundaryFailure repeatedEndpoints _ _ -> repeatedEndpoints `shouldBe` (True, False)
+                    _ -> expectationFailure "Expected Operational date ambiguity for the timeline target"
                 let targetToken = "time:" <> tshow targetDay.id <> ":" <> tshow targetLane.id <> ":1590"
                 let coreParams =
                         [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
