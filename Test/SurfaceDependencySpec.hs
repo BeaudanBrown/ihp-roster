@@ -354,6 +354,22 @@ tests = do
                     , RosterLive.rosterStaffPanelLiveFragment
                     ]
 
+        it "selects staff-bearing roster fragments for cross-process roster-group staff changes" do
+            let venueId = fromWords 15 0 0 0
+            let rosterGroupUuid = fromWords 16 0 0 0
+            let rosterDayUuid = fromWords 17 0 0 0
+            let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
+            let rosterDayId = Id rosterDayUuid :: Id RosterDay
+            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 4 Nothing
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)], rosterMountedTemplateUserId = Nothing }
+            let resources = Set.singleton (rosterGroupStaffResource rosterGroupUuid)
+
+            passiveFragmentKeys resources (rosterSurfaceScope scopeValue) (rosterCandidateMountedFragments scopeValue plan)
+                `shouldBe`
+                    [ RosterLive.rosterSlotsGridLiveFragment
+                    , RosterLive.rosterStaffPanelLiveFragment
+                    ]
+
         it "selects structural roster wrappers only for structural week changes" do
             let venueId = fromWords 11 0 0 0
             let rosterGroupUuid = fromWords 12 0 0 0

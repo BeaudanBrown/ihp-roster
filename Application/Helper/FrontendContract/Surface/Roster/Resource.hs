@@ -9,6 +9,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Resource
     , rosterEndTimesConfigResource
     , rosterLayoutConfigResource
     , rosterNotificationStatusResource
+    , rosterGroupStaffResource
     , rosterSlotsContentResource
     , rosterSlotsStructureResource
     , rosterTemplateDraftResource
@@ -25,6 +26,7 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Resource (ro
                                                                               rosterEndTimesConfigResource,
                                                                               rosterLayoutConfigResource,
                                                                               rosterNotificationStatusResource,
+                                                                              rosterGroupStaffResource,
                                                                               rosterSlotsContentResource,
                                                                               rosterSlotsStructureResource,
                                                                               rosterTemplateDraftResource,

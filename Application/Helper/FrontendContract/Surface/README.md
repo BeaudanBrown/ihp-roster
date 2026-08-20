@@ -1282,6 +1282,11 @@ Mutation/domain code emits only those declared values. The carrier constructor
 is internal, and no free resource-name/field constructor, undeclared sentinel,
 custom dependency hook, or bridge conversion is supported.
 
+Roster staff-bearing fragments depend on `roster-group-staff`, a group-scoped
+cross-process resource emitted for profile, membership, and staff-group changes;
+each listener matches it against its own active week scopes without producer-local
+scope discovery.
+
 Roster template consumers share three generated Roster Surface resources:
 `roster-template-library` is roster-group-scoped, `roster-template` identifies one
 saved template, and `roster-template-draft` identifies the effective user's

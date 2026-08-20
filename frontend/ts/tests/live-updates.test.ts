@@ -264,9 +264,6 @@ test("live update invalidations request resync on version gaps and empty payload
     assertEqual(liveUpdateInvalidationShouldResync(3, 3, 1), null);
 });
 
-test("live update invalidations suppress same-client websocket echoes only", () => {
-});
-
 test("semantic invalidation keys resolve only through descriptors on local mounts", () => {
     const incomingKey = fragment.fragmentKey;
     const localDescriptor: FrontendSurfaceMountedFragmentConfig = {

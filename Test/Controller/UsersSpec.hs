@@ -6,7 +6,8 @@ import Application.Helper.Controller (AuditSourceChannel (WebAuditSource),
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
 import Application.Helper.FrontendContract.Surface.Profile.Resource (staffPreferencesResource,
                                                                      staffProfileResource)
-import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsContentResource,
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterGroupStaffResource,
+                                                                    rosterSlotsContentResource,
                                                                     rosterWeekResource)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
 import Application.Helper.SurfaceResource
@@ -289,6 +290,7 @@ tests = aroundAll withDatabaseTestContext do
                             [ adminInvitesResource (unpackId venue.id)
                             , staffProfileResource (unpackId staff.id)
                             , staffPreferencesResource (unpackId staff.id)
+                            , rosterGroupStaffResource (unpackId rosterGroupId)
                             , rosterWeekResource (unpackId rosterGroupId) (testAnchorForOffset 3) (addDays 7 (testAnchorForOffset 3))
                             , rosterSlotsContentResource (unpackId rosterGroupId) (testAnchorForOffset 3) (addDays 7 (testAnchorForOffset 3))
                             , timesheetWeekResource (unpackId venue.id) (testAnchorForOffset 3) (addDays 7 (testAnchorForOffset 3))

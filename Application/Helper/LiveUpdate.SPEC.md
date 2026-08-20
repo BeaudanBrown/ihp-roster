@@ -63,7 +63,11 @@ so a selected ancestor suppresses its matching descendant while siblings and
 different parameters remain independent.
 
 Broad domain effects expand to concrete resources in the producer or a focused
-feature helper, bounded by active scopes before cold historical queries. The
+feature helper. Cross-process effects must not depend only on the producer's
+active scopes: use a declared broader resource (for example roster-group staff)
+that each listener can match against its own scopes, or emit complete durable
+concrete resources. Bound cold historical queries only after preserving that
+cross-process authority. The
 generic planner contains no feature switches, custom dependencies, bridge
 conversions, or fanout callbacks. Background jobs use the same touched-resource
 boundary without request context.

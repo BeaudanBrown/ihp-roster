@@ -4,6 +4,9 @@ import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (leave
 import qualified Application.Helper.FrontendContract.Surface.Profile.Live as ProfileLive
 import Application.Helper.FrontendContract.Surface.Profile.Resource
 import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
+import qualified Application.Helper.FrontendContract.Surface.Roster.Resource as RosterResource
+import Application.Helper.LiveUpdate.DurableCodec (DurableResource (..),
+                                                   encodeDurableResource)
 import Application.Helper.LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..),
@@ -19,16 +22,16 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
+import IHP.ModelSupport (sqlQueryScalar)
 import IHP.Prelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import Network.Wai
+import Database.PostgreSQL.Simple (Only (..))
 import Test.Hspec
 import Test.Support
 import Web.FrontController ()
-import Web.Profiles.Mutations (fetchProfileRosterInvalidationTargets,
-                               fetchProfileRosterInvalidationTargetsForScopes,
-                               profileUpdateTouchedResources)
+import Web.Profiles.Mutations (profileUpdateTouchedResources)
 import Web.Routes
 import Web.Types
 
@@ -544,7 +547,7 @@ tests = aroundAll withDatabaseTestContext do
                 profileVersionAfter <- currentLiveUpdateVersion (ProfileLive.profileLiveScope (unpackId venue.id) (unpackId staff.id))
                 profileVersionAfter `shouldBe` profileVersionBefore
 
-        it "selects profile roster invalidation targets from active roster week scopes" $ withContext do
+        it "durably publishes roster-group staff resources for profile updates" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Venue"
                 user <- createUserRecord "profile-roster-invalidation@example.com" "staff" True
@@ -555,38 +558,12 @@ tests = aroundAll withDatabaseTestContext do
                 frontGroup <- createVenueRosterGroupWithDefaults venue "Front of House" 1 True
                 backGroup <- createVenueRosterGroupWithDefaults venue "Back of House" 2 False
                 _ <- createStaffRosterGroupRecord staff frontGroup
-                frontSlotName <- fetchSlotNameRecordForRosterGroup frontGroup "Early"
-                frontWeek <- createRosterWeekRecordForRosterGroup venue frontGroup 0 False
-                backWeek <- createRosterWeekRecordForRosterGroup venue backGroup 0 False
-                frontDay <- createRosterDayRecord frontWeek 0
-                _ <- createRosterDayRecord backWeek 0
-                assignedSlot <- createRosterSlotRecord frontDay frontSlotName (Just staff) 0
-                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                _ <- venueConfig |> set #weekOffsetEpoch (addDays 35 venueConfig.weekOffsetEpoch) |> updateRecord
-
-                invalidationTargets <- fetchProfileRosterInvalidationTargets venue.id staff
-                invalidationTargets `shouldBe` []
-
-                activeInvalidationTargets <-
-                    fetchProfileRosterInvalidationTargetsForScopes
-                        venue.id
-                        staff
-                        [ (unpackId venue.id, unpackId frontGroup.id, testAnchorForOffset 0, addDays 7 (testAnchorForOffset 0), 1)
-                        , (unpackId venue.id, unpackId backGroup.id, testAnchorForOffset 0, addDays 7 (testAnchorForOffset 0), 1)
-                        ]
-
-                let frontEntry = find (\(rosterGroupId, windowStart, windowEnd, _) -> rosterGroupId == frontGroup.id && windowStart == testAnchorForOffset 0 && windowEnd == addDays 7 (testAnchorForOffset 0)) activeInvalidationTargets
-                let backEntry = find (\(rosterGroupId, windowStart, windowEnd, _) -> rosterGroupId == backGroup.id && windowStart == testAnchorForOffset 0 && windowEnd == addDays 7 (testAnchorForOffset 0)) activeInvalidationTargets
-
-                fmap (\(_, _, _, rowKeys) -> rowKeys) frontEntry `shouldBe` Just [(unpackId frontDay.id, assignedSlot.rowIndex)]
-                backEntry `shouldBe` Nothing
-
                 frontVersionBefore <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId frontGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
                 backVersionBefore <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId backGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
                 profileVersionBefore <- currentLiveUpdateVersion (ProfileLive.profileLiveScope (unpackId venue.id) (unpackId staff.id))
 
                 response <- withUserAndCurrentVenue user venue.id do
-                    withRequestHeaders [("HX-Request", "true"), ("X-Live-Update-Client-Id", "profile-update-client")] do
+                    withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams UpdateProfileAction
                             [ ("section", "profile")
                             , ("firstName", "Taylor")
@@ -606,3 +583,14 @@ tests = aroundAll withDatabaseTestContext do
                 frontVersionAfter `shouldBe` frontVersionBefore
                 backVersionAfter `shouldBe` backVersionBefore
                 profileVersionAfter `shouldBe` profileVersionBefore
+
+                let Right frontResource = encodeDurableResource (RosterResource.rosterGroupStaffResource (unpackId frontGroup.id))
+                let Right backResource = encodeDurableResource (RosterResource.rosterGroupStaffResource (unpackId backGroup.id))
+                frontResourceCount :: Int <- sqlQueryScalar
+                    "SELECT COUNT(*)::INT FROM live_invalidation_event_resources WHERE resource_key = ?"
+                    (Only frontResource.durableResourceKey)
+                backResourceCount :: Int <- sqlQueryScalar
+                    "SELECT COUNT(*)::INT FROM live_invalidation_event_resources WHERE resource_key = ?"
+                    (Only backResource.durableResourceKey)
+                frontResourceCount `shouldBe` 1
+                backResourceCount `shouldBe` 0

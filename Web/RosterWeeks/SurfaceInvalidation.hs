@@ -46,15 +46,18 @@ activeRosterResourcesForStaffGroups ::
     [Id RosterGroup] ->
     [SurfaceResourceValue]
 activeRosterResourcesForStaffGroups venueId activeRosterScopes rosterGroupIds =
-    Set.toList $ Set.fromList
-        [ resource
-        | (activeVenueId, rosterGroupId, windowStart, windowEnd, _calendarRevision) <- activeRosterScopes
-        , activeVenueId == venueId
-        , rosterGroupId `Set.member` rosterGroupIdSet
-        , resource <-
-            [ RosterResource.rosterWeekResource rosterGroupId windowStart windowEnd
-            , RosterResource.rosterSlotsContentResource rosterGroupId windowStart windowEnd
-            ]
-        ]
+    Set.toList $
+        Set.fromList
+            ( map (RosterResource.rosterGroupStaffResource . unpackId) rosterGroupIds
+                <> [ resource
+                   | (activeVenueId, rosterGroupId, windowStart, windowEnd, _calendarRevision) <- activeRosterScopes
+                   , activeVenueId == venueId
+                   , rosterGroupId `Set.member` rosterGroupIdSet
+                   , resource <-
+                        [ RosterResource.rosterWeekResource rosterGroupId windowStart windowEnd
+                        , RosterResource.rosterSlotsContentResource rosterGroupId windowStart windowEnd
+                        ]
+                   ]
+            )
   where
     rosterGroupIdSet = Set.fromList (map unpackId rosterGroupIds)

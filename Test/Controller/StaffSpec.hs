@@ -5,7 +5,8 @@ import Application.EmailDelivery
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (leaveAvailabilityWarningsResource)
 import Application.Helper.FrontendContract.Surface.Profile.Resource
-import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsContentResource,
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterGroupStaffResource,
+                                                                    rosterSlotsContentResource,
                                                                     rosterWeekResource)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
 import qualified Application.Helper.LiveUpdate as LiveUpdate
@@ -405,8 +406,10 @@ tests = aroundAll withDatabaseTestContext do
 
                 Set.fromList resources
                     `shouldBe` Set.fromList
-                        [ rosterWeekResource (unpackId previousGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0))
+                        [ rosterGroupStaffResource (unpackId previousGroup.id)
+                        , rosterWeekResource (unpackId previousGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0))
                         , rosterSlotsContentResource (unpackId previousGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0))
+                        , rosterGroupStaffResource (unpackId selectedGroup.id)
                         , rosterWeekResource (unpackId selectedGroup.id) (testAnchorForOffset 1) (addDays 7 (testAnchorForOffset 1))
                         , rosterSlotsContentResource (unpackId selectedGroup.id) (testAnchorForOffset 1) (addDays 7 (testAnchorForOffset 1))
                         ]
