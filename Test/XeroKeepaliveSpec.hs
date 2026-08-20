@@ -139,7 +139,7 @@ assertDurableXeroConnectionPublication source connection = do
     durableResource.resourcePayload `shouldSatisfy` (not . isNull)
   where
     isNull Aeson.Null = True
-    isNull _ = False
+    isNull _          = False
 
 oneDay :: NominalDiffTime
 oneDay = 24 * 60 * 60

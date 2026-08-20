@@ -1,22 +1,24 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase       #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Test.SurfaceResourceSpec where
 
+import qualified Application.Helper.FrontendContract.Core as Contract
 import qualified Application.Helper.FrontendContract.Surface.Admin.Resource as AdminResource
+import qualified Application.Helper.FrontendContract.Surface.ContractIR as Surface
+import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import qualified Application.Helper.FrontendContract.Surface.Profile.Resource as ProfileResource
 import Application.Helper.FrontendContract.Surface.Resource (frontendSurfaceResource,
                                                              matchFrontendSurfaceResource)
-import qualified Application.Helper.FrontendContract.Core as Contract
-import qualified Application.Helper.FrontendContract.Surface.ContractIR as Surface
-import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import qualified Application.Helper.FrontendContract.Surface.Resource.Internal as ResourceInternal
 import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Resource as RosterResource
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as TimesheetsSurface
 import Application.Helper.FrontendContract.Surface.Values
+import Application.Helper.LiveUpdate.DurableCodec (DurableResource (..),
+                                                   decodeDurableResource,
+                                                   encodeDurableResource)
 import Application.Helper.SurfaceResource
-import Application.Helper.LiveUpdate.DurableCodec (DurableResource (..), decodeDurableResource, encodeDurableResource)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import Data.Either (isRight)

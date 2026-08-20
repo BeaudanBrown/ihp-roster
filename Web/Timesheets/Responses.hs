@@ -19,7 +19,7 @@ import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
 import Data.List (nub)
 import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
-import Data.Time.Calendar (Day, addDays)
+import Data.Time.Calendar (Day, addDays, diffDays)
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
@@ -107,7 +107,7 @@ respondWithTimesheetDaySectionUpdate :: (?context :: ControllerContext, ?modelCo
 respondWithTimesheetDaySectionUpdate weekOffset workedOn staffFilterId successMessage closeDialog = do
     venueConfig <- fetchVenueConfig
     let weekStartDate = venueWeekStartDate venueConfig weekOffset
-    let dayOffset = timesheetDayOffset weekStartDate workedOn
+    let dayOffset = fromInteger (diffDays workedOn weekStartDate)
     let requestKey = timesheetProjectionRequestForOffset venueConfig weekOffset staffFilterId
     respondWithTimesheetActorFragments
         requestKey

@@ -359,9 +359,6 @@ test.describe('Roster Staff Modal', () => {
             INSERT INTO staff_roster_groups (id, staff_id, roster_group_id)
             VALUES ('${staffRosterGroupId}', '${staffId}', 'a1000000-0000-0000-0000-000000000211');
             UPDATE roster_weeks SET is_live = TRUE WHERE id = 'a1000000-0000-0000-0000-000000000051';
-            UPDATE roster_days
-            SET day_offset = (SELECT EXTRACT(ISODOW FROM operational_day)::int - 1 FROM e2e_staff_removal_operational_day)
-            WHERE id = 'a1000000-0000-0000-0000-000000000061';
             INSERT INTO roster_days (roster_week_id, day_offset, is_closed, row_count)
             SELECT 'a1000000-0000-0000-0000-000000000051', day_offset, FALSE, 2
             FROM generate_series(0, 6) AS day_offset
@@ -459,7 +456,6 @@ test.describe('Roster Staff Modal', () => {
                 DELETE FROM staff WHERE id = '${staffId}';
                 DELETE FROM users WHERE id = '${userId}';
                 UPDATE roster_weeks SET is_live = FALSE WHERE id = 'a1000000-0000-0000-0000-000000000051';
-                UPDATE roster_days SET day_offset = 0 WHERE id = 'a1000000-0000-0000-0000-000000000061';
                 UPDATE roster_days SET publication_state = 'draft' WHERE roster_week_id = 'a1000000-0000-0000-0000-000000000051';
                 COMMIT;
             `);

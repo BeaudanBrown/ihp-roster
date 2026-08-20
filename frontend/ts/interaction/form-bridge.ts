@@ -89,7 +89,7 @@ function validateIntentFields(form: ElementLike, emittedFields: Record<string, s
     }
 
     for (const field of fields) {
-        if (field.presence === "required" && !hasOwn(emittedFields, field.name)) {
+        if (field.presence === "required" && !hasOwn(emittedFields, field.name) && field.input.value === "") {
             return { ok: false, reason: `Missing required intent field ${field.name}` };
         }
     }

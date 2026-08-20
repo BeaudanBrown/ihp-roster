@@ -25,6 +25,19 @@ test.describe('Roster week overview', () => {
     });
 
     test('exports the Published roster as colour and print PNGs from the roster actions menu', async ({ page }) => {
+        runSql(`
+            UPDATE roster_slots
+            SET staff_id = NULL, assignment_state = 'open'
+            WHERE id = 'a1000000-0000-0000-0000-000000000074';
+            INSERT INTO roster_days (id, roster_week_id, day_offset, is_closed, row_count)
+            VALUES ('a1000000-0000-0000-0000-000000000064', 'a1000000-0000-0000-0000-000000000053', 1, FALSE, 1)
+            ON CONFLICT (id) DO UPDATE
+            SET is_closed = EXCLUDED.is_closed, row_count = EXCLUDED.row_count;
+            INSERT INTO roster_week_slot_definitions (id, roster_week_id, name, sort_order)
+            VALUES ('a1000000-0000-0000-0000-000000000084', 'a1000000-0000-0000-0000-000000000053', 'Late', 1)
+            ON CONFLICT (id) DO UPDATE
+            SET name = EXCLUDED.name, sort_order = EXCLUDED.sort_order, deleted_at = NULL;
+        `);
         await openRoster(page, { weekOffset: 1 });
         const publishToggleRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Published' });
         const publishToggle = publishToggleRoot.getByRole('switch');

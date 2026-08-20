@@ -11,14 +11,14 @@ import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Data.Coerce (coerce)
 import Data.List (find, sortOn)
 import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
 import Data.Maybe (fromJust, fromMaybe)
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import qualified Data.Time.Calendar as Calendar
-import qualified Data.UUID as UUID
 import Data.Time.Clock (getCurrentTime)
 import Data.Time.LocalTime (TimeOfDay (..))
+import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig

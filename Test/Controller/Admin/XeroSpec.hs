@@ -2,7 +2,7 @@ module Test.Controller.Admin.XeroSpec where
 
 import Application.Async.Queue (EnqueueAppJobResult (EnqueuedAppJob))
 import Application.Fixture.PayrollFixtures (approveEntryWithVersions,
-                                             createAndApproveEntry)
+                                            createAndApproveEntry)
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.LiveUpdate

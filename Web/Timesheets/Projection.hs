@@ -87,10 +87,10 @@ data TimesheetWeekProjection = TimesheetWeekProjection
     }
 
 data TimesheetProjectionRequest = TimesheetProjectionRequest
-    { projectionWindowStart          :: !Day
-    , projectionWindowEnd            :: !Day
-    , projectionStaffFilterId        :: !(Maybe UUID.UUID)
-    , projectionRosterGroupFilterId  :: !(Maybe UUID.UUID)
+    { projectionWindowStart         :: !Day
+    , projectionWindowEnd           :: !Day
+    , projectionStaffFilterId       :: !(Maybe UUID.UUID)
+    , projectionRosterGroupFilterId :: !(Maybe UUID.UUID)
     }
     deriving (Eq, Show)
 

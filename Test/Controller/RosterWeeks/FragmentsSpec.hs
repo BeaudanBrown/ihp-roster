@@ -1160,6 +1160,8 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Delete roster shift?"
                 response `responseBodyShouldContain` "Delete this shift?"
                 response `responseBodyShouldContain` "hx-delete=\"/DeleteRosterSlot?rosterSlotId="
+                response `responseBodyShouldContain` "&amp;anchorDate="
+                response `responseBodyShouldContain` "&amp;rosterCalendarRevision="
                 response `responseBodyShouldContain` ">Cancel</button>"
                 response `responseBodyShouldContain` ">Delete shift</button>"
                 response `responseBodyShouldNotContain` "hx-confirm="

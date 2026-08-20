@@ -381,7 +381,7 @@ data RosterImageExportStyle
 
 instance InputValue RosterImageExportStyle where
     inputValue RosterImageExportColour = "colour"
-    inputValue RosterImageExportPrint = "print"
+    inputValue RosterImageExportPrint  = "print"
 
 data RosterImageExportConfig
 data RosterImageExportCell

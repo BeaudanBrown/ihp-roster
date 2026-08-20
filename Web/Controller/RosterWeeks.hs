@@ -64,7 +64,8 @@ import Data.Coerce (coerce)
 import Data.Either (fromRight)
 import Data.List (find, nub)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (catMaybes, fromJust, fromMaybe, isJust, listToMaybe, mapMaybe)
+import Data.Maybe (catMaybes, fromJust, fromMaybe, isJust, listToMaybe,
+                   mapMaybe)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time (getCurrentTime, utctDay)
@@ -120,7 +121,8 @@ import Web.View.RosterWeeks.NotificationDialog (renderRosterNotificationConfirma
 import Web.View.RosterWeeks.OccurrenceDialog
 import Web.View.RosterWeeks.Overview (renderWeekOverviewPanelFragment)
 import Web.View.RosterWeeks.ShiftDialog
-import Web.View.RosterWeeks.Show (renderNoRosterGroupShell, renderRosterWeekShell)
+import Web.View.RosterWeeks.Show (renderNoRosterGroupShell,
+                                  renderRosterWeekShell)
 import Web.View.RosterWeeks.StaffPanel (renderrosterStaffPanelLiveFragment)
 import Web.View.RosterWeeks.Timeline (renderRosterDayTimelineContent)
 
@@ -1410,7 +1412,7 @@ respondWithDeleteRosterSlotDropConfirmation rosterSlot anchorDate calendarRevisi
 rosterDeleteSlotActionRoute :: Text -> Calendar.Day -> Int -> AppShellActionRoute
 rosterDeleteSlotActionRoute actionUrl anchorDate calendarRevision =
     AppShellActionRoute
-        { appShellActionRouteUrl = actionUrl
+        { appShellActionRouteUrl = actionUrl <> "&anchorDate=" <> tshow anchorDate <> "&rosterCalendarRevision=" <> tshow calendarRevision
         , appShellActionRouteFields =
             [ AppShellFieldValue ("anchorDate", tshow anchorDate)
             , AppShellFieldValue ("rosterCalendarRevision", tshow calendarRevision)

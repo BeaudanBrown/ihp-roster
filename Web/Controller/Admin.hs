@@ -166,7 +166,7 @@ staffPasskeyReturnPath =
     rosterPath =
         case paramOrNothing @Text "anchorDate" of
             Just anchorDate -> pathTo (ShowRosterWindowAction anchorDate)
-            Nothing -> pathTo RosterWeeksAction
+            Nothing         -> pathTo RosterWeeksAction
 
 fetchCurrentVenueStaffUser :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id Staff -> IO (Maybe User)
 fetchCurrentVenueStaffUser staffId = do

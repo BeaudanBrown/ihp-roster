@@ -19,6 +19,7 @@ import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
 import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.StaffShiftPreferences
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
+import Application.Helper.TimeRules (currentOperationalDayForVenue)
 import Application.Helper.Url (appendQueryParams)
 import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 OverlayButtonAction (..),
@@ -26,7 +27,6 @@ import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 ToastOverlayPosition (..), dialogOverlayMountId,
                                 errorToast, renderDialogOverlay, renderToastOob,
                                 successToast)
-import Application.Helper.TimeRules (currentOperationalDayForVenue)
 import Application.Helper.WeekBoundaries (startOfWeekFor, venueWeekOffsetForDay)
 import Application.PayAssignment (selectableStaffAssignmentMode)
 import Application.StaffDefaults (applyVenueDefaultStaffPayAssignment,
@@ -372,7 +372,7 @@ staffAnchorDateFromParamOrCurrent = do
     venueConfig <- fetchVenueConfig
     requestedDay <- case paramOrNothing @Text "anchorDate" of
         Just rawAnchorDate -> parseIsoDayRouteParam rawAnchorDate
-        Nothing -> currentOperationalDayForVenue venueConfig
+        Nothing            -> currentOperationalDayForVenue venueConfig
     pure (startOfWeekFor venueConfig.rosterWeekStartsOn requestedDay)
 
 staffCompatibilityWeekOffset :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Day -> IO Int

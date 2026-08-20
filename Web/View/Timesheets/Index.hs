@@ -9,7 +9,6 @@ import Application.Helper.Controller (currentUserIsSuperAdmin, currentVenueId,
 import Application.Helper.FrontendContract.AppShell (EditTimesheetEntryDialog,
                                                      OpenRosterStaffEditDialog,
                                                      OpenTimesheetEntryDialog)
-import Application.Helper.RosterWagePrediction (formatMoneyAmount)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              applyAppShellActionAttrs,
@@ -34,6 +33,7 @@ import Application.Helper.FrontendContract.Surface.Timesheets.StaffPanel (Timesh
                                                                           timesheetStaffPanelSortRootAttrs,
                                                                           timesheetStaffPanelSortRowAttrs)
 import Application.Helper.FrontendContract.Surface.Values
+import Application.Helper.RosterWagePrediction (formatMoneyAmount)
 import Application.Helper.Url (appendQueryParams)
 import Application.PayAssignment (StaffPayAssignment (..),
                                   staffAssignmentAllowsTimesheets)
@@ -51,7 +51,8 @@ import Web.Timesheets.FrontendSurface (timesheetStaffCardsLinkedHighlight)
 import Web.Timesheets.Paths (createTimesheetEntryFromSuggestionUrl,
                              editTimesheetEntryUrl,
                              newTimesheetEntryFromSuggestionUrl,
-                             newTimesheetEntryUrl, timesheetWindowUrlWithFilters)
+                             newTimesheetEntryUrl,
+                             timesheetWindowUrlWithFilters)
 import Web.Timesheets.Suggestion
 import Web.Timesheets.WageEstimates
 import Web.View.Prelude
@@ -95,18 +96,18 @@ timesheetsActionRoute actionUrl =
         }
 
 data TimesheetDayRenderModel = TimesheetDayRenderModel
-    { dayEntries          :: [TimesheetEntry]
-    , daySuggestions      :: [TimesheetSuggestion]
-    , dayStaffMembers     :: [Staff]
-    , dayShiftTypes       :: [ShiftType]
-    , dayToday            :: Day
-    , dayEditWindowDays   :: Int
-    , dayWeekStartDate    :: Day
-    , dayCalendarRevision :: Int
-    , dayStaffFilterId    :: Maybe UUID
+    { dayEntries             :: [TimesheetEntry]
+    , daySuggestions         :: [TimesheetSuggestion]
+    , dayStaffMembers        :: [Staff]
+    , dayShiftTypes          :: [ShiftType]
+    , dayToday               :: Day
+    , dayEditWindowDays      :: Int
+    , dayWeekStartDate       :: Day
+    , dayCalendarRevision    :: Int
+    , dayStaffFilterId       :: Maybe UUID
     , dayRosterGroupFilterId :: Maybe UUID
-    , dayWageEstimates    :: Maybe TimesheetWageEstimates
-    , dayOffset           :: Int
+    , dayWageEstimates       :: Maybe TimesheetWageEstimates
+    , dayOffset              :: Int
     }
 
 timesheetWeekShellId :: Text

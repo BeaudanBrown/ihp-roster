@@ -11,8 +11,8 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import qualified Data.Text.IO as Text
 import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -70,7 +70,7 @@ tests = aroundAll withDatabaseTestContext do
                 lookup hContentDisposition (responseHeaders downloadResponse)
                     `shouldBe` Just "attachment; filename=\"staff_hrs_starting-2025-01-07.csv\""
 
-        it "places final-day overnight staff hours in the matching weekday columns while retaining factual earnings dates" $ withContext do
+        it "keeps final-day overnight staff hours in the Operational-day position while retaining factual earnings dates" $ withContext do
             withCleanDb do
                 let weekStart = fromGregorian 2025 1 6
                     weekEnd = addDays 6 weekStart

@@ -291,15 +291,15 @@ tests = describe "LiveUpdate runtime types" do
         decodeValueAs @LiveUpdateCommand (Aeson.toJSON malformedCommand) `shouldSatisfy` isLeft
 
     it "rejects unknown fields when decoding live-update wire carrier types directly" do
-        let scope = Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "weekOffset" Aeson..= (4 :: Int)])
-        let fragmentKey = Wire.SurfaceFragmentKey "timesheets" "timesheet-day-section" (Aeson.object ["dayOffset" Aeson..= (2 :: Int)])
-        let subscription = Wire.SurfaceSubscription scope "timesheets:11111111-1111-1111-1111-111111111111:4" [fragmentKey] 0
+        let scope = Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "windowStartDate" Aeson..= ("2025-02-03" :: Text), "windowEndDate" Aeson..= ("2025-02-10" :: Text), "rosterCalendarRevision" Aeson..= (1 :: Int)])
+        let fragmentKey = Wire.SurfaceFragmentKey "timesheets" "timesheet-day-section" (Aeson.object ["operationalDate" Aeson..= ("2025-02-05" :: Text)])
+        let subscription = Wire.SurfaceSubscription scope "timesheets:11111111-1111-1111-1111-111111111111:2025-02-03:2025-02-10:1" [fragmentKey] 0
         let refreshDetail = Wire.LiveFragmentsRefreshEventDetail scope subscription.scopeKey [fragmentKey]
         let command = Wire.Subscribe subscription "client-1" (Just 9)
         let message = Wire.Invalidate scope subscription.scopeKey 10 [fragmentKey] (Just "client-2")
         let executableDescriptor = Aeson.object
                 [ "fragmentKey" Aeson..= fragmentKey
-                , "targetId" Aeson..= ("timesheet-day-2" :: Text)
+                , "targetId" Aeson..= ("timesheet-day-2025-02-05" :: Text)
                 , "url" Aeson..= ("https://attacker.invalid/fragment" :: Text)
                 , "deferUntilBlur" Aeson..= False
                 , "protectionPolicy" Aeson..= Aeson.object ["kind" Aeson..= ("none" :: Text)]

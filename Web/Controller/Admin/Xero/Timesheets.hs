@@ -284,7 +284,7 @@ respondWithPreparationStaffSelectionDialog runId result =
                     Right view -> respondHtml (renderXeroTimesheetPreparationStaffSelectionErrorDialog message view)
         else case result of
             Left message -> setErrorMessage message >> redirectTo XeroAction
-            Right _ -> redirectTo XeroAction
+            Right _      -> redirectTo XeroAction
 
 respondWithPreparationBlockingDialog ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

@@ -9,11 +9,11 @@ module Web.View.RosterWeeks.SettingsPanel
 
 import Application.Helper.FrontendContract.Surface.DSL (WireType (WireDay))
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
+import Application.Helper.FrontendContract.Surface.Roster (RosterImageExportStyle (..))
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Roster.ImageExport (rosterImageExportFilename,
                                                                        rosterPngImageExportTriggerAttrs)
-import Application.Helper.FrontendContract.Surface.Roster (RosterImageExportStyle (..))
 import qualified Application.Helper.FrontendContract.Surface.Roster.Intent as RosterIntent
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),

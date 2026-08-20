@@ -51,4 +51,3 @@ conditionKey = \case
     EarlyMorningAdditionCondition    -> "penalty:late_night_after_midnight"
     MissedMealBreakAdditionCondition -> "penalty:missed_meal_break_addition"
     ImportedFlatRateCondition itemId -> "imported:" <> itemId
-

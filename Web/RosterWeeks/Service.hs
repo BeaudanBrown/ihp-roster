@@ -448,4 +448,3 @@ rosterSlotHasData slot =
         || isJust slot.startsAt
         || isJust slot.endsAt
         || isJust slot.shiftTypeId
-
