@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { E2E_TIMEOUT, openAdminWithSeededPasskeySession, querySql, runSql } from './test-helpers';
+import { E2E_TIMEOUT, gotoWhenReady, openAdminWithSeededPasskeySession, querySql, runSql } from './test-helpers';
 
 const venueId = 'a1000000-0000-0000-0000-000000000001';
 const fixtureGroupId = 'd2000000-0000-0000-0000-000000000001';
@@ -7,8 +7,8 @@ const fixtureGroupId = 'd2000000-0000-0000-0000-000000000001';
 function seedRegroupingFixture() {
     runSql(`
         INSERT INTO roster_groups (id, venue_id, name, sort_order, is_active, is_default)
-        VALUES ('${fixtureGroupId}', '${venueId}', 'Window start E2E', 900, FALSE, FALSE)
-        ON CONFLICT (id) DO UPDATE SET archived_at = NULL;
+        VALUES ('${fixtureGroupId}', '${venueId}', 'Window start E2E', 900, TRUE, FALSE)
+        ON CONFLICT (id) DO UPDATE SET archived_at = NULL, is_active = TRUE;
 
         INSERT INTO roster_days (id, venue_id, roster_group_id, operational_date, publication_state, day_offset)
         VALUES
@@ -62,6 +62,22 @@ test.describe('Roster window start day setting', () => {
             expect(querySql(`SELECT roster_week_starts_on FROM venue_config WHERE venue_id = '${venueId}'`)).toBe('2');
             expect(fixturePublicationStates()).toBe('draft,published,published,published,published,published,published,published');
 
+            await gotoWhenReady(
+                page,
+                `/ShowRosterWindow?anchorDate=2099-01-07&rosterGroupId=${fixtureGroupId}`,
+                '#roster-week-shell',
+            );
+            await expect(page.locator('.roster-day-date').first()).toHaveText('Tue 06/01');
+
+            await gotoWhenReady(
+                page,
+                `/ShowRosterWindow?anchorDate=2099-01-07&rosterGroupId=${fixtureGroupId}&rosterView=timeline&dayDate=2099-01-06`,
+                '.roster-day-timeline-shell',
+            );
+            await expect(page.locator('.roster-day-timeline')).toHaveAttribute('aria-label', 'Tuesday 06/01 roster timeline');
+
+            await page.getByRole('link', { name: 'admin' }).click();
+            await page.getByRole('button', { name: 'Venue Settings' }).click();
             await page.setViewportSize({ width: 390, height: 844 });
             const restoredSetting = page.locator('.admin-setting-row', { hasText: 'Roster window start day' });
             await restoredSetting.locator('select[name="rosterWeekStartsOn"]').selectOption('1');
@@ -77,6 +93,7 @@ test.describe('Roster window start day setting', () => {
                 BEGIN;
                 UPDATE roster_days SET publication_state = 'draft' WHERE venue_id = '${venueId}';
                 ${originalPublishedIds.length > 0 ? `UPDATE roster_days SET publication_state = 'published' WHERE id IN (${originalPublishedIds.map((id) => `'${id}'`).join(',')});` : ''}
+                UPDATE roster_groups SET is_active = FALSE WHERE id = '${fixtureGroupId}';
                 ALTER TABLE venue_config DISABLE TRIGGER advance_roster_calendar_revision;
                 UPDATE venue_config
                 SET roster_week_starts_on = ${Number(originalStartDay)},

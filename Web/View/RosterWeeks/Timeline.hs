@@ -91,7 +91,7 @@ renderRosterDayTimelineMounted RosterRenderData { weekOffset, weekStartDate, ros
             , rosterDayTimelineWindowStart = weekStartDate
             , rosterDayTimelineWindowEnd = Calendar.addDays 7 weekStartDate
             , rosterDayTimelineCalendarRevision = rosterCalendarRevision
-            , rosterDayTimelineDayOffset = rosterDay.dayOffset
+            , rosterDayTimelineDayOffset = fromInteger (Calendar.diffDays rosterDay.operationalDate weekStartDate)
             , rosterDayTimelineDayId = rosterDay.id
             }
         timelineSurface = rosterDayTimelineSurfaceImpl timelineSurfaceScope
@@ -110,7 +110,7 @@ data TimelineShift = TimelineShift
 
 renderRosterDayTimelineContent :: Maybe Text -> RosterRenderData -> RosterDay -> Html
 renderRosterDayTimelineContent maybeSwapOob rosterData rosterDay =
-    let date = Calendar.addDays (toInteger rosterDay.dayOffset) rosterData.weekStartDate
+    let date = rosterDay.operationalDate
         daySlots = filter (\slot -> slot.rosterDayId == unpackId rosterDay.id) rosterData.allSlots
         slotsByDefinition = Map.fromListWith (<>) [ (slot.rosterLaneId, [slot]) | slot <- daySlots ]
         staffById = Map.fromList [ (unpackId staff.id, staff) | staff <- rosterData.staffMembers ]
