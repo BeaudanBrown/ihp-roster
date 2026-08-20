@@ -6,14 +6,17 @@ import Application.FwcMapd.Curation
 import Application.FwcMapd.Payload
 import Application.FwcMapd.Projection
 import Application.FwcMapd.Validation
+import Application.Helper.FrontendContract.Surface.Support.Resource (supportAwardRatesResource)
+import Application.Helper.SurfaceResource (liveMutationResult,
+                                           liveMutationValue)
 import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (withTransaction)
 import IHP.Prelude
+import Web.SurfaceInvalidation (withDurableLiveMutationWithoutContext)
 
 fetchAndStore :: (?modelContext :: ModelContext) => MapdConfig -> IO MapdSyncSummary
 fetchAndStore config = do
@@ -58,7 +61,7 @@ storeValidatedMapdSnapshots ::
     [ValidatedMapdSnapshot] ->
     IO MapdSyncSummary
 storeValidatedMapdSnapshots validatedSnapshots =
-    withTransaction do
+    liveMutationValue <$> withDurableLiveMutationWithoutContext "support.award_rates.sync" do
         let requestedAwardIds = map (.validatedAwardFixedId) validatedSnapshots
         clearExistingCache requestedAwardIds
         syncedAt <- getCurrentTime
@@ -189,15 +192,17 @@ storeValidatedMapdSnapshots validatedSnapshots =
         let fetchedPayRateCount = sum (map (length . (.validatedPayRates)) validatedSnapshots)
         let fetchedPenaltyRateCount = sum (map (length . (.validatedPenaltyRates)) validatedSnapshots)
         let fetchedWageAllowanceCount = sum (map (length . (.validatedWageAllowances)) validatedSnapshots)
-        pure
-            MapdSyncSummary
-                { syncedAwardFixedIds = requestedAwardIds
-                , fetchedAwardCount = fetchedAwardCount
-                , fetchedClassificationCount = fetchedClassificationCount
-                , fetchedPayRateCount = fetchedPayRateCount
-                , fetchedPenaltyRateCount = fetchedPenaltyRateCount
-                , fetchedWageAllowanceCount = fetchedWageAllowanceCount
-                }
+        pure $
+            liveMutationResult
+                MapdSyncSummary
+                    { syncedAwardFixedIds = requestedAwardIds
+                    , fetchedAwardCount = fetchedAwardCount
+                    , fetchedClassificationCount = fetchedClassificationCount
+                    , fetchedPayRateCount = fetchedPayRateCount
+                    , fetchedPenaltyRateCount = fetchedPenaltyRateCount
+                    , fetchedWageAllowanceCount = fetchedWageAllowanceCount
+                    }
+                [supportAwardRatesResource]
 
 clearExistingCache :: (?modelContext :: ModelContext) => [Int] -> IO ()
 clearExistingCache _awardFixedIds = do

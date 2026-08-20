@@ -4,7 +4,6 @@ module Application.PublicHolidays.Job
     , performPublicHolidayRefreshJobWith
     , publicHolidayRefreshJobDedupeKey
     , publicHolidayRefreshJobKind
-    , publishPublicHolidayRefresh
     ) where
 
 import Application.Async.Queue
@@ -18,8 +17,7 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (withTransaction)
-import Web.SurfaceInvalidation (publishTouchedResourcesWithoutContext)
+import Web.SurfaceInvalidation (withDurableLiveMutationWithoutContext)
 
 publicHolidayRefreshJobKind :: Text
 publicHolidayRefreshJobKind = "public_holiday_refresh"
@@ -58,29 +56,23 @@ performPublicHolidayRefreshJobWith
     -> IO ()
 performPublicHolidayRefreshJobWith syncAction appJob = do
     summary <- syncAction
-    let resultPayload =
-            Aeson.object
-                [ "targetYears" Aeson..= summary.targetYears
-                , "fetchedCount" Aeson..= summary.fetchedCount
-                , "importedCount" Aeson..= summary.importedCount
-                , "insertedCount" Aeson..= summary.insertedCount
-                , "updatedCount" Aeson..= summary.updatedCount
-                , "skippedCount" Aeson..= summary.skippedCount
-                , "invalidCount" Aeson..= summary.invalidCount
-                , "prunedCount" Aeson..= summary.prunedCount
-                ]
     completedAt <- getCurrentTime
-    withTransaction do
+    void $ withDurableLiveMutationWithoutContext "support.public_holidays.refresh" do
+        let resultPayload =
+                Aeson.object
+                    [ "targetYears" Aeson..= summary.targetYears
+                    , "fetchedCount" Aeson..= summary.fetchedCount
+                    , "importedCount" Aeson..= summary.importedCount
+                    , "insertedCount" Aeson..= summary.insertedCount
+                    , "updatedCount" Aeson..= summary.updatedCount
+                    , "skippedCount" Aeson..= summary.skippedCount
+                    , "invalidCount" Aeson..= summary.invalidCount
+                    , "prunedCount" Aeson..= summary.prunedCount
+                    ]
         completedJob <-
             appJob
                 |> set #result resultPayload
                 |> set #status JobStatusSucceeded
                 |> updateRecord
         void (enqueueWageSourceFreshnessCheck DataVicWageSource completedJob completedAt)
-    publishPublicHolidayRefresh
-
-publishPublicHolidayRefresh :: (?modelContext :: ModelContext) => IO ()
-publishPublicHolidayRefresh =
-    void $
-        publishTouchedResourcesWithoutContext "support.public_holidays.refresh" $
-            liveMutationResult () [supportPublicHolidaysResource]
+        pure (liveMutationResult () [supportPublicHolidaysResource])

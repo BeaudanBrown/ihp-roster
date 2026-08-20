@@ -12,6 +12,7 @@ module Application.PublicHolidays.Sync
     , runDataVicPublicHolidaySyncForYears
     ) where
 
+import Application.Helper.FrontendContract.Surface.Support.Resource (supportPublicHolidaysResource)
 import Application.PublicHolidays.Policy (targetPublicHolidayYears)
 import qualified Application.PublicHolidays.Policy as PublicHolidayPolicy
 import qualified Control.Exception as Exception
@@ -21,15 +22,16 @@ import Data.Aeson.Key (Key)
 import Data.Aeson.Types (Parser)
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.ByteString.Lazy as LByteString
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (Day, fromGregorianValid, toGregorian)
 import Data.Traversable (traverse)
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (withTransaction)
 import Network.HTTP.Simple
 import Text.Read (readMaybe)
+import Web.SurfaceInvalidation (withDurableLiveMutationOutcomeWithoutContext)
 
 data DataVicHolidayRecord = DataVicHolidayRecord
     { arun          :: !(Maybe Text)
@@ -166,7 +168,10 @@ importDataVicPublicHolidayRecordsForYears years records = do
 
     let validImports = [holidayImport | Right holidayImport <- parsedImports]
     let targetImports = filter (\holidayImport -> dayYear holidayImport.holidayDate `elem` targetYears) validImports
-    prunedCount <- withTransaction do
+    let publicationFor deletedCount
+            | deletedCount > 0 || not (null targetImports) = Just ("support.public_holidays.sync", Set.singleton supportPublicHolidaysResource)
+            | otherwise = Nothing
+    prunedCount <- withDurableLiveMutationOutcomeWithoutContext publicationFor do
         deletedCount <- deleteTargetPublicHolidays targetYears
         forM_ targetImports \holidayImport ->
             void

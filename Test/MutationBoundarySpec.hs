@@ -192,6 +192,28 @@ tests = describe "Mutation boundary guard" do
                 ]
         filter (\token -> any (Text.isInfixOf token) sources) forbiddenTokens `shouldBe` []
 
+    it "keeps admin, billing, integration, export, and support producers off sequential live publication" do
+        sources <- mapM Text.readFile
+            [ "Web/Admin/Mutations.hs"
+            , "Web/Admin/Xero/Mutations.hs"
+            , "Web/Billing/Mutations.hs"
+            , "Web/Controller/StripeWebhooks.hs"
+            , "Web/Controller/Support.hs"
+            , "Web/Exports/Mutations.hs"
+            , "Application/Billing/Reconciliation.hs"
+            , "Application/FwcMapd/Job.hs"
+            , "Application/InvitationDelivery/Job.hs"
+            , "Application/PublicHolidays/Job.hs"
+            , "Application/Xero/Keepalive.hs"
+            , "Application/Xero/ReferenceSyncJob.hs"
+            ]
+        let forbiddenTokens =
+                [ "invalidateTouchedResources"
+                , "publishTouchedResourcesWithoutContext"
+                , "publishDurableInvalidation"
+                ]
+        filter (\token -> any (Text.isInfixOf token) sources) forbiddenTokens `shouldBe` []
+
     it "keeps admin config writes in the mutation module" do
         source <- Text.readFile "Web/Controller/Admin.hs"
         let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "enqueueVenueInvitationDeliveryJob", "ensureShiftTypePayVersionForShiftType", "createVenueRosterGroupWithDefaults", "ensureDefaultRosterSlots", "syncVenueDefaultRosterGroupToTopActive", "reorderActiveRosterGroups", "reorderActiveShiftTypes"]

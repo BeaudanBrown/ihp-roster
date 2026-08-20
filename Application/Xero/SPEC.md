@@ -229,8 +229,10 @@ their focused/golden tests.
 
 ## Live And Mutation Boundary
 
-- Internal Xero services do not broadcast browser updates.
-- `Web/Admin/Xero/Mutations.hs` is the web-facing invalidation boundary and
+- Internal Xero services do not directly broadcast process-local browser
+  updates. Background credential and reference-sync services atomically publish
+  their typed durable resources; listeners own process-local delivery.
+- `Web/Admin/Xero/Mutations.hs` is the request-facing invalidation boundary and
   returns typed touched-resource results.
 - Background reference-sync requests and jobs publish the dedicated typed
   reference-sync-state resource for queued, progress, retry, skipped, success,

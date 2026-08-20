@@ -13,7 +13,8 @@ import Application.Helper.Feedback (SupportUnreadFeedbackCount (..),
 import Application.Helper.FrontendContract.Surface.Support.Resource
 import Application.Helper.FwcMapd (FwcMapdAdminData, fetchFwcMapdAdminData)
 import Application.Helper.SurfaceResource (SurfaceResourceValue,
-                                           liveMutationResult)
+                                           liveMutationResult,
+                                           liveMutationValue)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationIsActive,
                                                      venueOnboardingInvitationLifetime)
 import Application.InvitationDelivery.Enqueue (enqueueVenueOnboardingInvitationEmail)
@@ -32,7 +33,7 @@ import Data.Coerce (coerce)
 import qualified Data.Text as Text
 import Web.Controller.Prelude
 import Web.RosterWeeks.Paths (supportVenueSwitchReturnPath)
-import Web.SurfaceInvalidation (invalidateTouchedResources)
+import Web.SurfaceInvalidation (withDurableLiveMutation)
 import Web.View.Support.Index
 
 data OnboardingRenewalResult
@@ -202,27 +203,25 @@ instance Controller SupportController where
         redirectTo SupportAction
 
     action currentAction@CreateFwcMapdRefreshJobAction = runBepis currentAction BepisMutationAction do
-        enqueueResult <- enqueueFwcMapdRefreshJob (Just (unpackId currentUser.id))
+        enqueueResult <- liveMutationValue <$> withDurableLiveMutation "support.award_rates.enqueue" do
+            result <- enqueueFwcMapdRefreshJob (Just (unpackId currentUser.id))
+            pure (liveMutationResult result [supportAwardRatesResource])
         case enqueueResult of
             EnqueuedAppJob _ ->
                 setSuccessMessage "Award rate refresh queued."
             ExistingActiveAppJob _ ->
                 setSuccessMessage "Award rate refresh is already queued or running."
-        void $
-            invalidateTouchedResources "support.award_rates.enqueue" $
-                liveMutationResult () [supportAwardRatesResource]
         respondToAwardRatesRefresh
 
     action currentAction@CreatePublicHolidayRefreshJobAction = runBepis currentAction BepisMutationAction do
-        enqueueResult <- enqueuePublicHolidayRefreshJob (Just (unpackId currentUser.id))
+        enqueueResult <- liveMutationValue <$> withDurableLiveMutation "support.public_holidays.enqueue" do
+            result <- enqueuePublicHolidayRefreshJob (Just (unpackId currentUser.id))
+            pure (liveMutationResult result [supportPublicHolidaysResource])
         case enqueueResult of
             EnqueuedAppJob _ ->
                 setSuccessMessage "Public holiday refresh queued."
             ExistingActiveAppJob _ ->
                 setSuccessMessage "Public holiday refresh is already queued or running."
-        void $
-            invalidateTouchedResources "support.public_holidays.enqueue" $
-                liveMutationResult () [supportPublicHolidaysResource]
         respondToPublicHolidayRefresh
 
     action currentAction@MarkFeedbackReadAction { feedbackItemId } = runBepis currentAction BepisMutationAction do

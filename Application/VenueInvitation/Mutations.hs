@@ -3,22 +3,20 @@
 module Application.VenueInvitation.Mutations
     ( withTrialStaffInvitationLockInCurrentTransaction
     , withVenueInvitationAcceptanceLockInCurrentTransaction
-    , withVenueInvitationEmailLock
-    , withVenueInvitationLock
-    , withVenueInvitationRenewalLock
+    , withVenueInvitationEmailLockInCurrentTransaction
+    , withVenueInvitationLockInCurrentTransaction
     , withVenueInvitationRenewalLockInCurrentTransaction
     ) where
 
 import qualified Database.PostgreSQL.Simple as PG
 import IHP.ControllerPrelude
 
-withVenueInvitationLock ::
+withVenueInvitationLockInCurrentTransaction ::
     (?modelContext :: ModelContext) =>
     UUID ->
     ((?modelContext :: ModelContext) => IO result) ->
     IO (Maybe result)
-withVenueInvitationLock invitationId action =
-    withTransaction (lockVenueInvitation invitationId action)
+withVenueInvitationLockInCurrentTransaction = lockVenueInvitation
 
 withVenueInvitationAcceptanceLockInCurrentTransaction ::
     (?modelContext :: ModelContext) =>
@@ -30,27 +28,14 @@ withVenueInvitationAcceptanceLockInCurrentTransaction invitationId maybeStaffId 
     forM_ maybeStaffId lockTrialStaff
     lockVenueInvitation invitationId action
 
-withVenueInvitationEmailLock ::
+withVenueInvitationEmailLockInCurrentTransaction ::
     (?modelContext :: ModelContext) =>
     Text ->
     ((?modelContext :: ModelContext) => IO result) ->
     IO result
-withVenueInvitationEmailLock email action =
-    withTransaction do
-        lockVenueInvitationEmail email
-        action
-
--- Sequential compatibility wrapper retained for Admin producers until #390.
--- Atomic producers must use the current-transaction variant below.
-withVenueInvitationRenewalLock ::
-    (?modelContext :: ModelContext) =>
-    UUID ->
-    Maybe UUID ->
-    Text ->
-    ((?modelContext :: ModelContext) => IO result) ->
-    IO (Maybe result)
-withVenueInvitationRenewalLock invitationId maybeStaffId correctedEmail action =
-    withTransaction (withVenueInvitationRenewalLockInCurrentTransaction invitationId maybeStaffId correctedEmail action)
+withVenueInvitationEmailLockInCurrentTransaction email action = do
+    lockVenueInvitationEmail email
+    action
 
 withVenueInvitationRenewalLockInCurrentTransaction ::
     (?modelContext :: ModelContext) =>

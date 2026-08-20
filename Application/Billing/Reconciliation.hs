@@ -17,17 +17,19 @@ import Application.Async.Queue
 import Application.Billing.Persistence (lockVenueForBilling)
 import Application.Billing.Stripe
 import Application.Helper.FrontendContract.Surface.Billing.Resource (billingResource)
-import Application.Helper.SurfaceResource (liveMutationResult)
+import Application.Helper.SurfaceResource (SurfaceResourceValue,
+                                           liveMutationResult)
 import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Job.Types (JobStatus (JobStatusSucceeded))
-import IHP.ModelSupport (withTransaction)
-import Web.SurfaceInvalidation (publishTouchedResourcesWithoutContext)
+import Web.SurfaceInvalidation (withDurableLiveMutationOutcomeWithoutContext,
+                                withDurableLiveMutationWithoutContext)
 
 data BillingReconciliationFailure = BillingReconciliationFailure
     { reconciliationFailureCode    :: !Text
@@ -133,7 +135,7 @@ updateNonCompleteCheckoutAttempt
     -> Bool
     -> IO (Either BillingReconciliationFailure BillingReconciliationOutcome)
 updateNonCompleteCheckoutAttempt venue attempt checkoutSession isExpired =
-    withTransaction do
+    withDurableLiveMutationOutcomeWithoutContext (billingReconciliationPublication "billing.reconciliation.checkout") do
         lockVenueForBilling (unpackId venue.id)
         fetchOneOrNothing attempt.id >>= \case
             Nothing -> pure (Left (reconciliationFailure "checkout_attempt_missing" "The known Checkout attempt no longer exists."))
@@ -214,7 +216,7 @@ applyKnownSubscription
     -> StripeSubscription
     -> IO (Either BillingReconciliationFailure BillingReconciliationOutcome)
 applyKnownSubscription observedAt venue expectedSubscription stripeSubscription =
-    withTransaction do
+    withDurableLiveMutationOutcomeWithoutContext (billingReconciliationPublication "billing.reconciliation.subscription") do
         lockVenueForBilling (unpackId venue.id)
         maybeCurrentSubscription <- fetchOneOrNothing expectedSubscription.id
         maybeVenueCustomer <-
@@ -282,7 +284,7 @@ applyCheckoutSubscription
     -> StripeSubscription
     -> IO (Either BillingReconciliationFailure BillingReconciliationOutcome)
 applyCheckoutSubscription observedAt venue attempt checkoutSession stripeSubscription =
-    withTransaction do
+    withDurableLiveMutationOutcomeWithoutContext (billingReconciliationPublication "billing.reconciliation.checkout_subscription") do
         lockVenueForBilling (unpackId venue.id)
         maybeCurrentAttempt <- fetchOneOrNothing attempt.id
         maybeVenueCustomer <-
@@ -626,16 +628,20 @@ completeBillingReconciliationJob
     => AppJob
     -> BillingReconciliationOutcome
     -> IO ()
-completeBillingReconciliationJob appJob outcome = do
-    void $
-        appJob
-            |> set #result (billingReconciliationResultPayload outcome)
-            |> set #status JobStatusSucceeded
-            |> set #lastError Nothing
-            |> updateRecord
-    void $
-        publishTouchedResourcesWithoutContext "billing.reconciliation.complete" $
-            liveMutationResult outcome [billingResource (billingReconciliationOutcomeVenueId outcome)]
+completeBillingReconciliationJob appJob outcome =
+    void $ withDurableLiveMutationWithoutContext "billing.reconciliation.complete" do
+        void $
+            appJob
+                |> set #result (billingReconciliationResultPayload outcome)
+                |> set #status JobStatusSucceeded
+                |> set #lastError Nothing
+                |> updateRecord
+        pure (liveMutationResult outcome [billingResource (billingReconciliationOutcomeVenueId outcome)])
+
+billingReconciliationPublication :: Text -> Either BillingReconciliationFailure BillingReconciliationOutcome -> Maybe (Text, Set.Set SurfaceResourceValue)
+billingReconciliationPublication label = \case
+    Left _ -> Nothing
+    Right outcome -> Just (label, Set.singleton (billingResource (billingReconciliationOutcomeVenueId outcome)))
 
 billingReconciliationResultPayload :: BillingReconciliationOutcome -> Aeson.Value
 billingReconciliationResultPayload = \case

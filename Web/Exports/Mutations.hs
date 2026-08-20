@@ -8,23 +8,26 @@ import Application.Helper.Export
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsResource)
 import Application.Helper.SurfaceResource
 import Web.Controller.Prelude
-import Web.SurfaceInvalidation (invalidateTouchedResources)
+import qualified Data.Set as Set
+import Web.SurfaceInvalidation (withDurableLiveMutation,
+                                withDurableLiveMutationOutcome)
 
 requestFixedExportMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ExportJobType -> Day -> Day -> IO (Either Text (LiveMutationResult ExportJob))
 requestFixedExportMutation exportType rangeStart rangeEnd = do
-    requestFixedExport exportType rangeStart rangeEnd >>= \case
-        Left message -> pure (Left message)
-        Right exportJob -> do
-            result <-
-                invalidateTouchedResources "export.create" $
-                    liveMutationResult exportJob (exportJobTouchedResources exportJob)
-            pure (Right result)
+    outcome <-
+        withDurableLiveMutationOutcome publicationFor $
+            requestFixedExport exportType rangeStart rangeEnd
+    pure (fmap (\exportJob -> liveMutationResult exportJob (exportJobTouchedResources exportJob)) outcome)
+    where
+        publicationFor = \case
+            Left _ -> Nothing
+            Right exportJob -> Just ("export.create", Set.fromList (exportJobTouchedResources exportJob))
 
 recordExportDownloadMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ExportJob -> IO (LiveMutationResult ExportJob)
-recordExportDownloadMutation exportJob = do
-    updatedExportJob <- recordExportDownload exportJob
-    invalidateTouchedResources "export.download" $
-        liveMutationResult updatedExportJob (exportJobTouchedResources updatedExportJob)
+recordExportDownloadMutation exportJob =
+    withDurableLiveMutation "export.download" do
+        updatedExportJob <- recordExportDownload exportJob
+        pure (liveMutationResult updatedExportJob (exportJobTouchedResources updatedExportJob))
 
 exportJobTouchedResources :: ExportJob -> [SurfaceResourceValue]
 exportJobTouchedResources exportJob =

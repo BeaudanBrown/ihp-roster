@@ -27,6 +27,7 @@ import Control.Monad (join, void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.IORef as IORef
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
@@ -34,7 +35,8 @@ import IHP.Job.Types
 import IHP.ModelSupport (sqlExec, sqlQuery)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Random (randomRIO)
-import Web.SurfaceInvalidation (publishTouchedResourcesWithoutContext)
+import Web.SurfaceInvalidation (withDurableLiveMutationOutcomeWithoutContext,
+                                withDurableLiveMutationWithoutContext)
 
 data XeroReferenceDataSource = XeroReferenceDataSource
     { refreshReferenceAccess                 :: XeroConnection -> IO (Either XeroClientError (XeroConnection, Text))
@@ -95,13 +97,18 @@ requestXeroReferenceSyncJob ::
     XeroConnection ->
     IO EnqueueAppJobResult
 requestXeroReferenceSyncJob requestedByUserId connection = do
-    result <- enqueueXeroReferenceSyncJob requestedByUserId connection
+    runtime <- currentXeroReferenceSyncRuntime
+    result <-
+        withDurableLiveMutationOutcomeWithoutContext publicationFor $
+            enqueueXeroReferenceSyncJob requestedByUserId connection
     case result of
-        EnqueuedAppJob _ -> do
-            runtime <- currentXeroReferenceSyncRuntime
-            publishReferenceSyncTransition runtime "xero.reference_sync.queued" connection.venueId
+        EnqueuedAppJob _ -> publishReferenceSyncTransition runtime "xero.reference_sync.queued" connection.venueId
         ExistingActiveAppJob _ -> pure ()
     pure result
+  where
+    publicationFor = \case
+        EnqueuedAppJob _ -> Just ("xero.reference_sync.queued", Set.singleton (xeroReferenceSyncStateResource connection.venueId))
+        ExistingActiveAppJob _ -> Nothing
 
 performXeroReferenceSyncJob ::
     (?modelContext :: ModelContext) =>
@@ -169,7 +176,7 @@ runLeasedReferenceSync runtime source appJob payload connection = do
                         Left failure -> handleReferenceSyncFailure runtime appJob payload refreshedConnection (Just syncRun) failure
                         Right snapshot -> do
                             result <- completeXeroReferenceDataSync appJob.requestedByUserId syncRun refreshedConnection snapshot.employees snapshot.earningsRates snapshot.payrollCalendars snapshot.accounts snapshot.payrollSettingsAccounts
-                            completeReferenceSyncJob appJob result
+                            withReferenceSyncMutation "xero.reference_sync.completed" refreshedConnection.venueId (completeReferenceSyncJob appJob result)
                             publishReferenceSyncTransition runtime "xero.reference_sync.completed" refreshedConnection.venueId
     runAttempt `Exception.onException` terminalizeInterruptedReferenceSyncRun runtime appJob syncRun connection
 
@@ -283,20 +290,22 @@ durableXeroReferenceSyncFailureMessage failure =
 
 updateReferenceSyncFailureProgress :: (?modelContext :: ModelContext) => XeroReferenceSyncRuntime -> AppJob -> XeroReferencePhaseFailure -> IO ()
 updateReferenceSyncFailureProgress runtime appJob failure = do
-    latestJob <- fetch appJob.id
-    let completedPageFields =
-            maybe [] (\page -> ["completedPayItemsPage" Aeson..= page]) (completedPayItemsPageFromProgress latestJob.progress)
-    void $
-        latestJob
-            |> set #progress
-                (Aeson.object
-                    ( [ "phase" Aeson..= failure.phaseName
-                      , "failureCode" Aeson..= xeroReferenceSyncFailureCode failure.cause
-                      ]
-                        <> completedPageFields
-                    )
-                )
-            |> updateRecord
+    forM_ appJob.venueId \venueId ->
+        withReferenceSyncMutation "xero.reference_sync.progress" venueId do
+            latestJob <- fetch appJob.id
+            let completedPageFields =
+                    maybe [] (\page -> ["completedPayItemsPage" Aeson..= page]) (completedPayItemsPageFromProgress latestJob.progress)
+            void $
+                latestJob
+                    |> set #progress
+                        (Aeson.object
+                            ( [ "phase" Aeson..= failure.phaseName
+                              , "failureCode" Aeson..= xeroReferenceSyncFailureCode failure.cause
+                              ]
+                                <> completedPageFields
+                            )
+                        )
+                    |> updateRecord
     publishReferenceSyncProgress runtime appJob
 
 xeroReferenceSyncFailureCode :: XeroClientError -> Text
@@ -322,7 +331,7 @@ scheduleReferenceSyncRetry ::
     Text ->
     IO ()
 scheduleReferenceSyncRetry runtime appJob connection payload retryAt failedPhase message = do
-    withTransaction do
+    withReferenceSyncMutation "xero.reference_sync.retry_wait" connection.venueId do
         latestJob <- fetch appJob.id
         let completedPageFields =
                 maybe [] (\page -> ["completedPayItemsPage" Aeson..= page]) (completedPayItemsPageFromProgress latestJob.progress)
@@ -369,11 +378,13 @@ completeSkippedReferenceSyncJob ::
     Text ->
     IO ()
 completeSkippedReferenceSyncJob runtime appJob reason = do
-    void $
-        appJob
-            |> set #status JobStatusSucceeded
-            |> set #result (Aeson.object ["status" Aeson..= ("skipped" :: Text), "reason" Aeson..= reason])
-            |> updateRecord
+    forM_ appJob.venueId \venueId ->
+        withReferenceSyncMutation "xero.reference_sync.skipped" venueId do
+            void $
+                appJob
+                    |> set #status JobStatusSucceeded
+                    |> set #result (Aeson.object ["status" Aeson..= ("skipped" :: Text), "reason" Aeson..= reason])
+                    |> updateRecord
     publishReferenceSyncProgressWithLabel runtime "xero.reference_sync.skipped" appJob
 
 updateReferenceSyncProgress ::
@@ -392,7 +403,9 @@ updateReferenceSyncProgress runtime appJob phase maybeCompletedPage = do
                     <> maybe [] (\page -> ["completedPayItemsPage" Aeson..= page]) retainedCompletedPage
                 )
     when (nextProgress /= latestJob.progress) do
-        void $ latestJob |> set #progress nextProgress |> updateRecord
+        forM_ appJob.venueId \venueId ->
+            withReferenceSyncMutation "xero.reference_sync.progress" venueId do
+                void $ latestJob |> set #progress nextProgress |> updateRecord
         publishReferenceSyncProgress runtime appJob
 
 publishReferenceSyncProgress :: (?modelContext :: ModelContext) => XeroReferenceSyncRuntime -> AppJob -> IO ()
@@ -510,13 +523,17 @@ defaultXeroReferenceSyncRuntime =
         { currentReferenceSyncTime = getCurrentTime
         , sleepForReferenceSyncMicros = threadDelay
         , referenceSyncJitterSeconds = randomRIO (0, 30)
-        , publishReferenceSyncTransition = publishReferenceSyncTransitionLive
+        , publishReferenceSyncTransition = \_ _ -> pure ()
         }
 
 publishReferenceSyncTransitionLive :: (?modelContext :: ModelContext) => Text -> UUID -> IO ()
-publishReferenceSyncTransitionLive label venueId =
-    void $ publishTouchedResourcesWithoutContext label $
-        liveMutationResult () [xeroReferenceSyncStateResource venueId]
+publishReferenceSyncTransitionLive _label _venueId = pure ()
+
+withReferenceSyncMutation :: (?modelContext :: ModelContext) => Text -> UUID -> ((?modelContext :: ModelContext) => IO value) -> IO value
+withReferenceSyncMutation label venueId action =
+    liveMutationValue <$> withDurableLiveMutationWithoutContext label do
+        value <- action
+        pure (liveMutationResult value [xeroReferenceSyncStateResource venueId])
 
 defaultXeroReferenceDataSource :: (?modelContext :: ModelContext) => XeroReferenceDataSource
 defaultXeroReferenceDataSource =

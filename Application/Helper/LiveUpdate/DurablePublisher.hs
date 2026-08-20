@@ -2,12 +2,10 @@ module Application.Helper.LiveUpdate.DurablePublisher
     ( DurablePublication (..)
     , publishDurableInvalidation
     , withDurableLiveMutationOutcomeTransaction
-    , withDurableLiveMutationTransaction
     ) where
 
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)
 import Application.Helper.LiveUpdate.DurableCodec
-import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LazyByteString
@@ -30,22 +28,6 @@ data DurablePublication = DurablePublication
     }
     deriving (Eq, Show)
 
--- | Final producer transaction seam. The supplied business action and its
--- durable event/version publication either commit together or both roll back.
--- Post-commit delivery deliberately remains outside this module.
-withDurableLiveMutationTransaction ::
-    (?modelContext :: ModelContext) =>
-    Text ->
-    ((?modelContext :: ModelContext) => IO (LiveMutationResult a)) ->
-    IO (LiveMutationResult a, DurablePublication)
-withDurableLiveMutationTransaction source businessAction = do
-    (result, maybePublication) <-
-        withDurableLiveMutationOutcomeTransaction
-            (\result -> Just (source, result.liveMutationTouchedResources))
-            businessAction
-    publication <- maybe (error "durable live mutation did not publish") pure maybePublication
-    pure (result, publication)
-
 -- | General transaction seam for mutation outcomes that can legitimately
 -- represent no business change (for example validation, stale locks, or
 -- idempotent no-ops). Returning 'Nothing' commits without an invalidation;
@@ -62,8 +44,7 @@ withDurableLiveMutationOutcomeTransaction publicationFor businessAction =
             persistDurableInvalidationInCurrentTransaction source touchedResources
         pure (outcome, publication)
 
--- | Sequential compatibility publisher retained for producer families that
--- have not yet migrated to 'withDurableLiveMutationTransaction'.
+-- | Compatibility publisher for diagnostics/tests that have no business write.
 publishDurableInvalidation :: (?modelContext :: ModelContext) => Text -> Set.Set SurfaceResourceValue -> IO DurablePublication
 publishDurableInvalidation source resources =
     withTransaction (persistDurableInvalidationInCurrentTransaction source resources)

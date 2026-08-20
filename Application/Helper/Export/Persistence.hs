@@ -115,7 +115,7 @@ recordExportDownload ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     ExportJob ->
     IO ExportJob
-recordExportDownload exportJob = withTransaction do
+recordExportDownload exportJob = do
     now <- getCurrentTime
     exportJob <-
         exportJob

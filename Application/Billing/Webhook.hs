@@ -2,6 +2,7 @@ module Application.Billing.Webhook
     ( BillingWebhookResult (..)
     , StripeWebhookEvent (..)
     , handleStripeWebhookPayload
+    , handleStripeWebhookPayloadInCurrentTransaction
     , parseStripeWebhookEvent
     , processStripeWebhookEvent
     )
@@ -176,6 +177,12 @@ handleStripeWebhookPayload expectedMode rawBody =
         Left err    -> pure (Left err)
         Right event -> Right <$> processStripeWebhookEvent event
 
+handleStripeWebhookPayloadInCurrentTransaction :: (?modelContext :: ModelContext) => StripeMode -> LByteString.ByteString -> IO (Either Text BillingWebhookResult)
+handleStripeWebhookPayloadInCurrentTransaction expectedMode rawBody =
+    case parseStripeWebhookEvent rawBody >>= validateStripeWebhookContract expectedMode of
+        Left err    -> pure (Left err)
+        Right event -> Right <$> processStripeWebhookEventInCurrentTransaction event
+
 validateStripeWebhookContract :: StripeMode -> StripeWebhookEvent -> Either Text StripeWebhookEvent
 validateStripeWebhookContract expectedMode event = do
     unless (event.stripeApiVersion == Just pinnedStripeApiVersion) do
@@ -219,7 +226,10 @@ stripeWebhookEventContract eventType
 -- a non-success response and retry the whole event instead.
 processStripeWebhookEvent :: (?modelContext :: ModelContext) => StripeWebhookEvent -> IO BillingWebhookResult
 processStripeWebhookEvent event =
-    withTransaction do
+    withTransaction (processStripeWebhookEventInCurrentTransaction event)
+
+processStripeWebhookEventInCurrentTransaction :: (?modelContext :: ModelContext) => StripeWebhookEvent -> IO BillingWebhookResult
+processStripeWebhookEventInCurrentTransaction event = do
         lockStripeEventForWebhook event.stripeEventId
         existing <- query @BillingEvent |> filterWhere (#stripeEventId, event.stripeEventId) |> fetchOneOrNothing
         case existing of

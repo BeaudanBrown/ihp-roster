@@ -4,7 +4,6 @@ module Application.FwcMapd.Job
     , fwcMapdRefreshJobKind
     , performFwcMapdRefreshJob
     , performFwcMapdRefreshJobWith
-    , publishFwcMapdRefresh
     ) where
 
 import Application.Async.Queue
@@ -18,8 +17,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (withTransaction)
-import Web.SurfaceInvalidation (publishTouchedResourcesWithoutContext)
+import Web.SurfaceInvalidation (withDurableLiveMutationWithoutContext)
 
 fwcMapdRefreshJobKind :: Text
 fwcMapdRefreshJobKind = "fwc_mapd_refresh"
@@ -63,24 +61,18 @@ performFwcMapdRefreshJobWith syncAction appJob = do
             fail (Text.unpack err)
         Right summary -> do
             completedAt <- getCurrentTime
-            let resultPayload =
-                    Aeson.object
-                        [ "syncedAwardFixedIds" Aeson..= summary.syncedAwardFixedIds
-                        , "fetchedAwardCount" Aeson..= summary.fetchedAwardCount
-                        , "fetchedClassificationCount" Aeson..= summary.fetchedClassificationCount
-                        , "fetchedPayRateCount" Aeson..= summary.fetchedPayRateCount
-                        ]
-            withTransaction do
+            void $ withDurableLiveMutationWithoutContext "support.award_rates.refresh" do
+                let resultPayload =
+                        Aeson.object
+                            [ "syncedAwardFixedIds" Aeson..= summary.syncedAwardFixedIds
+                            , "fetchedAwardCount" Aeson..= summary.fetchedAwardCount
+                            , "fetchedClassificationCount" Aeson..= summary.fetchedClassificationCount
+                            , "fetchedPayRateCount" Aeson..= summary.fetchedPayRateCount
+                            ]
                 completedJob <-
                     appJob
                         |> set #result resultPayload
                         |> set #status JobStatusSucceeded
                         |> updateRecord
                 void (enqueueWageSourceFreshnessCheck FwcWageSource completedJob completedAt)
-            publishFwcMapdRefresh
-
-publishFwcMapdRefresh :: (?modelContext :: ModelContext) => IO ()
-publishFwcMapdRefresh =
-    void $
-        publishTouchedResourcesWithoutContext "support.award_rates.refresh" $
-            liveMutationResult () [supportAwardRatesResource]
+                pure (liveMutationResult () [supportAwardRatesResource])

@@ -74,7 +74,7 @@ persistFixedStaffPayExport ::
     Day ->
     [StaffPayCsvPayload] ->
     IO ExportJob
-persistFixedStaffPayExport rangeStart rangeEnd payloads = withTransaction do
+persistFixedStaffPayExport rangeStart rangeEnd payloads = do
     now <- getCurrentTime
     let expiresAt = addUTCTime exportExpirySeconds now
     let exportType = exportJobTypeToText StaffPayCsv
@@ -162,7 +162,7 @@ requestFixedHourlyBreakdownZipExport rangeStart rangeEnd = do
                     [ (tshow date <> "_" <> fallbackReportDayLabel date 0 <> "_staff_hours.csv", renderHourlyBreakdownDateCsv date window columns entries)
                     | date <- dates
                     ]
-        exportJob <- withTransaction do
+        exportJob <- do
             now <- getCurrentTime
             persistReadyExportJob
                 (exportJobTypeToText HourlyBreakdownZip)
@@ -231,7 +231,7 @@ requestFixedHourlyWageTotalsZipExport rangeStart rangeEnd = do
                             [ (tshow date <> "_" <> fallbackReportDayLabel date 0 <> "_wage_totals.csv", renderHourlyWageTotalsDateCsv date window columns wageCents)
                             | date <- dates
                             ]
-                exportJob <- withTransaction do
+                exportJob <- do
                     now <- getCurrentTime
                     persistReadyExportJob
                         (exportJobTypeToText HourlyWageTotalsZip)
@@ -293,7 +293,7 @@ requestFixedPayrollEarningsCsvExport rangeStart rangeEnd = do
                         |> List.sort
             let exportVersionManifest = collapseVersionManifests versionManifests
             let fileName = "payroll_earnings-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".csv"
-            exportJob <- withTransaction do
+            exportJob <- do
                 now <- getCurrentTime
                 persistReadyExportJob
                     (exportJobTypeToText PayrollEarningsCsv)
@@ -335,7 +335,7 @@ requestApprovedTimesheetsCsvExport rangeStart rangeEnd = do
         Left message -> pure (Left message)
         Right () -> Right <$> persistExport entries
   where
-    persistExport entries = withTransaction do
+    persistExport entries = do
         now <- getCurrentTime
         let expiresAt = addUTCTime exportExpirySeconds now
         let exportType = exportJobTypeToText ApprovedTimesheetsCsv

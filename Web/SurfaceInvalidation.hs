@@ -9,10 +9,10 @@ module Web.SurfaceInvalidation
     , expandSurfaceResources
     , expandSurfaceResourcesWithoutContext
     , invalidateTouchedResources
-    , publishTouchedResourcesWithoutContext
     , withDurableLiveMutation
     , withDurableLiveMutationOutcome
     , withDurableLiveMutationWithoutContext
+    , withDurableLiveMutationOutcomeWithoutContext
     , liveInvalidationProfile
     , performSurfaceInvalidationTargetWithoutContext
     , planSurfaceInvalidations
@@ -31,8 +31,7 @@ import qualified Application.Helper.FrontendContract.Surface.Roster.Live as Rost
 import Application.Helper.LiveUpdate.DurableCodec (DurableResource (..))
 import Application.Helper.LiveUpdate.DurablePublisher (DurablePublication (..),
                                                        publishDurableInvalidation,
-                                                       withDurableLiveMutationOutcomeTransaction,
-                                                       withDurableLiveMutationTransaction)
+                                                       withDurableLiveMutationOutcomeTransaction)
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.Profiling (profileActionSpanWithDetail)
 import Application.Helper.SurfaceResource
@@ -175,18 +174,27 @@ withDurableLiveMutationWithoutContext ::
     Text ->
     ((?modelContext :: ModelContext) => IO (LiveMutationResult a)) ->
     IO (LiveMutationResult a)
-withDurableLiveMutationWithoutContext label businessAction = do
-    startedAtNs <- getMonotonicTimeNSec
-    (result, publication) <- withDurableLiveMutationTransaction label businessAction
-    completeBackgroundInvalidation startedAtNs label result publication
+withDurableLiveMutationWithoutContext label businessAction =
+    withDurableLiveMutationOutcomeWithoutContext
+        (\result -> Just (label, result.liveMutationTouchedResources))
+        businessAction
 
--- | Worker/background sequential compatibility seam for producer families not
--- yet migrated to 'withDurableLiveMutationWithoutContext'.
-publishTouchedResourcesWithoutContext :: (?modelContext :: ModelContext) => Text -> LiveMutationResult a -> IO (LiveMutationResult a)
-publishTouchedResourcesWithoutContext label result = do
+-- | Atomic worker/background seam for outcomes that may not contain a
+-- committed live-visible change.
+withDurableLiveMutationOutcomeWithoutContext ::
+    (?modelContext :: ModelContext) =>
+    (outcome -> Maybe (Text, Set.Set SurfaceResourceValue)) ->
+    ((?modelContext :: ModelContext) => IO outcome) ->
+    IO outcome
+withDurableLiveMutationOutcomeWithoutContext publicationFor businessAction = do
     startedAtNs <- getMonotonicTimeNSec
-    publication <- publishDurableInvalidation label result.liveMutationTouchedResources `Exception.onException` emitDurablePublicationFailure label
-    completeBackgroundInvalidation startedAtNs label result publication
+    (outcome, maybePublication) <- withDurableLiveMutationOutcomeTransaction publicationFor businessAction
+    case (publicationFor outcome, maybePublication) of
+        (Nothing, Nothing) -> pure outcome
+        (Just (label, resources), Just publication) ->
+            completeBackgroundInvalidation startedAtNs label (LiveMutationResult outcome resources) publication
+                |> fmap (.liveMutationValue)
+        _ -> error "durable background live mutation outcome/publication mismatch"
 
 completeBackgroundInvalidation :: (?modelContext :: ModelContext) => Word64 -> Text -> LiveMutationResult a -> DurablePublication -> IO (LiveMutationResult a)
 completeBackgroundInvalidation startedAtNs label result publication = do
