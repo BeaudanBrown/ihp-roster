@@ -22,11 +22,13 @@ import Application.Helper.LiveUpdate.Runtime (SurfaceSubscription (..),
                                               newInMemoryLiveBus,
                                               registerSurfaceSubscriptionWithBus,
                                               surfaceScopeKey)
+import Application.Helper.SurfaceResource (liveMutationResult)
 import Control.Concurrent.Async (concurrently, withAsync)
 import Control.Concurrent.Chan (newChan, readChan, writeChan)
 import qualified Control.Exception as Exception
 import qualified Data.ByteString as ByteString
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime (..), addUTCTime, diffUTCTime)
 import Data.UUID (UUID, nil)
@@ -34,19 +36,90 @@ import Database.PostgreSQL.Simple (Only (..))
 import qualified Database.PostgreSQL.Simple as PG
 import qualified Database.PostgreSQL.Simple.Notification as PGNotification
 import Database.PostgreSQL.Simple.Types (Query (..))
-import IHP.ModelSupport (sqlExec, sqlQuery, sqlQueryScalar, withTransaction)
+import IHP.ModelSupport (sqlExec, sqlExecDiscardResult, sqlQuery,
+                         sqlQueryScalar)
 import IHP.Prelude
 import IHP.Test.Mocking (withContext)
 import System.Environment (getEnv)
 import System.Timeout (timeout)
 import Test.Hspec
 import Test.Support
-import Web.SurfaceInvalidation (dispatchDurableInvalidationWithBus)
+import Web.SurfaceInvalidation (dispatchDurableInvalidationWithBus,
+                                withDurableLiveMutationWithoutContext)
 
 tests :: Spec
 tests =
     aroundAll withDatabaseTestContext do
         describe "Durable live invalidation publication" do
+            it "atomically commits a business write with its event and resource version" $ withContext do
+                withCleanDb do
+                    let resource = AdminResource.adminVenueSettingsResource nil
+                    _ <- withDurableLiveMutationWithoutContext "test.atomic.commit" do
+                        user <- createUserRecord "atomic-live@example.com" "staff" True
+                        pure (liveMutationResult user [resource])
+
+                    userCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM users WHERE email = 'atomic-live@example.com'" ()
+                    eventCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_events WHERE source = 'test.atomic.commit'" ()
+                    versionCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_resource_versions" ()
+                    userCount `shouldBe` 1
+                    eventCount `shouldBe` 1
+                    versionCount `shouldBe` 1
+
+            it "rolls back the business write when durable publication fails" $ withContext do
+                withCleanDb do
+                    let invalidSource = Text.replicate 121 "x"
+                    let resource = AdminResource.adminVenueSettingsResource nil
+                    _ <- Exception.try @Exception.SomeException $
+                        withDurableLiveMutationWithoutContext invalidSource do
+                            user <- createUserRecord "atomic-live-rollback@example.com" "staff" True
+                            pure (liveMutationResult user [resource])
+
+                    userCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM users WHERE email = 'atomic-live-rollback@example.com'" ()
+                    eventCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_events" ()
+                    versionCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_resource_versions" ()
+                    userCount `shouldBe` 0
+                    eventCount `shouldBe` 0
+                    versionCount `shouldBe` 0
+
+            it "rolls back an attempted event when the business mutation fails" $ withContext do
+                withCleanDb do
+                    let resource = AdminResource.adminVenueSettingsResource nil
+                    _ <- Exception.try @Exception.SomeException $
+                        withDurableLiveMutationWithoutContext "test.atomic.business-failure" do
+                            _ <- createUserRecord "atomic-business-rollback@example.com" "staff" True
+                            Exception.throwIO (userError "force business rollback")
+                            pure (liveMutationResult () [resource])
+
+                    userCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM users WHERE email = 'atomic-business-rollback@example.com'" ()
+                    eventCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_events" ()
+                    userCount `shouldBe` 0
+                    eventCount `shouldBe` 0
+
+            it "rolls back the business mutation after durable publication is attempted" $ withContext do
+                withCleanDb do
+                    let resource = AdminResource.adminVenueSettingsResource nil
+                    let installFailure = do
+                            sqlExecDiscardResult "CREATE FUNCTION test_reject_live_event_resource() RETURNS trigger AS 'BEGIN RAISE EXCEPTION ''forced publication failure''; END' LANGUAGE plpgsql" ()
+                            sqlExecDiscardResult "CREATE TRIGGER test_reject_live_event_resource BEFORE INSERT ON live_invalidation_event_resources FOR EACH ROW EXECUTE FUNCTION test_reject_live_event_resource()" ()
+                    let removeFailure = do
+                            sqlExecDiscardResult "DROP TRIGGER IF EXISTS test_reject_live_event_resource ON live_invalidation_event_resources" ()
+                            sqlExecDiscardResult "DROP FUNCTION IF EXISTS test_reject_live_event_resource()" ()
+                    Exception.bracket_ installFailure removeFailure do
+                        _ <- Exception.try @Exception.SomeException $
+                            withDurableLiveMutationWithoutContext "test.atomic.publication-failure" do
+                                user <- createUserRecord "atomic-publication-rollback@example.com" "staff" True
+                                pure (liveMutationResult user [resource])
+                        pure ()
+
+                    userCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM users WHERE email = 'atomic-publication-rollback@example.com'" ()
+                    eventCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_events" ()
+                    resourceCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_event_resources" ()
+                    versionCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_resource_versions" ()
+                    userCount `shouldBe` 0
+                    eventCount `shouldBe` 0
+                    resourceCount `shouldBe` 0
+                    versionCount `shouldBe` 0
+
             it "persists one event resource and current version for duplicate resources" $ withContext do
                 withCleanDb do
                     let resource = AdminResource.adminVenueSettingsResource nil
@@ -148,33 +221,11 @@ tests =
                         publication <- publishDurableInvalidation "test.notify" (Set.singleton resource)
                         notification <- timeout 1000000 (PGNotification.getNotification connection)
                         fmap (cs . PGNotification.notificationData) notification `shouldBe` Just (tshow publication.durablePublicationEventId)
-                        _ <- Exception.try @Exception.SomeException (withTransaction do
-                            _ <- publishDurableInvalidation "test.notify.rollback" (Set.singleton resource)
-                            Exception.throwIO (userError "force rollback"))
+                        _ <- Exception.try @Exception.SomeException $
+                            withDurableLiveMutationWithoutContext (Text.replicate 121 "x") do
+                                pure (liveMutationResult () [resource])
                         rolledBackNotification <- timeout 100000 (PGNotification.getNotification connection)
                         rolledBackNotification `shouldBe` Nothing
-
-            it "rolls back the event and resource version when its enclosing transaction fails" $ withContext do
-                withCleanDb do
-                    let resource = AdminResource.adminVenueSettingsResource nil
-                    _ <- Exception.try @Exception.SomeException (withTransaction do
-                        _ <- publishDurableInvalidation "test.rollback" (Set.singleton resource)
-                        Exception.throwIO (userError "force rollback"))
-
-                    eventCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_events" ()
-                    resourceCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_event_resources" ()
-                    versionCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_resource_versions" ()
-                    let scope = AdminLive.adminVenueConfigLiveScope nil
-                    let subscription = SurfaceSubscription
-                            { subscriptionScope = scope
-                            , subscriptionScopeKey = surfaceScopeKey scope
-                            , subscriptionFragmentKeys = [AdminLive.adminVenueSettingsLiveFragment]
-                            , subscriptionRenderedDependencyWatermark = 0
-                            }
-                    eventCount `shouldBe` 0
-                    resourceCount `shouldBe` 0
-                    versionCount `shouldBe` 0
-                    currentDurableDependencyWatermark subscription `shouldReturn` 0
 
         describe "Durable live invalidation outbox pruning" do
             it "prunes only events before the retention boundary, cascades children, and retains version authority" $ withContext do

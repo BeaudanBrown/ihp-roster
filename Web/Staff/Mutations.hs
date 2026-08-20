@@ -36,10 +36,10 @@ import Application.Helper.SurfaceResource
 import Application.Helper.TimeRules (operationalDayForUtcTime)
 import Application.Helper.VenueInvitation (venueInvitationLifetime)
 import Application.InvitationDelivery.Enqueue (enqueueVenueInvitationEmail)
-import Application.Staff.Mutations (withStaffOperationalLock,
-                                    withStaffRemovalLock)
-import Application.VenueInvitation.Mutations (withTrialStaffInvitationLock,
-                                              withVenueInvitationRenewalLock)
+import Application.Staff.Mutations (withStaffOperationalLocksInCurrentTransaction,
+                                    withStaffRemovalLockInCurrentTransaction)
+import Application.VenueInvitation.Mutations (withTrialStaffInvitationLockInCurrentTransaction,
+                                              withVenueInvitationRenewalLockInCurrentTransaction)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Map.Strict as Map
@@ -50,7 +50,8 @@ import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
 import Data.UUID (UUID)
 import Web.Controller.Prelude
 import Web.RosterWeeks.SurfaceInvalidation (activeRosterResourcesForStaffGroups)
-import Web.SurfaceInvalidation (invalidateTouchedResources)
+import Web.SurfaceInvalidation (withDurableLiveMutation,
+                                 withDurableLiveMutationOutcome)
 
 staffXeroPayItemScopeChanged :: Staff -> Staff -> Bool
 staffXeroPayItemScopeChanged oldStaff newStaff =
@@ -66,71 +67,77 @@ createTrialStaffInvitationMutation :: (?context :: ControllerContext, ?modelCont
 createTrialStaffInvitationMutation staff email
     | staff.venueId /= unpackId currentVenueId = pure (Left "Choose trial staff from the current venue.")
     | not (isAdoptableTrialStaff staff) = pure (Left "Only active trial staff without a linked login can be invited.")
-    | otherwise = do
-        maybeCreation <- withTrialStaffInvitationLock (unpackId staff.id) (Text.toCaseFold email) do
-            lockedStaff <- fetch staff.id
-            existingPendingInvitation <- query @VenueInvitation
-                |> filterWhere (#staffId, Just lockedStaff.id)
-                |> filterWhere (#status, InvitationStatusEnumPending)
-                |> fetchOneOrNothing
-            existingUser <- query @User
-                |> filterWhere (#email, email)
-                |> fetchOneOrNothing
-            case (existingPendingInvitation, existingUser) of
-                (Just _, _) -> pure (Left "Renew the existing trial staff invitation instead of creating another link.")
-                (_, Just _) -> pure (Left "That email already has an account. Trial adoption invites must create a new account.")
-                _ | not (isAdoptableTrialStaff lockedStaff) -> pure (Left "Only active trial staff without a linked login can be invited.")
-                _ -> do
-                    now <- getCurrentTime
-                    invitation <- newRecord @VenueInvitation
-                        |> set #venueId (unpackId currentVenueId)
-                        |> set #invitedByUserId (Just (unpackId currentUser.id))
-                        |> set #staffId (Just lockedStaff.id)
-                        |> set #email email
-                        |> set #inviteRole (Worker)
-                        |> set #status (InvitationStatusEnumPending)
-                        |> set #deliveryStatus (Queued)
-                        |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
-                        |> createRecord
-                    void (enqueueVenueInvitationEmail (Just currentUser.id) invitation)
-                    pure (Right invitation)
-        case maybeCreation of
-            Nothing -> pure (Left "That trial staff member is no longer available to invite.")
-            Just (Left message) -> pure (Left message)
-            Just (Right invitation) ->
-                Right <$> invalidateTouchedResources "staff.invite_trial" (liveMutationResult invitation (trialStaffInvitationTouchedResources staff))
+    | otherwise =
+        withDurableLiveMutationOutcome publicationFor do
+            maybeCreation <- withTrialStaffInvitationLockInCurrentTransaction (unpackId staff.id) (Text.toCaseFold email) do
+                lockedStaff <- fetch staff.id
+                existingPendingInvitation <- query @VenueInvitation
+                    |> filterWhere (#staffId, Just lockedStaff.id)
+                    |> filterWhere (#status, InvitationStatusEnumPending)
+                    |> fetchOneOrNothing
+                existingUser <- query @User
+                    |> filterWhere (#email, email)
+                    |> fetchOneOrNothing
+                case (existingPendingInvitation, existingUser) of
+                    (Just _, _) -> pure (Left "Renew the existing trial staff invitation instead of creating another link.")
+                    (_, Just _) -> pure (Left "That email already has an account. Trial adoption invites must create a new account.")
+                    _ | not (isAdoptableTrialStaff lockedStaff) -> pure (Left "Only active trial staff without a linked login can be invited.")
+                    _ -> do
+                        now <- getCurrentTime
+                        invitation <- newRecord @VenueInvitation
+                            |> set #venueId (unpackId currentVenueId)
+                            |> set #invitedByUserId (Just (unpackId currentUser.id))
+                            |> set #staffId (Just lockedStaff.id)
+                            |> set #email email
+                            |> set #inviteRole (Worker)
+                            |> set #status (InvitationStatusEnumPending)
+                            |> set #deliveryStatus (Queued)
+                            |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
+                            |> createRecord
+                        void (enqueueVenueInvitationEmail (Just currentUser.id) invitation)
+                        pure (Right invitation)
+            pure $
+                case maybeCreation of
+                    Nothing -> Left "That trial staff member is no longer available to invite."
+                    Just (Left message) -> Left message
+                    Just (Right invitation) -> Right (liveMutationResult invitation (trialStaffInvitationTouchedResources staff))
+  where
+    publicationFor = either (const Nothing) (\result -> Just ("staff.invite_trial", result.liveMutationTouchedResources))
 
 renewTrialStaffInvitationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> VenueInvitation -> Text -> IO (Either Text (LiveMutationResult VenueInvitation))
 renewTrialStaffInvitationMutation staff invitation correctedEmail
     | staff.venueId /= unpackId currentVenueId = pure (Left "Choose trial staff from the current venue.")
     | invitation.venueId /= unpackId currentVenueId = pure (Left "Choose an invitation from the current venue.")
     | invitation.staffId /= Just staff.id = pure (Left "Choose a pending invitation for this trial staff member.")
-    | otherwise = do
-        maybeRenewal <- withVenueInvitationRenewalLock
-            (unpackId invitation.id)
-            (Just (unpackId staff.id))
-            (Text.toCaseFold correctedEmail)
-            do
-                lockedInvitation <- fetch invitation.id
-                lockedStaff <- fetch staff.id
-                if lockedInvitation.staffId /= Just lockedStaff.id
-                    then pure (Left "Choose a pending invitation for this trial staff member.")
-                    else if not (invitationStatusAllowsRenewal lockedInvitation.status)
-                        then pure (Left "Only pending invitations can be renewed.")
-                    else if not (isAdoptableTrialStaff lockedStaff)
-                        then pure (Left "Only active trial staff without a linked login can be invited.")
-                    else do
-                        existingUser <- query @User
-                            |> filterWhere (#email, correctedEmail)
-                            |> fetchOneOrNothing
-                        case existingUser of
-                            Just _ -> pure (Left "That email already has an account. Trial adoption invites must create a new account.")
-                            Nothing -> Right <$> replaceTrialStaffInvitation lockedStaff lockedInvitation correctedEmail
-        case maybeRenewal of
-            Nothing -> pure (Left "That invitation is no longer available to renew.")
-            Just (Left message) -> pure (Left message)
-            Just (Right renewedInvitation) ->
-                Right <$> invalidateTouchedResources "staff.renew_trial_invite" (liveMutationResult renewedInvitation (trialStaffInvitationTouchedResources staff))
+    | otherwise =
+        withDurableLiveMutationOutcome publicationFor do
+            maybeRenewal <- withVenueInvitationRenewalLockInCurrentTransaction
+                (unpackId invitation.id)
+                (Just (unpackId staff.id))
+                (Text.toCaseFold correctedEmail)
+                do
+                    lockedInvitation <- fetch invitation.id
+                    lockedStaff <- fetch staff.id
+                    if lockedInvitation.staffId /= Just lockedStaff.id
+                        then pure (Left "Choose a pending invitation for this trial staff member.")
+                        else if not (invitationStatusAllowsRenewal lockedInvitation.status)
+                            then pure (Left "Only pending invitations can be renewed.")
+                        else if not (isAdoptableTrialStaff lockedStaff)
+                            then pure (Left "Only active trial staff without a linked login can be invited.")
+                        else do
+                            existingUser <- query @User
+                                |> filterWhere (#email, correctedEmail)
+                                |> fetchOneOrNothing
+                            case existingUser of
+                                Just _ -> pure (Left "That email already has an account. Trial adoption invites must create a new account.")
+                                Nothing -> Right <$> replaceTrialStaffInvitation lockedStaff lockedInvitation correctedEmail
+            pure $
+                case maybeRenewal of
+                    Nothing -> Left "That invitation is no longer available to renew."
+                    Just (Left message) -> Left message
+                    Just (Right renewedInvitation) -> Right (liveMutationResult renewedInvitation (trialStaffInvitationTouchedResources staff))
+  where
+    publicationFor = either (const Nothing) (\result -> Just ("staff.renew_trial_invite", result.liveMutationTouchedResources))
 
 replaceTrialStaffInvitation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> VenueInvitation -> Text -> IO VenueInvitation
 replaceTrialStaffInvitation staff invitation correctedEmail = do
@@ -185,124 +192,127 @@ staffRemovalBlockReason staff
 removeStaffMember :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> IO (Either Text (LiveMutationResult Staff))
 removeStaffMember staff
     | staff.venueId /= unpackId currentVenueId = pure (Left "Choose staff from the current venue.")
-    | otherwise = do
-        previousRosterGroupIds <- fetchStaffRosterGroupIds staff
-        maybeRemovedStaff <- withStaffRemovalLock (unpackId staff.id) do
-            lockedStaff <- fetch staff.id
-            maybeMembership <- case lockedStaff.userId of
-                Nothing -> pure Nothing
-                Just linkedUserId ->
-                    query @VenueMembership
-                        |> filterWhere (#venueId, unpackId currentVenueId)
-                        |> filterWhere (#userId, linkedUserId)
-                        |> filterWhere (#isActive, True)
-                        |> fetchOneOrNothing
-            if lockedStaff.userId == Just (unpackId effectiveCurrentUser.id)
-                then pure (Left "You cannot remove your own staff access.")
-                else if maybe False ((== VenueOwner) . (.venueRole)) maybeMembership
-                    then pure (Left "Venue owners cannot be removed from staff.")
-                else if isJust lockedStaff.archivedAt || not lockedStaff.isActive
-                    then pure (Left "That staff member has already been removed.")
-                else do
-                    now <- getCurrentTime
-                    removedRosterAssignmentCount <- removeCurrentAndFutureRosterAssignments now lockedStaff
-                    denyPendingStaffLeaveRequests lockedStaff
-                    removedStaff <- lockedStaff
-                        |> set #isActive False
-                        |> set #archivedAt (Just now)
-                        |> set #archivedByUserId (Just (unpackId currentUser.id))
-                        |> set #archiveReason (Just ("Removed from venue staff" :: Text))
-                        |> updateRecord
-                    forM_ maybeMembership \membership ->
-                        void $
-                            membership
-                                |> set #isActive False
-                                |> set #archivedAt (Just now)
-                                |> set #archivedByUserId (Just (unpackId currentUser.id))
-                                |> set #archiveReason (Just ("Staff removed from venue" :: Text))
-                                |> updateRecord
-                    pendingInvitations <- query @VenueInvitation
-                        |> filterWhere (#venueId, unpackId currentVenueId)
-                        |> filterWhere (#staffId, Just lockedStaff.id)
-                        |> filterWhere (#status, InvitationStatusEnumPending)
-                        |> fetch
-                    forM_ pendingInvitations \invitation ->
-                        void $
-                            invitation
-                                |> set #status (Revoked)
-                                |> updateRecord
-                    forM_ lockedStaff.userId \linkedUserId -> do
-                        targetSetupTokens <- query @PasskeySetupToken
-                            |> filterWhere (#venueId, Just (unpackId currentVenueId))
+    | otherwise =
+        withDurableLiveMutationOutcome publicationFor do
+            previousRosterGroupIds <- fetchStaffRosterGroupIds staff
+            maybeRemovedStaff <- withStaffRemovalLockInCurrentTransaction (unpackId staff.id) do
+                lockedStaff <- fetch staff.id
+                maybeMembership <- case lockedStaff.userId of
+                    Nothing -> pure Nothing
+                    Just linkedUserId ->
+                        query @VenueMembership
+                            |> filterWhere (#venueId, unpackId currentVenueId)
                             |> filterWhere (#userId, linkedUserId)
-                            |> filterWhere (#consumedAt, Nothing)
-                            |> filterWhereIn (#purpose, ["staff_new_device" :: Text, "staff_recovery"])
-                            |> fetch
-                        issuedSetupTokens <- query @PasskeySetupToken
-                            |> filterWhere (#venueId, Just (unpackId currentVenueId))
-                            |> filterWhere (#requestedByUserId, Just linkedUserId)
-                            |> filterWhere (#consumedAt, Nothing)
-                            |> filterWhereIn (#purpose, ["staff_new_device" :: Text, "staff_recovery"])
-                            |> fetch
-                        forM_ (nubBy (\left right -> left.id == right.id) (targetSetupTokens <> issuedSetupTokens)) \setupToken ->
+                            |> filterWhere (#isActive, True)
+                            |> fetchOneOrNothing
+                if lockedStaff.userId == Just (unpackId effectiveCurrentUser.id)
+                    then pure (Left "You cannot remove your own staff access.")
+                    else if maybe False ((== VenueOwner) . (.venueRole)) maybeMembership
+                        then pure (Left "Venue owners cannot be removed from staff.")
+                    else if isJust lockedStaff.archivedAt || not lockedStaff.isActive
+                        then pure (Left "That staff member has already been removed.")
+                    else do
+                        now <- getCurrentTime
+                        removedRosterAssignmentCount <- removeCurrentAndFutureRosterAssignments now lockedStaff
+                        denyPendingStaffLeaveRequests lockedStaff
+                        removedStaff <- lockedStaff
+                            |> set #isActive False
+                            |> set #archivedAt (Just now)
+                            |> set #archivedByUserId (Just (unpackId currentUser.id))
+                            |> set #archiveReason (Just ("Removed from venue staff" :: Text))
+                            |> updateRecord
+                        forM_ maybeMembership \membership ->
                             void $
-                                setupToken
-                                    |> set #consumedAt (Just now)
-                                    |> set #deliveryTokenCiphertext Nothing
+                                membership
+                                    |> set #isActive False
+                                    |> set #archivedAt (Just now)
+                                    |> set #archivedByUserId (Just (unpackId currentUser.id))
+                                    |> set #archiveReason (Just ("Staff removed from venue" :: Text))
                                     |> updateRecord
+                        pendingInvitations <- query @VenueInvitation
+                            |> filterWhere (#venueId, unpackId currentVenueId)
+                            |> filterWhere (#staffId, Just lockedStaff.id)
+                            |> filterWhere (#status, InvitationStatusEnumPending)
+                            |> fetch
+                        forM_ pendingInvitations \invitation ->
+                            void $
+                                invitation
+                                    |> set #status (Revoked)
+                                    |> updateRecord
+                        forM_ lockedStaff.userId \linkedUserId -> do
+                            targetSetupTokens <- query @PasskeySetupToken
+                                |> filterWhere (#venueId, Just (unpackId currentVenueId))
+                                |> filterWhere (#userId, linkedUserId)
+                                |> filterWhere (#consumedAt, Nothing)
+                                |> filterWhereIn (#purpose, ["staff_new_device" :: Text, "staff_recovery"])
+                                |> fetch
+                            issuedSetupTokens <- query @PasskeySetupToken
+                                |> filterWhere (#venueId, Just (unpackId currentVenueId))
+                                |> filterWhere (#requestedByUserId, Just linkedUserId)
+                                |> filterWhere (#consumedAt, Nothing)
+                                |> filterWhereIn (#purpose, ["staff_new_device" :: Text, "staff_recovery"])
+                                |> fetch
+                            forM_ (nubBy (\left right -> left.id == right.id) (targetSetupTokens <> issuedSetupTokens)) \setupToken ->
+                                void $
+                                    setupToken
+                                        |> set #consumedAt (Just now)
+                                        |> set #deliveryTokenCiphertext Nothing
+                                        |> updateRecord
 
-                        targetResetTokens <- query @PasswordResetToken
-                            |> filterWhere (#venueId, unpackId currentVenueId)
-                            |> filterWhere (#userId, linkedUserId)
-                            |> filterWhere (#consumedAt, Nothing)
-                            |> fetch
-                        issuedResetTokens <- query @PasswordResetToken
-                            |> filterWhere (#venueId, unpackId currentVenueId)
-                            |> filterWhere (#requestedByUserId, Just linkedUserId)
-                            |> filterWhere (#consumedAt, Nothing)
-                            |> fetch
-                        forM_ (nubBy (\left right -> left.id == right.id) (targetResetTokens <> issuedResetTokens)) \resetToken ->
-                            void $
-                                resetToken
-                                    |> set #consumedAt (Just now)
-                                    |> set #deliveryTokenCiphertext Nothing
-                                    |> updateRecord
-                    void $
-                        recordCurrentUserAuditEvent
-                            StaffRemovedAudit
-                            "staff"
-                            (unpackId lockedStaff.id)
-                            (Aeson.object
-                                [ "linkedUserId" Aeson..= lockedStaff.userId
-                                , "removedRosterAssignmentCount" Aeson..= removedRosterAssignmentCount
-                                , "reason" Aeson..= ("removed_from_venue_staff" :: Text)
+                            targetResetTokens <- query @PasswordResetToken
+                                |> filterWhere (#venueId, unpackId currentVenueId)
+                                |> filterWhere (#userId, linkedUserId)
+                                |> filterWhere (#consumedAt, Nothing)
+                                |> fetch
+                            issuedResetTokens <- query @PasswordResetToken
+                                |> filterWhere (#venueId, unpackId currentVenueId)
+                                |> filterWhere (#requestedByUserId, Just linkedUserId)
+                                |> filterWhere (#consumedAt, Nothing)
+                                |> fetch
+                            forM_ (nubBy (\left right -> left.id == right.id) (targetResetTokens <> issuedResetTokens)) \resetToken ->
+                                void $
+                                    resetToken
+                                        |> set #consumedAt (Just now)
+                                        |> set #deliveryTokenCiphertext Nothing
+                                        |> updateRecord
+                        void $
+                            recordCurrentUserAuditEvent
+                                StaffRemovedAudit
+                                "staff"
+                                (unpackId lockedStaff.id)
+                                (Aeson.object
+                                    [ "linkedUserId" Aeson..= lockedStaff.userId
+                                    , "removedRosterAssignmentCount" Aeson..= removedRosterAssignmentCount
+                                    , "reason" Aeson..= ("removed_from_venue_staff" :: Text)
+                                    ]
+                                )
+                        pure (Right removedStaff)
+            case maybeRemovedStaff of
+                Nothing -> pure (Left "That staff member is no longer available.")
+                Just (Left message) -> pure (Left message)
+                Just (Right removedStaff) -> do
+                    activeRosterScopes <- activeRosterWindowScopes
+                    activeTimesheetScopes <- activeTimesheetWindowScopes
+                    let activeVenueRosterGroupIds =
+                            nub
+                                [ Id rosterGroupId
+                                | (venueId, rosterGroupId, _windowStart, _windowEnd, _calendarRevision) <- activeRosterScopes
+                                , venueId == unpackId currentVenueId
                                 ]
-                            )
-                    pure (Right removedStaff)
-        case maybeRemovedStaff of
-            Nothing -> pure (Left "That staff member is no longer available.")
-            Just (Left message) -> pure (Left message)
-            Just (Right removedStaff) -> do
-                activeRosterScopes <- activeRosterWindowScopes
-                activeTimesheetScopes <- activeTimesheetWindowScopes
-                let activeVenueRosterGroupIds =
-                        nub
-                            [ Id rosterGroupId
-                            | (venueId, rosterGroupId, _windowStart, _windowEnd, _calendarRevision) <- activeRosterScopes
-                            , venueId == unpackId currentVenueId
-                            ]
-                    touchedResources =
-                        staffUpdateTouchedResources removedStaff
-                            <> [ adminInvitesResource (unpackId currentVenueId)
-                               , staffLeaveRequestsResource (unpackId removedStaff.id)
-                               , pendingLeaveRequestsResource (unpackId currentVenueId)
-                               , leaveAvailabilityWarningsResource (unpackId currentVenueId)
-                               , deniedLeaveRequestsResource (unpackId currentVenueId)
-                               , archivedLeaveRequestsResource (unpackId currentVenueId)
-                               ]
-                            <> staffRosterGroupResources (unpackId currentVenueId) activeRosterScopes (nub (previousRosterGroupIds <> activeVenueRosterGroupIds))
-                            <> staffTimesheetResources (unpackId currentVenueId) activeTimesheetScopes
-                Right <$> invalidateTouchedResources "staff.remove" (liveMutationResult removedStaff touchedResources)
+                        touchedResources =
+                            staffUpdateTouchedResources removedStaff
+                                <> [ adminInvitesResource (unpackId currentVenueId)
+                                   , staffLeaveRequestsResource (unpackId removedStaff.id)
+                                   , pendingLeaveRequestsResource (unpackId currentVenueId)
+                                   , leaveAvailabilityWarningsResource (unpackId currentVenueId)
+                                   , deniedLeaveRequestsResource (unpackId currentVenueId)
+                                   , archivedLeaveRequestsResource (unpackId currentVenueId)
+                                   ]
+                                <> staffRosterGroupResources (unpackId currentVenueId) activeRosterScopes (nub (previousRosterGroupIds <> activeVenueRosterGroupIds))
+                                <> staffTimesheetResources (unpackId currentVenueId) activeTimesheetScopes
+                    pure (Right (liveMutationResult removedStaff touchedResources))
+  where
+    publicationFor = either (const Nothing) (\result -> Just ("staff.remove", result.liveMutationTouchedResources))
 
 denyPendingStaffLeaveRequests :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Staff -> IO ()
 denyPendingStaffLeaveRequests staff = do
@@ -367,13 +377,12 @@ removeCurrentAndFutureRosterAssignments removedAt staff = do
     pure (length removedSlots)
 
 createTrialStaffMember :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> [Id RosterGroup] -> IO (LiveMutationResult Staff)
-createTrialStaffMember staff selectedRosterGroupIds = do
-    createdStaff <- withTransaction do
+createTrialStaffMember staff selectedRosterGroupIds =
+    withDurableLiveMutation "staff.create_trial" do
         createdStaff <- staff |> createRecord
         syncStaffRosterGroupAssignments createdStaff selectedRosterGroupIds
-        pure createdStaff
-    activeRosterScopes <- activeRosterWindowScopes
-    invalidateTouchedResources "staff.create_trial" (liveMutationResult createdStaff (staffCreateTouchedResources createdStaff <> staffRosterGroupResources (unpackId currentVenueId) activeRosterScopes selectedRosterGroupIds))
+        activeRosterScopes <- activeRosterWindowScopes
+        pure (liveMutationResult createdStaff (staffCreateTouchedResources createdStaff <> staffRosterGroupResources (unpackId currentVenueId) activeRosterScopes selectedRosterGroupIds))
 
 staffCreateTouchedResources :: Staff -> [SurfaceResourceValue]
 staffCreateTouchedResources staff =
@@ -382,36 +391,39 @@ staffCreateTouchedResources staff =
     ]
 
 updateStaffMember :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> Staff -> [Id RosterGroup] -> [ShiftPreferenceSelection] -> Maybe VenueMembership -> Maybe VenueRoleEnum -> IO (Maybe (LiveMutationResult Staff))
-updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections maybeMembership maybeVenueRole = do
-    previousRosterGroupIds <- fetchStaffRosterGroupIds originalStaff
-    maybeUpdatedStaff <- fmap join $ withStaffOperationalLock (unpackId originalStaff.id) do
-        lockedStaff <- fetch originalStaff.id
-        if not lockedStaff.isActive || isJust lockedStaff.archivedAt
-            then pure Nothing
-            else do
-                updatedStaff <- staff |> updateRecord
-                syncStaffRosterGroupAssignments updatedStaff selectedRosterGroupIds
-                replaceStaffShiftPreferences updatedStaff submittedSelections
-                when (staffXeroPayItemScopeChanged originalStaff updatedStaff) do
-                    today <- utctDay <$> getCurrentTime
-                    void (ensureStaffPayVersionForStaff currentUser.id updatedStaff today)
-                -- This workflow is classified as web even when HTMX invokes it.
-                forM_ ((,) <$> maybeMembership <*> maybeVenueRole) \(membership, venueRole) ->
-                    void $ updateCurrentUserVenueMembershipRoleWithAuditInCurrentTransaction
-                        WebAuditSource
-                        membership
-                        venueRole
-                        (Aeson.object ["staffId" Aeson..= tshow staff.id])
-                pure (Just updatedStaff)
-    forM maybeUpdatedStaff \updatedStaff -> do
-        activeRosterScopes <- activeRosterWindowScopes
-        activeTimesheetScopes <- activeTimesheetWindowScopes
-        let affectedRosterGroupIds = nub (previousRosterGroupIds <> selectedRosterGroupIds)
-            payResources =
-                if staffPayDispositionChanged originalStaff updatedStaff
-                    then staffTimesheetResources (unpackId currentVenueId) activeTimesheetScopes
-                    else []
-        invalidateTouchedResources "staff.update" (liveMutationResult updatedStaff (staffUpdateTouchedResources updatedStaff <> staffRosterGroupResources (unpackId currentVenueId) activeRosterScopes affectedRosterGroupIds <> payResources))
+updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections maybeMembership maybeVenueRole =
+    withDurableLiveMutationOutcome publicationFor do
+        previousRosterGroupIds <- fetchStaffRosterGroupIds originalStaff
+        maybeUpdatedStaff <- fmap join $ withStaffOperationalLocksInCurrentTransaction [unpackId originalStaff.id] do
+            lockedStaff <- fetch originalStaff.id
+            if not lockedStaff.isActive || isJust lockedStaff.archivedAt
+                then pure Nothing
+                else do
+                    updatedStaff <- staff |> updateRecord
+                    syncStaffRosterGroupAssignments updatedStaff selectedRosterGroupIds
+                    replaceStaffShiftPreferences updatedStaff submittedSelections
+                    when (staffXeroPayItemScopeChanged originalStaff updatedStaff) do
+                        today <- utctDay <$> getCurrentTime
+                        void (ensureStaffPayVersionForStaff currentUser.id updatedStaff today)
+                    -- This workflow is classified as web even when HTMX invokes it.
+                    forM_ ((,) <$> maybeMembership <*> maybeVenueRole) \(membership, venueRole) ->
+                        void $ updateCurrentUserVenueMembershipRoleWithAuditInCurrentTransaction
+                            WebAuditSource
+                            membership
+                            venueRole
+                            (Aeson.object ["staffId" Aeson..= tshow staff.id])
+                    pure (Just updatedStaff)
+        forM maybeUpdatedStaff \updatedStaff -> do
+            activeRosterScopes <- activeRosterWindowScopes
+            activeTimesheetScopes <- activeTimesheetWindowScopes
+            let affectedRosterGroupIds = nub (previousRosterGroupIds <> selectedRosterGroupIds)
+                payResources =
+                    if staffPayDispositionChanged originalStaff updatedStaff
+                        then staffTimesheetResources (unpackId currentVenueId) activeTimesheetScopes
+                        else []
+            pure (liveMutationResult updatedStaff (staffUpdateTouchedResources updatedStaff <> staffRosterGroupResources (unpackId currentVenueId) activeRosterScopes affectedRosterGroupIds <> payResources))
+  where
+    publicationFor = fmap (\result -> ("staff.update", result.liveMutationTouchedResources))
 
 staffUpdateTouchedResources :: Staff -> [SurfaceResourceValue]
 staffUpdateTouchedResources staff =

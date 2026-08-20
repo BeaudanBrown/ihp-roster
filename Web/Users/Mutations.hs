@@ -1,6 +1,5 @@
 module Web.Users.Mutations
     ( acceptVenueInvitationInCurrentTransaction
-    , invalidateAcceptedVenueInvitation
     , acceptedVenueInvitationTouchedResources
     , acceptedVenueInvitationTouchedResourcesForScopes
     ) where
@@ -22,7 +21,6 @@ import Data.Time.Calendar (Day)
 import Data.UUID (UUID)
 import Web.Controller.Prelude
 import Web.RosterWeeks.SurfaceInvalidation (activeRosterResourcesForStaffGroups)
-import Web.SurfaceInvalidation (invalidateTouchedResources)
 
 acceptVenueInvitationInCurrentTransaction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UTCTime -> VenueInvitation -> User -> Text -> Staff -> IO (LiveMutationResult User)
 acceptVenueInvitationInCurrentTransaction acceptedAt invitation user hashedPassword staffInput = do
@@ -80,10 +78,6 @@ acceptVenueInvitationInCurrentTransaction acceptedAt invitation user hashedPassw
             rosterGroupIds <- fetchStaffRosterGroupIds staff
             pure (acceptedVenueInvitationTouchedResourcesForScopes invitation activeRosterScopes activeTimesheetScopes rosterGroupIds)
     pure (liveMutationResult acceptedUser touchedResources)
-
-invalidateAcceptedVenueInvitation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LiveMutationResult User -> IO (LiveMutationResult User)
-invalidateAcceptedVenueInvitation =
-    invalidateTouchedResources "user.invitation.accept"
 
 acceptInvitationStaffLink :: (?modelContext :: ModelContext) => VenueInvitation -> Venue -> User -> Staff -> IO (Maybe Staff)
 acceptInvitationStaffLink invitation venue acceptedUser staffInput =

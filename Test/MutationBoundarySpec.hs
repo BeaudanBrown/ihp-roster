@@ -170,6 +170,28 @@ tests = describe "Mutation boundary guard" do
         filter (`Text.isInfixOf` mutationSource) mutationForbiddenTokens `shouldBe` []
         filter (`Text.isInfixOf` controllerSource) controllerForbiddenTokens `shouldBe` []
 
+    it "keeps workforce and scheduling producers off sequential live publication" do
+        sources <- mapM Text.readFile
+            [ "Web/Controller/LeaveRequests.hs"
+            , "Web/Controller/Users.hs"
+            , "Web/LeaveRequests/Mutations.hs"
+            , "Web/Profiles/Mutations.hs"
+            , "Web/RosterTemplates/Mutations.hs"
+            , "Web/RosterWeeks/Mutations.hs"
+            , "Web/RosterWeeks/TemplateApplication.hs"
+            , "Web/RosterWeeks/VenueSettings.hs"
+            , "Web/Staff/Mutations.hs"
+            , "Web/StaffDocuments/Mutations.hs"
+            , "Web/Timesheets/Mutations.hs"
+            , "Application/RosterNotification/Delivery.hs"
+            ]
+        let forbiddenTokens =
+                [ "invalidateTouchedResources"
+                , "publishTouchedResourcesWithoutContext"
+                , "publishDurableInvalidation"
+                ]
+        filter (\token -> any (Text.isInfixOf token) sources) forbiddenTokens `shouldBe` []
+
     it "keeps admin config writes in the mutation module" do
         source <- Text.readFile "Web/Controller/Admin.hs"
         let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "enqueueVenueInvitationDeliveryJob", "ensureShiftTypePayVersionForShiftType", "createVenueRosterGroupWithDefaults", "ensureDefaultRosterSlots", "syncVenueDefaultRosterGroupToTopActive", "reorderActiveRosterGroups", "reorderActiveShiftTypes"]

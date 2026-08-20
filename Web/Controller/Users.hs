@@ -11,7 +11,7 @@ import Application.Helper.VenueBootstrap (VenueBootstrapConfig (..),
 import Application.Helper.VenueInvitation (venueInvitationIsActive)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationIsActive)
 import Application.Helper.WeekBoundaries (validRosterWeekStartDays)
-import Application.VenueInvitation.Mutations (withVenueInvitationAcceptanceLock)
+import Application.VenueInvitation.Mutations (withVenueInvitationAcceptanceLockInCurrentTransaction)
 import Application.VenueOnboardingInvitation.Mutations (withVenueOnboardingInvitationLock)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -20,8 +20,8 @@ import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import Web.Controller.Prelude
 import Web.Controller.Sessions ()
 import Web.Controller.StaffProfileValidation (buildRequiredPersonalProfileStaff)
-import Web.Users.Mutations (acceptVenueInvitationInCurrentTransaction,
-                            invalidateAcceptedVenueInvitation)
+import Web.SurfaceInvalidation (withDurableLiveMutationOutcome)
+import Web.Users.Mutations (acceptVenueInvitationInCurrentTransaction)
 import Web.View.Users.New
 
 instance Controller UsersController where
@@ -97,18 +97,21 @@ instance Controller UsersController where
                                                     render InvitationSignupView { user, venueInvitation = invitation, staff }
                                                 Right staff -> do
                                                     hashed <- hashPassword user.passwordHash
-                                                    maybeAcceptedUser <- withVenueInvitationAcceptanceLock
-                                                        (unpackId invitation.id)
-                                                        (unpackId <$> invitation.staffId)
-                                                        do
-                                                            lockedInvitation <- fetch invitation.id
-                                                            lockedNow <- getCurrentTime
-                                                            if venueInvitationIsActive lockedNow lockedInvitation
-                                                                then Just <$> acceptVenueInvitationInCurrentTransaction lockedNow lockedInvitation user hashed staff
-                                                                else pure Nothing
-                                                    case join maybeAcceptedUser of
+                                                    maybeAcceptedUser <-
+                                                        withDurableLiveMutationOutcome (fmap (\result -> ("user.invitation.accept", result.liveMutationTouchedResources))) $
+                                                            fmap join $
+                                                                withVenueInvitationAcceptanceLockInCurrentTransaction
+                                                                    (unpackId invitation.id)
+                                                                    (unpackId <$> invitation.staffId)
+                                                                    do
+                                                                        lockedInvitation <- fetch invitation.id
+                                                                        lockedNow <- getCurrentTime
+                                                                        if venueInvitationIsActive lockedNow lockedInvitation
+                                                                            then Just <$> acceptVenueInvitationInCurrentTransaction lockedNow lockedInvitation user hashed staff
+                                                                            else pure Nothing
+                                                    case maybeAcceptedUser of
                                                         Just mutationResult -> do
-                                                            acceptedUser <- liveMutationValue <$> invalidateAcceptedVenueInvitation mutationResult
+                                                            let acceptedUser = mutationResult.liveMutationValue
                                                             Sessions.beforeLogin acceptedUser
                                                             LoginSupport.login acceptedUser
                                                             setSuccessMessage "Invitation accepted."

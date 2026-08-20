@@ -18,7 +18,7 @@ import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValu
 import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
 import Application.Helper.RosterTemplateScale (rosterTemplateScaleIsWeek)
-import Application.Helper.SurfaceResource (LiveMutationResult,
+import Application.Helper.SurfaceResource (LiveMutationResult (..),
                                            liveMutationResult)
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Application.RosterPublication (rosterDaysArePublished)
@@ -45,7 +45,7 @@ import Web.Controller.Prelude (isHtmxRequest)
 import Web.RosterWeeks.Service (validateRosterSlotForPersistence)
 import Web.RosterWeeks.TemplateApplication.Persistence (applyPreparedApplication)
 import Web.RosterWeeks.TemplateApplication.Types
-import Web.SurfaceInvalidation (invalidateTouchedResources)
+import Web.SurfaceInvalidation (withDurableLiveMutationOutcome)
 
 previewRosterTemplateApplication ::
     (?modelContext :: ModelContext) =>
@@ -65,7 +65,10 @@ applyRosterTemplateApplicationMutation ::
     Int ->
     IO (Either RosterTemplateApplicationError (LiveMutationResult RosterTemplateApplicationResult))
 applyRosterTemplateApplicationMutation actor request expectedVersion expectedTargetRevision expectedCalendarRevision = do
-    applied <- applyRosterTemplateApplication actor request expectedVersion expectedTargetRevision expectedCalendarRevision
+    applied <-
+        withDurableLiveMutationOutcome publicationFor do
+            fmap (fmap (\result -> liveMutationResult result result.appliedTouchedResources)) $
+                applyRosterTemplateApplicationInCurrentTransaction actor request expectedVersion expectedTargetRevision expectedCalendarRevision
     case applied of
         Left RosterTemplateApplicationCalendarConflict
             | isHtmxRequest -> do
@@ -76,7 +79,9 @@ applyRosterTemplateApplicationMutation actor request expectedVersion expectedTar
                         "The roster calendar changed. Review the refreshed window and try again."
                     )
                 error "unreachable"
-        _ -> traverse (invalidateTouchedResources "roster.template.apply" . \result -> liveMutationResult result result.appliedTouchedResources) applied
+        _ -> pure applied
+  where
+    publicationFor = either (const Nothing) (\result -> Just ("roster.template.apply", result.liveMutationTouchedResources))
 
 applyRosterTemplateApplication ::
     (?modelContext :: ModelContext) =>
@@ -87,6 +92,18 @@ applyRosterTemplateApplication ::
     Int ->
     IO (Either RosterTemplateApplicationError RosterTemplateApplicationResult)
 applyRosterTemplateApplication actor request expectedVersion expectedTargetRevision expectedCalendarRevision =
+    withTransaction $
+        applyRosterTemplateApplicationInCurrentTransaction actor request expectedVersion expectedTargetRevision expectedCalendarRevision
+
+applyRosterTemplateApplicationInCurrentTransaction ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    RosterTemplateApplicationRequest ->
+    Int ->
+    Text ->
+    Int ->
+    IO (Either RosterTemplateApplicationError RosterTemplateApplicationResult)
+applyRosterTemplateApplicationInCurrentTransaction actor request expectedVersion expectedTargetRevision expectedCalendarRevision =
     withRosterWindowDateLock
         (rosterTemplateActorVenueId actor)
         request.applicationTargetRosterGroupId

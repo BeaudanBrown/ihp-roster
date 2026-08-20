@@ -27,8 +27,10 @@ module Application.RosterTemplates
     , rosterTemplateDraftRevision
     , rosterTemplateActorVenueId
     , saveRosterTemplateDraft
+    , saveRosterTemplateDraftInCurrentTransaction
     , reloadLatestRosterTemplateDraft
     , saveRosterTemplateDraftAsNew
+    , saveRosterTemplateDraftAsNewInCurrentTransaction
     , softDeleteRosterTemplate
     , startBlankRosterTemplateDraft
     , startRosterTemplateDraftWithContent
@@ -425,7 +427,16 @@ saveRosterTemplateDraft ::
     RosterTemplateActor ->
     Id RosterTemplateDesign ->
     IO (Either RosterTemplateError RosterTemplateSave)
-saveRosterTemplateDraft actor designId = saveDraft actor designId Nothing
+saveRosterTemplateDraft actor designId =
+    withTransaction (saveRosterTemplateDraftInCurrentTransaction actor designId)
+
+saveRosterTemplateDraftInCurrentTransaction ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    Id RosterTemplateDesign ->
+    IO (Either RosterTemplateError RosterTemplateSave)
+saveRosterTemplateDraftInCurrentTransaction actor designId =
+    saveDraftInCurrentTransaction actor designId Nothing
 
 saveRosterTemplateDraftAsNew ::
     (?modelContext :: ModelContext) =>
@@ -433,22 +444,32 @@ saveRosterTemplateDraftAsNew ::
     Id RosterTemplateDesign ->
     Text ->
     IO (Either RosterTemplateError RosterTemplateSave)
-saveRosterTemplateDraftAsNew actor designId name = saveDraft actor designId (Just (Text.strip name))
+saveRosterTemplateDraftAsNew actor designId name =
+    withTransaction (saveRosterTemplateDraftAsNewInCurrentTransaction actor designId name)
 
-saveDraft ::
+saveRosterTemplateDraftAsNewInCurrentTransaction ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    Id RosterTemplateDesign ->
+    Text ->
+    IO (Either RosterTemplateError RosterTemplateSave)
+saveRosterTemplateDraftAsNewInCurrentTransaction actor designId name =
+    saveDraftInCurrentTransaction actor designId (Just (Text.strip name))
+
+saveDraftInCurrentTransaction ::
     (?modelContext :: ModelContext) =>
     RosterTemplateActor ->
     Id RosterTemplateDesign ->
     Maybe Text ->
     IO (Either RosterTemplateError RosterTemplateSave)
-saveDraft actor designId saveAsName
+saveDraftInCurrentTransaction actor designId saveAsName
     | not actor.actorCanEditRosters = pure (Left RosterTemplateForbidden)
     | maybe False invalidName saveAsName = pure (Left RosterTemplateInvalidName)
     | otherwise = do
         maybeDraft <- fetchOwnedDraft actor designId
         case maybeDraft of
             Nothing -> pure (Left RosterTemplateForbidden)
-            Just draft -> withTransaction do
+            Just draft -> do
                 referenceValidation <- validateDraftReferences actor draft
                 case referenceValidation of
                     Left problem -> pure (Left problem)

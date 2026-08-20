@@ -99,11 +99,16 @@ TypeScript does not infer regions from routes, targets, classes, or names.
 
 ## Durable Handoff And Retention
 
-PostgreSQL is cross-process freshness authority. Each sequential compatibility
-publication persists one ordered event, deduplicated typed resource children,
-and monotonic current resource versions before transactional notification. App
-processes retain only local subscriptions and sockets; listeners replay durable
-events into their local `LiveBus`.
+PostgreSQL is cross-process freshness authority. Workforce and scheduling
+producers commit their business writes, domain/audit writes, one ordered outbox
+event, deduplicated typed resource children, monotonic current resource versions,
+and transactional notification in one transaction. Outcomes classified by the
+producer as validation failures, stale-lock failures, or no live-visible change
+commit without an event; explicitly convergent idempotent outcomes may retain a
+focused event. Admin, Billing,
+integration, export, and support producers retain the sequential compatibility
+seam until their dedicated migration. Listeners replay durable events into each
+process-local `LiveBus`.
 
 Event replay history is retained for at least seven days and pruned in bounded,
 oldest-first transactions. Resource children cascade with event deletion, while

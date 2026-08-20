@@ -1,11 +1,10 @@
 module Application.UnavailabilityBlackout.Mutations
     ( blackoutOverlapError
-    , createUnavailabilityBlackout
-    , deleteUnavailabilityBlackout
+    , createUnavailabilityBlackoutInCurrentTransaction
+    , deleteUnavailabilityBlackoutInCurrentTransaction
     , findOverlappingUnavailabilityBlackout
     , lockVenueUnavailabilityBlackoutInCurrentTransaction
-    , updateUnavailabilityBlackout
-    , withVenueUnavailabilityBlackoutLock
+    , updateUnavailabilityBlackoutInCurrentTransaction
     ) where
 
 import qualified Data.UUID as UUID
@@ -15,16 +14,6 @@ import IHP.ControllerPrelude
 
 blackoutOverlapError :: Text
 blackoutOverlapError = "Blackout periods cannot overlap an existing active period."
-
-withVenueUnavailabilityBlackoutLock ::
-    (?modelContext :: ModelContext) =>
-    UUID ->
-    ((?modelContext :: ModelContext) => IO result) ->
-    IO result
-withVenueUnavailabilityBlackoutLock venueId action =
-    withTransaction do
-        lockVenueUnavailabilityBlackoutInCurrentTransaction venueId
-        action
 
 lockVenueUnavailabilityBlackoutInCurrentTransaction :: (?modelContext :: ModelContext) => UUID -> IO ()
 lockVenueUnavailabilityBlackoutInCurrentTransaction venueId = do
@@ -55,22 +44,22 @@ findOverlappingUnavailabilityBlackout venueId firstDate lastDate excludedId =
             |> orderByAsc #startDate
             |> orderByAsc #id
 
-createUnavailabilityBlackout ::
+createUnavailabilityBlackoutInCurrentTransaction ::
     (?modelContext :: ModelContext) =>
     UnavailabilityBlackout ->
     IO (Either Text UnavailabilityBlackout)
-createUnavailabilityBlackout blackout =
-    withVenueUnavailabilityBlackoutLock blackout.venueId do
-        findOverlappingUnavailabilityBlackout blackout.venueId blackout.startDate blackout.endDate Nothing >>= \case
-            Just _ -> pure (Left blackoutOverlapError)
-            Nothing -> Right <$> createRecord blackout
+createUnavailabilityBlackoutInCurrentTransaction blackout = do
+    lockVenueUnavailabilityBlackoutInCurrentTransaction blackout.venueId
+    findOverlappingUnavailabilityBlackout blackout.venueId blackout.startDate blackout.endDate Nothing >>= \case
+        Just _ -> pure (Left blackoutOverlapError)
+        Nothing -> Right <$> createRecord blackout
 
-updateUnavailabilityBlackout ::
+updateUnavailabilityBlackoutInCurrentTransaction ::
     (?modelContext :: ModelContext) =>
     UnavailabilityBlackout ->
     IO (Either Text UnavailabilityBlackout)
-updateUnavailabilityBlackout submitted =
-    withVenueUnavailabilityBlackoutLock submitted.venueId do
+updateUnavailabilityBlackoutInCurrentTransaction submitted = do
+        lockVenueUnavailabilityBlackoutInCurrentTransaction submitted.venueId
         lockedIds :: [PG.Only UUID] <- sqlQuery
             "SELECT id FROM unavailability_blackouts WHERE id = ? AND venue_id = ? FOR UPDATE"
             (unpackId submitted.id, submitted.venueId)
@@ -84,12 +73,12 @@ updateUnavailabilityBlackout submitted =
                         Right <$> (submitted |> set #updatedAt now |> updateRecord)
             _ -> error "Blackout update lock returned an unexpected row set"
 
-deleteUnavailabilityBlackout ::
+deleteUnavailabilityBlackoutInCurrentTransaction ::
     (?modelContext :: ModelContext) =>
     UnavailabilityBlackout ->
     IO Bool
-deleteUnavailabilityBlackout blackout =
-    withVenueUnavailabilityBlackoutLock blackout.venueId do
+deleteUnavailabilityBlackoutInCurrentTransaction blackout = do
+        lockVenueUnavailabilityBlackoutInCurrentTransaction blackout.venueId
         lockedIds :: [PG.Only UUID] <- sqlQuery
             "SELECT id FROM unavailability_blackouts WHERE id = ? AND venue_id = ? FOR UPDATE"
             (unpackId blackout.id, blackout.venueId)
