@@ -79,8 +79,8 @@ production application merely to exercise DSL vocabulary.
   subscriptions match mounted scopes.
 
 A contained child surface is still an independent surface: it owns its own scope,
-fragments, request decoration, focused-field protection, and invalidation
-handling. Parent fragments may refresh broad HTML that includes child mounts, so
+fragments, optional generated fragment request-context decoration, focused-field
+protection, and invalidation handling. Parent fragments may refresh broad HTML that includes child mounts, so
 composition-safe runtime code must clean up removed child/grandchild mounts and
 avoid duplicate subscriptions when the same instance remains mounted.
 
@@ -1227,8 +1227,9 @@ replacement naturally discards it.
 
 `FrontendSurface` invalidations are semantic and surface-native. PostgreSQL
 resource versions and ordered outbox events are the freshness authority. Every
-application process runs a reconnecting listener that hydrates current versions,
-dispatches that authoritative snapshot before retained replay, and then replays
+application process runs a reconnecting listener. Its initial connection hydrates
+current versions before subscriptions rely on durable watermarks. On reconnect it
+dispatches that authoritative snapshot before retained replay, then replays
 ordered events through its local subscription/socket hub. Snapshot-first ordering
 prevents a retained event's dedupe sequence from suppressing resources whose
 individual events were already pruned. Duplicate or out-of-order
@@ -1339,9 +1340,10 @@ Use generated `parseX` at unknown JSON/data boundaries and `encodeX` for outboun
 surface DTOs. If TypeScript switches on a generated closed union, use
 `assertNever` so `frontend-check` fails when Haskell adds a new variant.
 
-Generic browser code may decorate HTMX requests from the closest mounted surface,
-manage disposable sessions/layers, fill generated intent forms, and refetch
-mount-local fragments. It must not infer feature URLs, target ids, canonical
+Generic browser code may apply a declared generated fragment request-context
+decorator from the closest mounted surface, manage disposable sessions/layers,
+fill generated intent forms, and refetch mount-local fragments. This is not the
+retired writer-local client-id header. It must not infer feature URLs, target ids, canonical
 field names, surface names, or mutation endpoints.
 
 ## Authoring Rules

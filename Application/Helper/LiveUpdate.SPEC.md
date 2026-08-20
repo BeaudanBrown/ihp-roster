@@ -78,7 +78,9 @@ shared resource change. Direct raw transport/broadcast helpers remain inside
 Generated TypeScript owns exact scope/key/mount/message parsing and canonical key
 identity. Runtime modules under `frontend/ts/live-updates/` separately own mount
 reconciliation, subscriptions, connection/reconnect, invalidation/version
-routing, request decoration, refetch/swap, focus protection, and diagnostics.
+routing, declared fragment request-context decoration, refetch/swap, focus
+protection, and diagnostics. Request context never restores the retired
+writer-local client-id/echo protocol.
 `app-live-updates.ts` remains orchestration-only.
 
 Incoming keys resolve only against matching local mounted descriptors. There is
