@@ -1,5 +1,7 @@
 module Web.Controller.Feedback where
 
+import Application.Feedback.Notification (enqueueFeedbackNotificationJobs,
+                                          feedbackSubmittedMailKind)
 import Application.Helper.Controller (boundedText, normalizeTextField)
 import Application.Helper.FrontendContract.AppShell (ContentField,
                                                      FeedbackDevicePixelRatioField,
@@ -12,6 +14,7 @@ import Application.Helper.FrontendContract.AppShell.Request (AppShellActionField
                                                              parseAppShellActionParams)
 import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
+import Application.Helper.Telemetry (addTelemetryEvent)
 import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
                                 renderToastOob, successToast)
 import Control.Monad (guard)
@@ -21,6 +24,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import qualified Data.Text.Encoding.Error as TextEncodingError
 import qualified Network.Wai as Wai
+import OpenTelemetry.Attributes (toAttribute)
 import Text.Read (readMaybe)
 import Web.Controller.Prelude
 import Web.View.Feedback.New
@@ -52,7 +56,14 @@ instance Controller FeedbackController where
                     |> ifValid \case
                         Left invalidFeedbackItem -> renderInvalidFeedback invalidFeedbackItem
                         Right validFeedbackItem -> do
-                            _ <- validFeedbackItem |> createRecord
+                            notificationJobs <- withTransaction do
+                                persistedFeedbackItem <- validFeedbackItem |> createRecord
+                                enqueueFeedbackNotificationJobs persistedFeedbackItem
+                            addTelemetryEvent
+                                "bepis.email.enqueue"
+                                [ ("mail.kind", toAttribute feedbackSubmittedMailKind)
+                                , ("recipient.count", toAttribute (length notificationJobs))
+                                ]
                             if isHtmxRequest
                                 then respondHtml [hsx|
                                     <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>

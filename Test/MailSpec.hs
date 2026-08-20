@@ -4,7 +4,9 @@ import Application.Billing.NotificationKind (BillingNotificationKind (BillingPay
 import Application.Helper.Mail
 import Control.Exception (bracket)
 import Data.Text (isInfixOf)
+import qualified Data.Text.Lazy as LazyText
 import Data.Time.Calendar (fromGregorian)
+import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Generated.Types
 import IHP.ControllerPrelude (createRecord, getCurrentTime, newRecord, set,
                               unpackId, (|>))
@@ -15,7 +17,9 @@ import Network.Mail.Mime (Address (..))
 import qualified System.Environment as Environment
 import Test.Hspec
 import Test.Support
+import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
 import Web.Mail.Billing.Notification
+import Web.Mail.FeedbackNotification
 import Web.Mail.StaffDocuments.RsaReminder
 import Web.Mail.Users.EmailVerification
 import Web.Mail.Users.PasskeySetupLink
@@ -155,6 +159,54 @@ tests = aroundAll withDatabaseTestContext do
                 text mail `shouldSatisfy` isInfixOf "contact support@example.com."
                 text mail `shouldSatisfy` (not . isInfixOf "invoice.payment_failed")
                 text mail `shouldSatisfy` (not . isInfixOf "pm_secret")
+
+        it "renders escaped feedback triage context in explicit HTML and plain text" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Feedback Mail Venue"
+                submitter <- createUserRecord "feedback-mail-submitter@example.com" "staff" True
+                let submittedAt = UTCTime (fromGregorian 2026 8 20) (secondsToDiffTime (3 * 60 * 60 + 15 * 60))
+                let feedbackItem =
+                        newRecord @UserFeedbackItem
+                            |> set #venueId (unpackId venue.id)
+                            |> set #submittedByUserId (unpackId submitter.id)
+                            |> set #feedbackType Bug
+                            |> set #content "<script>alert('escaped')</script>\nSecond line"
+                            |> set #submittedRole (Just "worker")
+                            |> set #submittedPath (Just "/RosterWeeks")
+                            |> set #userAgent (Just "Browser <unsafe>")
+                            |> set #viewportWidth (Just 390)
+                            |> set #viewportHeight (Just 844)
+                            |> set #devicePixelRatio (Just 2.625)
+                            |> set #deviceClass (Just "mobile")
+                            |> set #displayMode (Just "standalone")
+                            |> set #createdAt submittedAt
+                let mail =
+                        FeedbackNotificationMail
+                            { recipientAddress = "support-recipient@example.com"
+                            , feedbackItem
+                            , venue
+                            , submitter
+                            , venueTimezone = "Australia/Melbourne"
+                            , supportUrl = "https://app.example/Support"
+                            , fromAddress = "noreply@example.com"
+                            , replyToAddress = "support@example.com"
+                            }
+                let ?context = ?mocking
+                let ?mail = mail
+                let renderedHtml = LazyText.toStrict (HtmlRenderer.renderHtml (html mail))
+
+                addressEmail (to mail) `shouldBe` "support-recipient@example.com"
+                subject `shouldBe` "New Bepis feedback submitted"
+                addressEmail from `shouldBe` "noreply@example.com"
+                fmap addressEmail (replyTo mail) `shouldBe` Just "support@example.com"
+                renderedHtml `shouldSatisfy` isInfixOf "&lt;script&gt;alert(&#39;escaped&#39;)&lt;/script&gt;"
+                renderedHtml `shouldSatisfy` (not . isInfixOf "<script>")
+                renderedHtml `shouldSatisfy` isInfixOf "Browser &lt;unsafe&gt;"
+                text mail `shouldSatisfy` isInfixOf "Type: Bug"
+                text mail `shouldSatisfy` isInfixOf "Submission-time role: worker"
+                text mail `shouldSatisfy` isInfixOf "Submitted: 2026-08-20 13:15:00 Australia/Melbourne"
+                text mail `shouldSatisfy` isInfixOf "<script>alert('escaped')</script>\nSecond line"
+                text mail `shouldSatisfy` isInfixOf "Open Bepis Support: https://app.example/Support"
 
         it "renders renewal-resumed billing confirmation copy" $ withContext do
             let copy = billingNotificationCopy BillingRenewalResumed "Billing Mail Venue"

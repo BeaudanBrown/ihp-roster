@@ -15,6 +15,10 @@ Application/Billing/Persistence.hs	production	runtime	Main	Reachable from Main
 Application/Billing/Reconciliation.hs	production	runtime	Main	Reachable from Main
 Application/Billing/Stripe.hs	production	runtime	Main	Reachable from Main
 Application/Billing/Webhook.hs	production	runtime	Main	Reachable from Main
+Application/EmailDelivery.hs	production	runtime	Main	Reachable from Main
+Application/EmailDelivery/Persistence.hs	production	runtime	Main	Reachable from Main
+Application/Feedback/Email.hs	production	runtime	Main	Reachable from Main
+Application/Feedback/Notification.hs	production	runtime	Main	Reachable from Main
 Application/Fixture.hs	development	fixture	-	Seed, profile, or test fixture outside deployed runtime closure
 Application/Fixture/DevFixtures.hs	development	development-fixture	-	Synthetic local development data only
 Application/Fixture/DevFixtures/Deterministic.hs	development	development-fixture	-	Synthetic local development data only
@@ -410,6 +414,7 @@ Web/LeaveRequests/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/LeaveRequests/ReadModel.hs	production	runtime	Main	Reachable from Main
 Web/LeaveRequests/SelfService.hs	production	runtime	Main	Reachable from Main
 Web/Mail/Billing/Notification.hs	production	runtime	Main	Reachable from Main
+Web/Mail/FeedbackNotification.hs	production	runtime	Main	Reachable from Main
 Web/Mail/RosterNotification.hs	production	runtime	Main	Reachable from Main
 Web/Mail/Shared.hs	production	runtime	Main	Reachable from Main
 Web/Mail/StaffDocuments/RsaReminder.hs	production	runtime	Main	Reachable from Main
