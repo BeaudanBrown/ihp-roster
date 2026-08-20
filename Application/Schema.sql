@@ -1979,7 +1979,6 @@ CREATE INDEX idx_app_jobs_kind_created_at ON app_jobs (job_kind, created_at DESC
 CREATE INDEX idx_app_jobs_venue_created_at ON app_jobs (venue_id, created_at DESC);
 CREATE INDEX idx_app_jobs_related ON app_jobs (related_table, related_id);
 CREATE UNIQUE INDEX idx_app_jobs_active_dedupe ON app_jobs (dedupe_key) WHERE dedupe_key IS NOT NULL AND (status = 'job_status_not_started' OR status = 'job_status_running' OR status = 'job_status_retry');
-CREATE UNIQUE INDEX idx_app_jobs_email_delivery_dedupe ON app_jobs (dedupe_key) WHERE job_kind = 'email_delivery' AND dedupe_key IS NOT NULL;
 CREATE INDEX idx_timesheet_entries_venue_staff ON timesheet_entries (venue_id, staff_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_timesheet_entries_venue_starts_at ON timesheet_entries (venue_id, starts_at) WHERE deleted_at IS NULL;
 CREATE INDEX idx_timesheet_entries_staff_pay_version ON timesheet_entries (staff_pay_version_id);

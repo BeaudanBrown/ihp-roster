@@ -1,9 +1,5 @@
 module Test.Controller.FeedbackSpec where
 
-import Application.EmailDelivery (emailDeliveryJobKind)
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Types as AesonTypes
-import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -38,11 +34,6 @@ tests = aroundAll withDatabaseTestContext do
                 venue <- createVenueWithConfig "Feedback Venue"
                 user <- createUserRecord "feedback-user@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user Worker
-                firstSupport <- createUserRecordWithPlatformRole "first-support@example.com" "staff" (Just SuperAdmin) True
-                secondSupport <- createUserRecordWithPlatformRole "second-support@example.com" "staff" (Just SuperAdmin) True
-                inactiveSupport <- createUserRecordWithPlatformRole "inactive-support@example.com" "staff" (Just SuperAdmin) True
-                now <- getCurrentTime
-                _ <- inactiveSupport |> set #deactivatedAt (Just now) |> updateRecord
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
                     withRequestHeaders
@@ -78,34 +69,6 @@ tests = aroundAll withDatabaseTestContext do
                 feedbackItem.devicePixelRatio `shouldBe` Just 2.625
                 feedbackItem.deviceClass `shouldBe` Just "mobile"
                 feedbackItem.displayMode `shouldBe` Just "standalone"
-
-                jobs <- query @AppJob |> filterWhere (#jobKind, emailDeliveryJobKind) |> orderByAsc #createdAt |> fetch
-                length jobs `shouldBe` 2
-                map payloadRecipientAccountId jobs `shouldMatchList` map (Just . unpackId . (.id)) [firstSupport, secondSupport]
-                map payloadRecipientAddress jobs `shouldMatchList` [Just "first-support@example.com", Just "second-support@example.com"]
-                map (.relatedId) jobs `shouldBe` replicate 2 (Just (unpackId feedbackItem.id))
-                map (.requestedByUserId) jobs `shouldBe` replicate 2 (Just (unpackId user.id))
-                forM_ jobs \job -> do
-                    job.payloadSchemaVersion `shouldBe` 1
-                    tshow job.payload `shouldSatisfy` (not . Text.isInfixOf feedbackItem.content)
-                    fromMaybe "" job.dedupeKey `shouldSatisfy` (not . Text.isInfixOf "@example.com")
-
-        it "creates feedback with no delivery jobs when no active super admin exists" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Feedback No Recipient Venue"
-                user <- createUserRecord "feedback-no-recipient@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user Worker
-
-                response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams CreateFeedbackAction
-                            [ ("feedbackType", "bug")
-                            , ("content", "Saving must not require a support recipient")
-                            ]
-
-                response `responseStatusShouldBe` status200
-                query @UserFeedbackItem |> fetchCount >>= (`shouldBe` 1)
-                query @AppJob |> filterWhere (#jobKind, emailDeliveryJobKind) |> fetchCount >>= (`shouldBe` 0)
 
         it "creates feedback when browser diagnostics are missing or malformed" $ withContext do
             withCleanDb do
@@ -193,7 +156,6 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Please enter at least 3 characters"
                 feedbackExists <- query @UserFeedbackItem |> fetchExists
                 feedbackExists `shouldBe` False
-                query @AppJob |> filterWhere (#jobKind, emailDeliveryJobKind) |> fetchCount >>= (`shouldBe` 0)
 
         it "rejects invalid feedback types" $ withContext do
             withCleanDb do
@@ -212,12 +174,3 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Choose a feedback type"
                 feedbackExists <- query @UserFeedbackItem |> fetchExists
                 feedbackExists `shouldBe` False
-                query @AppJob |> filterWhere (#jobKind, emailDeliveryJobKind) |> fetchCount >>= (`shouldBe` 0)
-
-payloadRecipientAccountId :: AppJob -> Maybe UUID
-payloadRecipientAccountId appJob =
-    AesonTypes.parseMaybe (Aeson.withObject "email delivery payload" (Aeson..: "recipientAccountId")) appJob.payload
-
-payloadRecipientAddress :: AppJob -> Maybe Text
-payloadRecipientAddress appJob =
-    AesonTypes.parseMaybe (Aeson.withObject "email delivery payload" (Aeson..: "recipientAddress")) appJob.payload

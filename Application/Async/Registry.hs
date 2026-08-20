@@ -4,7 +4,6 @@ module Application.Async.Registry
 
 import Application.Billing.Notifications
 import Application.Billing.Reconciliation
-import Application.EmailDelivery
 import Application.FwcMapd.Job
 import Application.InvitationDelivery.Job
 import Application.PublicHolidays.Job
@@ -36,7 +35,6 @@ dispatchAppJobByKind ::
     IO ()
 dispatchAppJobByKind appJob =
     case appJob.jobKind of
-        kind | kind == emailDeliveryJobKind -> performEmailDeliveryJob appJob
         kind | kind == fwcMapdRefreshJobKind -> performFwcMapdRefreshJob appJob
         kind | kind == publicHolidayRefreshJobKind -> performPublicHolidayRefreshJob appJob
         kind | kind == rosterNotificationDeliveryJobKind -> performRosterNotificationDeliveryJob appJob
