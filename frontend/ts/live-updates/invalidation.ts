@@ -1,7 +1,6 @@
 import { parseLiveFragmentsRefreshEventDetail, type LiveUpdateMessage } from "../generated/contracts";
 import type { createLiveUpdateDiagnostics } from "./diagnostics";
 import {
-    liveUpdateInvalidationIsOwnEcho,
     liveUpdateMessageScopeKey,
     normalizeLiveUpdateVersion,
     resolveMountedFragmentsForInvalidation,
@@ -27,11 +26,10 @@ export type LiveUpdateInvalidationRuntime = {
 
 export function createLiveUpdateInvalidationRuntime(options: {
     activeSubscriptions: Map<string, SurfaceSubscription>;
-    activeClientId: () => string | null;
     refresher: LiveFragmentRefresher;
     diagnostics: LiveUpdateDiagnostics;
 }): LiveUpdateInvalidationRuntime {
-    const { activeSubscriptions, activeClientId, refresher, diagnostics } = options;
+    const { activeSubscriptions, refresher, diagnostics } = options;
     const scopeVersions = new Map<string, number>();
 
     const versions: LiveUpdateVersionStore = {
@@ -60,7 +58,6 @@ export function createLiveUpdateInvalidationRuntime(options: {
     }
 
     function handleInvalidateMessage(message: Extract<LiveUpdateMessage, { type: "invalidate" }>): void {
-        if (liveUpdateInvalidationIsOwnEcho(message.sourceClientId, activeClientId())) return;
         const nextVersion = normalizeLiveUpdateVersion(message.version);
         const perfSpan = diagnostics.beginPerfSpan("live_updates.handle_invalidate", {
             fragmentCount: message.fragments.length,

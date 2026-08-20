@@ -85,7 +85,7 @@ tests = describe "LiveUpdate runtime types" do
         TimesheetsLive.matchTimesheetToolbarLiveFragment parameterized
             `shouldBe` Nothing
 
-    it "encodes websocket invalidations with semantic fragment keys only" do
+    it "encodes listener-owned websocket invalidations with semantic fragment keys only" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
         let scope = RosterLive.rosterWeekLiveScope venueId rosterGroupId (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1
@@ -96,14 +96,13 @@ tests = describe "LiveUpdate runtime types" do
                     , scopeKey = surfaceScopeKey scope
                     , version = 6
                     , fragments = [fragmentKey]
-                    , sourceClientId = Just "client-1"
                     }
         let encoded = Aeson.toJSON message
         Aeson.toJSON scope `shouldBe` Aeson.toJSON (surfaceScopeToWire scope)
         encoded
             `shouldBe`
                 Aeson.toJSON
-                    (Wire.Invalidate (surfaceScopeToWire scope) (surfaceScopeKey scope) 6 [surfaceFragmentKeyToWire fragmentKey] (Just "client-1"))
+                    (Wire.Invalidate (surfaceScopeToWire scope) (surfaceScopeKey scope) 6 [surfaceFragmentKeyToWire fragmentKey])
         let encodedText = cs (LBS.toStrict (Aeson.encode encoded)) :: Text
         encodedText `shouldNotSatisfy` Text.isInfixOf "targetId"
         encodedText `shouldNotSatisfy` Text.isInfixOf "url"
@@ -279,7 +278,7 @@ tests = describe "LiveUpdate runtime types" do
         let scope = Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= venueId, "windowStartDate" Aeson..= ("2025-01-06" :: Text), "windowEndDate" Aeson..= ("2025-01-13" :: Text), "rosterCalendarRevision" Aeson..= (1 :: Int)])
         let fragmentKey = Wire.SurfaceFragmentKey "timesheets" "timesheet-toolbar" (Aeson.object [])
         let expectedScopeKey = "timesheets:" <> venueId <> ":2025-01-06:2025-01-13:1"
-        let command key keyValue = Wire.Subscribe (Wire.SurfaceSubscription scope key [keyValue] 0) "client-1" Nothing
+        let command key keyValue = Wire.Subscribe (Wire.SurfaceSubscription scope key [keyValue] 0) Nothing
 
         decodeValueAs @LiveUpdateCommand (Aeson.toJSON (command expectedScopeKey fragmentKey)) `shouldSatisfy` isRight
         decodeValueAs @LiveUpdateCommand (Aeson.toJSON (command ("timesheets:" <> otherVenueId <> ":2025-01-06:2025-01-13:1") fragmentKey)) `shouldSatisfy` isLeft
@@ -287,7 +286,7 @@ tests = describe "LiveUpdate runtime types" do
         decodeValueAs @LiveUpdateCommand (Aeson.toJSON (command expectedScopeKey (Wire.SurfaceFragmentKey "leave-requests" "leave-section-count" (Aeson.object ["leaveSection" Aeson..= ("pending" :: Text)])))) `shouldSatisfy` isLeft
 
         let malformedScope = Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= ("not-a-uuid" :: Text), "windowStartDate" Aeson..= ("2025-01-06" :: Text), "windowEndDate" Aeson..= ("2025-01-13" :: Text), "rosterCalendarRevision" Aeson..= (1 :: Int)])
-        let malformedCommand = Wire.Subscribe (Wire.SurfaceSubscription malformedScope "timesheets:not-a-uuid:2025-01-06:2025-01-13:1" [fragmentKey] 0) "client-1" Nothing
+        let malformedCommand = Wire.Subscribe (Wire.SurfaceSubscription malformedScope "timesheets:not-a-uuid:2025-01-06:2025-01-13:1" [fragmentKey] 0) Nothing
         decodeValueAs @LiveUpdateCommand (Aeson.toJSON malformedCommand) `shouldSatisfy` isLeft
 
     it "rejects unknown fields when decoding live-update wire carrier types directly" do
@@ -295,8 +294,8 @@ tests = describe "LiveUpdate runtime types" do
         let fragmentKey = Wire.SurfaceFragmentKey "timesheets" "timesheet-day-section" (Aeson.object ["operationalDate" Aeson..= ("2025-02-05" :: Text)])
         let subscription = Wire.SurfaceSubscription scope "timesheets:11111111-1111-1111-1111-111111111111:2025-02-03:2025-02-10:1" [fragmentKey] 0
         let refreshDetail = Wire.LiveFragmentsRefreshEventDetail scope subscription.scopeKey [fragmentKey]
-        let command = Wire.Subscribe subscription "client-1" (Just 9)
-        let message = Wire.Invalidate scope subscription.scopeKey 10 [fragmentKey] (Just "client-2")
+        let command = Wire.Subscribe subscription (Just 9)
+        let message = Wire.Invalidate scope subscription.scopeKey 10 [fragmentKey]
         let executableDescriptor = Aeson.object
                 [ "fragmentKey" Aeson..= fragmentKey
                 , "targetId" Aeson..= ("timesheet-day-2025-02-05" :: Text)
@@ -322,13 +321,13 @@ tests = describe "LiveUpdate runtime types" do
         let expectedScopeKey = "timesheets:11111111-1111-1111-1111-111111111111:2025-02-03:2025-02-10:1"
         let subscription = Wire.SurfaceSubscription scope expectedScopeKey [fragmentKey] 0
         let commands =
-                [ Wire.Subscribe subscription "client-1" Nothing
-                , Wire.Subscribe subscription "client-1" (Just 9)
+                [ Wire.Subscribe subscription Nothing
+                , Wire.Subscribe subscription (Just 9)
                 , Wire.Unsubscribe subscription
                 ]
         let messages =
                 [ Wire.Subscribed scope expectedScopeKey 10 False
-                , Wire.Invalidate scope expectedScopeKey 11 [fragmentKey] (Just "client-2")
+                , Wire.Invalidate scope expectedScopeKey 11 [fragmentKey]
                 , Wire.Error "Not authorized"
                 ]
 
@@ -359,15 +358,15 @@ tests = describe "LiveUpdate runtime types" do
                     , subscriptionRenderedDependencyWatermark = 0
                     }
         let commands =
-                [ SubscribeLiveUpdates { subscription, clientId = "client-1", lastSeenVersion = Nothing }
-                , SubscribeLiveUpdates { subscription, clientId = "client-1", lastSeenVersion = Just 4 }
+                [ SubscribeLiveUpdates { subscription, lastSeenVersion = Nothing }
+                , SubscribeLiveUpdates { subscription, lastSeenVersion = Just 4 }
                 , UnsubscribeLiveUpdates { subscription }
                 ]
         let messages =
                 [ LiveUpdatesSubscribed { scope, scopeKey = surfaceScopeKey scope, currentVersion = 4, resync = False }
                 , LiveUpdatesSubscribed { scope, scopeKey = surfaceScopeKey scope, currentVersion = 5, resync = True }
-                , LiveUpdatesInvalidated { scope, scopeKey = surfaceScopeKey scope, version = 6, fragments = [fragmentKey], sourceClientId = Just "client-1" }
-                , LiveUpdatesInvalidated { scope, scopeKey = surfaceScopeKey scope, version = 7, fragments = [], sourceClientId = Nothing }
+                , LiveUpdatesInvalidated { scope, scopeKey = surfaceScopeKey scope, version = 6, fragments = [fragmentKey] }
+                , LiveUpdatesInvalidated { scope, scopeKey = surfaceScopeKey scope, version = 7, fragments = [] }
                 , LiveUpdatesError { message = "Not authorized for requested live update scope" }
                 ]
 
@@ -377,7 +376,7 @@ tests = describe "LiveUpdate runtime types" do
             (Aeson.decode (Aeson.encode message) :: Maybe Aeson.Value) `shouldSatisfy` isJust
 
         let encodedSubscribed = cs (LBS.toStrict (Aeson.encode (LiveUpdatesSubscribed { scope, scopeKey = surfaceScopeKey scope, currentVersion = 4, resync = False }))) :: Text
-        let encodedInvalidated = cs (LBS.toStrict (Aeson.encode (LiveUpdatesInvalidated { scope, scopeKey = surfaceScopeKey scope, version = 6, fragments = [fragmentKey], sourceClientId = Nothing }))) :: Text
+        let encodedInvalidated = cs (LBS.toStrict (Aeson.encode (LiveUpdatesInvalidated { scope, scopeKey = surfaceScopeKey scope, version = 6, fragments = [fragmentKey] }))) :: Text
         encodedSubscribed `shouldSatisfy` Text.isInfixOf "\"scopeKey\":\"roster:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:2025-01-06:2025-01-13:1\""
         encodedInvalidated `shouldSatisfy` Text.isInfixOf "\"scopeKey\":\"roster:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:2025-01-06:2025-01-13:1\""
 
@@ -409,16 +408,16 @@ tests = describe "LiveUpdate runtime types" do
         unregisterSurfaceSubscriptionWithBus firstBus venueId
         activeSurfaceSubscriptionsWithBus firstBus `shouldReturn` []
         currentLiveUpdateVersionWithBus firstBus scope `shouldReturn` 0
-        incrementLiveUpdateVersionWithBus firstBus scope `shouldReturn` 1
+        advanceLiveUpdateVersionWithBus firstBus scope 1 `shouldReturn` True
         currentLiveUpdateVersionWithBus firstBus scope `shouldReturn` 1
         currentLiveUpdateVersionWithBus secondBus scope `shouldReturn` 0
         advanceLiveUpdateVersionWithBus secondBus scope 9 `shouldReturn` True
         advanceLiveUpdateVersionWithBus secondBus scope 7 `shouldReturn` False
-        duplicate <- broadcastLiveInvalidationAtVersionWithBus secondBus scope 9 Nothing [fragmentKey]
+        duplicate <- broadcastLiveInvalidationAtVersionWithBus secondBus scope 9 [fragmentKey]
         duplicate.broadcastSubscriberCount `shouldBe` 0
         currentLiveUpdateVersionWithBus secondBus scope `shouldReturn` 9
 
-        result <- broadcastLiveInvalidationDetailedWithBus firstBus scope Nothing [fragmentKey, fragmentKey]
+        result <- broadcastLiveInvalidationAtVersionWithBus firstBus scope 2 [fragmentKey, fragmentKey]
 
         result.broadcastVersion `shouldBe` 2
         result.broadcastSubscriberCount `shouldBe` 0
@@ -443,10 +442,11 @@ tests = describe "LiveUpdate runtime types" do
         registerSurfaceSubscriptionWithBus bus venueId subscription (error "unused websocket connection")
         TimesheetsLive.activeTimesheetWindowScopesWithBus bus `shouldReturn` [(venueId, testAnchorForOffset 3, addDays 7 (testAnchorForOffset 3), 1)]
 
-    it "reports broadcast fanout counts for profiling hooks" do
+    it "reports durable-version broadcast fanout counts for profiling hooks" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let scope = LeaveLive.leaveRequestsLiveScope venueId
-        result <- broadcastLiveInvalidationDetailedWithoutContext scope Nothing [leavePendingCountLiveFragment]
+        bus <- newInMemoryLiveBus
+        result <- broadcastLiveInvalidationAtVersionWithBus bus scope 1 [leavePendingCountLiveFragment]
 
         result.broadcastVersion `shouldSatisfy` (> 0)
         result.broadcastSubscriberCount `shouldBe` 0
@@ -473,7 +473,8 @@ tests = describe "LiveUpdate runtime types" do
         let fragmentKey = leavePendingCountLiveFragment
 
         coalesceSurfaceFragmentKeys [fragmentKey, fragmentKey] `shouldBe` [fragmentKey]
-        result <- broadcastLiveInvalidationDetailedWithoutContext scope Nothing [fragmentKey, fragmentKey]
+        bus <- newInMemoryLiveBus
+        result <- broadcastLiveInvalidationAtVersionWithBus bus scope 1 [fragmentKey, fragmentKey]
 
         result.broadcastFragmentCount `shouldBe` 2
         result.broadcastRefetchFragmentCount `shouldBe` 1

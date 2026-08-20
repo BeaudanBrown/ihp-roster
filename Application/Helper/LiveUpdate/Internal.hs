@@ -11,17 +11,12 @@ module Application.Helper.LiveUpdate.Internal
     , activeSurfaceScopesWithBus
     , activeSurfaceScopeMatches
     , activeSurfaceScopeMatchesWithBus
-    , broadcastLiveInvalidationDetailedWithBus
-    , broadcastLiveInvalidationDetailedWithoutContext
     , coalesceSurfaceFragmentKeys
     , currentLiveUpdateVersion
     , currentLiveUpdateVersionWithBus
-    , advanceLiveUpdateVersion
     , advanceLiveUpdateVersionWithBus
     , broadcastLiveInvalidationAtVersion
     , broadcastLiveInvalidationAtVersionWithBus
-    , incrementLiveUpdateVersionWithBus
-    , liveUpdateSourceClientId
     , liveUpdateSubscriptionNeedsResync
     , mkSurfaceFragmentKey
     , mkSurfaceScope
@@ -46,12 +41,10 @@ import Data.IORef
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.UUID as UUID
-import IHP.ControllerSupport (Request, getHeader)
 import IHP.Prelude
 import qualified Network.WebSockets as WebSocket
 import System.IO.Unsafe (unsafePerformIO)
 
-import Application.Helper.FrontendContract.LiveUpdateValues (liveUpdateClientIdHeaderName)
 import Application.Helper.FrontendContract.Surface.Identity (canonicalFrontendSurfaceScopeKey)
 import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Wire
 
@@ -98,7 +91,6 @@ data SurfaceSubscription = SurfaceSubscription
 data LiveUpdateCommand
     = SubscribeLiveUpdates
         { subscription    :: !SurfaceSubscription
-        , clientId        :: !Text
         , lastSeenVersion :: !(Maybe Int)
         }
     | UnsubscribeLiveUpdates
@@ -118,7 +110,6 @@ data LiveUpdateMessage
         , scopeKey       :: !Text
         , version        :: !Int
         , fragments      :: ![SurfaceFragmentKey]
-        , sourceClientId :: !(Maybe Text)
         }
     | LiveUpdatesError
         { message :: !Text
@@ -142,10 +133,6 @@ liveUpdateSubscriptionNeedsResync :: Int -> Int -> Maybe Int -> Int -> Bool
 liveUpdateSubscriptionNeedsResync renderedWatermark durableWatermark lastSeenVersion currentVersion =
     renderedWatermark /= durableWatermark
         || maybe False (/= currentVersion) lastSeenVersion
-
-liveUpdateSourceClientId :: (?request :: Request) => Maybe Text
-liveUpdateSourceClientId =
-    cs <$> getHeader (cs liveUpdateClientIdHeaderName)
 
 instance Aeson.ToJSON SurfaceScope where
     toJSON = Aeson.toJSON . surfaceScopeToWire
@@ -179,10 +166,8 @@ data LiveBus = LiveBus
     , liveBusUnregisterSubscription   :: UUID.UUID -> IO ()
     , liveBusActiveSubscriptions      :: IO [SurfaceSubscription]
     , liveBusCurrentVersion           :: SurfaceScope -> IO Int
-    , liveBusIncrementVersion         :: SurfaceScope -> IO Int
     , liveBusAdvanceVersion           :: SurfaceScope -> Int -> IO Bool
-    , liveBusBroadcastInvalidationAtVersion :: SurfaceScope -> Int -> Maybe Text -> [SurfaceFragmentKey] -> IO LiveUpdateBroadcastResult
-    , liveBusBroadcastInvalidation    :: SurfaceScope -> Maybe Text -> [SurfaceFragmentKey] -> IO LiveUpdateBroadcastResult
+    , liveBusBroadcastInvalidationAtVersion :: SurfaceScope -> Int -> [SurfaceFragmentKey] -> IO LiveUpdateBroadcastResult
     }
 
 data InMemoryLiveBusState = InMemoryLiveBusState
@@ -212,10 +197,8 @@ inMemoryLiveBus state =
         , liveBusUnregisterSubscription = unregisterInMemorySubscription state
         , liveBusActiveSubscriptions = activeInMemorySubscriptions state
         , liveBusCurrentVersion = currentInMemoryVersion state
-        , liveBusIncrementVersion = incrementInMemoryVersion state
         , liveBusAdvanceVersion = advanceInMemoryVersion state
         , liveBusBroadcastInvalidationAtVersion = broadcastInMemoryInvalidationAtVersion state
-        , liveBusBroadcastInvalidation = broadcastInMemoryInvalidation state
         }
 
 registerSurfaceSubscription :: UUID.UUID -> SurfaceSubscription -> WebSocket.Connection -> IO ()
@@ -282,9 +265,6 @@ currentInMemoryVersion :: InMemoryLiveBusState -> SurfaceScope -> IO Int
 currentInMemoryVersion state scope =
     Map.findWithDefault 0 (surfaceScopeKey scope) <$> readIORef state.inMemoryScopeVersionsRef
 
-advanceLiveUpdateVersion :: SurfaceScope -> Int -> IO Bool
-advanceLiveUpdateVersion = advanceLiveUpdateVersionWithBus defaultLiveBus
-
 advanceLiveUpdateVersionWithBus :: LiveBus -> SurfaceScope -> Int -> IO Bool
 advanceLiveUpdateVersionWithBus = liveBusAdvanceVersion
 
@@ -297,41 +277,17 @@ advanceInMemoryVersion state scope version =
                 then (versions, False)
                 else (Map.insert scopeKey version versions, True)
 
-incrementLiveUpdateVersionWithBus :: LiveBus -> SurfaceScope -> IO Int
-incrementLiveUpdateVersionWithBus =
-    liveBusIncrementVersion
-
-incrementInMemoryVersion :: InMemoryLiveBusState -> SurfaceScope -> IO Int
-incrementInMemoryVersion state scope =
-    atomicModifyIORef' state.inMemoryScopeVersionsRef \versions ->
-        let scopeKey = surfaceScopeKey scope
-            nextVersion = Map.findWithDefault 0 scopeKey versions + 1
-         in (Map.insert scopeKey nextVersion versions, nextVersion)
-
-broadcastLiveInvalidationDetailedWithoutContext :: SurfaceScope -> Maybe Text -> [SurfaceFragmentKey] -> IO LiveUpdateBroadcastResult
-broadcastLiveInvalidationDetailedWithoutContext =
-    broadcastLiveInvalidationDetailedWithBus defaultLiveBus
-
-broadcastLiveInvalidationDetailedWithBus :: LiveBus -> SurfaceScope -> Maybe Text -> [SurfaceFragmentKey] -> IO LiveUpdateBroadcastResult
-broadcastLiveInvalidationDetailedWithBus =
-    liveBusBroadcastInvalidation
-
-broadcastLiveInvalidationAtVersion :: SurfaceScope -> Int -> Maybe Text -> [SurfaceFragmentKey] -> IO LiveUpdateBroadcastResult
+broadcastLiveInvalidationAtVersion :: SurfaceScope -> Int -> [SurfaceFragmentKey] -> IO LiveUpdateBroadcastResult
 broadcastLiveInvalidationAtVersion = broadcastLiveInvalidationAtVersionWithBus defaultLiveBus
 
-broadcastLiveInvalidationAtVersionWithBus :: LiveBus -> SurfaceScope -> Int -> Maybe Text -> [SurfaceFragmentKey] -> IO LiveUpdateBroadcastResult
+broadcastLiveInvalidationAtVersionWithBus :: LiveBus -> SurfaceScope -> Int -> [SurfaceFragmentKey] -> IO LiveUpdateBroadcastResult
 broadcastLiveInvalidationAtVersionWithBus = liveBusBroadcastInvalidationAtVersion
 
-broadcastInMemoryInvalidation :: InMemoryLiveBusState -> SurfaceScope -> Maybe Text -> [SurfaceFragmentKey] -> IO LiveUpdateBroadcastResult
-broadcastInMemoryInvalidation state scope sourceClientId fragments = do
-    version <- incrementInMemoryVersion state scope
-    broadcastInMemoryInvalidationKnownAdvanced state scope version sourceClientId fragments
-
-broadcastInMemoryInvalidationAtVersion :: InMemoryLiveBusState -> SurfaceScope -> Int -> Maybe Text -> [SurfaceFragmentKey] -> IO LiveUpdateBroadcastResult
-broadcastInMemoryInvalidationAtVersion state scope version sourceClientId fragments = do
+broadcastInMemoryInvalidationAtVersion :: InMemoryLiveBusState -> SurfaceScope -> Int -> [SurfaceFragmentKey] -> IO LiveUpdateBroadcastResult
+broadcastInMemoryInvalidationAtVersion state scope version fragments = do
     advanced <- advanceInMemoryVersion state scope version
     if advanced
-        then broadcastInMemoryInvalidationKnownAdvanced state scope version sourceClientId fragments
+        then broadcastInMemoryInvalidationKnownAdvanced state scope version fragments
         else pure LiveUpdateBroadcastResult
             { broadcastVersion = version
             , broadcastSubscriberCount = 0
@@ -341,13 +297,13 @@ broadcastInMemoryInvalidationAtVersion state scope version sourceClientId fragme
             , broadcastDroppedSubscriptions = 0
             }
 
-broadcastInMemoryInvalidationKnownAdvanced :: InMemoryLiveBusState -> SurfaceScope -> Int -> Maybe Text -> [SurfaceFragmentKey] -> IO LiveUpdateBroadcastResult
-broadcastInMemoryInvalidationKnownAdvanced state scope version sourceClientId fragments = do
+broadcastInMemoryInvalidationKnownAdvanced :: InMemoryLiveBusState -> SurfaceScope -> Int -> [SurfaceFragmentKey] -> IO LiveUpdateBroadcastResult
+broadcastInMemoryInvalidationKnownAdvanced state scope version fragments = do
     let coalescedFragments = coalesceSurfaceFragmentKeys fragments
     subscriptions <- readIORef state.inMemorySubscriptionsRef
     let scopeKey = surfaceScopeKey scope
     let matchingSubscriptions = filter (\subscription -> subscription.activeSubscription.subscriptionScopeKey == scopeKey) subscriptions
-    staleIds <- mapMaybeM (sendInvalidation scope version sourceClientId coalescedFragments) matchingSubscriptions
+    staleIds <- mapMaybeM (sendInvalidation scope version coalescedFragments) matchingSubscriptions
     unless (null staleIds) do
         atomicModifyIORef' state.inMemorySubscriptionsRef \activeSubscriptions ->
             ( filter (\subscription -> subscription.activeSubscriptionId `notElem` staleIds) activeSubscriptions
@@ -371,8 +327,8 @@ coalesceSurfaceFragmentKeys fragments =
         | Set.member fragmentKey seen = (kept, seen)
         | otherwise = (fragmentKey : kept, Set.insert fragmentKey seen)
 
-sendInvalidation :: SurfaceScope -> Int -> Maybe Text -> [SurfaceFragmentKey] -> ActiveLiveSubscription -> IO (Maybe UUID.UUID)
-sendInvalidation scope version sourceClientId fragments subscription = do
+sendInvalidation :: SurfaceScope -> Int -> [SurfaceFragmentKey] -> ActiveLiveSubscription -> IO (Maybe UUID.UUID)
+sendInvalidation scope version fragments subscription = do
     result <-
         Exception.tryAny $
             WebSocket.sendTextData subscription.activeSubscriptionConnection (Aeson.encode message)
@@ -387,7 +343,6 @@ sendInvalidation scope version sourceClientId fragments subscription = do
                 , scopeKey = surfaceScopeKey scope
                 , version
                 , fragments
-                , sourceClientId
                 }
 
 surfaceScopeToWire :: SurfaceScope -> Wire.SurfaceScope
@@ -439,18 +394,18 @@ liveUpdateSubscriptionFromWire Wire.SurfaceSubscription { scope, scopeKey, fragm
     pure SurfaceSubscription { subscriptionScope, subscriptionScopeKey = canonicalScopeKey, subscriptionFragmentKeys, subscriptionRenderedDependencyWatermark = renderedDependencyWatermark }
 
 liveUpdateCommandToWire :: LiveUpdateCommand -> Wire.LiveUpdateCommand
-liveUpdateCommandToWire SubscribeLiveUpdates { subscription, clientId, lastSeenVersion } = Wire.Subscribe (liveUpdateSubscriptionToWire subscription) clientId lastSeenVersion
+liveUpdateCommandToWire SubscribeLiveUpdates { subscription, lastSeenVersion } = Wire.Subscribe (liveUpdateSubscriptionToWire subscription) lastSeenVersion
 liveUpdateCommandToWire UnsubscribeLiveUpdates { subscription } = Wire.Unsubscribe (liveUpdateSubscriptionToWire subscription)
 
 liveUpdateCommandFromWire :: Wire.LiveUpdateCommand -> Aeson.Parser LiveUpdateCommand
-liveUpdateCommandFromWire Wire.Subscribe { subscription, clientId, lastSeenVersion } = SubscribeLiveUpdates <$> liveUpdateSubscriptionFromWire subscription <*> pure clientId <*> pure lastSeenVersion
+liveUpdateCommandFromWire Wire.Subscribe { subscription, lastSeenVersion } = SubscribeLiveUpdates <$> liveUpdateSubscriptionFromWire subscription <*> pure lastSeenVersion
 liveUpdateCommandFromWire Wire.Unsubscribe { subscription } = UnsubscribeLiveUpdates <$> liveUpdateSubscriptionFromWire subscription
 
 liveUpdateMessageToWire :: LiveUpdateMessage -> Wire.LiveUpdateMessage
 liveUpdateMessageToWire LiveUpdatesSubscribed { scope, scopeKey, currentVersion, resync } =
     Wire.Subscribed (surfaceScopeToWire scope) scopeKey currentVersion resync
-liveUpdateMessageToWire LiveUpdatesInvalidated { scope, scopeKey, version, fragments, sourceClientId } =
-    Wire.Invalidate (surfaceScopeToWire scope) scopeKey version (map surfaceFragmentKeyToWire fragments) sourceClientId
+liveUpdateMessageToWire LiveUpdatesInvalidated { scope, scopeKey, version, fragments } =
+    Wire.Invalidate (surfaceScopeToWire scope) scopeKey version (map surfaceFragmentKeyToWire fragments)
 liveUpdateMessageToWire LiveUpdatesError { message } = Wire.Error message
 
 mapMaybeM :: (a -> IO (Maybe b)) -> [a] -> IO [b]

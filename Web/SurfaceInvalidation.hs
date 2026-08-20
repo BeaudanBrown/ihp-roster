@@ -6,15 +6,12 @@ module Web.SurfaceInvalidation
     , bepisLiveFactFromProfile
     , dispatchDurableInvalidation
     , dispatchDurableInvalidationWithBus
-    , expandSurfaceResources
     , expandSurfaceResourcesWithoutContext
-    , invalidateTouchedResources
     , withDurableLiveMutation
     , withDurableLiveMutationOutcome
     , withDurableLiveMutationWithoutContext
     , withDurableLiveMutationOutcomeWithoutContext
     , liveInvalidationProfile
-    , performSurfaceInvalidationTargetWithoutContext
     , planSurfaceInvalidations
     , planSurfaceInvalidationsWithoutContext
     , renderLiveInvalidationProfile
@@ -22,7 +19,6 @@ module Web.SurfaceInvalidation
 
 import Application.Bepis.Fact (BepisFact (..), BepisLiveFact (..),
                                BepisLiveMechanism (..), emitBepisFact)
-import Application.Helper.ControllerContext (currentVenueOrNothing)
 import Application.Helper.FrontendContract.Surface.Authorization (authorizeFrontendSurfaceScope)
 import Application.Helper.FrontendContract.Surface.DependencyPlanner (SurfaceInvalidationTarget (..),
                                                                       planFrontendSurfaceInvalidations)
@@ -30,12 +26,10 @@ import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWind
 import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
 import Application.Helper.LiveUpdate.DurableCodec (DurableResource (..))
 import Application.Helper.LiveUpdate.DurablePublisher (DurablePublication (..),
-                                                       publishDurableInvalidation,
                                                        withDurableLiveMutationOutcomeTransaction)
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.Profiling (profileActionSpanWithDetail)
 import Application.Helper.SurfaceResource
-import qualified Control.Exception as Exception
 import Control.Monad (forM_)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -45,8 +39,7 @@ import Data.UUID (UUID)
 import GHC.Clock (getMonotonicTimeNSec)
 import qualified System.Environment as Environment
 import Web.Controller.Prelude
-import Web.RosterWeeks.SurfaceInvalidation (expandRosterSurfaceResources,
-                                            expandRosterSurfaceResourcesWithoutContext)
+import Web.RosterWeeks.SurfaceInvalidation (expandRosterSurfaceResourcesWithoutContext)
 
 dispatchDurableInvalidation :: Int -> [DurableResource] -> IO ()
 dispatchDurableInvalidation = dispatchDurableInvalidationWithBus Nothing
@@ -60,8 +53,8 @@ dispatchDurableInvalidationWithBus maybeBus eventSequence resources = do
     let targets = planSurfaceInvalidationsWithoutContext expandedResources activeSubscriptions
     forM_ targets \target ->
         maybe
-            (broadcastLiveInvalidationAtVersion target.targetScope eventSequence Nothing target.targetFragments)
-            (\bus -> broadcastLiveInvalidationAtVersionWithBus bus target.targetScope eventSequence Nothing target.targetFragments)
+            (broadcastLiveInvalidationAtVersion target.targetScope eventSequence target.targetFragments)
+            (\bus -> broadcastLiveInvalidationAtVersionWithBus bus target.targetScope eventSequence target.targetFragments)
             maybeBus
 
 authorizeSurfaceScope :: (?context :: ControllerContext, ?modelContext :: ModelContext) => SurfaceScope -> IO Bool
@@ -73,25 +66,12 @@ planSurfaceInvalidations = planSurfaceInvalidationsWithoutContext
 planSurfaceInvalidationsWithoutContext :: Set.Set SurfaceResourceValue -> [SurfaceSubscription] -> [SurfaceInvalidationTarget]
 planSurfaceInvalidationsWithoutContext = planFrontendSurfaceInvalidations
 
-performSurfaceInvalidationTargetWithoutContext :: SurfaceInvalidationTarget -> IO LiveUpdateBroadcastResult
-performSurfaceInvalidationTargetWithoutContext target = broadcastLiveInvalidationDetailedWithoutContext target.targetScope Nothing target.targetFragments
-
-performSurfaceInvalidationTargetAtVersion :: Int -> Maybe Text -> SurfaceInvalidationTarget -> IO LiveUpdateBroadcastResult
-performSurfaceInvalidationTargetAtVersion version sourceClientId target =
-    broadcastLiveInvalidationAtVersion target.targetScope version sourceClientId target.targetFragments
-
-expandSurfaceResources ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    [(UUID, UUID, Day, Day, Int)] ->
-    Set.Set SurfaceResourceValue ->
-    IO (Set.Set SurfaceResourceValue)
-expandSurfaceResources = expandRosterSurfaceResources
-
 expandSurfaceResourcesWithoutContext :: [(UUID, UUID, Day, Day, Int)] -> Set.Set SurfaceResourceValue -> Set.Set SurfaceResourceValue
 expandSurfaceResourcesWithoutContext = expandRosterSurfaceResourcesWithoutContext
 
 -- | Atomically commits a request-originated business mutation and its durable
--- invalidation, then performs compatibility-stage local fanout after commit.
+-- invalidation. Process-local delivery is owned exclusively by the durable
+-- listener after commit.
 withDurableLiveMutation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Text ->
@@ -124,14 +104,6 @@ withDurableLiveMutationOutcome publicationFor businessAction =
                 pure (outcome, profileDetail)
             _ -> error "durable live mutation outcome/publication mismatch"
 
-invalidateTouchedResources :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> LiveMutationResult a -> IO (LiveMutationResult a)
-invalidateTouchedResources label result =
-    profileActionSpanWithDetail "surface_resources.invalidate" do
-        startedAtNs <- getMonotonicTimeNSec
-        (observed, observeDurationMs) <- measureDuration (recordLiveMutationDiagnostics label result)
-        publication <- publishDurableInvalidation label observed.liveMutationTouchedResources `Exception.onException` emitDurablePublicationFailure label
-        completeRequestInvalidation startedAtNs label observed observeDurationMs publication
-
 completeRequestInvalidation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Word64 ->
@@ -142,27 +114,24 @@ completeRequestInvalidation ::
     IO (LiveMutationResult a, Maybe Text)
 completeRequestInvalidation startedAtNs label observed observeDurationMs publication = do
     emitDurablePublicationLog label publication
-    (activeSubscriptions, activeSubscriptionDurationMs) <- measureDuration activeSurfaceSubscriptions
-    (activeRosterScopes, activeRosterDurationMs) <- measureDuration activeRosterWindowScopes
-    let activeDurationMs = activeSubscriptionDurationMs + activeRosterDurationMs
-    let activeScopes = coalesceScopes (map (.subscriptionScope) activeSubscriptions)
-    (expandedResources, expandDurationMs) <- measureDuration $
-        case currentVenueOrNothing of
-            Just _ -> expandSurfaceResources activeRosterScopes (liveMutationTouchedResources observed)
-            Nothing -> pure (expandSurfaceResourcesWithoutContext activeRosterScopes (liveMutationTouchedResources observed))
-    (dependencyTargets, planDurationMs) <- measureDuration (pure (planSurfaceInvalidations expandedResources activeSubscriptions))
-    (broadcastResults, broadcastDurationMs) <- measureDuration (mapM (performSurfaceInvalidationTargetAtVersion publication.durablePublicationEventSequence liveUpdateSourceClientId) dependencyTargets)
     completedAtNs <- getMonotonicTimeNSec
+    let resources = liveMutationTouchedResources observed
     let profile =
             liveInvalidationProfile
                 label
                 (durationBetweenMs startedAtNs completedAtNs)
-                (liveMutationTouchedResources observed)
-                activeScopes
-                expandedResources
-                dependencyTargets
-                broadcastResults
-                LiveInvalidationStageDurations { observeDurationMs, activeDurationMs, expandDurationMs, planDurationMs, broadcastDurationMs }
+                resources
+                []
+                resources
+                []
+                []
+                LiveInvalidationStageDurations
+                    { observeDurationMs
+                    , activeDurationMs = 0
+                    , expandDurationMs = 0
+                    , planDurationMs = 0
+                    , broadcastDurationMs = 0
+                    }
     emitLiveInvalidationProfileLog profile
     emitLiveFactFromProfile BepisWebSocketFragmentRefetch profile
     pure (observed, Just (renderLiveInvalidationProfile profile))
@@ -315,11 +284,6 @@ emitDurablePublicationLog label publication = do
                 <> " payload_bytes=" <> tshow publication.durablePublicationPayloadBytes
                 <> " publish_ms=" <> renderDuration publication.durablePublicationDurationMs
 
-emitDurablePublicationFailure :: Text -> IO ()
-emitDurablePublicationFailure label = do
-    enabled <- liveInvalidationProfilingLogEnabled
-    when enabled (TextIO.putStrLn ("[live-invalidation] publication_failed=true label=" <> label))
-
 emitLiveInvalidationProfileLog :: LiveInvalidationProfile -> IO ()
 emitLiveInvalidationProfileLog profile = do
     enabled <- liveInvalidationProfilingLogEnabled
@@ -345,7 +309,3 @@ durationBetweenMs startedAtNs completedAtNs =
 renderDuration :: Double -> Text
 renderDuration durationMs =
     tshow (fromIntegral (round (durationMs * 10)) / 10 :: Double)
-
-coalesceScopes :: [SurfaceScope] -> [SurfaceScope]
-coalesceScopes =
-    Set.toList . Set.fromList

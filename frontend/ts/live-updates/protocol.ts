@@ -41,11 +41,10 @@ export function buildSurfaceSubscription(scope: SurfaceScope, scopeKey: string, 
     };
 }
 
-export function buildLiveUpdateSubscribeCommand(subscription: SurfaceSubscription, clientId: string, lastSeenVersion: number | null): LiveUpdateCommand {
+export function buildLiveUpdateSubscribeCommand(subscription: SurfaceSubscription, lastSeenVersion: number | null): LiveUpdateCommand {
     return encodeLiveUpdateCommand({
         type: "subscribe",
         subscription,
-        clientId,
         lastSeenVersion,
     });
 }
@@ -60,10 +59,6 @@ export function buildLiveUpdateUnsubscribeCommand(subscription: SurfaceSubscript
 export function liveUpdateFragmentMergeKey(fragment: Pick<FrontendSurfaceMountedFragmentConfig, "fragmentKey" | "targetId"> | null | undefined): string | null {
     if (!fragment || !fragment.targetId) return null;
     return `${surfaceFragmentKeyIdentity(fragment.fragmentKey)}:${fragment.targetId}`;
-}
-
-export function liveUpdateInvalidationIsOwnEcho(sourceClientId: string | null | undefined, activeClientId: string | null | undefined): boolean {
-    return Boolean(sourceClientId && activeClientId && sourceClientId === activeClientId);
 }
 
 export function resolveMountedFragmentsForInvalidation(

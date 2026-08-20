@@ -29,7 +29,6 @@ import System.FilePath ((</>))
 import qualified Text.Read as TextRead
 import Web.SurfaceInvalidation (SurfaceInvalidationTarget (..),
                                 expandSurfaceResourcesWithoutContext,
-                                performSurfaceInvalidationTargetWithoutContext,
                                 planSurfaceInvalidationsWithoutContext)
 
 run :: IO ()
@@ -129,8 +128,10 @@ runOne scenario requestedScopeCount = do
     let activeSubscriptions = benchmarkPlan.planActiveSubscriptions
     (targets, planMs) <- measureDuration do
         pure (planSurfaceInvalidationsWithoutContext expandedResources activeSubscriptions)
-    (broadcastResults, broadcastMs) <- measureDuration do
-        mapM performSurfaceInvalidationTargetWithoutContext targets
+    -- Local socket delivery is listener-fed and cannot mint synthetic versions.
+    -- This context-free probe profiles resource expansion/planning only.
+    let broadcastResults = []
+    let broadcastMs = 0
     completedAtNs <- getMonotonicTimeNSec
     pure
         BenchmarkResult

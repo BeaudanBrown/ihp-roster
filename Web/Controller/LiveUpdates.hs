@@ -54,8 +54,7 @@ handleCommand command =
                     registerSurfaceSubscription subscriptionId liveSubscription ?connection
                     addScopeSubscription subscriptionId scope
                     durableWatermark <- fetchDurableDependencyWatermark liveSubscription
-                    _ <- advanceLiveUpdateVersion scope durableWatermark
-                    currentVersion <- liftIO (currentLiveUpdateVersion scope)
+                    let currentVersion = durableWatermark
                     sendJSON
                         LiveUpdatesSubscribed
                             { scope

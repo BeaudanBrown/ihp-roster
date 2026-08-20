@@ -1181,10 +1181,12 @@ Server `MountState`, load behavior, and derived resync lists must not be added t
 the browser envelope without a browser consumer. DOM/config surface disagreement
 is an invalid mount and must be reported rather than coerced.
 
-The websocket endpoint, client-id header, and surface config/action/owner DOM
-attribute names come from reflected global constants shared by Haskell and
-TypeScript. Add or change those values in the frontend contract registry, not as
-runtime string literals.
+The websocket endpoint and surface config/action/owner DOM attribute names come
+from reflected global constants shared by Haskell and TypeScript. Add or change
+those values in the frontend contract registry, not as runtime string literals.
+The retired writer-local echo path has no client-id request header or invalidation
+field; duplicate listener/actor refresh is handled idempotently by the generic
+refresh runtime.
 
 Lazy placeholders must use the
 `renderFrontendSurfaceLazyFragmentWithConfig` runtime helper with
@@ -1198,17 +1200,19 @@ may pass root/slot classes in the config; the shared runtime must not infer
 layout geometry. Intent/action forms should use the runtime render helpers so
 HTMX attributes and hidden fields stay Haskell-owned.
 
-Controllers remain normal IHP mutation entrypoints in this epic. They parse and
-authorize params, call feature mutation/read-model code, and render validation
-failures or successful actor extras. Successful migrated `FrontendSurface`
-mutations should report typed `SurfaceResourceValue` touches using the
+Controllers remain normal IHP mutation entrypoints. They parse and authorize
+params, call feature mutation/read-model code, and render validation failures or
+successful actor extras. Every live-visible mutation commits its business and
+domain/audit writes with one durable event through
+`withDurableLiveMutation` (or the outcome/background variant). There is no
+post-commit compatibility publisher or producer-to-process-local broadcast.
+Feature mutations report typed `SurfaceResourceValue` touches using the
 feature-owned smart constructors in `Surface.<Feature>.Resource`, while
 `Application.Helper.SurfaceResource` owns only `LiveMutationResult` and its
-opaque touched-resource set. Mutations then return actor-local semantic
-invalidation instructions plus extras. The actor tab and
-passive viewers both refresh by resolving semantic scope and fragment keys
-through mounted surface metadata and each mount's plain fragment GET URL, so
-successful actor responses must not carry authoritative business OOB HTML.
+opaque touched-resource set. The actor tab and passive viewers both refresh by
+resolving semantic scope and fragment keys through mounted surface metadata and
+each mount's plain fragment GET URL, so successful actor responses must not carry
+authoritative business OOB HTML.
 
 A feature that needs transient mount-local request context may register a
 mechanical fragment-request decorator through
@@ -1221,9 +1225,16 @@ replacement naturally discards it.
 
 ## Live Authorization, Resources, And Fragment Rendering
 
-`FrontendSurface` invalidations are semantic and surface-native:
-transport identifies generated kebab-case surface names, generated scope DTOs,
-and generated fragment names plus typed params. Haskell emits ready-to-use mount
+`FrontendSurface` invalidations are semantic and surface-native. PostgreSQL
+resource versions and ordered outbox events are the freshness authority. Every
+application process runs a reconnecting listener that hydrates current versions,
+dispatches that authoritative snapshot before retained replay, and then replays
+ordered events through its local subscription/socket hub. Snapshot-first ordering
+prevents a retained event's dedupe sequence from suppressing resources whose
+individual events were already pruned. Duplicate or out-of-order
+local delivery cannot advance freshness twice. Transport identifies generated
+kebab-case surface names, generated scope DTOs, and generated fragment names
+plus typed params. Haskell emits ready-to-use mount
 subscription JSON from `Scope` plus mounted `Fragment ... Live` values;
 composition-only parent surfaces omit `Live` fragments and therefore do not
 subscribe. The emitted subscription contains the typed scope only. The browser

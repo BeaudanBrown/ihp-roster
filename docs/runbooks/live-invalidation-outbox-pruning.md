@@ -57,7 +57,38 @@ outside request traffic and the application worker queue. Each transaction
 deletes at most 1,000 oldest expired event headers. Event-resource children
 cascade; current resource versions remain.
 
-## Observe and diagnose
+## Listener startup and recovery
+
+Every web application process starts one PostgreSQL listener. On each initial
+connection it hydrates `live_resource_versions` before serving ordered outbox
+notifications. On reconnect it hydrates again, dispatches the current-authority
+snapshot first, then replays retained events after the previous cursor. This
+ordering lets subscriptions recover when missed history was pruned without a
+later retained event suppressing the snapshot through local sequence dedupe. Multiple app listeners consume independently;
+never elect a single listener or route workers to one app process.
+
+Listener diagnostics are deliberately bounded: health, reconnect attempt and
+backoff, cursor, lag count, event age, resource count, and decode-failure count.
+They contain no resource keys/payloads, venue/user/provider identifiers, or
+connection errors. Duplicate/out-of-order events are harmless because local hubs
+only advance to a greater durable sequence. Malformed resource children are
+skipped and counted while valid siblings dispatch and the ordered cursor
+advances; investigate repeated decode failures as contract/data corruption, but
+do not clear cursors or replay by ad-hoc SQL.
+
+Check listener sessions and bounded logs with the deployment's normal service
+unit:
+
+```bash
+psql --dbname="$DATABASE_URL" --command="SELECT application_name, state FROM pg_stat_activity WHERE application_name = 'bepis-live-invalidation-listener';"
+journalctl -u app.service | grep live-invalidation-listener
+```
+
+A process with no listener session should be restarted through the normal service
+manager. The listener reconnects with capped exponential backoff. Do not restart
+workers, disable pruning, or delete outbox data merely to force browser delivery.
+
+## Observe and diagnose pruning
 
 ```bash
 systemctl status live-invalidation-outbox-prune.timer

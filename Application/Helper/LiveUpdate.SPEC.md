@@ -108,7 +108,10 @@ required committed preparation boundaries and attach durable invalidation to
 each local transaction. Outcomes classified by the producer as validation
 failures, stale-lock failures, or no live-visible change commit without an
 event; explicitly convergent idempotent outcomes may retain a focused event.
-Listeners replay durable events into each process-local `LiveBus`.
+Listeners replay durable events into each process-local `LiveBus`. Producers
+never dispatch directly to that bus. Malformed resource children are skipped and
+counted in bounded diagnostics while valid siblings continue; ordered event
+cursors still advance so poison payloads cannot create a reconnect loop.
 
 Event replay history is retained for at least seven days and pruned in bounded,
 oldest-first transactions. Resource children cascade with event deletion, while
@@ -121,9 +124,11 @@ rendered dependencies and causes authoritative fragment refetching. See
 ## LiveBus Contract
 
 The `LiveBus` interface exported by `Application.Helper.LiveUpdate.Runtime` owns
-process-local subscriptions, monotonically increasing versions per scope,
-active-scope discovery, and key-only broadcasts. Distributed durability must
-preserve those semantics and server-side authorization.
+only process-local subscriptions, active-scope discovery, listener-fed ordered
+version observation/deduplication, and key-only socket delivery. It cannot mint a
+version or accept an unversioned broadcast. PostgreSQL remains the sole freshness
+and version authority; subscription handshakes compare rendered and browser
+watermarks against durable state.
 
 ## Extension Rules
 
@@ -150,6 +155,8 @@ bash ./bin/in-env frontend-check
 bash ./bin/in-env hspec-test --match "LiveUpdate" --match "SurfaceInvalidation" --match "SurfaceDependency" --match "MutationBoundary"
 bash ./bin/in-env e2e e2e/roster-live-fragments.spec.ts
 bash ./bin/in-env e2e e2e/live-fragment-multiview.spec.ts
+bash ./bin/in-env e2e e2e/billing.spec.ts
+bash ./bin/in-env http-polling-policy-check
 ```
 
 Use profiling commands only for performance diagnosis; their output is evidence,

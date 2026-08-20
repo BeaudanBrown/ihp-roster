@@ -988,24 +988,22 @@ export const xeroCandidateFilterEmptyDomAttr = "data-bepis-xero-candidate-filter
 
 export const liveUpdateSocketPath = "live-updates" as const;
 
-export const liveUpdateClientIdHeader = "X-Live-Update-Client-Id" as const;
-
 export const surfaceConfigDomAttr = "data-bepis-surface-config" as const;
 
 export const surfaceActionDomAttr = "data-bepis-surface-action" as const;
 
 export type SurfaceSubscription = { scope: SurfaceScope; scopeKey: string; fragments: ReadonlyArray<SurfaceFragmentKey>; renderedDependencyWatermark: number };
 export type LiveUpdateCommand =
-    { type: "subscribe"; subscription: SurfaceSubscription; clientId: string; lastSeenVersion: number | null }
+    { type: "subscribe"; subscription: SurfaceSubscription; lastSeenVersion: number | null }
   | { type: "unsubscribe"; subscription: SurfaceSubscription };
 export function encodeLiveUpdateCommand(value: LiveUpdateCommand): LiveUpdateCommand { return value; }
 
 export type LiveUpdateMessage =
     { type: "subscribed"; scope: SurfaceScope; scopeKey: string; currentVersion: number; resync: boolean }
-  | { type: "invalidate"; scope: SurfaceScope; scopeKey: string; version: number; fragments: ReadonlyArray<SurfaceFragmentKey>; sourceClientId: string | null }
+  | { type: "invalidate"; scope: SurfaceScope; scopeKey: string; version: number; fragments: ReadonlyArray<SurfaceFragmentKey> }
   | { type: "error"; message: string };
 export function isLiveUpdateMessage(value: unknown): value is LiveUpdateMessage {
-    return ((isRecord(value) && hasExactKeys(value, ["type", "scope", "scopeKey", "currentVersion", "resync"], ["type", "scope", "scopeKey", "currentVersion", "resync"]) && (value["type"] === "subscribed") && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && (typeof value["resync"] === "boolean")) || (isRecord(value) && hasExactKeys(value, ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"], ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"]) && (value["type"] === "invalidate") && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item))) && (value["sourceClientId"] === null || (typeof value["sourceClientId"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["type", "message"], ["type", "message"]) && (value["type"] === "error") && (typeof value["message"] === "string")));
+    return ((isRecord(value) && hasExactKeys(value, ["type", "scope", "scopeKey", "currentVersion", "resync"], ["type", "scope", "scopeKey", "currentVersion", "resync"]) && (value["type"] === "subscribed") && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && (typeof value["resync"] === "boolean")) || (isRecord(value) && hasExactKeys(value, ["type", "scope", "scopeKey", "version", "fragments"], ["type", "scope", "scopeKey", "version", "fragments"]) && (value["type"] === "invalidate") && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item)))) || (isRecord(value) && hasExactKeys(value, ["type", "message"], ["type", "message"]) && (value["type"] === "error") && (typeof value["message"] === "string")));
 }
 
 export function parseLiveUpdateMessage(value: unknown): LiveUpdateMessage {

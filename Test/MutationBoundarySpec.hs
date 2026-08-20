@@ -170,6 +170,32 @@ tests = describe "Mutation boundary guard" do
         filter (`Text.isInfixOf` mutationSource) mutationForbiddenTokens `shouldBe` []
         filter (`Text.isInfixOf` controllerSource) controllerForbiddenTokens `shouldBe` []
 
+    it "removes sequential publication and process-local version authority APIs" do
+        sources <- mapM Text.readFile
+            [ "Application/Helper/FrontendContract/LiveUpdate.hs"
+            , "Application/Helper/FrontendContract/LiveUpdateValues.hs"
+            , "Application/Helper/LiveUpdate/DurablePublisher.hs"
+            , "Application/Helper/LiveUpdate/Internal.hs"
+            , "Application/Helper/LiveUpdate/Runtime.hs"
+            , "Web/Controller/Admin.hs"
+            , "Web/SurfaceInvalidation.hs"
+            ]
+        let removedApis =
+                [ "invalidateTouchedResources"
+                , "publishDurableInvalidation"
+                , "publishTouchedResourcesWithoutContext"
+                , "broadcastLiveInvalidationDetailed"
+                , "incrementLiveUpdateVersion"
+                , "advanceLiveUpdateVersion ::"
+                , "LiveUpdateClientIdHeader"
+                , "SourceClientId"
+                ]
+        filter (\token -> any (Text.isInfixOf token) sources) removedApis `shouldBe` []
+        browserProtocol <- Text.readFile "frontend/ts/generated/contracts.ts"
+        filter (`Text.isInfixOf` browserProtocol) ["sourceClientId", "liveUpdateClientIdHeader", "clientId"] `shouldBe` []
+        surfaceInvalidation <- Text.readFile "Web/SurfaceInvalidation.hs"
+        Text.count "broadcastLiveInvalidationAtVersion" surfaceInvalidation `shouldBe` 2
+
     it "keeps workforce and scheduling producers off sequential live publication" do
         sources <- mapM Text.readFile
             [ "Web/Controller/LeaveRequests.hs"
@@ -189,6 +215,7 @@ tests = describe "Mutation boundary guard" do
                 [ "invalidateTouchedResources"
                 , "publishTouchedResourcesWithoutContext"
                 , "publishDurableInvalidation"
+                , "withDurableLiveMutationOutcomeTransaction"
                 ]
         filter (\token -> any (Text.isInfixOf token) sources) forbiddenTokens `shouldBe` []
 
@@ -211,6 +238,7 @@ tests = describe "Mutation boundary guard" do
                 [ "invalidateTouchedResources"
                 , "publishTouchedResourcesWithoutContext"
                 , "publishDurableInvalidation"
+                , "withDurableLiveMutationOutcomeTransaction"
                 ]
         filter (\token -> any (Text.isInfixOf token) sources) forbiddenTokens `shouldBe` []
 

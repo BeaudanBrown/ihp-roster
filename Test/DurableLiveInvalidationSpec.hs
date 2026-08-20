@@ -11,7 +11,7 @@ import Application.Helper.LiveUpdate.DurableListener (hydrateDurableStateFromCon
                                                       readDurableEventsAfter,
                                                       runDurableInvalidationListenerConnection)
 import Application.Helper.LiveUpdate.DurablePublisher (DurablePublication (..),
-                                                       publishDurableInvalidation)
+                                                       withDurableLiveMutationOutcomeTransaction)
 import Application.Helper.LiveUpdate.DurableState (currentDurableCursor,
                                                    currentDurableDependencyWatermark,
                                                    fetchDurableDependencyWatermark,
@@ -22,7 +22,8 @@ import Application.Helper.LiveUpdate.Runtime (SurfaceSubscription (..),
                                               newInMemoryLiveBus,
                                               registerSurfaceSubscriptionWithBus,
                                               surfaceScopeKey)
-import Application.Helper.SurfaceResource (liveMutationResult)
+import Application.Helper.SurfaceResource (SurfaceResourceValue,
+                                          liveMutationResult)
 import Control.Concurrent.Async (concurrently, withAsync)
 import Control.Concurrent.Chan (newChan, readChan, writeChan)
 import qualified Control.Exception as Exception
@@ -46,6 +47,14 @@ import Test.Hspec
 import Test.Support
 import Web.SurfaceInvalidation (dispatchDurableInvalidationWithBus,
                                 withDurableLiveMutationWithoutContext)
+
+publishTestDurableInvalidation :: (?modelContext :: ModelContext) => Text -> Set.Set SurfaceResourceValue -> IO DurablePublication
+publishTestDurableInvalidation source resources = do
+    (_, maybePublication) <-
+        withDurableLiveMutationOutcomeTransaction
+            (const (Just (source, resources)))
+            (pure ())
+    maybe (error "test durable publication missing") pure maybePublication
 
 tests :: Spec
 tests =
@@ -123,7 +132,7 @@ tests =
             it "persists one event resource and current version for duplicate resources" $ withContext do
                 withCleanDb do
                     let resource = AdminResource.adminVenueSettingsResource nil
-                    publication <- publishDurableInvalidation "test.live" (Set.fromList [resource, resource])
+                    publication <- publishTestDurableInvalidation "test.live" (Set.fromList [resource, resource])
                     let eventId = publication.durablePublicationEventId
 
                     eventCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_events WHERE id = ?" (Only eventId)
@@ -140,8 +149,8 @@ tests =
                 withCleanDb do
                     let resource = AdminResource.adminVenueSettingsResource nil
                     _ <- concurrently
-                        (publishDurableInvalidation "test.concurrent.left" (Set.singleton resource))
-                        (publishDurableInvalidation "test.concurrent.right" (Set.singleton resource))
+                        (publishTestDurableInvalidation "test.concurrent.left" (Set.singleton resource))
+                        (publishTestDurableInvalidation "test.concurrent.right" (Set.singleton resource))
 
                     latestSequence :: Int <- sqlQueryScalar "SELECT latest_event_sequence FROM live_resource_versions" ()
                     greatestEventSequence :: Int <- sqlQueryScalar "SELECT MAX(sequence_number) FROM live_invalidation_events" ()
@@ -150,7 +159,7 @@ tests =
             it "delivers one committed event independently through two process-local hubs" $ withContext do
                 withCleanDb do
                     let resource = AdminResource.adminVenueSettingsResource nil
-                    publication <- publishDurableInvalidation "test.two-hubs" (Set.singleton resource)
+                    publication <- publishTestDurableInvalidation "test.two-hubs" (Set.singleton resource)
                     let Right encoded = encodeDurableResource resource
                     let scope = AdminLive.adminVenueConfigLiveScope nil
                     let subscription = SurfaceSubscription
@@ -171,7 +180,7 @@ tests =
             it "advances durable freshness without subscribers so a stale rendered mount resyncs later" $ withContext do
                 withCleanDb do
                     let resource = AdminResource.adminVenueSettingsResource nil
-                    publication <- publishDurableInvalidation "test.watermark" (Set.singleton resource)
+                    publication <- publishTestDurableInvalidation "test.watermark" (Set.singleton resource)
                     let Right encoded = encodeDurableResource resource
                     let scope = AdminLive.adminVenueConfigLiveScope nil
                     let subscription = SurfaceSubscription
@@ -186,10 +195,35 @@ tests =
                         (replaceDurableResourceVersions [] 0)
                         (currentDurableDependencyWatermark subscription `shouldReturn` publication.durablePublicationEventSequence)
 
+            it "retains malformed hydrated resource-key authority while quarantining its payload" $ withContext do
+                withCleanDb do
+                    let resource = AdminResource.adminVenueSettingsResource nil
+                    publication <- publishTestDurableInvalidation "test.hydrate-malformed" (Set.singleton resource)
+                    let Right encoded = encodeDurableResource resource
+                    _ <- sqlExec
+                        "UPDATE live_resource_versions SET resource_payload = '{\"version\":1,\"resource\":\"unknown\",\"fields\":{}}'::jsonb WHERE resource_key = ?"
+                        (Only encoded.durableResourceKey)
+                    databaseUrl <- getEnv "DATABASE_URL"
+                    Exception.finally
+                        (do
+                            Exception.bracket (PG.connectPostgreSQL (cs databaseUrl)) PG.close \connection -> do
+                                (cursor, resources) <- hydrateDurableStateFromConnection connection
+                                cursor `shouldBe` publication.durablePublicationEventSequence
+                                resources `shouldBe` []
+                            let subscription = SurfaceSubscription
+                                    { subscriptionScope = AdminLive.adminVenueConfigLiveScope nil
+                                    , subscriptionScopeKey = surfaceScopeKey (AdminLive.adminVenueConfigLiveScope nil)
+                                    , subscriptionFragmentKeys = [AdminLive.adminVenueSettingsLiveFragment]
+                                    , subscriptionRenderedDependencyWatermark = 0
+                                    }
+                            currentDurableDependencyWatermark subscription `shouldReturn` publication.durablePublicationEventSequence
+                        )
+                        (replaceDurableResourceVersions [] 0)
+
             it "dispatches valid resources when one persisted event child fails decoding" $ withContext do
                 withCleanDb do
                     let resource = AdminResource.adminVenueSettingsResource nil
-                    publication <- publishDurableInvalidation "test.partial-decode" (Set.singleton resource)
+                    publication <- publishTestDurableInvalidation "test.partial-decode" (Set.singleton resource)
                     _ <- sqlExec
                         "INSERT INTO live_invalidation_event_resources (event_id, resource_key, resource_payload) VALUES (?, 'invalid:{}', '{\"version\":1,\"resource\":\"unknown\",\"fields\":{}}'::jsonb)"
                         (Only publication.durablePublicationEventId)
@@ -197,10 +231,21 @@ tests =
                     events <- Exception.bracket (PG.connectPostgreSQL (cs databaseUrl)) PG.close (\connection -> readDurableEventsAfter connection 0)
                     map (length . snd) events `shouldBe` [1]
 
+            it "keeps an ordered cursor event when every resource child is malformed" $ withContext do
+                withCleanDb do
+                    let resource = AdminResource.adminVenueSettingsResource nil
+                    publication <- publishTestDurableInvalidation "test.malformed-only" (Set.singleton resource)
+                    _ <- sqlExec
+                        "UPDATE live_invalidation_event_resources SET resource_payload = '{\"version\":1,\"resource\":\"unknown\",\"fields\":{}}'::jsonb WHERE event_id = ?"
+                        (Only publication.durablePublicationEventId)
+                    databaseUrl <- getEnv "DATABASE_URL"
+                    events <- Exception.bracket (PG.connectPostgreSQL (cs databaseUrl)) PG.close (\connection -> readDurableEventsAfter connection 0)
+                    events `shouldBe` [(publication.durablePublicationEventSequence, [])]
+
             it "replays independently to two local listeners and ignores duplicate cursors after reconnect" $ withContext do
                 withCleanDb do
                     let resource = AdminResource.adminVenueSettingsResource nil
-                    publication <- publishDurableInvalidation "test.replay" (Set.singleton resource)
+                    publication <- publishTestDurableInvalidation "test.replay" (Set.singleton resource)
                     databaseUrl <- getEnv "DATABASE_URL"
                     firstEvents <- Exception.bracket (PG.connectPostgreSQL (cs databaseUrl)) PG.close \first -> do
                         events <- readDurableEventsAfter first 0
@@ -218,7 +263,7 @@ tests =
                     Exception.bracket (pure listener) PG.close \connection -> do
                         _ <- PG.execute_ connection "LISTEN live_invalidation_events"
                         let resource = AdminResource.adminVenueSettingsResource nil
-                        publication <- publishDurableInvalidation "test.notify" (Set.singleton resource)
+                        publication <- publishTestDurableInvalidation "test.notify" (Set.singleton resource)
                         notification <- timeout 1000000 (PGNotification.getNotification connection)
                         fmap (cs . PGNotification.notificationData) notification `shouldBe` Just (tshow publication.durablePublicationEventId)
                         _ <- Exception.try @Exception.SomeException $
@@ -234,9 +279,9 @@ tests =
                     let retentionSeconds = 7 * 24 * 60 * 60
                     let cutoff = addUTCTime (negate (fromIntegral retentionSeconds)) now
                     let expiredResource = AdminResource.adminVenueSettingsResource nil
-                    expired <- publishDurableInvalidation "test.prune.expired" (Set.singleton expiredResource)
-                    boundary <- publishDurableInvalidation "test.prune.boundary" (Set.singleton SupportResource.supportAwardRatesResource)
-                    fresh <- publishDurableInvalidation "test.prune.fresh" (Set.singleton SupportResource.supportPublicHolidaysResource)
+                    expired <- publishTestDurableInvalidation "test.prune.expired" (Set.singleton expiredResource)
+                    boundary <- publishTestDurableInvalidation "test.prune.boundary" (Set.singleton SupportResource.supportAwardRatesResource)
+                    fresh <- publishTestDurableInvalidation "test.prune.fresh" (Set.singleton SupportResource.supportPublicHolidaysResource)
                     sqlExec "UPDATE live_invalidation_events SET created_at = ? WHERE id = ?" (addUTCTime (-1) cutoff, expired.durablePublicationEventId)
                     sqlExec "UPDATE live_invalidation_events SET created_at = ? WHERE id = ?" (cutoff, boundary.durablePublicationEventId)
                     sqlExec "UPDATE live_invalidation_events SET created_at = ? WHERE id = ?" (addUTCTime 1 cutoff, fresh.durablePublicationEventId)
@@ -285,7 +330,7 @@ tests =
                     let now = pruningTestNow
                     let resource = AdminResource.adminVenueSettingsResource nil
                     publications <- forM [1 .. 5 :: Int] \index ->
-                        publishDurableInvalidation ("test.prune.batch." <> tshow index) (Set.singleton resource)
+                        publishTestDurableInvalidation ("test.prune.batch." <> tshow index) (Set.singleton resource)
                     sqlExec "UPDATE live_invalidation_events SET created_at = ?" (Only (addUTCTime (negate (8 * 24 * 60 * 60)) now))
 
                     summary <- pruneExpiredLiveInvalidationOutboxAt now defaultLiveInvalidationOutboxPruneConfig { batchSize = 2 }
@@ -299,7 +344,7 @@ tests =
 
             it "upgrades the deployed version foreign key without losing version authority" $ withContext do
                 withCleanDb do
-                    publication <- publishDurableInvalidation "test.prune.migration" (Set.singleton (AdminResource.adminVenueSettingsResource nil))
+                    publication <- publishTestDurableInvalidation "test.prune.migration" (Set.singleton (AdminResource.adminVenueSettingsResource nil))
                     databaseUrl <- getEnv "DATABASE_URL"
                     migrationSql <- ByteString.readFile "Application/Migration/1788001100.sql"
                     Exception.bracket (PG.connectPostgreSQL (cs databaseUrl)) PG.close \connection -> do
@@ -315,7 +360,7 @@ tests =
             it "dispatches current authority after reconnect when missed events were pruned" $ withContext do
                 withCleanDb do
                     let resource = AdminResource.adminVenueSettingsResource nil
-                    initial <- publishDurableInvalidation "test.prune.reconnect.initial" (Set.singleton resource)
+                    initial <- publishTestDurableInvalidation "test.prune.reconnect.initial" (Set.singleton resource)
                     sqlExec "UPDATE live_invalidation_events SET created_at = ? WHERE id = ?" (pruningTestNow, initial.durablePublicationEventId)
                     databaseUrl <- getEnv "DATABASE_URL"
                     Exception.bracket (PG.connectPostgreSQL (cs databaseUrl)) PG.close hydrateDurableStateFromConnection
@@ -335,7 +380,7 @@ tests =
                     withAsync (runDurableInvalidationListenerConnection databaseUrl firstDispatch) \_ -> do
                         timeout 2000000 (readChan firstDispatches) `shouldReturn` Just initial.durablePublicationEventSequence
 
-                    missed <- publishDurableInvalidation "test.prune.reconnect.missed" (Set.singleton resource)
+                    missed <- publishTestDurableInvalidation "test.prune.reconnect.missed" (Set.singleton resource)
                     sqlExec "UPDATE live_invalidation_events SET created_at = ? WHERE id = ?" (addUTCTime (negate (8 * 24 * 60 * 60)) pruningTestNow, missed.durablePublicationEventId)
                     _ <- pruneExpiredLiveInvalidationOutboxAt pruningTestNow defaultLiveInvalidationOutboxPruneConfig
 
@@ -347,6 +392,29 @@ tests =
                         timeout 2000000 (readChan recoveredDispatches) `shouldReturn` Just missed.durablePublicationEventSequence
                         currentLiveUpdateVersionWithBus bus scope `shouldReturn` missed.durablePublicationEventSequence
                         fetchDurableDependencyWatermark subscription `shouldReturn` missed.durablePublicationEventSequence
+
+            it "dispatches hydrated authority before retained replay after partial pruning" $ withContext do
+                withCleanDb do
+                    _baseline <- publishTestDurableInvalidation "test.reconnect-order.baseline" (Set.singleton (AdminResource.adminVenueSettingsResource nil))
+                    databaseUrl <- getEnv "DATABASE_URL"
+                    Exception.bracket (PG.connectPostgreSQL (cs databaseUrl)) PG.close hydrateDurableStateFromConnection
+                    expired <- publishTestDurableInvalidation "test.reconnect-order.expired" (Set.singleton SupportResource.supportAwardRatesResource)
+                    fresh <- publishTestDurableInvalidation "test.reconnect-order.fresh" (Set.singleton SupportResource.supportPublicHolidaysResource)
+                    sqlExec
+                        "UPDATE live_invalidation_events SET created_at = ? WHERE id = ?"
+                        (addUTCTime (negate (8 * 24 * 60 * 60)) pruningTestNow, expired.durablePublicationEventId)
+                    _ <- pruneExpiredLiveInvalidationOutboxAt pruningTestNow defaultLiveInvalidationOutboxPruneConfig
+                    dispatches <- newChan
+                    let capture eventSequence resources = writeChan dispatches (eventSequence, map (.durableResourceValue) resources)
+                    Exception.finally
+                        (withAsync (runDurableInvalidationListenerConnection databaseUrl capture) \_ -> do
+                            firstDispatch <- timeout 2000000 (readChan dispatches)
+                            fmap fst firstDispatch `shouldBe` Just fresh.durablePublicationEventSequence
+                            fmap snd firstDispatch `shouldSatisfy` maybe False (\resources ->
+                                SupportResource.supportAwardRatesResource `elem` resources
+                                    && SupportResource.supportPublicHolidaysResource `elem` resources)
+                        )
+                        (replaceDurableResourceVersions [] 0)
 
             it "rejects retention below seven days and batches above 1000" $ withContext do
                 withCleanDb do

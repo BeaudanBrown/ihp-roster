@@ -9,7 +9,6 @@ import {
     type FrontendSurfaceMountedInstance,
 } from "./mount";
 import { createLiveFragmentRefresher } from "./refresh";
-import { enableLiveUpdateRequestDecoration } from "./request-decoration";
 import type { SurfaceSubscription } from "./runtime-types";
 import { collectDesiredSurfaceSubscriptions, createSurfaceConfigErrorReporter } from "./subscription";
 
@@ -30,7 +29,6 @@ export function enableLiveUpdateRuntime(): void {
     let connection: LiveUpdateConnection | null = null;
     const invalidation = createLiveUpdateInvalidationRuntime({
         activeSubscriptions,
-        activeClientId: () => connection?.activeClientId() ?? null,
         refresher,
         diagnostics,
     });
@@ -64,13 +62,6 @@ export function enableLiveUpdateRuntime(): void {
         handleMessage: invalidation.handleMessage,
         requestSync: syncRuntime,
         diagnostics,
-    });
-
-    enableLiveUpdateRequestDecoration({
-        targetDocument: document,
-        ensureClientId: connection.ensureClientId,
-        requestRefresh: refresher.request,
-        reportSurfaceConfigError,
     });
 
     document.addEventListener(liveFragmentsRefreshEvent, invalidation.handleActorEvent);

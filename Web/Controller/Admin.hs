@@ -43,7 +43,7 @@ import Web.Controller.Admin.Xero
 import Web.Controller.Admin.Xero.Responses
 import Web.Controller.Prelude
 import Web.Staff.Mutations (renewTrialStaffInvitationMutation)
-import Web.SurfaceInvalidation (invalidateTouchedResources)
+import Web.SurfaceInvalidation (withDurableLiveMutation)
 import Web.View.Admin.Exports
 import Web.View.Admin.Index
 import Web.View.Admin.Invites
@@ -60,7 +60,8 @@ respondToProfileLiveInvalidation ::
 respondToProfileLiveInvalidation label resources = do
     profilingEnabled <- liftIO isRequestProfilingEnabled
     redirectPermissionDeniedUnless profilingEnabled "Live profiling endpoints are only available while profiling is enabled."
-    _ <- invalidateTouchedResources ("profile.live." <> label) (liveMutationResult () resources)
+    _ <- withDurableLiveMutation ("profile.live." <> label) $
+        pure (liveMutationResult () resources)
     respondHtml "ok"
 
 respondToVenueSettingsMutation ::

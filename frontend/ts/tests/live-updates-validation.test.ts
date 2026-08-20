@@ -361,10 +361,10 @@ test("generated live update message guard checks websocket payload discriminants
         scopeKey: "timesheets:venue-1:2025-01-06:2025-01-13:1",
         version: 2,
         fragments: [validFragmentKey],
-        sourceClientId: null,
     }), true);
     assertEqual(isLiveUpdateMessage({ type: "unknown", message: "nope" }), false);
     assertEqual(isLiveUpdateMessage({ type: "subscribed", scope: validScope, scopeKey: "x", currentVersion: "1", resync: false }), false);
-    assertEqual(isLiveUpdateMessage({ type: "invalidate", scope: validScope, scopeKey: "x", version: 1, fragments: [executableDescriptor], sourceClientId: null }), false);
+    assertEqual(isLiveUpdateMessage({ type: "invalidate", scope: validScope, scopeKey: "x", version: 1, fragments: [executableDescriptor] }), false);
+    assertEqual(isLiveUpdateMessage({ type: "invalidate", scope: validScope, scopeKey: "x", version: 1, fragments: [validFragmentKey], sourceClientId: null }), false);
     assertEqual(isLiveUpdateMessage({ type: "error", message: 500 }), false);
 });

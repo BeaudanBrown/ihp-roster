@@ -1,8 +1,7 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Application.Helper.FrontendContract.LiveUpdateValues
-    ( liveUpdateClientIdHeaderName
-    , liveUpdateSocketPathSegment
+    ( liveUpdateSocketPathSegment
     , surfaceActionDomAttribute
     , surfaceConfigDomAttribute
     , surfaceDomAttribute
@@ -15,9 +14,6 @@ import IHP.Prelude
 
 liveUpdateSocketPathSegment :: Text
 liveUpdateSocketPathSegment = constantValue @LiveUpdate.LiveUpdateSocketPath
-
-liveUpdateClientIdHeaderName :: Text
-liveUpdateClientIdHeaderName = constantValue @LiveUpdate.LiveUpdateClientIdHeader
 
 surfaceDomAttribute :: Text
 surfaceDomAttribute = domAttrValue @Interaction.Surface

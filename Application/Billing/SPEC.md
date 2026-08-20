@@ -146,6 +146,13 @@ Owner navigation visibility controls discovery only; an authorized direct route
 remains available for canary use. Provider status codes and correlated-return
 identifiers are not exposed as customer diagnostics.
 
+Billing state transitions use the same atomic durable resource publication as
+webhooks, Checkout phases, reconciliation, and support controls. The modal has
+no HTTP polling or refresh fallback: initial render/subscription races,
+listener disconnect/reconnect, worker separation, duplicate provider delivery,
+and multiple app listeners recover through durable watermarks and ordered
+listener replay.
+
 ## Manual Read-Only Policy
 
 Dormant founder-only controls remain separate from subscription state. The

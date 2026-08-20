@@ -1,6 +1,5 @@
 module Application.Helper.LiveUpdate.DurablePublisher
     ( DurablePublication (..)
-    , publishDurableInvalidation
     , withDurableLiveMutationOutcomeTransaction
     ) where
 
@@ -43,11 +42,6 @@ withDurableLiveMutationOutcomeTransaction publicationFor businessAction =
         publication <- forM (publicationFor outcome) \(source, touchedResources) ->
             persistDurableInvalidationInCurrentTransaction source touchedResources
         pure (outcome, publication)
-
--- | Compatibility publisher for diagnostics/tests that have no business write.
-publishDurableInvalidation :: (?modelContext :: ModelContext) => Text -> Set.Set SurfaceResourceValue -> IO DurablePublication
-publishDurableInvalidation source resources =
-    withTransaction (persistDurableInvalidationInCurrentTransaction source resources)
 
 persistDurableInvalidationInCurrentTransaction :: (?modelContext :: ModelContext) => Text -> Set.Set SurfaceResourceValue -> IO DurablePublication
 persistDurableInvalidationInCurrentTransaction source resources = do

@@ -265,6 +265,10 @@ compatibility aliases are forbidden. The live bundle consumes only
 `FrontendSurfaceInteractionRegistry`. They remain separate and minimal; action
 metadata and contained-surface topology stay server-only. Subscriptions, websocket invalidations, and actor details use the
 generated `SurfaceScope` and semantic `SurfaceFragmentKey` contract types only.
+Live-visible writes publish typed resources only through the atomic durable
+mutation boundary. PostgreSQL versions/outbox are authoritative; process-local
+state is limited to listener-fed subscription/socket routing and ordered-delivery
+deduplication.
 Shared server/browser DOM ids and semantic tokens come from reflected global or
 Surface declarations, rather than copied string literals. Every fragment owns
 one typed `MountTarget`; descriptor and view IDs are rendered through

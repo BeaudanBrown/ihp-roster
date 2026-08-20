@@ -199,14 +199,12 @@
     pointerFields: { sessionKind: sessionKindFieldName, pointerId: pointerIdFieldName, pointerType: pointerTypeFieldName, startClientX: startClientXFieldName, startClientY: startClientYFieldName, currentClientX: currentClientXFieldName, currentClientY: currentClientYFieldName, deltaX: deltaXFieldName, deltaY: deltaYFieldName }
   };
   var liveUpdateSocketPath = "live-updates";
-  var liveUpdateClientIdHeader = "X-Live-Update-Client-Id";
   var surfaceConfigDomAttr = "data-bepis-surface-config";
-  var surfaceActionDomAttr = "data-bepis-surface-action";
   function encodeLiveUpdateCommand(value) {
     return value;
   }
   function isLiveUpdateMessage(value) {
-    return isRecord(value) && hasExactKeys(value, ["type", "scope", "scopeKey", "currentVersion", "resync"], ["type", "scope", "scopeKey", "currentVersion", "resync"]) && value["type"] === "subscribed" && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && typeof value["resync"] === "boolean" || isRecord(value) && hasExactKeys(value, ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"], ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"]) && value["type"] === "invalidate" && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item))) && (value["sourceClientId"] === null || typeof value["sourceClientId"] === "string") || isRecord(value) && hasExactKeys(value, ["type", "message"], ["type", "message"]) && value["type"] === "error" && typeof value["message"] === "string";
+    return isRecord(value) && hasExactKeys(value, ["type", "scope", "scopeKey", "currentVersion", "resync"], ["type", "scope", "scopeKey", "currentVersion", "resync"]) && value["type"] === "subscribed" && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && typeof value["resync"] === "boolean" || isRecord(value) && hasExactKeys(value, ["type", "scope", "scopeKey", "version", "fragments"], ["type", "scope", "scopeKey", "version", "fragments"]) && value["type"] === "invalidate" && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item))) || isRecord(value) && hasExactKeys(value, ["type", "message"], ["type", "message"]) && value["type"] === "error" && typeof value["message"] === "string";
   }
   function parseLiveUpdateMessage(value) {
     if (isLiveUpdateMessage(value)) return value;
@@ -737,11 +735,10 @@
       renderedDependencyWatermark
     };
   }
-  function buildLiveUpdateSubscribeCommand(subscription, clientId, lastSeenVersion) {
+  function buildLiveUpdateSubscribeCommand(subscription, lastSeenVersion) {
     return encodeLiveUpdateCommand({
       type: "subscribe",
       subscription,
-      clientId,
       lastSeenVersion
     });
   }
@@ -754,9 +751,6 @@
   function liveUpdateFragmentMergeKey(fragment) {
     if (!fragment || !fragment.targetId) return null;
     return `${surfaceFragmentKeyIdentity(fragment.fragmentKey)}:${fragment.targetId}`;
-  }
-  function liveUpdateInvalidationIsOwnEcho(sourceClientId, activeClientId) {
-    return Boolean(sourceClientId && activeClientId && sourceClientId === activeClientId);
   }
   function resolveMountedFragmentsForInvalidation(subscriptions, fragments, scopeKey = null) {
     if (scopeKey === null || scopeKey.length === 0) return [];
@@ -800,7 +794,6 @@
       scopeKey: config.scopeKey,
       socketPath: `/${liveUpdateSocketPath}`,
       resyncFragments,
-      decorateRequestsWithin: resyncFragments.map((fragment) => `#${fragment.targetId}`),
       renderedDependencyWatermark: config.subscription.renderedDependencyWatermark
     };
   }
@@ -873,7 +866,6 @@
 
   // frontend/ts/live-updates/subscription.ts
   var surfaceConfigSelector = `[${surfaceConfigDomAttr}]`;
-  var surfaceOwnedControlSelector = `[${surfaceActionDomAttr}], [${intentFormDomAttr}]`;
   function createSurfaceConfigErrorReporter(targetDocument) {
     return (ownerEl, error) => {
       const detail = {
@@ -895,7 +887,6 @@
       scopeKey: parsed.scopeKey,
       path: parsed.socketPath,
       resyncFragments: parsed.resyncFragments,
-      decorateRequestsWithin: parsed.decorateRequestsWithin,
       renderedDependencyWatermark: parsed.renderedDependencyWatermark,
       ownerEls: [ownerEl],
       resync: (subscription) => subscription.resyncFragments.forEach(requestRefresh)
@@ -910,21 +901,6 @@
       desired.set(subscription.scopeKey, mergeSubscription(desired.get(subscription.scopeKey), subscription));
     });
     return desired;
-  }
-  function shouldDecorateSurfaceRequest(event, requestRefresh, reportError) {
-    const sourceEl = event.detail?.elt;
-    if (!(sourceEl instanceof HTMLElement)) return false;
-    const ownerEl = sourceEl.closest(surfaceConfigSelector);
-    if (!(ownerEl instanceof HTMLElement)) return false;
-    const subscription = readSurfaceSubscription(ownerEl, requestRefresh, reportError);
-    if (!subscription) return false;
-    if (isSurfaceOwnedHtmxRequest(sourceEl, ownerEl)) return true;
-    if (subscription.decorateRequestsWithin.length === 0) return true;
-    return subscription.decorateRequestsWithin.some((selector) => Boolean(selector && sourceEl.closest(selector)));
-  }
-  function isSurfaceOwnedHtmxRequest(sourceEl, ownerEl) {
-    const control = sourceEl.closest(surfaceOwnedControlSelector);
-    return control instanceof HTMLElement && control.closest(surfaceConfigSelector) === ownerEl;
   }
   function wireSurfaceSubscription(subscription) {
     return buildSurfaceSubscription(
@@ -946,7 +922,6 @@
     return {
       ...existing,
       resyncFragments: mergeFragments(existing.resyncFragments, next.resyncFragments),
-      decorateRequestsWithin: mergeStrings(existing.decorateRequestsWithin, next.decorateRequestsWithin),
       ownerEls: existing.ownerEls.concat(next.ownerEls),
       renderedDependencyWatermark: Math.min(existing.renderedDependencyWatermark, next.renderedDependencyWatermark)
     };
@@ -962,9 +937,6 @@
     });
     return merged;
   }
-  function mergeStrings(existing, next) {
-    return Array.from(new Set(existing.concat(next).filter(Boolean)));
-  }
 
   // frontend/ts/live-updates/connection.ts
   function createLiveUpdateConnection(options) {
@@ -973,13 +945,6 @@
     let socketPath = null;
     let reconnectTimer = null;
     let reconnectAttempt = 0;
-    let clientId = null;
-    function ensureClientId() {
-      if (!clientId) {
-        clientId = targetWindow.crypto?.randomUUID?.() ?? `live-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-      }
-      return clientId;
-    }
     function buildWebSocketUrl(path) {
       const protocol = targetWindow.location.protocol === "https:" ? "wss:" : "ws:";
       return `${protocol}//${targetWindow.location.host}${path}`;
@@ -991,7 +956,6 @@
     function subscribe(subscription) {
       sendCommand(buildLiveUpdateSubscribeCommand(
         wireSurfaceSubscription(subscription),
-        ensureClientId(),
         versions.get(subscription.scopeKey)
       ));
     }
@@ -1056,7 +1020,6 @@
       };
     }
     function sync(desired) {
-      ensureClientId();
       const nextPath = desired.values().next().value?.path ?? null;
       if (desired.size === 0 || !nextPath) {
         activeSubscriptions.forEach((subscription) => versions.clear(subscription.scopeKey));
@@ -1108,7 +1071,7 @@
         });
       }
     }
-    return { ensureClientId, activeClientId: () => clientId, sync, close };
+    return { sync, close };
   }
 
   // frontend/ts/live-updates/diagnostics.ts
@@ -1184,7 +1147,7 @@
 
   // frontend/ts/live-updates/invalidation.ts
   function createLiveUpdateInvalidationRuntime(options) {
-    const { activeSubscriptions, activeClientId, refresher, diagnostics } = options;
+    const { activeSubscriptions, refresher, diagnostics } = options;
     const scopeVersions = /* @__PURE__ */ new Map();
     const versions = {
       get(scopeKey) {
@@ -1209,7 +1172,6 @@
       diagnostics.emitDebugEvent("subscription_acknowledged", { scopeKey, resync: message.resync });
     }
     function handleInvalidateMessage(message) {
-      if (liveUpdateInvalidationIsOwnEcho(message.sourceClientId, activeClientId())) return;
       const nextVersion = normalizeLiveUpdateVersion(message.version);
       const perfSpan = diagnostics.beginPerfSpan("live_updates.handle_invalidate", {
         fragmentCount: message.fragments.length,
@@ -1579,20 +1541,6 @@
     return { request, flushInteractionDeferredFragmentsWithoutActiveSessions, flushFocusedFragmentsWithoutActiveInputs, stop };
   }
 
-  // frontend/ts/live-updates/request-decoration.ts
-  function enableLiveUpdateRequestDecoration(options) {
-    const { targetDocument, ensureClientId, requestRefresh, reportSurfaceConfigError } = options;
-    const handleConfigRequest = (event) => {
-      const htmxEvent = event;
-      if (!shouldDecorateSurfaceRequest(htmxEvent, requestRefresh, reportSurfaceConfigError)) return;
-      if (htmxEvent.detail?.headers) {
-        htmxEvent.detail.headers[liveUpdateClientIdHeader] = ensureClientId();
-      }
-    };
-    targetDocument.addEventListener("htmx:configRequest", handleConfigRequest);
-    return () => targetDocument.removeEventListener("htmx:configRequest", handleConfigRequest);
-  }
-
   // frontend/ts/live-updates/runtime.ts
   function enableLiveUpdateRuntime() {
     if (typeof window === "undefined") return;
@@ -1609,7 +1557,6 @@
     let connection = null;
     const invalidation = createLiveUpdateInvalidationRuntime({
       activeSubscriptions,
-      activeClientId: () => connection?.activeClientId() ?? null,
       refresher,
       diagnostics
     });
@@ -1640,12 +1587,6 @@
       handleMessage: invalidation.handleMessage,
       requestSync: syncRuntime,
       diagnostics
-    });
-    enableLiveUpdateRequestDecoration({
-      targetDocument: document,
-      ensureClientId: connection.ensureClientId,
-      requestRefresh: refresher.request,
-      reportSurfaceConfigError
     });
     document.addEventListener(liveFragmentsRefreshEvent, invalidation.handleActorEvent);
     document.addEventListener(interactionSessionEndEvent, () => {

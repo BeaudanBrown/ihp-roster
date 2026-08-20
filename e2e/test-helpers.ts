@@ -154,6 +154,8 @@ type LiveRecoveryTrackerWindow = Window & {
         installed: boolean;
         addedScopeKeys: string[];
         acknowledgedScopeKeys: string[];
+        activeHtmxRequests: number;
+        lastHtmxActivityAt: number;
     };
 };
 
@@ -161,7 +163,25 @@ async function installLiveRecoveryTracker(page: Page) {
     await page.addInitScript(() => {
         const state = window as LiveRecoveryTrackerWindow;
         if (state.__bepisE2ELiveRecovery?.installed) return;
-        state.__bepisE2ELiveRecovery = { installed: true, addedScopeKeys: [], acknowledgedScopeKeys: [] };
+        state.__bepisE2ELiveRecovery = {
+            installed: true,
+            addedScopeKeys: [],
+            acknowledgedScopeKeys: [],
+            activeHtmxRequests: 0,
+            lastHtmxActivityAt: performance.now(),
+        };
+        document.addEventListener('htmx:beforeRequest', () => {
+            const tracker = state.__bepisE2ELiveRecovery;
+            if (!tracker) return;
+            tracker.activeHtmxRequests += 1;
+            tracker.lastHtmxActivityAt = performance.now();
+        });
+        document.addEventListener('htmx:afterRequest', () => {
+            const tracker = state.__bepisE2ELiveRecovery;
+            if (!tracker) return;
+            tracker.activeHtmxRequests = Math.max(0, tracker.activeHtmxRequests - 1);
+            tracker.lastHtmxActivityAt = performance.now();
+        });
         document.addEventListener('app:live-update-debug', (event) => {
             const detail = (event as CustomEvent).detail;
             if (typeof detail?.scopeKey !== 'string') return;
@@ -187,9 +207,13 @@ export async function waitForLiveRecovery(page: Page, timeoutMs = E2E_TIMEOUT.na
 
     await expect.poll(() => page.evaluate((scopeKeys) => {
         const tracker = (window as LiveRecoveryTrackerWindow).__bepisE2ELiveRecovery;
-        return Boolean(tracker && scopeKeys.every((scopeKey) => tracker.acknowledgedScopeKeys.includes(scopeKey)));
+        return Boolean(
+            tracker
+            && scopeKeys.every((scopeKey) => tracker.acknowledgedScopeKeys.includes(scopeKey))
+            && tracker.activeHtmxRequests === 0
+            && performance.now() - tracker.lastHtmxActivityAt >= 100
+        );
     }, expectedScopeKeys), { timeout: timeoutMs }).toBe(true);
-    await page.waitForLoadState('networkidle', { timeout: timeoutMs });
 }
 
 export async function gotoWhenReady(page: Page, path: string, readySelector: string, timeoutMs = E2E_TIMEOUT.navigation) {

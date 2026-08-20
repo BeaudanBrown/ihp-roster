@@ -48,10 +48,11 @@ runDurableInvalidationListenerConnection databaseUrl dispatch =
         wasHydrated <- durableStateIsHydrated
         previousCursor <- currentDurableCursor
         (hydratedCursor, hydratedResources) <- hydrateDurableStateFromConnection connection
-        when wasHydrated (replayAfter connection previousCursor)
-        -- Existing local subscriptions need an authoritative refresh even when
-        -- every missed event was already pruned. Duplicate delivery is safe.
+        -- Dispatch current authority before retained replay. Replay can advance a
+        -- scope's local dedupe sequence; dispatching the snapshot afterwards
+        -- would then suppress resources whose individual events were pruned.
         when (wasHydrated && not (null hydratedResources)) (dispatch hydratedCursor hydratedResources)
+        when wasHydrated (replayAfter connection previousCursor)
         writeDurableListenerDiagnostic "[live-invalidation-listener] healthy=true"
         forever do
             _ <- Notification.getNotification connection

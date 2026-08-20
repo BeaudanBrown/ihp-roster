@@ -28,8 +28,7 @@ import Application.Helper.FrontendContract.HorizontalScroll.Runtime (HorizontalS
 import qualified Application.Helper.FrontendContract.Htmx as Htmx
 import qualified Application.Helper.FrontendContract.IR as Contract
 import qualified Application.Helper.FrontendContract.LiveUpdate as LiveContract
-import Application.Helper.FrontendContract.LiveUpdateValues (liveUpdateClientIdHeaderName,
-                                                             liveUpdateSocketPathSegment,
+import Application.Helper.FrontendContract.LiveUpdateValues (liveUpdateSocketPathSegment,
                                                              surfaceActionDomAttribute,
                                                              surfaceConfigDomAttribute,
                                                              surfaceDomAttribute)
@@ -107,14 +106,13 @@ tests = describe "Frontend contract generator foundation" do
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export type UiRegionTransitionProfile"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export type InteractionSessionEffect"
 
-    it "shares reflected live endpoint, header, and mount DOM constants across Haskell and TypeScript" do
+    it "shares reflected live endpoint and mount DOM constants across Haskell and TypeScript" do
         liveUpdateSocketPathSegment `shouldBe` "live-updates"
-        liveUpdateClientIdHeaderName `shouldBe` "X-Live-Update-Client-Id"
         surfaceDomAttribute `shouldBe` "data-bepis-surface"
         surfaceConfigDomAttribute `shouldBe` "data-bepis-surface-config"
         surfaceActionDomAttribute `shouldBe` "data-bepis-surface-action"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const liveUpdateSocketPath = \"live-updates\" as const;"
-        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const liveUpdateClientIdHeader = \"X-Live-Update-Client-Id\" as const;"
+        frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "liveUpdateClientIdHeader"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const surfaceDomAttr = \"data-bepis-surface\" as const;"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const surfaceConfigDomAttr = \"data-bepis-surface-config\" as const;"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const surfaceActionDomAttr = \"data-bepis-surface-action\" as const;"
@@ -459,8 +457,8 @@ tests = describe "Frontend contract generator foundation" do
         let fragmentKey = Live.SurfaceFragmentKey "timesheets" "timesheet-day-section" (Aeson.object ["operationalDate" Aeson..= ("2025-02-05" :: Text)])
         let scopeKey = "timesheets:11111111-1111-1111-1111-111111111111:2025-02-03:2025-02-10:1"
         let subscription = Live.SurfaceSubscription scope scopeKey [fragmentKey] 0
-        let command = Live.Subscribe subscription "client-1" (Just 9)
-        let message = Live.Invalidate scope scopeKey 10 [fragmentKey] (Just "client-2")
+        let command = Live.Subscribe subscription (Just 9)
+        let message = Live.Invalidate scope scopeKey 10 [fragmentKey]
 
         AesonTypes.parseEither (validateContractMarkerValue @LiveContract.SurfaceSubscription) (Aeson.toJSON subscription) `shouldSatisfy` isRight
         AesonTypes.parseEither (validateContractMarkerValue @LiveContract.LiveUpdateCommand) (Aeson.toJSON command) `shouldSatisfy` isRight

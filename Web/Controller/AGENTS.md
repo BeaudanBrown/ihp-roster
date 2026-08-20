@@ -38,11 +38,12 @@ Read `Application/Helper/Interaction.SPEC.md`,
 live-surface work.
 
 Validation failures return the submitted form/dialog fragment directly. For a
-migrated `FrontendSurface`, successful actor responses emit semantic
-invalidation plus requester-only extras; passive viewers receive post-commit
-resource invalidation and refetch the same authorized plain fragment GETs. Do
-not return authoritative business OOB fragments or broadcast scopes directly
-from feature controllers.
+migrated `FrontendSurface`, successful actor responses emit semantic actor
+refresh plus requester-only extras; passive viewers receive listener-delivered
+durable resource invalidation and refetch the same authorized plain fragment
+GETs. The mutation/domain/audit writes and typed outbox event use one atomic
+mutation boundary. Do not publish after commit, return authoritative business
+OOB fragments, or broadcast scopes directly from feature controllers.
 
 Keep scopes authorized logical data slices, fragment mappings in `SurfaceImpl`,
 and fan-out expansion bounded to active scopes. Fragment actions require the
