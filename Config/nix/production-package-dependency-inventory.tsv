@@ -144,7 +144,7 @@ Prelude	base	Web/View/RosterWeeks/TemplatePanel.hs via Main
 System.Directory	directory	Web/Controller/StaffDocuments.hs via Main
 System.Environment	base	Application/Helper/LiveUpdate/DurableListener.hs via Main
 System.Exit	base	Application/StaffDocuments/RsaExtraction.hs via Main
-System.IO	base	Web/Controller/StaffDocuments.hs via Main
+System.IO	base	Application/Helper/LiveUpdate/DurableListener.hs via Main
 System.IO.Error	base	Application/Billing/Stripe.hs via Main
 System.IO.Unsafe	base	Application/Helper/Profiling.hs via Main
 System.Process	process	Application/StaffDocuments/RsaExtraction.hs via Main

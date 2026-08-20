@@ -19,6 +19,7 @@ import qualified Database.PostgreSQL.Simple.Notification as Notification
 import qualified Database.PostgreSQL.Simple.Transaction as Transaction
 import IHP.Prelude
 import System.Environment (getEnv)
+import System.IO (stderr)
 
 startDurableInvalidationListener :: (Int -> [DurableResource] -> IO ()) -> IO ()
 startDurableInvalidationListener dispatch = do
@@ -33,7 +34,7 @@ startDurableInvalidationListener dispatch = do
             Left _exception -> do
                 let cappedAttempt = min attempt 6
                 let delayMicros = min 10000000 (250000 * (2 ^ cappedAttempt))
-                TextIO.putStrLn ("[live-invalidation-listener] healthy=false reconnect_attempt=" <> tshow (attempt + 1) <> " backoff_ms=" <> tshow (delayMicros `div` 1000) <> " connection_error=true")
+                writeDurableListenerDiagnostic ("[live-invalidation-listener] healthy=false reconnect_attempt=" <> tshow (attempt + 1) <> " backoff_ms=" <> tshow (delayMicros `div` 1000) <> " connection_error=true")
                 threadDelay delayMicros
                 supervise databaseUrl (attempt + 1)
 
@@ -51,7 +52,7 @@ runDurableInvalidationListenerConnection databaseUrl dispatch =
         -- Existing local subscriptions need an authoritative refresh even when
         -- every missed event was already pruned. Duplicate delivery is safe.
         when (wasHydrated && not (null hydratedResources)) (dispatch hydratedCursor hydratedResources)
-        TextIO.putStrLn "[live-invalidation-listener] healthy=true"
+        writeDurableListenerDiagnostic "[live-invalidation-listener] healthy=true"
         forever do
             _ <- Notification.getNotification connection
             currentDurableCursor >>= replayAfter connection
@@ -64,7 +65,7 @@ runDurableInvalidationListenerConnection databaseUrl dispatch =
                 _ <- advanceDurableListenerCursor event.sequence
                 unless (null event.resources) (dispatch event.sequence event.resources)
                 now <- getCurrentTime
-                TextIO.putStrLn ("[live-invalidation-listener] event_id=" <> tshow event.eventId <> " cursor=" <> tshow event.sequence <> " lag_events=" <> tshow (length events - 1) <> " event_age_ms=" <> tshow (round (diffUTCTime now event.createdAt * 1000) :: Int) <> " resources=" <> tshow (length event.resources) <> " decode_failures=" <> tshow event.decodeFailureCount)
+                writeDurableListenerDiagnostic ("[live-invalidation-listener] event_id=" <> tshow event.eventId <> " cursor=" <> tshow event.sequence <> " lag_events=" <> tshow (length events - 1) <> " event_age_ms=" <> tshow (round (diffUTCTime now event.createdAt * 1000) :: Int) <> " resources=" <> tshow (length event.resources) <> " decode_failures=" <> tshow event.decodeFailureCount)
 
 hydrateDurableStateFromConnection :: PG.Connection -> IO (Int, [DurableResource])
 hydrateDurableStateFromConnection connection = do
@@ -75,8 +76,13 @@ hydrateDurableStateFromConnection connection = do
     let decoded = partitionEithers (map (\(key, payload, _) -> decodeDurableResource key payload) rows)
     let cursor = maximum (0 : map (\(_, _, eventSequence) -> eventSequence) rows)
     replaceDurableResourceVersions (map (\(key, _, eventSequence) -> (key, eventSequence)) rows) cursor
-    TextIO.putStrLn ("[live-invalidation-listener] hydrated=true cursor=" <> tshow cursor <> " resources=" <> tshow (length (snd decoded)) <> " decode_failures=" <> tshow (length (fst decoded)))
+    writeDurableListenerDiagnostic ("[live-invalidation-listener] hydrated=true cursor=" <> tshow cursor <> " resources=" <> tshow (length (snd decoded)) <> " decode_failures=" <> tshow (length (fst decoded)))
     pure (cursor, snd decoded)
+
+writeDurableListenerDiagnostic :: Text -> IO ()
+writeDurableListenerDiagnostic message = do
+    _ <- Exception.try (TextIO.hPutStrLn stderr message) :: IO (Either Exception.IOException ())
+    pure ()
 
 data DurableReadEvent = DurableReadEvent
     { eventId            :: !UUID
