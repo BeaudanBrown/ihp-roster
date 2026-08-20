@@ -212,7 +212,7 @@ createRosterSlotRecord rosterDay slotName assignment rowIndex = do
     rosterWeek <- fetch (Id (fromJust rosterDay.rosterWeekId) :: Id RosterWeek)
     venue <- fetch (Id rosterWeek.venueId :: Id Venue)
     shiftType <- ensureVenueDefaultShiftType venue
-    let rosterDate = addDays (toInteger rosterDay.dayOffset) (fromGregorian 2025 1 6)
+    let rosterDate = rosterDay.operationalDate
         boundaries =
             either (error . ("Invalid roster shift fixture: " <>) . show) Prelude.id $
                 resolveShiftBoundaries melbourneTimeZoneName ShiftBoundaryInput

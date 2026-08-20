@@ -70,6 +70,24 @@ legacy_authority_queries="$(
 [[ -z "$legacy_authority_queries" ]] \
     || fail $'Authoritative date-native reads/mutations must not select by legacy offset:\n'"$legacy_authority_queries"
 
+legacy_roster_day_offset_reads="$(
+    rg -n '\.dayOffset|get #dayOffset|roster_days[.]day_offset|orderBy[A-Za-z]* #dayOffset|filterWhere[^[:cntrl:]]*#dayOffset' \
+        Application Web \
+        --glob '*.hs' \
+        --glob '!Application/Migration/**' \
+        || true
+)"
+[[ -z "$legacy_roster_day_offset_reads" ]] \
+    || fail $'Runtime code must read RosterDay.operationalDate, not retained day_offset compatibility state:\n'"$legacy_roster_day_offset_reads"
+
+non_compatibility_day_offset_writes="$(
+    rg -n 'set #dayOffset' Application Web --glob '*.hs' \
+        | rg -v '^(Web/RosterWeeks/DateRange[.]hs|Application/Fixture[.]hs|Application/Fixture/DevFixtures/Roster[.]hs):' \
+        || true
+)"
+[[ -z "$non_compatibility_day_offset_writes" ]] \
+    || fail $'Retained day_offset writes must stay behind the compatibility helper or fixture construction:\n'"$non_compatibility_day_offset_writes"
+
 rg -q 'operationalDate' Web/Timesheets/Projection.hs \
     || fail "Timesheets projection must retain explicit Operational-date authority"
 rg -q 'operationalDate' Application/Helper/Export/ReadModel.hs \

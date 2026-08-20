@@ -447,6 +447,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"drag-dropzone\""
                 response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"day-template-dropzone\""
                 response `responseBodyShouldContain` "data-bepis-roster-template-day-target=\"true\""
+                response `responseBodyShouldContain` "aria-label=\"Apply Day template to Mon 06/01\""
 
         it "renders an equal-clock repeated shift on the roster timeline" $ withContext do
             withCleanDb do

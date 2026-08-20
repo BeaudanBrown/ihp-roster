@@ -268,6 +268,7 @@ data RosterRowRenderModel = RosterRowRenderModel
     , rowStaffMembers          :: [Staff]
     , rowShiftTypes            :: [ShiftType]
     , rowDate                  :: Day
+    , rowDayIndex              :: Int
     , rowRosterDay             :: RosterDay
     , rowCount                 :: Int
     , rowLastRowIndex          :: Int

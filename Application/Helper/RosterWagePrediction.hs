@@ -46,7 +46,6 @@ data RosterWagePrediction = RosterWagePrediction
 
 data RosterWagePredictionDay = RosterWagePredictionDay
     { predictionDayDate         :: !Day
-    , predictionDayOffset       :: !Int
     , predictionDayTotal        :: !Scientific
     , predictionDayShiftCount   :: !Int
     , predictionDayFailureCount :: !Int
@@ -54,8 +53,8 @@ data RosterWagePredictionDay = RosterWagePredictionDay
     deriving (Eq, Show)
 
 data PredictedShift = PredictedShift
-    { predictedShiftDayOffset :: !Int
-    , predictedShiftAmount    :: !Scientific
+    { predictedShiftDate   :: !Day
+    , predictedShiftAmount :: !Scientific
     }
     deriving (Eq, Show)
 
@@ -107,7 +106,7 @@ fetchRosterWagePredictionForWindow venueConfig rosterDays rosterSlots = do
             ]
     evaluations <- evaluateUnsealedWagesWithPolicy DraftWageEvaluation subjects
     let predictedShifts =
-            [ PredictedShift rosterDay.dayOffset (calculationAmount outcome)
+            [ PredictedShift rosterDay.operationalDate (calculationAmount outcome)
             | (_, Just rosterDay, Right subject) <- subjectCandidates
             , Just (Right outcome) <- [Map.lookup subject.wageSubjectKey evaluations]
             ]
@@ -164,11 +163,10 @@ lookupRosterWagePredictionDayByDate prediction date =
 
 predictionDay :: RosterDay -> [PredictedShift] -> [(UUID, Text)] -> [RosterSlot] -> RosterWagePredictionDay
 predictionDay rosterDay predictedShifts failures rosterSlots =
-    let dayShifts = filter (\shift -> shift.predictedShiftDayOffset == rosterDay.dayOffset) predictedShifts
+    let dayShifts = filter (\shift -> shift.predictedShiftDate == rosterDay.operationalDate) predictedShifts
         daySlotIds = [unpackId slot.id | slot <- rosterSlots, slot.rosterDayId == unpackId rosterDay.id]
      in RosterWagePredictionDay
             { predictionDayDate = rosterDay.operationalDate
-            , predictionDayOffset = rosterDay.dayOffset
             , predictionDayTotal = sum (map (.predictedShiftAmount) dayShifts)
             , predictionDayShiftCount = length dayShifts
             , predictionDayFailureCount = length [() | (slotId, _) <- failures, slotId `elem` daySlotIds]

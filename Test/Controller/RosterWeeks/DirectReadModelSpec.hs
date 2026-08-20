@@ -75,6 +75,7 @@ tests = aroundAll withDatabaseTestContext do
             mutationSource <- TextIO.readFile "Web/Timesheets/Mutations.hs"
             directReadSource `shouldSatisfy` (not . Text.isInfixOf "SELECT roster_slots.*")
             directReadSource `shouldSatisfy` (not . Text.isInfixOf "SELECT staff.*")
+            directReadSource `shouldSatisfy` (not . Text.isInfixOf "params.week_start + roster_days.day_offset")
             mutationSource `shouldSatisfy` (not . Text.isInfixOf "SELECT timesheet_entries.*")
             mutationSource `shouldSatisfy` (not . Text.isInfixOf "SELECT roster_slots.*")
 
@@ -131,6 +132,31 @@ tests = aroundAll withDatabaseTestContext do
                         targetState.optionHiddenByUnavailable `shouldBe` True
                         targetState.optionHiddenByLeave `shouldBe` True
                         targetState.optionHiddenByAssignedToday `shouldBe` True
+
+        it "keys wage prediction days by Operational date when compatibility offsets collide" $ withContext do
+            withCleanDb do
+                fixture <- createDirectReadModelFixture
+
+                withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    withCurrentControllerContext do
+                        initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.rosterGroup.id 0
+                        venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetchOne
+                        openDay <- fetch (Id fixture.visibleSparseSlot.rosterDayId) :: IO RosterDay
+                        wageLevel <- createPayLevelRecord fixture.venue "Operational Date Wage"
+                        wageStaff <- fixture.eligibleStaff
+                            |> set #payAssignmentMode AwardRate
+                            |> set #defaultAwardLevelId (Just wageLevel.id)
+                            |> updateRecord
+                        wageSlot <- createCompleteRosterSlotRecord openDay fixture.earlySlotName wageStaff 12
+                        let compatibilityCollisionDays = map (set #dayOffset 0) initialData.rosterDays
+                        let expectedDate = (.operationalDate) (fromJust (find ((== wageSlot.rosterDayId) . unpackId . (.id)) compatibilityCollisionDays))
+
+                        prediction <- fetchRosterWagePrediction venueConfig fixture.rosterWeek compatibilityCollisionDays [wageSlot]
+
+                        prediction.predictionCalculationFailures `shouldBe` []
+                        sum (map (.predictionDayShiftCount) prediction.predictionDays) `shouldBe` prediction.predictionCompleteShiftCount
+                        map (.predictionDayDate) (filter ((> 0) . (.predictionDayShiftCount)) prediction.predictionDays)
+                            `shouldBe` [expectedDate]
 
         it "uses the authoritative local start date for after-midnight preferences" $ withContext do
             withCleanDb do

@@ -88,10 +88,10 @@ fetchRosterBaseFactsForOffsetDirect rosterGroupId weekOffset =
                 |> filterWhere (#weekOffset, weekOffset)
                 |> fetchOneOrNothing
         window <- profileActionSpan "roster.direct.fetch_dated_window" (fetchRosterWindow currentVenueId rosterGroupId windowStartDate)
-        let rosterDays = zipWith
-                (\_dayOffset -> projectedRosterDay currentVenueId rosterGroupId (get #id <$> rosterWeekOrNothing) windowStartDate)
-                [0 :: Int ..]
-                window.rosterWindowProjectedDays
+        let rosterDays =
+                map
+                    (projectedRosterDay currentVenueId rosterGroupId (get #id <$> rosterWeekOrNothing) windowStartDate)
+                    window.rosterWindowProjectedDays
         let windowIsPublished = rosterWindowIsPublished window
         planningWeekOrNothing <- case rosterWeekOrNothing of
             Just rosterWeek -> pure (Just (rosterWeek |> set #isLive windowIsPublished))
@@ -234,14 +234,14 @@ buildRosterStaffOptionStatesDirect assignmentFilters weekStartDate visibleSlots 
     buildRosterStaffOptionStatesForSlotsDirect assignmentFilters weekStartDate visibleSlots visibleSlots
 
 buildRosterStaffOptionStatesForSlotsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterAssignmentFilters -> Calendar.Day -> [RosterSlot] -> [RosterSlot] -> [Staff] -> IO (Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState)
-buildRosterStaffOptionStatesForSlotsDirect assignmentFilters weekStartDate factSlots targetSlots staffMembers
+buildRosterStaffOptionStatesForSlotsDirect assignmentFilters _weekStartDate factSlots targetSlots staffMembers
     | null targetSlots || null staffMembers = pure Map.empty
     | otherwise =
         Map.fromList . map optionStateEntry <$> (sqlQuery
             "WITH params AS ( \
-            \    SELECT ?::date AS week_start, ?::uuid AS venue_id, ?::boolean AS hide_ideal, ?::boolean AS hide_unavailable, ?::boolean AS hide_leave, ?::boolean AS hide_today \
+            \    SELECT ?::uuid AS venue_id, ?::boolean AS hide_ideal, ?::boolean AS hide_unavailable, ?::boolean AS hide_leave, ?::boolean AS hide_today \
             \), fact_slots AS ( \
-            \    SELECT roster_slots.id, roster_slots.roster_day_id, roster_slots.assignment_state, roster_slots.staff_id, COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, params.week_start + roster_days.day_offset) AS roster_date, EXTRACT(DOW FROM COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, params.week_start + roster_days.day_offset))::int AS weekday_index \
+            \    SELECT roster_slots.id, roster_slots.roster_day_id, roster_slots.assignment_state, roster_slots.staff_id, COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, roster_days.operational_date) AS roster_date, EXTRACT(DOW FROM COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, roster_days.operational_date))::int AS weekday_index \
             \    FROM roster_slots \
             \    JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
             \    CROSS JOIN params \
@@ -274,8 +274,7 @@ buildRosterStaffOptionStatesForSlotsDirect assignmentFilters weekStartDate factS
             \LEFT JOIN shift_counts ON shift_counts.staff_id = staff_scope.id \
             \LEFT JOIN day_counts ON day_counts.roster_day_id = target_slots.roster_day_id AND day_counts.staff_id = staff_scope.id \
             \ORDER BY target_slots.id, staff_scope.id"
-            ( weekStartDate
-            , unpackId currentVenueId
+            ( unpackId currentVenueId
             , assignmentFilters.hideStaffAtIdealShifts
             , assignmentFilters.hideStaffUnavailable
             , assignmentFilters.hideStaffOnApprovedLeave
@@ -307,15 +306,15 @@ buildSlotConflictsDirect rosterGroupId lateToEarlyMinStartGapMinutes weekStartDa
     buildSlotConflictsForSlotsDirect rosterGroupId lateToEarlyMinStartGapMinutes weekStartDate visibleSlots visibleSlots
 
 buildSlotConflictsForSlotsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> Calendar.Day -> [RosterSlot] -> [RosterSlot] -> IO [(Id RosterSlot, [RosterConflict])]
-buildSlotConflictsForSlotsDirect _rosterGroupId lateToEarlyMinStartGapMinutes weekStartDate factSlots targetSlots
+buildSlotConflictsForSlotsDirect _rosterGroupId lateToEarlyMinStartGapMinutes _weekStartDate factSlots targetSlots
     | null assignedSlotIds || null targetSlotIds = pure []
     | otherwise = do
         rows <- (sqlQuery
             "WITH params AS ( \
-            \    SELECT ?::date AS week_start, ?::uuid AS venue_id, ?::int AS late_gap_seconds \
+            \    SELECT ?::uuid AS venue_id, ?::int AS late_gap_seconds \
             \), assigned_slots AS ( \
-            \    SELECT roster_slots.id, roster_slots.roster_day_id, roster_slots.staff_id, roster_slots.starts_at, roster_slots.timezone, COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, params.week_start + roster_days.day_offset) AS roster_date, \
-            \           EXTRACT(DOW FROM COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, params.week_start + roster_days.day_offset))::int AS weekday_index, \
+            \    SELECT roster_slots.id, roster_slots.roster_day_id, roster_slots.staff_id, roster_slots.starts_at, roster_slots.timezone, COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, roster_days.operational_date) AS roster_date, \
+            \           EXTRACT(DOW FROM COALESCE((roster_slots.starts_at AT TIME ZONE roster_slots.timezone)::date, roster_days.operational_date))::int AS weekday_index, \
             \           EXTRACT(EPOCH FROM roster_slots.starts_at) AS start_second_of_week \
             \    FROM roster_slots \
             \    JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
@@ -377,8 +376,7 @@ buildSlotConflictsForSlotsDirect _rosterGroupId lateToEarlyMinStartGapMinutes we
             \    WHERE week_counts.week_count > staff.ideal_shifts_per_week \
             \) \
             \SELECT id, conflict_type FROM facts WHERE id = ANY(?) ORDER BY id, priority"
-            ( weekStartDate
-            , unpackId currentVenueId
+            ( unpackId currentVenueId
             , lateToEarlyMinStartGapMinutes * 60
             , assignedSlotIds
             , targetSlotIds

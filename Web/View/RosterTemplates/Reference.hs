@@ -5,7 +5,7 @@ module Web.View.RosterTemplates.Reference where
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.RosterTemplateScale (rosterTemplateScaleIsWeek,
                                                rosterTemplateScaleValue)
-import Data.Time.Calendar (addDays)
+import Data.Time.Calendar (addDays, diffDays)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.RosterTemplates.FrontendSurface
 import Web.RosterWeeks.Paths (rosterTemplateReferenceUrl)
@@ -104,7 +104,7 @@ renderReferenceContent view@ReferenceView { referenceWeek = RosterTemplateRefere
                 <form method="GET" action={ConfirmRosterTemplateReferenceAction view.rosterGroup.id}
                       class="roster-template-reference-target h-100"
                       {...rosterTemplateReferenceTargetAttrs}>
-                    {referenceHiddenFields view (Just rosterDay.dayOffset)}
+                    {referenceHiddenFields view (Just (fromInteger (diffDays rosterDay.operationalDate referenceWeekStart)))}
                     <button type="submit" class="btn p-0 text-start w-100 h-100 roster-template-reference-button" aria-label={"Use " <> label <> " as template reference"}>
                         <span class="d-block p-3">
                             <strong>{label}</strong>

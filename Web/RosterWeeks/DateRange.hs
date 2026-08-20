@@ -15,6 +15,7 @@ module Web.RosterWeeks.DateRange
     , projectedRosterDay
     , projectedRosterDayId
     , rosterPlanningWeekForDay
+    , setLegacyRosterDayOffset
     , rosterWindowDates
     , rosterWindowIsPublished
     , rosterWindowLaneRepresentative
@@ -123,6 +124,14 @@ rosterWindowLaneRepresentative :: RosterWindowLane -> RosterLane
 rosterWindowLaneRepresentative lane =
     snd (fromMaybe (error "Roster window lane has no date-local lane") (Map.lookupMin lane.rosterWindowLaneByDate))
 
+-- | Populate the retained rollback-only offset from authoritative dates.
+-- Runtime reads must use 'operationalDate'; this field exists only until the
+-- production-gated legacy schema retirement.
+setLegacyRosterDayOffset :: Day -> RosterDay -> RosterDay
+setLegacyRosterDayOffset windowStart rosterDay =
+    rosterDay
+        |> set #dayOffset (fromInteger (diffDays rosterDay.operationalDate windowStart))
+
 projectedRosterDay :: Id Venue -> Id RosterGroup -> Maybe (Id RosterWeek) -> Day -> RosterWindowDay -> RosterDay
 projectedRosterDay venueId rosterGroupId maybeRosterWeekId windowStartDate windowDay =
     case windowDay.persistedRosterDay of
@@ -135,7 +144,7 @@ projectedRosterDay venueId rosterGroupId maybeRosterWeekId windowStartDate windo
                 |> set #rosterGroupId (unpackId rosterGroupId)
                 |> set #operationalDate windowDay.operationalDate
                 |> set #publicationState Draft
-                |> set #dayOffset (fromInteger (diffDays windowDay.operationalDate windowStartDate))
+                |> setLegacyRosterDayOffset windowStartDate
 
 rosterPlanningWeekForDay :: (?modelContext :: ModelContext) => RosterDay -> IO RosterWeek
 rosterPlanningWeekForDay rosterDay = do
@@ -251,12 +260,11 @@ materializeRosterWindow venueId rosterGroupId weekOffset = do
     window <- fetchRosterWindow venueId rosterGroupId startDate
     when (any (maybe False ((/= Draft) . (.publicationState)) . (.persistedRosterDay)) window.rosterWindowProjectedDays) $
         error "Published roster days cannot be materialized as a Draft planning window"
-    materializedDays <- forM (zip [0 :: Int ..] window.rosterWindowProjectedDays) \(dayOffset, windowDay) ->
+    materializedDays <- forM window.rosterWindowProjectedDays \windowDay ->
         case windowDay.persistedRosterDay of
             Just day -> pure day
             Nothing ->
                 projectedRosterDay venueId rosterGroupId Nothing startDate windowDay
-                    |> set #dayOffset dayOffset
                     |> createRecord
     configuredNames <- query @SlotName
         |> filterWhere (#venueId, unpackId venueId)

@@ -600,7 +600,8 @@ referenceRequestFromParams = do
 
 selectedReference :: RosterTemplateScaleEnum -> Maybe Int -> RosterTemplateReferenceWeek -> Maybe RosterTemplateReference
 selectedReference Day (Just dayOffset) referenceWeek = do
-    selectedDay <- find ((== dayOffset) . (.dayOffset)) referenceWeek.referenceRosterDays
+    let selectedDate = addDays (toInteger dayOffset) referenceWeek.referenceWeekStart
+    selectedDay <- find ((== selectedDate) . (.operationalDate)) referenceWeek.referenceRosterDays
     pure (RosterTemplateDayReference selectedDay.operationalDate)
 selectedReference Day Nothing _ = Nothing
 selectedReference Week (Just _) _ = Nothing

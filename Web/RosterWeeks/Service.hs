@@ -37,6 +37,7 @@ import qualified Data.Time.Calendar as Calendar
 import Data.Time.LocalTime (TimeOfDay (..))
 import Data.Traversable (traverse)
 import Web.Controller.Prelude
+import Web.RosterWeeks.DateRange (setLegacyRosterDayOffset)
 import Web.RosterWeeks.Dom (closedRosterDayRows, minimumOpenRosterRows)
 
 fetchCurrentRosterWeekOffset :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Int
@@ -386,7 +387,7 @@ materializeCopyTargetDays venueId rosterGroupId sourceStart targetStart sourceDa
                 |> set #rosterGroupId (unpackId rosterGroupId)
                 |> set #operationalDate targetDate
                 |> set #publicationState Draft
-                |> set #dayOffset (fromInteger dayIndex)
+                |> setLegacyRosterDayOffset targetStart
                 |> set #isClosed (maybe False (.isClosed) sourceDay)
                 |> set #rowCount (maybe 4 (.rowCount) sourceDay)
                 |> createRecord
