@@ -13,7 +13,6 @@ module Web.View.RosterWeeks.Grid.Cells
     , renderShiftTypeOptionLabel
     , rosterGridColumnSpanStyle
     , slotColumnCount
-    , rosterSlotDialogAction
     , rosterSlotDialogUrl
     , shiftTypeBadgeColourKey
     ) where
@@ -575,12 +574,6 @@ renderReadOnlyStaffCell :: Text -> Maybe RosterConflict -> Html
 renderReadOnlyStaffCell currentStaffLabel currentPrimaryConflict =
     mconcat
         [ [hsx|<div class="app-dense-static slot-cell-static">{currentStaffLabel}</div>|] ]
-
-rosterSlotDialogAction :: RosterSlotCellTarget -> RosterWeeksController
-rosterSlotDialogAction (ExistingRosterSlotTarget rosterSlotId _ _) =
-    EditRosterSlotDialogAction rosterSlotId
-rosterSlotDialogAction (NewRosterSlotTarget rosterDayId rosterLaneId _ _ _ rowIndex) =
-    NewRosterSlotDialogAction rosterDayId rosterLaneId rowIndex
 
 rosterSlotDialogUrl :: (?context :: ControllerContext) => RosterSlotCellTarget -> Text
 rosterSlotDialogUrl (ExistingRosterSlotTarget rosterSlotId anchorDate calendarRevision) =

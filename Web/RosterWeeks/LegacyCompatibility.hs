@@ -8,16 +8,13 @@
 -- offset themselves; #374 owns eventual removal of this module.
 module Web.RosterWeeks.LegacyCompatibility
     ( fetchLegacyRosterWeekForScope
-    , legacyPlanningRosterWeekForDay
     , legacyPlanningRosterWeekForScope
     ) where
 
 import Application.Helper.RosterOffsetCompatibility (applyLegacyRosterWeekOffset)
 import Data.Maybe (mapMaybe)
 import Web.Controller.Prelude
-import Web.RosterWeeks.DateRange (RosterWindowScope (..), fetchRosterWindow,
-                                  rosterWindowIsPublished,
-                                  rosterWindowScopeForAnchor)
+import Web.RosterWeeks.DateRange (RosterWindowScope (..))
 
 fetchLegacyRosterWeekForScope :: (?modelContext :: ModelContext) => RosterWindowScope -> IO (Maybe RosterWeek)
 fetchLegacyRosterWeekForScope scope = do
@@ -33,15 +30,6 @@ fetchLegacyRosterWeekForScope scope = do
             |> filterWhere (#id, Id rosterWeekId)
             |> fetchOneOrNothing
         Nothing -> pure Nothing
-
-legacyPlanningRosterWeekForDay :: (?modelContext :: ModelContext) => RosterDay -> IO RosterWeek
-legacyPlanningRosterWeekForDay rosterDay = do
-    venueConfig <- query @VenueConfig
-        |> filterWhere (#venueId, rosterDay.venueId)
-        |> fetchOne
-    let scope = rosterWindowScopeForAnchor venueConfig (Id rosterDay.rosterGroupId) rosterDay.operationalDate
-    window <- fetchRosterWindow scope.rosterWindowVenueId scope.rosterWindowRosterGroupId scope.rosterWindowStart
-    legacyPlanningRosterWeekForScope scope (rosterWindowIsPublished window)
 
 legacyPlanningRosterWeekForScope :: (?modelContext :: ModelContext) => RosterWindowScope -> Bool -> IO RosterWeek
 legacyPlanningRosterWeekForScope scope isPublished = do

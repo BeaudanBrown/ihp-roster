@@ -122,9 +122,6 @@ import Web.View.RosterWeeks.Show (renderNoRosterGroupShell,
 import Web.View.RosterWeeks.StaffPanel (renderrosterStaffPanelLiveFragment)
 import Web.View.RosterWeeks.Timeline (renderRosterDayTimelineContent)
 
-respondWithRosterContent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO ()
-respondWithRosterContent = RosterResponses.respondWithRosterContent
-
 respondWithRosterContentError :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Text -> IO ()
 respondWithRosterContentError = RosterResponses.respondWithRosterContentError
 

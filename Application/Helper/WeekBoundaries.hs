@@ -25,10 +25,6 @@ defaultRosterWeekStartsOn = 1
 validRosterWeekStartDays :: [WeekdayIndex]
 validRosterWeekStartDays = canonicalWeekdayOrder
 
-weekdayOrderOffset :: WeekdayIndex -> Int
-weekdayOrderOffset weekdayIndex =
-    fromMaybe 0 (List.elemIndex weekdayIndex canonicalWeekdayOrder)
-
 canonicalWeekdayOrder :: [WeekdayIndex]
 canonicalWeekdayOrder = [1, 2, 3, 4, 5, 6, 0]
 
