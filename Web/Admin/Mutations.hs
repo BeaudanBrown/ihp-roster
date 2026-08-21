@@ -47,7 +47,7 @@ import Application.Helper.SurfaceResource
 import Application.Helper.TimeRules (formatMinuteOfDayText)
 import Application.Helper.VenueInvitation
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
-import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob)
+import Application.InvitationDelivery.Enqueue (enqueueVenueInvitationEmail)
 import Application.PayAssignment (selectableShiftAssignmentMode)
 import Application.VenueInvitation.Mutations (withVenueInvitationEmailLock,
                                               withVenueInvitationRenewalLock)
@@ -185,7 +185,7 @@ createVenueInvitationMutation email = do
                     |> set #deliveryStatus (Queued)
                     |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
                     |> createRecord
-                void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) invitation)
+                void (enqueueVenueInvitationEmail (Just currentUser.id) invitation)
                 pure (Right invitation)
     case creation of
         Left message -> pure (Left message)
@@ -227,7 +227,7 @@ replaceVenueInvitation invitation correctedEmail = do
         |> set #deliveryStatus (Queued)
         |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
         |> createRecord
-    void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) replacement)
+    void (enqueueVenueInvitationEmail (Just currentUser.id) replacement)
     pure replacement
 
 revokeVenueInvitationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueInvitation -> IO (LiveMutationResult VenueInvitation)

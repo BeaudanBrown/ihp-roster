@@ -99,3 +99,23 @@ expired. SMTP exceptions leave those facts unchanged and use shared retries.
 Migration `1788001800.sql` retires only active legacy roster/RSA transport jobs with
 `retired_during_email_pipeline_migration`. Terminal history is retained, and neither
 legacy producer, handler, nor delivery callback remains.
+
+## Invitation mail kinds
+
+Venue and venue-onboarding invitations enqueue atomically with their invitation row.
+Because the recipient has no account yet, the envelope's recipient-identity field uses
+the invitation record ID while the domain reference points to that same retained row;
+the destination address is snapshotted normally. Payloads contain no generated URL or
+separate secret token. Acceptance URLs are generated only during delivery.
+
+Delivery serializes against acceptance, renewal, and revocation with the existing row
+locks. It revalidates the snapshotted address, invitation status, consumption,
+replacement/revocation, and expiry before rendering. Obsolete envelopes complete as
+`delivery_skipped`; valid sent and disabled envelopes atomically update the invitation's
+bounded delivery facts with the shared job outcome. Provider exceptions use shared
+retries, and final failure stores only a generic bounded invitation error.
+
+Migration `1788002400.sql` audibly retires only active
+`venue_invitation_delivery` and `venue_onboarding_invitation_delivery` jobs while
+retaining terminal history. Their direct send helpers, producers, and registry handlers
+no longer exist.

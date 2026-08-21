@@ -36,7 +36,7 @@ import Application.Helper.SurfaceResource
 import Application.Helper.TimeRules (operationalDayForUtcTime)
 import Application.Helper.VenueInvitation (venueInvitationLifetime)
 import Application.Helper.WeekBoundaries (venueWeekStartDate)
-import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob)
+import Application.InvitationDelivery.Enqueue (enqueueVenueInvitationEmail)
 import Application.Staff.Mutations (withStaffOperationalLock,
                                     withStaffRemovalLock)
 import Application.VenueInvitation.Mutations (withTrialStaffInvitationLock,
@@ -93,7 +93,7 @@ createTrialStaffInvitationMutation staff email
                         |> set #deliveryStatus (Queued)
                         |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
                         |> createRecord
-                    void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) invitation)
+                    void (enqueueVenueInvitationEmail (Just currentUser.id) invitation)
                     pure (Right invitation)
         case maybeCreation of
             Nothing -> pure (Left "That trial staff member is no longer available to invite.")
@@ -155,7 +155,7 @@ replaceTrialStaffInvitation staff invitation correctedEmail = do
         |> set #deliveryStatus (Queued)
         |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
         |> createRecord
-    void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) replacement)
+    void (enqueueVenueInvitationEmail (Just currentUser.id) replacement)
     pure replacement
 
 trialStaffInvitationTouchedResources :: (?context :: ControllerContext) => Staff -> [SurfaceResourceValue]

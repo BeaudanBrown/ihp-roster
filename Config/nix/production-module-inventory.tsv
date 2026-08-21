@@ -285,7 +285,9 @@ Application/Helper/Xero/Types.hs	production	runtime	Main	Reachable from Main
 Application/Helper/XeroAdminTypes.hs	production	runtime	Main	Reachable from Main
 Application/Helper/XeroPayItems.hs	production	runtime	Main	Reachable from Main
 Application/Helper/XeroTimesheetReadiness.hs	production	runtime	Main	Reachable from Main
-Application/InvitationDelivery/Job.hs	production	runtime	Main	Reachable from Main
+Application/InvitationDelivery/Email.hs	production	runtime	Main	Reachable from Main
+Application/InvitationDelivery/Enqueue.hs	production	runtime	Main	Reachable from Main
+Application/InvitationDelivery/Types.hs	production	runtime	Main	Reachable from Main
 Application/Job/App.hs	production	runtime	Main	Reachable from Main
 Application/Legal/Documents.hs	production	runtime	Main	Reachable from Main
 Application/PasswordReset/Mutations.hs	production	runtime	Main	Reachable from Main

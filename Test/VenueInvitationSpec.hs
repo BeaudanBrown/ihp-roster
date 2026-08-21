@@ -1,13 +1,18 @@
 module Test.VenueInvitationSpec where
 
-import Application.Async.Queue (EnqueueAppJobResult (..))
+import Application.Async.Queue (appJobMaxAttempts)
+import Application.EmailDelivery
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.LiveUpdate
 import Application.Helper.VenueInvitation (venueInvitationUrl)
-import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob,
-                                           performVenueInvitationDeliveryJob,
-                                           venueInvitationDeliveryJobKind)
+import Application.InvitationDelivery.Enqueue (enqueueVenueInvitationEmail)
+import Application.InvitationDelivery.Types (venueInvitationMailKind)
 import Config (config)
+import Control.Exception (SomeException, try)
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as AesonKey
+import qualified Data.Aeson.Types as AesonTypes
+import Data.Either (isLeft)
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
@@ -36,28 +41,31 @@ tests = aroundAll withDatabaseTestContext do
                 actor <- createUserRecord "invite-job-actor@example.com" "staff" True
                 invitation <- createVenueInvitationRecord venue (Just actor) "invite-job@example.com" Manager
 
-                enqueueResult <- enqueueVenueInvitationDeliveryJob (Just actor.id) invitation
+                enqueueResult <- enqueueVenueInvitationEmail (Just actor.id) invitation
 
                 appJob <- case enqueueResult of
-                    EnqueuedAppJob job       -> pure job
-                    ExistingActiveAppJob job -> pure job
+                    EnqueuedEmailDelivery job -> pure job
+                    ExistingEmailDelivery job -> pure job
 
-                appJob.jobKind `shouldBe` venueInvitationDeliveryJobKind
+                appJob.jobKind `shouldBe` emailDeliveryJobKind
                 appJob.requestedByUserId `shouldBe` Just (unpackId actor.id)
                 appJob.venueId `shouldBe` Just (unpackId venue.id)
                 appJob.relatedTable `shouldBe` Just "venue_invitations"
                 appJob.relatedId `shouldBe` Just (unpackId invitation.id)
+                jobJsonText appJob.payload "mailKind" `shouldBe` Just venueInvitationMailKind
+                jobJsonText appJob.payload "recipientAddress" `shouldBe` Just invitation.email
+                tshow appJob.payload `shouldSatisfy` not . Text.isInfixOf "NewUser"
 
         it "delivers pending venue invitations and durably publishes invite resync without a browser hub" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Invite Delivery Venue"
                 invitation <- createVenueInvitationRecord venue Nothing "deliver-invite@example.com" Manager
-                EnqueuedAppJob appJob <- enqueueVenueInvitationDeliveryJob Nothing invitation
+                EnqueuedEmailDelivery appJob <- enqueueVenueInvitationEmail Nothing invitation
                 versionBefore <- currentLiveUpdateVersion (AdminLive.adminInvitesLiveScope (unpackId venue.id))
 
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    performVenueInvitationDeliveryJob appJob
+                    performEmailDeliveryJobWith enabledEmailRuntime appJob
 
                 updatedInvitation <- fetch invitation.id
                 updatedJob <- fetch appJob.id
@@ -79,11 +87,11 @@ tests = aroundAll withDatabaseTestContext do
                     >>= updateRecord
                         . set #createdAt (addUTCTime (negate (15 * 24 * 60 * 60)) now)
                         . set #expiresAt Nothing
-                EnqueuedAppJob appJob <- enqueueVenueInvitationDeliveryJob Nothing invitation
+                EnqueuedEmailDelivery appJob <- enqueueVenueInvitationEmail Nothing invitation
 
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    performVenueInvitationDeliveryJob appJob
+                    performEmailDeliveryJobWith enabledEmailRuntime appJob
 
                 updatedInvitation <- fetch invitation.id
                 updatedInvitation.deliveredAt `shouldBe` Nothing
@@ -96,13 +104,13 @@ tests = aroundAll withDatabaseTestContext do
                     >>= updateRecord . set #expiresAt (Just (addUTCTime (-60) now))
                 revoked <- createVenueInvitationRecord venue Nothing "revoked-queued-invite@example.com" Worker
                     >>= updateRecord . set #status (Revoked)
-                EnqueuedAppJob expiredJob <- enqueueVenueInvitationDeliveryJob Nothing expired
-                EnqueuedAppJob revokedJob <- enqueueVenueInvitationDeliveryJob Nothing revoked
+                EnqueuedEmailDelivery expiredJob <- enqueueVenueInvitationEmail Nothing expired
+                EnqueuedEmailDelivery revokedJob <- enqueueVenueInvitationEmail Nothing revoked
 
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    performVenueInvitationDeliveryJob expiredJob
-                    performVenueInvitationDeliveryJob revokedJob
+                    performEmailDeliveryJobWith enabledEmailRuntime expiredJob
+                    performEmailDeliveryJobWith enabledEmailRuntime revokedJob
 
                 updatedExpired <- fetch expired.id
                 updatedRevoked <- fetch revoked.id
@@ -110,6 +118,79 @@ tests = aroundAll withDatabaseTestContext do
                 updatedRevoked.deliveredAt `shouldBe` Nothing
                 inputValue updatedExpired.deliveryStatus `shouldBe` "queued"
                 inputValue updatedRevoked.deliveryStatus `shouldBe` "queued"
+                expiredResult <- fetch expiredJob.id
+                revokedResult <- fetch revokedJob.id
+                jobJsonText expiredResult.result "deliveryStatus" `shouldBe` Just "delivery_skipped"
+                jobJsonText expiredResult.result "reason" `shouldBe` Just "expired"
+                jobJsonText revokedResult.result "reason" `shouldBe` Just "revoked_or_replaced"
+
+        it "completes disabled delivery once and permanently deduplicates the invitation event" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Invite Disabled Venue"
+                invitation <- createVenueInvitationRecord venue Nothing "disabled-invite@example.com" Manager
+                EnqueuedEmailDelivery appJob <- enqueueVenueInvitationEmail Nothing invitation
+
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    performEmailDeliveryJobWith
+                        EmailDeliveryRuntime
+                            { deliveryIsDisabled = pure True
+                            , deliverMail = \_ -> expectationFailure "disabled invitation delivery must not send"
+                            }
+                        appJob
+
+                deliveredInvitation <- fetch invitation.id
+                deliveredInvitation.deliveredAt `shouldSatisfy` isJust
+                completedJob <- fetch appJob.id
+                jobJsonText completedJob.result "deliveryStatus" `shouldBe` Just "delivery_disabled"
+                repeated <- enqueueVenueInvitationEmail Nothing invitation
+                case repeated of
+                    ExistingEmailDelivery existing -> existing.id `shouldBe` appJob.id
+                    EnqueuedEmailDelivery _ -> expectationFailure "invitation event must remain permanently deduplicated"
+
+        it "does not reclassify a completed skip after a publication-side exception" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Invite Completed Skip Venue"
+                invitation <- createVenueInvitationRecord venue Nothing "snapshot-before@example.com" Manager
+                EnqueuedEmailDelivery queuedJob <- enqueueVenueInvitationEmail Nothing invitation
+                finalAttemptJob <- queuedJob |> set #attemptsCount appJobMaxAttempts |> updateRecord
+                _ <- invitation |> set #email "snapshot-after@example.com" |> updateRecord
+
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    performEmailDeliveryJobWith enabledEmailRuntime finalAttemptJob
+                handleEmailDeliveryFailureAfterFinalAttempt finalAttemptJob
+
+                unchangedInvitation <- fetch invitation.id
+                inputValue unchangedInvitation.deliveryStatus `shouldBe` "queued"
+                completedJob <- fetch queuedJob.id
+                jobJsonText completedJob.result "deliveryStatus" `shouldBe` Just "delivery_skipped"
+                jobJsonText completedJob.result "reason" `shouldBe` Just "recipient_snapshot_mismatch"
+
+        it "records bounded invitation failure only after the shared final attempt" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Invite Failure Venue"
+                invitation <- createVenueInvitationRecord venue Nothing "failed-invite@example.com" Manager
+                EnqueuedEmailDelivery queuedJob <- enqueueVenueInvitationEmail Nothing invitation
+                finalAttemptJob <- queuedJob |> set #attemptsCount appJobMaxAttempts |> updateRecord
+
+                failure <- withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    try
+                        ( performEmailDeliveryJobWith
+                            EmailDeliveryRuntime
+                                { deliveryIsDisabled = pure False
+                                , deliverMail = \_ -> ioError (userError "SMTP detail containing secret@example.com")
+                                }
+                            finalAttemptJob
+                        ) :: IO (Either SomeException ())
+                failure `shouldSatisfy` isLeft
+                handleEmailDeliveryFailureAfterFinalAttempt finalAttemptJob
+
+                failedInvitation <- fetch invitation.id
+                inputValue failedInvitation.deliveryStatus `shouldBe` "failed"
+                failedInvitation.deliveryError `shouldBe` Just "Email delivery failed after ten attempts."
+                tshow failedInvitation.deliveryError `shouldSatisfy` not . Text.isInfixOf "secret@example.com"
 
         it "does not resend accepted venue invitations when a delivery job is retried" $ withContext do
             withCleanDb do
@@ -121,12 +202,26 @@ tests = aroundAll withDatabaseTestContext do
                         |> set #status (Accepted)
                         |> set #acceptedAt (Just now)
                         |> updateRecord
-                EnqueuedAppJob appJob <- enqueueVenueInvitationDeliveryJob Nothing acceptedInvitation
+                EnqueuedEmailDelivery appJob <- enqueueVenueInvitationEmail Nothing acceptedInvitation
 
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    performVenueInvitationDeliveryJob appJob
+                    performEmailDeliveryJobWith enabledEmailRuntime appJob
 
                 updatedInvitation <- fetch invitation.id
                 inputValue updatedInvitation.deliveryStatus `shouldBe` "queued"
                 updatedInvitation.deliveredAt `shouldBe` Nothing
+                completedJob <- fetch appJob.id
+                jobJsonText completedJob.result "deliveryStatus" `shouldBe` Just "delivery_skipped"
+                jobJsonText completedJob.result "reason" `shouldBe` Just "consumed"
+
+enabledEmailRuntime :: EmailDeliveryRuntime
+enabledEmailRuntime =
+    EmailDeliveryRuntime
+        { deliveryIsDisabled = pure False
+        , deliverMail = \_ -> pure ()
+        }
+
+jobJsonText :: Aeson.Value -> Text -> Maybe Text
+jobJsonText value key =
+    AesonTypes.parseMaybe (Aeson.withObject "job JSON" (Aeson..: AesonKey.fromText key)) value

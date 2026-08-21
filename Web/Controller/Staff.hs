@@ -337,7 +337,7 @@ instance Controller StaffController where
                 Left message -> renderTrialStaffInvitationError staff message (Just submittedTrialStaffInvitationEmail)
                 Right email ->
                     createTrialStaffInvitationMutation staff email >>= \case
-                        Right _ -> respondWithTrialStaffInvitationSuccess ("Invitation sent to " <> email)
+                        Right _ -> respondWithTrialStaffInvitationSuccess ("Invitation queued for " <> email <> " and should arrive shortly")
                         Left message -> renderTrialStaffInvitationError staff message (Just email)
 
     action currentAction@RenewTrialStaffInvitationAction { venueInvitationId } = runBepis currentAction BepisMutationAction do
@@ -354,7 +354,7 @@ instance Controller StaffController where
                     Left message -> renderTrialStaffInvitationError staff message (Just correctedEmail)
                     Right email ->
                         renewTrialStaffInvitationMutation staff invitation email >>= \case
-                            Right _ -> respondWithTrialStaffInvitationSuccess ("Invitation renewed for " <> email)
+                            Right _ -> respondWithTrialStaffInvitationSuccess ("Renewed invitation queued for " <> email <> " and should arrive shortly")
                             Left message -> renderTrialStaffInvitationError staff message (Just email)
 
 staffRequiresPayConfigurationRemediation :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Staff -> IO Bool

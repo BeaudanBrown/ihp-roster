@@ -16,7 +16,7 @@ import Application.Helper.SurfaceResource (SurfaceResourceValue,
                                            liveMutationResult)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationIsActive,
                                                      venueOnboardingInvitationLifetime)
-import Application.InvitationDelivery.Job (enqueueVenueOnboardingInvitationDeliveryJob)
+import Application.InvitationDelivery.Enqueue (enqueueVenueOnboardingInvitationEmail)
 import Application.PublicHolidays.Coverage (PublicHolidayCoverageYear,
                                             fetchPublicHolidayCoverage)
 import Application.PublicHolidays.Job (enqueuePublicHolidayRefreshJob,
@@ -137,14 +137,15 @@ instance Controller SupportController where
                             render IndexView { onboardingInvitation = onboardingInvitationWithDuplicateError, .. }
                         else do
                             invitation <- withTransaction do
-                                onboardingInvitation
+                                createdInvitation <- onboardingInvitation
                                     |> set #invitedByUserId (Just (unpackId currentUser.id))
                                     |> set #status (InvitationStatusEnumPending)
                                     |> set #deliveryStatus (Queued)
                                     |> set #expiresAt (Just (addUTCTime venueOnboardingInvitationLifetime now))
                                     |> createRecord
-                            void (enqueueVenueOnboardingInvitationDeliveryJob (Just currentUser.id) invitation)
-                            setSuccessMessage ("Venue owner invitation queued for " <> invitation.email)
+                                void (enqueueVenueOnboardingInvitationEmail (Just currentUser.id) createdInvitation)
+                                pure createdInvitation
+                            setSuccessMessage ("Venue owner invitation queued for " <> invitation.email <> " and should arrive shortly")
                             redirectTo SupportAction
 
     action currentAction@RenewSupportVenueOnboardingInvitationAction { onboardingInvitationId } = runBepis currentAction BepisMutationAction do
@@ -187,11 +188,11 @@ instance Controller SupportController where
                                         |> set #invitedByUserId (Just (unpackId currentUser.id))
                                         |> set #expiresAt (Just (addUTCTime venueOnboardingInvitationLifetime now))
                                         |> createRecord
-                                    void (enqueueVenueOnboardingInvitationDeliveryJob (Just currentUser.id) replacement)
+                                    void (enqueueVenueOnboardingInvitationEmail (Just currentUser.id) replacement)
                                     pure (OnboardingRenewed replacement)
                 case fromMaybe OnboardingRenewalUnavailable maybeRenewalResult of
                     OnboardingRenewed replacement ->
-                        setSuccessMessage ("Venue owner invitation renewed for " <> replacement.email)
+                        setSuccessMessage ("Renewed venue owner invitation queued for " <> replacement.email <> " and should arrive shortly")
                     OnboardingRenewalUnavailable ->
                         setErrorMessage "Only pending, unaccepted owner invitations can be renewed."
                     OnboardingRenewalEmailConflict ->

@@ -147,6 +147,20 @@ tests = aroundAll withDatabaseTestContext do
             migrationSql `shouldSatisfy` not . Text.isInfixOf "'job_status_timed_out'"
             migrationSql `shouldSatisfy` not . Text.isInfixOf "DELETE FROM app_jobs"
 
+        it "hard-retires only active legacy invitation transport jobs" $ withContext do
+            migrationSql <- TextIO.readFile "Application/Migration/1788002400.sql"
+
+            migrationSql `shouldSatisfy` Text.isInfixOf "'venue_invitation_delivery'"
+            migrationSql `shouldSatisfy` Text.isInfixOf "'venue_onboarding_invitation_delivery'"
+            migrationSql `shouldSatisfy` Text.isInfixOf "'retired_during_email_pipeline_migration'"
+            migrationSql `shouldSatisfy` Text.isInfixOf "'job_status_not_started'"
+            migrationSql `shouldSatisfy` Text.isInfixOf "'job_status_running'"
+            migrationSql `shouldSatisfy` Text.isInfixOf "'job_status_retry'"
+            migrationSql `shouldSatisfy` Text.isInfixOf "SET status = 'job_status_succeeded'"
+            migrationSql `shouldSatisfy` not . Text.isInfixOf "'job_status_failed'"
+            migrationSql `shouldSatisfy` not . Text.isInfixOf "'job_status_timed_out'"
+            migrationSql `shouldSatisfy` not . Text.isInfixOf "DELETE FROM app_jobs"
+
         it "permanently deduplicates feedback events after terminal completion" $ withContext do
             withCleanDb do
                 (feedbackItem, _, _, appJob) <- createQueuedFeedback "delivery-permanent@example.com"

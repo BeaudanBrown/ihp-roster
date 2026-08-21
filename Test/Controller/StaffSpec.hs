@@ -1,6 +1,7 @@
 module Test.Controller.StaffSpec where
 
 import Application.Async.Queue (EnqueueAppJobResult (..))
+import Application.EmailDelivery
 import qualified Application.Helper.FrontendContract.Surface.Admin.Live as AdminLive
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (leaveAvailabilityWarningsResource)
 import Application.Helper.FrontendContract.Surface.Profile.Resource
@@ -18,9 +19,7 @@ import Application.Helper.SurfaceResource
 import Application.Helper.TimeRules (operationalDayForUtcTime)
 import Application.Helper.WeekBoundaries (venueWeekOffsetForDay,
                                           venueWeekStartDate)
-import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob,
-                                           performVenueInvitationDeliveryJob,
-                                           venueInvitationDeliveryJobKind)
+import Application.InvitationDelivery.Enqueue (enqueueVenueInvitationEmail)
 import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, readMVar, takeMVar)
 import Control.Exception.Safe (SomeException, try)
@@ -626,7 +625,7 @@ tests = aroundAll withDatabaseTestContext do
                             [("invitationEmail", "trial-invite-claim@example.com")]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Invitation sent to trial-invite-claim@example.com"
+                response `responseBodyShouldContain` "Invitation queued for trial-invite-claim@example.com and should arrive shortly"
                 response `responseBodyShouldContain` "id=\"toast-overlay-mount\""
                 response `responseBodyShouldContain` "id=\"dialog-overlay-mount\" hx-swap-oob=\"innerHTML\""
                 response `responseBodyShouldNotContain` "Edit Staff Member"
@@ -644,7 +643,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> filterWhere (#relatedTable, Just ("venue_invitations" :: Text))
                     |> filterWhere (#relatedId, Just (unpackId invitation.id))
                     |> fetchOne
-                appJob.jobKind `shouldBe` venueInvitationDeliveryJobKind
+                appJob.jobKind `shouldBe` emailDeliveryJobKind
                 versionAfter <- LiveUpdate.currentLiveUpdateVersion (AdminLive.adminInvitesLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore
 
@@ -656,14 +655,14 @@ tests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue Nothing "Renew" "Invite"
                 original <- createVenueInvitationRecord venue (Just manager) "renew-trial-invite@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id)
-                EnqueuedAppJob originalJob <- enqueueVenueInvitationDeliveryJob (Just manager.id) original
+                EnqueuedEmailDelivery originalJob <- enqueueVenueInvitationEmail (Just manager.id) original
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callAction (RenewTrialStaffInvitationAction original.id)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Invitation renewed for renew-trial-invite@example.com"
+                response `responseBodyShouldContain` "Renewed invitation queued for renew-trial-invite@example.com and should arrive shortly"
                 response `responseBodyShouldContain` "id=\"dialog-overlay-mount\" hx-swap-oob=\"innerHTML\""
                 response `responseBodyShouldNotContain` "Invite trial staff"
                 revokedOriginal <- fetch original.id
@@ -683,8 +682,8 @@ tests = aroundAll withDatabaseTestContext do
                 replacementJob.dedupeKey `shouldNotBe` originalJob.dedupeKey
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    performVenueInvitationDeliveryJob originalJob
-                    performVenueInvitationDeliveryJob replacementJob
+                    performEmailDeliveryJobWith testEmailRuntime originalJob
+                    performEmailDeliveryJobWith testEmailRuntime replacementJob
                 staleOriginal <- fetch original.id
                 deliveredReplacement <- fetch replacement.id
                 staleOriginal.deliveredAt `shouldBe` Nothing
@@ -832,12 +831,12 @@ tests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue Nothing "Delivery" "Race"
                 original <- createVenueInvitationRecord venue (Just manager) "staff-delivery-renew-race@example.com" Worker
                     >>= updateRecord . set #staffId (Just staff.id)
-                EnqueuedAppJob originalJob <- enqueueVenueInvitationDeliveryJob (Just manager.id) original
+                EnqueuedEmailDelivery originalJob <- enqueueVenueInvitationEmail (Just manager.id) original
 
                 results <- withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
                     runConcurrentStaffActionList
-                        [ performVenueInvitationDeliveryJob originalJob
+                        [ performEmailDeliveryJobWith testEmailRuntime originalJob
                         , void $ withUserAndCurrentVenue manager venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
                                 callAction (RenewTrialStaffInvitationAction original.id)
@@ -869,7 +868,7 @@ tests = aroundAll withDatabaseTestContext do
                             [("invitationEmail", " corrected-trial-invite@example.com ")]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Invitation renewed for corrected-trial-invite@example.com"
+                response `responseBodyShouldContain` "Renewed invitation queued for corrected-trial-invite@example.com and should arrive shortly"
                 renewedOriginals <- query @VenueInvitation
                     |> filterWhereIn (#id, [firstOriginal.id, secondOriginal.id])
                     |> fetch
@@ -2108,6 +2107,13 @@ tests = aroundAll withDatabaseTestContext do
                 updatedStaff <- fetch staff.id
                 updatedStaff.employmentBasis `shouldBe` Casual
                 updatedStaff.defaultAwardLevelId `shouldBe` Nothing
+
+testEmailRuntime :: EmailDeliveryRuntime
+testEmailRuntime =
+    EmailDeliveryRuntime
+        { deliveryIsDisabled = pure False
+        , deliverMail = \_ -> pure ()
+        }
 
 runConcurrentStaffActionList :: [IO result] -> IO [Either SomeException result]
 runConcurrentStaffActionList actions = do

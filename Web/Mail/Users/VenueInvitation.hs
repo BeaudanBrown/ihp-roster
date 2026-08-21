@@ -6,21 +6,22 @@ import IHP.MailPrelude
 import Web.Mail.Shared
 
 data VenueInvitationMail = VenueInvitationMail
-    { invitation     :: VenueInvitation
-    , venue          :: Venue
-    , inviteUrl      :: Text
-    , fromAddress    :: Text
-    , replyToAddress :: Text
-    , supportEmail   :: Text
+    { invitation       :: VenueInvitation
+    , recipientAddress :: Text
+    , venue            :: Venue
+    , inviteUrl        :: Text
+    , fromAddress      :: Text
+    , replyToAddress   :: Text
+    , supportEmail     :: Text
     }
 
 instance BuildMail VenueInvitationMail where
     subject = "You're invited to join " <> ?mail.venue.name <> " on Bepis"
 
-    to VenueInvitationMail { invitation } =
+    to VenueInvitationMail { recipientAddress } =
         Address
             { addressName = Nothing
-            , addressEmail = invitation.email
+            , addressEmail = recipientAddress
             }
 
     from = bepisFrom ?mail.fromAddress

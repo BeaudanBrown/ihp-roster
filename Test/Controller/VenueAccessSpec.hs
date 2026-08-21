@@ -3,6 +3,7 @@
 module Test.Controller.VenueAccessSpec where
 
 import Application.Async.Queue (EnqueueAppJobResult (EnqueuedAppJob))
+import Application.EmailDelivery
 import Application.FwcMapd.Job (fwcMapdRefreshJobDedupeKey,
                                 fwcMapdRefreshJobKind)
 import Application.Helper.Controller (currentVenueSessionKey,
@@ -15,8 +16,7 @@ import qualified Application.Helper.FrontendContract.Surface.Roster.Live as Rost
 import qualified Application.Helper.FrontendContract.Surface.Support.Live as SupportLive
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as TimesheetsLive
 import Application.Helper.LiveUpdate
-import Application.InvitationDelivery.Job (enqueueVenueOnboardingInvitationDeliveryJob,
-                                           performVenueOnboardingInvitationDeliveryJob)
+import Application.InvitationDelivery.Enqueue (enqueueVenueOnboardingInvitationEmail)
 import Application.PublicHolidays.Job (publicHolidayRefreshJobKind)
 import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, readMVar, takeMVar)
@@ -500,7 +500,7 @@ tests = aroundAll withDatabaseTestContext do
                 original <-
                     createVenueOnboardingInvitationRecord (Just founder) "mistyped-owner@example.com"
                         >>= updateRecord . set #expiresAt (Just (addUTCTime (-60) now))
-                EnqueuedAppJob originalJob <- enqueueVenueOnboardingInvitationDeliveryJob (Just founder.id) original
+                EnqueuedEmailDelivery originalJob <- enqueueVenueOnboardingInvitationEmail (Just founder.id) original
 
                 response <- withPasskeyVerifiedUser founder do
                     callActionWithParams (RenewSupportVenueOnboardingInvitationAction original.id)
@@ -653,11 +653,11 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord homeVenue founder VenueOwner
                 ensureTestUserHasPasskey founder
                 invitation <- createVenueOnboardingInvitationRecord (Just founder) "delivery-renewal-race@example.com"
-                EnqueuedAppJob appJob <- enqueueVenueOnboardingInvitationDeliveryJob (Just founder.id) invitation
+                EnqueuedEmailDelivery appJob <- enqueueVenueOnboardingInvitationEmail (Just founder.id) invitation
 
                 let performDelivery = withFrameworkConfig config \frameworkConfig -> do
                         let ?context = frameworkConfig
-                        performVenueOnboardingInvitationDeliveryJob appJob
+                        performEmailDeliveryJobWith venueAccessEmailRuntime appJob
                 results <- runConcurrentVenueAccessActionList
                     [ performDelivery >> pure status200
                     , withPasskeyVerifiedUser founder do
@@ -1198,6 +1198,13 @@ runConcurrentVenueAccessActionList actions = do
     mapM_ takeMVar readyVars
     putMVar startVar ()
     mapM takeMVar resultVars
+
+venueAccessEmailRuntime :: EmailDeliveryRuntime
+venueAccessEmailRuntime =
+    EmailDeliveryRuntime
+        { deliveryIsDisabled = pure False
+        , deliverMail = \_ -> pure ()
+        }
 
 withAuthenticatedControllerContext ::
     forall result.

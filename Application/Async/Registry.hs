@@ -6,7 +6,6 @@ import Application.Billing.Notifications
 import Application.Billing.Reconciliation
 import Application.EmailDelivery
 import Application.FwcMapd.Job
-import Application.InvitationDelivery.Job
 import Application.PublicHolidays.Job
 import Application.WageSourceAlert.Job
 import Application.Xero.Keepalive
@@ -29,6 +28,7 @@ dispatchAppJob appJob =
         `Exception.onException` do
             when (isBillingOperationalJob appJob) (void (enqueueBillingSupportNotificationAfterFinalAttempt appJob))
             when (isWageSourceRefreshJob appJob) (void (handleWageSourceRefreshFailureAfterFinalAttempt appJob))
+            handleEmailDeliveryFailureAfterFinalAttempt appJob
 
 dispatchAppJobByKind ::
     (?modelContext :: ModelContext, ?context :: FrameworkConfig) =>
@@ -44,8 +44,6 @@ dispatchAppJobByKind appJob =
         kind | kind == xeroConnectionKeepaliveJobKind -> performXeroConnectionKeepaliveJob appJob
         kind | kind == xeroReferenceSyncJobKind -> performXeroReferenceSyncJob appJob
         kind | kind == billingReconciliationJobKind -> performBillingReconciliationJob appJob
-        kind | kind == venueInvitationDeliveryJobKind -> performVenueInvitationDeliveryJob appJob
-        kind | kind == venueOnboardingInvitationDeliveryJobKind -> performVenueOnboardingInvitationDeliveryJob appJob
         _ -> fail ("Unknown app job kind: " <> Text.unpack appJob.jobKind)
 
 isWageSourceRefreshJob :: AppJob -> Bool

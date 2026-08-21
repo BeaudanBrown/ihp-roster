@@ -5,20 +5,21 @@ import IHP.MailPrelude
 import Web.Mail.Shared
 
 data VenueOnboardingInvitationMail = VenueOnboardingInvitationMail
-    { invitation     :: VenueOnboardingInvitation
-    , inviteUrl      :: Text
-    , fromAddress    :: Text
-    , replyToAddress :: Text
-    , supportEmail   :: Text
+    { invitation       :: VenueOnboardingInvitation
+    , recipientAddress :: Text
+    , inviteUrl        :: Text
+    , fromAddress      :: Text
+    , replyToAddress   :: Text
+    , supportEmail     :: Text
     }
 
 instance BuildMail VenueOnboardingInvitationMail where
     subject = "Create your Bepis venue"
 
-    to VenueOnboardingInvitationMail { invitation } =
+    to VenueOnboardingInvitationMail { recipientAddress } =
         Address
             { addressName = Nothing
-            , addressEmail = invitation.email
+            , addressEmail = recipientAddress
             }
 
     from = bepisFrom ?mail.fromAddress

@@ -213,7 +213,7 @@ tests = describe "Mutation boundary guard" do
         sources <- mapM Text.readFile
             [ "Application/PublicHolidays/Job.hs"
             , "Application/FwcMapd/Job.hs"
-            , "Application/InvitationDelivery/Job.hs"
+            , "Application/InvitationDelivery/Email.hs"
             ]
         let forbiddenTokens = ["broadcastSurfaceFragmentsWithoutContext", "broadcastSurfaceResyncWithoutContext"]
         filter (\token -> any (Text.isInfixOf token) sources) forbiddenTokens `shouldBe` []

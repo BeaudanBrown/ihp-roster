@@ -7,18 +7,24 @@ module Application.EmailDelivery
     , emailDeliveryJobKind
     , enqueueEmailDelivery
     , enqueueEmailDeliveryWithStatus
+    , handleEmailDeliveryFailureAfterFinalAttempt
     , performEmailDeliveryJob
     , performEmailDeliveryJobWith
     ) where
 
+import Application.Async.Queue (appJobMaxAttempts)
 import Application.Billing.NotificationEmail
 import Application.EmailDelivery.Enqueue
 import Application.Feedback.Email (feedbackSubmittedMailKind,
                                    loadFeedbackNotificationMail)
 import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
 import Application.Helper.Mail
+import Application.InvitationDelivery.Email
+import Application.InvitationDelivery.Types
 import Application.RosterNotification.Email
 import Application.StaffDocuments.Rsa.Email
+import Application.VenueInvitation.Mutations (withVenueInvitationLock)
+import Application.VenueOnboardingInvitation.Mutations (withVenueOnboardingInvitationLock)
 import Application.WageSourceAlert.Email
 import Application.WageSourceNotification.Email
 import Control.Monad (void)
@@ -173,6 +179,10 @@ performPayload EmailDeliveryRuntime { deliveryIsDisabled, deliverMail } appJob p
                     RsaReminderMailReady mail -> do
                         deliverMail mail
                         completeRsaReminderEmail appJob payload "sent"
+            mailKind | mailKind == venueInvitationMailKind ->
+                performVenueInvitationPayload deliverMail "sent" appJob payload AppMailSettings { .. } appBaseUrl
+            mailKind | mailKind == venueOnboardingInvitationMailKind ->
+                performVenueOnboardingInvitationPayload deliverMail "sent" appJob payload AppMailSettings { .. } appBaseUrl
             unknownKind -> fail ("Unknown email delivery mail kind: " <> cs unknownKind)
 
 performDisabledPayload ::
@@ -210,7 +220,90 @@ performDisabledPayload appJob payload settings appBaseUrl
         case projection of
             RsaReminderMailSkipped _ -> completeEmailDelivery appJob payload "delivery_disabled" Nothing
             RsaReminderMailReady _ -> completeRsaReminderEmail appJob payload "delivery_disabled"
+    | payload.payloadMailKind == venueInvitationMailKind =
+        performVenueInvitationPayload (\_ -> pure ()) "delivery_disabled" appJob payload settings appBaseUrl
+    | payload.payloadMailKind == venueOnboardingInvitationMailKind =
+        performVenueOnboardingInvitationPayload (\_ -> pure ()) "delivery_disabled" appJob payload settings appBaseUrl
     | otherwise = completeEmailDelivery appJob payload "delivery_disabled" Nothing
+
+performVenueInvitationPayload ::
+    (?modelContext :: ModelContext) =>
+    (forall mail. BuildMail mail => mail -> IO ()) ->
+    Text ->
+    AppJob ->
+    EmailDeliveryPayload ->
+    AppMailSettings ->
+    Text ->
+    IO ()
+performVenueInvitationPayload deliverMail deliveryStatus appJob payload settings appBaseUrl = do
+    validateRelatedTable appJob "venue_invitations" payload.payloadDomainReferenceId
+    lockedResult <- withVenueInvitationLock payload.payloadDomainReferenceId do
+        projection <-
+            loadVenueInvitationMail
+                payload.payloadRecipientAccountId
+                payload.payloadRecipientAddress
+                payload.payloadDomainReferenceId
+                appJob.venueId
+                settings
+                appBaseUrl
+        case projection of
+            VenueInvitationMailSkipped reason ->
+                completeEmailDelivery appJob payload "delivery_skipped" (Just reason)
+            VenueInvitationMailReady mail -> do
+                deliverMail mail
+                void (completeVenueInvitationEmail payload.payloadDomainReferenceId)
+                completeEmailDelivery appJob payload deliveryStatus Nothing
+    when (isNothing lockedResult) $
+        completeEmailDelivery appJob payload "delivery_skipped" (Just "domain_reference_missing")
+    publishVenueInvitationDeliveryStatus payload.payloadDomainReferenceId
+
+performVenueOnboardingInvitationPayload ::
+    (?modelContext :: ModelContext) =>
+    (forall mail. BuildMail mail => mail -> IO ()) ->
+    Text ->
+    AppJob ->
+    EmailDeliveryPayload ->
+    AppMailSettings ->
+    Text ->
+    IO ()
+performVenueOnboardingInvitationPayload deliverMail deliveryStatus appJob payload settings appBaseUrl = do
+    validateRelatedTable appJob "venue_onboarding_invitations" payload.payloadDomainReferenceId
+    lockedResult <- withVenueOnboardingInvitationLock payload.payloadDomainReferenceId do
+        projection <-
+            loadVenueOnboardingInvitationMail
+                payload.payloadRecipientAccountId
+                payload.payloadRecipientAddress
+                payload.payloadDomainReferenceId
+                appJob.venueId
+                settings
+                appBaseUrl
+        case projection of
+            VenueOnboardingInvitationMailSkipped reason ->
+                completeEmailDelivery appJob payload "delivery_skipped" (Just reason)
+            VenueOnboardingInvitationMailReady mail -> do
+                deliverMail mail
+                void (completeVenueOnboardingInvitationEmail payload.payloadDomainReferenceId)
+                completeEmailDelivery appJob payload deliveryStatus Nothing
+    when (isNothing lockedResult) $
+        completeEmailDelivery appJob payload "delivery_skipped" (Just "domain_reference_missing")
+
+handleEmailDeliveryFailureAfterFinalAttempt ::
+    (?modelContext :: ModelContext) =>
+    AppJob ->
+    IO ()
+handleEmailDeliveryFailureAfterFinalAttempt appJob
+    | appJob.jobKind /= emailDeliveryJobKind = pure ()
+    | appJob.attemptsCount < appJobMaxAttempts = pure ()
+    | otherwise = do
+        persistedJob <- fetch appJob.id
+        unless (persistedJob.status == JobStatusSucceeded) $
+            case Aeson.fromJSON appJob.payload :: Aeson.Result EmailDeliveryPayload of
+                Aeson.Error _ -> pure ()
+                Aeson.Success payload ->
+                    when (isInvitationMailKind payload.payloadMailKind) do
+                        markInvitationDeliveryFailed payload.payloadMailKind payload.payloadDomainReferenceId
+                        when (payload.payloadMailKind == venueInvitationMailKind) $
+                            publishVenueInvitationDeliveryStatus payload.payloadDomainReferenceId
 
 completeRosterNotificationDelivery ::
     (?modelContext :: ModelContext) =>

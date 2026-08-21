@@ -39,6 +39,7 @@ tests = aroundAll withDatabaseTestContext do
                 let mail =
                         VenueInvitationMail
                             { invitation = invitation
+                            , recipientAddress = invitation.email
                             , venue = venue
                             , inviteUrl = "https://app.example/NewUser?invitationId=test"
                             , fromAddress = "noreply@example.com"
@@ -67,6 +68,7 @@ tests = aroundAll withDatabaseTestContext do
                 let mail =
                         VenueInvitationMail
                             { invitation = invitation
+                            , recipientAddress = invitation.email
                             , venue = venue
                             , inviteUrl = "https://app.example/NewUser?invitationId=trial"
                             , fromAddress = "noreply@example.com"
@@ -93,6 +95,7 @@ tests = aroundAll withDatabaseTestContext do
                 let mail =
                         VenueOnboardingInvitationMail
                             { invitation = invitation
+                            , recipientAddress = invitation.email
                             , inviteUrl = "https://app.example/NewVenueOnboardingUser?invitationId=test"
                             , fromAddress = "support@example.com"
                             , replyToAddress = "support@example.com"

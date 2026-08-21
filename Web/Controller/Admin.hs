@@ -498,7 +498,7 @@ instance Controller AdminController where
                 case maybeEmail of
                     Just email ->
                         createVenueInvitationMutation email >>= \case
-                            Right _ -> respondToInvitesSectionMutation ("Invitation queued for " <> email) currentRosterGroup.id
+                            Right _ -> respondToInvitesSectionMutation ("Invitation queued for " <> email <> " and should arrive shortly") currentRosterGroup.id
                             Left message -> respondToInvitesSectionError message currentRosterGroup.id
                     Nothing -> respondToInvitesSectionMutation "" currentRosterGroup.id
 
@@ -529,7 +529,7 @@ instance Controller AdminController where
                                     renewTrialStaffInvitationMutation staff invitation correctedEmail
                             case result of
                                 Left message -> respondToInvitesSectionError message currentRosterGroup.id
-                                Right _ -> respondToInvitesSectionMutation ("Invitation renewed for " <> correctedEmail) currentRosterGroup.id
+                                Right _ -> respondToInvitesSectionMutation ("Renewed invitation queued for " <> correctedEmail <> " and should arrive shortly") currentRosterGroup.id
 
     action currentAction@RevokeVenueInvitationAction { venueInvitationId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
