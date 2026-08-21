@@ -35,15 +35,15 @@ rosterActionRoute actionUrl =
         , actionRouteExtraAttrs = []
         }
 
-renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> Int -> RosterGroup -> Day -> RosterViewCapabilities -> Maybe RosterWagePrediction -> Bool -> RosterGridViewMode -> Maybe Text -> Html
-renderRosterGridHeader maybeRosterWeek weekOffset rosterCalendarRevision currentRosterGroup weekStartDate viewCapabilities rosterWagePrediction canToggleSidePanel gridViewMode timelineTodayUrl =
+renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> RosterGroup -> Day -> RosterViewCapabilities -> Maybe RosterWagePrediction -> Bool -> RosterGridViewMode -> Maybe Text -> Html
+renderRosterGridHeader maybeRosterWeek rosterCalendarRevision currentRosterGroup weekStartDate viewCapabilities rosterWagePrediction canToggleSidePanel gridViewMode timelineTodayUrl =
     let toolbarHtml = renderWeekToolbar WeekToolbarConfig
             { weekToolbarVariant = WeekToolbarRoster
             , weekToolbarAriaLabel = "Roster week controls"
             , weekToolbarExtraClass = "roster-grid-header app-side-panel-header"
             , weekToolbarPrimary = renderLiveToggle maybeRosterWeek weekStartDate rosterCalendarRevision currentRosterGroup viewCapabilities
             , weekToolbarReset = renderThisWeekButton gridViewMode currentRosterGroup timelineTodayUrl
-            , weekToolbarNavigation = renderRosterWeekControls weekOffset currentRosterGroup weekStartDate gridViewMode
+            , weekToolbarNavigation = renderRosterWeekControls currentRosterGroup weekStartDate gridViewMode
             , weekToolbarSettings = when canToggleSidePanel renderRosterSidePanelToggle
             , weekToolbarAuxiliary = renderRosterWeekWageSummary rosterWagePrediction
             }
@@ -88,8 +88,8 @@ renderRosterWageSourceWarnings prediction
         </span>
     |]
 
-renderRosterWeekControls :: (?context :: ControllerContext) => Int -> RosterGroup -> Day -> RosterGridViewMode -> Html
-renderRosterWeekControls weekOffset currentRosterGroup weekStartDate RosterWeekGridView =
+renderRosterWeekControls :: (?context :: ControllerContext) => RosterGroup -> Day -> RosterGridViewMode -> Html
+renderRosterWeekControls currentRosterGroup weekStartDate RosterWeekGridView =
     renderWeekNavigationGroup WeekNavigationConfig
         { weekNavigationAriaLabel = "Roster week navigation"
         , weekNavigationExtraClass = "roster-week-nav-group"
@@ -101,7 +101,7 @@ renderRosterWeekControls weekOffset currentRosterGroup weekStartDate RosterWeekG
     where
         previousDate = Calendar.addDays (-7) weekStartDate
         nextDate = Calendar.addDays 7 weekStartDate
-renderRosterWeekControls weekOffset currentRosterGroup weekStartDate (RosterDayTimelineGridView dayOffset) =
+renderRosterWeekControls currentRosterGroup weekStartDate (RosterDayTimelineGridView dayOffset) =
     renderWeekNavigationGroup WeekNavigationConfig
         { weekNavigationAriaLabel = "Roster timeline day navigation"
         , weekNavigationExtraClass = "roster-week-nav-group roster-timeline-day-nav"

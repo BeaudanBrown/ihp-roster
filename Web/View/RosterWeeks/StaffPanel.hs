@@ -69,7 +69,7 @@ renderrosterStaffPanelLiveFragmentWithSwap maybeSwapOob panelModel =
         else mempty
 
 renderRosterStaffPanel :: (?context :: ControllerContext) => RosterStaffPanelRenderModel -> Html
-renderRosterStaffPanel panelModel@RosterStaffPanelRenderModel { staffPanelWeekOffset, staffPanelCurrentRosterGroup, staffPanelRosterGroups, staffPanelScope, staffPanelEntries } = profileHtmlComponent "render.roster.staff_panel_component" [hsx|
+renderRosterStaffPanel panelModel@RosterStaffPanelRenderModel { staffPanelCurrentRosterGroup, staffPanelRosterGroups, staffPanelScope, staffPanelEntries } = profileHtmlComponent "render.roster.staff_panel_component" [hsx|
     {profileRenderCounter "render.roster.staff_panel" 1}
     {profileRenderCounter "render.roster.staff_panel_entry" (length staffPanelEntries)}
     {renderRosterStaffPanelShell
@@ -86,7 +86,7 @@ renderRosterStaffPanel panelModel@RosterStaffPanelRenderModel { staffPanelWeekOf
         templatePanelContent = do
             templateUserId <- panelModel.staffPanelTemplateUserId
             templateLibrary <- panelModel.staffPanelTemplateLibrary
-            pure (renderRosterTemplateLibraryFragment templateUserId staffPanelWeekOffset panelModel.staffPanelWeekStartDate panelModel.staffPanelCalendarRevision staffPanelCurrentRosterGroup panelModel.staffPanelRosterWeek templateLibrary)
+            pure (renderRosterTemplateLibraryFragment templateUserId panelModel.staffPanelWeekStartDate panelModel.staffPanelCalendarRevision staffPanelCurrentRosterGroup panelModel.staffPanelRosterWeek templateLibrary)
         settingsPanelContent = renderRosterSettingsPanel panelModel
 
 

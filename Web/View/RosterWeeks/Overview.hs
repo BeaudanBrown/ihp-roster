@@ -29,8 +29,8 @@ import Web.View.Prelude
 
 
 
-renderWeekOverviewPanelFragment :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Day -> Day -> [RosterWeekOverviewDay] -> RosterViewCapabilities -> Html
-renderWeekOverviewPanelFragment _weekOffset rosterGroupId currentWeekStartDate todayDate weekOverviewDays viewCapabilities =
+renderWeekOverviewPanelFragment :: (?context :: ControllerContext) => Id RosterGroup -> Day -> Day -> [RosterWeekOverviewDay] -> RosterViewCapabilities -> Html
+renderWeekOverviewPanelFragment rosterGroupId currentWeekStartDate todayDate weekOverviewDays viewCapabilities =
     let
         initialDate = initialOverviewDate currentWeekStartDate todayDate weekOverviewDays
         monthDays = buildOverviewMonthDays currentWeekStartDate initialDate

@@ -173,7 +173,7 @@ tests = aroundAll withDatabaseTestContext do
                 targets <- withUserAndCurrentVenue manager venue.id do
                     withCurrentControllerContext do
                         let scope = RosterLive.rosterWeekLiveScope (unpackId venue.id) rosterWeek.rosterGroupId (testAnchorForOffset rosterWeek.weekOffset) (addDays 7 (testAnchorForOffset rosterWeek.weekOffset)) 1
-                        let scopeValue = RosterWeekScopeValue { rosterWeekVenueId = unpackId venue.id, rosterWeekGroupId = Id rosterWeek.rosterGroupId, rosterWeekWeekOffset = rosterWeek.weekOffset, rosterWeekWindowStart = testAnchorForOffset (rosterWeek.weekOffset), rosterWeekWindowEnd = addDays 7 (testAnchorForOffset (rosterWeek.weekOffset)), rosterWeekCalendarRevision = 1, rosterWeekTimelineDayOffset = Nothing }
+                        let scopeValue = RosterWeekScopeValue { rosterWeekVenueId = unpackId venue.id, rosterWeekGroupId = Id rosterWeek.rosterGroupId, rosterWeekWindowStart = testAnchorForOffset (rosterWeek.weekOffset), rosterWeekWindowEnd = addDays 7 (testAnchorForOffset (rosterWeek.weekOffset)), rosterWeekCalendarRevision = 1, rosterWeekTimelineDate = Nothing }
                         let mountedPlan = RosterMountedFragmentPlan { rosterMountedDayIds = [], rosterMountedRows = [], rosterMountedTemplateUserId = Nothing }
                         let subscription =
                                 SurfaceSubscription
@@ -200,7 +200,7 @@ tests = aroundAll withDatabaseTestContext do
                 let venueId = fromMaybe (error "invalid roster venue UUID") (UUID.fromString "00000000-0000-0000-0000-000000000111")
                 let rosterGroupId = Id "00000000-0000-0000-0000-000000000222" :: Id RosterGroup
                 let rosterDayId = Id "00000000-0000-0000-0000-000000000333" :: Id RosterDay
-                let scope = RosterWeekScopeValue { rosterWeekVenueId = venueId, rosterWeekGroupId = rosterGroupId, rosterWeekWeekOffset = 3, rosterWeekWindowStart = testAnchorForOffset (3), rosterWeekWindowEnd = addDays 7 (testAnchorForOffset (3)), rosterWeekCalendarRevision = 1, rosterWeekTimelineDayOffset = Nothing }
+                let scope = RosterWeekScopeValue { rosterWeekVenueId = venueId, rosterWeekGroupId = rosterGroupId, rosterWeekWindowStart = testAnchorForOffset 3, rosterWeekWindowEnd = addDays 7 (testAnchorForOffset 3), rosterWeekCalendarRevision = 1, rosterWeekTimelineDate = Nothing }
                 let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0), (rosterDayId, 1)], rosterMountedTemplateUserId = Nothing }
                 let impl = rosterSurfaceImpl scope plan
                 let mountConfig = impl.surfaceImplMountConfig

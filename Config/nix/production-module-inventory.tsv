@@ -456,6 +456,7 @@ Web/RosterWeeks/Dom.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/DropWorkflow.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/Filters.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/FrontendSurface.hs	production	runtime	Main	Reachable from Main
+Web/RosterWeeks/LegacyCompatibility.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/Overview.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/Paths.hs	production	runtime	Main	Reachable from Main

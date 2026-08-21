@@ -3,6 +3,7 @@ module Web.RosterWeeks.DateRange
     , RosterWindow (..)
     , RosterWindowDay (..)
     , RosterWindowLane (..)
+    , RosterWindowScope (..)
     , appendRosterWindowLane
     , laneForOperationalDate
     , materializeRosterWindow
@@ -19,10 +20,12 @@ module Web.RosterWeeks.DateRange
     , rosterWindowDates
     , rosterWindowIsPublished
     , rosterWindowLaneRepresentative
+    , rosterWindowScopeForAnchor
+    , rosterWindowScopeMatchesConfig
     , fetchRosterWindow
     ) where
 
-import Application.Helper.WeekBoundaries (venueWeekOffsetForDay,
+import Application.Helper.WeekBoundaries (startOfWeekFor, venueWeekOffsetForDay,
                                           venueWeekStartDate)
 import Application.RosterPublication (rosterDaysArePublished)
 import Control.Monad (void)
@@ -52,6 +55,36 @@ data RosterWindow = RosterWindow
     , rosterWindowLanes         :: ![RosterWindowLane]
     }
     deriving (Eq, Show)
+
+-- | Authoritative request-local identity for one transient seven-day roster
+-- projection. Legacy offsets are deliberately absent from this interface.
+data RosterWindowScope = RosterWindowScope
+    { rosterWindowVenueId          :: !(Id Venue)
+    , rosterWindowRosterGroupId    :: !(Id RosterGroup)
+    , rosterWindowStart            :: !Day
+    , rosterWindowEnd              :: !Day
+    , rosterWindowCalendarRevision :: !Int
+    }
+    deriving (Eq, Show)
+
+rosterWindowScopeForAnchor :: VenueConfig -> Id RosterGroup -> Day -> RosterWindowScope
+rosterWindowScopeForAnchor venueConfig rosterGroupId anchorDate =
+    RosterWindowScope
+        { rosterWindowVenueId = Id venueConfig.venueId
+        , rosterWindowRosterGroupId = rosterGroupId
+        , rosterWindowStart = windowStart
+        , rosterWindowEnd = addDays 7 windowStart
+        , rosterWindowCalendarRevision = venueConfig.rosterCalendarRevision
+        }
+  where
+    windowStart = startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate
+
+rosterWindowScopeMatchesConfig :: VenueConfig -> RosterWindowScope -> Bool
+rosterWindowScopeMatchesConfig venueConfig scope =
+    scope.rosterWindowVenueId == Id venueConfig.venueId
+        && scope.rosterWindowStart == startOfWeekFor venueConfig.rosterWeekStartsOn scope.rosterWindowStart
+        && scope.rosterWindowEnd == addDays 7 scope.rosterWindowStart
+        && scope.rosterWindowCalendarRevision == venueConfig.rosterCalendarRevision
 
 data RosterWindowDay = RosterWindowDay
     { operationalDate    :: !Day

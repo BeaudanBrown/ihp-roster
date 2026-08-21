@@ -31,7 +31,8 @@ import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterNotifi
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
-import Application.Helper.SurfaceResource (LiveMutationResult (..))
+import Application.Helper.SurfaceResource (LiveMutationResult (..),
+                                           SurfaceResourceValue)
 import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyValid,
                                      defaultShiftTimesForVenueConfig,
                                      isQuarterHourMinutes,
@@ -44,7 +45,7 @@ import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyV
                                      venueTimePickerStartTimeText)
 import Application.Helper.UserPreferences
 import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
-                                OverlayButtonAction (..),
+                                OverlayButtonAction (..), ToastOverlayConfig,
                                 ToastOverlayPosition (ToastBottomCenter),
                                 dialogOverlayMountId, errorToast,
                                 renderDialogOverlay, renderToastOob,
@@ -82,11 +83,12 @@ import Web.Controller.Sessions (passkeySetupPromptSessionKey)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.DateRange (RosterDayRowRemovalPreview (..),
                                   RosterWindow (..), RosterWindowLane (..),
-                                  fetchRosterWindow,
+                                  RosterWindowScope (..), fetchRosterWindow,
                                   previewRemoveRosterDayRowByLanes,
                                   projectedRosterDayId,
                                   resolveRosterLaneReference,
-                                  rosterPlanningWeekForDay)
+                                  rosterPlanningWeekForDay,
+                                  rosterWindowScopeForAnchor)
 import Web.RosterWeeks.DirectReadModel (fetchRosterNotificationWindowDays)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.DropWorkflow
@@ -94,21 +96,15 @@ import Web.RosterWeeks.Filters
 import Web.RosterWeeks.FrontendSurface (rosterDuplicateShiftIntentForm,
                                         rosterMoveShiftIntentForm,
                                         rosterTimelineMoveShiftIntentForm)
+import Web.RosterWeeks.LegacyCompatibility (legacyRosterWindowScopeForOffset)
 import Web.RosterWeeks.Mutations
 import Web.RosterWeeks.Overview
 import Web.RosterWeeks.Paths (rosterCopyWeekUrl, rosterTimelineWindowUrl,
                               rosterWindowUrl)
 import Web.RosterWeeks.Projection
 import Web.RosterWeeks.RenderData
-import Web.RosterWeeks.Responses (respondWithRosterContent,
-                                  respondWithRosterContentError,
-                                  respondWithRosterContentUpdate,
-                                  respondWithRosterDialogOverlay,
-                                  respondWithRosterFragments,
-                                  respondWithRosterFragmentsUpdate,
-                                  respondWithRosterOwnHighlightPreferenceUpdate,
-                                  respondWithRosterResourceInvalidation,
-                                  respondWithRosterToast)
+import qualified Web.RosterWeeks.Responses as RosterResponses
+import Web.RosterWeeks.Responses (respondWithRosterToast)
 import Web.RosterWeeks.Rows
 import Web.RosterWeeks.Service
 import Web.RosterWeeks.ShiftWorkflow
@@ -125,6 +121,47 @@ import Web.View.RosterWeeks.Show (renderNoRosterGroupShell,
                                   renderRosterWeekShell)
 import Web.View.RosterWeeks.StaffPanel (renderrosterStaffPanelLiveFragment)
 import Web.View.RosterWeeks.Timeline (renderRosterDayTimelineContent)
+
+-- Temporary controller adapters for mutation paths owned by #410. The
+-- read/render/response seam itself is explicit-date only.
+legacyRosterResponseScope :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO RosterWindowScope
+legacyRosterResponseScope rosterGroupId legacyWeekOffset = do
+    venueConfig <- fetchVenueConfig
+    case listToMaybe (catMaybes [paramOrNothing @Calendar.Day "targetAnchorDate", paramOrNothing @Calendar.Day "anchorDate", paramOrNothing @Calendar.Day "windowStartDate"]) of
+        Just anchorDate -> pure (rosterWindowScopeForAnchor venueConfig rosterGroupId anchorDate)
+        Nothing -> legacyRosterWindowScopeForOffset rosterGroupId legacyWeekOffset
+
+respondWithRosterContent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()
+respondWithRosterContent rosterGroupId weekOffset =
+    legacyRosterResponseScope rosterGroupId weekOffset >>= RosterResponses.respondWithRosterContent
+
+respondWithRosterContentError :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
+respondWithRosterContentError rosterGroupId weekOffset message =
+    legacyRosterResponseScope rosterGroupId weekOffset >>= (\scope -> RosterResponses.respondWithRosterContentError scope message)
+
+respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Set.Set SurfaceResourceValue -> Text -> IO ()
+respondWithRosterContentUpdate rosterGroupId weekOffset resources message =
+    legacyRosterResponseScope rosterGroupId weekOffset >>= (\scope -> RosterResponses.respondWithRosterContentUpdate scope resources message)
+
+respondWithRosterDialogOverlay :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Blaze.Html -> IO ()
+respondWithRosterDialogOverlay rosterGroupId weekOffset dialog =
+    legacyRosterResponseScope rosterGroupId weekOffset >>= (\scope -> RosterResponses.respondWithRosterDialogOverlay scope dialog)
+
+respondWithRosterFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
+respondWithRosterFragments rosterGroupId weekOffset fragments extraHtml =
+    legacyRosterResponseScope rosterGroupId weekOffset >>= (\scope -> RosterResponses.respondWithRosterFragments scope fragments extraHtml)
+
+respondWithRosterFragmentsUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> ToastOverlayConfig -> IO ()
+respondWithRosterFragmentsUpdate rosterGroupId weekOffset fragments toast =
+    legacyRosterResponseScope rosterGroupId weekOffset >>= (\scope -> RosterResponses.respondWithRosterFragmentsUpdate scope fragments toast)
+
+respondWithRosterOwnHighlightPreferenceUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> ToastOverlayConfig -> IO ()
+respondWithRosterOwnHighlightPreferenceUpdate rosterGroupId weekOffset toast =
+    legacyRosterResponseScope rosterGroupId weekOffset >>= (\scope -> RosterResponses.respondWithRosterOwnHighlightPreferenceUpdate scope toast)
+
+respondWithRosterResourceInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Set.Set SurfaceResourceValue -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
+respondWithRosterResourceInvalidation rosterGroupId weekOffset resources fragments extraHtml =
+    legacyRosterResponseScope rosterGroupId weekOffset >>= (\scope -> RosterResponses.respondWithRosterResourceInvalidation scope resources fragments extraHtml)
 
 rosterSurfaceRequestErrorMessage :: [SurfaceRequestFieldError] -> Text
 rosterSurfaceRequestErrorMessage errors =
@@ -229,7 +266,6 @@ instance Controller RosterWeeksController where
     action currentAction@RosterWeeksAction = runBepis currentAction BepisPageAction do
         venueConfig <- fetchVenueConfig
         today <- utctDay <$> getCurrentTime
-        let currentWeekOffset = venueWeekOffsetForDay venueConfig today
         resolveRosterPageGroup >>= \case
             Nothing -> renderNoRosterGroupPage
             Just (currentRosterGroup, requestedGroupWasViewable) -> do
@@ -244,23 +280,21 @@ instance Controller RosterWeeksController where
                             respondHtmlProfiled mempty
                         _ -> do
                             setHtmxPushUrl currentWeekPath
-                            renderRosterWeekPage currentWeekOffset currentRosterGroup.id
+                            renderRosterWeekPage (rosterWindowScopeForAnchor venueConfig currentRosterGroup.id today)
 
     action currentAction@ShowRosterWindowAction { anchorDate = anchorDateParam } = runBepis currentAction BepisPageAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
         venueConfig <- fetchVenueConfig
-        let windowStart = startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate
-        let weekOffset = venueWeekOffsetForDay venueConfig windowStart
         resolveRosterPageGroup >>= \case
             Nothing -> renderNoRosterGroupPage
-            Just (rosterGroup, True) -> renderRosterWeekPage weekOffset rosterGroup.id
+            Just (rosterGroup, True) -> renderRosterWeekPage (rosterWindowScopeForAnchor venueConfig rosterGroup.id anchorDate)
             Just (rosterGroup, False) -> redirectToPath (rosterWindowUrl anchorDate rosterGroup.id)
 
     action currentAction@ShowRosterDayTimelineContentFragmentAction { anchorDate = anchorDateParam, rosterDayId } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
-        weekOffset <- rosterWeekOffsetForAnchor anchorDate
         rosterGroup <- resolveRequestedRosterGroup
-        maybeRosterData <- fetchVisibleRosterReadModel rosterGroup.id weekOffset
+        scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
+        maybeRosterData <- fetchVisibleRosterReadModel scope
         case maybeRosterData of
             Nothing -> respondHtmlProfiled mempty
             Just rosterData -> do
@@ -271,66 +305,66 @@ instance Controller RosterWeeksController where
 
     action currentAction@ShowRosterWeekOverviewFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
-        weekOffset <- rosterWeekOffsetForAnchor anchorDate
         rosterGroup <- resolveRequestedRosterGroup
-        respondHtmlProfiled =<< renderRosterWeekOverviewFragment weekOffset rosterGroup.id
+        scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
+        respondHtmlProfiled =<< renderRosterWeekOverviewFragment scope.rosterWindowStart rosterGroup.id
 
     action currentAction@ShowRosterWeekContentFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
-        weekOffset <- rosterWeekOffsetForAnchor anchorDate
         rosterGroup <- resolveRequestedRosterGroup
-        respondWithRosterContent rosterGroup.id weekOffset
+        scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
+        RosterResponses.respondWithRosterContent scope
 
     action currentAction@ShowRosterWeekGridToolbarFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
-        weekOffset <- rosterWeekOffsetForAnchor anchorDate
         rosterGroup <- resolveRequestedRosterGroup
-        toolbarHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionGridToolbar
+        scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
+        toolbarHtml <- renderVisibleRosterReadModelFragment scope RosterProjectionGridToolbar
         respondHtmlProfiled (fromMaybe mempty toolbarHtml)
 
     action currentAction@ShowRosterWeekGridFrameFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
-        weekOffset <- rosterWeekOffsetForAnchor anchorDate
         rosterGroup <- resolveRequestedRosterGroup
-        frameHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionGridFrame
+        scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
+        frameHtml <- renderVisibleRosterReadModelFragment scope RosterProjectionGridFrame
         respondHtmlProfiled (fromMaybe mempty frameHtml)
 
     action currentAction@ShowRosterWeekDayColumnsFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
-        weekOffset <- rosterWeekOffsetForAnchor anchorDate
         rosterGroup <- resolveRequestedRosterGroup
-        fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionDayColumns
+        scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
+        fragmentHtml <- renderVisibleRosterReadModelFragment scope RosterProjectionDayColumns
         respondHtmlProfiled (fromMaybe mempty fragmentHtml)
 
     action currentAction@ShowRosterWeekDayRailFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
-        weekOffset <- rosterWeekOffsetForAnchor anchorDate
         rosterGroup <- resolveRequestedRosterGroup
-        fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionDayRail
+        scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
+        fragmentHtml <- renderVisibleRosterReadModelFragment scope RosterProjectionDayRail
         respondHtmlProfiled (fromMaybe mempty fragmentHtml)
 
     action currentAction@ShowRosterWeekWageRailFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
-        weekOffset <- rosterWeekOffsetForAnchor anchorDate
         rosterGroup <- resolveRequestedRosterGroup
-        fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionWageRail
+        scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
+        fragmentHtml <- renderVisibleRosterReadModelFragment scope RosterProjectionWageRail
         respondHtmlProfiled (fromMaybe mempty fragmentHtml)
 
     action currentAction@ShowRosterWeekSlotsGridFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
-        weekOffset <- rosterWeekOffsetForAnchor anchorDate
         rosterGroup <- resolveRequestedRosterGroup
-        fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionSlotsGrid
+        scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
+        fragmentHtml <- renderVisibleRosterReadModelFragment scope RosterProjectionSlotsGrid
         respondHtmlProfiled (fromMaybe mempty fragmentHtml)
 
     action currentAction@ShowRosterWeekStaffPanelFragmentAction { anchorDate = anchorDateParam } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
-        weekOffset <- rosterWeekOffsetForAnchor anchorDate
         rosterGroup <- resolveRequestedRosterGroup
+        scope <- rosterWindowScopeForRequestedAnchor rosterGroup.id anchorDate
         panelScope <- case parseRosterStaffPanelScope of
             Left errorMessage -> setErrorMessage errorMessage >> pure RosterStaffPanelCurrentGroup
             Right scope -> pure scope
-        panelModel <- fetchVisibleRosterStaffPanelRenderModel panelScope rosterGroup.id weekOffset
+        panelModel <- fetchVisibleRosterStaffPanelRenderModel panelScope scope
         respondHtmlProfiled (renderrosterStaffPanelLiveFragment panelModel)
 
     action currentAction@ShowRosterNotificationConfirmationAction = runBepis currentAction BepisFragmentAction do
@@ -415,16 +449,14 @@ instance Controller RosterWeeksController where
 
     action currentAction@ShowRosterWeekDaySectionFragmentAction { anchorDate = anchorDateParam, rosterDayId } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
-        weekOffset <- rosterWeekOffsetForAnchor anchorDate
-        rosterGroupId <- resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId
-        daySectionHtml <- renderVisibleRosterReadModelFragment rosterGroupId weekOffset (RosterProjectionDaySection (unpackId rosterDayId))
+        scope <- rosterWindowScopeForFragmentRosterDay anchorDate rosterDayId
+        daySectionHtml <- renderVisibleRosterReadModelFragment scope (RosterProjectionDaySection (unpackId rosterDayId))
         respondHtmlProfiled (fromMaybe mempty daySectionHtml)
 
     action currentAction@ShowRosterWeekRowFragmentAction { anchorDate = anchorDateParam, rosterDayId, rowIndex } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
-        weekOffset <- rosterWeekOffsetForAnchor anchorDate
-        rosterGroupId <- resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId
-        rowHtml <- renderVisibleRosterReadModelFragment rosterGroupId weekOffset (RosterProjectionRow (unpackId rosterDayId) rowIndex)
+        scope <- rosterWindowScopeForFragmentRosterDay anchorDate rosterDayId
+        rowHtml <- renderVisibleRosterReadModelFragment scope (RosterProjectionRow (unpackId rosterDayId) rowIndex)
         respondHtmlProfiled (fromMaybe mempty rowHtml)
 
     action currentAction@UpdateRosterAssignmentFiltersAction = runBepis currentAction BepisPreferenceAction do
@@ -1369,13 +1401,15 @@ fetchRosterDayForMutation rosterDayId = do
             accessDeniedUnless (rosterDay.operationalDate == operationalDate)
             pure rosterDay
 
-resolveRosterGroupIdForFragmentRosterDay :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Id RosterDay -> IO (Id RosterGroup)
-resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId = do
+rosterWindowScopeForFragmentRosterDay :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Calendar.Day -> Id RosterDay -> IO RosterWindowScope
+rosterWindowScopeForFragmentRosterDay anchorDate rosterDayId = do
     rosterDay <- fetch rosterDayId
     ensureRecordInCurrentVenue rosterDay.venueId
-    venueConfig <- query @VenueConfig |> filterWhere (#venueId, rosterDay.venueId) |> fetchOne
-    accessDeniedUnless (venueWeekOffsetForDay venueConfig rosterDay.operationalDate == weekOffset)
-    pure (coerce rosterDay.rosterGroupId)
+    let rosterGroupId = Id rosterDay.rosterGroupId
+    scope <- rosterWindowScopeForRequestedAnchor rosterGroupId anchorDate
+    accessDeniedUnless (rosterDay.operationalDate >= scope.rosterWindowStart)
+    accessDeniedUnless (rosterDay.operationalDate < scope.rosterWindowEnd)
+    pure scope
 
 respondWithDeleteRosterSlotDropConfirmation :: (?context :: ControllerContext, ?request :: Request) => RosterSlot -> Calendar.Day -> Int -> IO ()
 respondWithDeleteRosterSlotDropConfirmation rosterSlot anchorDate calendarRevision =
@@ -1538,10 +1572,10 @@ rosterCopyActionDates = do
     requireCurrentRosterCalendarRevision venueConfig calendarRevision
     pure (resolve sourceAnchorDate, resolve targetAnchorDate)
 
-rosterWeekOffsetForAnchor :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Calendar.Day -> IO Int
-rosterWeekOffsetForAnchor anchorDate = do
+rosterWindowScopeForRequestedAnchor :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Calendar.Day -> IO RosterWindowScope
+rosterWindowScopeForRequestedAnchor rosterGroupId anchorDate = do
     venueConfig <- fetchVenueConfig
-    pure (venueWeekOffsetForDay venueConfig (startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate))
+    pure (rosterWindowScopeForAnchor venueConfig rosterGroupId anchorDate)
 
 currentRosterGridViewMode :: (?request :: Request) => Calendar.Day -> RosterGridViewMode
 currentRosterGridViewMode windowStart =
@@ -1559,22 +1593,22 @@ buildRosterTimelineTodayUrl rosterGroupId = do
     today <- utctDay <$> getCurrentTime
     pure (rosterTimelineWindowUrl today rosterGroupId)
 
-renderRosterWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Int -> Id RosterGroup -> IO ()
-renderRosterWeekPage weekOffset requestedRosterGroupId =
+renderRosterWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> IO ()
+renderRosterWeekPage requestedScope =
     profileActionSpan "roster.page.render" do
-        venueConfig <- profileActionSpan "roster.page.fetch_venue_config" fetchVenueConfig
-        let weekStartDate = venueWeekStartDate venueConfig weekOffset
-        let weekEndDate = Calendar.addDays 6 weekStartDate
+        let weekStartDate = requestedScope.rosterWindowStart
+        let weekEndDate = Calendar.addDays (-1) requestedScope.rosterWindowEnd
         setTitle "Roster"
         rosterGroups <- profileActionSpan "roster.page.fetch_roster_groups" fetchCurrentVenueRosterGroups
-        currentRosterGroup <- profileActionSpan "roster.page.resolve_current_group" (fetchCurrentVenueRosterGroupOrDefault (Just requestedRosterGroupId))
-        rosterDataOrNothing <- profileActionSpan "roster.page.fetch_read_model" (fetchVisibleRosterReadModel currentRosterGroup.id weekOffset)
+        currentRosterGroup <- profileActionSpan "roster.page.resolve_current_group" (fetchCurrentVenueRosterGroupOrDefault (Just requestedScope.rosterWindowRosterGroupId))
+        accessDeniedUnless (currentRosterGroup.id == requestedScope.rosterWindowRosterGroupId)
+        rosterDataOrNothing <- profileActionSpan "roster.page.fetch_read_model" (fetchVisibleRosterReadModel requestedScope)
         passkeySetupPrompt <- profileActionSpan "roster.page.passkey_prompt" passkeySetupPromptFromSession
         passkeyStrongAuthenticationRequired <- profileActionSpan "roster.page.passkey_policy" currentUserRequiresMandatoryPasskey
         timelineTodayUrl <- profileActionSpan "roster.page.timeline_today_url" (buildRosterTimelineTodayUrl currentRosterGroup.id)
 
         case rosterDataOrNothing of
-            Just RosterRenderData { rosterWeek, rosterDays, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } ->
+            Just RosterRenderData { rosterWeek, rosterWindowScope, rosterDays, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } ->
                 let visibleRosterWeek =
                         case rosterWeek of
                             Just legacyRosterWeek
@@ -1585,7 +1619,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
                             ShowView
                                 { rosterWeek = visibleRosterWeek
                                 , rosterDays
-                                , weekOffset
+                                , rosterWindowScope
                                 , rosterGroups
                                 , currentRosterGroup
                                 , weekStartDate
@@ -1633,14 +1667,13 @@ passkeySetupPromptFromSession :: (?request :: Request) => IO (Maybe PasskeySetup
 passkeySetupPromptFromSession =
     fmap (>>= passkeySetupPromptModeFromValue) (getSessionAndClear @Text passkeySetupPromptSessionKey)
 
-renderRosterWeekOverviewFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Id RosterGroup -> IO Blaze.Html
-renderRosterWeekOverviewFragment weekOffset rosterGroupId = do
+renderRosterWeekOverviewFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Calendar.Day -> Id RosterGroup -> IO Blaze.Html
+renderRosterWeekOverviewFragment weekStartDate rosterGroupId = do
     venueConfig <- fetchVenueConfig
     todayDate <- utctDay <$> getCurrentTime
-    let weekStartDate = venueWeekStartDate venueConfig weekOffset
     let focusDate = initialOverviewFocusDate weekStartDate todayDate
     weekOverviewDays <- profileActionSpan "roster.build_month_overview" (buildRosterMonthOverviewDays venueConfig rosterGroupId focusDate)
-    pure (renderWeekOverviewPanelFragment weekOffset rosterGroupId weekStartDate todayDate weekOverviewDays (buildRosterViewCapabilities Nothing))
+    pure (renderWeekOverviewPanelFragment rosterGroupId weekStartDate todayDate weekOverviewDays (buildRosterViewCapabilities Nothing))
 
 fetchRelatedSlotsForStaffIdsInRosterWeek :: (?modelContext :: ModelContext) => RosterWeek -> [UUID.UUID] -> IO [RosterSlot]
 fetchRelatedSlotsForStaffIdsInRosterWeek rosterWeek staffIds =

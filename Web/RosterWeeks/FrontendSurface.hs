@@ -84,24 +84,22 @@ import Web.RosterWeeks.Types (RosterProjectionFragment (..),
 -- | Logical roster week live invalidation scope. Viewer-specific preferences and
 -- visibility stay server-owned; the scope identifies the authorized data slice.
 data RosterWeekScopeValue = RosterWeekScopeValue
-    { rosterWeekVenueId           :: !UUID.UUID
-    , rosterWeekGroupId           :: !(Id RosterGroup)
-    , rosterWeekWeekOffset        :: !Int
-    , rosterWeekWindowStart       :: !Day
-    , rosterWeekWindowEnd         :: !Day
-    , rosterWeekCalendarRevision  :: !Int
-    , rosterWeekTimelineDayOffset :: !(Maybe Int)
+    { rosterWeekVenueId          :: !UUID.UUID
+    , rosterWeekGroupId          :: !(Id RosterGroup)
+    , rosterWeekWindowStart      :: !Day
+    , rosterWeekWindowEnd        :: !Day
+    , rosterWeekCalendarRevision :: !Int
+    , rosterWeekTimelineDate     :: !(Maybe Day)
     }
     deriving (Eq, Show)
 
 data RosterDayTimelineScopeValue = RosterDayTimelineScopeValue
     { rosterDayTimelineVenueId          :: !UUID.UUID
     , rosterDayTimelineGroupId          :: !(Id RosterGroup)
-    , rosterDayTimelineWeekOffset       :: !Int
     , rosterDayTimelineWindowStart      :: !Day
     , rosterDayTimelineWindowEnd        :: !Day
     , rosterDayTimelineCalendarRevision :: !Int
-    , rosterDayTimelineDayOffset        :: !Int
+    , rosterDayTimelineOperationalDate  :: !Day
     , rosterDayTimelineDayId            :: !(Id RosterDay)
     }
     deriving (Eq, Show)
@@ -230,7 +228,7 @@ rosterSurfaceFragmentKeys = map (.mountedFragmentKey)
 rosterCandidateMountedFragments :: RosterWeekScopeValue -> RosterMountedFragmentPlan -> [FrontendSurfaceMountedFragment]
 rosterCandidateMountedFragments scope plan =
     map (withRosterCalendarRevision scope.rosterWeekCalendarRevision) $
-        case scope.rosterWeekTimelineDayOffset of
+        case scope.rosterWeekTimelineDate of
             Just _  -> rosterTimelineModeMountedFragments scope plan
             Nothing -> rosterWeekGridMountedFragments scope plan
 
@@ -380,7 +378,7 @@ rosterTemplatePreviewRequest scope =
 rosterDayTimelineMoveShiftRequest :: RosterDayTimelineScopeValue -> FrontendSurfaceHtmxRequest
 rosterDayTimelineMoveShiftRequest scope =
     rosterDragDropRequest
-        (rosterTimelineMoveShiftUrl scope.rosterDayTimelineWindowStart scope.rosterDayTimelineGroupId (addDays (toInteger scope.rosterDayTimelineDayOffset) scope.rosterDayTimelineWindowStart))
+        (rosterTimelineMoveShiftUrl scope.rosterDayTimelineWindowStart scope.rosterDayTimelineGroupId scope.rosterDayTimelineOperationalDate)
 
 rosterDragDropRequest :: Text -> FrontendSurfaceHtmxRequest
 rosterDragDropRequest requestUrl =
@@ -392,7 +390,7 @@ rosterDragDropRequest requestUrl =
         }
 
 timelineDateForScope :: RosterWeekScopeValue -> Maybe Day
-timelineDateForScope scope = (`addDays` scope.rosterWeekWindowStart) . toInteger <$> scope.rosterWeekTimelineDayOffset
+timelineDateForScope scope = scope.rosterWeekTimelineDate
 
 rosterContentMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterContentMountedFragment scope =

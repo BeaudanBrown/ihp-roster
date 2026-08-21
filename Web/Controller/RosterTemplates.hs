@@ -29,6 +29,7 @@ import qualified Network.Wai as Wai
 import Text.Read (readMaybe)
 import Web.Controller.Prelude
 import qualified Web.RosterTemplates.Mutations as TemplateMutations
+import Web.RosterWeeks.DateRange (rosterWindowScopeForAnchor)
 import Web.RosterWeeks.Paths (rosterWindowUrl)
 import Web.RosterWeeks.Responses (respondWithRosterTemplateApplicationUpdate)
 import Web.RosterWeeks.Service (fetchCurrentRosterWeekOffset)
@@ -365,7 +366,10 @@ instance Controller RosterTemplatesController where
                         case applied of
                             Left applicationError -> invalidTemplateApplication rosterGroup weekOffset (templateApplicationErrorMessage applicationError)
                             Right mutationResult -> if isHtmxRequest
-                                then respondWithRosterTemplateApplicationUpdate rosterGroup.id weekOffset mutationResult.liveMutationTouchedResources
+                                then do
+                                    venueConfig <- fetchVenueConfig
+                                    let scope = rosterWindowScopeForAnchor venueConfig rosterGroup.id (venueWeekStartDate venueConfig weekOffset)
+                                    respondWithRosterTemplateApplicationUpdate scope mutationResult.liveMutationTouchedResources
                                 else do
                                     setSuccessMessage "Template applied."
                                     redirectToPath =<< rosterTemplateWindowUrl rosterGroup weekOffset
@@ -383,7 +387,7 @@ instance Controller RosterTemplatesController where
             |> filterWhere (#weekOffset, weekOffset)
             |> filterWhere (#archivedAt, Nothing)
             |> fetchOneOrNothing
-        respondHtml (renderRosterTemplateLibraryFragment (rosterTemplateActorUserId actor) weekOffset (venueWeekStartDate venueConfig weekOffset) venueConfig.rosterCalendarRevision rosterGroup maybeRosterWeek (fromMaybe (error "authorized template library missing") maybeLibrary))
+        respondHtml (renderRosterTemplateLibraryFragment (rosterTemplateActorUserId actor) (venueWeekStartDate venueConfig weekOffset) venueConfig.rosterCalendarRevision rosterGroup maybeRosterWeek (fromMaybe (error "authorized template library missing") maybeLibrary))
 
     action currentAction@ConfirmDeleteRosterTemplateAction { rosterTemplateId, rosterGroupId } = runBepis currentAction BepisPageAction do
         weekOffset <- rosterTemplateWindowOffset currentAction

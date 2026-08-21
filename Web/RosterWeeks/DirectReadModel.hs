@@ -11,7 +11,6 @@ module Web.RosterWeeks.DirectReadModel
     , buildSlotConflictsDirect
     , buildSlotConflictsForSlotsDirect
     , fetchRosterBaseFactsDirect
-    , fetchRosterBaseFactsForWeekDirect
     , fetchRosterNotificationWindowDays
     , fetchRosterStaffPanelEntriesDirect
     ) where
@@ -30,6 +29,8 @@ import qualified Database.PostgreSQL.Simple as PG
 import IHP.ModelSupport (sqlQuery)
 import Web.Controller.Prelude
 import Web.RosterWeeks.DateRange
+import Web.RosterWeeks.LegacyCompatibility (fetchLegacyRosterWeekForScope,
+                                            legacyPlanningRosterWeekForScope)
 import Web.RosterWeeks.Rows
 import Web.RosterWeeks.StaffOptions
 import Web.RosterWeeks.Types
@@ -59,45 +60,38 @@ data RosterBaseFacts = RosterBaseFacts
     , baseStaffMembers           :: ![Staff]
     }
 
-fetchRosterBaseFactsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO (Maybe RosterBaseFacts)
-fetchRosterBaseFactsDirect rosterGroupId weekOffset =
+fetchRosterBaseFactsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWindowScope -> IO (Maybe RosterBaseFacts)
+fetchRosterBaseFactsDirect scope =
     profileActionSpan "roster.direct.base_facts" do
+        let rosterGroupId = scope.rosterWindowRosterGroupId
+        venueConfig <- query @VenueConfig
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> fetchOne
         rosterGroupInVenue <- profileActionSpan "roster.direct.validate_group_scope" do
             query @RosterGroup
                 |> filterWhere (#id, rosterGroupId)
                 |> filterWhere (#venueId, unpackId currentVenueId)
                 |> fetchExists
-        if not rosterGroupInVenue
+        if not (rosterWindowScopeMatchesConfig venueConfig scope) || not rosterGroupInVenue
             then pure Nothing
-            else Just <$> fetchRosterBaseFactsForOffsetDirect rosterGroupId weekOffset
+            else Just <$> fetchRosterBaseFactsForScopeDirect scope
 
-fetchRosterBaseFactsForWeekDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> RosterWeek -> IO RosterBaseFacts
-fetchRosterBaseFactsForWeekDirect rosterGroupId rosterWeek =
-    fetchRosterBaseFactsForOffsetDirect rosterGroupId rosterWeek.weekOffset
-
-fetchRosterBaseFactsForOffsetDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO RosterBaseFacts
-fetchRosterBaseFactsForOffsetDirect rosterGroupId weekOffset =
+fetchRosterBaseFactsForScopeDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWindowScope -> IO RosterBaseFacts
+fetchRosterBaseFactsForScopeDirect scope =
     profileActionSpan "roster.direct.base_facts_for_date_range" do
-        venueConfig <- fetchVenueConfig
-        let windowStartDate = venueWeekStartDate venueConfig weekOffset
-        let windowEndDate = Calendar.addDays 6 windowStartDate
-        rosterWeekOrNothing <- profileActionSpan "roster.direct.fetch_legacy_week" do
-            query @RosterWeek
-                |> filterWhere (#venueId, unpackId currentVenueId)
-                |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
-                |> filterWhere (#weekOffset, weekOffset)
-                |> fetchOneOrNothing
-        window <- profileActionSpan "roster.direct.fetch_dated_window" (fetchRosterWindow currentVenueId rosterGroupId windowStartDate)
+        let rosterGroupId = scope.rosterWindowRosterGroupId
+        let windowStartDate = scope.rosterWindowStart
+        let windowEndDate = scope.rosterWindowEnd
+        rosterWeekOrNothing <- profileActionSpan "roster.direct.fetch_legacy_week" (fetchLegacyRosterWeekForScope scope)
+        window <- profileActionSpan "roster.direct.fetch_dated_window" (fetchRosterWindow scope.rosterWindowVenueId rosterGroupId windowStartDate)
         let rosterDays =
                 map
-                    (projectedRosterDay currentVenueId rosterGroupId (get #id <$> rosterWeekOrNothing) windowStartDate)
+                    (projectedRosterDay scope.rosterWindowVenueId rosterGroupId (get #id <$> rosterWeekOrNothing) windowStartDate)
                     window.rosterWindowProjectedDays
         let windowIsPublished = rosterWindowIsPublished window
-        planningWeekOrNothing <- case rosterWeekOrNothing of
-            Just rosterWeek -> pure (Just (rosterWeek |> set #isLive windowIsPublished))
-            Nothing -> case listToMaybe rosterDays of
-                Nothing        -> pure Nothing
-                Just rosterDay -> Just <$> rosterPlanningWeekForDay rosterDay
+        planningWeek <- case rosterWeekOrNothing of
+            Just rosterWeek -> pure (rosterWeek |> set #isLive windowIsPublished)
+            Nothing -> legacyPlanningRosterWeekForScope scope windowIsPublished
         allSlots <- profileActionSpan "roster.direct.fetch_dated_slots" do
             orderedSlotIds :: [PG.Only UUID.UUID] <- sqlQuery
                 "SELECT roster_slots.id \
@@ -106,7 +100,7 @@ fetchRosterBaseFactsForOffsetDirect rosterGroupId weekOffset =
                 \WHERE roster_days.venue_id = ? \
                 \AND roster_days.roster_group_id = ? \
                 \AND roster_days.operational_date >= ? \
-                \AND roster_days.operational_date <= ? \
+                \AND roster_days.operational_date < ? \
                 \AND roster_slots.deleted_at IS NULL \
                 \ORDER BY roster_days.operational_date, roster_slots.row_index, roster_slots.slot_sort_order, roster_slots.created_at"
                 (unpackId currentVenueId, unpackId rosterGroupId, windowStartDate, windowEndDate)
@@ -119,7 +113,7 @@ fetchRosterBaseFactsForOffsetDirect rosterGroupId weekOffset =
         shiftTypes <- profileActionSpan "roster.direct.fetch_shift_types" fetchCurrentVenueRosterShiftTypesDirect
         let staffMembers = nubBy (\left right -> left.id == right.id) (eligibleStaffMembers <> assignedStaffMembers)
         pure RosterBaseFacts
-            { baseRosterWeek = planningWeekOrNothing
+            { baseRosterWeek = Just planningWeek
             , baseRosterDays = rosterDays
             , baseAllSlots = allSlots
             , baseVisibleSlots = visibleSlots
@@ -150,31 +144,17 @@ fetchEligibleRosterGroupStaffDirect rosterGroupId = do
         (unpackId rosterGroupId, unpackId currentVenueId)
     fetchStaffInIdOrder orderedStaffIds
 
-fetchRosterStaffPanelEntriesDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterStaffPanelScope -> Id RosterGroup -> RosterWeek -> IO [RosterStaffPanelEntry]
-fetchRosterStaffPanelEntriesDirect panelScope rosterGroupId rosterWeek = do
-    panelStaffMembers <-
-        case panelScope of
-            RosterStaffPanelCurrentGroup -> fetchRosterGroupStaffForPanelDirect rosterGroupId
-            RosterStaffPanelAllVenue     -> fetchCurrentVenueActiveStaff
-    visibleSlots <- fetchVisibleRosterWeekSlotsDirect rosterWeek
-    fetchRosterStaffPanelEntriesForScope panelScope panelStaffMembers visibleSlots
-
-fetchVisibleRosterWeekSlotsDirect :: (?modelContext :: ModelContext) => RosterWeek -> IO [RosterSlot]
-fetchVisibleRosterWeekSlotsDirect rosterWeek = do
-    rosterDays <-
-        query @RosterDay
-            |> filterWhere (#rosterWeekId, Just (coerce (get #id rosterWeek)))
-            |> fetch
-    slotIds :: [PG.Only UUID.UUID] <-
-        sqlQuery
-            "SELECT roster_slots.id \
-            \FROM roster_slots \
-            \JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
-            \WHERE roster_days.roster_week_id = ? \
-            \AND roster_slots.deleted_at IS NULL"
-            (PG.Only (unpackId rosterWeek.id))
-    slots <- fetchRosterSlotsInIdOrder slotIds
-    pure (filterVisibleRosterSlots rosterDays slots)
+fetchRosterStaffPanelEntriesDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterStaffPanelScope -> RosterWindowScope -> IO [RosterStaffPanelEntry]
+fetchRosterStaffPanelEntriesDirect panelScope scope = do
+    baseFactsOrNothing <- fetchRosterBaseFactsDirect scope
+    case baseFactsOrNothing of
+        Nothing -> pure []
+        Just baseFacts -> do
+            panelStaffMembers <-
+                case panelScope of
+                    RosterStaffPanelCurrentGroup -> pure baseFacts.basePanelStaff
+                    RosterStaffPanelAllVenue     -> fetchCurrentVenueActiveStaff
+            fetchRosterStaffPanelEntriesForScope panelScope panelStaffMembers baseFacts.baseVisibleSlots
 
 fetchRosterSlotsInIdOrder :: (?modelContext :: ModelContext) => [PG.Only UUID.UUID] -> IO [RosterSlot]
 fetchRosterSlotsInIdOrder [] = pure []

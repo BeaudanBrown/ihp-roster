@@ -512,15 +512,15 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 RosterWeekScopeValue
                     { rosterWeekVenueId = venueId
                     , rosterWeekGroupId = rosterGroupId
-                    , rosterWeekWeekOffset = 3, rosterWeekWindowStart = testAnchorForOffset (3), rosterWeekWindowEnd = addDays 7 (testAnchorForOffset (3)), rosterWeekCalendarRevision = 1
-                    , rosterWeekTimelineDayOffset = Nothing
+                    , rosterWeekWindowStart = testAnchorForOffset 3, rosterWeekWindowEnd = addDays 7 (testAnchorForOffset 3), rosterWeekCalendarRevision = 1
+                    , rosterWeekTimelineDate = Nothing
                     }
         let timelineScope =
                 RosterDayTimelineScopeValue
                     { rosterDayTimelineVenueId = venueId
                     , rosterDayTimelineGroupId = rosterGroupId
-                    , rosterDayTimelineWeekOffset = 3, rosterDayTimelineWindowStart = testAnchorForOffset (3), rosterDayTimelineWindowEnd = addDays 7 (testAnchorForOffset (3)), rosterDayTimelineCalendarRevision = 1
-                    , rosterDayTimelineDayOffset = 2
+                    , rosterDayTimelineWindowStart = testAnchorForOffset 3, rosterDayTimelineWindowEnd = addDays 7 (testAnchorForOffset 3), rosterDayTimelineCalendarRevision = 1
+                    , rosterDayTimelineOperationalDate = addDays 2 (testAnchorForOffset 3)
                     , rosterDayTimelineDayId = rosterDayId
                     }
         let rosterForms = rosterIntentForms rosterScope True

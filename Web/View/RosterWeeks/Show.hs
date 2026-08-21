@@ -4,8 +4,9 @@ import Application.Helper.Controller (currentUserIsImpersonating)
 import qualified Application.Helper.FrontendContract.Passkey.Runtime as Passkey
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.Profiling (profileHtmlComponent)
-import Data.Time.Calendar (addDays)
+import qualified Data.Time.Calendar as Calendar
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
+import Web.RosterWeeks.DateRange (RosterWindowScope (..))
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         rosterMountedFragmentPlanFromRenderData,
@@ -58,7 +59,7 @@ renderRosterWeekShell ShowView { .. } =
                     , renderRosterLayout RosterGridRenderModel
                         { gridRosterWeek = rosterWeek
                         , gridRosterDays = rosterDays
-                        , gridWeekOffset = weekOffset
+                        , gridWindowScope = rosterWindowScope
                         , gridRosterGroups = rosterGroups
                         , gridCurrentRosterGroup = currentRosterGroup
                         , gridAssignmentFilters = assignmentFilters
@@ -93,14 +94,13 @@ renderRosterWeekShell ShowView { .. } =
                     ]
             })
         rosterSurfaceScope = RosterWeekScopeValue
-            { rosterWeekVenueId = currentRosterGroup.venueId
-            , rosterWeekGroupId = currentRosterGroup.id
-            , rosterWeekWeekOffset = weekOffset
-            , rosterWeekWindowStart = weekStartDate
-            , rosterWeekWindowEnd = addDays 1 weekEndDate
-            , rosterWeekCalendarRevision = rosterCalendarRevision
-            , rosterWeekTimelineDayOffset = case rosterGridViewMode of
-                RosterDayTimelineGridView dayOffset -> Just dayOffset
+            { rosterWeekVenueId = unpackId rosterWindowScope.rosterWindowVenueId
+            , rosterWeekGroupId = rosterWindowScope.rosterWindowRosterGroupId
+            , rosterWeekWindowStart = rosterWindowScope.rosterWindowStart
+            , rosterWeekWindowEnd = rosterWindowScope.rosterWindowEnd
+            , rosterWeekCalendarRevision = rosterWindowScope.rosterWindowCalendarRevision
+            , rosterWeekTimelineDate = case rosterGridViewMode of
+                RosterDayTimelineGridView dayOffset -> Just (Calendar.addDays (toInteger dayOffset) rosterWindowScope.rosterWindowStart)
                 RosterWeekGridView                  -> Nothing
             }
         rosterSurfacePlan = rosterMountedFragmentPlanFromRenderData templateLibraryUserId rosterDays renderIndexes

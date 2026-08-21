@@ -23,13 +23,13 @@ import Application.Helper.View (ToastOverlayConfig,
                                 ToastOverlayPosition (ToastBottomCenter),
                                 dialogOverlayMountId, errorToast,
                                 renderToastOob, successToast)
-import Application.Helper.WeekBoundaries (venueWeekStartDate)
 import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (Day, addDays, diffDays)
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
+import Web.RosterWeeks.DateRange (RosterWindowScope (..))
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         rosterCandidateMountedFragments,
                                         rosterMountedFragmentForProjection,
@@ -48,99 +48,90 @@ import Web.View.RosterWeeks.Grid (renderrosterContentLiveFragment,
                                   renderrosterContentLiveFragmentOob)
 import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServicePanelFragmentOob)
 
-respondWithRosterContent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()
-respondWithRosterContent rosterGroupId weekOffset = do
-    maybeHtml <- renderVisibleRosterReadModelFragment rosterGroupId weekOffset RosterProjectionContent
+respondWithRosterContent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO ()
+respondWithRosterContent scope = do
+    maybeHtml <- renderVisibleRosterReadModelFragment scope RosterProjectionContent
     when (isNothing maybeHtml) do
-        TextIO.putStrLn ("roster_read_model_miss: rosterGroupId=" <> tshow rosterGroupId <> " weekOffset=" <> tshow weekOffset)
+        TextIO.putStrLn ("roster_read_model_miss: rosterGroupId=" <> tshow scope.rosterWindowRosterGroupId <> " windowStart=" <> tshow scope.rosterWindowStart)
     respondHtmlProfiled (fromMaybe mempty maybeHtml)
 
-respondWithRosterFragmentsUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> ToastOverlayConfig -> IO ()
-respondWithRosterFragmentsUpdate rosterGroupId weekOffset fragments toast =
-    respondWithRosterFragments rosterGroupId weekOffset fragments (renderToastOob ToastBottomCenter toast)
+respondWithRosterFragmentsUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> [RosterProjectionFragment] -> ToastOverlayConfig -> IO ()
+respondWithRosterFragmentsUpdate scope fragments toast =
+    respondWithRosterFragments scope fragments (renderToastOob ToastBottomCenter toast)
 
-respondWithRosterOwnHighlightPreferenceUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> ToastOverlayConfig -> IO ()
-respondWithRosterOwnHighlightPreferenceUpdate rosterGroupId weekOffset toast = do
-    rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
+respondWithRosterOwnHighlightPreferenceUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> ToastOverlayConfig -> IO ()
+respondWithRosterOwnHighlightPreferenceUpdate scope toast = do
+    rosterData <- fetchVisibleRosterReadModel scope
     let selfServicePanel = rosterData >>= (.staffSelfServicePanel)
     respondWithRosterFragments
-        rosterGroupId
-        weekOffset
+        scope
         rosterGridInnerAndStaffPanelFragments
         (renderRosterStaffSelfServicePanelFragmentOob selfServicePanel <> renderToastOob ToastBottomCenter toast)
 
-respondWithRosterFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
-respondWithRosterFragments rosterGroupId weekOffset fragments extraHtml =
-    respondWithRosterActorInvalidation rosterGroupId weekOffset fragments extraHtml
+respondWithRosterFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
+respondWithRosterFragments scope fragments extraHtml =
+    respondWithRosterActorInvalidation scope fragments extraHtml
 
-respondWithRosterActorInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
-respondWithRosterActorInvalidation rosterGroupId weekOffset fragments extraHtml = do
-    scope <- fetchRosterWindowScopeValue rosterGroupId weekOffset
+respondWithRosterActorInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
+respondWithRosterActorInvalidation windowScope fragments extraHtml = do
+    let scope = rosterFrontendScopeValue windowScope
     setHeader ("HX-Reswap", "none")
     setActorLocalFragmentsRefresh (rosterSurfaceScope scope) (rosterSurfaceFragmentKeys (map (rosterMountedFragmentForProjection scope) (nub fragments)))
     respondHtmlProfiled extraHtml
 
-respondWithRosterResourceInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Set.Set SurfaceResourceValue -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
-respondWithRosterResourceInvalidation rosterGroupId weekOffset touchedResources fragments extraHtml = do
-    scope <- fetchRosterWindowScopeValue rosterGroupId weekOffset
+respondWithRosterResourceInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
+respondWithRosterResourceInvalidation windowScope touchedResources fragments extraHtml = do
+    let scope = rosterFrontendScopeValue windowScope
     let mountedFragments = map (rosterMountedFragmentForProjection scope) (nub fragments)
     setHeader ("HX-Reswap", "none")
     setActorLiveResourcesRefresh (rosterSurfaceScope scope) touchedResources mountedFragments
     respondHtmlProfiled extraHtml
 
-respondWithRosterDialogOverlay :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Blaze.Html -> IO ()
-respondWithRosterDialogOverlay rosterGroupId weekOffset dialog =
-    respondWithRosterResourceInvalidation rosterGroupId weekOffset Set.empty [] [hsx|
+respondWithRosterDialogOverlay :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Blaze.Html -> IO ()
+respondWithRosterDialogOverlay scope dialog =
+    respondWithRosterResourceInvalidation scope Set.empty [] [hsx|
         <div id={dialogOverlayMountId} hx-swap-oob="innerHTML">{dialog}</div>
     |]
 
-respondWithRosterCompleteResourceInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Set.Set SurfaceResourceValue -> Blaze.Html -> IO ()
-respondWithRosterCompleteResourceInvalidation rosterGroupId weekOffset touchedResources extraHtml = do
-    maybeRosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
+respondWithRosterCompleteResourceInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> Blaze.Html -> IO ()
+respondWithRosterCompleteResourceInvalidation windowScope touchedResources extraHtml = do
+    maybeRosterData <- fetchVisibleRosterReadModel windowScope
     case maybeRosterData of
-        Nothing -> respondWithRosterResourceInvalidation rosterGroupId weekOffset touchedResources [RosterProjectionContent] extraHtml
+        Nothing -> respondWithRosterResourceInvalidation windowScope touchedResources [RosterProjectionContent] extraHtml
         Just rosterData -> do
-            let windowStart = rosterData.weekStartDate
-            let scope = RosterWeekScopeValue
-                    { rosterWeekVenueId = unpackId currentVenueId
-                    , rosterWeekGroupId = rosterGroupId
-                    , rosterWeekWeekOffset = weekOffset
-                    , rosterWeekWindowStart = windowStart
-                    , rosterWeekWindowEnd = addDays 7 windowStart
-                    , rosterWeekCalendarRevision = rosterData.rosterCalendarRevision
-                    , rosterWeekTimelineDayOffset = currentRosterTimelineDayOffset windowStart
-                    }
+            let scope = rosterFrontendScopeValue rosterData.rosterWindowScope
             let plan = rosterMountedFragmentPlanFromRenderData rosterData.templateLibraryUserId rosterData.rosterDays rosterData.renderIndexes
             setHeader ("HX-Reswap", "none")
             setActorLiveResourcesRefresh (rosterSurfaceScope scope) touchedResources (rosterCandidateMountedFragments scope plan)
             respondHtmlProfiled extraHtml
 
-respondWithRosterTemplateApplicationUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Set.Set SurfaceResourceValue -> IO ()
-respondWithRosterTemplateApplicationUpdate rosterGroupId weekOffset touchedResources =
-    respondWithRosterCompleteResourceInvalidation rosterGroupId weekOffset touchedResources [hsx|
+respondWithRosterTemplateApplicationUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> IO ()
+respondWithRosterTemplateApplicationUpdate scope touchedResources =
+    respondWithRosterCompleteResourceInvalidation scope touchedResources [hsx|
         <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
         {renderToastOob ToastBottomCenter (successToast "Template applied.")}
     |]
 
-respondWithRosterContentOob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()
-respondWithRosterContentOob rosterGroupId weekOffset = do
+respondWithRosterContentOob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO ()
+respondWithRosterContentOob scope = do
+    let rosterGroupId = scope.rosterWindowRosterGroupId
     rosterGroups <- fetchViewableRosterGroups
     currentRosterGroupOrNothing <- fetchViewableRosterGroup rosterGroupId
     accessDeniedUnless (isJust currentRosterGroupOrNothing)
     let currentRosterGroup = fromMaybe (error "authorized roster group missing") currentRosterGroupOrNothing
-    rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
+    rosterData <- fetchVisibleRosterReadModel scope
     case rosterData of
         Nothing -> do
-            TextIO.putStrLn ("roster_read_model_miss_oob: rosterGroupId=" <> tshow rosterGroupId <> " weekOffset=" <> tshow weekOffset)
+            TextIO.putStrLn ("roster_read_model_miss_oob: rosterGroupId=" <> tshow rosterGroupId <> " windowStart=" <> tshow scope.rosterWindowStart)
             respondHtmlProfiled [hsx|<div id="roster-content" hx-swap-oob="outerHTML"></div>|]
-        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } -> do
+        Just RosterRenderData { rosterWeek, rosterWindowScope, rosterDays, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } -> do
             let viewCapabilities = buildRosterViewCapabilities rosterWeek
             respondHtmlProfiled $
                     renderrosterContentLiveFragmentOob
                         RosterGridRenderModel
                             { gridRosterWeek = rosterWeek
                             , gridRosterDays = rosterDays
-                            , gridWeekOffset = weekOffset
+                            , gridWindowScope = rosterWindowScope
                             , gridRosterGroups = rosterGroups
                             , gridCurrentRosterGroup = currentRosterGroup
                             , gridAssignmentFilters = assignmentFilters
@@ -173,36 +164,36 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
                             , gridTimelineTodayUrl = Nothing
                             }
 
-respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Set.Set SurfaceResourceValue -> Text -> IO ()
-respondWithRosterContentUpdate rosterGroupId weekOffset touchedResources successMessage =
+respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> Text -> IO ()
+respondWithRosterContentUpdate scope touchedResources successMessage =
     respondWithRosterCompleteResourceInvalidation
-        rosterGroupId
-        weekOffset
+        scope
         touchedResources
         (renderToastOob ToastBottomCenter (successToast successMessage))
 
-respondWithRosterContentError :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
-respondWithRosterContentError rosterGroupId weekOffset errorMessage = do
-    respondWithRosterContentToast rosterGroupId weekOffset True (errorToast errorMessage)
+respondWithRosterContentError :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Text -> IO ()
+respondWithRosterContentError scope errorMessage = do
+    respondWithRosterContentToast scope True (errorToast errorMessage)
 
-respondWithRosterContentToast :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Bool -> ToastOverlayConfig -> IO ()
-respondWithRosterContentToast rosterGroupId weekOffset publishAttempted toast = do
+respondWithRosterContentToast :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Bool -> ToastOverlayConfig -> IO ()
+respondWithRosterContentToast scope publishAttempted toast = do
+    let rosterGroupId = scope.rosterWindowRosterGroupId
     rosterGroups <- fetchViewableRosterGroups
     currentRosterGroupOrNothing <- fetchViewableRosterGroup rosterGroupId
     accessDeniedUnless (isJust currentRosterGroupOrNothing)
     let currentRosterGroup = fromMaybe (error "authorized roster group missing") currentRosterGroupOrNothing
-    rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
+    rosterData <- fetchVisibleRosterReadModel scope
     respondHtmlProfiled $
         mconcat
             [ case rosterData of
                 Nothing -> [hsx|<div id="roster-content"></div>|]
-                Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } ->
+                Just RosterRenderData { rosterWeek, rosterWindowScope, rosterDays, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } ->
                     let viewCapabilities = buildRosterViewCapabilities rosterWeek
                      in renderrosterContentLiveFragment
                             RosterGridRenderModel
                                 { gridRosterWeek = rosterWeek
                                 , gridRosterDays = rosterDays
-                                , gridWeekOffset = weekOffset
+                                , gridWindowScope = rosterWindowScope
                                 , gridRosterGroups = rosterGroups
                                 , gridCurrentRosterGroup = currentRosterGroup
                                 , gridAssignmentFilters = assignmentFilters
@@ -237,18 +228,15 @@ respondWithRosterContentToast rosterGroupId weekOffset publishAttempted toast = 
             , renderToastOob ToastBottomCenter toast
             ]
 
-fetchRosterWindowScopeValue :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO RosterWeekScopeValue
-fetchRosterWindowScopeValue rosterGroupId weekOffset = do
-    venueConfig <- fetchVenueConfig
-    let windowStart = venueWeekStartDate venueConfig weekOffset
-    pure RosterWeekScopeValue
-        { rosterWeekVenueId = unpackId currentVenueId
-        , rosterWeekGroupId = rosterGroupId
-        , rosterWeekWeekOffset = weekOffset
-        , rosterWeekWindowStart = windowStart
-        , rosterWeekWindowEnd = addDays 7 windowStart
-        , rosterWeekCalendarRevision = venueConfig.rosterCalendarRevision
-        , rosterWeekTimelineDayOffset = currentRosterTimelineDayOffset windowStart
+rosterFrontendScopeValue :: (?request :: Request) => RosterWindowScope -> RosterWeekScopeValue
+rosterFrontendScopeValue scope =
+    RosterWeekScopeValue
+        { rosterWeekVenueId = unpackId scope.rosterWindowVenueId
+        , rosterWeekGroupId = scope.rosterWindowRosterGroupId
+        , rosterWeekWindowStart = scope.rosterWindowStart
+        , rosterWeekWindowEnd = scope.rosterWindowEnd
+        , rosterWeekCalendarRevision = scope.rosterWindowCalendarRevision
+        , rosterWeekTimelineDate = currentRosterTimelineDate scope.rosterWindowStart
         }
 
 currentRosterGridViewMode :: (?request :: Request) => Day -> RosterGridViewMode
@@ -260,9 +248,9 @@ currentRosterGridViewMode windowStart =
   where
     clampDayOffset = max 0 . min 6
 
-currentRosterTimelineDayOffset :: (?request :: Request) => Day -> Maybe Int
-currentRosterTimelineDayOffset windowStart = case currentRosterGridViewMode windowStart of
-    RosterDayTimelineGridView dayOffset -> Just dayOffset
+currentRosterTimelineDate :: (?request :: Request) => Day -> Maybe Day
+currentRosterTimelineDate windowStart = case currentRosterGridViewMode windowStart of
+    RosterDayTimelineGridView dayOffset -> Just (addDays (toInteger dayOffset) windowStart)
     RosterWeekGridView                  -> Nothing
 
 respondWithRosterToast :: (?context :: ControllerContext, ?request :: Request) => Text -> Text -> IO ()

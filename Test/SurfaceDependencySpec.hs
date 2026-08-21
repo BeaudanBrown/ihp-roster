@@ -25,7 +25,7 @@ import Application.Support.LiveUpdates (supportCandidateMountedFragments,
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (addDays)
-import Data.UUID (fromWords)
+import Data.UUID (UUID, fromWords)
 import Generated.Types (RosterDay, RosterGroup, User)
 import IHP.ControllerPrelude (pathTo)
 import IHP.ModelSupport.Types (Id' (..))
@@ -64,6 +64,12 @@ import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        timesheetsSurfaceFragmentKeys,
                                        timesheetsSurfaceScope)
 import Web.Types
+
+rosterScopeValue :: UUID -> Id RosterGroup -> Int -> RosterWeekScopeValue
+rosterScopeValue venueId rosterGroupId windowIndex =
+    RosterWeekScopeValue venueId rosterGroupId windowStart (addDays 7 windowStart) 1 Nothing
+  where
+    windowStart = testAnchorForOffset windowIndex
 
 tests :: Spec
 tests = do
@@ -239,7 +245,7 @@ tests = do
             let venueId = fromWords 7 0 0 0
             let rosterGroupId = Id (fromWords 8 0 0 0) :: Id RosterGroup
             let rosterDayId = Id (fromWords 9 0 0 0) :: Id RosterDay
-            let scope = RosterWeekScopeValue venueId rosterGroupId 3 (testAnchorForOffset 3) (addDays 7 (testAnchorForOffset 3)) 1 Nothing
+            let scope = rosterScopeValue venueId rosterGroupId 3
             let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 2)], rosterMountedTemplateUserId = Nothing }
             let candidates = rosterCandidateMountedFragments scope plan
             map (.mountedFragmentTargetId) candidates
@@ -269,7 +275,7 @@ tests = do
             let userUuid = fromWords 23 0 0 0
             let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
             let userId = Id userUuid :: Id User
-            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 3 (testAnchorForOffset 3) (addDays 7 (testAnchorForOffset 3)) 1 Nothing
+            let scopeValue = rosterScopeValue venueId rosterGroupId 3
             let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [], rosterMountedRows = [], rosterMountedTemplateUserId = Just userId }
             let candidates = rosterCandidateMountedFragments scopeValue plan
 
@@ -284,7 +290,7 @@ tests = do
             let rosterDayUuid = fromWords 9 0 0 0
             let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
             let rosterDayId = Id rosterDayUuid :: Id RosterDay
-            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 3 (testAnchorForOffset 3) (addDays 7 (testAnchorForOffset 3)) 1 Nothing
+            let scopeValue = rosterScopeValue venueId rosterGroupId 3
             let scope = rosterSurfaceScope scopeValue
             let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 2)], rosterMountedTemplateUserId = Nothing }
             let resources = Set.fromList
@@ -308,7 +314,7 @@ tests = do
             let rosterDayUuid = fromWords 12 0 0 0
             let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
             let rosterDayId = Id rosterDayUuid :: Id RosterDay
-            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 4 (testAnchorForOffset 4) (addDays 7 (testAnchorForOffset 4)) 1 Nothing
+            let scopeValue = rosterScopeValue venueId rosterGroupId 4
             let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)], rosterMountedTemplateUserId = Nothing }
             let resources = Set.fromList
                     [ rosterWeekResource rosterGroupUuid (testAnchorForOffset 4) (addDays 7 (testAnchorForOffset 4))
@@ -331,7 +337,7 @@ tests = do
             let rosterDayUuid = fromWords 15 0 0 0
             let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
             let rosterDayId = Id rosterDayUuid :: Id RosterDay
-            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 4 (testAnchorForOffset 4) (addDays 7 (testAnchorForOffset 4)) 1 Nothing
+            let scopeValue = rosterScopeValue venueId rosterGroupId 4
             let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)], rosterMountedTemplateUserId = Nothing }
             let resources = Set.fromList
                     [ rosterWeekResource rosterGroupUuid (testAnchorForOffset 4) (addDays 7 (testAnchorForOffset 4))
@@ -354,7 +360,7 @@ tests = do
             let rosterDayUuid = fromWords 13 0 0 0
             let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
             let rosterDayId = Id rosterDayUuid :: Id RosterDay
-            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 4 (testAnchorForOffset 4) (addDays 7 (testAnchorForOffset 4)) 1 Nothing
+            let scopeValue = rosterScopeValue venueId rosterGroupId 4
             let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)], rosterMountedTemplateUserId = Nothing }
             let resources = Set.fromList
                     [ rosterWeekResource rosterGroupUuid (testAnchorForOffset 4) (addDays 7 (testAnchorForOffset 4))
@@ -374,7 +380,7 @@ tests = do
             let childDayUuid = fromWords 20 0 0 0
             let ancestorDayId = Id ancestorDayUuid :: Id RosterDay
             let childDayId = Id childDayUuid :: Id RosterDay
-            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 3 (testAnchorForOffset 3) (addDays 7 (testAnchorForOffset 3)) 1 Nothing
+            let scopeValue = rosterScopeValue venueId rosterGroupId 3
             let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [ancestorDayId], rosterMountedRows = [(childDayId, 2)], rosterMountedTemplateUserId = Nothing }
 
             passiveFragmentKeys

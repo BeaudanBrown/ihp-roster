@@ -27,13 +27,13 @@ import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 ToastOverlayPosition (..), dialogOverlayMountId,
                                 errorToast, renderDialogOverlay, renderToastOob,
                                 successToast)
-import Application.Helper.WeekBoundaries (startOfWeekFor, venueWeekOffsetForDay)
+import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.PayAssignment (selectableStaffAssignmentMode)
 import Application.StaffDefaults (applyVenueDefaultStaffPayAssignment,
                                   validateStaffAwardRateAvailability)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays)
+import Data.Time.Calendar (Day)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import Text.Blaze.Html (Html)
@@ -41,6 +41,8 @@ import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
                                      fetchActiveImportedXeroPayItems,
                                      parseSubmittedPayRateSelectionValue)
 import Web.Controller.Prelude
+import Web.RosterWeeks.DateRange (RosterWindowScope (..),
+                                  rosterWindowScopeForAnchor)
 import Web.RosterWeeks.Projection (rosterGridInnerAndStaffPanelFragments)
 import Web.RosterWeeks.Responses (respondWithRosterContentOob,
                                   respondWithRosterResourceInvalidation)
@@ -106,8 +108,8 @@ instance Controller StaffController where
                             if isHtmxRequest
                                 then do
                                     let rosterGroupId = fromMaybe selectedRosterGroupId maybeRosterGroupId
-                                    compatibilityWeekOffset <- staffCompatibilityWeekOffset anchorDate
-                                    respondWithRosterContentOob rosterGroupId compatibilityWeekOffset
+                                    venueConfig <- fetchVenueConfig
+                                    respondWithRosterContentOob (rosterWindowScopeForAnchor venueConfig rosterGroupId anchorDate)
                                 else do
                                     setSuccessMessage "Trial staff placeholder created"
                                     redirectToPath $
@@ -212,9 +214,9 @@ instance Controller StaffController where
                 if isHtmxRequest
                     then do
                         rosterGroup <- fetchCurrentVenueRosterGroupOrDefault maybeRosterGroupId
-                        let windowStart = anchorDate
-                        let windowEnd = addDays 7 windowStart
-                        let compatibilityWeekOffset = venueWeekOffsetForDay venueConfig anchorDate
+                        let rosterWindowScope = rosterWindowScopeForAnchor venueConfig rosterGroup.id anchorDate
+                        let windowStart = rosterWindowScope.rosterWindowStart
+                        let windowEnd = rosterWindowScope.rosterWindowEnd
                         let actorTouchedResources =
                                 mutationResult.liveMutationTouchedResources
                                     <> Set.fromList
@@ -222,8 +224,7 @@ instance Controller StaffController where
                                         , rosterSlotsContentResource (unpackId rosterGroup.id) windowStart windowEnd
                                         ]
                         respondWithRosterResourceInvalidation
-                            rosterGroup.id
-                            compatibilityWeekOffset
+                            rosterWindowScope
                             actorTouchedResources
                             rosterGridInnerAndStaffPanelFragments
                             (renderToastOob ToastBottomCenter (successToast successMessage))
@@ -302,9 +303,9 @@ instance Controller StaffController where
                         let maybeRosterGroupId = paramOrNothing @(Id RosterGroup) "rosterGroupId"
                         rosterGroup <- fetchCurrentVenueRosterGroupOrDefault maybeRosterGroupId
                         venueConfig <- fetchVenueConfig
-                        let windowStart = anchorDate
-                        let windowEnd = addDays 7 windowStart
-                        let compatibilityWeekOffset = venueWeekOffsetForDay venueConfig anchorDate
+                        let rosterWindowScope = rosterWindowScopeForAnchor venueConfig rosterGroup.id anchorDate
+                        let windowStart = rosterWindowScope.rosterWindowStart
+                        let windowEnd = rosterWindowScope.rosterWindowEnd
                         let actorTouchedResources =
                                 mutationResult.liveMutationTouchedResources
                                     <> Set.fromList
@@ -312,8 +313,7 @@ instance Controller StaffController where
                                         , rosterSlotsContentResource (unpackId rosterGroup.id) windowStart windowEnd
                                         ]
                         respondWithRosterResourceInvalidation
-                            rosterGroup.id
-                            compatibilityWeekOffset
+                            rosterWindowScope
                             actorTouchedResources
                             rosterGridInnerAndStaffPanelFragments
                             [hsx|
@@ -374,11 +374,6 @@ staffAnchorDateFromParamOrCurrent = do
         Just rawAnchorDate -> parseIsoDayRouteParam rawAnchorDate
         Nothing            -> currentOperationalDayForVenue venueConfig
     pure (startOfWeekFor venueConfig.rosterWeekStartsOn requestedDay)
-
-staffCompatibilityWeekOffset :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Day -> IO Int
-staffCompatibilityWeekOffset anchorDate = do
-    venueConfig <- fetchVenueConfig
-    pure (venueWeekOffsetForDay venueConfig anchorDate)
 
 staffRequiresPayConfigurationRemediation :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Staff -> IO Bool
 staffRequiresPayConfigurationRemediation staff =

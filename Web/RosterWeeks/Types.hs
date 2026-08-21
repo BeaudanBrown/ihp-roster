@@ -29,7 +29,7 @@ import Data.Time.Clock (NominalDiffTime)
 import Data.UUID (UUID)
 import Generated.Types
 import IHP.Prelude
-import Web.RosterWeeks.DateRange (RosterWindowLane)
+import Web.RosterWeeks.DateRange (RosterWindowLane, RosterWindowScope)
 
 data NoRosterGroupView = NoRosterGroupView
     { noRosterGroupPasskeySetupPrompt :: Maybe PasskeySetupPromptMode
@@ -39,7 +39,7 @@ data NoRosterGroupView = NoRosterGroupView
 data ShowView = ShowView
     { rosterWeek             :: Maybe RosterWeek
     , rosterDays             :: [RosterDay]
-    , weekOffset             :: Int
+    , rosterWindowScope      :: RosterWindowScope
     , rosterGroups           :: [RosterGroup]
     , currentRosterGroup     :: RosterGroup
     , weekStartDate          :: Day
@@ -120,7 +120,6 @@ data RosterStaffPanelEntry = RosterStaffPanelEntry
 
 data RosterStaffPanelRenderModel = RosterStaffPanelRenderModel
     { staffPanelRosterWeek             :: Maybe RosterWeek
-    , staffPanelWeekOffset             :: Int
     , staffPanelWeekStartDate          :: Day
     , staffPanelCalendarRevision       :: Int
     , staffPanelRosterGroups           :: [RosterGroup]
@@ -144,7 +143,6 @@ data RosterStaffSelfServicePanel = RosterStaffSelfServicePanel
     , quickToolsVenueId                 :: Id Venue
     , quickToolsRosterGroupId           :: Id RosterGroup
     , quickToolsRosterGroups            :: [RosterGroup]
-    , quickToolsRosterWeekOffset        :: Int
     , quickToolsRosterWeekStartDate     :: Day
     , quickToolsTimesheetEntries        :: [TimesheetEntry]
     , quickToolsStaffMembers            :: [Staff]
@@ -174,7 +172,7 @@ data RosterAssignmentOptionState = RosterAssignmentOptionState
 
 data RosterRenderData = RosterRenderData
     { rosterWeek            :: Maybe RosterWeek
-    , weekOffset            :: Int
+    , rosterWindowScope     :: RosterWindowScope
     , rosterGroups          :: [RosterGroup]
     , currentRosterGroup    :: RosterGroup
     , rosterDays            :: [RosterDay]
@@ -207,7 +205,7 @@ data RosterRenderData = RosterRenderData
 data RosterGridRenderModel = RosterGridRenderModel
     { gridRosterWeek            :: Maybe RosterWeek
     , gridRosterDays            :: [RosterDay]
-    , gridWeekOffset            :: Int
+    , gridWindowScope           :: RosterWindowScope
     , gridRosterGroups          :: [RosterGroup]
     , gridCurrentRosterGroup    :: RosterGroup
     , gridAssignmentFilters     :: RosterAssignmentFilters
@@ -248,7 +246,6 @@ data RosterDayRenderModel = RosterDayRenderModel
     , dayShiftTypes            :: [ShiftType]
     , dayWeekStartDate         :: Day
     , dayCalendarRevision      :: Int
-    , dayTimelineContext       :: Maybe (Int, Id RosterGroup)
     , dayAllSlots              :: [RosterSlot]
     , daySlotConflicts         :: [(Id RosterSlot, [RosterConflict])]
     , dayRenderIndexes         :: RosterRenderIndexes

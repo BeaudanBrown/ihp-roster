@@ -27,8 +27,8 @@ import qualified Data.Time.Calendar as Calendar
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.UUID as UUID
-import Web.RosterWeeks.DateRange (RosterWindowLane, laneForOperationalDate,
-                                  rosterWindowLaneName)
+import Web.RosterWeeks.DateRange (RosterWindowLane, RosterWindowScope (..),
+                                  laneForOperationalDate, rosterWindowLaneName)
 import Web.RosterWeeks.Dom (rosterDayTimelineContentFragmentId,
                             rosterWeekShellId)
 import Web.RosterWeeks.FrontendSurface (RosterDayTimelineScopeValue (..),
@@ -48,10 +48,10 @@ renderRosterDayTimelinePanel :: (?context :: ControllerContext) => RosterGridRen
 renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Nothing } _ = [hsx|
     <div class="alert alert-info mb-0">This draft roster is not visible.</div>
 |]
-renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Just rosterWeek, gridWeekOffset, gridRosterDays, gridCurrentRosterGroup, gridWeekStartDate, gridRosterCalendarRevision, gridAssignmentFilters, gridStaffMembers, gridPanelStaff, gridTemplateLibrary, gridTemplateLibraryUserId, gridNotificationPanelData, gridStaffSelfServicePanel, gridSlotNames, gridShiftTypes, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterTimePickerStartMinute, gridRosterTimePickerFinalSelectableMinute, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridHighlightOwnLiveShifts, gridCurrentViewerStaffKey, gridPublicHolidays } rosterDay =
+renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Just rosterWeek, gridWindowScope, gridRosterDays, gridCurrentRosterGroup, gridWeekStartDate, gridRosterCalendarRevision, gridAssignmentFilters, gridStaffMembers, gridPanelStaff, gridTemplateLibrary, gridTemplateLibraryUserId, gridNotificationPanelData, gridStaffSelfServicePanel, gridSlotNames, gridShiftTypes, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterTimePickerStartMinute, gridRosterTimePickerFinalSelectableMinute, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridHighlightOwnLiveShifts, gridCurrentViewerStaffKey, gridPublicHolidays } rosterDay =
     let rosterData = RosterRenderData
             { rosterWeek = Just rosterWeek
-            , weekOffset = gridWeekOffset
+            , rosterWindowScope = gridWindowScope
             , rosterDays = gridRosterDays
             , rosterGroups = []
             , currentRosterGroup = gridCurrentRosterGroup
@@ -83,15 +83,14 @@ renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Just roste
      in renderRosterDayTimelineMounted rosterData rosterDay (renderRosterDayTimelineContent Nothing rosterData rosterDay)
 
 renderRosterDayTimelineMounted :: RosterRenderData -> RosterDay -> Html -> Html
-renderRosterDayTimelineMounted RosterRenderData { weekOffset, weekStartDate, rosterCalendarRevision, currentRosterGroup } rosterDay body =
+renderRosterDayTimelineMounted RosterRenderData { rosterWindowScope } rosterDay body =
     let timelineSurfaceScope = RosterDayTimelineScopeValue
-            { rosterDayTimelineVenueId = currentRosterGroup.venueId
-            , rosterDayTimelineGroupId = currentRosterGroup.id
-            , rosterDayTimelineWeekOffset = weekOffset
-            , rosterDayTimelineWindowStart = weekStartDate
-            , rosterDayTimelineWindowEnd = Calendar.addDays 7 weekStartDate
-            , rosterDayTimelineCalendarRevision = rosterCalendarRevision
-            , rosterDayTimelineDayOffset = fromInteger (Calendar.diffDays rosterDay.operationalDate weekStartDate)
+            { rosterDayTimelineVenueId = unpackId rosterWindowScope.rosterWindowVenueId
+            , rosterDayTimelineGroupId = rosterWindowScope.rosterWindowRosterGroupId
+            , rosterDayTimelineWindowStart = rosterWindowScope.rosterWindowStart
+            , rosterDayTimelineWindowEnd = rosterWindowScope.rosterWindowEnd
+            , rosterDayTimelineCalendarRevision = rosterWindowScope.rosterWindowCalendarRevision
+            , rosterDayTimelineOperationalDate = rosterDay.operationalDate
             , rosterDayTimelineDayId = rosterDay.id
             }
         timelineSurface = rosterDayTimelineSurfaceImpl timelineSurfaceScope
