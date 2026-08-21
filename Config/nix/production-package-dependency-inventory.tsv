@@ -5,7 +5,7 @@ Control.Category	base	Application/StaffDocuments/RsaExtraction.hs via Main
 Control.Concurrent	base	Application/Helper/LiveUpdate/DurableListener.hs via Main
 Control.Concurrent.MVar	base	Application/Bepis/Fact.hs via Main
 Control.Exception	base	Web/FrontController.hs via Main
-Control.Exception.Safe	safe-exceptions	Application/StaffDocuments/Rsa.hs via Main
+Control.Exception.Safe	safe-exceptions	Application/Helper/VenueOnboardingInvitation.hs via Main
 Control.Monad	base	Web/SurfaceInvalidation.hs via Main
 Crypto.Cipher.AES	crypton	Application/Helper/Xero.hs via Main
 Crypto.Cipher.Types	crypton	Application/Helper/Xero.hs via Main

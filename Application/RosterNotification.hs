@@ -7,10 +7,8 @@ module Application.RosterNotification
     , RosterNotificationAudience (..)
     , RosterNotificationRunSummary (..)
     , RosterNotificationPanelData (..)
-    , RosterNotificationDeliveryPayload (..)
     , CreateRosterNotificationRunResult (..)
-    , rosterNotificationDeliveryJobKind
-    , rosterNotificationPayloadSchemaVersion
+    , rosterNotificationMailKind
     , rosterNotificationSnapshotSchemaVersion
     , createRosterNotificationRun
     , createRosterNotificationRunUnlessActive
@@ -22,11 +20,13 @@ module Application.RosterNotification
     , decodeRosterNotificationSkippedRecipients
     ) where
 
-import Application.Async.Queue
+import Application.Async.Queue (activeAppJobStatuses)
+import Application.EmailDelivery.Enqueue
 import Application.Helper.WeekBoundaries (venueWeekStartDate)
 import qualified Application.RosterNotification.Mutations as Mutations
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -37,11 +37,8 @@ import IHP.ControllerPrelude
 import IHP.Job.Types (JobStatus (..))
 import IHP.ModelSupport (withTransaction)
 
-rosterNotificationDeliveryJobKind :: Text
-rosterNotificationDeliveryJobKind = "roster_notification_delivery"
-
-rosterNotificationPayloadSchemaVersion :: Int
-rosterNotificationPayloadSchemaVersion = 1
+rosterNotificationMailKind :: Text
+rosterNotificationMailKind = "roster_notification_v1"
 
 rosterNotificationSnapshotSchemaVersion :: Int
 rosterNotificationSnapshotSchemaVersion = 1
@@ -120,14 +117,6 @@ data CreateRosterNotificationRunResult
     = RosterNotificationRunCreated !RosterNotificationRun
     | RosterNotificationRunAlreadyActive
     | RosterNotificationRunHasNoEligibleRecipients
-    deriving (Eq, Show)
-
-data RosterNotificationDeliveryPayload = RosterNotificationDeliveryPayload
-    { payloadRunId            :: !UUID
-    , payloadRecipientStaffId :: !UUID
-    , payloadRecipientUserId  :: !UUID
-    , payloadRecipientEmail   :: !Text
-    }
     deriving (Eq, Show)
 
 instance Aeson.ToJSON RosterNotificationSnapshot where
@@ -224,23 +213,6 @@ instance Aeson.FromJSON RosterNotificationSkippedRecipient where
             <$> object Aeson..: "staffId"
             <*> object Aeson..: "name"
             <*> object Aeson..: "reason"
-
-instance Aeson.ToJSON RosterNotificationDeliveryPayload where
-    toJSON payload =
-        Aeson.object
-            [ "runId" Aeson..= payload.payloadRunId
-            , "recipientStaffId" Aeson..= payload.payloadRecipientStaffId
-            , "recipientUserId" Aeson..= payload.payloadRecipientUserId
-            , "recipientEmail" Aeson..= payload.payloadRecipientEmail
-            ]
-
-instance Aeson.FromJSON RosterNotificationDeliveryPayload where
-    parseJSON = Aeson.withObject "RosterNotificationDeliveryPayload" \object ->
-        RosterNotificationDeliveryPayload
-            <$> object Aeson..: "runId"
-            <*> object Aeson..: "recipientStaffId"
-            <*> object Aeson..: "recipientUserId"
-            <*> object Aeson..: "recipientEmail"
 
 createRosterNotificationRunUnlessActive ::
     (?modelContext :: ModelContext) =>
@@ -434,10 +406,22 @@ fetchLatestRosterNotificationRunSummary rosterWeek = do
             , summaryRequesterEmail = requester.email
             , summaryRecipientCount = length recipients
             , summarySkippedCount = length skippedRecipients
-            , summaryDeliveredCount = length (filter (== JobStatusSucceeded) statuses)
+            , summaryDeliveredCount = length (filter isDeliveredRosterNotificationJob jobs)
             , summaryInProgressCount = length (filter (`elem` activeAppJobStatuses) statuses)
             , summaryFailedCount = length (filter (`elem` [JobStatusFailed, JobStatusTimedOut]) statuses)
             }
+
+isDeliveredRosterNotificationJob :: AppJob -> Bool
+isDeliveredRosterNotificationJob appJob =
+    appJob.status == JobStatusSucceeded
+        && deliveryStatus /= Just "retired_during_email_pipeline_migration"
+  where
+    deliveryStatus :: Maybe Text
+    deliveryStatus =
+        AesonTypes.parseMaybe
+            (Aeson.withObject "roster notification result" (Aeson..:? "deliveryStatus"))
+            appJob.result
+            |> join
 
 classifyRecipient ::
     Venue ->
@@ -486,24 +470,19 @@ enqueueRosterNotificationDelivery ::
     Venue ->
     RosterNotificationRecipient ->
     IO ()
-enqueueRosterNotificationDelivery run actor venue recipient = do
-    let payload = RosterNotificationDeliveryPayload
-            { payloadRunId = unpackId run.id
-            , payloadRecipientStaffId = recipient.recipientStaffId
-            , payloadRecipientUserId = recipient.recipientUserId
-            , payloadRecipientEmail = recipient.recipientEmail
-            }
-    void $ enqueueAppJob AppJobRequest
-        { jobKind = rosterNotificationDeliveryJobKind
-        , payload = Aeson.toJSON payload
-        , payloadSchemaVersion = rosterNotificationPayloadSchemaVersion
-        , requestedByUserId = Just (unpackId actor.id)
-        , venueId = Just (unpackId venue.id)
-        , relatedTable = Just "roster_notification_runs"
-        , relatedId = Just (unpackId run.id)
-        , dedupeKey = Just ("roster-notification-delivery:" <> tshow run.id <> ":" <> tshow recipient.recipientUserId)
-        , runAt = Nothing
-        }
+enqueueRosterNotificationDelivery run actor venue recipient =
+    void $
+        enqueueEmailDelivery
+            EmailDeliveryRequest
+                { mailKind = rosterNotificationMailKind
+                , recipientAccountId = recipient.recipientUserId
+                , recipientAddress = recipient.recipientEmail
+                , domainReferenceTable = "roster_notification_runs"
+                , domainReferenceId = unpackId run.id
+                , semanticEventKey = "roster-notification-run:" <> tshow run.id
+                , requestedByUserId = Just (unpackId actor.id)
+                , venueId = Just (unpackId venue.id)
+                }
 
 rosterNotificationRecipientCountLabel :: Int -> Text
 rosterNotificationRecipientCountLabel count =

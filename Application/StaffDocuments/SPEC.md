@@ -33,11 +33,16 @@ resource advertises that unavailable UI.
 - Every RSA upload requires an expiry date and remains pending until manager
   verification. Manager/staff panels distinguish missing, pending, replacement,
   rejected, verified, expiring, and expired effective state.
-- A verified effective document becomes expiring within 30 days. Deduplicated
-  jobs email its linked user once for the expiring window and once after expiry,
-  rechecking that the same reminder remains due before delivery. Expiry delivery
-  marks the effective document expired. Pending replacements never redirect
-  reminders away from the older reviewed document.
+- A verified effective document becomes expiring within 30 days. The sweep
+  snapshots the linked account ID and address into one permanently deduplicated
+  `email_delivery` envelope for the expiring window and one after expiry. Shared
+  delivery rechecks that the reminder remains due and the staff member remains
+  linked to that account, while retaining the snapshotted destination address.
+  Sent and disabled delivery mark the reminder complete; expiry delivery also
+  marks the effective document expired. Transport exceptions remain in the
+  shared ten-attempt lifecycle. Pending replacements never redirect reminders
+  away from the older reviewed document. Active legacy RSA reminder jobs are
+  audibly retired by migration `1788001800.sql`; terminal history is retained.
 
 ## PDF Metadata Candidates
 

@@ -326,7 +326,8 @@ tests = aroundAll withDatabaseTestContext do
                             |> set #expiryDate (fromGregorian 2026 1 31)
                 let mail =
                         RsaReminderMail
-                            { recipient = user
+                            { recipientAddress = user.email
+                            , recipientName = "Riley RSA"
                             , venue = venue
                             , staff = staff
                             , staffDocument = staffDocument

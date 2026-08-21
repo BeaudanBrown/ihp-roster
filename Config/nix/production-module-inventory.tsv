@@ -17,6 +17,7 @@ Application/Billing/Reconciliation.hs	production	runtime	Main	Reachable from Mai
 Application/Billing/Stripe.hs	production	runtime	Main	Reachable from Main
 Application/Billing/Webhook.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery.hs	production	runtime	Main	Reachable from Main
+Application/EmailDelivery/Enqueue.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Persistence.hs	production	runtime	Main	Reachable from Main
 Application/Feedback/Email.hs	production	runtime	Main	Reachable from Main
 Application/Feedback/Notification.hs	production	runtime	Main	Reachable from Main
@@ -294,7 +295,7 @@ Application/PublicHolidays/Job.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/Policy.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/Sync.hs	production	runtime	Main	Reachable from Main
 Application/RosterNotification.hs	production	runtime	Main	Reachable from Main
-Application/RosterNotification/Delivery.hs	production	runtime	Main	Reachable from Main
+Application/RosterNotification/Email.hs	production	runtime	Main	Reachable from Main
 Application/RosterNotification/Mutations.hs	production	runtime	Main	Reachable from Main
 Application/RosterShiftAssignment.hs	production	runtime	Main	Reachable from Main
 Application/RosterTemplates.hs	production	runtime	Main	Reachable from Main
@@ -320,6 +321,7 @@ Application/Script/XeroPayItemProbe.hs	development	integration-probe	-	Guarded X
 Application/Staff/Mutations.hs	production	runtime	Main	Reachable from Main
 Application/StaffDefaults.hs	production	runtime	Main	Reachable from Main
 Application/StaffDocuments/Rsa.hs	production	runtime	Main	Reachable from Main
+Application/StaffDocuments/Rsa/Email.hs	production	runtime	Main	Reachable from Main
 Application/StaffDocuments/RsaExtraction.hs	production	runtime	Main	Reachable from Main
 Application/Support/LiveUpdates.hs	production	runtime	Main	Reachable from Main
 Application/UnavailabilityBlackout/Mutations.hs	production	runtime	Main	Reachable from Main

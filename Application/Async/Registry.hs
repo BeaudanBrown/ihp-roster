@@ -8,8 +8,6 @@ import Application.EmailDelivery
 import Application.FwcMapd.Job
 import Application.InvitationDelivery.Job
 import Application.PublicHolidays.Job
-import Application.RosterNotification.Delivery
-import Application.StaffDocuments.Rsa
 import Application.WageSourceAlert.Job
 import Application.Xero.Keepalive
 import Application.Xero.ReferenceSyncJob
@@ -42,9 +40,7 @@ dispatchAppJobByKind appJob =
         kind | kind == fwcMapdRefreshJobKind -> performFwcMapdRefreshJob appJob
         kind | kind == publicHolidayRefreshJobKind -> performPublicHolidayRefreshJob appJob
         kind | kind == wageSourceHealthCheckJobKind -> performWageSourceHealthCheckJob appJob
-        kind | kind == rosterNotificationDeliveryJobKind -> performRosterNotificationDeliveryJob appJob
         kind | kind == retiredRosterTimesheetCreationJobKind -> retireRosterTimesheetCreationJob appJob
-        kind | kind == rsaReminderJobKind -> performRsaReminderJob appJob
         kind | kind == xeroConnectionKeepaliveJobKind -> performXeroConnectionKeepaliveJob appJob
         kind | kind == xeroReferenceSyncJobKind -> performXeroReferenceSyncJob appJob
         kind | kind == billingReconciliationJobKind -> performBillingReconciliationJob appJob

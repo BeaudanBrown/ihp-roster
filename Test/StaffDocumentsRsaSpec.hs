@@ -1,11 +1,14 @@
 module Test.StaffDocumentsRsaSpec where
 
-import Application.Async.Queue
+import Application.EmailDelivery
 import Application.StaffDocuments.Rsa
 import Application.StaffDocuments.RsaExtraction
 import Config (config)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as AesonKey
+import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.ByteString.Lazy as LBS
+import Data.IORef (modifyIORef', newIORef, readIORef)
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy as LText
 import Data.Time.Calendar (addDays, fromGregorian)
@@ -196,11 +199,13 @@ tests = aroundAll withDatabaseTestContext do
                 secondSummary.enqueuedRsaReminderCount `shouldBe` 0
                 secondSummary.existingRsaReminderCount `shouldBe` 1
 
-                [job] <- query @AppJob |> filterWhere (#jobKind, rsaReminderJobKind) |> fetch
+                [job] <- query @AppJob |> filterWhere (#jobKind, emailDeliveryJobKind) |> fetch
                 job.venueId `shouldBe` Just (unpackId venue.id)
                 job.relatedTable `shouldBe` Just "staff_documents"
                 job.relatedId `shouldBe` Just (unpackId staffDocument.id)
-                job.dedupeKey `shouldBe` Just (rsaDocumentReminderDedupeKey staffDocument.id "expiring_soon")
+                payloadText "mailKind" job `shouldBe` Just (rsaReminderMailKind RsaReminderExpiringSoon)
+                payloadText "recipientAddress" job `shouldBe` Just user.email
+                tshow job.dedupeKey `shouldSatisfy` not . Text.isInfixOf user.email
 
         it "marks expired RSA reminders as sent and expires the document" $ withContext do
             withCleanDb do
@@ -210,17 +215,105 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue user Worker
                 staff <- createStaffRecord venue (Just user) "Eli" "Expired"
                 staffDocument <- createVerifiedRsaDocument user staff (addDays (-1) today)
-                EnqueuedAppJob appJob <- enqueueAppJob (expiredReminderRequest staffDocument)
+                _ <- enqueueDueRsaReminderJobs today
+                appJob <- query @AppJob |> filterWhere (#jobKind, emailDeliveryJobKind) |> fetchOne
+                calls <- newIORef (0 :: Int)
 
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    performRsaReminderJob appJob
+                    performEmailDeliveryJobWith
+                        EmailDeliveryRuntime
+                            { deliveryIsDisabled = pure False
+                            , deliverMail = \_ -> modifyIORef' calls (+ 1)
+                            }
+                        appJob
 
+                readIORef calls `shouldReturn` 1
                 updatedDocument <- fetch staffDocument.id
                 updatedDocument.status `shouldBe` Expired
                 updatedDocument.expiredReminderSentAt `shouldSatisfy` isJust
                 updatedJob <- fetch appJob.id
                 updatedJob.status `shouldBe` JobStatusSucceeded
+                payloadText "deliveryStatus" updatedJob `shouldBe` Just "sent"
+
+        it "marks disabled RSA delivery complete without transport or later replay" $ withContext do
+            withCleanDb do
+                today <- utctDay <$> getCurrentTime
+                venue <- createVenueWithConfig "RSA Disabled Reminder Venue"
+                user <- createUserRecord "rsa-disabled@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user Worker
+                staff <- createStaffRecord venue (Just user) "Drew" "Disabled"
+                staffDocument <- createVerifiedRsaDocument user staff (addDays 10 today)
+                _ <- enqueueDueRsaReminderJobs today
+                appJob <- query @AppJob |> filterWhere (#jobKind, emailDeliveryJobKind) |> fetchOne
+
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    performEmailDeliveryJobWith
+                        EmailDeliveryRuntime
+                            { deliveryIsDisabled = pure True
+                            , deliverMail = \_ -> expectationFailure "disabled RSA delivery must not send"
+                            }
+                        appJob
+
+                completedDocument <- fetch staffDocument.id
+                completedDocument.expiryReminderSentAt `shouldSatisfy` isJust
+                completedJob <- fetch appJob.id
+                payloadText "deliveryStatus" completedJob `shouldBe` Just "delivery_disabled"
+                repeatSummary <- enqueueDueRsaReminderJobs today
+                repeatSummary.dueRsaReminderCount `shouldBe` 0
+
+        it "does not mark disabled RSA reminders when account eligibility changed" $ withContext do
+            withCleanDb do
+                today <- utctDay <$> getCurrentTime
+                venue <- createVenueWithConfig "RSA Disabled Eligibility Venue"
+                user <- createUserRecord "rsa-disabled-unlinked@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user Worker
+                staff <- createStaffRecord venue (Just user) "Uma" "Unlinked"
+                staffDocument <- createVerifiedRsaDocument user staff (addDays 10 today)
+                _ <- enqueueDueRsaReminderJobs today
+                appJob <- query @AppJob |> filterWhere (#jobKind, emailDeliveryJobKind) |> fetchOne
+                _ <- staff |> set #userId Nothing |> updateRecord
+
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    performEmailDeliveryJobWith
+                        EmailDeliveryRuntime
+                            { deliveryIsDisabled = pure True
+                            , deliverMail = \_ -> expectationFailure "disabled RSA delivery must not send"
+                            }
+                        appJob
+
+                unchangedDocument <- fetch staffDocument.id
+                unchangedDocument.expiryReminderSentAt `shouldBe` Nothing
+                completedJob <- fetch appJob.id
+                payloadText "deliveryStatus" completedJob `shouldBe` Just "delivery_disabled"
+
+        it "skips RSA reminders that are no longer due or linked to the snapshotted account" $ withContext do
+            withCleanDb do
+                today <- utctDay <$> getCurrentTime
+                venue <- createVenueWithConfig "RSA Superseded Reminder Venue"
+                user <- createUserRecord "rsa-superseded@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user Worker
+                staff <- createStaffRecord venue (Just user) "Sam" "Superseded"
+                staffDocument <- createVerifiedRsaDocument user staff (addDays 10 today)
+                _ <- enqueueDueRsaReminderJobs today
+                appJob <- query @AppJob |> filterWhere (#jobKind, emailDeliveryJobKind) |> fetchOne
+                now <- getCurrentTime
+                _ <- staffDocument |> set #expiryReminderSentAt (Just now) |> updateRecord
+
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    performEmailDeliveryJobWith
+                        EmailDeliveryRuntime
+                            { deliveryIsDisabled = pure False
+                            , deliverMail = \_ -> expectationFailure "obsolete RSA reminder must not send"
+                            }
+                        appJob
+
+                skippedJob <- fetch appJob.id
+                payloadText "deliveryStatus" skippedJob `shouldBe` Just "delivery_skipped"
+                payloadText "reason" skippedJob `shouldBe` Just "reminder_no_longer_due"
 
 rsaStatusFixture :: StaffDocumentStatusEnum -> Day -> StaffDocument
 rsaStatusFixture status expiryDate =
@@ -246,20 +339,10 @@ createVerifiedRsaDocument actor staff expiryDate =
     createRsaDocument actor.id staff (testRsaUpload expiryDate)
         >>= updateRecord . set #status StaffDocumentStatusEnumVerified
 
-expiredReminderRequest :: StaffDocument -> AppJobRequest
-expiredReminderRequest staffDocument =
-    AppJobRequest
-        { jobKind = rsaReminderJobKind
-        , payload =
-            Aeson.object
-                [ "staffDocumentId" Aeson..= tshow staffDocument.id
-                , "reminderKind" Aeson..= ("expired" :: Text)
-                ]
-        , payloadSchemaVersion = 1
-        , requestedByUserId = Nothing
-        , venueId = Just staffDocument.venueId
-        , relatedTable = Just "staff_documents"
-        , relatedId = Just (unpackId staffDocument.id)
-        , dedupeKey = Just (rsaDocumentReminderDedupeKey staffDocument.id "expired")
-        , runAt = Nothing
-        }
+payloadText :: Text -> AppJob -> Maybe Text
+payloadText key appJob =
+    AesonTypes.parseMaybe (Aeson.withObject "job JSON" (Aeson..: AesonKey.fromText key)) source
+  where
+    source
+        | key == "deliveryStatus" || key == "reason" = appJob.result
+        | otherwise = appJob.payload

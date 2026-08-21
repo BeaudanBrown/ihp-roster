@@ -12,4 +12,4 @@ run = do
     liftIO do
         TextIO.putStrLn ("RSA reminders due: " <> tshow summary.dueRsaReminderCount)
         TextIO.putStrLn ("RSA reminder jobs enqueued: " <> tshow summary.enqueuedRsaReminderCount)
-        TextIO.putStrLn ("RSA reminder jobs already active: " <> tshow summary.existingRsaReminderCount)
+        TextIO.putStrLn ("RSA reminder deliveries already recorded: " <> tshow summary.existingRsaReminderCount)

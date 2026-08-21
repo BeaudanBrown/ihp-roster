@@ -79,3 +79,23 @@ snapshotted destination address. Award drift requires an active platform super a
 Billing requires an active super admin or active unarchived venue-owner membership;
 operational failures remain support-only. Their former feature transport job kinds are
 retired audibly by migration and have no runtime handlers.
+
+## Roster notification and RSA reminder mail kinds
+
+Roster envelopes reference one immutable `roster_notification_runs` row per
+snapshotted account and address. Delivery validates the envelope relationship,
+venue, run identity, snapshot version, and exact recipient entry. It renders only
+that recipient's assigned shifts and the snapshot's Open shifts, so later roster
+changes cannot reveal another staff member's schedule. Related shared-job states
+continue to drive run summaries; successful and disabled outcomes publish the
+existing status resource.
+
+RSA reminder envelopes reference one `staff_documents` row and snapshot its linked
+account and address. The domain rechecks that the expiring/expired event remains due
+and that the staff member remains linked to that account. Successful and disabled
+outcomes atomically mark the reminder sent; expired reminders also mark the document
+expired. SMTP exceptions leave those facts unchanged and use shared retries.
+
+Migration `1788001800.sql` retires only active legacy roster/RSA transport jobs with
+`retired_during_email_pipeline_migration`. Terminal history is retained, and neither
+legacy producer, handler, nor delivery callback remains.

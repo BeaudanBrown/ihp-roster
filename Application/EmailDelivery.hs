@@ -1,27 +1,28 @@
 {-# LANGUAGE RankNTypes #-}
 
 module Application.EmailDelivery
-    ( EmailDeliveryRequest (..)
+    ( EmailDeliveryEnqueueResult (..)
+    , EmailDeliveryRequest (..)
     , EmailDeliveryRuntime (..)
     , emailDeliveryJobKind
     , enqueueEmailDelivery
+    , enqueueEmailDeliveryWithStatus
     , performEmailDeliveryJob
     , performEmailDeliveryJobWith
     ) where
 
 import Application.Billing.NotificationEmail
-import Application.EmailDelivery.Persistence
+import Application.EmailDelivery.Enqueue
 import Application.Feedback.Email (feedbackSubmittedMailKind,
                                    loadFeedbackNotificationMail)
 import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
 import Application.Helper.Mail
+import Application.RosterNotification.Email
+import Application.StaffDocuments.Rsa.Email
 import Application.WageSourceAlert.Email
 import Application.WageSourceNotification.Email
 import Control.Monad (void)
-import qualified "crypton" Crypto.Hash as Hash
 import qualified Data.Aeson as Aeson
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as TextEncoding
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.EnvVar (envOrDefault)
@@ -29,21 +30,7 @@ import IHP.FrameworkConfig (ConfigProvider, FrameworkConfig)
 import IHP.Job.Types (JobStatus (JobStatusSucceeded))
 import IHP.Mail (sendMail)
 import IHP.MailPrelude (BuildMail)
-
-emailDeliveryJobKind :: Text
-emailDeliveryJobKind = "email_delivery"
-
-data EmailDeliveryRequest = EmailDeliveryRequest
-    { mailKind             :: !Text
-    , recipientAccountId   :: !UUID
-    , recipientAddress     :: !Text
-    , domainReferenceTable :: !Text
-    , domainReferenceId    :: !UUID
-    , semanticEventKey     :: !Text
-    , requestedByUserId    :: !(Maybe UUID)
-    , venueId              :: !(Maybe UUID)
-    }
-    deriving (Eq, Show)
+import IHP.ModelSupport (withTransaction)
 
 data EmailDeliveryPayload = EmailDeliveryPayload
     { payloadMailKind           :: !Text
@@ -65,63 +52,6 @@ data EmailDeliveryRuntime = EmailDeliveryRuntime
     { deliveryIsDisabled :: !(IO Bool)
     , deliverMail        :: !(forall mail. BuildMail mail => mail -> IO ())
     }
-
-enqueueEmailDelivery ::
-    (?modelContext :: ModelContext) =>
-    EmailDeliveryRequest ->
-    IO AppJob
-enqueueEmailDelivery request = do
-    let dedupeKey = emailDeliveryDedupeKey request
-    inserted <-
-        insertPermanentlyDeduplicatedEmailJob
-            EmailDeliveryInsert
-                { payload = emailDeliveryPayload request
-                , requestedByUserId = request.requestedByUserId
-                , venueId = request.venueId
-                , relatedTable = request.domainReferenceTable
-                , relatedId = request.domainReferenceId
-                , dedupeKey
-                }
-    case inserted of
-        [appJob] -> pure appJob
-        [] -> do
-            existing <-
-                query @AppJob
-                    |> filterWhere (#jobKind, emailDeliveryJobKind)
-                    |> filterWhere (#dedupeKey, Just dedupeKey)
-                    |> orderByAsc #createdAt
-                    |> fetchOneOrNothing
-            case existing of
-                Just appJob -> pure appJob
-                Nothing -> error "Email delivery dedupe conflict occurred without an existing job"
-        _ -> error "Email delivery insert unexpectedly returned multiple rows"
-
-emailDeliveryPayload :: EmailDeliveryRequest -> Aeson.Value
-emailDeliveryPayload request =
-    Aeson.object
-        [ "mailKind" Aeson..= request.mailKind
-        , "recipientAccountId" Aeson..= request.recipientAccountId
-        , "recipientAddress" Aeson..= request.recipientAddress
-        , "domainReferenceId" Aeson..= request.domainReferenceId
-        ]
-
-emailDeliveryDedupeKey :: EmailDeliveryRequest -> Text
-emailDeliveryDedupeKey request =
-    Text.intercalate
-        ":"
-        [ "email-delivery"
-        , request.mailKind
-        , request.semanticEventKey
-        , tshow request.recipientAccountId
-        , recipientAddressDigest request.recipientAddress
-        ]
-
-recipientAddressDigest :: Text -> Text
-recipientAddressDigest address =
-    tshow
-        ( Hash.hash
-            (TextEncoding.encodeUtf8 (Text.toCaseFold (Text.strip address))) :: Hash.Digest Hash.SHA256
-        )
 
 performEmailDeliveryJob ::
     (?context :: FrameworkConfig, ?modelContext :: ModelContext) =>
@@ -158,7 +88,7 @@ performPayload EmailDeliveryRuntime { deliveryIsDisabled, deliverMail } appJob p
     appBaseUrl :: Text <- envOrDefault "APP_BASE_URL" "http://localhost:8000"
     disabled <- deliveryIsDisabled
     if disabled
-        then completeEmailDelivery appJob payload "delivery_disabled" Nothing
+        then performDisabledPayload appJob payload AppMailSettings { .. } appBaseUrl
         else case payload.payloadMailKind of
             mailKind | mailKind == feedbackSubmittedMailKind -> do
                 maybeMail <-
@@ -212,7 +142,103 @@ performPayload EmailDeliveryRuntime { deliveryIsDisabled, deliverMail } appJob p
                     BillingMailReady mail -> do
                         deliverMail mail
                         completeEmailDelivery appJob payload "sent" Nothing
+            mailKind | isRosterNotificationMailKind mailKind -> do
+                validateRelatedTable appJob "roster_notification_runs" payload.payloadDomainReferenceId
+                projection <-
+                    loadRosterNotificationMail
+                        mailKind
+                        payload.payloadRecipientAccountId
+                        payload.payloadRecipientAddress
+                        payload.payloadDomainReferenceId
+                        appJob.venueId
+                        AppMailSettings { .. }
+                        appBaseUrl
+                case projection of
+                    RosterNotificationMailSkipped reason -> completeEmailDelivery appJob payload "delivery_skipped" (Just reason)
+                    RosterNotificationMailReady mail -> do
+                        deliverMail mail
+                        completeRosterNotificationDelivery appJob payload "sent"
+            mailKind | isRsaReminderMailKind mailKind -> do
+                validateRelatedTable appJob "staff_documents" payload.payloadDomainReferenceId
+                projection <-
+                    loadRsaReminderMail
+                        mailKind
+                        payload.payloadRecipientAccountId
+                        payload.payloadRecipientAddress
+                        payload.payloadDomainReferenceId
+                        appJob.venueId
+                        AppMailSettings { .. }
+                case projection of
+                    RsaReminderMailSkipped reason -> completeEmailDelivery appJob payload "delivery_skipped" (Just reason)
+                    RsaReminderMailReady mail -> do
+                        deliverMail mail
+                        completeRsaReminderEmail appJob payload "sent"
             unknownKind -> fail ("Unknown email delivery mail kind: " <> cs unknownKind)
+
+performDisabledPayload ::
+    (?modelContext :: ModelContext) =>
+    AppJob ->
+    EmailDeliveryPayload ->
+    AppMailSettings ->
+    Text ->
+    IO ()
+performDisabledPayload appJob payload settings appBaseUrl
+    | isRosterNotificationMailKind payload.payloadMailKind = do
+        validateRelatedTable appJob "roster_notification_runs" payload.payloadDomainReferenceId
+        projection <-
+            loadRosterNotificationMail
+                payload.payloadMailKind
+                payload.payloadRecipientAccountId
+                payload.payloadRecipientAddress
+                payload.payloadDomainReferenceId
+                appJob.venueId
+                settings
+                appBaseUrl
+        case projection of
+            RosterNotificationMailSkipped _ -> completeEmailDelivery appJob payload "delivery_disabled" Nothing
+            RosterNotificationMailReady _ -> completeRosterNotificationDelivery appJob payload "delivery_disabled"
+    | isRsaReminderMailKind payload.payloadMailKind = do
+        validateRelatedTable appJob "staff_documents" payload.payloadDomainReferenceId
+        projection <-
+            loadRsaReminderMail
+                payload.payloadMailKind
+                payload.payloadRecipientAccountId
+                payload.payloadRecipientAddress
+                payload.payloadDomainReferenceId
+                appJob.venueId
+                settings
+        case projection of
+            RsaReminderMailSkipped _ -> completeEmailDelivery appJob payload "delivery_disabled" Nothing
+            RsaReminderMailReady _ -> completeRsaReminderEmail appJob payload "delivery_disabled"
+    | otherwise = completeEmailDelivery appJob payload "delivery_disabled" Nothing
+
+completeRosterNotificationDelivery ::
+    (?modelContext :: ModelContext) =>
+    AppJob ->
+    EmailDeliveryPayload ->
+    Text ->
+    IO ()
+completeRosterNotificationDelivery appJob payload deliveryStatus = do
+    completeEmailDelivery appJob payload deliveryStatus Nothing
+    publishRosterNotificationStatusResource
+        "roster.notification.delivery.complete"
+        payload.payloadDomainReferenceId
+
+completeRsaReminderEmail ::
+    (?modelContext :: ModelContext) =>
+    AppJob ->
+    EmailDeliveryPayload ->
+    Text ->
+    IO ()
+completeRsaReminderEmail appJob payload deliveryStatus =
+    withTransaction do
+        completeRsaReminderDelivery payload.payloadMailKind payload.payloadDomainReferenceId
+        completeEmailDelivery appJob payload deliveryStatus Nothing
+
+validateRelatedTable :: AppJob -> Text -> UUID -> IO ()
+validateRelatedTable appJob expectedTable expectedId =
+    unless (appJob.relatedTable == Just expectedTable && appJob.relatedId == Just expectedId) $
+        fail ("Email delivery job has invalid related " <> cs expectedTable <> " reference")
 
 completeEmailDelivery ::
     (?modelContext :: ModelContext) =>
