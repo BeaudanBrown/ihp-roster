@@ -11,7 +11,6 @@ import Application.PublicHolidays.Job
 import Application.RosterNotification.Delivery
 import Application.StaffDocuments.Rsa
 import Application.WageSourceAlert.Job
-import Application.WageSourceNotifications
 import Application.Xero.Keepalive
 import Application.Xero.ReferenceSyncJob
 import qualified Control.Exception as Exception
@@ -48,9 +47,7 @@ dispatchAppJobByKind appJob =
         kind | kind == rsaReminderJobKind -> performRsaReminderJob appJob
         kind | kind == xeroConnectionKeepaliveJobKind -> performXeroConnectionKeepaliveJob appJob
         kind | kind == xeroReferenceSyncJobKind -> performXeroReferenceSyncJob appJob
-        kind | kind == billingNotificationJobKind -> performBillingNotificationJob appJob
         kind | kind == billingReconciliationJobKind -> performBillingReconciliationJob appJob
-        kind | kind == wageSourceDriftNotificationJobKind -> performWageSourceDriftNotificationJob appJob
         kind | kind == venueInvitationDeliveryJobKind -> performVenueInvitationDeliveryJob appJob
         kind | kind == venueOnboardingInvitationDeliveryJobKind -> performVenueOnboardingInvitationDeliveryJob appJob
         _ -> fail ("Unknown app job kind: " <> Text.unpack appJob.jobKind)
@@ -62,8 +59,7 @@ isWageSourceRefreshJob appJob =
 
 isBillingOperationalJob :: AppJob -> Bool
 isBillingOperationalJob appJob =
-    "billing_" `Text.isPrefixOf` appJob.jobKind
-        && appJob.jobKind /= billingNotificationJobKind
+    appJob.jobKind == billingReconciliationJobKind
 
 retiredRosterTimesheetCreationJobKind :: Text
 retiredRosterTimesheetCreationJobKind = "roster_timesheet_creation"

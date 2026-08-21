@@ -139,7 +139,7 @@ tests = aroundAll withDatabaseTestContext do
                 user <- createUserRecord "billing-mail@example.com" "staff" True
                 let mail =
                         BillingNotificationMail
-                            { recipient = user
+                            { recipientAddress = user.email
                             , venue = venue
                             , notificationKind = BillingPaymentTrouble
                             , sourceReference = Nothing

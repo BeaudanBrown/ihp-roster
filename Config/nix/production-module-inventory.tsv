@@ -9,6 +9,7 @@ Application/Bepis/Fact.hs	production	runtime	Main	Reachable from Main
 Application/Bepis/Prelude.hs	production	runtime	Main	Reachable from Main
 Application/Bepis/Response.hs	production	runtime	Main	Reachable from Main
 Application/Billing/Checkout.hs	production	runtime	Main	Reachable from Main
+Application/Billing/NotificationEmail.hs	production	runtime	Main	Reachable from Main
 Application/Billing/NotificationKind.hs	production	runtime	Main	Reachable from Main
 Application/Billing/Notifications.hs	production	runtime	Main	Reachable from Main
 Application/Billing/Persistence.hs	production	runtime	Main	Reachable from Main
@@ -341,6 +342,8 @@ Application/WageSourceAlert/Job.hs	production	runtime	Main	Reachable from Main
 Application/WageSourceAlert/Types.hs	production	runtime	Main	Reachable from Main
 Application/WageSourceEnforcement.hs	production	runtime	Main	Reachable from Main
 Application/WageSourceFacts.hs	production	runtime	Main	Reachable from Main
+Application/WageSourceNotification/Email.hs	production	runtime	Main	Reachable from Main
+Application/WageSourceNotification/Fingerprint.hs	production	runtime	Main	Reachable from Main
 Application/WageSourceNotifications.hs	production	runtime	Main	Reachable from Main
 Application/WageSourcePolicy.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Admin/ImportedPayItems.hs	production	runtime	Main	Reachable from Main

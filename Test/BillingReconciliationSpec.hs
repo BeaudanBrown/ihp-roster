@@ -3,9 +3,9 @@ module Test.BillingReconciliationSpec where
 import Application.Async.Queue (EnqueueAppJobResult (EnqueuedAppJob),
                                 appJobMaxAttempts)
 import Application.Async.Registry (dispatchAppJob)
-import Application.Billing.Notifications (billingNotificationJobKind)
 import Application.Billing.Reconciliation
 import Application.Billing.Stripe
+import Application.EmailDelivery (emailDeliveryJobKind)
 import Application.Helper.FrontendContract.Surface.Billing.Resource (billingResource)
 import Application.Helper.LiveUpdate.DurableCodec (DurableResource (..),
                                                    decodeDurableResource)
@@ -21,6 +21,9 @@ import Test.Hspec
 import Test.Support
 
 import IHP.Test.Mocking
+
+billingNotificationJobKind :: Text
+billingNotificationJobKind = emailDeliveryJobKind
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do

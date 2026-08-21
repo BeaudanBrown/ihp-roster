@@ -65,3 +65,17 @@ and is the only condition deferred when no active venue exists. Alert recipients
 active platform super admins selected at incident evaluation; their addresses and the
 incident snapshot remain authoritative after enqueue, including when the source
 recovers before delivery.
+
+## Award drift and billing mail kinds
+
+Award-drift envelopes reference the retained current `fwc_mapd_awards` snapshot and
+reconstruct its comparison with the immediately preceding snapshot at delivery.
+Billing lifecycle envelopes reference a `billing_events` row whose bounded JSON array
+retains category and period facts; operational failure envelopes reference their
+source `AppJob`. Neither envelope stores rendered content or provider details.
+
+Both domains revalidate current eligibility at delivery while preserving the
+snapshotted destination address. Award drift requires an active platform super admin.
+Billing requires an active super admin or active unarchived venue-owner membership;
+operational failures remain support-only. Their former feature transport job kinds are
+retired audibly by migration and have no runtime handlers.

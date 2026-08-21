@@ -95,7 +95,9 @@ unchanged-structure refreshes emit no drift signal. The pure policy performs no 
 or network work. `Application.WageSourceEnforcement` adapts persisted source facts and
 entry calculations into per-entry draft outcomes and strict final batches. Successful MAPD
 publication compares the latest two fingerprints and enqueues permanently deduplicated
-notifications for active platform super admins only; drift remains non-blocking.
+shared email envelopes for active platform super admins only. Each envelope references
+the retained current Award snapshot, reconstructs the same prior/current comparison,
+and revalidates active super-admin eligibility at delivery; drift remains non-blocking.
 
 ## Validated rate book
 

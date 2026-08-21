@@ -20,8 +20,10 @@ Controllers own HTTP authorization responses, redirects, fragments, and copy:
   the narrow `SELECT ... FOR UPDATE` boundary.
 - `Webhook.hs` — idempotent, ordered, transactional event application.
 - `Reconciliation.hs` — read-only recovery of locally known provider objects.
-- `Notifications.hs` and `NotificationKind.hs` — transition classification,
-  recipient policy, and permanent deduplication.
+- `Notifications.hs`, `NotificationKind.hs`, and `NotificationEmail.hs` —
+  transition snapshots, recipient policy, shared-envelope enqueueing, delivery-time
+  revalidation, and permanent deduplication. SMTP transport belongs only to
+  `Application.EmailDelivery`.
 
 Persistence authority is `Application/Schema.sql` and billing migrations. Exact
 state transitions and provider shapes are covered by focused billing tests and

@@ -6,7 +6,7 @@ import IHP.MailPrelude
 import Web.Mail.Shared
 
 data BillingNotificationMail = BillingNotificationMail
-    { recipient        :: User
+    { recipientAddress :: Text
     , venue            :: Venue
     , notificationKind :: BillingNotificationKind
     , sourceReference  :: Maybe Text
@@ -25,10 +25,10 @@ data BillingNotificationCopy = BillingNotificationCopy
 instance BuildMail BillingNotificationMail where
     subject = (billingNotificationCopy ?mail.notificationKind ?mail.venue.name).copySubject
 
-    to BillingNotificationMail { recipient } =
+    to BillingNotificationMail { recipientAddress } =
         Address
             { addressName = Nothing
-            , addressEmail = recipient.email
+            , addressEmail = recipientAddress
             }
 
     from = bepisFrom ?mail.fromAddress

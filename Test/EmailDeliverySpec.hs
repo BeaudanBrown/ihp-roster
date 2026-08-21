@@ -11,6 +11,7 @@ import qualified Data.Aeson.Types as AesonTypes
 import Data.Either (isLeft)
 import Data.IORef
 import qualified Data.Text as Text
+import qualified Data.Text.IO as TextIO
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig (withFrameworkConfig)
@@ -116,6 +117,21 @@ tests = aroundAll withDatabaseTestContext do
                 readIORef sends `shouldReturn` 2
                 completed <- fetch appJob.id
                 payloadResultText "deliveryStatus" completed `shouldBe` Just "sent"
+
+        it "hard-retires only active legacy award and billing transport jobs in the cutover migration" $ withContext do
+            migrationSql <- TextIO.readFile "Application/Migration/1788001200.sql"
+
+            migrationSql `shouldSatisfy` Text.isInfixOf "notification_snapshot JSONB"
+            migrationSql `shouldSatisfy` Text.isInfixOf "'billing_notification'"
+            migrationSql `shouldSatisfy` Text.isInfixOf "'wage_source_award_drift_notification'"
+            migrationSql `shouldSatisfy` Text.isInfixOf "'retired_during_email_pipeline_migration'"
+            migrationSql `shouldSatisfy` Text.isInfixOf "'job_status_not_started'"
+            migrationSql `shouldSatisfy` Text.isInfixOf "'job_status_running'"
+            migrationSql `shouldSatisfy` Text.isInfixOf "'job_status_retry'"
+            migrationSql `shouldSatisfy` Text.isInfixOf "SET status = 'job_status_succeeded'"
+            migrationSql `shouldSatisfy` not . Text.isInfixOf "'job_status_failed'"
+            migrationSql `shouldSatisfy` not . Text.isInfixOf "'job_status_timed_out'"
+            migrationSql `shouldSatisfy` not . Text.isInfixOf "DELETE FROM app_jobs"
 
         it "permanently deduplicates feedback events after terminal completion" $ withContext do
             withCleanDb do

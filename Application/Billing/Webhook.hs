@@ -237,6 +237,7 @@ processStripeWebhookEvent event =
                             billingEvent
                                 |> set #status "processed"
                                 |> set #processedAt (Just now)
+                                |> set #notificationSnapshot (Aeson.toJSON notifications)
                                 |> updateRecord
                         forM_ notifications \notification ->
                             forM_ maybeVenue \venue ->
@@ -256,6 +257,7 @@ createBillingEventRecord event maybeVenue =
         |> set #venueId (unpackId . (.id) <$> maybeVenue)
         |> set #stripeCustomerId event.stripeObjectSnapshot.stripeObjectCustomerId
         |> set #stripeSubscriptionId event.stripeObjectSnapshot.stripeObjectSubscriptionId
+        |> set #notificationSnapshot (Aeson.Array mempty)
         |> createRecord
 
 data ApplyResult

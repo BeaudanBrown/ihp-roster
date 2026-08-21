@@ -1,10 +1,20 @@
 module Application.Billing.NotificationKind
-    ( BillingNotificationKind (..)
+    ( BillingNotification (..)
+    , BillingNotificationKind (..)
     , billingNotificationKindText
     , parseBillingNotificationKind
     ) where
 
+import qualified Data.Aeson as Aeson
 import IHP.Prelude
+
+data BillingNotification = BillingNotification
+    { notificationKind               :: !BillingNotificationKind
+    , notificationSubscriptionId     :: !(Maybe Text)
+    , notificationBillingPeriodStart :: !(Maybe UTCTime)
+    , notificationBillingPeriodEnd   :: !(Maybe UTCTime)
+    }
+    deriving (Eq, Show)
 
 data BillingNotificationKind
     = BillingPaymentTrouble
@@ -15,6 +25,24 @@ data BillingNotificationKind
     | BillingCheckoutPaymentFailed
     | BillingOperationalRetriesExhausted
     deriving (Eq, Show)
+
+instance Aeson.ToJSON BillingNotification where
+    toJSON notification =
+        Aeson.object
+            [ "notificationKind" Aeson..= billingNotificationKindText notification.notificationKind
+            , "billingPeriodStart" Aeson..= notification.notificationBillingPeriodStart
+            , "billingPeriodEnd" Aeson..= notification.notificationBillingPeriodEnd
+            ]
+
+instance Aeson.FromJSON BillingNotification where
+    parseJSON = Aeson.withObject "BillingNotification" \object -> do
+        rawKind <- object Aeson..: "notificationKind"
+        notificationKind <- maybe (fail "Unknown billing notification kind") pure (parseBillingNotificationKind rawKind)
+        BillingNotification
+            <$> pure notificationKind
+            <*> pure Nothing
+            <*> object Aeson..:? "billingPeriodStart"
+            <*> object Aeson..:? "billingPeriodEnd"
 
 billingNotificationKindText :: BillingNotificationKind -> Text
 billingNotificationKindText = \case

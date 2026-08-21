@@ -15,6 +15,7 @@ import Application.Helper.View (formatDateDisplay,
                                 quarterHourTimeOptionsInRange,
                                 storageTimeToDisplayLabel)
 import Application.Helper.View.Leave (renderDateRangeText)
+import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (fromGregorian)
@@ -152,6 +153,7 @@ tests = describe "Schema" do
         get #lastAppliedStripeEventCreatedAt subscription `shouldBe` Nothing
         get #lastAppliedStripeEventId subscription `shouldBe` Nothing
         get #stripeCreatedAt billingEvent `shouldBe` Nothing
+        get #notificationSnapshot billingEvent `shouldBe` Aeson.Null
 
     it "venue membership exposes role and active fields" do
         let membership = newRecord @VenueMembership

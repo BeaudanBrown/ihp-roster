@@ -1258,6 +1258,7 @@ CREATE TABLE billing_events (
     stripe_customer_id TEXT DEFAULT NULL,
     stripe_subscription_id TEXT DEFAULT NULL,
     status TEXT DEFAULT 'received' NOT NULL,
+    notification_snapshot JSONB DEFAULT '[]'::JSONB NOT NULL,
     error_summary TEXT DEFAULT NULL,
     received_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     processed_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
@@ -1273,6 +1274,7 @@ CREATE TABLE billing_events (
     CHECK (stripe_customer_id IS NULL OR ((char_length(btrim(stripe_customer_id)) > 0) AND (char_length(stripe_customer_id) <= 255))),
     CHECK (stripe_subscription_id IS NULL OR ((char_length(btrim(stripe_subscription_id)) > 0) AND (char_length(stripe_subscription_id) <= 255))),
     CHECK ((status = 'received') OR (status = 'processed') OR (status = 'failed') OR (status = 'ignored')),
+    CHECK (jsonb_typeof(notification_snapshot) = 'array'),
     CHECK (error_summary IS NULL OR ((char_length(btrim(error_summary)) > 0) AND (char_length(error_summary) <= 1000))),
     CHECK (((status = 'processed') AND processed_at IS NOT NULL) OR (status <> 'processed'))
 );

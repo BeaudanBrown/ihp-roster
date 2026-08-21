@@ -9,12 +9,14 @@ module Application.EmailDelivery
     , performEmailDeliveryJobWith
     ) where
 
+import Application.Billing.NotificationEmail
 import Application.EmailDelivery.Persistence
 import Application.Feedback.Email (feedbackSubmittedMailKind,
                                    loadFeedbackNotificationMail)
 import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
 import Application.Helper.Mail
 import Application.WageSourceAlert.Email
+import Application.WageSourceNotification.Email
 import Control.Monad (void)
 import qualified "crypton" Crypto.Hash as Hash
 import qualified Data.Aeson as Aeson
@@ -181,6 +183,33 @@ performPayload EmailDeliveryRuntime { deliveryIsDisabled, deliverMail } appJob p
                 case maybeMail of
                     Nothing -> completeEmailDelivery appJob payload "delivery_skipped" (Just "domain_reference_missing")
                     Just mail -> do
+                        deliverMail mail
+                        completeEmailDelivery appJob payload "sent" Nothing
+            mailKind | isAwardDriftMailKind mailKind -> do
+                projection <-
+                    loadAwardDriftMail
+                        mailKind
+                        payload.payloadRecipientAccountId
+                        payload.payloadRecipientAddress
+                        payload.payloadDomainReferenceId
+                        AppMailSettings { .. }
+                case projection of
+                    AwardDriftMailSkipped reason -> completeEmailDelivery appJob payload "delivery_skipped" (Just reason)
+                    AwardDriftMailReady mail -> do
+                        deliverMail mail
+                        completeEmailDelivery appJob payload "sent" Nothing
+            mailKind | isBillingNotificationMailKind mailKind -> do
+                projection <-
+                    loadBillingNotificationMail
+                        mailKind
+                        payload.payloadRecipientAccountId
+                        payload.payloadRecipientAddress
+                        payload.payloadDomainReferenceId
+                        AppMailSettings { .. }
+                        appBaseUrl
+                case projection of
+                    BillingMailSkipped reason -> completeEmailDelivery appJob payload "delivery_skipped" (Just reason)
+                    BillingMailReady mail -> do
                         deliverMail mail
                         completeEmailDelivery appJob payload "sent" Nothing
             unknownKind -> fail ("Unknown email delivery mail kind: " <> cs unknownKind)

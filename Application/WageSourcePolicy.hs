@@ -17,6 +17,7 @@ module Application.WageSourcePolicy
     , SourceSnapshot (..)
     , WageSourceDecision (..)
     , WageSourcePolicyInput (..)
+    , awardDriftKindText
     , dataVicMaximumAge
     , detectAwardDrift
     , evaluateDataVicDiagnostics
@@ -329,18 +330,18 @@ renderKeys = Text.intercalate ", " . Set.toAscList
 awardDriftDedupeKey :: AwardDriftKind -> Text -> Text -> Text
 awardDriftDedupeKey kind expectedCanonical observedCanonical =
     "award-drift:"
-        <> driftKindValue kind
+        <> awardDriftKindText kind
         <> ":"
         <> tshow digest
   where
-    payload = canonicalTextParts [driftKindValue kind, expectedCanonical, observedCanonical]
+    payload = canonicalTextParts [awardDriftKindText kind, expectedCanonical, observedCanonical]
     digest = Hash.hash (TextEncoding.encodeUtf8 payload) :: Hash.Digest Hash.SHA256
 
 canonicalTextParts :: [Text] -> Text
 canonicalTextParts = Text.concat . map (\value -> tshow (Text.length value) <> ":" <> value)
 
-driftKindValue :: AwardDriftKind -> Text
-driftKindValue AwardDocumentChecksumChanged        = "document-checksum"
-driftKindValue AwardDocumentVersionChanged         = "document-version"
-driftKindValue AwardClassificationStructureChanged = "classification-structure"
-driftKindValue AwardCategoryStructureChanged       = "category-structure"
+awardDriftKindText :: AwardDriftKind -> Text
+awardDriftKindText AwardDocumentChecksumChanged        = "document-checksum"
+awardDriftKindText AwardDocumentVersionChanged         = "document-version"
+awardDriftKindText AwardClassificationStructureChanged = "classification-structure"
+awardDriftKindText AwardCategoryStructureChanged       = "category-structure"
