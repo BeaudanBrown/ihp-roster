@@ -2,6 +2,9 @@
 
 module Web.RosterWeeks.Paths
     ( rosterAssignmentFiltersUrl
+    , rosterDayMutationUrl
+    , rosterExistingSlotDialogUrl
+    , rosterNewSlotDialogUrl
     , rosterCopyWeekUrl
     , rosterLayoutPreferenceUrl
     , rosterMoveShiftUrl
@@ -154,6 +157,34 @@ rosterWeekRowFragmentUrl anchorDate rosterGroupId rosterDayId rowIndex =
         , ("rosterDayId", tshow rosterDayId)
         , ("rowIndex", tshow rowIndex)
         , ("rosterGroupId", tshow rosterGroupId)
+        ]
+
+rosterExistingSlotDialogUrl :: Id RosterSlot -> Day -> Int -> Text
+rosterExistingSlotDialogUrl rosterSlotId anchorDate calendarRevision =
+    appendQueryParams
+        (pathTo (EditRosterSlotDialogAction rosterSlotId))
+        [ ("anchorDate", formatDayParam anchorDate)
+        , ("rosterCalendarRevision", tshow calendarRevision)
+        ]
+
+rosterNewSlotDialogUrl :: Id RosterDay -> Id RosterLane -> Int -> Id RosterGroup -> Day -> Int -> Text
+rosterNewSlotDialogUrl rosterDayId rosterLaneId rowIndex rosterGroupId operationalDate calendarRevision =
+    appendQueryParams
+        (pathTo (NewRosterSlotDialogAction rosterDayId rosterLaneId rowIndex))
+        [ ("rosterGroupId", tshow rosterGroupId)
+        , ("operationalDate", formatDayParam operationalDate)
+        , ("anchorDate", formatDayParam operationalDate)
+        , ("rosterCalendarRevision", tshow calendarRevision)
+        ]
+
+rosterDayMutationUrl :: RosterWeeksController -> Id RosterGroup -> Day -> Int -> Text
+rosterDayMutationUrl action rosterGroupId operationalDate calendarRevision =
+    appendQueryParams
+        (pathTo action)
+        [ ("rosterGroupId", tshow rosterGroupId)
+        , ("operationalDate", formatDayParam operationalDate)
+        , ("anchorDate", formatDayParam operationalDate)
+        , ("rosterCalendarRevision", tshow calendarRevision)
         ]
 
 rosterAssignmentFiltersUrl :: Day -> Id RosterGroup -> Text

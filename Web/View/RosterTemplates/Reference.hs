@@ -5,7 +5,7 @@ module Web.View.RosterTemplates.Reference where
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.RosterTemplateScale (rosterTemplateScaleIsWeek,
                                                rosterTemplateScaleValue)
-import Data.Time.Calendar (addDays, diffDays)
+import Data.Time.Calendar (addDays)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.RosterTemplates.FrontendSurface
 import Web.RosterWeeks.Paths (rosterTemplateReferenceUrl)
@@ -13,12 +13,12 @@ import Web.RosterWeeks.TemplateDesigner
 import Web.View.Prelude
 
 data ReferenceView = ReferenceView
-    { rosterGroup       :: !RosterGroup
-    , referenceWeek     :: !RosterTemplateReferenceWeek
-    , weekOffset        :: !Int
-    , currentWeekOffset :: !Int
-    , templateName      :: !Text
-    , templateScale     :: !RosterTemplateScaleEnum
+    { rosterGroup        :: !RosterGroup
+    , referenceWeek      :: !RosterTemplateReferenceWeek
+    , windowStart        :: !Day
+    , currentWindowStart :: !Day
+    , templateName       :: !Text
+    , templateScale      :: !RosterTemplateScaleEnum
     }
 
 instance View ReferenceView where
@@ -39,9 +39,9 @@ instance View ReferenceView where
                                     <h2 class="h4 mb-0">{if rosterTemplateScaleIsWeek templateScale then ("Select a reference week" :: Text) else "Select a reference day"}</h2>
                                 </div>
                                 <nav class="d-flex align-items-center gap-2" aria-label="Reference week navigation">
-                                    <a class="btn btn-outline-secondary" href={referenceUrl (weekOffset - 1)}>Previous week</a>
-                                    <a class="btn btn-outline-secondary" href={referenceUrl currentWeekOffset}>This week</a>
-                                    <a class="btn btn-outline-secondary" href={referenceUrl (weekOffset + 1)}>Next week</a>
+                                    <a class="btn btn-outline-secondary" href={referenceUrl (addDays (-7) windowStart)}>Previous week</a>
+                                    <a class="btn btn-outline-secondary" href={referenceUrl currentWindowStart}>This week</a>
+                                    <a class="btn btn-outline-secondary" href={referenceUrl (addDays 7 windowStart)}>Next week</a>
                                 </nav>
                             </header>
                             <div class="p-4">
@@ -59,9 +59,9 @@ instance View ReferenceView where
             , templateDesignerRosterGroupId = unpackId rosterGroup.id
             , templateDesignerUserId = unpackId currentUser.id
             }
-        referenceUrl targetOffset =
+        referenceUrl targetWindowStart =
             rosterTemplateReferenceUrl
-                (addDays (toInteger ((targetOffset - weekOffset) * 7)) referenceWeek.referenceWeekStart)
+                targetWindowStart
                 rosterGroup.id
                 templateName
                 (rosterTemplateScaleValue templateScale)
@@ -104,7 +104,7 @@ renderReferenceContent view@ReferenceView { referenceWeek = RosterTemplateRefere
                 <form method="GET" action={ConfirmRosterTemplateReferenceAction view.rosterGroup.id}
                       class="roster-template-reference-target h-100"
                       {...rosterTemplateReferenceTargetAttrs}>
-                    {referenceHiddenFields view (Just (fromInteger (diffDays rosterDay.operationalDate referenceWeekStart)))}
+                    {referenceHiddenFields view (Just rosterDay.operationalDate)}
                     <button type="submit" class="btn p-0 text-start w-100 h-100 roster-template-reference-button" aria-label={"Use " <> label <> " as template reference"}>
                         <span class="d-block p-3">
                             <strong>{label}</strong>
@@ -116,17 +116,17 @@ renderReferenceContent view@ReferenceView { referenceWeek = RosterTemplateRefere
             </div>
         |]
 
-referenceHiddenFields :: ReferenceView -> Maybe Int -> Html
-referenceHiddenFields ReferenceView { .. } maybeDayOffset = [hsx|
+referenceHiddenFields :: ReferenceView -> Maybe Day -> Html
+referenceHiddenFields ReferenceView { .. } maybeOperationalDate = [hsx|
     <input type="hidden" name="rosterGroupId" value={tshow rosterGroup.id} />
     <input type="hidden" name="anchorDate" value={tshow referenceWeek.referenceWeekStart} />
     <input type="hidden" name="name" value={templateName} />
     <input type="hidden" name="scale" value={rosterTemplateScaleValue templateScale} />
-    {forEach maybeDayOffset renderDayOffsetInput}
+    {forEach maybeOperationalDate renderOperationalDateInput}
 |]
 
-renderDayOffsetInput :: Int -> Html
-renderDayOffsetInput dayOffset = [hsx|<input type="hidden" name="dayOffset" value={tshow dayOffset} />|]
+renderOperationalDateInput :: Day -> Html
+renderOperationalDateInput operationalDate = [hsx|<input type="hidden" name="operationalDate" value={tshow operationalDate} />|]
 
 
 visibilityLabel :: [RosterDay] -> Text

@@ -2,7 +2,6 @@ module Web.RosterWeeks.Service
     ( copyRosterSlotToDay
     , copyRosterWindowByDates
     , ensureRosterDayHasMinimumRows
-    , fetchCurrentRosterWeekOffset
     , fetchActiveStaffForCurrentVenue
     , rosterSlotCopyAmbiguousEndpoints
     , resolveRosterTimelineTargetBoundaries
@@ -32,19 +31,13 @@ import Data.Either (isRight)
 import Data.List (nub)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (catMaybes, fromMaybe, isJust, isNothing, mapMaybe)
-import Data.Time (NominalDiffTime, UTCTime, addUTCTime, getCurrentTime, utctDay)
+import Data.Time (NominalDiffTime, UTCTime, addUTCTime, getCurrentTime)
 import qualified Data.Time.Calendar as Calendar
 import Data.Time.LocalTime (TimeOfDay (..))
 import Data.Traversable (traverse)
 import Web.Controller.Prelude
 import Web.RosterWeeks.DateRange (setLegacyRosterDayOffset)
 import Web.RosterWeeks.Dom (closedRosterDayRows, minimumOpenRosterRows)
-
-fetchCurrentRosterWeekOffset :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Int
-fetchCurrentRosterWeekOffset = do
-    venueConfig <- fetchVenueConfig
-    today <- utctDay <$> getCurrentTime
-    pure (venueWeekOffsetForDay venueConfig today)
 
 fetchActiveStaffForCurrentVenue :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id Staff -> IO (Maybe Staff)
 fetchActiveStaffForCurrentVenue staffId =

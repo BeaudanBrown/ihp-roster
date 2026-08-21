@@ -19,7 +19,7 @@ import Network.HTTP.Types.Status
 import Network.Wai (Response, responseHeaders, responseStatus)
 import Test.Hspec
 import Test.Support
-import Web.Controller.RosterTemplates ()
+import Web.Controller.RosterTemplates (referenceConfirmationSessionValue)
 import Web.FrontController ()
 import Web.RosterWeeks.TemplateDesigner (startBlankRosterTemplateDesignerDraft)
 import Web.Types
@@ -130,6 +130,25 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "data-bepis-roster-template-designer-template-reference-compatibility"
                 response `responseBodyShouldNotContain` "Use this week as template reference"
 
+        it "binds reference confirmation identity to the confirming user" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Template confirmation actor binding"
+                firstManager <- createUserRecord "template-confirmation-first@example.com" "staff" True
+                secondManager <- createUserRecord "template-confirmation-second@example.com" "staff" True
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                let confirmationValue actorUserId =
+                        referenceConfirmationSessionValue
+                            "token"
+                            actorUserId
+                            rosterGroup.id
+                            (fromGregorian 2025 1 6)
+                            "Bound reference"
+                            Day
+                            (Just (fromGregorian 2025 1 7))
+                            "source-revision"
+                            Nothing
+                confirmationValue firstManager.id `shouldNotBe` confirmationValue secondManager.id
+
         it "confirms a Day reference before creating an isolated prefilled draft" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Template reference confirmation"
@@ -151,19 +170,19 @@ tests = aroundAll withDatabaseTestContext do
                 bypassed <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams CreateRosterTemplateFromReferenceAction
                         { rosterGroupId = rosterGroup.id }
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Tuesday plan"), ("scale", "day"), ("dayOffset", "1")]
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Tuesday plan"), ("scale", "day"), ("operationalDate", "2025-01-07")]
                 bypassDraft <- fetchPrivateRosterTemplateDraft (rosterTemplateActor manager venue True)
                 (confirmation, tampered, created) <- withUserAndCurrentVenue manager venue.id do
                     confirmation <- callActionWithParams ConfirmRosterTemplateReferenceAction
                         { rosterGroupId = rosterGroup.id }
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Tuesday plan"), ("scale", "day"), ("dayOffset", "1")]
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Tuesday plan"), ("scale", "day"), ("operationalDate", "2025-01-07")]
                     confirmationToken <- hiddenInputValue "confirmationToken" confirmation
                     tampered <- callActionWithParams CreateRosterTemplateFromReferenceAction
                         { rosterGroupId = rosterGroup.id }
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Changed after confirmation"), ("scale", "day"), ("dayOffset", "1"), ("confirmationToken", cs confirmationToken)]
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Changed after confirmation"), ("scale", "day"), ("operationalDate", "2025-01-07"), ("confirmationToken", cs confirmationToken)]
                     created <- callActionWithParams CreateRosterTemplateFromReferenceAction
                         { rosterGroupId = rosterGroup.id }
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Tuesday plan"), ("scale", "day"), ("dayOffset", "1"), ("confirmationToken", cs confirmationToken)]
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Tuesday plan"), ("scale", "day"), ("operationalDate", "2025-01-07"), ("confirmationToken", cs confirmationToken)]
                     pure (confirmation, tampered, created)
                 persistedSource <- fetch sourceSlot.id
 
@@ -194,12 +213,12 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue manager venue.id do
                     confirmation <- callActionWithParams ConfirmRosterTemplateReferenceAction
                         { rosterGroupId = rosterGroup.id }
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Stale day"), ("scale", "day"), ("dayOffset", "0")]
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Stale day"), ("scale", "day"), ("operationalDate", "2025-01-06")]
                     confirmationToken <- hiddenInputValue "confirmationToken" confirmation
                     _ <- sourceSlot |> set #startsAt (addUTCTime 3600 <$> sourceSlot.startsAt) |> updateRecord
                     callActionWithParams CreateRosterTemplateFromReferenceAction
                         { rosterGroupId = rosterGroup.id }
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Stale day"), ("scale", "day"), ("dayOffset", "0"), ("confirmationToken", cs confirmationToken)]
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Stale day"), ("scale", "day"), ("operationalDate", "2025-01-06"), ("confirmationToken", cs confirmationToken)]
                 draft <- fetchPrivateRosterTemplateDraft (rosterTemplateActor manager venue True)
 
                 response `responseStatusShouldBe` status302
@@ -349,7 +368,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue manager venue.id do
                     confirmation <- callActionWithParams ConfirmRosterTemplateReferenceAction
                         { rosterGroupId = rosterGroup.id }
-                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Replacement reference"), ("scale", "day"), ("dayOffset", "0")]
+                        [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Replacement reference"), ("scale", "day"), ("operationalDate", "2025-01-06")]
                     confirmationToken <- hiddenInputValue "confirmationToken" confirmation
                     now <- getCurrentTime
                     _ <- sourceWeek |> set #archivedAt (Just now) |> updateRecord
@@ -359,7 +378,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("scale", "day")
                         , ("startingPoint", "reference")
                         , ("anchorDate", "2025-01-06")
-                        , ("dayOffset", "0")
+                        , ("operationalDate", "2025-01-06")
                         , ("confirmationToken", cs confirmationToken)
                         ]
                 retained <- fetchPrivateRosterTemplateDraft actor
@@ -460,7 +479,7 @@ tests = aroundAll withDatabaseTestContext do
                 lookup "HX-Refresh" (responseHeaders response) `shouldBe` Just "true"
                 response `responseBodyShouldContain` "The roster calendar changed. Review the refreshed window and try again."
 
-        it "applies a confirmed Week template through the roster HTTP boundary" $ withContext do
+        it "applies a confirmed Week template to explicit dates when the legacy epoch is stale" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Template application mutation"
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
@@ -471,6 +490,8 @@ tests = aroundAll withDatabaseTestContext do
                 Right saved <- saveRosterTemplateDraft actor draft.draftDesign.id
                 targetWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 False
                 _ <- forM [0 .. 6] (createRosterDayRecord targetWeek)
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- venueConfig |> set #weekOffsetEpoch (addDays 1 venueConfig.weekOffsetEpoch) |> updateRecord
                 _ <- newRecord @RosterWeekSlotDefinition
                     |> set #rosterWeekId (unpackId targetWeek.id)
                     |> set #name "Old lane"
@@ -502,6 +523,12 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetch
 
                 response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldSatisfy` maybe False (ByteString.isInfixOf "anchorDate=2025-01-06")
+                targetDates <- query @RosterDay
+                    |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+                    |> orderByAsc #operationalDate
+                    |> fetch
+                map (.operationalDate) targetDates `shouldBe` map (\dayIndex -> addDays dayIndex (fromGregorian 2025 1 6)) [0 .. 6]
                 map (.name) activeLanes `shouldBe` ["Shift"]
 
         it "names the template and preserves existing rosters in delete confirmation" $ withContext do

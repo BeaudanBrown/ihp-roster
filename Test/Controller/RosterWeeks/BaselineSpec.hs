@@ -70,7 +70,7 @@ tests = aroundAll withDatabaseTestContext do
                     bodyText <- cs . LByteString.unpack <$> responseBody contentFragment
                     bodyText `shouldContain` "data-roster-row"
 
-        it "keeps full-page and fragment reads on the anchor-date window when the legacy epoch is stale" $ withContext do
+        it "keeps reads and lane mutations on the anchor-date window when the legacy epoch is stale" $ withContext do
             withCleanDb do
                 BaselineRoster { brVenue, brManager, brRosterDay } <- createBaselineRoster
                 venueConfig <- query @VenueConfig
@@ -106,14 +106,28 @@ tests = aroundAll withDatabaseTestContext do
                 mutationResponse <- withPasskeyVerifiedUserAndCurrentVenue brManager brVenue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            UpdateRosterWarningPreferenceAction
+                            CreateRosterWeekSlotDefinitionAction
                             [ ("anchorDate", cs (show (testAnchorForOffset 0)))
-                            , ("showRosterWarnings", "true")
+                            , ("rosterGroupId", cs (show brRosterDay.rosterGroupId))
+                            , ("rosterCalendarRevision", cs (show venueConfig.rosterCalendarRevision))
+                            , ("name", "Explicit window lane")
                             ]
                 mutationResponse `responseStatusShouldBe` status200
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders mutationResponse)
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"windowStartDate\":\"2025-01-06\"")
                 triggerHeader `shouldSatisfy` maybe True (not . Text.isInfixOf "2024-12-31")
+                mutatedDays <- query @RosterDay
+                    |> filterWhere (#venueId, unpackId brVenue.id)
+                    |> filterWhere (#rosterGroupId, brRosterDay.rosterGroupId)
+                    |> orderByAsc #operationalDate
+                    |> fetch
+                map (.operationalDate) mutatedDays `shouldBe` map (\dayIndex -> addDays dayIndex (testAnchorForOffset 0)) [0 .. 6]
+                explicitLanes <- query @RosterLane
+                    |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) mutatedDays)
+                    |> filterWhere (#name, "Explicit window lane")
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
+                length explicitLanes `shouldBe` 7
 
         it "keeps slot mutation actor refresh separate from passive direct refetch" $ withContext do
             withEnv "IHP_ROSTER_PROFILING" (Just "1") do

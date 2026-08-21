@@ -15,7 +15,6 @@ module Web.RosterWeeks.DateRange
     , projectRosterWindow
     , projectedRosterDay
     , projectedRosterDayId
-    , rosterPlanningWeekForDay
     , setLegacyRosterDayOffset
     , rosterWindowDates
     , rosterWindowIsPublished
@@ -25,8 +24,7 @@ module Web.RosterWeeks.DateRange
     , fetchRosterWindow
     ) where
 
-import Application.Helper.WeekBoundaries (startOfWeekFor, venueWeekOffsetForDay,
-                                          venueWeekStartDate)
+import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.RosterPublication (rosterDaysArePublished)
 import Control.Monad (void)
 import qualified "crypton" Crypto.Hash as Hash
@@ -179,27 +177,6 @@ projectedRosterDay venueId rosterGroupId maybeRosterWeekId windowStartDate windo
                 |> set #publicationState Draft
                 |> setLegacyRosterDayOffset windowStartDate
 
-rosterPlanningWeekForDay :: (?modelContext :: ModelContext) => RosterDay -> IO RosterWeek
-rosterPlanningWeekForDay rosterDay = do
-    venueConfig <- query @VenueConfig
-        |> filterWhere (#venueId, rosterDay.venueId)
-        |> fetchOne
-    let weekOffset = venueWeekOffsetForDay venueConfig rosterDay.operationalDate
-        windowStartDate = venueWeekStartDate venueConfig weekOffset
-    window <- fetchRosterWindow (Id rosterDay.venueId) (Id rosterDay.rosterGroupId) windowStartDate
-    let published = rosterWindowIsPublished window
-    case rosterDay.rosterWeekId of
-        Just rosterWeekId -> do
-            legacyWeek <- fetch (Id rosterWeekId :: Id RosterWeek)
-            pure (legacyWeek |> set #isLive published)
-        Nothing ->
-            pure $
-                newRecord @RosterWeek
-                    |> set #venueId rosterDay.venueId
-                    |> set #rosterGroupId rosterDay.rosterGroupId
-                    |> set #weekOffset weekOffset
-                    |> set #isLive published
-
 projectedRosterDayId :: Id RosterGroup -> Day -> Id RosterDay
 projectedRosterDayId rosterGroupId operationalDate =
     Id (fromMaybe (error "MD5 roster-day projection did not produce a UUID") (UUID.fromText uuidText))
@@ -286,10 +263,11 @@ fetchRosterWindow venueId rosterGroupId startDate = do
 -- | Materialize sparse Draft days and their date-local lane sets only at the
 -- mutation seam. Existing rough lane unions are copied by normalized name;
 -- brand-new windows start from the roster group's configured slot names.
-materializeRosterWindow :: (?modelContext :: ModelContext) => Id Venue -> Id RosterGroup -> Int -> IO ([RosterDay], Bool)
-materializeRosterWindow venueId rosterGroupId weekOffset = do
-    venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venueId) |> fetchOne
-    let startDate = venueWeekStartDate venueConfig weekOffset
+materializeRosterWindow :: (?modelContext :: ModelContext) => RosterWindowScope -> IO ([RosterDay], Bool)
+materializeRosterWindow scope = do
+    let venueId = scope.rosterWindowVenueId
+        rosterGroupId = scope.rosterWindowRosterGroupId
+        startDate = scope.rosterWindowStart
     window <- fetchRosterWindow venueId rosterGroupId startDate
     when (any (maybe False ((/= Draft) . (.publicationState)) . (.persistedRosterDay)) window.rosterWindowProjectedDays) $
         error "Published roster days cannot be materialized as a Draft planning window"
@@ -360,15 +338,16 @@ resolveRosterLaneReference maybeRosterDayId requestedId = do
         Nothing -> queryBuilder
         Just rosterDayId -> queryBuilder |> filterWhere (#rosterDayId, unpackId rosterDayId)
 
-appendRosterWindowLane :: (?modelContext :: ModelContext) => Id Venue -> Id RosterGroup -> Int -> Text -> IO (Either Text RosterLane)
-appendRosterWindowLane venueId rosterGroupId weekOffset requestedName = do
-    venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venueId) |> fetchOne
-    let startDate = venueWeekStartDate venueConfig weekOffset
+appendRosterWindowLane :: (?modelContext :: ModelContext) => RosterWindowScope -> Text -> IO (Either Text RosterLane)
+appendRosterWindowLane scope requestedName = do
+    let venueId = scope.rosterWindowVenueId
+        rosterGroupId = scope.rosterWindowRosterGroupId
+        startDate = scope.rosterWindowStart
         normalized = normalizeLaneName requestedName
     if Text.null normalized
         then pure (Left "Roster column names cannot be blank.")
         else do
-            (days, _) <- materializeRosterWindow venueId rosterGroupId weekOffset
+            (days, _) <- materializeRosterWindow scope
             window <- fetchRosterWindow venueId rosterGroupId startDate
             if normalized `elem` map (.rosterWindowLaneNormalizedName) window.rosterWindowLanes
                 then pure (Left "A column with that name already exists for this window.")
@@ -398,17 +377,17 @@ appendRosterWindowLane venueId rosterGroupId weekOffset requestedName = do
                                     |> createRecord
                     pure (maybe (Left "Roster window has no days.") Right (listToMaybe created))
 
-removeRosterWindowLane :: (?modelContext :: ModelContext) => Id Venue -> Id RosterGroup -> Int -> Id RosterLane -> Id User -> IO (Either Text ())
-removeRosterWindowLane venueId rosterGroupId weekOffset requestedLaneId deletedByUserId = do
+removeRosterWindowLane :: (?modelContext :: ModelContext) => RosterWindowScope -> Id RosterLane -> Id User -> IO (Either Text ())
+removeRosterWindowLane scope requestedLaneId deletedByUserId = do
+    let venueId = scope.rosterWindowVenueId
+        rosterGroupId = scope.rosterWindowRosterGroupId
     requestedLane <- fetch requestedLaneId
     requestedDay <- fetch (Id requestedLane.rosterDayId :: Id RosterDay)
     if requestedDay.venueId /= unpackId venueId || requestedDay.rosterGroupId /= unpackId rosterGroupId
         then pure (Left "Roster column is outside the selected venue or group.")
         else do
-            _ <- materializeRosterWindow venueId rosterGroupId weekOffset
-            venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venueId) |> fetchOne
-            let startDate = venueWeekStartDate venueConfig weekOffset
-            window <- fetchRosterWindow venueId rosterGroupId startDate
+            _ <- materializeRosterWindow scope
+            window <- fetchRosterWindow venueId rosterGroupId scope.rosterWindowStart
             if length window.rosterWindowLanes <= 1
                 then pure (Left "Roster windows need at least one column.")
                 else case find (\lane -> lane.rosterWindowLaneNormalizedName == normalizeLaneName requestedLane.name) window.rosterWindowLanes of
@@ -457,7 +436,7 @@ removeRosterWindowLane venueId rosterGroupId weekOffset requestedLaneId deletedB
                                                 |> set #deletedByUserId (Just (unpackId deletedByUserId))
                                                 |> set #deleteReason (Just "roster_window_lane_removed")
                                                 |> updateRecord
-                        repackRosterWindow venueId rosterGroupId weekOffset
+                        repackRosterWindow scope
                         -- Legacy slot compatibility projection may reactivate a
                         -- lane while slots are repacked. Tombstone the removed
                         -- date-local identity last, after all slot writes.
@@ -546,10 +525,11 @@ allocateBoundedLanePlacements ((lane, rowIndex) : candidates) (slot : slots) =
     let (placements, overflow) = allocateBoundedLanePlacements candidates slots
      in ((slot, lane, rowIndex) : placements, overflow)
 
-repackRosterWindow :: (?modelContext :: ModelContext) => Id Venue -> Id RosterGroup -> Int -> IO ()
-repackRosterWindow venueId rosterGroupId weekOffset = do
-    venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venueId) |> fetchOne
-    window <- fetchRosterWindow venueId rosterGroupId (venueWeekStartDate venueConfig weekOffset)
+repackRosterWindow :: (?modelContext :: ModelContext) => RosterWindowScope -> IO ()
+repackRosterWindow scope = do
+    let venueId = scope.rosterWindowVenueId
+        rosterGroupId = scope.rosterWindowRosterGroupId
+    window <- fetchRosterWindow venueId rosterGroupId scope.rosterWindowStart
     forM_ window.rosterWindowProjectedDays \windowDay ->
         forM_ windowDay.persistedRosterDay \day -> do
             lanes <- query @RosterLane

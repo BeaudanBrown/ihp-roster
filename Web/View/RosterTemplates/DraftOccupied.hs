@@ -11,7 +11,7 @@ data DraftOccupiedView = DraftOccupiedView
     , pendingScale             :: !RosterTemplateScaleEnum
     , pendingStartingPoint     :: !Text
     , pendingAnchorDate        :: !(Maybe Day)
-    , pendingDayOffset         :: !(Maybe Int)
+    , pendingOperationalDate   :: !(Maybe Day)
     , pendingConfirmationToken :: !(Maybe Text)
     }
 
@@ -37,7 +37,7 @@ instance View DraftOccupiedView where
                                     <input type="hidden" name="startingPoint" value={pendingStartingPoint} />
                                     <input type="hidden" name="expectedDraftRevision" value={rosterTemplateDraftRevision existingDraft} />
                                     {forEach pendingAnchorDate renderAnchorDate}
-                                    {forEach pendingDayOffset renderDayOffset}
+                                    {forEach pendingOperationalDate renderOperationalDate}
                                     {forEach pendingConfirmationToken renderConfirmationToken}
                                     <button class="btn btn-danger" type="submit">Discard and start new</button>
                                 </form>
@@ -56,5 +56,5 @@ renderAnchorDate value = [hsx|<input type="hidden" name="anchorDate" value={tsho
 renderConfirmationToken :: Text -> Html
 renderConfirmationToken value = [hsx|<input type="hidden" name="confirmationToken" value={value} />|]
 
-renderDayOffset :: Int -> Html
-renderDayOffset value = [hsx|<input type="hidden" name="dayOffset" value={tshow value} />|]
+renderOperationalDate :: Day -> Html
+renderOperationalDate value = [hsx|<input type="hidden" name="operationalDate" value={tshow value} />|]

@@ -308,7 +308,9 @@ tests = aroundAll withDatabaseTestContext do
                 slot <- createRosterSlotRecord rosterDay slotName (Just currentStaff) 0
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (EditRosterSlotDialogAction slot.id)
+                    callActionWithParams
+                        (EditRosterSlotDialogAction slot.id)
+                        [("anchorDate", cs (show rosterDay.operationalDate))]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "selected=\"selected\">CurrentInvalid (pay configuration required)</option>"
@@ -331,12 +333,15 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction)
-                        [ ("hideStaffAtIdealShifts", "true")
+                        [ ("anchorDate", cs (show rosterDay.operationalDate))
+                        , ("hideStaffAtIdealShifts", "true")
                         , ("hideStaffUnavailable", "false")
                         , ("hideStaffOnApprovedLeave", "false")
                         , ("hideStaffAlreadyAssignedToday", "false")
                         ]
-                    callAction (EditRosterSlotDialogAction slot.id)
+                    callActionWithParams
+                        (EditRosterSlotDialogAction slot.id)
+                        [("anchorDate", cs (show rosterDay.operationalDate))]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "selected=\"selected\">Alpha</option>"
@@ -370,12 +375,15 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction)
-                        [ ("hideStaffAtIdealShifts", "false")
+                        [ ("anchorDate", cs (show mondayRosterDay.operationalDate))
+                        , ("hideStaffAtIdealShifts", "false")
                         , ("hideStaffUnavailable", "true")
                         , ("hideStaffOnApprovedLeave", "false")
                         , ("hideStaffAlreadyAssignedToday", "false")
                         ]
-                    callAction (EditRosterSlotDialogAction slot.id)
+                    callActionWithParams
+                        (EditRosterSlotDialogAction slot.id)
+                        [("anchorDate", cs (show mondayRosterDay.operationalDate))]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "selected=\"selected\">Selected</option>"
@@ -408,12 +416,15 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction)
-                        [ ("hideStaffAtIdealShifts", "false")
+                        [ ("anchorDate", cs (show mondayRosterDay.operationalDate))
+                        , ("hideStaffAtIdealShifts", "false")
                         , ("hideStaffUnavailable", "true")
                         , ("hideStaffOnApprovedLeave", "false")
                         , ("hideStaffAlreadyAssignedToday", "false")
                         ]
-                    callAction (NewRosterSlotDialogAction mondayRosterDay.id (coerce slotDefinition.id) 0)
+                    callActionWithParams
+                        (NewRosterSlotDialogAction mondayRosterDay.id (coerce slotDefinition.id) 0)
+                        [("anchorDate", cs (show mondayRosterDay.operationalDate))]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` ">CrossGroup</option>"
@@ -499,7 +510,9 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- updateRecord (venueConfig |> set #timePickerStartMinuteOfDay 540 |> set #timePickerFinalSelectableMinuteOfDay 780)
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callAction (NewRosterSlotDialogAction mondayRosterDay.id (coerce slotDefinition.id) 0)
+                    callActionWithParams
+                        (NewRosterSlotDialogAction mondayRosterDay.id (coerce slotDefinition.id) 0)
+                        [("anchorDate", cs (show mondayRosterDay.operationalDate))]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "name=\"startTime\" value=\"09:00\""
@@ -538,12 +551,15 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction)
-                        [ ("hideStaffAtIdealShifts", "false")
+                        [ ("anchorDate", cs (show mondayRosterDay.operationalDate))
+                        , ("hideStaffAtIdealShifts", "false")
                         , ("hideStaffUnavailable", "false")
                         , ("hideStaffOnApprovedLeave", "true")
                         , ("hideStaffAlreadyAssignedToday", "false")
                         ]
-                    callAction (NewRosterSlotDialogAction mondayRosterDay.id (coerce slotDefinition.id) 0)
+                    callActionWithParams
+                        (NewRosterSlotDialogAction mondayRosterDay.id (coerce slotDefinition.id) 0)
+                        [("anchorDate", cs (show mondayRosterDay.operationalDate))]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` ">Approved</option>"
@@ -580,10 +596,10 @@ tests = aroundAll withDatabaseTestContext do
                 bodyText `shouldContain` ("class=\"roster-shift-unit roster-shift-launcher roster-shift-create-unit\"")
                 bodyText `shouldContain` ("data-bepis-roster-shift-group-highlight-source=\"" <> cs existingGroupKey <> "\"")
                 bodyText `shouldContain` ("data-bepis-roster-shift-group-highlight-member=\"" <> cs existingGroupKey <> "\"")
-                bodyText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow firstSlot.id) <> "\"")
+                bodyText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow firstSlot.id) <> "&amp;anchorDate=" <> cs (tshow rosterDay.operationalDate) <> "&amp;rosterCalendarRevision=1\"")
                 bodyText `shouldContain` ("data-bepis-roster-shift-group-highlight-source=\"" <> cs createGroupKey <> "\"")
                 bodyText `shouldContain` ("data-bepis-roster-shift-group-highlight-member=\"" <> cs createGroupKey <> "\"")
-                bodyText `shouldContain` ("hx-get=\"/NewRosterSlotDialog?rosterDayId=" <> cs (tshow rosterDay.id) <> "&amp;rosterWeekSlotDefinitionId=" <> cs (tshow lateLane.id) <> "&amp;rowIndex=0&amp;rosterGroupId=" <> cs (tshow rosterDay.rosterGroupId) <> "&amp;operationalDate=" <> cs (tshow rosterDay.operationalDate) <> "\"")
+                bodyText `shouldContain` ("hx-get=\"/NewRosterSlotDialog?rosterDayId=" <> cs (tshow rosterDay.id) <> "&amp;rosterWeekSlotDefinitionId=" <> cs (tshow lateLane.id) <> "&amp;rowIndex=0&amp;rosterGroupId=" <> cs (tshow rosterDay.rosterGroupId) <> "&amp;operationalDate=" <> cs (tshow rosterDay.operationalDate) <> "&amp;anchorDate=" <> cs (tshow rosterDay.operationalDate) <> "&amp;rosterCalendarRevision=1\"")
                 countText ("data-bepis-roster-shift-group-highlight-source=\"" <> existingGroupKey <> "\"") bodyTextValue `shouldBe` 1
                 countText ("data-bepis-roster-shift-group-highlight-member=\"" <> existingGroupKey <> "\"") bodyTextValue `shouldBe` 1
                 countText ("data-bepis-roster-shift-group-highlight-source=\"" <> createGroupKey <> "\"") bodyTextValue `shouldBe` 1
@@ -713,8 +729,8 @@ tests = aroundAll withDatabaseTestContext do
                 bodyText `shouldContain` ("data-bepis-dropzone-key=\"day:" <> cs (tshow rosterDay.id) <> "\"")
                 bodyText `shouldContain` "data-bepis-dropzone-ref=\"staff-create-dropzone\""
                 bodyText `shouldContain` ("data-bepis-dropzone-key=\"" <> cs targetGroupKey <> "\"")
-                bodyText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow sourceSlot.id) <> "\"")
-                bodyText `shouldContain` ("hx-get=\"/NewRosterSlotDialog?rosterDayId=" <> cs (tshow rosterDay.id) <> "&amp;rosterWeekSlotDefinitionId=" <> cs (tshow sourceSlot.rosterLaneId) <> "&amp;rowIndex=1&amp;rosterGroupId=" <> cs (tshow rosterDay.rosterGroupId) <> "&amp;operationalDate=" <> cs (tshow rosterDay.operationalDate) <> "\"")
+                bodyText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow sourceSlot.id) <> "&amp;anchorDate=" <> cs (tshow rosterDay.operationalDate) <> "&amp;rosterCalendarRevision=1\"")
+                bodyText `shouldContain` ("hx-get=\"/NewRosterSlotDialog?rosterDayId=" <> cs (tshow rosterDay.id) <> "&amp;rosterWeekSlotDefinitionId=" <> cs (tshow sourceSlot.rosterLaneId) <> "&amp;rowIndex=1&amp;rosterGroupId=" <> cs (tshow rosterDay.rosterGroupId) <> "&amp;operationalDate=" <> cs (tshow rosterDay.operationalDate) <> "&amp;anchorDate=" <> cs (tshow rosterDay.operationalDate) <> "&amp;rosterCalendarRevision=1\"")
 
         it "does not render empty day-row create markers for Published rosters" $ withContext do
             withCleanDb do
@@ -754,7 +770,7 @@ tests = aroundAll withDatabaseTestContext do
                 bodyText `shouldContain` "slot-staff-cell position-relative"
                 bodyText `shouldContain` "Alpha"
                 bodyText `shouldNotContain` ("data-bepis-roster-shift-group-highlight-source=\"existing:" <> cs (tshow slot.id) <> "\"")
-                bodyText `shouldNotContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow slot.id) <> "\"")
+                bodyText `shouldNotContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow slot.id))
                 bodyText `shouldNotContain` "data-roster-shift-launcher=\"true\""
 
         it "renders Published Open shifts prominently and launchable only for roster editors" $ withContext do
@@ -779,7 +795,7 @@ tests = aroundAll withDatabaseTestContext do
                 managerText `shouldContain` "is-roster-shift-open"
                 managerText `shouldContain` "aria-label=\"Fill Open shift\""
                 managerText `shouldContain` "&quot;imageExportText&quot;:&quot;OPEN&quot;"
-                managerText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow openSlot.id) <> "\"")
+                managerText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow openSlot.id) <> "&amp;anchorDate=" <> cs (tshow rosterDay.operationalDate) <> "&amp;rosterCalendarRevision=1\"")
                 managerText `shouldNotContain` "data-bepis-source-ref=\"shift-drag-source\""
                 managerText `shouldNotContain` "data-bepis-dropzone-ref=\"existing-shift-dropzone\""
 
@@ -791,7 +807,7 @@ tests = aroundAll withDatabaseTestContext do
                 let dayColumnsText = cs dayColumnsBody :: String
                 dayColumnsText `shouldContain` ">OPEN<"
                 dayColumnsText `shouldContain` "roster-shift-card is-roster-shift-open roster-shift-launcher"
-                dayColumnsText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow openSlot.id) <> "\"")
+                dayColumnsText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow openSlot.id) <> "&amp;anchorDate=" <> cs (tshow rosterDay.operationalDate) <> "&amp;rosterCalendarRevision=1\"")
                 dayColumnsText `shouldNotContain` "data-bepis-source-ref=\"shift-drag-source\""
 
                 timelineResponse <- withUserAndCurrentVenue manager venue.id do
@@ -801,7 +817,7 @@ tests = aroundAll withDatabaseTestContext do
                 timelineText `shouldContain` ">OPEN<"
                 timelineText `shouldContain` ">0 shifts<"
                 timelineText `shouldContain` "roster-day-timeline-shift is-roster-shift-open roster-shift-launcher"
-                timelineText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow openSlot.id) <> "\"")
+                timelineText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow openSlot.id) <> "&amp;anchorDate=" <> cs (tshow rosterDay.operationalDate) <> "&amp;rosterCalendarRevision=1\"")
                 timelineText `shouldNotContain` "data-bepis-source-ref=\"timeline-shift-drag-source\""
 
                 workerResponse <- withUserAndCurrentVenue worker venue.id do
@@ -811,7 +827,7 @@ tests = aroundAll withDatabaseTestContext do
                 let workerText = cs workerBody :: String
                 workerText `shouldContain` ">OPEN<"
                 workerText `shouldContain` "is-roster-shift-open"
-                workerText `shouldNotContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow openSlot.id) <> "\"")
+                workerText `shouldNotContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow openSlot.id))
 
         it "allows assigning staff who are applicable to the slot's roster group" $ withContext do
             withCleanDb do
@@ -848,7 +864,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callAction (AddRosterRowAction rosterDay.id)
+                        callActionWithParams (AddRosterRowAction rosterDay.id) (rosterMutationParams 0)
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Published roster windows are read-only. Return it to Draft to make changes."

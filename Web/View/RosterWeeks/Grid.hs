@@ -85,6 +85,7 @@ import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         rosterMountedFragmentPlanFromRenderData,
                                         rosterSurfaceImpl,
                                         rosterWeekTemplateDropzoneRef)
+import Web.RosterWeeks.Paths (rosterDayMutationUrl)
 import Web.RosterWeeks.Types
 import Web.RosterWeeks.WageFilter (rosterWageFilterConfigAttrs)
 import Web.View.Prelude
@@ -708,7 +709,7 @@ renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIs
         date = rosterDay.operationalDate
         dayIndex = rosterDayIndex dayWeekStartDate rosterDay
         compactSlots = if rosterDay.isClosed then [] else compactDayColumnSlots dayModel.daySlotNames daySlots
-        maybeCreateTarget = if rosterDay.isClosed then Nothing else firstAvailableDayColumnTarget dayModel.daySlotNames rosterDay daySlots
+        maybeCreateTarget = if rosterDay.isClosed then Nothing else firstAvailableDayColumnTarget dayModel.daySlotNames rosterDay dayModel.dayCalendarRevision daySlots
         dayDropzoneKey = "day:" <> tshow rosterDay.id
         columnHtml = [hsx|
             <section id={rosterDaySectionDomId rosterDay.id}
@@ -730,7 +731,7 @@ renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIs
                     </div>
                 </header>
                 <div class="roster-day-column-body">
-                    {forEach compactSlots (renderDayColumnRosterSlotCard dayModel)}
+                    {forEach compactSlots (renderDayColumnRosterSlotCard dayModel rosterDay)}
                     {renderDayColumnCreateCard dayModel rosterDay maybeCreateTarget}
                 </div>
             </section>
@@ -759,9 +760,9 @@ compactDayColumnSlots slotNames daySlots =
         , slot.id
         )
 
-firstAvailableDayColumnTarget :: [RosterWindowLane] -> RosterDay -> [RosterSlot] -> Maybe RosterSlotCellTarget
-firstAvailableDayColumnTarget [] _ _ = Nothing
-firstAvailableDayColumnTarget slotNames rosterDay daySlots =
+firstAvailableDayColumnTarget :: [RosterWindowLane] -> RosterDay -> Int -> [RosterSlot] -> Maybe RosterSlotCellTarget
+firstAvailableDayColumnTarget [] _ _ _ = Nothing
+firstAvailableDayColumnTarget slotNames rosterDay calendarRevision daySlots =
     let occupiedCells =
             Map.fromList
                 [ ((slot.rosterLaneId, slot.rowIndex), ())
@@ -781,7 +782,7 @@ firstAvailableDayColumnTarget slotNames rosterDay daySlots =
                 candidateCells
      in case firstFree <|> fmap (\lane -> (lane, rowCount)) (listToMaybe dayLanes) of
             Nothing -> Nothing
-            Just (slotName, rowIndex) -> Just (NewRosterSlotTarget rosterDay.id slotName.id (Id rosterDay.rosterGroupId) rosterDay.operationalDate rowIndex)
+            Just (slotName, rowIndex) -> Just (NewRosterSlotTarget rosterDay.id slotName.id (Id rosterDay.rosterGroupId) rosterDay.operationalDate calendarRevision rowIndex)
 
 rosterSlotHasVisibleData :: RosterSlot -> Bool
 rosterSlotHasVisibleData slot =
@@ -791,12 +792,12 @@ rosterSlotHasVisibleData slot =
         || isJust slot.shiftTypeId
 
 renderDayColumnRow :: (?context :: ControllerContext) => RosterRowRenderModel -> (Int, (Int, [RosterSlot])) -> Maybe Text -> Html
-renderDayColumnRow RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssignmentFilters, rowStaffMembers, rowShiftTypes, rowDayIndex, rowRosterDay, rowRenderIndexes, rowRosterEndTimesEnabled, rowPublishAttempted } (_, (rowIndex, rowSlots)) maybeSwapOob = [hsx|
+renderDayColumnRow RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssignmentFilters, rowStaffMembers, rowShiftTypes, rowDayIndex, rowRosterDay, rowCalendarRevision, rowRenderIndexes, rowRosterEndTimesEnabled, rowPublishAttempted } (_, (rowIndex, rowSlots)) maybeSwapOob = [hsx|
     <div id={rosterRowDomIdText rowRosterDay.id rowIndex}
          data-roster-row="true"
          hx-swap-oob={maybeSwapOob}
          class={classes [("roster-day-column-row", True), ("day-row-" <> tshow rowDayIndex, True)]}>
-        {forEach (zip [0 :: Int ..] rowSlotNames) (renderDayColumnSlotCard rowIsEditable rowAssignmentFilters rowStaffMembers rowShiftTypes rowRosterEndTimesEnabled rowPublishAttempted rowRosterDay rowIndex rowSlots rowRenderIndexes)}
+        {forEach (zip [0 :: Int ..] rowSlotNames) (renderDayColumnSlotCard rowIsEditable rowAssignmentFilters rowStaffMembers rowShiftTypes rowRosterEndTimesEnabled rowPublishAttempted rowRosterDay rowCalendarRevision rowIndex rowSlots rowRenderIndexes)}
     </div>
 |]
 
@@ -814,7 +815,7 @@ lastRowIndexForRows :: [(Int, [RosterSlot])] -> Int
 lastRowIndexForRows dayRows = maybe (-1) fst (last dayRows)
 
 renderDayRows :: (?context :: ControllerContext) => RosterDayRenderModel -> Day -> RosterDay -> [(Int, [RosterSlot])] -> Html
-renderDayRows RosterDayRenderModel { dayIsEditable, daySlotNames, dayAssignmentFilters, dayStaffMembers, dayShiftTypes, dayWeekStartDate, dayRenderIndexes, dayRosterLayoutMode, dayRosterEndTimesEnabled, dayPublishAttempted } date rosterDay dayRows =
+renderDayRows RosterDayRenderModel { dayIsEditable, daySlotNames, dayAssignmentFilters, dayStaffMembers, dayShiftTypes, dayWeekStartDate, dayCalendarRevision, dayRenderIndexes, dayRosterLayoutMode, dayRosterEndTimesEnabled, dayPublishAttempted } date rosterDay dayRows =
     let rowModel =
             RosterRowRenderModel
                 { rowIsEditable = dayIsEditable
@@ -825,6 +826,7 @@ renderDayRows RosterDayRenderModel { dayIsEditable, daySlotNames, dayAssignmentF
                 , rowDate = date
                 , rowDayIndex = rosterDayIndex dayWeekStartDate rosterDay
                 , rowRosterDay = rosterDay
+                , rowCalendarRevision = dayCalendarRevision
                 , rowCount
                 , rowLastRowIndex = lastRowIndex
                 , rowRenderIndexes = dayRenderIndexes
@@ -855,7 +857,7 @@ renderRowWithAttrs :: (?context :: ControllerContext) => RosterRowRenderModel ->
 renderRowWithAttrs rowModel@RosterRowRenderModel { rowRosterLayoutMode } rowData maybeSwapOob
     | rosterLayoutModeIsDayColumns rowRosterLayoutMode =
         renderDayColumnRow rowModel rowData maybeSwapOob
-renderRowWithAttrs RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssignmentFilters, rowStaffMembers, rowShiftTypes, rowDayIndex, rowRosterDay, rowRenderIndexes, rowRosterEndTimesEnabled, rowPublishAttempted } (_, (rowIndex, rowSlots)) maybeSwapOob =
+renderRowWithAttrs RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssignmentFilters, rowStaffMembers, rowShiftTypes, rowDayIndex, rowRosterDay, rowCalendarRevision, rowRenderIndexes, rowRosterEndTimesEnabled, rowPublishAttempted } (_, (rowIndex, rowSlots)) maybeSwapOob =
     profileHtmlComponent "render.roster.row_component" [hsx|
     {profileRenderCounter "render.roster.row_render" 1}
     <div id={rosterRowDomIdText rowRosterDay.id rowIndex}
@@ -864,7 +866,7 @@ renderRowWithAttrs RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssign
          hx-swap-oob={maybeSwapOob}
          class={classes [("day-row", True), ("day-row-" <> tshow rowDayIndex, True), ("day-alt-dark", odd rowDayIndex), ("day-alt-light", even rowDayIndex)]}
          {...rosterImageExportRowAttrs}>
-        {forEach (zip [0 :: Int ..] rowSlotNames) (renderBlockCells rowIsEditable rowAssignmentFilters rowStaffMembers rowShiftTypes rowRosterEndTimesEnabled rowPublishAttempted rowRosterDay rowIndex rowSlots rowRenderIndexes)}
+        {forEach (zip [0 :: Int ..] rowSlotNames) (renderBlockCells rowIsEditable rowAssignmentFilters rowStaffMembers rowShiftTypes rowRosterEndTimesEnabled rowPublishAttempted rowRosterDay rowCalendarRevision rowIndex rowSlots rowRenderIndexes)}
     </div>
 |]
 
@@ -930,7 +932,7 @@ renderToggleClosedButton calendarRevision rosterDay =
             let buttonLabel = if rosterDay.isClosed then ("Reopen day" :: Text) else ("Mark day closed" :: Text)
                 iconClass = if rosterDay.isClosed then ("bi bi-lock-fill" :: Text) else ("bi bi-unlock" :: Text)
                 closedLabel = if rosterDay.isClosed then [hsx|<span class="roster-day-action-label">CLOSED</span>|] else mempty
-             in renderRosterDayActionForm (surfaceFieldNameFrom @Surface.RosterCalendarRevision (RosterAction.toggleRosterDayClosedActionFields calendarRevision)) calendarRevision (RosterAction.toggleRosterDayClosedAction (RosterAction.toggleRosterDayClosedActionFields calendarRevision)) (rosterDayMutationUrl (ToggleRosterDayClosedAction rosterDay.id) rosterDay) [hsx|
+             in renderRosterDayActionForm (surfaceFieldNameFrom @Surface.RosterCalendarRevision (RosterAction.toggleRosterDayClosedActionFields calendarRevision)) calendarRevision (RosterAction.toggleRosterDayClosedAction (RosterAction.toggleRosterDayClosedActionFields calendarRevision)) (rosterDayMutationUrl (ToggleRosterDayClosedAction rosterDay.id) (Id rosterDay.rosterGroupId) rosterDay.operationalDate calendarRevision) [hsx|
                 <button type="submit"
                         class={classes [("btn btn-sm app-compact-action-button roster-day-action roster-day-action-toggle", True), ("is-active", rosterDay.isClosed)]}
                         aria-label={buttonLabel}
@@ -945,7 +947,7 @@ renderToggleClosedButton calendarRevision rosterDay =
 renderAddRowButton :: (?context :: ControllerContext) => Int -> RosterDay -> Html
 renderAddRowButton calendarRevision rosterDay =
     if currentUserIsManager
-        then renderRosterDayActionForm (surfaceFieldNameFrom @Surface.RosterCalendarRevision (RosterAction.addRosterRowActionFields calendarRevision)) calendarRevision (RosterAction.addRosterRowAction (RosterAction.addRosterRowActionFields calendarRevision)) (rosterDayMutationUrl (AddRosterRowAction rosterDay.id) rosterDay) [hsx|
+        then renderRosterDayActionForm (surfaceFieldNameFrom @Surface.RosterCalendarRevision (RosterAction.addRosterRowActionFields calendarRevision)) calendarRevision (RosterAction.addRosterRowAction (RosterAction.addRosterRowActionFields calendarRevision)) (rosterDayMutationUrl (AddRosterRowAction rosterDay.id) (Id rosterDay.rosterGroupId) rosterDay.operationalDate calendarRevision) [hsx|
             <button type="submit"
                     class="btn btn-sm app-compact-action-button roster-day-action roster-day-action-add"
                     aria-label="Add shift row"
@@ -961,7 +963,7 @@ renderDeleteLastRowButton calendarRevision rosterDay rowIndex =
     if currentUserIsManager
         then
             let canDelete = rowIndex >= minimumOpenRosterRows
-             in renderRosterDayActionForm (surfaceFieldNameFrom @Surface.RosterCalendarRevision (RosterAction.removeRosterRowActionFields calendarRevision)) calendarRevision (RosterAction.removeRosterRowAction (RosterAction.removeRosterRowActionFields calendarRevision)) (rosterDayMutationUrl (RemoveRosterRowAction rosterDay.id) rosterDay) [hsx|
+             in renderRosterDayActionForm (surfaceFieldNameFrom @Surface.RosterCalendarRevision (RosterAction.removeRosterRowActionFields calendarRevision)) calendarRevision (RosterAction.removeRosterRowAction (RosterAction.removeRosterRowActionFields calendarRevision)) (rosterDayMutationUrl (RemoveRosterRowAction rosterDay.id) (Id rosterDay.rosterGroupId) rosterDay.operationalDate calendarRevision) [hsx|
                 <button type="submit"
                         class="btn btn-sm app-compact-action-button roster-day-action roster-day-action-remove"
                         aria-label={if canDelete then ("Delete last shift row" :: Text) else ("Minimum day size reached" :: Text)}
@@ -972,12 +974,6 @@ renderDeleteLastRowButton calendarRevision rosterDay rowIndex =
                 </button>
             |]
         else [hsx|<span></span>|]
-
-rosterDayMutationUrl :: (?context :: ControllerContext) => RosterWeeksController -> RosterDay -> Text
-rosterDayMutationUrl action rosterDay =
-    pathTo action
-        <> "&rosterGroupId=" <> tshow rosterDay.rosterGroupId
-        <> "&operationalDate=" <> tshow rosterDay.operationalDate
 
 renderRosterDayActionForm :: Text -> Int -> FrontendSurfaceAction -> Text -> Html -> Html
 renderRosterDayActionForm calendarRevisionFieldName calendarRevision action actionUrl body =

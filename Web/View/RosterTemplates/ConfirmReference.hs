@@ -1,20 +1,18 @@
 module Web.View.RosterTemplates.ConfirmReference where
 
 import Application.Helper.RosterTemplateScale (rosterTemplateScaleValue)
-import Data.Time.Calendar (addDays)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.RosterWeeks.Paths (rosterTemplateReferenceUrl)
 import Web.RosterWeeks.TemplateDesigner
 import Web.View.Prelude
 
 data ConfirmReferenceView = ConfirmReferenceView
-    { rosterGroup       :: !RosterGroup
-    , referenceWeek     :: !RosterTemplateReferenceWeek
-    , weekOffset        :: !Int
-    , templateName      :: !Text
-    , templateScale     :: !RosterTemplateScaleEnum
-    , selectedDayOffset :: !(Maybe Int)
-    , confirmationToken :: !Text
+    { rosterGroup             :: !RosterGroup
+    , referenceWeek           :: !RosterTemplateReferenceWeek
+    , templateName            :: !Text
+    , templateScale           :: !RosterTemplateScaleEnum
+    , selectedOperationalDate :: !(Maybe Day)
+    , confirmationToken       :: !Text
     }
 
 instance View ConfirmReferenceView where
@@ -40,7 +38,7 @@ instance View ConfirmReferenceView where
                                     <input type="hidden" name="name" value={templateName} />
                                     <input type="hidden" name="scale" value={rosterTemplateScaleValue templateScale} />
                                     <input type="hidden" name="confirmationToken" value={confirmationToken} />
-                                    {forEach selectedDayOffset renderDayOffsetInput}
+                                    {forEach selectedOperationalDate renderOperationalDateInput}
                                     <button class="btn btn-primary" type="submit">Open prefilled designer</button>
                                 </form>
                             </div>
@@ -50,15 +48,13 @@ instance View ConfirmReferenceView where
             |]
             }
       where
-        referenceLabel = case selectedDayOffset of
+        referenceLabel = case selectedOperationalDate of
             Nothing -> "the week of " <> formatDate referenceWeek.referenceWeekStart
-            Just dayOffset ->
-                let date = addDays (toInteger dayOffset) referenceWeek.referenceWeekStart
-                 in cs (formatTime defaultTimeLocale "%A %d %b %Y" date)
+            Just operationalDate -> cs (formatTime defaultTimeLocale "%A %d %b %Y" operationalDate)
         backPath = rosterTemplateReferenceUrl referenceWeek.referenceWeekStart rosterGroup.id templateName (rosterTemplateScaleValue templateScale)
 
-renderDayOffsetInput :: Int -> Html
-renderDayOffsetInput dayOffset = [hsx|<input type="hidden" name="dayOffset" value={tshow dayOffset} />|]
+renderOperationalDateInput :: Day -> Html
+renderOperationalDateInput operationalDate = [hsx|<input type="hidden" name="operationalDate" value={tshow operationalDate} />|]
 
 
 formatDate :: Day -> Text

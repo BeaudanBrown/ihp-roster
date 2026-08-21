@@ -267,6 +267,7 @@ data RosterRowRenderModel = RosterRowRenderModel
     , rowDate                  :: Day
     , rowDayIndex              :: Int
     , rowRosterDay             :: RosterDay
+    , rowCalendarRevision      :: Int
     , rowCount                 :: Int
     , rowLastRowIndex          :: Int
     , rowRenderIndexes         :: RosterRenderIndexes

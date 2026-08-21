@@ -42,7 +42,7 @@ import Web.RosterWeeks.Types
 import Web.View.Prelude
 import Web.View.RosterWeeks.Grid.Cells (RosterSlotCellTarget (ExistingRosterSlotTarget),
                                         applyRosterShiftDialogLauncherAttrs,
-                                        rosterSlotDialogAction)
+                                        rosterSlotDialogUrl)
 
 renderRosterDayTimelinePanel :: (?context :: ControllerContext) => RosterGridRenderModel -> RosterDay -> Html
 renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Nothing } _ = [hsx|
@@ -124,7 +124,7 @@ renderRosterDayTimelineContent maybeSwapOob rosterData rosterDay =
                  hx-swap-oob={maybeSwapOob}>
             <div class="roster-day-timeline" role="grid" aria-label={Text.pack (formatTime defaultTimeLocale "%A %d/%m roster timeline" date)}>
                 {renderTimelineScale timelineWindow}
-                {forEach rosterData.orderedSlotNames (renderTimelineLane timelineWindow editable rosterDay staffById shiftTypeById slotsByDefinition)}
+                {forEach rosterData.orderedSlotNames (renderTimelineLane timelineWindow editable rosterDay rosterData.rosterCalendarRevision staffById shiftTypeById slotsByDefinition)}
             </div>
         </section>
     |]
@@ -161,8 +161,8 @@ renderTimelineScaleTick timelineWindow minute = [hsx|
     </div>
 |]
 
-renderTimelineLane :: TimelineWindow -> Bool -> RosterDay -> Map.Map UUID.UUID Staff -> Map.Map UUID.UUID ShiftType -> Map.Map UUID.UUID [RosterSlot] -> RosterWindowLane -> Html
-renderTimelineLane timelineWindow editable rosterDay staffById shiftTypeById slotsByDefinition windowLane =
+renderTimelineLane :: TimelineWindow -> Bool -> RosterDay -> Int -> Map.Map UUID.UUID Staff -> Map.Map UUID.UUID ShiftType -> Map.Map UUID.UUID [RosterSlot] -> RosterWindowLane -> Html
+renderTimelineLane timelineWindow editable rosterDay calendarRevision staffById shiftTypeById slotsByDefinition windowLane =
     let maybeLane = laneForOperationalDate rosterDay.operationalDate windowLane
         laneSlots = maybe [] (\lane -> Map.findWithDefault [] (unpackId lane.id) slotsByDefinition) maybeLane
         positionedShifts = assignTimelineTracks (mapMaybe (timelineShiftFromSlot timelineWindow) laneSlots)
@@ -182,7 +182,7 @@ renderTimelineLane timelineWindow editable rosterDay staffById shiftTypeById slo
                     {forEach dropzones (renderTimelineDropzone timelineWindow)}
                 </div>
                 <div class="roster-day-timeline-shifts">
-                    {forEach positionedShifts (renderTimelineShift timelineWindow editable staffById shiftTypeById)}
+                    {forEach positionedShifts (renderTimelineShift timelineWindow editable staffById shiftTypeById rosterDay.operationalDate calendarRevision)}
                 </div>
             </div>
         </section>
@@ -198,8 +198,8 @@ renderTimelineDropzone timelineWindow (minute, targetKey) =
         </div>
     |]
 
-renderTimelineShift :: TimelineWindow -> Bool -> Map.Map UUID.UUID Staff -> Map.Map UUID.UUID ShiftType -> TimelineShift -> Html
-renderTimelineShift timelineWindow editable staffById shiftTypeById TimelineShift { timelineShiftSlot, timelineShiftStartMin, timelineShiftEndMin, timelineShiftTrack } =
+renderTimelineShift :: TimelineWindow -> Bool -> Map.Map UUID.UUID Staff -> Map.Map UUID.UUID ShiftType -> Day -> Int -> TimelineShift -> Html
+renderTimelineShift timelineWindow editable staffById shiftTypeById anchorDate calendarRevision TimelineShift { timelineShiftSlot, timelineShiftStartMin, timelineShiftEndMin, timelineShiftTrack } =
     let isOpen = rosterShiftIsOpen timelineShiftSlot
         canLaunch = editable || (isOpen && hasRole Manager)
         staffLabel = if isOpen then "OPEN" else maybe "Unassigned" staffTimelineLabel (timelineShiftSlot.staffId >>= (`Map.lookup` staffById))
@@ -216,7 +216,7 @@ renderTimelineShift timelineWindow editable staffById shiftTypeById TimelineShif
         |]
         launchableArticle =
             if canLaunch
-                then applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction (ExistingRosterSlotTarget timelineShiftSlot.id))) shiftArticle
+                then applyRosterShiftDialogLauncherAttrs (rosterSlotDialogUrl (ExistingRosterSlotTarget timelineShiftSlot.id anchorDate calendarRevision)) shiftArticle
                 else shiftArticle
         card = [hsx|
             <div class="roster-day-timeline-shift-position"
