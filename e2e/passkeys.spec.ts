@@ -224,7 +224,7 @@ test.describe('Venue-admin passkeys', () => {
         await verifyCurrentUserPasskeyStepUp(page);
         await openProfileSecuritySection(page);
         await page.getByRole('button', { name: 'Email setup link for another device' }).click();
-        await expect(page.locator('body')).toContainText('New-device passkey setup email sent.', { timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('body')).toContainText('New-device passkey setup email queued. It should arrive shortly; open it on the device you want to add.', { timeout: E2E_TIMEOUT.navigation });
     });
 
     test('passkey login marks venue-admin access as freshly verified', async ({ page }) => {
@@ -278,7 +278,7 @@ test.describe('Venue-admin passkeys', () => {
         await verifyCurrentUserPasskeyStepUp(page);
         await openProfileSecuritySection(page);
         await page.getByRole('button', { name: 'Email setup link for another device' }).click();
-        await expect(page.locator('body')).toContainText('New-device passkey setup email sent.', { timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('body')).toContainText('New-device passkey setup email queued. It should arrive shortly; open it on the device you want to add.', { timeout: E2E_TIMEOUT.navigation });
         await removeVirtualPasskeyAuthenticator(firstAuthenticator);
     });
 });

@@ -98,7 +98,7 @@ test.describe('Roster Staff Modal', () => {
             await renewalForm.locator('[name="invitationEmail"]').fill(correctedEmail);
             await renewalForm.getByRole('button', { name: 'Renew' }).click();
 
-            await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText(`Invitation renewed for ${correctedEmail}`);
+            await expect(page.locator(`#${toastOverlayMountDomId}`)).toContainText(`Renewed invitation queued for ${correctedEmail} and should arrive shortly`);
             await expect(modalMount.locator(`[${dialogMountDomAttr}]`)).toHaveCount(0);
 
             await trialEntry.getByRole('button', { name: /^Invite / }).click();

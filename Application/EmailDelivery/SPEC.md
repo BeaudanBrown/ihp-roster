@@ -136,3 +136,17 @@ then. Enabled obsolete jobs are `delivery_skipped`; disabled jobs are
 `delivery_disabled`; sent, skipped, disabled, consumed, replaced, revoked, and final
 failure paths clear recoverable password/passkey delivery material. Direct account-mail
 transport and domain-specific transport fakes no longer exist.
+
+## Closed transport architecture and operations
+
+The production mail-kind producer registry is closed and checked against the dispatch
+guards in `Application.EmailDelivery`. `email-transport-check` rejects any production
+`IHP.Mail` transport import or `sendMail` use outside that module, stale or unknown
+`EmailDeliveryRequest` mail-kind producers, and all retired feature transport job-kind
+literals. `IHP.MailPrelude` remains available to HTML/plain-text template modules.
+
+Migration `1788003600.sql` is the final bounded reconciliation for every known legacy
+mail job kind. It retires active rows only, retains terminal history, and is paired
+with removal enforcement so those kinds cannot re-enter production source. Runtime
+configuration, sanitized inspection, rollout, controlled live evidence, and
+rollback/recovery procedures are maintained in `Application/EmailDelivery/README.md`.

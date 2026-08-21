@@ -29,19 +29,6 @@ import Web.Mail.Users.PasswordReset (PasswordResetMail (..))
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Account security email delivery" do
-        it "removes every account-security direct transport path" $ withContext do
-            sources <- mapM TextIO.readFile
-                [ "Application/Helper/EmailVerification.hs"
-                , "Application/Helper/PasswordResetTokens.hs"
-                , "Application/Helper/PasskeySetupTokens.hs"
-                , "Web/Controller/Sessions.hs"
-                , "Web/Controller/Admin.hs"
-                , "Web/Controller/Passkeys.hs"
-                ]
-            let forbidden = ["sendMail", "IHP.Mail", "sendPasswordResetTokenEmail", "sendPasskeySetupTokenEmail"]
-            forM_ sources \source ->
-                filter (`Text.isInfixOf` source) forbidden `shouldBe` []
-
         it "keeps the ciphertext migration additive and leaves existing active tokens valid" $ withContext do
             migrationSql <- TextIO.readFile "Application/Migration/1788003000.sql"
             migrationSql `shouldSatisfy` Text.isInfixOf "ADD COLUMN delivery_token_ciphertext TEXT DEFAULT NULL"

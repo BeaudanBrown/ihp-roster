@@ -161,6 +161,26 @@ tests = aroundAll withDatabaseTestContext do
             migrationSql `shouldSatisfy` not . Text.isInfixOf "'job_status_timed_out'"
             migrationSql `shouldSatisfy` not . Text.isInfixOf "DELETE FROM app_jobs"
 
+        it "finally reconciles every known active legacy mail job without changing terminal history" $ withContext do
+            migrationSql <- TextIO.readFile "Application/Migration/1788003600.sql"
+            let retiredKinds =
+                    [ "'billing_notification'"
+                    , "'wage_source_award_drift_notification'"
+                    , "'roster_notification_delivery'"
+                    , "'staff_document_rsa_reminder'"
+                    , "'venue_invitation_delivery'"
+                    , "'venue_onboarding_invitation_delivery'"
+                    ]
+            forM_ retiredKinds \kind -> migrationSql `shouldSatisfy` Text.isInfixOf kind
+            migrationSql `shouldSatisfy` Text.isInfixOf "'retired_during_email_pipeline_migration'"
+            migrationSql `shouldSatisfy` Text.isInfixOf "SET status = 'job_status_succeeded'"
+            migrationSql `shouldSatisfy` Text.isInfixOf "'job_status_not_started'"
+            migrationSql `shouldSatisfy` Text.isInfixOf "'job_status_running'"
+            migrationSql `shouldSatisfy` Text.isInfixOf "'job_status_retry'"
+            migrationSql `shouldSatisfy` not . Text.isInfixOf "'job_status_failed'"
+            migrationSql `shouldSatisfy` not . Text.isInfixOf "'job_status_timed_out'"
+            migrationSql `shouldSatisfy` not . Text.isInfixOf "DELETE FROM app_jobs"
+
         it "permanently deduplicates feedback events after terminal completion" $ withContext do
             withCleanDb do
                 (feedbackItem, _, _, appJob) <- createQueuedFeedback "delivery-permanent@example.com"

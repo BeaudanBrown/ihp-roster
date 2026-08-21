@@ -25,9 +25,6 @@ issueEmailVerification user =
         void (enqueueEmailVerificationDelivery verificationToken user)
         pure verificationToken
 
-sendEmailVerification :: (?modelContext :: ModelContext) => User -> IO EmailVerificationToken
-sendEmailVerification = issueEmailVerification
-
 findActiveVerificationTokenByToken :: (?modelContext :: ModelContext) => Text -> IO (Maybe EmailVerificationToken)
 findActiveVerificationTokenByToken token =
     query @EmailVerificationToken

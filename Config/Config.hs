@@ -6,8 +6,7 @@ import Application.Helper.Telemetry (telemetryMiddleware)
 import IHP.Environment
 import IHP.EnvVar
 import IHP.FrameworkConfig
-import IHP.Mail
-import IHP.Mail.Types (SMTPEncryption)
+import IHP.Mail.Types (MailServer (..), SMTPEncryption)
 import IHP.Prelude
 import Network.Socket (PortNumber)
 import Web.SurfaceInvalidation (dispatchDurableInvalidation)

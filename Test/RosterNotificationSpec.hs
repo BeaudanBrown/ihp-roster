@@ -18,8 +18,7 @@ import Generated.Types hiding (createRosterNotificationRun)
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig (withFrameworkConfig)
 import IHP.Job.Types (JobStatus (JobStatusSucceeded))
-import IHP.Mail
-import qualified IHP.Mail as Mail
+import qualified IHP.MailPrelude as Mail
 import IHP.Test.Mocking (withContext)
 import Network.Mail.Mime (Address (..))
 import Test.Hspec
@@ -106,13 +105,13 @@ tests = aroundAll withDatabaseTestContext do
                         , supportEmail = "support@example.com"
                         }
                 let ?mail = mail
-                subject `shouldBe` "Your Main roster for week of 6 January"
+                Mail.subject `shouldBe` "Your Main roster for week of 6 January"
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
-                    addressEmail (to mail) `shouldBe` "snapshot-recipient@example.com"
-                    text mail `shouldSatisfy` isInfixOf "Front counter"
-                    text mail `shouldSatisfy` isInfixOf "Open coverage"
-                    text mail `shouldSatisfy` not . isInfixOf "Private schedule"
+                    addressEmail (Mail.to mail) `shouldBe` "snapshot-recipient@example.com"
+                    Mail.text mail `shouldSatisfy` isInfixOf "Front counter"
+                    Mail.text mail `shouldSatisfy` isInfixOf "Open coverage"
+                    Mail.text mail `shouldSatisfy` not . isInfixOf "Private schedule"
                     let renderedHtml = LazyText.toStrict (Blaze.renderHtml (Mail.html mail))
                     renderedHtml `shouldSatisfy` isInfixOf "Open coverage"
                     renderedHtml `shouldSatisfy` isInfixOf "rosterGroupId=test"
@@ -135,7 +134,7 @@ tests = aroundAll withDatabaseTestContext do
                         { deliveryIsDisabled = pure False
                         , deliverMail = \mail -> do
                             let ?mail = mail
-                            modifyIORef' delivered ((addressEmail (to mail), text mail) :)
+                            modifyIORef' delivered ((addressEmail (Mail.to mail), Mail.text mail) :)
                         }
 
                 deliveredMails <- readIORef delivered

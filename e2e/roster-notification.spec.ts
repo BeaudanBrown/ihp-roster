@@ -108,18 +108,6 @@ test.describe('Roster notification workflow', () => {
         const rosterWeekId = randomUUID();
         const rosterGroupName = uniqueE2EValue('e2e-notification-acceptance');
         runSql(`
-            DELETE FROM staff_roster_groups
-            WHERE staff_id IN (
-                SELECT staff.id FROM staff
-                JOIN users ON users.id = staff.user_id
-                WHERE users.email LIKE 'e2e-roster-notification-%@example.com'
-            );
-            DELETE FROM staff
-            WHERE user_id IN (SELECT id FROM users WHERE email LIKE 'e2e-roster-notification-%@example.com');
-            DELETE FROM venue_memberships
-            WHERE user_id IN (SELECT id FROM users WHERE email LIKE 'e2e-roster-notification-%@example.com');
-            DELETE FROM users WHERE email LIKE 'e2e-roster-notification-%@example.com';
-
             INSERT INTO roster_groups (id, venue_id, name, sort_order, is_active, is_default)
             VALUES ('${rosterGroupId}', 'a1000000-0000-0000-0000-000000000001', '${rosterGroupName}', 99, TRUE, FALSE);
             INSERT INTO roster_weeks (id, venue_id, roster_group_id, week_offset, is_live)
@@ -177,7 +165,7 @@ test.describe('Roster notification workflow', () => {
             CREATE TRIGGER e2e_defer_roster_notification_jobs
                 BEFORE INSERT ON app_jobs
                 FOR EACH ROW
-                WHEN (NEW.job_kind = 'roster_notification_delivery')
+                WHEN (NEW.job_kind = 'email_delivery' AND NEW.related_table = 'roster_notification_runs')
                 EXECUTE FUNCTION e2e_defer_roster_notification_jobs();
         `);
         try {
@@ -225,7 +213,7 @@ test.describe('Roster notification workflow', () => {
                 WHERE id = '${rosterWeekId}';
                 UPDATE app_jobs
                 SET status = 'job_status_retry', run_at = NOW() + INTERVAL '1 hour'
-                WHERE payload ->> 'recipientEmail' = '${recipientEmail}';
+                WHERE payload ->> 'recipientAddress' = '${recipientEmail}';
             `);
             await page.reload();
             await openRosterSettings(page);
@@ -235,7 +223,7 @@ test.describe('Roster notification workflow', () => {
             runSql(`
                 UPDATE app_jobs
                 SET status = CASE
-                        WHEN payload ->> 'recipientEmail' = '${recipientEmail}' THEN 'job_status_failed'::job_status
+                        WHEN payload ->> 'recipientAddress' = '${recipientEmail}' THEN 'job_status_failed'::job_status
                         ELSE 'job_status_succeeded'::job_status
                     END,
                     run_at = NOW()

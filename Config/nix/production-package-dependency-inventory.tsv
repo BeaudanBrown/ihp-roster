@@ -109,7 +109,7 @@ IHP.Job.Types	ihp	Main.hs via Main
 IHP.LoginSupport.Helper.Controller	ihp	Web/FrontController.hs via Main
 IHP.LoginSupport.Middleware	ihp	Web/FrontController.hs via Main
 IHP.LoginSupport.Types	ihp	Web/Types.hs via Main
-IHP.Mail	ihp-mail	Config/Config.hs via Main
+IHP.Mail	ihp-mail	Application/EmailDelivery.hs via Main
 IHP.Mail.Types	ihp-mail	Config/Config.hs via Main
 IHP.MailPrelude	ihp-mail	Web/Mail/Users/EmailVerification.hs via Main
 IHP.ModelSupport	ihp	Web/Types.hs via Main

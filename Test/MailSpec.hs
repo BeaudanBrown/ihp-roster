@@ -11,7 +11,7 @@ import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Generated.Types
 import IHP.ControllerPrelude (createRecord, getCurrentTime, newRecord, set,
                               unpackId, (|>))
-import IHP.Mail
+import IHP.MailPrelude
 import IHP.Prelude
 import IHP.Test.Mocking
 import Network.Mail.Mime (Address (..))
