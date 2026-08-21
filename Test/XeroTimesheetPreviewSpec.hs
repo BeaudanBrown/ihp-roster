@@ -3,8 +3,8 @@ module Test.XeroTimesheetPreviewSpec where
 import Application.Fixture.PayrollFixtures (TimesheetFixtureValues,
                                             createAndApproveEntry)
 import Application.Helper.Pay
+import Application.Helper.RosterOffsetCompatibility (defaultWeekOffsetEpochForStartDay)
 import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculation)
-import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems

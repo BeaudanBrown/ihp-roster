@@ -2,9 +2,9 @@ module Test.RosterTemplateApplicationSpec where
 
 import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
-import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay,
-                                          venueWeekOffsetForDay,
-                                          venueWeekStartDate)
+import Application.Helper.RosterOffsetCompatibility (defaultWeekOffsetEpochForStartDay,
+                                                     venueWeekOffsetForDay,
+                                                     venueWeekStartDate)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           applyRosterShiftAssignment)
 import Application.RosterTemplates

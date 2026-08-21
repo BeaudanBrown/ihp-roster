@@ -4,6 +4,7 @@ import Application.Helper.Controller
 import Application.Helper.Export
 import Application.Helper.Export.Render (csvCell)
 import Application.Helper.ProfileLeave (defaultLeaveRequestForOperationalDay)
+import Application.Helper.RosterOffsetCompatibility
 import Application.Helper.Staff (adoptableTrialStaff, isAdoptableTrialStaff,
                                  isLinkedActiveStaff, isRosterableStaff,
                                  isTrialStaff, linkedActiveStaff,
@@ -18,7 +19,7 @@ import Application.Helper.View.Leave (renderDateRangeText)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
-import Data.Time.Calendar (fromGregorian)
+import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..))
 import Data.UUID (UUID)
@@ -667,6 +668,36 @@ tests = describe "Schema" do
         Text.toLower schemaSqlText `shouldNotSatisfy` Text.isInfixOf "bank_account"
         Text.toLower schemaSqlText `shouldNotSatisfy` Text.isInfixOf "superannuation"
 
+    describe "Roster offset rollback compatibility" do
+        it "round-trips negative and positive retained week offsets for a non-Monday epoch" do
+            let tuesdayEpoch = defaultWeekOffsetEpochForStartDay 2
+            let venueConfig =
+                    newRecord @VenueConfig
+                        |> set #rosterWeekStartsOn 2
+                        |> applyLegacyWeekOffsetEpoch 2
+            tuesdayEpoch `shouldBe` fromGregorian 2025 1 7
+            map (venueWeekStartDate venueConfig) [-2, 0, 5]
+                `shouldBe` map (\days -> addDays days tuesdayEpoch) [-14, 0, 35]
+            map (venueWeekOffsetForDay venueConfig . venueWeekStartDate venueConfig) [-2, 0, 5]
+                `shouldBe` [-2, 0, 5]
+
+        it "derives retained week and day values only from explicit Operational dates" do
+            let windowStart = fromGregorian 2025 3 10
+            let venueConfig =
+                    newRecord @VenueConfig
+                        |> applyLegacyWeekOffsetEpochDate (fromGregorian 2025 1 6)
+            let rosterWeek =
+                    newRecord @RosterWeek
+                        |> applyLegacyRosterWeekOffset venueConfig windowStart
+            let rosterDay =
+                    newRecord @RosterDay
+                        |> set #operationalDate (addDays 3 windowStart)
+                        |> applyLegacyRosterDayOffset windowStart
+            rosterWeek.weekOffset `shouldBe` 9
+            legacyRosterWeekStartForRecord venueConfig rosterWeek `shouldBe` windowStart
+            rosterDay.dayOffset `shouldBe` 3
+            rosterDay.operationalDate `shouldBe` fromGregorian 2025 3 13
+
     describe "Leave request helpers" do
         it "validates leave date ranges as unavailable-from to available-again" do
             let startDate = fromGregorian 2025 3 10
@@ -677,25 +708,6 @@ tests = describe "Schema" do
             isLeaveDateRangeValid startDate sameDay `shouldBe` False
             isLeaveDateRangeValid startDate laterDate `shouldBe` True
             isLeaveDateRangeValid startDate earlierDate `shouldBe` False
-
-        it "computes affected week offsets for a leave range" do
-            let mondayVenueConfig =
-                    newRecord @VenueConfig
-                        |> set #rosterWeekStartsOn 1
-                        |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay 1)
-            affectedVenueWeekOffsetsForDateRange mondayVenueConfig (fromGregorian 2025 1 6) (fromGregorian 2025 1 13) `shouldBe` [0]
-            affectedVenueWeekOffsetsForDateRange mondayVenueConfig (fromGregorian 2025 1 12) (fromGregorian 2025 1 14) `shouldBe` [0, 1]
-            affectedVenueWeekOffsetsForDateRange mondayVenueConfig (fromGregorian 2025 1 20) (fromGregorian 2025 1 21) `shouldBe` [2]
-            affectedVenueWeekOffsetsForDateRange mondayVenueConfig (fromGregorian 2025 1 21) (fromGregorian 2025 1 20) `shouldBe` []
-
-        it "computes affected week offsets for a non-monday roster week" do
-            let tuesdayVenueConfig =
-                    newRecord @VenueConfig
-                        |> set #rosterWeekStartsOn 2
-                        |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay 2)
-            affectedVenueWeekOffsetsForDateRange tuesdayVenueConfig (fromGregorian 2025 1 7) (fromGregorian 2025 1 14) `shouldBe` [0]
-            affectedVenueWeekOffsetsForDateRange tuesdayVenueConfig (fromGregorian 2025 1 13) (fromGregorian 2025 1 15) `shouldBe` [0, 1]
-            affectedVenueWeekOffsetsForDateRange tuesdayVenueConfig (fromGregorian 2025 1 14) (fromGregorian 2025 1 16) `shouldBe` [1]
 
     it "requires all mandatory contact fields for profile completion" do
         let completeStaff =

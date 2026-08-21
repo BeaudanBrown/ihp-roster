@@ -92,7 +92,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterWeeks <-
                     query @RosterWeek
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
-                        |> filterWhere (#weekOffset, fixture.currentWeekOffset)
+                        |> filterWhere (#weekOffset, fixture.compatibilityWeekOffset)
                         |> fetch
                 allRosterWeeks <-
                     query @RosterWeek
@@ -138,7 +138,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("venue@bepis.lol", "c3b1be9d-12de-49d1-9f21-e507af4c14ab")
                         ]
                 length rosterWeeks `shouldBe` 2
-                map (.weekOffset) allRosterWeeks `shouldBe` concatMap (replicate 2) [fixture.currentWeekOffset - 1, fixture.currentWeekOffset, fixture.currentWeekOffset + 1]
+                map (.weekOffset) allRosterWeeks `shouldBe` concatMap (replicate 2) [fixture.compatibilityWeekOffset - 1, fixture.compatibilityWeekOffset, fixture.compatibilityWeekOffset + 1]
                 length rosterDays `shouldBe` 14
                 length rosterSlots `shouldSatisfy` (> 30)
                 sort (map (.isLive) rosterWeeks) `shouldBe` [False, True]
@@ -161,7 +161,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterWeeks <-
                     query @RosterWeek
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
-                        |> filterWhere (#weekOffset, fixture.currentWeekOffset)
+                        |> filterWhere (#weekOffset, fixture.compatibilityWeekOffset)
                         |> fetch
                 rosterDays <-
                     query @RosterDay
@@ -221,7 +221,7 @@ tests = aroundAll withDatabaseTestContext do
                 mondayWeeks <-
                     query @RosterWeek
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
-                        |> filterWhere (#weekOffset, fixture.currentWeekOffset)
+                        |> filterWhere (#weekOffset, fixture.compatibilityWeekOffset)
                         |> fetch
                 mondayDays <-
                     query @RosterDay
@@ -250,8 +250,8 @@ tests = aroundAll withDatabaseTestContext do
                 approvedLeaveCount `shouldBe` expectedApprovedLeaves
                 pendingLeaveCount `shouldBe` get #pendingLeaveCount seededScenario
                 deniedLeaveCount `shouldBe` get #deniedLeaveCount seededScenario
-                leaveWeekOffsets `shouldSatisfy` all (`elem` [fixture.currentWeekOffset - 1, fixture.currentWeekOffset, fixture.currentWeekOffset + 1])
-                [fixture.currentWeekOffset - 1, fixture.currentWeekOffset, fixture.currentWeekOffset + 1] `shouldSatisfy` all (`elem` leaveWeekOffsets)
+                leaveWeekOffsets `shouldSatisfy` all (`elem` [fixture.compatibilityWeekOffset - 1, fixture.compatibilityWeekOffset, fixture.compatibilityWeekOffset + 1])
+                [fixture.compatibilityWeekOffset - 1, fixture.compatibilityWeekOffset, fixture.compatibilityWeekOffset + 1] `shouldSatisfy` all (`elem` leaveWeekOffsets)
                 length leaveNotes `shouldBe` length leaveRequests
                 leaveNotes `shouldSatisfy` all (not . Text.null)
                 fmap (.startDate) (head leaveRequests) `shouldBe` Just (addDays (-7) defaultWeekEpoch)
@@ -382,7 +382,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterWeeks <-
                     query @RosterWeek
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
-                        |> filterWhere (#weekOffset, fixture.currentWeekOffset)
+                        |> filterWhere (#weekOffset, fixture.compatibilityWeekOffset)
                         |> fetch
                 rosterDays <-
                     query @RosterDay
@@ -504,7 +504,7 @@ tests = aroundAll withDatabaseTestContext do
                 totalTimesheetCount `shouldBe` (length approvedTimesheets + seededScenario.pendingTimesheets)
                 entriesWithBreaks `shouldSatisfy` (>= requiredBreakCount)
                 timesheetWeekOffsets `shouldSatisfy` \offsets ->
-                    all (`elem` offsets) [fixture.currentWeekOffset - 1, fixture.currentWeekOffset, fixture.currentWeekOffset + 1]
+                    all (`elem` offsets) [fixture.compatibilityWeekOffset - 1, fixture.compatibilityWeekOffset, fixture.compatibilityWeekOffset + 1]
                 xeroMatchedApprovedCount `shouldSatisfy` (> otherApprovedCount)
 
                 -- Staff preferences include realistic names and recurring availability.
@@ -554,7 +554,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterWeeks <-
                     query @RosterWeek
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
-                        |> filterWhere (#weekOffset, fixture.currentWeekOffset)
+                        |> filterWhere (#weekOffset, fixture.compatibilityWeekOffset)
                         |> fetch
                 rosterDays <-
                     query @RosterDay

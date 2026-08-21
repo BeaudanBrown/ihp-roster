@@ -455,7 +455,7 @@ function renderMarkdown(options, manifest, summary) {
         `Scenario: ${options.scenario}`,
         `Runs: ${options.runs} measured, ${options.warmupRuns} warmup`,
         `Seed scenario: ${manifest.scenario}`,
-        `Current week offset: ${manifest.currentWeekOffset}`,
+        `Current Operational window: ${manifest.currentWindowStart}`,
         '',
         '## Timing Coverage Anomalies',
         '',

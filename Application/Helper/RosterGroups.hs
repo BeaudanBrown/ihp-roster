@@ -6,9 +6,9 @@ module Application.Helper.RosterGroups where
 import Application.Helper.Controller (currentUserIsUnimpersonatedSuperAdmin,
                                       currentVenueId, fetchCurrentUserStaff,
                                       hasRole)
+import Application.Helper.RosterOffsetCompatibility (applyLegacyWeekOffsetEpoch)
 import Application.Helper.Staff (sortStaffForDisplay)
 import Application.Helper.WeekBoundaries (defaultRosterWeekStartsOn,
-                                          defaultWeekOffsetEpochForStartDay,
                                           sortDayNamesForVenueWeek)
 import qualified Data.Set as Set
 import Data.Time.Clock (getCurrentTime)
@@ -278,7 +278,7 @@ ensureVenueConfigRecord venue =
                     |> set #venueId (unpackId venue.id)
                     |> set #timezone "Australia/Melbourne"
                     |> set #rosterWeekStartsOn defaultRosterWeekStartsOn
-                    |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay defaultRosterWeekStartsOn)
+                    |> applyLegacyWeekOffsetEpoch defaultRosterWeekStartsOn
                     |> set #rosterLayoutMode DayColumns
                     |> set #defaultStaffPayAssignmentMode RosterOnly
                     |> set #defaultStaffAwardLevelId Nothing

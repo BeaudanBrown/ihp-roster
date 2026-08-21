@@ -6,6 +6,8 @@ fail() {
     exit 1
 }
 
+node scripts/date-native-offset-authority.mjs
+
 extract_controller() {
     local controller="$1"
     awk -v controller="$controller" '
@@ -107,7 +109,7 @@ legacy_roster_day_offset_reads="$(
 
 non_compatibility_day_offset_writes="$(
     rg -n 'set #dayOffset' Application Web --glob '*.hs' \
-        | rg -v '^(Web/RosterWeeks/DateRange[.]hs|Application/Fixture[.]hs|Application/Fixture/DevFixtures/Roster[.]hs):' \
+        | rg -v '^Application/Helper/RosterOffsetCompatibility[.]hs:' \
         || true
 )"
 [[ -z "$non_compatibility_day_offset_writes" ]] \

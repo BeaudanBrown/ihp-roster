@@ -35,7 +35,6 @@ Application/Fixture/DevFixtures/Roster.hs	development	development-fixture	-	Synt
 Application/Fixture/DevFixtures/Staff.hs	development	development-fixture	-	Synthetic local development data only
 Application/Fixture/PayrollFixtures.hs	development	fixture	-	Seed, profile, or test fixture outside deployed runtime closure
 Application/Fixture/Reset.hs	development	fixture	-	Seed, profile, or test fixture outside deployed runtime closure
-Application/Fixture/Seed/Calendar.hs	development	fixture	-	Seed, profile, or test fixture outside deployed runtime closure
 Application/Fixture/Seed/Scenario.hs	development	fixture	-	Seed, profile, or test fixture outside deployed runtime closure
 Application/Fixture/WageSourceFixtures.hs	development	fixture	-	Seed, profile, or test fixture outside deployed runtime closure
 Application/FwcMapd/Client.hs	production	runtime	Main	Reachable from Main
@@ -244,6 +243,7 @@ Application/Helper/ProfileLeave.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Profiling.hs	production	runtime	Main	Reachable from Main
 Application/Helper/RosterAwardDuration.hs	production	runtime	Main	Reachable from Main
 Application/Helper/RosterGroups.hs	production	runtime	Main	Reachable from Main
+Application/Helper/RosterOffsetCompatibility.hs	production	runtime	Main	Reachable from Main
 Application/Helper/RosterTemplateScale.hs	production	runtime	Main	Reachable from Main
 Application/Helper/RosterTimesheetBoundaries.hs	production	runtime	Main	Reachable from Main
 Application/Helper/RosterWagePrediction.hs	production	runtime	Main	Reachable from Main

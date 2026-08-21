@@ -107,7 +107,13 @@ tests = aroundAll withDatabaseTestContext do
                 foreignWeek <- createRosterWeekRecord venueB 0 False
 
                 response <- withUser manager do
-                    callAction ToggleRosterWeekLiveStatusAction { rosterWeekId = foreignWeek.id }
+                    callActionWithParams
+                        ToggleRosterWeekLiveStatusAction { rosterWeekId = foreignWeek.id }
+                        [ ("anchorDate", "2025-01-06")
+                        , ("rosterGroupId", idToParam (Id foreignWeek.rosterGroupId :: Id RosterGroup))
+                        , ("rosterCalendarRevision", "1")
+                        , ("isLive", "true")
+                        ]
 
                 response `responseStatusShouldBe` status403
 

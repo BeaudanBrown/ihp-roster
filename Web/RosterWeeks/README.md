@@ -43,6 +43,17 @@ inventory here.
 - `Web/RosterWeeks/ShiftWorkflow.hs` - shift-dialog create/edit context, render-data preparation, submitted field/DST validation, and authoritative slot application.
 - `Web/View/RosterWeeks/` - HSX rendering.
 
+## Date-Native Compatibility Boundary
+
+Runtime modules accept explicit `RosterWindowScope` values and read
+`RosterDay.operationalDate`. Retained `RosterWeek.weekOffset`,
+`VenueConfig.weekOffsetEpoch`, and `RosterDay.dayOffset` values exist only for
+rollback compatibility behind `Application.Helper.RosterOffsetCompatibility`
+and `LegacyCompatibility`; immutable notification offsets are provenance only.
+`Config/nix/date-native-offset-allowlist.tsv` records every remaining runtime
+source exception and its reason. Issue #374 owns production-observed destructive
+schema cleanup; do not widen this compatibility interface before then.
+
 ## Mutation Projection Contract
 
 Controllers select a typed `RosterMutationProjection` after authorization and

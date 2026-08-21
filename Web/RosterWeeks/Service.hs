@@ -17,6 +17,7 @@ module Web.RosterWeeks.Service
     ) where
 
 import qualified Application.Helper.RosterAwardDuration as RosterAwardDuration
+import Application.Helper.RosterOffsetCompatibility (applyLegacyRosterDayOffset)
 import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyValid)
 import Application.PayAssignment
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
@@ -36,7 +37,6 @@ import qualified Data.Time.Calendar as Calendar
 import Data.Time.LocalTime (TimeOfDay (..))
 import Data.Traversable (traverse)
 import Web.Controller.Prelude
-import Web.RosterWeeks.DateRange (setLegacyRosterDayOffset)
 import Web.RosterWeeks.Dom (closedRosterDayRows, minimumOpenRosterRows)
 
 fetchActiveStaffForCurrentVenue :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id Staff -> IO (Maybe Staff)
@@ -380,7 +380,7 @@ materializeCopyTargetDays venueId rosterGroupId sourceStart targetStart sourceDa
                 |> set #rosterGroupId (unpackId rosterGroupId)
                 |> set #operationalDate targetDate
                 |> set #publicationState Draft
-                |> setLegacyRosterDayOffset targetStart
+                |> applyLegacyRosterDayOffset targetStart
                 |> set #isClosed (maybe False (.isClosed) sourceDay)
                 |> set #rowCount (maybe 4 (.rowCount) sourceDay)
                 |> createRecord

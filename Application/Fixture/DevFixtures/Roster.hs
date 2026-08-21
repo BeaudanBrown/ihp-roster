@@ -7,12 +7,12 @@ module Application.Fixture.DevFixtures.Roster
 import Application.Fixture
 import Application.Fixture.DevFixtures.Deterministic
 import Application.Fixture.DevFixtures.Staff (SeededStaff (..))
-import Application.Fixture.Seed.Calendar (weekOffsetForDay)
 import Application.Fixture.Seed.Scenario
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureVenueDefaultRosterGroup,
                                         fetchActiveRosterGroupSlotNames,
                                         syncStaffRosterGroupAssignments)
+import Application.Helper.RosterOffsetCompatibility (applyLegacyRosterDayOffset)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..))
 import Application.Helper.TimeRules (rosterShiftStartDate)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
@@ -82,22 +82,19 @@ seedRosterProjection scenario fixtureWeekStart venue rosterFixture staffFixture 
     seedRosterWindow scenario fixtureWeekStart venue frontGroup backGroup frontSlots backSlots allFrontCandidates allBackCandidates shiftTypes
     seedPayAssignmentMatrix
         frontGroup
-        (weekOffsetForDay fixtureWeekStart)
+        fixtureWeekStart
         [staffFixture.awardStaff, staffFixture.xeroStaff, staffFixture.rosterOnlyStaff]
         (take 4 shiftTypes)
 
-seedPayAssignmentMatrix :: (?modelContext :: ModelContext) => RosterGroup -> Int -> [Staff] -> [ShiftType] -> IO ()
-seedPayAssignmentMatrix rosterGroup weekOffset staffModes shiftModes = do
+seedPayAssignmentMatrix :: (?modelContext :: ModelContext) => RosterGroup -> Day -> [Staff] -> [ShiftType] -> IO ()
+seedPayAssignmentMatrix rosterGroup windowStart staffModes shiftModes = do
     when (length staffModes /= 3 || length shiftModes /= 4) $
         fail "Dev pay matrix requires three staff modes and four shift modes"
-    rosterWeek <-
-        query @RosterWeek
-            |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
-            |> filterWhere (#weekOffset, weekOffset)
-            |> fetchOne
     rosterDays <-
         query @RosterDay
-            |> filterWhere (#rosterWeekId, Just (unpackId rosterWeek.id))
+            |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+            |> filterWhereGreaterThanOrEqualTo (#operationalDate, windowStart)
+            |> filterWhereLessThan (#operationalDate, addDays 7 windowStart)
             |> orderByAsc #operationalDate
             |> fetch
     when (length rosterDays < length shiftModes) $
@@ -294,11 +291,11 @@ seedRosterWindow ::
     IO ()
 seedRosterWindow scenario currentWeekStart venue frontGroup backGroup frontSlots backSlots frontCandidates backCandidates shiftTypes =
     forM_ devSeedWeekStarts \(weekIndex, weekStart) -> do
-        let weekOffset = weekOffsetFor weekStart
-        frontWeek <- createRosterWeekRecordForRosterGroup venue frontGroup weekOffset (weekIndex == 0)
-        backWeek <- createRosterWeekRecordForRosterGroup venue backGroup weekOffset False
-        frontDays <- createRosterDayRecords frontWeek [0 .. 6]
-        backDays <- createRosterDayRecords backWeek [0 .. 6]
+        frontWeek <- createRosterWeekRecordForWindow venue frontGroup weekStart (weekIndex == 0)
+        backWeek <- createRosterWeekRecordForWindow venue backGroup weekStart False
+        let operationalDates = map (`addDays` weekStart) [0 .. 6]
+        frontDays <- createRosterDayRecords frontWeek weekStart operationalDates
+        backDays <- createRosterDayRecords backWeek weekStart operationalDates
         let weekSeed = scenario.scenarioSeed + (weekIndex * 1009)
         seedRosterGroup weekSeed (rosterFillForWeek scenario.rosterFillPercent weekIndex) weekStart frontGroup frontDays frontSlots frontCandidates shiftTypes
         seedRosterGroup (weekSeed + 97) (max 40 (rosterFillForWeek scenario.rosterFillPercent weekIndex - 8)) weekStart backGroup backDays backSlots backCandidates shiftTypes
@@ -525,19 +522,23 @@ rotateList offset values =
         clampedOffset = offset `mod` length values
 
 
-createRosterDayRecords :: (?modelContext :: ModelContext) => RosterWeek -> [Int] -> IO [RosterDay]
-createRosterDayRecords _ [] = pure []
-createRosterDayRecords rosterWeek dayOffsets = do
-    rosterDayIds <- map Id <$> freshUUIDs (length dayOffsets)
+createRosterDayRecords :: (?modelContext :: ModelContext) => RosterWeek -> Day -> [Day] -> IO [RosterDay]
+createRosterDayRecords _ _ [] = pure []
+createRosterDayRecords rosterWeek windowStart operationalDates = do
+    rosterDayIds <- map Id <$> freshUUIDs (length operationalDates)
     now <- getCurrentTime
-    createMany (zipWith (rosterDayRecord now rosterWeek) rosterDayIds dayOffsets)
+    createMany (zipWith (rosterDayRecord now rosterWeek windowStart) rosterDayIds operationalDates)
 
-rosterDayRecord :: UTCTime -> RosterWeek -> Id RosterDay -> Int -> RosterDay
-rosterDayRecord now rosterWeek rosterDayId dayOffset =
+rosterDayRecord :: UTCTime -> RosterWeek -> Day -> Id RosterDay -> Day -> RosterDay
+rosterDayRecord now rosterWeek windowStart rosterDayId operationalDate =
     newRecord @RosterDay
         |> set #id rosterDayId
         |> set #rosterWeekId (Just (unpackId (get #id rosterWeek)))
-        |> set #dayOffset dayOffset
+        |> set #venueId rosterWeek.venueId
+        |> set #rosterGroupId rosterWeek.rosterGroupId
+        |> set #operationalDate operationalDate
+        |> set #publicationState (if rosterWeek.isLive then Published else Draft)
+        |> applyLegacyRosterDayOffset windowStart
         |> set #isClosed False
         |> set #createdAt now
         |> set #updatedAt now
@@ -617,6 +618,3 @@ slotStartTimeFor slotIndex dayIndex =
 slotEndTimeFor :: TimeOfDay -> TimeOfDay
 slotEndTimeFor startTime =
     minutesToTimeOfDay (timeOfDayToMinutes startTime + 330)
-
-weekOffsetFor :: Day -> Int
-weekOffsetFor = weekOffsetForDay

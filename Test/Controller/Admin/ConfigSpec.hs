@@ -12,9 +12,9 @@ import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timeshee
 import Application.Helper.LiveUpdate
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
+import Application.Helper.RosterOffsetCompatibility (defaultWeekOffsetEpochForStartDay)
 import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey)
 import Application.Helper.SurfaceResource
-import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Application.Helper.Xero
 import Config
 import qualified Control.Concurrent.Async as Async

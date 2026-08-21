@@ -1,0 +1,27 @@
+# path	category	reason
+Application/Helper/RosterOffsetCompatibility.hs	compatibility-owner	Owns all retained roster/week/day offset calculations and compatibility writes until production-gated cleanup #374.
+Web/RosterWeeks/LegacyCompatibility.hs	compatibility-adapter	Adapts explicit roster scopes to retained RosterWeek identity for rollback-only persistence until #374.
+Application/Fixture.hs	fixture-compatibility	Keeps legacy offset fixture interfaces for existing tests while constructing explicit Operational dates through the compatibility owner.
+Application/Fixture/DevFixtures.hs	fixture-compatibility	Exposes a labelled compatibility offset only for assertions over retained fixture columns; currentWindowStart is seed authority.
+Application/Fixture/PayrollFixtures.hs	fixture-compatibility	Overrides the retained epoch for deterministic payroll fixtures through the compatibility owner; payroll dates remain explicit.
+Application/Script/SeedProfile.hs	seed-compatibility	Writes retained schema columns for load compatibility; all generated routes and business dates derive from explicit ProfileSeedWindow dates.
+Application/RosterNotification.hs	immutable-provenance	Retains and serializes legacy week offset only as immutable notification snapshot/run provenance.
+Application/RosterNotification/Delivery.hs	immutable-provenance	Checks decoded immutable legacy notification provenance against its stored run; it does not select a runtime window.
+Application/Helper/RosterGroups.hs	compatibility-caller	Initializes the retained epoch through the compatibility owner when creating roster-group defaults.
+Application/Helper/VenueBootstrap.hs	compatibility-caller	Initializes the retained epoch through the compatibility owner during venue bootstrap.
+Web/Admin/RosterWindowStartDay.hs	compatibility-caller	Updates the retained rollback epoch through the compatibility owner after the explicit calendar transition.
+Web/RosterWeeks/Responses.hs	transient-day-index	Uses a bounded zero-to-six presentation index for timeline selection; no persisted offset is read.
+Web/RosterWeeks/RenderData.hs	transient-day-index	Uses a bounded zero-to-six presentation index for timeline selection; no persisted offset is read.
+Web/View/RosterWeeks/Grid.hs	transient-day-index	Projects a bounded timeline presentation index onto the explicit window start.
+Web/View/RosterWeeks/Header.hs	transient-day-index	Renders bounded previous/next timeline presentation controls inside one explicit window.
+Web/View/RosterWeeks/Show.hs	transient-day-index	Projects a bounded timeline presentation index onto the explicit roster scope.
+Web/View/RosterWeeks/Overview.hs	transient-day-index	Enumerates seven display labels from an explicit window start.
+Web/View/RosterWeeks/StaffSelfServicePanel.hs	transient-day-index	Carries the generated bounded day-selection interaction field, not persisted roster authority.
+Web/Controller/RosterWeeks.hs	transient-day-index	Accepts the bounded timeline display selector for compatibility with the current single-day layout URL.
+Web/View/Timesheets/Index.hs	transient-day-index	Enumerates seven rendered day sections from the explicit Timesheet window.
+Web/Timesheets/Responses.hs	transient-day-index	Selects one rendered day fragment by difference from the explicit Timesheet scope.
+Web/Timesheets/Projection.hs	transient-day-index	Indexes one of seven projection day renderers inside an explicit Timesheet window.
+Web/Timesheets/FrontendSurface.hs	transient-day-index	Enumerates mounted day fragments from the explicit Timesheet scope.
+Web/Controller/Timesheets.hs	transient-day-index	Selects one response fragment by explicit Operational-date difference within the validated scope.
+Application/Helper/Export/Render.hs	transient-day-index	Enumerates seven report display buckets from an explicit export week selection.
+Application/Helper/WeekBoundaries.hs	transient-day-index	Uses a local weekday-order distance to calculate startOfWeekFor; no persisted offset field is accessed.

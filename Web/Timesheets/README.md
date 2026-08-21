@@ -23,6 +23,14 @@ and TypeScript must not restate them. Hide-approved and suggestion visibility ar
 global user preferences; authorized manager staff and roster-group filtering
 remain canonical URL state.
 
+## Date-Native Interface
+
+Timesheet reads, mutations, responses, and invalidations use explicit
+`TimesheetWeekScopeValue` `[windowStart, windowEnd)` dates. They must not consume
+retained roster offsets. The temporary rollback schema is isolated behind the
+Roster compatibility modules and allowlist; destructive removal remains gated
+by issue #374.
+
 ## Related Docs
 
 - `SPEC.md` — durable suggestion, materialization, approval, and time contracts.

@@ -15,7 +15,6 @@ module Web.RosterWeeks.DateRange
     , projectRosterWindow
     , projectedRosterDay
     , projectedRosterDayId
-    , setLegacyRosterDayOffset
     , rosterWindowDates
     , rosterWindowIsPublished
     , rosterWindowLaneRepresentative
@@ -24,6 +23,7 @@ module Web.RosterWeeks.DateRange
     , fetchRosterWindow
     ) where
 
+import Application.Helper.RosterOffsetCompatibility (applyLegacyRosterDayOffset)
 import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.RosterPublication (rosterDaysArePublished)
 import Control.Monad (void)
@@ -155,14 +155,6 @@ rosterWindowLaneRepresentative :: RosterWindowLane -> RosterLane
 rosterWindowLaneRepresentative lane =
     snd (fromMaybe (error "Roster window lane has no date-local lane") (Map.lookupMin lane.rosterWindowLaneByDate))
 
--- | Populate the retained rollback-only offset from authoritative dates.
--- Runtime reads must use 'operationalDate'; this field exists only until the
--- production-gated legacy schema retirement.
-setLegacyRosterDayOffset :: Day -> RosterDay -> RosterDay
-setLegacyRosterDayOffset windowStart rosterDay =
-    rosterDay
-        |> set #dayOffset (fromInteger (diffDays rosterDay.operationalDate windowStart))
-
 projectedRosterDay :: Id Venue -> Id RosterGroup -> Maybe (Id RosterWeek) -> Day -> RosterWindowDay -> RosterDay
 projectedRosterDay venueId rosterGroupId maybeRosterWeekId windowStartDate windowDay =
     case windowDay.persistedRosterDay of
@@ -175,7 +167,7 @@ projectedRosterDay venueId rosterGroupId maybeRosterWeekId windowStartDate windo
                 |> set #rosterGroupId (unpackId rosterGroupId)
                 |> set #operationalDate windowDay.operationalDate
                 |> set #publicationState Draft
-                |> setLegacyRosterDayOffset windowStartDate
+                |> applyLegacyRosterDayOffset windowStartDate
 
 projectedRosterDayId :: Id RosterGroup -> Day -> Id RosterDay
 projectedRosterDayId rosterGroupId operationalDate =

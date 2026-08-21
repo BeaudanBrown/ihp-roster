@@ -1,7 +1,7 @@
 {
   "scenario": "large-roster-history",
   "seed": 42,
-  "currentWeekOffset": 9,
+  "currentWindowStart": "2025-03-10",
   "options": {
     "venues": 1,
     "staffPerVenue": 2,

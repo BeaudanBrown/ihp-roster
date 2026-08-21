@@ -4,6 +4,7 @@ import Application.Script.SeedProfile
 import Data.Either (isLeft)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
+import Data.Time.Calendar (fromGregorian)
 import IHP.Prelude
 import Test.Hspec
 
@@ -24,7 +25,10 @@ smallOptions =
         }
 
 smallPlan :: ProfileSeedPlan
-smallPlan = buildProfileSeedPlan smallOptions 9
+smallPlan = buildProfileSeedPlan smallOptions profileTestWindowStart
+
+profileTestWindowStart :: Day
+profileTestWindowStart = fromGregorian 2025 3 10
 
 tests :: Spec
 tests = do
@@ -123,21 +127,21 @@ tests = do
 
     describe "ProfileSeed application routes" do
         it "keeps typed-route target bytes stable" do
-            rosterWeekPath 9 1 1
+            rosterWeekPath profileTestWindowStart 1 1
                 `shouldBe` "/ShowRosterWindow?anchorDate=2025-03-10&rosterGroupId=00b71b01-0001-4000-8002-00004795d228"
-            rosterWeekContentFragmentPath 9 1 1
+            rosterWeekContentFragmentPath profileTestWindowStart 1 1
                 `shouldBe` "/ShowRosterWeekContentFragment?anchorDate=2025-03-10&rosterGroupId=00b71b01-0001-4000-8002-00004795d228"
-            rosterWeekStaffPanelFragmentPath 9 1 1
+            rosterWeekStaffPanelFragmentPath profileTestWindowStart 1 1
                 `shouldBe` "/ShowRosterWeekStaffPanelFragment?anchorDate=2025-03-10&rosterGroupId=00b71b01-0001-4000-8002-00004795d228"
-            rosterWeekOverviewFragmentPath 9 1 1
+            rosterWeekOverviewFragmentPath profileTestWindowStart 1 1
                 `shouldBe` "/ShowRosterWeekOverviewFragment?anchorDate=2025-03-10&rosterGroupId=00b71b01-0001-4000-8002-00004795d228"
-            timesheetWeekPath 9
+            timesheetWeekPath profileTestWindowStart
                 `shouldBe` "/ShowTimesheetWindow?anchorDate=2025-03-10"
-            timesheetResetPath 9
+            timesheetResetPath
                 `shouldBe` "/Timesheets"
-            timesheetStaffFilterPath 9 "004c4b41-0001-4000-8002-00001ddcab28"
+            timesheetStaffFilterPath profileTestWindowStart "004c4b41-0001-4000-8002-00001ddcab28"
                 `shouldBe` "/ShowTimesheetWindow?anchorDate=2025-03-10&staffFilterId=004c4b41-0001-4000-8002-00001ddcab28"
-            timesheetDayFragmentPath 9 0
+            timesheetDayFragmentPath profileTestWindowStart 0
                 `shouldBe` "/ShowTimesheetDaySectionFragment?anchorDate=2025-03-10&operationalDate=2025-03-10"
             profileLeaveSectionFragmentPath
                 `shouldBe` "/ShowprofileContentLiveFragment?section=leave"

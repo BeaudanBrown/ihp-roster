@@ -1,6 +1,6 @@
 module Test.Controller.RosterTemplatesSpec where
 
-import Application.Helper.WeekBoundaries (venueWeekStartDate)
+import Application.Helper.RosterOffsetCompatibility (venueWeekStartDate)
 import Application.RosterTemplates (RosterTemplateDraft (..),
                                     RosterTemplateSave (..),
                                     fetchPrivateRosterTemplateDraft,

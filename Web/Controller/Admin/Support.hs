@@ -12,8 +12,7 @@ import Application.Helper.VenueInvitation
 import Application.Helper.VenueScopedQueries (fetchVenueShiftTypes)
 import Application.Helper.View (ToastOverlayPosition (..), errorToast,
                                 renderToastOob)
-import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay,
-                                          sortDayNamesForVenueWeek,
+import Application.Helper.WeekBoundaries (sortDayNamesForVenueWeek,
                                           validRosterWeekStartDays,
                                           weekdayIndexLabel)
 import Control.Monad (void)

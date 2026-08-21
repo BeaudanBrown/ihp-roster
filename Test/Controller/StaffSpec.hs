@@ -13,13 +13,13 @@ import Application.Helper.PasskeySetupTokens (PasskeySetupTokenPurpose (..),
                                               issuePasskeySetupToken)
 import Application.Helper.PasswordResetTokens (issuePasswordResetToken)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
+import Application.Helper.RosterOffsetCompatibility (venueWeekOffsetForDay,
+                                                     venueWeekStartDate)
 import Application.Helper.StaffShiftPreferences (encodeShiftPreferenceKey,
                                                  shiftPreferenceEndHourParamName,
                                                  shiftPreferenceStartHourParamName)
 import Application.Helper.SurfaceResource
 import Application.Helper.TimeRules (operationalDayForUtcTime)
-import Application.Helper.WeekBoundaries (venueWeekOffsetForDay,
-                                          venueWeekStartDate)
 import Application.InvitationDelivery.Enqueue (enqueueVenueInvitationEmail)
 import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, readMVar, takeMVar)

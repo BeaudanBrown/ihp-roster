@@ -3,7 +3,7 @@ module Test.Controller.Admin.AccessSpec where
 import Application.Helper.LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         fetchActiveRosterGroupSlotNames)
-import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
+import Application.Helper.RosterOffsetCompatibility (defaultWeekOffsetEpochForStartDay)
 import Application.Helper.Xero
 import Config
 import qualified Data.Aeson as Aeson

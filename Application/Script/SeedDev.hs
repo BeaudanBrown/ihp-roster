@@ -4,18 +4,18 @@ import Application.Fixture.DevFixtures (DevSeedFixture (..),
                                         seedDevelopmentFixtureAfterResetWithScenarioForWeekAndLeaveMonth,
                                         seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth)
 import Application.Fixture.Reset (resetDatabase)
-import Application.Fixture.Seed.Calendar (currentWeekOffsetForDay,
-                                          weekStartForOffset)
 import Application.Fixture.Seed.Scenario
 import Application.Helper.ShiftTypeColours (ShiftTypeColourKeyEnum,
                                             blankShiftTypeColourKey,
                                             shiftTypeColourKeyCssValue)
 import Application.Helper.TimesheetPayLedger (backfillApprovedTimesheetPayCalculations)
+import Application.Helper.WeekBoundaries (defaultRosterWeekStartsOn,
+                                          startOfWeekFor)
 import Application.Script.Prelude
 import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
-import Data.Time.Calendar (Day)
+import Data.Time.Calendar (Day, addDays)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified System.Environment as Environment
 import System.Exit (exitSuccess)
@@ -57,7 +57,7 @@ runWithResetMode resetMode = do
         , sandboxInvitation = sandboxInvitation
         , frontOfHouseGroup = frontOfHouseGroup
         , backOfHouseGroup = backOfHouseGroup
-        , currentWeekOffset = currentWeekOffset
+        , currentWindowStart = currentWindowStart
         , scenario = scenario
         } <- case resetMode of
             ResetBeforeSeed -> seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart (utctDay now)
@@ -91,14 +91,11 @@ runWithResetMode resetMode = do
         query @TimesheetEntry
             |> filterWhere (#venueId, unpackId (get #id sandboxVenue))
             |> fetch
-    rosterWeeks <-
-        query @RosterWeek
-            |> filterWhere (#venueId, unpackId (get #id sandboxVenue))
-            |> filterWhere (#weekOffset, currentWeekOffset)
-            |> fetch
     rosterDays <-
         query @RosterDay
-            |> filterWhereIn (#rosterWeekId, map (Just . unpackId . (.id)) rosterWeeks)
+            |> filterWhere (#venueId, unpackId (get #id sandboxVenue))
+            |> filterWhereGreaterThanOrEqualTo (#operationalDate, currentWindowStart)
+            |> filterWhereLessThan (#operationalDate, addDays 7 currentWindowStart)
             |> fetch
     rosterSlots <-
         query @RosterSlot
@@ -211,4 +208,4 @@ printSeedDevUsage = do
     TextIO.putStrLn "  --roster-fill=<0-100>"
 
 currentFixtureWeekStart :: Day -> Day
-currentFixtureWeekStart = weekStartForOffset . currentWeekOffsetForDay
+currentFixtureWeekStart = startOfWeekFor defaultRosterWeekStartsOn

@@ -1,10 +1,10 @@
 module Test.Controller.RosterWeeks.WorkflowSpec where
 
-import Application.Helper.Controller (venueWeekStartDate)
 import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
+import Application.Helper.RosterOffsetCompatibility (venueWeekStartDate)
 import Application.Helper.SurfaceResource
 import Application.Helper.UserPreferences
 import Application.VenueTime (RepeatedTimeOccurrence (..))

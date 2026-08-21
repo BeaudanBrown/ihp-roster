@@ -13,8 +13,8 @@ import Application.Fixture.DevFixtures.Payroll
 import Application.Fixture.DevFixtures.Roster
 import Application.Fixture.DevFixtures.Staff
 import Application.Fixture.Reset (resetDatabase)
-import Application.Fixture.Seed.Calendar (weekOffsetForDay)
 import Application.Fixture.Seed.Scenario
+import Application.Helper.RosterOffsetCompatibility (venueWeekOffsetForDay)
 import Data.Time.Calendar (Day)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Generated.Types
@@ -22,17 +22,18 @@ import IHP.ControllerPrelude
 import IHP.Prelude
 
 data DevSeedFixture = DevSeedFixture
-    { sandboxVenue      :: !Venue
-    , sandboxAdmin      :: !User
-    , sandboxManager    :: !User
-    , sandboxManagers   :: ![User]
-    , sandboxWorker     :: !User
-    , supportAdmin      :: !User
-    , sandboxInvitation :: !VenueInvitation
-    , frontOfHouseGroup :: !RosterGroup
-    , backOfHouseGroup  :: !RosterGroup
-    , currentWeekOffset :: !Int
-    , scenario          :: !SeedScenario
+    { sandboxVenue            :: !Venue
+    , sandboxAdmin            :: !User
+    , sandboxManager          :: !User
+    , sandboxManagers         :: ![User]
+    , sandboxWorker           :: !User
+    , supportAdmin            :: !User
+    , sandboxInvitation       :: !VenueInvitation
+    , frontOfHouseGroup       :: !RosterGroup
+    , backOfHouseGroup        :: !RosterGroup
+    , currentWindowStart      :: !Day
+    , compatibilityWeekOffset :: !Int
+    , scenario                :: !SeedScenario
     }
 
 seedDevelopmentFixtureForWeek :: (?modelContext :: ModelContext) => Day -> IO DevSeedFixture
@@ -62,6 +63,7 @@ seedDevelopmentFixtureAfterResetWithScenarioForWeekAndLeaveMonth scenario fixtur
     staff <- applySeededPayAssignments pay.floorAwardLevel pay.importedPayItem.id accounts.aliasStaff baseStaff
     seedRosterProjection scenario fixtureWeekStart venue roster staff pay.allShiftTypes
     seedLeaveProjection fixtureWeekStart leaveMonthAnchor venue scenario staff.allOperationalStaff
+    venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
     now <- getCurrentTime
     let scheduledApprovalAt = UTCTime (dayAtOffset fixtureWeekStart 6) (secondsToDiffTime 3600)
         approvedAt = min now scheduledApprovalAt
@@ -77,6 +79,7 @@ seedDevelopmentFixtureAfterResetWithScenarioForWeekAndLeaveMonth scenario fixtur
             , sandboxInvitation = accounts.invitation
             , frontOfHouseGroup = roster.frontOfHouseGroup
             , backOfHouseGroup = roster.backOfHouseGroup
-            , currentWeekOffset = weekOffsetForDay fixtureWeekStart
+            , currentWindowStart = fixtureWeekStart
+            , compatibilityWeekOffset = venueWeekOffsetForDay venueConfig fixtureWeekStart
             , scenario = scenario
             }

@@ -203,24 +203,26 @@ function xeroPlan(seed = 0) {
 
 function timesheetPlan(seed = 0) {
     const venue = venueFor(seed);
-    const weekOffset = weekOffsetFor(seed);
+    const windowStartDate = windowStartFor(seed);
+    const windowEndDate = addUtcDays(windowStartDate, 7);
     return venuePlan(
         'timesheet',
         venue,
-        { kind: 'timesheet_week', venueId: venue.id, weekOffset },
-        profileMutationPath('ProfileLiveInvalidateTimesheetWeek', { weekOffset }),
+        { kind: 'timesheet_week', venueId: venue.id, windowStartDate, windowEndDate, rosterCalendarRevision: 1 },
+        profileMutationPath('ProfileLiveInvalidateTimesheetWindow', { anchorDate: windowStartDate }),
     );
 }
 
 function rosterPlan(seed = 0) {
     const venue = venueFor(seed);
     const rosterGroup = venue.rosterGroups?.[seed % (venue.rosterGroups?.length || 1)] || { id: venue.defaultRosterGroupId };
-    const weekOffset = weekOffsetFor(seed);
+    const windowStartDate = windowStartFor(seed);
+    const windowEndDate = addUtcDays(windowStartDate, 7);
     return venuePlan(
         'roster',
         venue,
-        { kind: 'roster_week', venueId: venue.id, rosterGroupId: rosterGroup.id, weekOffset },
-        profileMutationPath('ProfileLiveInvalidateRosterWeek', { weekOffset, rosterGroupId: rosterGroup.id }),
+        { kind: 'roster_week', venueId: venue.id, rosterGroupId: rosterGroup.id, windowStartDate, windowEndDate, rosterCalendarRevision: 1 },
+        profileMutationPath('ProfileLiveInvalidateRosterWindow', { anchorDate: windowStartDate, rosterGroupId: rosterGroup.id }),
     );
 }
 
@@ -292,9 +294,14 @@ function venueFor(seed) {
     return venues[seed % venueCount];
 }
 
-function weekOffsetFor(seed) {
-    const current = Number(manifest.currentWeekOffset || 0);
-    return current + (seed % weekSpread);
+function windowStartFor(seed) {
+    return addUtcDays(manifest.currentWindowStart, (seed % weekSpread) * 7);
+}
+
+function addUtcDays(isoDate, days) {
+    const date = new Date(`${isoDate}T00:00:00Z`);
+    date.setUTCDate(date.getUTCDate() + days);
+    return date.toISOString().slice(0, 10);
 }
 
 function metricTags(plan, extra = {}) {

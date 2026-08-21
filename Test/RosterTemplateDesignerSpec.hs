@@ -1,6 +1,6 @@
 module Test.RosterTemplateDesignerSpec where
 
-import Application.Helper.WeekBoundaries (venueWeekStartDate)
+import Application.Helper.RosterOffsetCompatibility (venueWeekStartDate)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..))
 import Application.RosterTemplates
 import Control.Concurrent (newEmptyMVar, putMVar, readMVar, takeMVar,

@@ -1,15 +1,16 @@
 module Application.Script.SeedProfile where
 
-import Application.Fixture.Seed.Calendar (currentWeekOffsetForDay,
-                                          weekStartForOffset)
+import Application.Helper.RosterOffsetCompatibility (legacyWeekOffsetForEpoch)
 import Application.Helper.Url (appendQueryParams, replaceQueryParams)
+import Application.Helper.WeekBoundaries (defaultRosterWeekStartsOn,
+                                          startOfWeekFor)
 import Application.VenueTime (melbourneTimeZoneName)
 import Application.VenueTime.Model (resolveBoundaryInstant)
 import Control.Monad (foldM)
 import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
-import Data.Time.Calendar (Day, addDays)
+import Data.Time.Calendar (Day, addDays, fromGregorian)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import Data.Time.LocalTime (TimeOfDay (..))
 import IHP.ControllerPrelude (pathTo)
@@ -30,11 +31,14 @@ run :: IO ()
 run = do
     options <- parseOptions
     today <- utctDay <$> getCurrentTime
-    let currentWeekOffset = currentWeekOffsetForDay today
+    let currentWindowStart = profileWindowStartForDay today
     createDirectoryIfMissing True options.outputDir
-    let plan = buildProfileSeedPlan options currentWeekOffset
+    let plan = buildProfileSeedPlan options currentWindowStart
     writeProfileSeed options.outputDir plan
     printSummary options plan
+
+profileWindowStartForDay :: Day -> Day
+profileWindowStartForDay = startOfWeekFor defaultRosterWeekStartsOn
 
 data ProfileSeedOptions = ProfileSeedOptions
     { outputDir       :: !FilePath
@@ -68,17 +72,17 @@ defaultOptions =
         }
 
 data ProfileSeedPlan = ProfileSeedPlan
-    { options           :: !ProfileSeedOptions
-    , currentWeekOffset :: !Int
-    , counts            :: ![(Text, Int)]
+    { options            :: !ProfileSeedOptions
+    , currentWindowStart :: !Day
+    , counts             :: ![(Text, Int)]
     }
     deriving (Eq, Show)
 
-buildProfileSeedPlan :: ProfileSeedOptions -> Int -> ProfileSeedPlan
-buildProfileSeedPlan options currentWeekOffset =
+buildProfileSeedPlan :: ProfileSeedOptions -> Day -> ProfileSeedPlan
+buildProfileSeedPlan options currentWindowStart =
     ProfileSeedPlan
         { options
-        , currentWeekOffset
+        , currentWindowStart
         , counts =
             [ ("venues", venueCount options)
             , ("users", userCount)
@@ -175,7 +179,7 @@ renderProfileSeedManifest plan =
         [ "{"
         , "  \"scenario\": \"large-roster-history\","
         , "  \"seed\": " <> tshow plan.options.seedValue <> ","
-        , "  \"currentWeekOffset\": " <> tshow plan.currentWeekOffset <> ","
+        , "  \"currentWindowStart\": " <> jsonString (dateText plan.currentWindowStart) <> ","
         , "  \"options\": {"
         , "    \"venues\": " <> tshow plan.options.venueCount <> ","
         , "    \"staffPerVenue\": " <> tshow plan.options.staffPerVenue <> ","
@@ -196,16 +200,16 @@ renderProfileSeedManifest plan =
         , Text.intercalate ",\n" (map renderVenueManifest (venueIndexes plan))
         , "  ],"
         , "  \"routes\": {"
-        , "    \"rosterCurrent\": " <> jsonString (rosterWeekPath plan.currentWeekOffset 1 1) <> ","
-        , "    \"rosterHistorical\": " <> jsonString (rosterWeekPath historicalWeekOffset 1 1) <> ","
-        , "    \"rosterFuture\": " <> jsonString (rosterWeekPath futureWeekOffset 1 1) <> ","
-        , "    \"rosterContentFragment\": " <> jsonString (rosterWeekContentFragmentPath plan.currentWeekOffset 1 1) <> ","
-        , "    \"rosterStaffPanelFragment\": " <> jsonString (rosterWeekStaffPanelFragmentPath plan.currentWeekOffset 1 1) <> ","
-        , "    \"rosterOverviewFragment\": " <> jsonString (rosterWeekOverviewFragmentPath plan.currentWeekOffset 1 1) <> ","
-        , "    \"timesheetsCurrent\": " <> jsonString (timesheetWeekPath plan.currentWeekOffset) <> ","
-        , "    \"timesheetsReset\": " <> jsonString (timesheetResetPath plan.currentWeekOffset) <> ","
-        , "    \"timesheetsStaffFilter\": " <> jsonString (timesheetStaffFilterPath plan.currentWeekOffset (staffId 1 1)) <> ","
-        , "    \"timesheetDayFragment\": " <> jsonString (timesheetDayFragmentPath plan.currentWeekOffset 0) <> ","
+        , "    \"rosterCurrent\": " <> jsonString (rosterWeekPath plan.currentWindowStart 1 1) <> ","
+        , "    \"rosterHistorical\": " <> jsonString (rosterWeekPath historicalWindowStart 1 1) <> ","
+        , "    \"rosterFuture\": " <> jsonString (rosterWeekPath futureWindowStart 1 1) <> ","
+        , "    \"rosterContentFragment\": " <> jsonString (rosterWeekContentFragmentPath plan.currentWindowStart 1 1) <> ","
+        , "    \"rosterStaffPanelFragment\": " <> jsonString (rosterWeekStaffPanelFragmentPath plan.currentWindowStart 1 1) <> ","
+        , "    \"rosterOverviewFragment\": " <> jsonString (rosterWeekOverviewFragmentPath plan.currentWindowStart 1 1) <> ","
+        , "    \"timesheetsCurrent\": " <> jsonString (timesheetWeekPath plan.currentWindowStart) <> ","
+        , "    \"timesheetsReset\": " <> jsonString timesheetResetPath <> ","
+        , "    \"timesheetsStaffFilter\": " <> jsonString (timesheetStaffFilterPath plan.currentWindowStart (staffId 1 1)) <> ","
+        , "    \"timesheetDayFragment\": " <> jsonString (timesheetDayFragmentPath plan.currentWindowStart 0) <> ","
         , "    \"leaveRequests\": " <> jsonString (pathTo LeaveRequestsAction) <> ","
         , "    \"leaveRequestsFragment\": " <> jsonString (pathTo ShowleaveRequestsContentLiveFragmentAction) <> ","
         , "    \"editProfile\": " <> jsonString (pathTo EditProfileAction) <> ","
@@ -227,12 +231,12 @@ renderProfileSeedManifest plan =
         , "}"
         ]
     where
-        currentWeekStart = weekStartForOffset plan.currentWeekOffset
+        currentWeekStart = plan.currentWindowStart
         currentWeekEnd = addDays 6 currentWeekStart
-        historicalWeekOffset =
-            plan.currentWeekOffset - min 52 (max 0 (plan.options.weeksHistory - 1))
-        futureWeekOffset =
-            plan.currentWeekOffset + min 4 (max 0 (plan.options.weeksFuture - 1))
+        historicalWindowStart =
+            addDays (toInteger (-7 * min 52 (max 0 (plan.options.weeksHistory - 1)))) plan.currentWindowStart
+        futureWindowStart =
+            addDays (toInteger (7 * min 4 (max 0 (plan.options.weeksFuture - 1)))) plan.currentWindowStart
         renderVenueManifest venueIndex =
             Text.intercalate
                 "\n"
@@ -262,62 +266,50 @@ profileSectionPath :: Text -> Text
 profileSectionPath section =
     appendQueryParams (pathTo EditProfileAction) [("section", section)]
 
-rosterWeekPath :: Int -> Int -> Int -> Text
-rosterWeekPath weekOffset venueIndex groupIndex =
+rosterWeekPath :: Day -> Int -> Int -> Text
+rosterWeekPath anchorDate venueIndex groupIndex =
     replaceQueryParams
         (pathTo (ShowRosterWindowAction (tshow anchorDate)))
         [("anchorDate", tshow anchorDate), ("rosterGroupId", rosterGroupId venueIndex groupIndex)]
-  where
-    anchorDate = weekStartForOffset weekOffset
 
-rosterWeekContentFragmentPath :: Int -> Int -> Int -> Text
-rosterWeekContentFragmentPath weekOffset venueIndex groupIndex =
+rosterWeekContentFragmentPath :: Day -> Int -> Int -> Text
+rosterWeekContentFragmentPath anchorDate venueIndex groupIndex =
     replaceQueryParams
         (pathTo (ShowRosterWeekContentFragmentAction (tshow anchorDate)))
         [("anchorDate", tshow anchorDate), ("rosterGroupId", rosterGroupId venueIndex groupIndex)]
-  where
-    anchorDate = weekStartForOffset weekOffset
 
-rosterWeekStaffPanelFragmentPath :: Int -> Int -> Int -> Text
-rosterWeekStaffPanelFragmentPath weekOffset venueIndex groupIndex =
+rosterWeekStaffPanelFragmentPath :: Day -> Int -> Int -> Text
+rosterWeekStaffPanelFragmentPath anchorDate venueIndex groupIndex =
     replaceQueryParams
         (pathTo (ShowRosterWeekStaffPanelFragmentAction (tshow anchorDate)))
         [("anchorDate", tshow anchorDate), ("rosterGroupId", rosterGroupId venueIndex groupIndex)]
-  where
-    anchorDate = weekStartForOffset weekOffset
 
-rosterWeekOverviewFragmentPath :: Int -> Int -> Int -> Text
-rosterWeekOverviewFragmentPath weekOffset venueIndex groupIndex =
+rosterWeekOverviewFragmentPath :: Day -> Int -> Int -> Text
+rosterWeekOverviewFragmentPath anchorDate venueIndex groupIndex =
     replaceQueryParams
         (pathTo (ShowRosterWeekOverviewFragmentAction (tshow anchorDate)))
         [("anchorDate", tshow anchorDate), ("rosterGroupId", rosterGroupId venueIndex groupIndex)]
-  where
-    anchorDate = weekStartForOffset weekOffset
 
-timesheetWeekPath :: Int -> Text
-timesheetWeekPath weekOffset =
+timesheetWeekPath :: Day -> Text
+timesheetWeekPath anchorDate =
     replaceQueryParams
         (pathTo (ShowTimesheetWindowAction (tshow anchorDate)))
         [("anchorDate", tshow anchorDate)]
-  where
-    anchorDate = weekStartForOffset weekOffset
 
-timesheetResetPath :: Int -> Text
-timesheetResetPath _weekOffset =
-    pathTo TimesheetsAction
+timesheetResetPath :: Text
+timesheetResetPath = pathTo TimesheetsAction
 
-timesheetStaffFilterPath :: Int -> Text -> Text
-timesheetStaffFilterPath weekOffset staffUuid =
-    appendQueryParams (timesheetWeekPath weekOffset) [("staffFilterId", staffUuid)]
+timesheetStaffFilterPath :: Day -> Text -> Text
+timesheetStaffFilterPath windowStart staffUuid =
+    appendQueryParams (timesheetWeekPath windowStart) [("staffFilterId", staffUuid)]
 
-timesheetDayFragmentPath :: Int -> Int -> Text
-timesheetDayFragmentPath weekOffset dayOffset =
+timesheetDayFragmentPath :: Day -> Int -> Text
+timesheetDayFragmentPath windowStart dayIndex =
     replaceQueryParams
         (pathTo (ShowTimesheetDaySectionFragmentAction (tshow windowStart) (tshow operationalDate)))
         [("anchorDate", tshow windowStart), ("operationalDate", tshow operationalDate)]
   where
-    windowStart = weekStartForOffset weekOffset
-    operationalDate = addDays (toInteger dayOffset) windowStart
+    operationalDate = addDays (toInteger dayIndex) windowStart
 
 adminInvitesFragmentPath :: Int -> Int -> Text
 adminInvitesFragmentPath venueIndex groupIndex =
@@ -471,7 +463,7 @@ staffRosterGroupColumns = ["id", "staff_id", "roster_group_id"]
 staffShiftPreferenceColumns, rosterWeekColumns, rosterDayColumns, rosterWeekSlotDefinitionColumns, rosterSlotColumns :: [Text]
 staffShiftPreferenceColumns = ["id", "venue_id", "staff_id", "weekday_index", "preferred_start_hour", "preferred_end_hour"]
 rosterWeekColumns = ["id", "venue_id", "roster_group_id", "week_offset", "is_live"]
-rosterDayColumns = ["id", "roster_week_id", "day_offset", "is_closed"]
+rosterDayColumns = ["id", "roster_week_id", "venue_id", "roster_group_id", "operational_date", "publication_state", "day_offset", "is_closed"]
 rosterWeekSlotDefinitionColumns = ["id", "roster_week_id", "name", "sort_order"]
 rosterSlotColumns = ["id", "roster_day_id", "staff_id", "roster_week_slot_definition_id", "slot_sort_order", "row_index", "starts_at", "ends_at", "timezone"]
 
@@ -598,14 +590,14 @@ dayNameRows plan =
 
 staffPayVersionRows :: ProfileSeedPlan -> [[Maybe Text]]
 staffPayVersionRows plan =
-    [ row [staffPayVersionId venueIndex staffIndex, venueId venueIndex, staffId venueIndex staffIndex, nullText, "permanent", dateText (weekStartForOffset (minimum (weekOffsets plan))), adminUserId venueIndex, timestampText, adminUserId venueIndex]
+    [ row [staffPayVersionId venueIndex staffIndex, venueId venueIndex, staffId venueIndex staffIndex, nullText, "permanent", dateText (minimum (map (.windowStart) (profileWindows plan))), adminUserId venueIndex, timestampText, adminUserId venueIndex]
     | venueIndex <- venueIndexes plan
     , staffIndex <- staffIndexes plan
     ]
 
 shiftTypePayVersionRows :: ProfileSeedPlan -> [[Maybe Text]]
 shiftTypePayVersionRows plan =
-    [ row [shiftTypePayVersionId venueIndex shiftIndex, venueId venueIndex, shiftTypeId venueIndex shiftIndex, nullText, shiftName, dateText (weekStartForOffset (minimum (weekOffsets plan))), adminUserId venueIndex, timestampText, adminUserId venueIndex]
+    [ row [shiftTypePayVersionId venueIndex shiftIndex, venueId venueIndex, shiftTypeId venueIndex shiftIndex, nullText, shiftName, dateText (minimum (map (.windowStart) (profileWindows plan))), adminUserId venueIndex, timestampText, adminUserId venueIndex]
     | venueIndex <- venueIndexes plan
     , (shiftIndex, shiftName, _) <- shiftTypeTemplates
     ]
@@ -644,36 +636,46 @@ staffShiftPreferenceRows plan =
 
 rosterWeekRows :: ProfileSeedPlan -> [[Maybe Text]]
 rosterWeekRows plan =
-    [ row [rosterWeekId venueIndex groupIndex weekOffset, venueId venueIndex, rosterGroupId venueIndex groupIndex, tshow weekOffset, if weekOffset <= currentWeekOffset plan then "true" else "false"]
+    [ row [rosterWeekId venueIndex groupIndex window.compatibilityOffset, venueId venueIndex, rosterGroupId venueIndex groupIndex, tshow window.compatibilityOffset, if window.windowStart <= plan.currentWindowStart then "true" else "false"]
     | venueIndex <- venueIndexes plan
     , (groupIndex, _) <- rosterGroupTemplates
-    , weekOffset <- weekOffsets plan
+    , window <- profileWindows plan
     ]
 
 rosterDayRows :: ProfileSeedPlan -> [[Maybe Text]]
 rosterDayRows plan =
-    [ row [rosterDayId venueIndex groupIndex weekOffset dayOffset, rosterWeekId venueIndex groupIndex weekOffset, tshow dayOffset, "false"]
+    [ row
+        [ rosterDayId venueIndex groupIndex window.compatibilityOffset dayIndex
+        , rosterWeekId venueIndex groupIndex window.compatibilityOffset
+        , venueId venueIndex
+        , rosterGroupId venueIndex groupIndex
+        , dateText operationalDate
+        , if window.windowStart <= plan.currentWindowStart then "published" else "draft"
+        , tshow dayIndex
+        , "false"
+        ]
     | venueIndex <- venueIndexes plan
     , (groupIndex, _) <- rosterGroupTemplates
-    , weekOffset <- weekOffsets plan
-    , dayOffset <- [0 .. 6]
+    , window <- profileWindows plan
+    , dayIndex <- [0 .. 6]
+    , let operationalDate = addDays (toInteger dayIndex) window.windowStart
     ]
 
 rosterWeekSlotDefinitionRows :: ProfileSeedPlan -> [[Maybe Text]]
 rosterWeekSlotDefinitionRows plan =
-    [ row [rosterWeekSlotDefinitionId venueIndex groupIndex weekOffset slotIndex, rosterWeekId venueIndex groupIndex weekOffset, slotName, tshow slotIndex]
+    [ row [rosterWeekSlotDefinitionId venueIndex groupIndex window.compatibilityOffset slotIndex, rosterWeekId venueIndex groupIndex window.compatibilityOffset, slotName, tshow slotIndex]
     | venueIndex <- venueIndexes plan
     , (groupIndex, _) <- rosterGroupTemplates
-    , weekOffset <- weekOffsets plan
+    , window <- profileWindows plan
     , (slotIndex, slotName) <- slotNameTemplates
     ]
 
 rosterSlotRows :: ProfileSeedPlan -> [[Maybe Text]]
 rosterSlotRows plan =
-    [ [ Just (rosterSlotId venueIndex groupIndex weekOffset dayOffset rowIndex slotIndex)
-      , Just (rosterDayId venueIndex groupIndex weekOffset dayOffset)
+    [ [ Just (rosterSlotId venueIndex groupIndex window.compatibilityOffset dayIndex rowIndex slotIndex)
+      , Just (rosterDayId venueIndex groupIndex window.compatibilityOffset dayIndex)
       , maybeStaffId
-      , Just (rosterWeekSlotDefinitionId venueIndex groupIndex weekOffset slotIndex)
+      , Just (rosterWeekSlotDefinitionId venueIndex groupIndex window.compatibilityOffset slotIndex)
       , Just (tshow slotIndex)
       , Just (tshow rowIndex)
       , if isJust maybeStaffId then Just (instantText rosterDate startTime) else Nothing
@@ -682,13 +684,13 @@ rosterSlotRows plan =
       ]
     | venueIndex <- venueIndexes plan
     , (groupIndex, _) <- rosterGroupTemplates
-    , weekOffset <- weekOffsets plan
-    , dayOffset <- [0 .. 6]
+    , window <- profileWindows plan
+    , dayIndex <- [0 .. 6]
     , rowIndex <- [0 .. rowsPerDay plan.options - 1]
     , (slotIndex, _) <- slotNameTemplates
-    , let maybeStaffId = assignedStaffId plan venueIndex groupIndex weekOffset dayOffset rowIndex slotIndex
-    , let rosterDate = addDays (toInteger dayOffset) (weekStartForOffset weekOffset)
-    , let startTime = timeFor slotIndex dayOffset
+    , let maybeStaffId = assignedStaffId plan venueIndex groupIndex window.compatibilityOffset dayIndex rowIndex slotIndex
+    , let rosterDate = addDays (toInteger dayIndex) window.windowStart
+    , let startTime = timeFor slotIndex dayIndex
     ]
 
 leaveRequestRows :: ProfileSeedPlan -> [[Maybe Text]]
@@ -705,8 +707,9 @@ leaveRequestRows plan =
     | venueIndex <- venueIndexes plan
     , staffIndex <- staffIndexes plan
     , leaveIndex <- [1 .. 3]
-    , let baseWeek = currentWeekOffset plan - deterministicIndex plan [venueIndex, staffIndex, leaveIndex, 55] (max 1 (weeksHistory plan.options))
-    , let startDate = addDays (toInteger (deterministicIndex plan [venueIndex, staffIndex, leaveIndex, 56] 7)) (weekStartForOffset baseWeek)
+    , let weeksBeforeCurrent = deterministicIndex plan [venueIndex, staffIndex, leaveIndex, 55] (max 1 (weeksHistory plan.options))
+    , let baseWindowStart = addDays (toInteger (-7 * weeksBeforeCurrent)) plan.currentWindowStart
+    , let startDate = addDays (toInteger (deterministicIndex plan [venueIndex, staffIndex, leaveIndex, 56] 7)) baseWindowStart
     ]
 
 timesheetEntryRows :: ProfileSeedPlan -> [[Maybe Text]]
@@ -730,8 +733,8 @@ timesheetEntryRows plan =
     | venueIndex <- venueIndexes plan
     , staffIndex <- staffIndexes plan
     , weekOrdinal <- [0 .. min 52 (max 1 (weeksHistory plan.options)) - 1]
-    , let weekOffset = currentWeekOffset plan - weekOrdinal
-    , let workedOn = addDays (toInteger (staffIndex `mod` 7)) (weekStartForOffset weekOffset)
+    , let windowStart = addDays (toInteger (-7 * weekOrdinal)) plan.currentWindowStart
+    , let workedOn = addDays (toInteger (staffIndex `mod` 7)) windowStart
     , let isApproved = deterministicIndex plan [venueIndex, staffIndex, weekOrdinal, 71] 100 < 82
     ]
 
@@ -826,12 +829,12 @@ xeroStaffMappingRows plan =
     ]
 
 assignedStaffId :: ProfileSeedPlan -> Int -> Int -> Int -> Int -> Int -> Int -> Maybe Text
-assignedStaffId plan venueIndex groupIndex weekOffset dayOffset rowIndex slotIndex
-    | deterministicIndex plan [venueIndex, groupIndex, weekOffset, dayOffset, rowIndex, slotIndex] 100 >= rosterFill plan.options = Nothing
+assignedStaffId plan venueIndex groupIndex compatibilityOffset dayIndex rowIndex slotIndex
+    | deterministicIndex plan [venueIndex, groupIndex, compatibilityOffset, dayIndex, rowIndex, slotIndex] 100 >= rosterFill plan.options = Nothing
     | otherwise = Just (staffId venueIndex selectedStaffIndex)
     where
         candidates = eligibleStaffIndexesForGroup plan groupIndex
-        selectedStaffIndex = candidates !! deterministicIndex plan [venueIndex, groupIndex, weekOffset, dayOffset, rowIndex, slotIndex, 99] (length candidates)
+        selectedStaffIndex = candidates !! deterministicIndex plan [venueIndex, groupIndex, compatibilityOffset, dayIndex, rowIndex, slotIndex, 99] (length candidates)
 
 eligibleStaffIndexesForGroup :: ProfileSeedPlan -> Int -> [Int]
 eligibleStaffIndexesForGroup plan groupIndex =
@@ -859,20 +862,35 @@ mappedXeroStaffCount :: ProfileSeedOptions -> Int
 mappedXeroStaffCount options =
     min options.staffPerVenue (min (max 0 (options.xeroEmployees - 1)) options.xeroMappedStaff)
 
-weekOffsets :: ProfileSeedPlan -> [Int]
-weekOffsets plan =
-    [currentWeekOffset plan - weeksHistory plan.options + 1 .. currentWeekOffset plan + weeksFuture plan.options]
+data ProfileSeedWindow = ProfileSeedWindow
+    { windowStart         :: !Day
+    , compatibilityOffset :: !Int
+    }
+    deriving (Eq, Show)
+
+profileWindows :: ProfileSeedPlan -> [ProfileSeedWindow]
+profileWindows plan =
+    [ ProfileSeedWindow
+        { windowStart
+        , compatibilityOffset = legacyWeekOffsetForEpoch profileCompatibilityEpoch windowStart
+        }
+    | relativeWeek <- [negate (weeksHistory plan.options) + 1 .. weeksFuture plan.options]
+    , let windowStart = addDays (toInteger (relativeWeek * 7)) plan.currentWindowStart
+    ]
+
+profileCompatibilityEpoch :: Day
+profileCompatibilityEpoch = fromGregorian 2025 1 6
 
 
 dateText :: Day -> Text
 dateText = tshow
 
 timeFor :: Int -> Int -> TimeOfDay
-timeFor slotIndex dayOffset =
+timeFor slotIndex dayIndex =
     case slotIndex of
-        1 -> if even dayOffset then TimeOfDay 6 30 0 else TimeOfDay 7 0 0
-        2 -> if even dayOffset then TimeOfDay 11 0 0 else TimeOfDay 11 30 0
-        _ -> if even dayOffset then TimeOfDay 16 30 0 else TimeOfDay 17 0 0
+        1 -> if even dayIndex then TimeOfDay 6 30 0 else TimeOfDay 7 0 0
+        2 -> if even dayIndex then TimeOfDay 11 0 0 else TimeOfDay 11 30 0
+        _ -> if even dayIndex then TimeOfDay 16 30 0 else TimeOfDay 17 0 0
 
 addTimeMinutes :: TimeOfDay -> Int -> TimeOfDay
 addTimeMinutes (TimeOfDay hour minute _) addedMinutes =
@@ -974,18 +992,18 @@ slotNameId :: Int -> Int -> Int -> Text
 slotNameId venueIndex groupIndex slotIndex = uuidText 13 venueIndex groupIndex slotIndex
 
 rosterWeekId :: Int -> Int -> Int -> Text
-rosterWeekId venueIndex groupIndex weekOffset = uuidText 17 venueIndex groupIndex (weekOffset + 10000)
+rosterWeekId venueIndex groupIndex compatibilityOffset = uuidText 17 venueIndex groupIndex (compatibilityOffset + 10000)
 
 rosterDayId :: Int -> Int -> Int -> Int -> Text
-rosterDayId venueIndex groupIndex weekOffset dayOffset = uuidText 18 venueIndex groupIndex ((weekOffset + 10000) * 10 + dayOffset)
+rosterDayId venueIndex groupIndex compatibilityOffset dayIndex = uuidText 18 venueIndex groupIndex ((compatibilityOffset + 10000) * 10 + dayIndex)
 
 rosterWeekSlotDefinitionId :: Int -> Int -> Int -> Int -> Text
-rosterWeekSlotDefinitionId venueIndex groupIndex weekOffset slotIndex =
-    uuidText 28 venueIndex groupIndex (((weekOffset + 10000) * 10) + slotIndex)
+rosterWeekSlotDefinitionId venueIndex groupIndex compatibilityOffset slotIndex =
+    uuidText 28 venueIndex groupIndex (((compatibilityOffset + 10000) * 10) + slotIndex)
 
 rosterSlotId :: Int -> Int -> Int -> Int -> Int -> Int -> Text
-rosterSlotId venueIndex groupIndex weekOffset dayOffset rowIndex slotIndex =
-    uuidText 19 venueIndex groupIndex (((weekOffset + 10000) * 1000) + dayOffset * 100 + rowIndex * 10 + slotIndex)
+rosterSlotId venueIndex groupIndex compatibilityOffset dayIndex rowIndex slotIndex =
+    uuidText 19 venueIndex groupIndex (((compatibilityOffset + 10000) * 1000) + dayIndex * 100 + rowIndex * 10 + slotIndex)
 
 timesheetEntryId :: Int -> Int -> Int -> Text
 timesheetEntryId venueIndex staffIndex weekOrdinal = uuidText 20 venueIndex staffIndex weekOrdinal
@@ -1129,7 +1147,7 @@ printSummary options plan = do
     TextIO.putStrLn ("Output dir: " <> cs options.outputDir)
     TextIO.putStrLn ("Scenario: large-roster-history")
     TextIO.putStrLn ("Seed: " <> tshow options.seedValue)
-    TextIO.putStrLn ("Current week offset: " <> tshow plan.currentWeekOffset)
+    TextIO.putStrLn ("Current Operational window: " <> tshow plan.currentWindowStart)
     forM_ plan.counts \(label, count) ->
         TextIO.putStrLn (label <> ": " <> tshow count)
     TextIO.putStrLn ("Primary manager login: " <> staffEmail 1 1)

@@ -7,6 +7,7 @@ import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
 import Application.Helper.RosterGroups (ensureVenueRosterDefaults,
                                         fetchVenueDayNames)
+import Application.Helper.RosterOffsetCompatibility (applyLegacyWeekOffsetEpochDate)
 import Application.Helper.VenueBootstrap (provisionVenueUser)
 import Application.VenueTime (melbourneTimeZoneName)
 import Application.VenueTime.Model
@@ -215,7 +216,7 @@ seedCanonicalPayrollFixtureForWeek fixtureWeekStart = do
     venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
     _ <- venueConfig
         |> set #rosterWeekStartsOn (fixtureWeekdayIndex fixtureWeekStart)
-        |> set #weekOffsetEpoch fixtureWeekStart
+        |> applyLegacyWeekOffsetEpochDate fixtureWeekStart
         |> updateRecord
     admin <- createUserRecord "payroll-parity-admin@example.com" "staff" True
     _ <- provisionVenueUser venue admin VenueAdmin "Payroll" "Admin"

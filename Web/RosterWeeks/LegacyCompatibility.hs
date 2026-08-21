@@ -10,11 +10,9 @@ module Web.RosterWeeks.LegacyCompatibility
     ( fetchLegacyRosterWeekForScope
     , legacyPlanningRosterWeekForDay
     , legacyPlanningRosterWeekForScope
-    , legacyRosterWindowScopeForOffset
     ) where
 
-import Application.Helper.WeekBoundaries (venueWeekOffsetForDay,
-                                          venueWeekStartDate)
+import Application.Helper.RosterOffsetCompatibility (applyLegacyRosterWeekOffset)
 import Data.Maybe (mapMaybe)
 import Web.Controller.Prelude
 import Web.RosterWeeks.DateRange (RosterWindowScope (..), fetchRosterWindow,
@@ -57,13 +55,5 @@ legacyPlanningRosterWeekForScope scope isPublished = do
                 newRecord @RosterWeek
                     |> set #venueId (unpackId scope.rosterWindowVenueId)
                     |> set #rosterGroupId (unpackId scope.rosterWindowRosterGroupId)
-                    |> set #weekOffset (venueWeekOffsetForDay venueConfig scope.rosterWindowStart)
+                    |> applyLegacyRosterWeekOffset venueConfig scope.rosterWindowStart
                     |> set #isLive isPublished
-
-legacyRosterWindowScopeForOffset :: (?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO RosterWindowScope
-legacyRosterWindowScopeForOffset rosterGroupId legacyWeekOffset = do
-    rosterGroup <- fetch rosterGroupId
-    venueConfig <- query @VenueConfig
-        |> filterWhere (#venueId, rosterGroup.venueId)
-        |> fetchOne
-    pure (rosterWindowScopeForAnchor venueConfig rosterGroupId (venueWeekStartDate venueConfig legacyWeekOffset))
