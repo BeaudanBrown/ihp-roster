@@ -2,6 +2,7 @@ module Test.RosterNotificationSpec where
 
 import Application.Async.Registry (dispatchAppJob)
 import Application.EmailDelivery
+import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.RosterNotification
 import Config (config)
 import qualified Control.Exception as Exception
@@ -61,7 +62,7 @@ tests = aroundAll withDatabaseTestContext do
                 snapshot.snapshotWeekStart `shouldBe` windowStart
                 snapshot.snapshotWeekEnd `shouldBe` addDays (-1) windowEnd
 
-        it "snapshots every eligible recipient and queues shared email envelopes" $ withContext do
+        it "uses explicit Operational dates while retaining stale legacy offset provenance" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Notification Venue"
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
@@ -75,6 +76,8 @@ tests = aroundAll withDatabaseTestContext do
                 inactiveStaff <- query @Staff |> filterWhere (#userId, Just (unpackId inactiveUser.id)) |> fetchOne
                 _ <- inactiveStaff |> set #isActive False |> updateRecord
                 rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 2 True
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- venueConfig |> set #rosterWeekStartsOn 2 |> set #weekOffsetEpoch (addDays 35 venueConfig.weekOffsetEpoch) |> updateRecord
 
                 run <- createRosterNotificationRun actor rosterWeek
 
@@ -84,6 +87,10 @@ tests = aroundAll withDatabaseTestContext do
                     `shouldBe` Set.fromList ["manager-notify@example.com", "worker-notify@example.com"]
                 Set.fromList (map (.skippedReason) skipped)
                     `shouldBe` Set.fromList [RosterNotificationSkippedUnlinked, RosterNotificationSkippedInactive]
+                run.requestedByUserId `shouldBe` unpackId actor.id
+                run.rosterWeekId `shouldBe` Just (unpackId rosterWeek.id)
+                run.weekOffset `shouldBe` Just 2
+                run.weekStart `shouldBe` testAnchorForOffset 2
                 jobs <- query @AppJob
                     |> filterWhere (#relatedTable, Just "roster_notification_runs")
                     |> filterWhere (#relatedId, Just (unpackId run.id))
@@ -94,6 +101,27 @@ tests = aroundAll withDatabaseTestContext do
                     `shouldBe` Set.fromList [Just "manager-notify@example.com", Just "worker-notify@example.com"]
                 map payloadMailKind jobs `shouldSatisfy` all (== Just rosterNotificationMailKind)
                 tshow (map (.payload) jobs) `shouldSatisfy` not . isInfixOf "Notification Venue"
+
+        it "rejects mismatched legacy day provenance instead of selecting another group window" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Mismatched notification provenance"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                otherGroup <- createVenueRosterGroupWithDefaults venue "Other group" 2 False
+                actor <- createUserRecord "mismatched-notify@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue actor Manager
+                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 False
+                _ <-
+                    newRecord @RosterDay
+                        |> set #rosterWeekId (Just (unpackId rosterWeek.id))
+                        |> set #venueId (unpackId venue.id)
+                        |> set #rosterGroupId (unpackId otherGroup.id)
+                        |> set #operationalDate (testAnchorForOffset 0)
+                        |> set #publicationState Published
+                        |> set #dayOffset 0
+                        |> createRecord
+
+                result <- Exception.try (createRosterNotificationRun actor rosterWeek) :: IO (Either Exception.SomeException RosterNotificationRun)
+                result `shouldSatisfy` isLeft
 
         it "excludes migration-retired legacy jobs from delivered run summaries" $ withContext do
             withCleanDb do

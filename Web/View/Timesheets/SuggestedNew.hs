@@ -13,7 +13,6 @@ data SuggestedNewView = SuggestedNewView
     , timesheetEntry        :: TimesheetEntry
     , staffMembers          :: [Staff]
     , shiftTypes            :: [ShiftType]
-    , weekOffset            :: Int
     , calendarRevision      :: Int
     , selectedStaffFilterId :: Maybe UUID
     , currentViewerStaffId  :: Maybe UUID
@@ -28,27 +27,26 @@ instance View SuggestedNewView where
             ("Rostered " <> timesheetModalTitle (timesheetEntryOperationalDate timesheetEntry))
             (timesheetWindowUrl (timesheetEntryOperationalDate timesheetEntry) selectedStaffFilterId)
             suggestedTimesheetFormId
-            (renderSuggestedTimesheetForm PageOverlayForm rosterSlotId timesheetEntry staffMembers shiftTypes weekOffset calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
+            (renderSuggestedTimesheetForm PageOverlayForm rosterSlotId timesheetEntry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
 
 suggestedTimesheetFormId :: Text
 suggestedTimesheetFormId = "timesheet-suggestion-create-form"
 
-renderSuggestedTimesheetDialog :: Id RosterSlot -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Int -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Html
-renderSuggestedTimesheetDialog rosterSlotId timesheetEntry staffMembers shiftTypes weekOffset calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep =
+renderSuggestedTimesheetDialog :: Id RosterSlot -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Html
+renderSuggestedTimesheetDialog rosterSlotId timesheetEntry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep =
     renderTimesheetEntryDialog
         ("Rostered " <> timesheetModalTitle (timesheetEntryOperationalDate timesheetEntry))
         suggestedTimesheetFormId
-        (renderSuggestedTimesheetForm HtmxOverlayForm rosterSlotId timesheetEntry staffMembers shiftTypes weekOffset calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
+        (renderSuggestedTimesheetForm HtmxOverlayForm rosterSlotId timesheetEntry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
 
-renderSuggestedTimesheetForm :: (?context :: ControllerContext) => OverlayFormMode -> Id RosterSlot -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Int -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Html
-renderSuggestedTimesheetForm formMode rosterSlotId timesheetEntry staffMembers shiftTypes weekOffset calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep =
+renderSuggestedTimesheetForm :: (?context :: ControllerContext) => OverlayFormMode -> Id RosterSlot -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Html
+renderSuggestedTimesheetForm formMode rosterSlotId timesheetEntry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep =
     renderTimesheetForm
         (appShellActionByMarker @CreateTimesheetEntryOverlay)
         RosteredTimesheetForm
         timesheetEntry
         staffMembers
         shiftTypes
-        weekOffset
         calendarRevision
         selectedStaffFilterId
         currentViewerStaffId

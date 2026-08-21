@@ -59,8 +59,8 @@ timesheetModalTitle day =
         <> formatDayMonthDisplay day
 
 -- | Shared timesheet entry form used by New and Edit views.
-renderTimesheetForm :: (?context :: ControllerContext) => AppShellActionIR -> TimesheetFormOrigin -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Int -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Text -> Text -> OverlayFormMode -> Html
-renderTimesheetForm appShellAction formOrigin entry staffMembers shiftTypes weekOffset calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep actionUrl formId formMode =
+renderTimesheetForm :: (?context :: ControllerContext) => AppShellActionIR -> TimesheetFormOrigin -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Text -> Text -> OverlayFormMode -> Html
+renderTimesheetForm appShellAction formOrigin entry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep actionUrl formId formMode =
     case formMode of
         HtmxOverlayForm ->
             renderAppShellActionForm
@@ -76,18 +76,18 @@ renderTimesheetForm appShellAction formOrigin entry staffMembers shiftTypes week
 
                         ]
                     }
-                (renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep True)
+                (renderTimesheetFormFields formOrigin entry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep True)
         PageOverlayForm -> [hsx|
             <form id={formId}
                   method="POST"
                   action={actionUrl}
                   class="mt-3">
-                {renderTimesheetFormFields formOrigin entry staffMembers shiftTypes weekOffset calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep False}
+                {renderTimesheetFormFields formOrigin entry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep False}
             </form>
         |]
 
-renderTimesheetFormFields :: (?context :: ControllerContext) => TimesheetFormOrigin -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Int -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Bool -> Html
-renderTimesheetFormFields formOrigin entry staffMembers shiftTypes _weekOffset calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep keyboardEnabled = [hsx|
+renderTimesheetFormFields :: (?context :: ControllerContext) => TimesheetFormOrigin -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Bool -> Html
+renderTimesheetFormFields formOrigin entry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep keyboardEnabled = [hsx|
     <input type="hidden" name={surfaceFieldNameFrom @Surface.AnchorDate stateFields} value={surfaceWireText @'WireDay entry.operationalDate} />
     <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterCalendarRevision stateFields} value={tshow calendarRevision} />
     <input type="hidden" name={surfaceFieldNameFrom @Surface.StaffFilterId stateFields} value={maybe "" tshow selectedStaffFilterId} />

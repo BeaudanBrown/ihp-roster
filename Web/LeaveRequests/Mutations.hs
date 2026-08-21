@@ -13,7 +13,6 @@ import Application.Helper.FrontendContract.Surface.Roster.Live (activeRosterWind
 import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsContentResource,
                                                                     rosterWeekResource)
 import Application.Helper.SurfaceResource
-import Application.Helper.WeekBoundaries (affectedVenueWeekOffsetsForDateRange)
 import Application.Staff.Mutations (withStaffOperationalLock)
 import Application.UnavailabilityBlackout.Mutations (findOverlappingUnavailabilityBlackout,
                                                      lockVenueUnavailabilityBlackoutInCurrentTransaction)

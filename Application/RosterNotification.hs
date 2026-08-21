@@ -24,7 +24,6 @@ module Application.RosterNotification
 
 import Application.Async.Queue (activeAppJobStatuses)
 import Application.EmailDelivery.Enqueue
-import Application.Helper.WeekBoundaries (venueWeekStartDate)
 import qualified Application.RosterNotification.Mutations as Mutations
 import Application.RosterPublication (rosterDaysArePublished)
 import Application.RosterPublication.Mutations (withRosterWindowDateLock)
@@ -226,9 +225,27 @@ createRosterNotificationRunUnlessActive ::
 createRosterNotificationRunUnlessActive actor rosterWeek = do
     venue <- fetch (Id rosterWeek.venueId :: Id Venue)
     rosterGroup <- fetch (Id rosterWeek.rosterGroupId :: Id RosterGroup)
-    venueConfig <- query @VenueConfig |> filterWhere (#venueId, rosterWeek.venueId) |> fetchOne
-    let windowStart = venueWeekStartDate venueConfig rosterWeek.weekOffset
-    createRosterNotificationRunForWindowUnlessActiveWithLegacy actor venue rosterGroup windowStart (addDays 7 windowStart) (Just rosterWeek) Nothing
+    (windowStart, windowEnd) <- explicitWindowForLegacyRosterWeek rosterWeek
+    createRosterNotificationRunForWindowUnlessActiveWithLegacy actor venue rosterGroup windowStart windowEnd (Just rosterWeek) Nothing
+
+explicitWindowForLegacyRosterWeek :: (?modelContext :: ModelContext) => RosterWeek -> IO (Day, Day)
+explicitWindowForLegacyRosterWeek rosterWeek = do
+    rosterDays <-
+        query @RosterDay
+            |> filterWhere (#rosterWeekId, Just (unpackId rosterWeek.id))
+            |> filterWhere (#venueId, rosterWeek.venueId)
+            |> filterWhere (#rosterGroupId, rosterWeek.rosterGroupId)
+            |> orderBy #operationalDate
+            |> fetch
+    firstOperationalDate <-
+        maybe
+            (fail "Legacy roster notification provenance has no matching explicit Operational dates")
+            (pure . (.operationalDate))
+            (listToMaybe rosterDays)
+    let expectedOperationalDates = map (`addDays` firstOperationalDate) [0 .. 6]
+    unless (map (.operationalDate) rosterDays == expectedOperationalDates) $
+        fail "Legacy roster notification provenance does not contain one contiguous explicit Operational window"
+    pure (firstOperationalDate, addDays 7 firstOperationalDate)
 
 createRosterNotificationRunForWindowUnlessActiveAtRevision ::
     (?modelContext :: ModelContext) =>
@@ -279,9 +296,8 @@ createRosterNotificationRun ::
 createRosterNotificationRun actor rosterWeek = do
     venue <- fetch (Id rosterWeek.venueId :: Id Venue)
     rosterGroup <- fetch (Id rosterWeek.rosterGroupId :: Id RosterGroup)
-    venueConfig <- query @VenueConfig |> filterWhere (#venueId, rosterWeek.venueId) |> fetchOne
-    let windowStart = venueWeekStartDate venueConfig rosterWeek.weekOffset
-    createRosterNotificationRunForWindowWithLegacy actor venue rosterGroup windowStart (addDays 7 windowStart) (Just rosterWeek)
+    (windowStart, windowEnd) <- explicitWindowForLegacyRosterWeek rosterWeek
+    createRosterNotificationRunForWindowWithLegacy actor venue rosterGroup windowStart windowEnd (Just rosterWeek)
 
 createRosterNotificationRunForWindow ::
     (?modelContext :: ModelContext) =>

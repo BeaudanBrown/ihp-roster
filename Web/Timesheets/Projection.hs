@@ -7,7 +7,7 @@ module Web.Timesheets.Projection
     , TimesheetSuggestion (..)
     , TimesheetSurfaceRequestState (..)
     , TimesheetWeekProjection (..)
-    , currentTimesheetWeekOffset
+    , currentTimesheetWindowStart
     , fetchShiftTypesForForm
     , fetchShiftTypesForFormIncluding
     , fetchStaffForForm
@@ -25,8 +25,7 @@ module Web.Timesheets.Projection
     , canonicalTimesheetFilters
     , timesheetFiltersFromRequest
     , viewerHasTimesheetSuggestionOnDay
-    , weekOffsetFromParamOrCurrent
-    , weekOffsetFromParamOrEntry
+    , windowStartFromParamOrCurrent
     ) where
 
 import Application.Helper.Controller (venueRoleToText)
@@ -42,7 +41,7 @@ import Application.Helper.UserPreferences (fetchCurrentUserTimesheetPreferences,
                                            userTimesheetShowSuggestions,
                                            userTimesheetShowWageEstimates)
 import Application.Helper.VenueScopedQueries (fetchLinkedActiveVenueStaff)
-import Application.Helper.WeekBoundaries (venueWeekOffsetForDay)
+import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.PayAssignment (ShiftPayAssignment (..),
                                   StaffPayAssignment (..),
                                   shiftAssignmentAllowsTimesheets,
@@ -549,26 +548,20 @@ timesheetMutationSurfaceRequestState fields =
         , surfaceRequestRosterGroupFilterId = Nothing
         }
 
-weekOffsetFromParamOrCurrent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Int
-weekOffsetFromParamOrCurrent = do
-    currentOffset <- currentTimesheetWeekOffset
+windowStartFromParamOrCurrent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Day
+windowStartFromParamOrCurrent = do
+    currentWindowStart <- currentTimesheetWindowStart
     case paramOrNothing @Day (cs (surfaceFieldNameFrom @Surface.AnchorDate timesheetRequestFieldWitness)) of
-        Nothing -> pure currentOffset
-        Just anchorDate -> venueWeekOffsetForDay <$> fetchVenueConfig <*> pure anchorDate
+        Nothing -> pure currentWindowStart
+        Just anchorDate -> do
+            venueConfig <- fetchVenueConfig
+            pure (startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate)
 
-weekOffsetFromParamOrEntry :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Day -> IO Int
-weekOffsetFromParamOrEntry workedOnDate = do
-    venueConfig <- fetchVenueConfig
-    let entryOffset = venueWeekOffsetForDay venueConfig workedOnDate
-    case paramOrNothing @Day (cs (surfaceFieldNameFrom @Surface.AnchorDate timesheetRequestFieldWitness)) of
-        Nothing         -> pure entryOffset
-        Just anchorDate -> pure (venueWeekOffsetForDay venueConfig anchorDate)
-
-currentTimesheetWeekOffset :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Int
-currentTimesheetWeekOffset = do
+currentTimesheetWindowStart :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Day
+currentTimesheetWindowStart = do
     venueConfig <- fetchVenueConfig
     today <- currentOperationalDayForVenue venueConfig
-    pure (venueWeekOffsetForDay venueConfig today)
+    pure (startOfWeekFor venueConfig.rosterWeekStartsOn today)
 
 
 timesheetFiltersFromRequest :: (?request :: Request) => TimesheetViewFilters

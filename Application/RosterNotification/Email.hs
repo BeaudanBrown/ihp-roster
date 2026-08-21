@@ -93,4 +93,4 @@ publishRosterNotificationStatusResource label runId = do
     forM_ maybeRun \run ->
         void $
             publishTouchedResourcesWithoutContext label $
-                liveMutationResult () [rosterNotificationStatusResource run.rosterGroupId run.weekStart (addDays 7 run.weekStart)]
+                liveMutationResult () [rosterNotificationStatusResource run.rosterGroupId run.weekStart run.windowEnd]

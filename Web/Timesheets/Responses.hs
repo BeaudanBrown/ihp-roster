@@ -93,22 +93,19 @@ normalizeTimesheetFragments fragments =
             TimesheetProjectionDaySection _ -> True
             _                               -> False
 
-respondWithTimesheetPreferenceUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Maybe UUID.UUID -> IO ()
-respondWithTimesheetPreferenceUpdate weekOffset staffFilterId = do
-    venueConfig <- fetchVenueConfig
+respondWithTimesheetPreferenceUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> Maybe UUID.UUID -> IO ()
+respondWithTimesheetPreferenceUpdate scope staffFilterId = do
     filters <- canonicalTimesheetFilters timesheetFiltersFromRequest
     respondWithTimesheetActorFragments
-        (timesheetProjectionRequestForOffset venueConfig weekOffset staffFilterId)
+        (timesheetProjectionRequestForScope scope staffFilterId)
             { projectionRosterGroupFilterId = filters.filterRosterGroupId }
         [TimesheetProjectionToolbar, TimesheetProjectionDayColumns, TimesheetProjectionSidePanel]
         mempty
 
-respondWithTimesheetDaySectionUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Day -> Maybe UUID.UUID -> Text -> Bool -> IO ()
-respondWithTimesheetDaySectionUpdate weekOffset workedOn staffFilterId successMessage closeDialog = do
-    venueConfig <- fetchVenueConfig
-    let weekStartDate = venueWeekStartDate venueConfig weekOffset
-    let dayOffset = fromInteger (diffDays workedOn weekStartDate)
-    let requestKey = timesheetProjectionRequestForOffset venueConfig weekOffset staffFilterId
+respondWithTimesheetDaySectionUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> Day -> Maybe UUID.UUID -> Text -> Bool -> IO ()
+respondWithTimesheetDaySectionUpdate scope workedOn staffFilterId successMessage closeDialog = do
+    let dayOffset = fromInteger (diffDays workedOn scope.timesheetWindowStart)
+    let requestKey = timesheetProjectionRequestForScope scope staffFilterId
     respondWithTimesheetActorFragments
         requestKey
         [TimesheetProjectionDaySection dayOffset]
@@ -116,11 +113,10 @@ respondWithTimesheetDaySectionUpdate weekOffset workedOn staffFilterId successMe
             <> renderToastOob ToastBottomCenter (successToast successMessage)
         )
 
-respondWithTimesheetMutationUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Maybe UUID.UUID -> Set.Set SurfaceResourceValue -> Text -> Bool -> IO ()
-respondWithTimesheetMutationUpdate weekOffset staffFilterId touchedResources successMessage closeDialog = do
-    venueConfig <- fetchVenueConfig
+respondWithTimesheetMutationUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> Maybe UUID.UUID -> Set.Set SurfaceResourceValue -> Text -> Bool -> IO ()
+respondWithTimesheetMutationUpdate scope staffFilterId touchedResources successMessage closeDialog = do
     respondWithTimesheetResourceInvalidation
-        (timesheetProjectionRequestForOffset venueConfig weekOffset staffFilterId)
+        (timesheetProjectionRequestForScope scope staffFilterId)
         touchedResources
         ( when closeDialog [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
             <> renderToastOob ToastBottomCenter (successToast successMessage)
@@ -133,15 +129,11 @@ renderTimesheetWindowPage windowStart filters =
         projection <- profileActionSpan "timesheets.page.fetch_read_model" (fetchTimesheetWeekProjection requestKey)
         profileActionSpan "timesheets.page.respond" (respondWithTimesheetWeekView (timesheetIndexView projection))
 
-timesheetProjectionRequestForOffset :: VenueConfig -> Int -> Maybe UUID.UUID -> TimesheetProjectionRequest
-timesheetProjectionRequestForOffset venueConfig weekOffset =
-    timesheetProjectionRequestForWindow (venueWeekStartDate venueConfig weekOffset)
-
-timesheetProjectionRequestForWindow :: Day -> Maybe UUID.UUID -> TimesheetProjectionRequest
-timesheetProjectionRequestForWindow windowStart staffFilterId =
+timesheetProjectionRequestForScope :: TimesheetWeekScopeValue -> Maybe UUID.UUID -> TimesheetProjectionRequest
+timesheetProjectionRequestForScope scope staffFilterId =
     TimesheetProjectionRequest
-        { projectionWindowStart = windowStart
-        , projectionWindowEnd = addDays 7 windowStart
+        { projectionWindowStart = scope.timesheetWindowStart
+        , projectionWindowEnd = scope.timesheetWindowEnd
         , projectionStaffFilterId = staffFilterId
         , projectionRosterGroupFilterId = Nothing
         }

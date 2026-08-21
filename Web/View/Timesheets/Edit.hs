@@ -15,7 +15,6 @@ data EditView = EditView
     { timesheetEntry        :: TimesheetEntry
     , staffMembers          :: [Staff]
     , shiftTypes            :: [ShiftType]
-    , weekOffset            :: Int
     , calendarRevision      :: Int
     , selectedStaffFilterId :: Maybe UUID
     , currentViewerStaffId  :: Maybe UUID
@@ -30,7 +29,7 @@ instance View EditView where
             (timesheetModalTitle (timesheetEntryOperationalDate timesheetEntry))
             (timesheetWindowUrl (timesheetEntryOperationalDate timesheetEntry) selectedStaffFilterId)
             editTimesheetFormId
-            (renderTimesheetForm (appShellActionByMarker @UpdateTimesheetEntryOverlay) formOrigin timesheetEntry staffMembers shiftTypes weekOffset calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId PageOverlayForm)
+            (renderTimesheetForm (appShellActionByMarker @UpdateTimesheetEntryOverlay) formOrigin timesheetEntry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId PageOverlayForm)
             (deleteButtonsFor timesheetEntry calendarRevision selectedStaffFilterId)
       where
         formOrigin = timesheetEntryFormOrigin timesheetEntry
@@ -38,12 +37,12 @@ instance View EditView where
 editTimesheetFormId :: Text
 editTimesheetFormId = "timesheet-entry-edit-form"
 
-renderEditTimesheetDialog :: TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Int -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Html
-renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep =
+renderEditTimesheetDialog :: TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Html
+renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep =
     renderTimesheetEntryDialogWithStartButtons
         (timesheetModalTitle (timesheetEntryOperationalDate timesheetEntry))
         editTimesheetFormId
-        (renderTimesheetForm (appShellActionByMarker @UpdateTimesheetEntryOverlay) formOrigin timesheetEntry staffMembers shiftTypes weekOffset calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId HtmxOverlayForm)
+        (renderTimesheetForm (appShellActionByMarker @UpdateTimesheetEntryOverlay) formOrigin timesheetEntry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId HtmxOverlayForm)
         (deleteButtonsFor timesheetEntry calendarRevision selectedStaffFilterId)
   where
     formOrigin = timesheetEntryFormOrigin timesheetEntry

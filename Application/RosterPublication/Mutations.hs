@@ -2,7 +2,6 @@ module Application.RosterPublication.Mutations
     ( normalizePublishedRosterWindows
     , withRosterCalendarLock
     , withRosterWindowDateLock
-    , withRosterWindowLock
     ) where
 
 import qualified Database.PostgreSQL.Simple as PG
@@ -47,14 +46,5 @@ withRosterWindowDateLock venueId rosterGroupId windowStart windowEnd action =
         let lockKey = "roster-window-date:" <> tshow venueId <> ":" <> tshow rosterGroupId <> ":" <> tshow windowStart <> ":" <> tshow windowEnd
         _ :: Bool <- sqlQueryScalar
             "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS roster_window_date_lock"
-            (PG.Only lockKey)
-        action
-
-withRosterWindowLock :: (?modelContext :: ModelContext) => Id Venue -> Id RosterGroup -> Int -> IO value -> IO value
-withRosterWindowLock venueId rosterGroupId weekOffset action =
-    withRosterCalendarLock venueId do
-        let lockKey = "roster-window:" <> tshow venueId <> ":" <> tshow rosterGroupId <> ":" <> tshow weekOffset
-        _ :: Bool <- sqlQueryScalar
-            "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS roster_window_lock"
             (PG.Only lockKey)
         action

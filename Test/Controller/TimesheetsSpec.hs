@@ -11,8 +11,7 @@ import Application.Helper.FrontendContract.Surface.Timesheets.Resource
 import Application.Helper.LiveUpdate
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
-import Application.Helper.WeekBoundaries (venueWeekOffsetForDay,
-                                          venueWeekStartDate)
+import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.VenueTime (RepeatedTimeOccurrence (..))
 import Application.VenueTime.Model (ShiftBoundaryInput (..),
                                     applyRosterSlotBoundaries,
@@ -52,7 +51,7 @@ import Web.FrontController ()
 import Web.Routes
 import Web.Timesheets.FrontendSurface
 import Web.Timesheets.Mutations (materializeTimesheetSuggestionMutation,
-                                 timesheetEntryTouchedResources)
+                                 timesheetEntryTouchedResourcesForScopes)
 import Web.Timesheets.Projection (TimesheetProjectionFragment (..),
                                   TimesheetProjectionRequest (..),
                                   fetchTimesheetSuggestionForRosterSlot)
@@ -161,12 +160,20 @@ tests = aroundAll withDatabaseTestContext do
                 lookup "Location" (responseHeaders fragmentResponse) `shouldBe` Nothing
                 fragmentResponse `responseBodyShouldContain` "id=\"timesheet-day-section-2025-01-06\""
 
-        it "persists display preferences globally and returns authoritative clean-url fragments" $ withContext do
+        it "keeps preference redirects and refreshes on explicit windows when the legacy epoch is stale" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Preference Venue"
                 user <- createUserRecord "timesheet-preferences@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user Worker
-                _ <- createStaffRecord venue (Just user) "Perry" "Preferences"
+                staff <- createStaffRecord venue (Just user) "Perry" "Preferences"
+                _ <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 21)
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- venueConfig |> set #weekOffsetEpoch (addDays 1 venueConfig.weekOffsetEpoch) |> updateRecord
+
+                selectedWindowResponse <- withUserAndCurrentVenue user venue.id do
+                    callAction (ShowTimesheetWindowAction "2025-01-20")
+                selectedWindowResponse `responseStatusShouldBe` status200
+                selectedWindowResponse `responseBodyShouldContain` "data-timesheet-operational-date=\"2025-01-21\""
 
                 hideResponse <- withUserAndCurrentVenue user venue.id do
                     callActionWithParams ToggleTimesheetHideApprovedAction
@@ -230,7 +237,7 @@ tests = aroundAll withDatabaseTestContext do
                 fragmentTargets `shouldBe` ["timesheet-week-toolbar", "timesheet-day-columns", "timesheet-side-panel-content"] <> map (\operationalDate -> "timesheet-day-section-" <> tshow operationalDate) [testAnchorForOffset 2 .. addDays 6 (testAnchorForOffset 2)]
                 fragmentUrls `shouldSatisfy` all (Text.isInfixOf "anchorDate=2025-01-20")
 
-        it "records touched resources for timesheet entry mutations" $ withContext do
+        it "touches every overlapping explicit active window for timesheet mutations" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Touched Timesheet Venue"
                 staff <- createStaffRecord venue Nothing "Tim" "Touched"
@@ -243,13 +250,19 @@ tests = aroundAll withDatabaseTestContext do
                         |> setTestEndTime (TimeOfDay 5 0 0)
                         |> updateRecord
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                let weekOffset = venueWeekOffsetForDay venueConfig entry.operationalDate
+                let windowStart = startOfWeekFor venueConfig.rosterWeekStartsOn entry.operationalDate
 
-                Set.fromList (timesheetEntryTouchedResources venueConfig [entry])
+                let overlappingWindowStart = addDays 4 windowStart
+                Set.fromList
+                    ( timesheetEntryTouchedResourcesForScopes
+                        venueConfig
+                        [(unpackId venue.id, overlappingWindowStart, addDays 7 overlappingWindowStart, 99)]
+                        [entry]
+                    )
                     `shouldBe` Set.fromList
-                        [ timesheetWeekResource (unpackId venue.id) (testAnchorForOffset weekOffset) (addDays 7 (testAnchorForOffset weekOffset))
+                        [ timesheetWeekResource (unpackId venue.id) windowStart (addDays 7 windowStart)
+                        , timesheetWeekResource (unpackId venue.id) overlappingWindowStart (addDays 7 overlappingWindowStart)
                         , timesheetDayResource (unpackId venue.id) entry.operationalDate
-
                         ]
 
         it "rejects a timesheet mutation from a stale roster calendar revision" $ withContext do
@@ -948,7 +961,8 @@ tests = aroundAll withDatabaseTestContext do
                             |> set #shiftTypeId (unpackId rosterOnlyShift.id)
                 lockedRevalidation <- withUserAndCurrentVenue manager venue.id do
                     withCurrentControllerContext do
-                        materializeTimesheetSuggestionMutation 0 1 eligibleSuggestion tamperedEntry
+                        let scope = TimesheetWeekScopeValue (unpackId venue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1
+                        materializeTimesheetSuggestionMutation scope eligibleSuggestion tamperedEntry
                 lockedRevalidation `shouldBe` Nothing
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
@@ -1579,7 +1593,8 @@ tests = aroundAll withDatabaseTestContext do
                         suggestion <- fetchTimesheetSuggestionForRosterSlot rosterSlot.id >>= maybe (expectationFailure "Expected initial suggestion" >> error "unreachable") pure
                         _ <- updateRecord (rosterSlot |> setTestEndTime (Just (TimeOfDay 18 0 0)) |> setTestDurationMinutes (Just 540))
                         let entry = newTimesheetEntryFromSuggestion (unpackId venue.id) suggestion
-                        materializeTimesheetSuggestionMutation 0 1 suggestion entry
+                        let scope = TimesheetWeekScopeValue (unpackId venue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1
+                        materializeTimesheetSuggestionMutation scope suggestion entry
 
                 materializationResult `shouldBe` Nothing
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
@@ -2201,7 +2216,7 @@ tests = aroundAll withDatabaseTestContext do
                 hiddenCreateTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"operationalDate\":\"2025-01-07\"")
                 hiddenCreateTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "timesheet-day-section-2025-01-07")
 
-        it "creating timesheets via HTMX updates the actor fragment and bumps the week scope version" $ withContext do
+        it "keeps HTMX mutation refreshes on the explicit window when the legacy week epoch is stale" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"
                 user <- createUserRecord "timesheet-htmx-create@example.com" "staff" True
@@ -2210,6 +2225,8 @@ tests = aroundAll withDatabaseTestContext do
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- updateRecord (staff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just payLevel.id))
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- venueConfig |> set #weekOffsetEpoch (addDays 1 venueConfig.weekOffsetEpoch) |> updateRecord
 
                 versionBefore <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
 

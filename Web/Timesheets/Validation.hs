@@ -26,21 +26,22 @@ import Data.Time.Calendar (addDays)
 import Data.Time.LocalTime (LocalTime (..), TimeOfDay)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
+import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue)
 import Web.Timesheets.Paths (timesheetWindowUrl)
 import Web.Timesheets.Responses (respondWithTimesheetDaySectionUpdate)
 
 ensureTimesheetEntryNotPayrollLocked ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     TimesheetEntry ->
-    Int ->
+    TimesheetWeekScopeValue ->
     Maybe UUID.UUID ->
     IO ()
-ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset staffFilterId = do
+ensureTimesheetEntryNotPayrollLocked timesheetEntry scope staffFilterId = do
     locked <- timesheetEntryHasPayrollProvenance timesheetEntry
     when locked do
         let message = "This approved timesheet entry is locked because it has been exported or submitted to Xero."
         if isHtmxRequest
-            then respondWithTimesheetDaySectionUpdate weekOffset (timesheetEntryOperationalDate timesheetEntry) staffFilterId message True
+            then respondWithTimesheetDaySectionUpdate scope (timesheetEntryOperationalDate timesheetEntry) staffFilterId message True
             else do
                 setErrorMessage message
                 redirectToPath (timesheetWindowUrl (timesheetEntryOperationalDate timesheetEntry) staffFilterId)

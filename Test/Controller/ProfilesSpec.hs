@@ -561,6 +561,8 @@ tests = aroundAll withDatabaseTestContext do
                 frontDay <- createRosterDayRecord frontWeek 0
                 _ <- createRosterDayRecord backWeek 0
                 assignedSlot <- createRosterSlotRecord frontDay frontSlotName (Just staff) 0
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- venueConfig |> set #weekOffsetEpoch (addDays 35 venueConfig.weekOffsetEpoch) |> updateRecord
 
                 invalidationTargets <- fetchProfileRosterInvalidationTargets venue.id staff
                 invalidationTargets `shouldBe` []
@@ -573,10 +575,10 @@ tests = aroundAll withDatabaseTestContext do
                         , (unpackId venue.id, unpackId backGroup.id, testAnchorForOffset 0, addDays 7 (testAnchorForOffset 0), 1)
                         ]
 
-                let frontEntry = find (\(rosterGroupId, weekOffset, _) -> rosterGroupId == frontGroup.id && weekOffset == 0) activeInvalidationTargets
-                let backEntry = find (\(rosterGroupId, weekOffset, _) -> rosterGroupId == backGroup.id && weekOffset == 0) activeInvalidationTargets
+                let frontEntry = find (\(rosterGroupId, windowStart, windowEnd, _) -> rosterGroupId == frontGroup.id && windowStart == testAnchorForOffset 0 && windowEnd == addDays 7 (testAnchorForOffset 0)) activeInvalidationTargets
+                let backEntry = find (\(rosterGroupId, windowStart, windowEnd, _) -> rosterGroupId == backGroup.id && windowStart == testAnchorForOffset 0 && windowEnd == addDays 7 (testAnchorForOffset 0)) activeInvalidationTargets
 
-                fmap (\(_, _, rowKeys) -> rowKeys) frontEntry `shouldBe` Just [(unpackId frontDay.id, assignedSlot.rowIndex)]
+                fmap (\(_, _, _, rowKeys) -> rowKeys) frontEntry `shouldBe` Just [(unpackId frontDay.id, assignedSlot.rowIndex)]
                 backEntry `shouldBe` Nothing
 
                 frontVersionBefore <- currentLiveUpdateVersion (RosterLive.rosterWeekLiveScope (unpackId venue.id) (unpackId frontGroup.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)

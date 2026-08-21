@@ -35,7 +35,6 @@ import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection,
 import Application.Helper.SurfaceResource
 import Application.Helper.TimeRules (operationalDayForUtcTime)
 import Application.Helper.VenueInvitation (venueInvitationLifetime)
-import Application.Helper.WeekBoundaries (venueWeekStartDate)
 import Application.InvitationDelivery.Enqueue (enqueueVenueInvitationEmail)
 import Application.Staff.Mutations (withStaffOperationalLock,
                                     withStaffRemovalLock)

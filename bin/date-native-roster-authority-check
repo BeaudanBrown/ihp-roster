@@ -55,6 +55,31 @@ payroll_offset_fields="$(
 [[ -z "$payroll_offset_fields" ]] \
     || fail $'Payroll export/Xero authority must use explicit Operational-date ranges, not legacy offsets:\n'"$payroll_offset_fields"
 
+timesheet_runtime_offsets="$(
+    rg -n 'WeekOffset|weekOffset|week_offset|venueWeekOffsetForDay|venueWeekStartDate|weekOffsetFrom' \
+        Web/Controller/Timesheets.hs \
+        Web/Timesheets \
+        Web/View/Timesheets \
+        Application/Helper/View/Timesheets.hs \
+        Web/Profiles/Mutations.hs \
+        Web/Staff/Mutations.hs \
+        Web/LeaveRequests/Mutations.hs \
+        Web/RosterWeeks/Mutations.hs \
+        Application/RosterPublication/Mutations.hs \
+        || true
+)"
+[[ -z "$timesheet_runtime_offsets" ]] \
+    || fail $'Timesheet and cross-feature runtime interfaces must use explicit windows, not legacy offsets:\n'"$timesheet_runtime_offsets"
+
+notification_offset_authority="$(
+    rg -n 'venueWeekOffsetForDay|venueWeekStartDate|withRosterWindowLock' \
+        Application/RosterNotification.hs \
+        Application/RosterNotification \
+        || true
+)"
+[[ -z "$notification_offset_authority" ]] \
+    || fail $'Roster notifications may retain offset provenance but must select and lock explicit windows:\n'"$notification_offset_authority"
+
 legacy_authority_queries="$(
     rg -n 'filterWhere[[:space:]]*\(#weekOffset|week_offset[[:space:]]*=' \
         Application/RosterPublication.hs \

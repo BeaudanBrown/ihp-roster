@@ -80,7 +80,7 @@ tests = aroundAll withDatabaseTestContext do
                         let weekResources = rosterWeekTouchedResources scope
                         let structuralResources = rosterWeekStructuralTouchedResources scope
                         let slotStructureResources = rosterSlotsStructureTouchedResources scope
-                        let publicationResources = rosterWeekLiveStatusTouchedResources scope
+                        publicationResources <- rosterWeekLiveStatusTouchedResources scope
                         mutationResources <- rosterSlotMutationTouchedResources scope rosterDay (Just rosterSlot)
                         let dayResources = rosterDayTouchedResources scope rosterDay
                         pure (slotResources, weekResources, structuralResources, slotStructureResources, publicationResources, mutationResources, dayResources)

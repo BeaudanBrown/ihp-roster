@@ -4,6 +4,8 @@
 
 module Web.Timesheets.FrontendSurface
     ( TimesheetWeekScopeValue (..)
+    , timesheetWeekScopeForAnchor
+    , timesheetWeekScopeMatchesConfig
     , TimesheetsMountStateValue (..)
     , timesheetsCandidateMountedFragments
     , timesheetsSurfaceScope
@@ -21,6 +23,7 @@ import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surfa
 import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as SurfaceLive
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Url (appendQueryParams)
+import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Data.Time.Calendar (Day, addDays)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
@@ -39,6 +42,24 @@ data TimesheetWeekScopeValue = TimesheetWeekScopeValue
     , timesheetCalendarRevision :: !Int
     }
     deriving (Eq, Show)
+
+timesheetWeekScopeForAnchor :: VenueConfig -> Day -> TimesheetWeekScopeValue
+timesheetWeekScopeForAnchor venueConfig anchorDate =
+    TimesheetWeekScopeValue
+        { timesheetWeekVenueId = venueConfig.venueId
+        , timesheetWindowStart = windowStart
+        , timesheetWindowEnd = addDays 7 windowStart
+        , timesheetCalendarRevision = venueConfig.rosterCalendarRevision
+        }
+  where
+    windowStart = startOfWeekFor venueConfig.rosterWeekStartsOn anchorDate
+
+timesheetWeekScopeMatchesConfig :: VenueConfig -> TimesheetWeekScopeValue -> Bool
+timesheetWeekScopeMatchesConfig venueConfig scope =
+    scope.timesheetWeekVenueId == venueConfig.venueId
+        && scope.timesheetWindowStart == startOfWeekFor venueConfig.rosterWeekStartsOn scope.timesheetWindowStart
+        && scope.timesheetWindowEnd == addDays 7 scope.timesheetWindowStart
+        && scope.timesheetCalendarRevision == venueConfig.rosterCalendarRevision
 
 data TimesheetsMountStateValue = TimesheetsMountStateValue
     { timesheetsMountStaffFilterId       :: !(Maybe UUID.UUID)

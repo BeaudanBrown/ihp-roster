@@ -15,7 +15,6 @@ import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection,
                                                  replaceStaffShiftPreferences)
 import Application.Helper.SurfaceResource
-import Application.Helper.WeekBoundaries (venueWeekOffsetForDay)
 import Application.Staff.Mutations (withStaffOperationalLock)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -90,7 +89,7 @@ upsertCurrentUserStaff staff = do
             syncStaffRosterGroupAssignments createdStaff [defaultRosterGroup.id]
             pure createdStaff
 
-fetchProfileRosterInvalidationTargets :: (?modelContext :: ModelContext) => Id Venue -> Staff -> IO [(Id RosterGroup, Int, [(UUID.UUID, Int)])]
+fetchProfileRosterInvalidationTargets :: (?modelContext :: ModelContext) => Id Venue -> Staff -> IO [(Id RosterGroup, Day, Day, [(UUID.UUID, Int)])]
 fetchProfileRosterInvalidationTargets venueId staff = do
     activeScopes <- activeRosterWindowScopes
     fetchProfileRosterInvalidationTargetsForScopes venueId staff activeScopes
@@ -100,37 +99,29 @@ fetchProfileRosterInvalidationTargetsForScopes ::
     Id Venue ->
     Staff ->
     [(UUID.UUID, UUID.UUID, Day, Day, Int)] ->
-    IO [(Id RosterGroup, Int, [(UUID.UUID, Int)])]
+    IO [(Id RosterGroup, Day, Day, [(UUID.UUID, Int)])]
 fetchProfileRosterInvalidationTargetsForScopes venueId staff activeScopes = do
     rosterGroupIds <- fetchStaffRosterGroupIds staff
-    venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venueId) |> fetchOne
-    let activeWeekKeys =
-            Set.fromList
-                [ (rosterGroupUuid, venueWeekOffsetForDay venueConfig windowStart)
-                | (venueUuid, rosterGroupUuid, windowStart, _windowEnd, _calendarRevision) <- activeScopes
+    let rosterGroupUuidSet = Set.fromList (map unpackId rosterGroupIds)
+    let activeWindows =
+            Set.toList $ Set.fromList
+                [ (rosterGroupUuid, windowStart, windowEnd)
+                | (venueUuid, rosterGroupUuid, windowStart, windowEnd, _calendarRevision) <- activeScopes
                 , venueUuid == unpackId venueId
-                , rosterGroupUuid `elem` map unpackId rosterGroupIds
+                , rosterGroupUuid `Set.member` rosterGroupUuidSet
                 ]
-    if null rosterGroupIds || Set.null activeWeekKeys
+    if null activeWindows
         then pure []
         else do
-            rosterWeeks <-
-                query @RosterWeek
-                    |> filterWhere (#venueId, unpackId venueId)
-                    |> filterWhereIn (#rosterGroupId, map unpackId rosterGroupIds)
-                    |> filterWhereIn (#weekOffset, Set.toList (Set.map snd activeWeekKeys))
-                    |> fetch
-            let activeRosterWeeks =
-                    filter
-                        (\rosterWeek -> (rosterWeek.rosterGroupId, rosterWeek.weekOffset) `Set.member` activeWeekKeys)
-                        rosterWeeks
+            let earliestWindowStart = minimum (map (\(_, windowStart, _) -> windowStart) activeWindows)
+            let latestWindowEnd = maximum (map (\(_, _, windowEnd) -> windowEnd) activeWindows)
             rosterDays <-
-                if null activeRosterWeeks
-                    then pure []
-                    else
-                        query @RosterDay
-                            |> filterWhereIn (#rosterWeekId, map (Just . unpackId . (.id)) activeRosterWeeks)
-                            |> fetch
+                query @RosterDay
+                    |> filterWhere (#venueId, unpackId venueId)
+                    |> filterWhereIn (#rosterGroupId, Set.toList rosterGroupUuidSet)
+                    |> filterWhereGreaterThanOrEqualTo (#operationalDate, earliestWindowStart)
+                    |> filterWhereLessThan (#operationalDate, latestWindowEnd)
+                    |> fetch
             assignedSlots <-
                 if null rosterDays
                     then pure []
@@ -140,24 +131,23 @@ fetchProfileRosterInvalidationTargetsForScopes venueId staff activeScopes = do
                             |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
                             |> filterWhere (#deletedAt, Nothing)
                             |> fetch
-
-            let rosterWeekById = Map.fromList (map (\rosterWeek -> (unpackId rosterWeek.id, rosterWeek)) activeRosterWeeks)
             let rosterDayById = Map.fromList (map (\rosterDay -> (unpackId rosterDay.id, rosterDay)) rosterDays)
-            let assignedRowKeysByWeek =
-                    Map.fromListWith (<>)
-                        [ ((Id rosterWeek.rosterGroupId :: Id RosterGroup, rosterWeek.weekOffset), [(rosterSlot.rosterDayId, rosterSlot.rowIndex)])
-                        | rosterSlot <- assignedSlots
-                        , Just rosterDay <- [Map.lookup rosterSlot.rosterDayId rosterDayById]
-                        , Just rosterWeekId <- [rosterDay.rosterWeekId]
-                        , Just rosterWeek <- [Map.lookup rosterWeekId rosterWeekById]
-                        ]
-
+            let assignedRows =
+                    [ (rosterDay.rosterGroupId, rosterDay.operationalDate, rosterSlot.rosterDayId, rosterSlot.rowIndex)
+                    | rosterSlot <- assignedSlots
+                    , Just rosterDay <- [Map.lookup rosterSlot.rosterDayId rosterDayById]
+                    ]
             pure
-                [ let rosterGroupId = Id rosterWeek.rosterGroupId :: Id RosterGroup
-                   in ( rosterGroupId
-                      , rosterWeek.weekOffset
-                      , Map.findWithDefault [] (rosterGroupId, rosterWeek.weekOffset) assignedRowKeysByWeek
-                      )
-                | rosterWeek <- activeRosterWeeks
+                [ ( Id rosterGroupUuid
+                  , windowStart
+                  , windowEnd
+                  , [ (rosterDayId, rowIndex)
+                    | (assignedGroupUuid, operationalDate, rosterDayId, rowIndex) <- assignedRows
+                    , assignedGroupUuid == rosterGroupUuid
+                    , operationalDate >= windowStart
+                    , operationalDate < windowEnd
+                    ]
+                  )
+                | (rosterGroupUuid, windowStart, windowEnd) <- activeWindows
                 ]
 

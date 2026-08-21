@@ -24,6 +24,7 @@ module Web.RosterWeeks.Mutations
     ) where
 
 import Application.Helper.FrontendContract.Surface.Roster.Resource
+import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWindowScopes)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource
 import Application.Helper.SurfaceResource
 import Application.RosterPublication.Mutations (withRosterWindowDateLock)
@@ -31,6 +32,7 @@ import Application.Staff.Mutations (withStaffOperationalLocks)
 import Application.VenueTime.Model (ShiftCopyOccurrenceSelections)
 import Control.Monad (guard, void)
 import Data.List (nub)
+import qualified Data.Set as Set
 import Data.Time (Day, addDays, getCurrentTime)
 import Data.Traversable (traverse)
 import Data.UUID (UUID)
@@ -156,7 +158,7 @@ toggleRosterWeekLiveStatusMutation scope rosterWeek nextLiveStatus = do
             mutationResult <- invalidateRosterMutation
                 "roster.window.publication_status"
                 updatedRosterWeek
-                (pure (rosterWeekLiveStatusTouchedResources scope))
+                (rosterWeekLiveStatusTouchedResources scope)
             pure (Right mutationResult)
 
 withRosterWindowMutationLock :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO value -> IO value
@@ -442,18 +444,28 @@ rosterSlotTouchedResources :: RosterWindowScope -> RosterDay -> Maybe RosterSlot
 rosterSlotTouchedResources scope rosterDay _maybeSlot =
     rosterDayTouchedResources scope rosterDay
 
-rosterWeekLiveStatusTouchedResources :: RosterWindowScope -> [SurfaceResourceValue]
-rosterWeekLiveStatusTouchedResources scope =
-    rosterWeekStructuralTouchedResources scope <> timesheetWeekTouchedResources scope
+rosterWeekLiveStatusTouchedResources :: RosterWindowScope -> IO [SurfaceResourceValue]
+rosterWeekLiveStatusTouchedResources scope = do
+    timesheetResources <- timesheetWeekTouchedResources scope
+    pure (rosterWeekStructuralTouchedResources scope <> timesheetResources)
 
 rosterSlotMutationTouchedResources :: RosterWindowScope -> RosterDay -> Maybe RosterSlot -> IO [SurfaceResourceValue]
 rosterSlotMutationTouchedResources scope rosterDay maybeSlot = do
     let rosterResources = rosterSlotTouchedResources scope rosterDay maybeSlot
-    pure (rosterResources <> timesheetWeekTouchedResources scope)
+    timesheetResources <- timesheetWeekTouchedResources scope
+    pure (rosterResources <> timesheetResources)
 
-timesheetWeekTouchedResources :: RosterWindowScope -> [SurfaceResourceValue]
-timesheetWeekTouchedResources scope =
-    [timesheetWeekResource (unpackId scope.rosterWindowVenueId) scope.rosterWindowStart scope.rosterWindowEnd]
+timesheetWeekTouchedResources :: RosterWindowScope -> IO [SurfaceResourceValue]
+timesheetWeekTouchedResources scope = do
+    activeScopes <- activeTimesheetWindowScopes
+    pure $ Set.toList $ Set.fromList $
+        timesheetWeekResource (unpackId scope.rosterWindowVenueId) scope.rosterWindowStart scope.rosterWindowEnd
+            : [ timesheetWeekResource activeVenueId windowStart windowEnd
+              | (activeVenueId, windowStart, windowEnd, _calendarRevision) <- activeScopes
+              , activeVenueId == unpackId scope.rosterWindowVenueId
+              , windowStart < scope.rosterWindowEnd
+              , windowEnd > scope.rosterWindowStart
+              ]
 
 rosterSlotTimesheetSourceChangeRequiresWarning :: (?modelContext :: ModelContext) => RosterSlot -> RosterSlot -> IO Bool
 rosterSlotTimesheetSourceChangeRequiresWarning previous next

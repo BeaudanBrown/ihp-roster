@@ -12,7 +12,6 @@ data NewView = NewView
     { timesheetEntry            :: TimesheetEntry
     , staffMembers              :: [Staff]
     , shiftTypes                :: [ShiftType]
-    , weekOffset                :: Int
     , calendarRevision          :: Int
     , hasRosterSuggestionForDay :: Bool
     , selectedStaffFilterId     :: Maybe UUID
@@ -28,18 +27,18 @@ instance View NewView where
             (timesheetModalTitle (timesheetEntryOperationalDate timesheetEntry))
             (timesheetWindowUrl (timesheetEntryOperationalDate timesheetEntry) selectedStaffFilterId)
             newTimesheetFormId
-            (renderTimesheetForm (appShellActionByMarker @CreateTimesheetEntryOverlay) formOrigin timesheetEntry staffMembers shiftTypes weekOffset calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep (pathTo CreateTimesheetEntryAction) newTimesheetFormId PageOverlayForm)
+            (renderTimesheetForm (appShellActionByMarker @CreateTimesheetEntryOverlay) formOrigin timesheetEntry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep (pathTo CreateTimesheetEntryAction) newTimesheetFormId PageOverlayForm)
       where
         formOrigin = if hasRosterSuggestionForDay then AdHocTimesheetFormWithSuggestion else AdHocTimesheetForm
 
 newTimesheetFormId :: Text
 newTimesheetFormId = "timesheet-entry-create-form"
 
-renderNewTimesheetDialog :: TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Int -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Html
-renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset calendarRevision hasRosterSuggestionForDay selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep =
+renderNewTimesheetDialog :: TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> Int -> Html
+renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes calendarRevision hasRosterSuggestionForDay selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep =
     renderTimesheetEntryDialog
         (timesheetModalTitle (timesheetEntryOperationalDate timesheetEntry))
         newTimesheetFormId
-        (renderTimesheetForm (appShellActionByMarker @CreateTimesheetEntryOverlay) formOrigin timesheetEntry staffMembers shiftTypes weekOffset calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep (pathTo CreateTimesheetEntryAction) newTimesheetFormId HtmxOverlayForm)
+        (renderTimesheetForm (appShellActionByMarker @CreateTimesheetEntryOverlay) formOrigin timesheetEntry staffMembers shiftTypes calendarRevision selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep (pathTo CreateTimesheetEntryAction) newTimesheetFormId HtmxOverlayForm)
   where
     formOrigin = if hasRosterSuggestionForDay then AdHocTimesheetFormWithSuggestion else AdHocTimesheetForm
