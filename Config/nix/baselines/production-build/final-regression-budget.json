@@ -2,6 +2,7 @@
   "schema_version": 1,
   "issue": 350,
   "authority": "Stable production app-library and inventory regression ceilings measured after the date-native roster runtime cutover and staging feedback-delivery rebase; measured memory is opt-in and builder-specific",
+  "measurement_profile": "Config/nix/baselines/production-build/epic-364-post-staging-rebase.json",
   "app_library": {
     "self_size_bytes_max": 1073741824,
     "module_count_max": 523,
