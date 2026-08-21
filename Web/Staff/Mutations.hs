@@ -233,15 +233,41 @@ removeStaffMember staff
                                 |> set #status (Revoked)
                                 |> updateRecord
                     forM_ lockedStaff.userId \linkedUserId -> do
-                        setupTokens <- query @PasskeySetupToken
+                        targetSetupTokens <- query @PasskeySetupToken
                             |> filterWhere (#venueId, Just (unpackId currentVenueId))
                             |> filterWhere (#userId, linkedUserId)
                             |> filterWhere (#consumedAt, Nothing)
                             |> filterWhereIn (#purpose, ["staff_new_device" :: Text, "staff_recovery"])
                             |> fetch
-                        forM_ setupTokens \setupToken ->
-                            when (isJust setupToken.requestedByUserId && setupToken.requestedByUserId /= Just linkedUserId) do
-                                void $ setupToken |> set #consumedAt (Just now) |> updateRecord
+                        issuedSetupTokens <- query @PasskeySetupToken
+                            |> filterWhere (#venueId, Just (unpackId currentVenueId))
+                            |> filterWhere (#requestedByUserId, Just linkedUserId)
+                            |> filterWhere (#consumedAt, Nothing)
+                            |> filterWhereIn (#purpose, ["staff_new_device" :: Text, "staff_recovery"])
+                            |> fetch
+                        forM_ (nubBy (\left right -> left.id == right.id) (targetSetupTokens <> issuedSetupTokens)) \setupToken ->
+                            void $
+                                setupToken
+                                    |> set #consumedAt (Just now)
+                                    |> set #deliveryTokenCiphertext Nothing
+                                    |> updateRecord
+
+                        targetResetTokens <- query @PasswordResetToken
+                            |> filterWhere (#venueId, unpackId currentVenueId)
+                            |> filterWhere (#userId, linkedUserId)
+                            |> filterWhere (#consumedAt, Nothing)
+                            |> fetch
+                        issuedResetTokens <- query @PasswordResetToken
+                            |> filterWhere (#venueId, unpackId currentVenueId)
+                            |> filterWhere (#requestedByUserId, Just linkedUserId)
+                            |> filterWhere (#consumedAt, Nothing)
+                            |> fetch
+                        forM_ (nubBy (\left right -> left.id == right.id) (targetResetTokens <> issuedResetTokens)) \resetToken ->
+                            void $
+                                resetToken
+                                    |> set #consumedAt (Just now)
+                                    |> set #deliveryTokenCiphertext Nothing
+                                    |> updateRecord
                     void $
                         recordCurrentUserAuditEvent
                             StaffRemovedAudit

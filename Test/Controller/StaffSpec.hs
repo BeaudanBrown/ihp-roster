@@ -11,6 +11,7 @@ import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timeshee
 import qualified Application.Helper.LiveUpdate as LiveUpdate
 import Application.Helper.PasskeySetupTokens (PasskeySetupTokenPurpose (..),
                                               issuePasskeySetupToken)
+import Application.Helper.PasswordResetTokens (issuePasswordResetToken)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.StaffShiftPreferences (encodeShiftPreferenceKey,
                                                  shiftPreferenceEndHourParamName,
@@ -1341,7 +1342,7 @@ tests = aroundAll withDatabaseTestContext do
                 preservedStaff.isActive `shouldBe` True
                 preservedStaff.archivedAt `shouldBe` Nothing
 
-        it "revokes linked invitations and only current-venue manager-issued setup tokens" $ withContext do
+        it "revokes current-venue staff credential links for the removed target and issuer" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Credential Cleanup Venue"
                 otherVenue <- createVenueWithConfig "Preserved Credential Venue"
@@ -1350,6 +1351,8 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue admin VenueAdmin
                 _ <- createVenueMembershipRecord venue worker Worker
                 _ <- createVenueMembershipRecord otherVenue worker Worker
+                otherTarget <- createUserRecord "staff-credential-cleanup-other@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue otherTarget Worker
                 staff <- createStaffRecord venue (Just worker) "Credential" "Worker"
                 passkey <- createTestPasskeyRecord worker "Preserved global passkey"
                 invitation <- createVenueInvitationRecord venue (Just admin) worker.email Worker
@@ -1358,7 +1361,10 @@ tests = aroundAll withDatabaseTestContext do
                 (currentVenueSetupToken, _) <- issuePasskeySetupToken StaffNewDevicePasskeySetup worker (Just admin.id) (Just venue.id)
                 (unattributedToken, _) <- issuePasskeySetupToken StaffPasskeyRecovery worker Nothing (Just venue.id)
                 (selfIssuedToken, _) <- issuePasskeySetupToken SelfNewDevicePasskeySetup worker (Just worker.id) (Just venue.id)
+                (issuedSetupToken, _) <- issuePasskeySetupToken StaffPasskeyRecovery otherTarget (Just worker.id) (Just venue.id)
                 (otherVenueToken, _) <- issuePasskeySetupToken StaffNewDevicePasskeySetup worker (Just admin.id) (Just otherVenue.id)
+                (targetResetToken, _) <- issuePasswordResetToken worker admin.id venue.id
+                (issuedResetToken, _) <- issuePasswordResetToken otherTarget worker.id venue.id
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction (RemoveStaffAction staff.id)
@@ -1370,8 +1376,16 @@ tests = aroundAll withDatabaseTestContext do
                 invalidatedRecoveryToken.consumedAt `shouldSatisfy` isJust
                 invalidatedSetupToken <- fetch currentVenueSetupToken.id
                 invalidatedSetupToken.consumedAt `shouldSatisfy` isJust
-                preservedUnattributedToken <- fetch unattributedToken.id
-                preservedUnattributedToken.consumedAt `shouldBe` Nothing
+                invalidatedUnattributedToken <- fetch unattributedToken.id
+                invalidatedUnattributedToken.consumedAt `shouldSatisfy` isJust
+                invalidatedIssuedSetupToken <- fetch issuedSetupToken.id
+                invalidatedIssuedSetupToken.consumedAt `shouldSatisfy` isJust
+                invalidatedTargetResetToken <- fetch targetResetToken.id
+                invalidatedTargetResetToken.consumedAt `shouldSatisfy` isJust
+                invalidatedTargetResetToken.deliveryTokenCiphertext `shouldBe` Nothing
+                invalidatedIssuedResetToken <- fetch issuedResetToken.id
+                invalidatedIssuedResetToken.consumedAt `shouldSatisfy` isJust
+                invalidatedIssuedResetToken.deliveryTokenCiphertext `shouldBe` Nothing
                 preservedSelfToken <- fetch selfIssuedToken.id
                 preservedSelfToken.consumedAt `shouldBe` Nothing
                 preservedOtherVenueToken <- fetch otherVenueToken.id

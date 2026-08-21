@@ -67,15 +67,13 @@ issueStaffPasskeySetupLinkMutation ::
     User ->
     IO (PasskeySetupToken, Text)
 issueStaffPasskeySetupLinkMutation staffId purpose targetUser =
-    withTransaction do
-        issuedToken <- issuePasskeySetupToken purpose targetUser (Just currentUser.id) (Just currentVenueId)
+    issuePasskeySetupTokenWith purpose targetUser (Just currentUser.id) (Just currentVenueId) \_ ->
         void $
             recordCurrentUserAuditEvent
                 (staffPasskeySetupAuditEvent purpose)
                 "users"
                 (unpackId targetUser.id)
                 (Aeson.object ["staffId" Aeson..= staffId])
-        pure issuedToken
 
 staffPasskeySetupAuditEvent :: PasskeySetupTokenPurpose -> AuditEventType
 staffPasskeySetupAuditEvent StaffNewDevicePasskeySetup = StaffPasskeySetupRequestedAudit

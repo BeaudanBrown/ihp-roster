@@ -1,5 +1,7 @@
 module Web.Controller.Sessions where
 
+import Application.AccountSecurityEmail.Email (fetchEligibleAccountSecurityRecipient)
+import Application.AccountSecurityEmail.Mutations (withEmailVerificationTokenLock)
 import Application.Helper.Audit (recordUserAuthenticationAuditEvent)
 import Application.Helper.EmailVerification (findActiveVerificationTokenByToken,
                                              sendEmailVerification)
@@ -136,22 +138,37 @@ instance Controller SessionsController where
                 setErrorMessage "That verification link is invalid or has expired."
                 redirectTo NewSessionAction
             Just verificationToken -> do
-                now <- getCurrentTime
-                user <- fetch (Id verificationToken.userId :: Id User)
-                withTransaction do
-                    void $
-                        user
-                            |> set #emailVerifiedAt (Just now)
-                            |> updateRecord
-                    void $
-                        verificationToken
-                            |> set #consumedAt (Just now)
-                            |> updateRecord
-                let verifiedUser = user |> set #emailVerifiedAt (Just now)
-                Sessions.beforeLogin verifiedUser
-                LoginSupport.login verifiedUser
-                setSuccessMessage "Email verified."
-                redirectTo EditProfileAction
+                maybeVerifiedUser <- withEmailVerificationTokenLock (unpackId verificationToken.id) do
+                    lockedToken <-
+                        query @EmailVerificationToken
+                            |> filterWhere (#id, verificationToken.id)
+                            |> filterWhere (#consumedAt, Nothing)
+                            |> filterWhereFuture #expiresAt
+                            |> fetchOneOrNothing
+                    case lockedToken of
+                        Nothing -> pure Nothing
+                        Just activeToken ->
+                            fetchEligibleAccountSecurityRecipient activeToken.userId activeToken.sentToEmail >>= \case
+                                Nothing -> pure Nothing
+                                Just user -> do
+                                    now <- getCurrentTime
+                                    verifiedUser <-
+                                        user
+                                            |> set #emailVerifiedAt (Just now)
+                                            |> updateRecord
+                                    activeToken
+                                        |> set #consumedAt (Just now)
+                                        |> updateRecordDiscardResult
+                                    pure (Just verifiedUser)
+                case join maybeVerifiedUser of
+                    Nothing -> do
+                        setErrorMessage "That verification link is invalid or has expired."
+                        redirectTo NewSessionAction
+                    Just verifiedUser -> do
+                        Sessions.beforeLogin verifiedUser
+                        LoginSupport.login verifiedUser
+                        setSuccessMessage "Email verified."
+                        redirectTo EditProfileAction
 
     action currentAction@ResendVerificationAction = runBepis currentAction BepisMutationAction do
         accessDeniedUnless (not currentUserIsImpersonating)
@@ -163,9 +180,9 @@ instance Controller SessionsController where
         case maybeUser of
             Just user | isNothing user.emailVerifiedAt -> do
                 void (sendEmailVerification user)
-                setSuccessMessage "Verification email sent."
+                setSuccessMessage "Verification email queued and should arrive shortly."
             _ ->
-                setSuccessMessage "If that account exists and still needs verification, a new email has been sent."
+                setSuccessMessage "If that account exists and still needs verification, a new email has been queued."
         setSession pendingVerificationEmailSessionKey submittedEmail
         redirectTo NewSessionAction
 

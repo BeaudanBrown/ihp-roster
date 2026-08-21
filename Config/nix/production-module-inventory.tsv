@@ -1,4 +1,9 @@
 path	packaging	category	owner	reason
+Application/AccountSecurityEmail/Email.hs	production	runtime	Main	Reachable from Main
+Application/AccountSecurityEmail/Enqueue.hs	production	runtime	Main	Reachable from Main
+Application/AccountSecurityEmail/Mutations.hs	production	runtime	Main	Reachable from Main
+Application/AccountSecurityEmail/TokenCipher.hs	production	runtime	Main	Reachable from Main
+Application/AccountSecurityEmail/Types.hs	production	runtime	Main	Reachable from Main
 Application/Architecture/Contracts.hs	development	build-tooling	-	Generator or architecture tooling outside deployed runtime closure
 Application/Async/Queue.hs	production	runtime	Main	Reachable from Main
 Application/Async/Registry.hs	production	runtime	Main	Reachable from Main

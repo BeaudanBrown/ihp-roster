@@ -1,24 +1,23 @@
 module Web.Mail.Users.PasswordReset where
 
-import Generated.Types
 import IHP.MailPrelude
 import Web.Mail.Shared
 
 data PasswordResetMail = PasswordResetMail
-    { user           :: User
-    , resetUrl       :: Text
-    , fromAddress    :: Text
-    , replyToAddress :: Text
-    , supportEmail   :: Text
+    { recipientAddress :: Text
+    , resetUrl         :: Text
+    , fromAddress      :: Text
+    , replyToAddress   :: Text
+    , supportEmail     :: Text
     }
 
 instance BuildMail PasswordResetMail where
     subject = "Reset your Bepis password"
 
-    to PasswordResetMail { user } =
+    to PasswordResetMail { recipientAddress } =
         Address
             { addressName = Nothing
-            , addressEmail = user.email
+            , addressEmail = recipientAddress
             }
 
     from = bepisFrom ?mail.fromAddress

@@ -105,8 +105,7 @@ sendStaffPasskeySetupLink staffId purpose successMessage = do
     case maybeTarget of
         Nothing -> rejectStaffCredentialTarget
         Just targetUser -> do
-            (_, rawToken) <- issueStaffPasskeySetupLinkMutation staffId purpose targetUser
-            sendPasskeySetupTokenEmail targetUser purpose rawToken
+            void (issueStaffPasskeySetupLinkMutation staffId purpose targetUser)
             setSuccessMessage successMessage
             redirectToPath staffPasskeyReturnPath
 
@@ -119,15 +118,14 @@ sendStaffPasswordResetLink staffId = do
     fetchCurrentVenueStaffUser staffId >>= \case
         Nothing -> rejectStaffCredentialTarget
         Just targetUser -> do
-            (_, rawToken) <- issuePasswordResetTokenWith targetUser currentUser.id currentVenueId \_ ->
+            void $ issuePasswordResetTokenWith targetUser currentUser.id currentVenueId \_ ->
                 void $
                     recordCurrentUserAuditEvent
                         StaffPasswordResetRequestedAudit
                         "users"
                         (unpackId targetUser.id)
                         (Aeson.object ["staffId" Aeson..= staffId])
-            sendPasswordResetTokenEmail targetUser rawToken
-            setSuccessMessage "Password reset email sent."
+            setSuccessMessage "Password reset email queued and should arrive shortly."
             redirectToPath staffPasskeyReturnPath
 
 ensureCanSendStaffCredentialLink ::
@@ -253,10 +251,10 @@ instance Controller AdminController where
         respondToProfileLiveInvalidation "leave_requests" [pendingLeaveRequestsResource (unpackId currentVenueId)]
 
     action currentAction@SendStaffPasskeySetupEmailAction { staffId } = runBepis currentAction BepisMutationAction do
-        sendStaffPasskeySetupLink staffId StaffNewDevicePasskeySetup "Passkey setup email sent."
+        sendStaffPasskeySetupLink staffId StaffNewDevicePasskeySetup "Passkey setup email queued and should arrive shortly."
 
     action currentAction@SendStaffPasskeyRecoveryEmailAction { staffId } = runBepis currentAction BepisMutationAction do
-        sendStaffPasskeySetupLink staffId StaffPasskeyRecovery "Passkey recovery email sent."
+        sendStaffPasskeySetupLink staffId StaffPasskeyRecovery "Passkey recovery email queued and should arrive shortly."
 
     action currentAction@SendStaffPasswordResetEmailAction { staffId } = runBepis currentAction BepisMutationAction do
         sendStaffPasswordResetLink staffId

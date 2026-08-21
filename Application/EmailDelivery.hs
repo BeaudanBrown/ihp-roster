@@ -12,6 +12,9 @@ module Application.EmailDelivery
     , performEmailDeliveryJobWith
     ) where
 
+import Application.AccountSecurityEmail.Email
+import Application.AccountSecurityEmail.Mutations
+import Application.AccountSecurityEmail.Types
 import Application.Async.Queue (appJobMaxAttempts)
 import Application.Billing.NotificationEmail
 import Application.EmailDelivery.Enqueue
@@ -179,6 +182,8 @@ performPayload EmailDeliveryRuntime { deliveryIsDisabled, deliverMail } appJob p
                     RsaReminderMailReady mail -> do
                         deliverMail mail
                         completeRsaReminderEmail appJob payload "sent"
+            mailKind | isAccountSecurityMailKind mailKind ->
+                performAccountSecurityPayload deliverMail "sent" appJob payload AppMailSettings { .. } appBaseUrl
             mailKind | mailKind == venueInvitationMailKind ->
                 performVenueInvitationPayload deliverMail "sent" appJob payload AppMailSettings { .. } appBaseUrl
             mailKind | mailKind == venueOnboardingInvitationMailKind ->
@@ -220,11 +225,87 @@ performDisabledPayload appJob payload settings appBaseUrl
         case projection of
             RsaReminderMailSkipped _ -> completeEmailDelivery appJob payload "delivery_disabled" Nothing
             RsaReminderMailReady _ -> completeRsaReminderEmail appJob payload "delivery_disabled"
+    | isAccountSecurityMailKind payload.payloadMailKind =
+        performAccountSecurityPayload (\_ -> pure ()) "delivery_disabled" appJob payload settings appBaseUrl
     | payload.payloadMailKind == venueInvitationMailKind =
         performVenueInvitationPayload (\_ -> pure ()) "delivery_disabled" appJob payload settings appBaseUrl
     | payload.payloadMailKind == venueOnboardingInvitationMailKind =
         performVenueOnboardingInvitationPayload (\_ -> pure ()) "delivery_disabled" appJob payload settings appBaseUrl
     | otherwise = completeEmailDelivery appJob payload "delivery_disabled" Nothing
+
+performAccountSecurityPayload ::
+    (?modelContext :: ModelContext) =>
+    (forall mail. BuildMail mail => mail -> IO ()) ->
+    Text ->
+    AppJob ->
+    EmailDeliveryPayload ->
+    AppMailSettings ->
+    Text ->
+    IO ()
+performAccountSecurityPayload deliverMail deliveryStatus appJob payload settings appBaseUrl = do
+    validateRelatedTable appJob (accountSecurityRelatedTable payload.payloadMailKind) payload.payloadDomainReferenceId
+    lockedResult <- accountSecurityTokenLock payload.payloadMailKind payload.payloadDomainReferenceId do
+        projection <-
+            loadAccountSecurityMail
+                payload.payloadMailKind
+                payload.payloadRecipientAccountId
+                payload.payloadRecipientAddress
+                payload.payloadDomainReferenceId
+                appJob.venueId
+                settings
+                appBaseUrl
+        case projection of
+            AccountSecurityMailSkipped reason
+                | deliveryStatus == "delivery_disabled" ->
+                    completeAccountSecurityDelivery appJob payload "delivery_disabled" Nothing
+                | otherwise ->
+                    completeAccountSecurityDelivery appJob payload "delivery_skipped" (Just reason)
+            AccountSecurityMailReady mail -> do
+                deliverAccountSecurityMail deliverMail mail
+                completeAccountSecurityDelivery appJob payload deliveryStatus Nothing
+    when (isNothing lockedResult) $
+        completeEmailDelivery appJob payload "delivery_skipped" (Just "domain_reference_missing")
+
+completeAccountSecurityDelivery ::
+    (?modelContext :: ModelContext) =>
+    AppJob ->
+    EmailDeliveryPayload ->
+    Text ->
+    Maybe Text ->
+    IO ()
+completeAccountSecurityDelivery appJob payload deliveryStatus maybeReason = do
+    -- The per-token lock owns the surrounding transaction so domain cleanup and
+    -- shared completion commit together without nesting IHP transactions.
+    completeAccountSecurityEmail payload.payloadMailKind payload.payloadDomainReferenceId
+    completeEmailDelivery appJob payload deliveryStatus maybeReason
+
+deliverAccountSecurityMail ::
+    (forall mail. BuildMail mail => mail -> IO ()) ->
+    AccountSecurityMail ->
+    IO ()
+deliverAccountSecurityMail deliverMail = \case
+    VerificationDelivery mail -> deliverMail mail
+    PasswordResetDelivery mail -> deliverMail mail
+    PasskeySetupDelivery mail -> deliverMail mail
+
+accountSecurityTokenLock ::
+    (?modelContext :: ModelContext) =>
+    Text ->
+    UUID ->
+    ((?modelContext :: ModelContext) => IO result) ->
+    IO (Maybe result)
+accountSecurityTokenLock mailKind
+    | mailKind == emailVerificationMailKind = withEmailVerificationTokenLock
+    | mailKind == passwordResetMailKind = withPasswordResetTokenLock
+    | mailKind == passkeySetupMailKind = withPasskeySetupTokenLock
+    | otherwise = \_ _ -> pure Nothing
+
+accountSecurityRelatedTable :: Text -> Text
+accountSecurityRelatedTable mailKind
+    | mailKind == emailVerificationMailKind = "email_verification_tokens"
+    | mailKind == passwordResetMailKind = "password_reset_tokens"
+    | mailKind == passkeySetupMailKind = "passkey_setup_tokens"
+    | otherwise = ""
 
 performVenueInvitationPayload ::
     (?modelContext :: ModelContext) =>
@@ -299,7 +380,9 @@ handleEmailDeliveryFailureAfterFinalAttempt appJob
         unless (persistedJob.status == JobStatusSucceeded) $
             case Aeson.fromJSON appJob.payload :: Aeson.Result EmailDeliveryPayload of
                 Aeson.Error _ -> pure ()
-                Aeson.Success payload ->
+                Aeson.Success payload -> do
+                    when (isAccountSecurityMailKind payload.payloadMailKind) $
+                        completeAccountSecurityEmail payload.payloadMailKind payload.payloadDomainReferenceId
                     when (isInvitationMailKind payload.payloadMailKind) do
                         markInvitationDeliveryFailed payload.payloadMailKind payload.payloadDomainReferenceId
                         when (payload.payloadMailKind == venueInvitationMailKind) $

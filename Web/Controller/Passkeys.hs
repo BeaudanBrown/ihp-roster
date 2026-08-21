@@ -2,6 +2,7 @@ module Web.Controller.Passkeys where
 
 import Application.Helper.PasskeyRecoveryCodes (verifyAndConsumeRecoveryCode)
 import Application.Helper.PasskeySetupTokens
+import Control.Monad (void)
 import qualified Data.Text as Text
 import Web.Controller.Prelude
 import Web.View.Passkeys.SetupModal
@@ -83,9 +84,8 @@ instance Controller PasskeysController where
                 then redirectTo PasskeyStepUpAction
                 else redirectToPath managementPath
         let venueId = (.id) <$> currentVenueOrNothing
-        (_, rawToken) <- issuePasskeySetupToken SelfNewDevicePasskeySetup currentUser (Just currentUser.id) venueId
-        sendPasskeySetupTokenEmail currentUser SelfNewDevicePasskeySetup rawToken
-        setSuccessMessage "New-device passkey setup email sent. Open it on the device you want to add."
+        void (issuePasskeySetupToken SelfNewDevicePasskeySetup currentUser (Just currentUser.id) venueId)
+        setSuccessMessage "New-device passkey setup email queued. It should arrive shortly; open it on the device you want to add."
         redirectToPath managementPath
 
     action currentAction@DeletePasskeyAction { passkeyId } = runBepis currentAction BepisMutationAction do

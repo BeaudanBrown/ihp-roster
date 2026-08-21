@@ -111,7 +111,7 @@ IHP.LoginSupport.Middleware	ihp	Web/FrontController.hs via Main
 IHP.LoginSupport.Types	ihp	Web/Types.hs via Main
 IHP.Mail	ihp-mail	Config/Config.hs via Main
 IHP.Mail.Types	ihp-mail	Config/Config.hs via Main
-IHP.MailPrelude	ihp-mail	Web/Mail/Users/PasskeySetupLink.hs via Main
+IHP.MailPrelude	ihp-mail	Web/Mail/Users/EmailVerification.hs via Main
 IHP.ModelSupport	ihp	Web/Types.hs via Main
 IHP.ModelSupport.Types	ihp	Application/Helper/LiveUpdate/DurableState.hs via Main
 IHP.Prelude	ihp	Main.hs via Main

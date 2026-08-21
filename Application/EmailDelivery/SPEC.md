@@ -119,3 +119,20 @@ Migration `1788002400.sql` audibly retires only active
 `venue_invitation_delivery` and `venue_onboarding_invitation_delivery` jobs while
 retaining terminal history. Their direct send helpers, producers, and registry handlers
 no longer exist.
+
+## Account-security mail kinds
+
+Email verification, password reset, passkey setup, and passkey recovery persist their
+token and enqueue one envelope atomically. Payloads reference only token-row/account IDs
+and the snapshotted destination; raw tokens and generated URLs never enter `app_jobs`.
+Password/passkey rows retain authenticated-encrypted delivery material only until shared
+completion. Migration `1788003000.sql` adds nullable, constrained columns without
+backfilling or changing existing active-token validity.
+
+Delivery holds the token row lock while revalidating one-time consumption, expiry,
+account activation, current address, verification state, self-issuance provenance, and
+administrator/venue authority. It generates the URL from the retained token row only
+then. Enabled obsolete jobs are `delivery_skipped`; disabled jobs are
+`delivery_disabled`; sent, skipped, disabled, consumed, replaced, revoked, and final
+failure paths clear recoverable password/passkey delivery material. Direct account-mail
+transport and domain-specific transport fakes no longer exist.

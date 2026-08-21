@@ -118,7 +118,7 @@ tests = aroundAll withDatabaseTestContext do
                 user <- createUserRecord "verify-mail@example.com" "staff" False
                 let mail =
                         EmailVerificationMail
-                            { user = user
+                            { recipientAddress = user.email
                             , verificationUrl = "https://app.example/VerifyEmail?token=test"
                             , fromAddress = "verify@example.com"
                             , replyToAddress = "support@example.com"
@@ -275,7 +275,7 @@ tests = aroundAll withDatabaseTestContext do
                 user <- createUserRecord "passkey-mail@example.com" "staff" True
                 let mail =
                         PasskeySetupLinkMail
-                            { user = user
+                            { recipientAddress = user.email
                             , setupUrl = "https://app.example/NewPasskeySetup?token=test"
                             , fromAddress = "accounts@example.com"
                             , replyToAddress = "support@example.com"
@@ -300,7 +300,7 @@ tests = aroundAll withDatabaseTestContext do
                 user <- createUserRecord "password-reset-mail@example.com" "staff" True
                 let mail =
                         PasswordResetMail
-                            { user
+                            { recipientAddress = user.email
                             , resetUrl = "https://app.example/NewPasswordReset?token=test"
                             , fromAddress = "accounts@example.com"
                             , replyToAddress = "support@example.com"

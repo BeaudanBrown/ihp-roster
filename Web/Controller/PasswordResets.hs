@@ -1,5 +1,7 @@
 module Web.Controller.PasswordResets where
 
+import Application.AccountSecurityEmail.Email (fetchEligibleAccountSecurityRecipient,
+                                               passwordResetTokenAuthorityIsCurrent)
 import Application.Helper.Audit
 import Application.Helper.PasswordResetTokens
 import Application.PasswordReset.Mutations (withPasswordResetCompletionLock)
@@ -51,6 +53,7 @@ instance Controller PasswordResetsController where
                                         |> updateRecord
                                     _ <- lockedToken
                                         |> set #consumedAt (Just now)
+                                        |> set #deliveryTokenCiphertext Nothing
                                         |> updateRecord
                                     void $
                                         recordAuditEvent
@@ -73,11 +76,10 @@ instance Controller PasswordResetsController where
                     else invalidPasswordResetLink
 
 fetchActivePasswordResetTarget :: (?modelContext :: ModelContext) => PasswordResetToken -> IO (Maybe User)
-fetchActivePasswordResetTarget resetToken =
-    query @User
-        |> filterWhere (#id, Id resetToken.userId)
-        |> filterWhere (#deactivatedAt, Nothing)
-        |> fetchOneOrNothing
+fetchActivePasswordResetTarget resetToken = do
+    maybeUser <- fetchEligibleAccountSecurityRecipient resetToken.userId resetToken.sentToEmail
+    authorityIsCurrent <- passwordResetTokenAuthorityIsCurrent resetToken
+    pure (if authorityIsCurrent then maybeUser else Nothing)
 
 validatePasswordSubmission :: Text -> Text -> Maybe Text
 validatePasswordSubmission password passwordConfirmation

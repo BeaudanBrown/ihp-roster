@@ -145,6 +145,7 @@ CREATE TABLE passkey_setup_tokens (
     requested_by_user_id UUID DEFAULT NULL,
     venue_id UUID DEFAULT NULL,
     token_hash TEXT NOT NULL,
+    delivery_token_ciphertext TEXT DEFAULT NULL,
     purpose TEXT NOT NULL,
     sent_to_email TEXT NOT NULL,
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -157,7 +158,8 @@ CREATE TABLE passkey_setup_tokens (
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
     CHECK ((purpose = 'self_new_device') OR (purpose = 'staff_new_device') OR (purpose = 'staff_recovery')),
     CHECK ((char_length(btrim(sent_to_email)) > 0) AND (char_length(sent_to_email) <= 254)),
-    CHECK (char_length(btrim(token_hash)) > 0)
+    CHECK (char_length(btrim(token_hash)) > 0),
+    CHECK ((delivery_token_ciphertext IS NULL) OR (char_length(btrim(delivery_token_ciphertext)) > 0))
 );
 CREATE TABLE password_reset_tokens (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -165,6 +167,7 @@ CREATE TABLE password_reset_tokens (
     requested_by_user_id UUID DEFAULT NULL,
     venue_id UUID NOT NULL,
     token_hash TEXT NOT NULL,
+    delivery_token_ciphertext TEXT DEFAULT NULL,
     sent_to_email TEXT NOT NULL,
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
     consumed_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
@@ -175,7 +178,8 @@ CREATE TABLE password_reset_tokens (
     FOREIGN KEY (requested_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
     CHECK ((char_length(btrim(sent_to_email)) > 0) AND (char_length(sent_to_email) <= 254)),
-    CHECK (char_length(btrim(token_hash)) > 0)
+    CHECK (char_length(btrim(token_hash)) > 0),
+    CHECK ((delivery_token_ciphertext IS NULL) OR (char_length(btrim(delivery_token_ciphertext)) > 0))
 );
 CREATE TABLE user_preferences (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,

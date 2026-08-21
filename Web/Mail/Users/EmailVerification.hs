@@ -1,24 +1,23 @@
 module Web.Mail.Users.EmailVerification where
 
-import Generated.Types
 import IHP.MailPrelude
 import Web.Mail.Shared
 
 data EmailVerificationMail = EmailVerificationMail
-    { user            :: User
-    , verificationUrl :: Text
-    , fromAddress     :: Text
-    , replyToAddress  :: Text
-    , supportEmail    :: Text
+    { recipientAddress :: Text
+    , verificationUrl  :: Text
+    , fromAddress      :: Text
+    , replyToAddress   :: Text
+    , supportEmail     :: Text
     }
 
 instance BuildMail EmailVerificationMail where
     subject = "Verify your email"
 
-    to EmailVerificationMail { user } =
+    to EmailVerificationMail { recipientAddress } =
         Address
             { addressName = Nothing
-            , addressEmail = user.email
+            , addressEmail = recipientAddress
             }
 
     from = bepisFrom ?mail.fromAddress
