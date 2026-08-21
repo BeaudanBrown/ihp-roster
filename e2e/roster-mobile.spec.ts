@@ -528,9 +528,15 @@ test.describe('Roster mobile baseline', () => {
         const before = await readMetrics();
         await closeButton.click();
         await expect(firstColumn.locator('[data-roster-day-closed-toggle="true"]')).toContainText('CLOSED');
+        await expect.poll(async () => (await readMetrics()).headerHeight).toBe(before.headerHeight);
         const closed = await readMetrics();
         await firstColumn.locator('[data-roster-day-closed-toggle="true"]').click();
         await expect(firstColumn.locator('[data-roster-day-closed-toggle="true"] .bi-unlock')).toBeVisible();
+        await expect.poll(async () => {
+            const metrics = await readMetrics();
+            return Math.abs(metrics.slotLeft - before.slotLeft) <= 1
+                && Math.abs(metrics.toggleWidth - before.toggleWidth) <= 1;
+        }).toBe(true);
         const reopened = await readMetrics();
 
         expect(closed.headerHeight).toBe(before.headerHeight);
