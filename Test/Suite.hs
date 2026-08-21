@@ -58,8 +58,8 @@ import qualified Test.Controller.TimesheetsSpec
 import qualified Test.Controller.UsersSpec
 import qualified Test.Controller.VenueAccessSpec
 import qualified Test.DatabaseProtectionSpec
-import qualified Test.DurableLiveInvalidationSpec
 import qualified Test.DevSeedSpec
+import qualified Test.DurableLiveInvalidationSpec
 import qualified Test.EmailDeliverySpec
 import qualified Test.EnumAuthoritySpec
 import qualified Test.FrontendContractSpec
@@ -112,6 +112,7 @@ import qualified Test.WageEngine.ContractSpec
 import qualified Test.WageEngine.MealBreakSpec
 import qualified Test.WageEngine.MinimumPaymentSpec
 import qualified Test.WageEngine.RulesSpec
+import qualified Test.WageSourceAlertSpec
 import qualified Test.WageSourceEnforcementSpec
 import qualified Test.WageSourcePolicySpec
 import qualified Test.XeroCandidateFilterSpec
@@ -459,6 +460,7 @@ allSuites =
     , pureSuite SuiteDefinition{definitionLabel = "WageEngine.Rules", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.WageEngine.RulesSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "WageEngine.AdapterStructure", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.WageEngine.AdapterSpec.pureTests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "WageEngine.Adapter", definitionEstimatedRuntimeSeconds = 5.0, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = PayAndExports, definitionFixtureCost = MediumFixture, definitionExternalMocks = [], definitionOwnedInvariants = [P1], definitionPartialInvariants = []} Test.WageEngine.AdapterSpec.databaseTests
+    , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "WageSourceAlert", definitionEstimatedRuntimeSeconds = 0.8, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = Communications, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.WageSourceAlertSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "WageSourceEnforcement", definitionEstimatedRuntimeSeconds = 0.2, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = PayAndExports, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.WageSourceEnforcementSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "WageSourcePolicy", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.WageSourcePolicySpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "PageHelp", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = ProductSupport, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.PageHelpSpec.tests

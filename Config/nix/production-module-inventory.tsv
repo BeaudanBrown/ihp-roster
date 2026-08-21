@@ -336,6 +336,9 @@ Application/WageEngine/Rules.hs	production	runtime	Main	Reachable from Main
 Application/WageEngine/Types.hs	production	runtime	Main	Reachable from Main
 Application/WageEvaluation.hs	production	runtime	Main	Reachable from Main
 Application/WagePublication.hs	production	runtime	Main	Reachable from Main
+Application/WageSourceAlert/Email.hs	production	runtime	Main	Reachable from Main
+Application/WageSourceAlert/Job.hs	production	runtime	Main	Reachable from Main
+Application/WageSourceAlert/Types.hs	production	runtime	Main	Reachable from Main
 Application/WageSourceEnforcement.hs	production	runtime	Main	Reachable from Main
 Application/WageSourceFacts.hs	production	runtime	Main	Reachable from Main
 Application/WageSourceNotifications.hs	production	runtime	Main	Reachable from Main
@@ -423,6 +426,7 @@ Web/Mail/Users/PasskeySetupLink.hs	production	runtime	Main	Reachable from Main
 Web/Mail/Users/PasswordReset.hs	production	runtime	Main	Reachable from Main
 Web/Mail/Users/VenueInvitation.hs	production	runtime	Main	Reachable from Main
 Web/Mail/Users/VenueOnboardingInvitation.hs	production	runtime	Main	Reachable from Main
+Web/Mail/WageSourceAlert.hs	production	runtime	Main	Reachable from Main
 Web/Mail/WageSourceDrift.hs	production	runtime	Main	Reachable from Main
 Web/Profiles/FrontendSurface.hs	production	runtime	Main	Reachable from Main
 Web/Profiles/Mutations.hs	production	runtime	Main	Reachable from Main

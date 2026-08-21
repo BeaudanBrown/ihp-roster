@@ -12,10 +12,13 @@ import Application.Helper.FrontendContract.Surface.Support.Resource (supportPubl
 import Application.Helper.SurfaceResource
 import qualified Application.PublicHolidays.Policy as PublicHolidayPolicy
 import Application.PublicHolidays.Sync
+import Application.WageSourceAlert.Job (enqueueWageSourceFreshnessCheck)
+import Application.WageSourceAlert.Types (WageSourceKind (DataVicWageSource))
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Generated.Types
 import IHP.ControllerPrelude
+import IHP.ModelSupport (withTransaction)
 import Web.SurfaceInvalidation (publishTouchedResourcesWithoutContext)
 
 publicHolidayRefreshJobKind :: Text
@@ -66,12 +69,14 @@ performPublicHolidayRefreshJobWith syncAction appJob = do
                 , "invalidCount" Aeson..= summary.invalidCount
                 , "prunedCount" Aeson..= summary.prunedCount
                 ]
-    void
-        ( appJob
-            |> set #result resultPayload
-            |> set #status JobStatusSucceeded
-            |> updateRecord
-        )
+    completedAt <- getCurrentTime
+    withTransaction do
+        completedJob <-
+            appJob
+                |> set #result resultPayload
+                |> set #status JobStatusSucceeded
+                |> updateRecord
+        void (enqueueWageSourceFreshnessCheck DataVicWageSource completedJob completedAt)
     publishPublicHolidayRefresh
 
 publishPublicHolidayRefresh :: (?modelContext :: ModelContext) => IO ()

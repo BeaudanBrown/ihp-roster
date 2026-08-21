@@ -10,6 +10,7 @@ import Application.InvitationDelivery.Job
 import Application.PublicHolidays.Job
 import Application.RosterNotification.Delivery
 import Application.StaffDocuments.Rsa
+import Application.WageSourceAlert.Job
 import Application.WageSourceNotifications
 import Application.Xero.Keepalive
 import Application.Xero.ReferenceSyncJob
@@ -28,7 +29,9 @@ dispatchAppJob ::
     IO ()
 dispatchAppJob appJob =
     dispatchAppJobByKind appJob
-        `Exception.onException` when (isBillingOperationalJob appJob) (void (enqueueBillingSupportNotificationAfterFinalAttempt appJob))
+        `Exception.onException` do
+            when (isBillingOperationalJob appJob) (void (enqueueBillingSupportNotificationAfterFinalAttempt appJob))
+            when (isWageSourceRefreshJob appJob) (void (handleWageSourceRefreshFailureAfterFinalAttempt appJob))
 
 dispatchAppJobByKind ::
     (?modelContext :: ModelContext, ?context :: FrameworkConfig) =>
@@ -39,6 +42,7 @@ dispatchAppJobByKind appJob =
         kind | kind == emailDeliveryJobKind -> performEmailDeliveryJob appJob
         kind | kind == fwcMapdRefreshJobKind -> performFwcMapdRefreshJob appJob
         kind | kind == publicHolidayRefreshJobKind -> performPublicHolidayRefreshJob appJob
+        kind | kind == wageSourceHealthCheckJobKind -> performWageSourceHealthCheckJob appJob
         kind | kind == rosterNotificationDeliveryJobKind -> performRosterNotificationDeliveryJob appJob
         kind | kind == retiredRosterTimesheetCreationJobKind -> retireRosterTimesheetCreationJob appJob
         kind | kind == rsaReminderJobKind -> performRsaReminderJob appJob
@@ -50,6 +54,11 @@ dispatchAppJobByKind appJob =
         kind | kind == venueInvitationDeliveryJobKind -> performVenueInvitationDeliveryJob appJob
         kind | kind == venueOnboardingInvitationDeliveryJobKind -> performVenueOnboardingInvitationDeliveryJob appJob
         _ -> fail ("Unknown app job kind: " <> Text.unpack appJob.jobKind)
+
+isWageSourceRefreshJob :: AppJob -> Bool
+isWageSourceRefreshJob appJob =
+    appJob.jobKind == fwcMapdRefreshJobKind
+        || appJob.jobKind == publicHolidayRefreshJobKind
 
 isBillingOperationalJob :: AppJob -> Bool
 isBillingOperationalJob appJob =

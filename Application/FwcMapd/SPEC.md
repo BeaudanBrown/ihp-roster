@@ -57,6 +57,11 @@ validated immediate-scope source records.
 - A successful systemd sweep only proves that an app job was enqueued or already
   active. The completed `fwc_mapd_refresh` job and succeeded `fwc_mapd_sync_runs`
   row are the publication authority.
+- Each successful refresh schedules an AppJob freshness check just after the shared
+  eight-day boundary. A newer validated snapshot supersedes that check. The final
+  failed refresh attempt immediately evaluates persisted source health and snapshots
+  separate failure, missing/stale, and annual-rollover incidents for active platform
+  super admins; raw provider errors never enter alert mail.
 
 ## Verification
 

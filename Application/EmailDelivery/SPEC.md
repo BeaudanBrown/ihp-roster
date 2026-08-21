@@ -48,3 +48,20 @@ feedback, venue, submitter, and venue timezone, then renders explicit HTML and p
 text with escaped feedback content, triage diagnostics, an explicitly labelled
 venue-local timestamp, and the general Support URL. Sender and reply-to remain
 system-controlled.
+
+## Wage-source alert mail kinds
+
+Versioned FWC and DataVic alert kinds reference a completed
+`wage_source_health_check` job. That domain job snapshots only bounded source facts,
+never raw refresh exceptions or rendered mail. Final refresh failures evaluate after
+the tenth attempt; successful refreshes schedule one check just after the shared
+8-day or 45-day freshness boundary. A newer complete snapshot supersedes the delayed
+check without cancelling it.
+
+Failure, missing, stale, and annual-FWC incidents use separate semantic keys. DataVic
+missing/stale incidents aggregate the Melbourne-local previous, current, and next
+years. Annual FWC evaluation begins with the earliest affected active venue calendar
+and is the only condition deferred when no active venue exists. Alert recipients are
+active platform super admins selected at incident evaluation; their addresses and the
+incident snapshot remain authoritative after enqueue, including when the source
+recovers before delivery.

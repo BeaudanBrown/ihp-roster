@@ -14,6 +14,7 @@ import Application.Feedback.Email (feedbackSubmittedMailKind,
                                    loadFeedbackNotificationMail)
 import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
 import Application.Helper.Mail
+import Application.WageSourceAlert.Email
 import Control.Monad (void)
 import qualified "crypton" Crypto.Hash as Hash
 import qualified Data.Aeson as Aeson
@@ -160,6 +161,19 @@ performPayload EmailDeliveryRuntime { deliveryIsDisabled, deliverMail } appJob p
             mailKind | mailKind == feedbackSubmittedMailKind -> do
                 maybeMail <-
                     loadFeedbackNotificationMail
+                        payload.payloadRecipientAddress
+                        payload.payloadDomainReferenceId
+                        AppMailSettings { .. }
+                        appBaseUrl
+                case maybeMail of
+                    Nothing -> completeEmailDelivery appJob payload "delivery_skipped" (Just "domain_reference_missing")
+                    Just mail -> do
+                        deliverMail mail
+                        completeEmailDelivery appJob payload "sent" Nothing
+            mailKind | isWageSourceAlertMailKind mailKind -> do
+                maybeMail <-
+                    loadWageSourceAlertMail
+                        mailKind
                         payload.payloadRecipientAddress
                         payload.payloadDomainReferenceId
                         AppMailSettings { .. }

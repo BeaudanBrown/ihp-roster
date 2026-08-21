@@ -81,6 +81,13 @@ valid. Failed, incomplete, unvalidated, and non-statewide candidates never displ
 last complete authoritative success, while imported Xero overrides bypass both source
 checks.
 
+Source-health alert orchestration consumes these same fixed thresholds and diagnostic
+constructors. Successful FWC/DataVic refresh jobs schedule delayed checks just after
+expiry; final failed attempts also evaluate persisted facts. Exact boundaries remain
+valid, newer complete snapshots supersede delayed checks, and annual FWC absence is
+anchored to the earliest active venue's first full week on or after 1 July. DataVic
+alerts aggregate previous/current/next Melbourne-calendar years.
+
 The same module compares canonical Award document and structural fingerprints. A
 document checksum/version, classification, or category change emits a deterministic
 deduplication key scoped to a non-blocking platform-super-admin signal. Rate-only and

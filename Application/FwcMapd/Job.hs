@@ -11,11 +11,14 @@ import Application.Async.Queue
 import Application.FwcMapd.Sync
 import Application.Helper.FrontendContract.Surface.Support.Resource (supportAwardRatesResource)
 import Application.Helper.SurfaceResource
+import Application.WageSourceAlert.Job (enqueueWageSourceFreshnessCheck)
+import Application.WageSourceAlert.Types (WageSourceKind (FwcWageSource))
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
+import IHP.ModelSupport (withTransaction)
 import Web.SurfaceInvalidation (publishTouchedResourcesWithoutContext)
 
 fwcMapdRefreshJobKind :: Text
@@ -59,6 +62,7 @@ performFwcMapdRefreshJobWith syncAction appJob = do
         Left err ->
             fail (Text.unpack err)
         Right summary -> do
+            completedAt <- getCurrentTime
             let resultPayload =
                     Aeson.object
                         [ "syncedAwardFixedIds" Aeson..= summary.syncedAwardFixedIds
@@ -66,12 +70,13 @@ performFwcMapdRefreshJobWith syncAction appJob = do
                         , "fetchedClassificationCount" Aeson..= summary.fetchedClassificationCount
                         , "fetchedPayRateCount" Aeson..= summary.fetchedPayRateCount
                         ]
-            void
-                ( appJob
-                    |> set #result resultPayload
-                    |> set #status JobStatusSucceeded
-                    |> updateRecord
-                )
+            withTransaction do
+                completedJob <-
+                    appJob
+                        |> set #result resultPayload
+                        |> set #status JobStatusSucceeded
+                        |> updateRecord
+                void (enqueueWageSourceFreshnessCheck FwcWageSource completedJob completedAt)
             publishFwcMapdRefresh
 
 publishFwcMapdRefresh :: (?modelContext :: ModelContext) => IO ()

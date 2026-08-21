@@ -2,6 +2,7 @@ module Test.MailSpec where
 
 import Application.Billing.NotificationKind (BillingNotificationKind (BillingPaymentTrouble, BillingRenewalResumed))
 import Application.Helper.Mail
+import Application.WageSourceAlert.Types
 import Control.Exception (bracket)
 import Data.Text (isInfixOf)
 import qualified Data.Text.Lazy as LazyText
@@ -26,6 +27,7 @@ import Web.Mail.Users.PasskeySetupLink
 import Web.Mail.Users.PasswordReset
 import Web.Mail.Users.VenueInvitation
 import Web.Mail.Users.VenueOnboardingInvitation
+import Web.Mail.WageSourceAlert
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
@@ -207,6 +209,57 @@ tests = aroundAll withDatabaseTestContext do
                 text mail `shouldSatisfy` isInfixOf "Submitted: 2026-08-20 13:15:00 Australia/Melbourne"
                 text mail `shouldSatisfy` isInfixOf "<script>alert('escaped')</script>\nSecond line"
                 text mail `shouldSatisfy` isInfixOf "Open Bepis Support: https://app.example/Support"
+
+        it "renders distinct safe wage-source failure and stale alerts" $ withContext do
+            let detectedAt = UTCTime (fromGregorian 2026 8 20) 0
+            let sourceJobId = "00000000-0000-0000-0000-000000000253"
+            let failureSnapshot =
+                    WageSourceAlertSnapshot
+                        { alertKind = RefreshFailedAlert
+                        , source = FwcWageSource
+                        , detectedAt
+                        , sourceJobId
+                        , refreshTriggerClass = Just TimerRefresh
+                        , affectedYears = []
+                        , latestValidSuccessAt = Nothing
+                        , freshnessMaximumAge = Nothing
+                        , annualRequiredOnOrAfter = Nothing
+                        , annualTriggerVenueId = Nothing
+                        }
+            let staleSnapshot =
+                    WageSourceAlertSnapshot
+                        { alertKind = SourceStaleAlert
+                        , source = DataVicWageSource
+                        , detectedAt
+                        , sourceJobId
+                        , refreshTriggerClass = Nothing
+                        , affectedYears = [2025, 2026, 2027]
+                        , latestValidSuccessAt = Just (UTCTime (fromGregorian 2026 6 1) 0)
+                        , freshnessMaximumAge = Just (45 * 24 * 60 * 60)
+                        , annualRequiredOnOrAfter = Nothing
+                        , annualTriggerVenueId = Nothing
+                        }
+            let mailFor snapshot =
+                    WageSourceAlertMail
+                        { recipientAddress = "support-recipient@example.com"
+                        , snapshot
+                        , supportUrl = "https://app.example/Support"
+                        , fromAddress = "noreply@example.com"
+                        , replyToAddress = "support@example.com"
+                        }
+            let failureMail = mailFor failureSnapshot
+            let staleMail = mailFor staleSnapshot
+            let ?context = ?mocking
+            let ?mail = failureMail
+
+            subject `shouldBe` "Fair Work Commission MAPD refresh failed"
+            text failureMail `shouldSatisfy` isInfixOf "Refresh class: timer"
+            text failureMail `shouldSatisfy` isInfixOf "Refresh job ID: 00000000-0000-0000-0000-000000000253"
+            text failureMail `shouldSatisfy` not . isInfixOf "exception"
+            let ?mail = staleMail
+            subject `shouldBe` "DataVic public holidays data is stale"
+            text staleMail `shouldSatisfy` isInfixOf "Affected years: 2025, 2026, 2027"
+            text staleMail `shouldSatisfy` isInfixOf "Open Bepis Support: https://app.example/Support"
 
         it "renders renewal-resumed billing confirmation copy" $ withContext do
             let copy = billingNotificationCopy BillingRenewalResumed "Billing Mail Venue"
