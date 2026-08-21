@@ -399,7 +399,7 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         await expect(page.getByText('Subscription confirmed', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
         await expect(page.getByText('Active', { exact: true })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Check again' })).toHaveCount(0);
-        const replayedAfterReconnect = querySql(`
+        await expect.poll(() => querySql(`
             SELECT EXISTS (
                 SELECT 1
                 FROM pg_stat_activity listener
@@ -412,8 +412,7 @@ test.describe('Billing through the strict local Stripe boundary', () => {
                 ORDER BY event.sequence_number DESC
                 LIMIT 1
             );
-        `).trim();
-        expect(replayedAfterReconnect).toBe('t');
+        `).trim(), { timeout: E2E_TIMEOUT.liveUpdate }).toBe('t');
 
         const duplicateProviderEvent = subscriptionEvent('evt_e2e-subscription_duplicate', 'customer.subscription.updated', 'active');
         await deliverSignedWebhook(page, duplicateProviderEvent);

@@ -526,18 +526,30 @@ test.describe('Roster mobile baseline', () => {
         });
 
         const before = await readMetrics();
+        const waitForStableMetrics = async (matches: (metrics: Awaited<ReturnType<typeof readMetrics>>) => boolean) => {
+            let stableSince: number | null = null;
+            let settledMetrics = await readMetrics();
+            await expect.poll(async () => {
+                settledMetrics = await readMetrics();
+                if (!matches(settledMetrics)) {
+                    stableSince = null;
+                    return false;
+                }
+                stableSince ??= Date.now();
+                return Date.now() - stableSince >= 500;
+            }, { timeout: 10_000, intervals: [50] }).toBe(true);
+            return settledMetrics;
+        };
+
         await closeButton.click();
         await expect(firstColumn.locator('[data-roster-day-closed-toggle="true"]')).toContainText('CLOSED');
-        await expect.poll(async () => (await readMetrics()).headerHeight).toBe(before.headerHeight);
-        const closed = await readMetrics();
+        const closed = await waitForStableMetrics((metrics) => metrics.headerHeight === before.headerHeight);
         await firstColumn.locator('[data-roster-day-closed-toggle="true"]').click();
         await expect(firstColumn.locator('[data-roster-day-closed-toggle="true"] .bi-unlock')).toBeVisible();
-        await expect.poll(async () => {
-            const metrics = await readMetrics();
-            return Math.abs(metrics.slotLeft - before.slotLeft) <= 1
-                && Math.abs(metrics.toggleWidth - before.toggleWidth) <= 1;
-        }).toBe(true);
-        const reopened = await readMetrics();
+        const reopened = await waitForStableMetrics((metrics) =>
+            Math.abs(metrics.slotLeft - before.slotLeft) <= 1
+            && Math.abs(metrics.toggleWidth - before.toggleWidth) <= 1
+        );
 
         expect(closed.headerHeight).toBe(before.headerHeight);
         expect(Math.abs(closed.slotLeft - before.slotLeft)).toBeLessThanOrEqual(60);
