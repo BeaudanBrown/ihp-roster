@@ -3,6 +3,9 @@ module Test.RosterNotificationSpec where
 import Application.Async.Queue (appJobMaxAttempts)
 import Application.Async.Registry (dispatchAppJob)
 import Application.EmailDelivery
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterNotificationStatusResource)
+import Application.Helper.LiveUpdate.DurableCodec (DurableResource (..),
+                                                   encodeDurableResource)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.RosterNotification
 import Config (config)
@@ -288,10 +291,14 @@ tests = aroundAll withDatabaseTestContext do
                 [event] <- query @LiveInvalidationEvent
                     |> filterWhere (#source, "roster.notification.delivery.failed" :: Text)
                     |> fetch
-                query @LiveInvalidationEventResource
+                [eventResource] <- query @LiveInvalidationEventResource
                     |> filterWhere (#eventId, unpackId event.id)
-                    |> fetchCount
-                    `shouldReturn` 1
+                    |> fetch
+                let Right expectedResource =
+                        encodeDurableResource
+                            (rosterNotificationStatusResource run.rosterGroupId run.weekStart run.windowEnd)
+                eventResource.resourceKey `shouldBe` expectedResource.durableResourceKey
+                eventResource.resourcePayload `shouldBe` expectedResource.durableResourcePayload
 
         it "routes production dispatch only through the shared job kind" $ withContext do
             withCleanDb do

@@ -38,8 +38,8 @@ It never projects another staff member's assigned shifts. A recipient with no
 assigned shifts receives explicit copy and still sees Open shifts.
 
 Provider exceptions are rethrown to the shared ten-attempt worker lifecycle.
-Success and disabled delivery use the shared bounded results and invalidate the
-roster notification status resource. UI summaries aggregate the related shared
+Success and disabled delivery use the shared bounded results; those outcomes and
+a terminal shared-email failure invalidate the roster notification status resource. UI summaries aggregate the related shared
 job states; they do not expose provider errors or provide per-recipient retry
 controls. Legacy roster-week ID and offset columns are nullable provenance for
 retained runs, never notification routing authority.
