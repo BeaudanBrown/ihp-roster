@@ -11,7 +11,6 @@ module Application.RosterNotification
     , rosterNotificationMailKind
     , rosterNotificationSnapshotSchemaVersion
     , createRosterNotificationRun
-    , createRosterNotificationRunUnlessActive
     , createRosterNotificationRunForWindow
     , createRosterNotificationRunForWindowUnlessActiveAtRevision
     , fetchRosterNotificationAudience
@@ -216,17 +215,6 @@ instance Aeson.FromJSON RosterNotificationSkippedRecipient where
             <$> object Aeson..: "staffId"
             <*> object Aeson..: "name"
             <*> object Aeson..: "reason"
-
-createRosterNotificationRunUnlessActive ::
-    (?modelContext :: ModelContext) =>
-    User ->
-    RosterWeek ->
-    IO CreateRosterNotificationRunResult
-createRosterNotificationRunUnlessActive actor rosterWeek = do
-    venue <- fetch (Id rosterWeek.venueId :: Id Venue)
-    rosterGroup <- fetch (Id rosterWeek.rosterGroupId :: Id RosterGroup)
-    (windowStart, windowEnd) <- explicitWindowForLegacyRosterWeek rosterWeek
-    createRosterNotificationRunForWindowUnlessActiveWithLegacy actor venue rosterGroup windowStart windowEnd (Just rosterWeek) Nothing
 
 explicitWindowForLegacyRosterWeek :: (?modelContext :: ModelContext) => RosterWeek -> IO (Day, Day)
 explicitWindowForLegacyRosterWeek rosterWeek = do
