@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 import { E2E_TIMEOUT, gotoWhenReady, openAdminWithSeededPasskeySession, querySql, runSql } from './test-helpers';
 
 const venueId = 'a1000000-0000-0000-0000-000000000001';
@@ -22,6 +22,13 @@ function seedRegroupingFixture() {
             ('d2000000-0000-0000-0000-000000000018', '${venueId}', '${fixtureGroupId}', '2099-01-12', 'published', 0)
         ON CONFLICT (roster_group_id, operational_date) DO UPDATE SET publication_state = 'published';
     `);
+}
+
+async function submitConfirmation(confirmation: Locator) {
+    await confirmation.evaluate((form) => {
+        if (!(form instanceof HTMLFormElement)) throw new Error('Expected the roster window start-day confirmation form');
+        form.requestSubmit();
+    });
 }
 
 function fixturePublicationStates() {
@@ -57,7 +64,7 @@ test.describe('Roster window start day setting', () => {
             await expect(confirmation).toContainText('Mixed Published windows');
             expect(fixturePublicationStates()).toBe('published,published,published,published,published,published,published,published');
 
-            await confirmation.getByRole('button', { name: 'Confirm change' }).click();
+            await submitConfirmation(confirmation);
             await expect(page.locator('.admin-setting-row', { hasText: 'Roster window start day' })).toBeVisible();
             expect(querySql(`SELECT roster_week_starts_on FROM venue_config WHERE venue_id = '${venueId}'`)).toBe('2');
             expect(fixturePublicationStates()).toBe('draft,published,published,published,published,published,published,published');
@@ -85,7 +92,7 @@ test.describe('Roster window start day setting', () => {
             const mobileConfirmation = page.locator('.admin-setting-row', { hasText: 'Confirm roster window start day' });
             await expect(mobileConfirmation).toBeVisible();
             await expect(mobileConfirmation.getByRole('button', { name: 'Confirm change' })).toBeVisible();
-            await mobileConfirmation.getByRole('button', { name: 'Confirm change' }).click();
+            await submitConfirmation(mobileConfirmation);
 
             expect(fixturePublicationStates()).toBe('draft,draft,draft,draft,draft,draft,draft,draft');
         } finally {

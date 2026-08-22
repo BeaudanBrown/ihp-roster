@@ -23,7 +23,7 @@ import Application.Helper.LiveUpdate.Runtime (SurfaceSubscription (..),
                                               registerSurfaceSubscriptionWithBus,
                                               surfaceScopeKey)
 import Application.Helper.SurfaceResource (SurfaceResourceValue,
-                                          liveMutationResult)
+                                           liveMutationResult)
 import Control.Concurrent.Async (concurrently, withAsync)
 import Control.Concurrent.Chan (newChan, readChan, writeChan)
 import qualified Control.Exception as Exception

@@ -33,6 +33,19 @@ import Web.FrontController ()
 import Web.Routes
 import Web.Types
 
+startOrResumeCheckout :: (?modelContext :: ModelContext) => StripeClient -> StripeConfig -> Venue -> User -> (Id BillingCheckoutAttempt -> Text) -> (Id BillingCheckoutAttempt -> Text) -> IO CheckoutStartResult
+startOrResumeCheckout stripeClient stripeConfig venue owner =
+    startOrResumeCheckoutForPrincipalWithTransaction
+        (\_ _ action -> withTransaction action)
+        (const (pure ()))
+        stripeClient
+        stripeConfig
+        venue
+        BillingCheckoutPrincipal
+            { billingCheckoutActor = owner
+            , billingCheckoutPayer = owner
+            }
+
 withCapturedLogger :: (FrameworkConfig -> IO value) -> IO (value, Text)
 withCapturedLogger action = do
     capturedRef <- IORef.newIORef []

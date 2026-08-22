@@ -1,4 +1,8 @@
 export const E2E_TIMEOUT = {
+    pollInterval: 50,
+    labelGeometrySettle: 150,
+    rosterGeometrySettle: 300,
+    stableGeometryWindow: 500,
     quick: 1000,
     action: 3000,
     assertion: 5000,

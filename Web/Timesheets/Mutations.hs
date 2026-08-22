@@ -22,7 +22,7 @@ import Application.PayAssignment (ShiftPayAssignment (..),
                                   StaffPayAssignment (..),
                                   shiftAssignmentAllowsTimesheets,
                                   staffAssignmentAllowsTimesheets)
-import Application.RosterPublication.Mutations (withRosterCalendarLock)
+import Application.RosterPublication.Mutations (withRosterCalendarLockInCurrentTransaction)
 import Application.VenueTime.Model
 import Application.WageSourceEnforcement (enforceFinalWageEntries,
                                           renderWageEntryFailures)
@@ -39,7 +39,7 @@ import Network.HTTP.Types.Status (status409)
 import qualified Network.Wai as Wai
 import Web.Controller.Prelude
 import Web.SurfaceInvalidation (withDurableLiveMutation,
-                                 withDurableLiveMutationOutcome)
+                                withDurableLiveMutationOutcome)
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue,
                                        timesheetWeekScopeMatchesConfig)
 import Web.Timesheets.Projection (fetchTimesheetSuggestionForRosterSlot)
@@ -48,7 +48,7 @@ import Web.Timesheets.Validation (resetApprovalOnEdit)
 
 withTimesheetCalendarMutationLock :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> IO value -> IO value
 withTimesheetCalendarMutationLock scope action =
-    withRosterCalendarLock currentVenueId do
+    withRosterCalendarLockInCurrentTransaction currentVenueId do
         venueConfig <- fetchVenueConfig
         if timesheetWeekScopeMatchesConfig venueConfig scope
             then action

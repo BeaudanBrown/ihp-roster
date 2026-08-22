@@ -5,9 +5,9 @@ import qualified Application.Helper.FrontendContract.Surface.Profile.Live as Pro
 import Application.Helper.FrontendContract.Surface.Profile.Resource
 import qualified Application.Helper.FrontendContract.Surface.Roster.Live as RosterLive
 import qualified Application.Helper.FrontendContract.Surface.Roster.Resource as RosterResource
+import Application.Helper.LiveUpdate
 import Application.Helper.LiveUpdate.DurableCodec (DurableResource (..),
                                                    encodeDurableResource)
-import Application.Helper.LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..),
                                                  encodeShiftPreferenceKey,
@@ -18,6 +18,7 @@ import Application.Helper.Url (appendQueryParams)
 import Config
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import Database.PostgreSQL.Simple (Only (..))
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -27,7 +28,6 @@ import IHP.Prelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import Network.Wai
-import Database.PostgreSQL.Simple (Only (..))
 import Test.Hspec
 import Test.Support
 import Web.FrontController ()

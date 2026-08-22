@@ -106,10 +106,10 @@ data LiveUpdateMessage
         , resync         :: !Bool
         }
     | LiveUpdatesInvalidated
-        { scope          :: !SurfaceScope
-        , scopeKey       :: !Text
-        , version        :: !Int
-        , fragments      :: ![SurfaceFragmentKey]
+        { scope     :: !SurfaceScope
+        , scopeKey  :: !Text
+        , version   :: !Int
+        , fragments :: ![SurfaceFragmentKey]
         }
     | LiveUpdatesError
         { message :: !Text

@@ -18,11 +18,11 @@ import Application.Xero.ReferenceSyncJob (acquireXeroReferenceSyncLease,
 import qualified Control.Exception as Exception
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
+import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Job.Types
-import qualified Data.Set as Set
 import Web.SurfaceInvalidation (withDurableLiveMutationOutcomeWithoutContext,
                                 withDurableLiveMutationWithoutContext)
 

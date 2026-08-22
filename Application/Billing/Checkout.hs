@@ -5,8 +5,6 @@ module Application.Billing.Checkout
     , CheckoutStartOutcome (..)
     , CheckoutStartResult (..)
     , checkoutAllowedForSubscription
-    , startOrResumeCheckout
-    , startOrResumeCheckoutForPrincipal
     , startOrResumeCheckoutForPrincipalWithTransaction
     )
 where
@@ -16,7 +14,6 @@ import Application.Billing.Stripe
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (withTransaction)
 
 data BillingCheckoutPrincipal = BillingCheckoutPrincipal
     { billingCheckoutActor :: !User
@@ -39,10 +36,10 @@ data CheckoutStartResult = CheckoutStartResult
 -- | Immutable dependencies for one serialized Checkout operation. The public
 -- boundary constructs this explicitly; internal lifecycle phases share it.
 data CheckoutOperationContext = CheckoutOperationContext
-    { operationStripeClient :: !StripeClient
-    , operationStripeConfig :: !StripeConfig
-    , operationVenue        :: !Venue
-    , operationPrincipal    :: !BillingCheckoutPrincipal
+    { operationStripeClient    :: !StripeClient
+    , operationStripeConfig    :: !StripeConfig
+    , operationVenue           :: !Venue
+    , operationPrincipal       :: !BillingCheckoutPrincipal
     , operationCustomerCreated :: !(VenueBillingCustomer -> IO ())
     }
 
@@ -64,45 +61,6 @@ checkoutAllowedForSubscription :: Maybe VenueSubscription -> Bool
 checkoutAllowedForSubscription Nothing = True
 checkoutAllowedForSubscription (Just subscription) =
     subscription.status `elem` ["canceled", "incomplete_expired"]
-
-startOrResumeCheckout
-    :: (?modelContext :: ModelContext)
-    => StripeClient
-    -> StripeConfig
-    -> Venue
-    -> User
-    -> (Id BillingCheckoutAttempt -> Text)
-    -> (Id BillingCheckoutAttempt -> Text)
-    -> IO CheckoutStartResult
-startOrResumeCheckout stripeClient stripeConfig venue owner =
-    startOrResumeCheckoutForPrincipal
-        stripeClient
-        stripeConfig
-        venue
-        BillingCheckoutPrincipal
-            { billingCheckoutActor = owner
-            , billingCheckoutPayer = owner
-            }
-
-startOrResumeCheckoutForPrincipal
-    :: (?modelContext :: ModelContext)
-    => StripeClient
-    -> StripeConfig
-    -> Venue
-    -> BillingCheckoutPrincipal
-    -> (Id BillingCheckoutAttempt -> Text)
-    -> (Id BillingCheckoutAttempt -> Text)
-    -> IO CheckoutStartResult
-startOrResumeCheckoutForPrincipal stripeClient stripeConfig venue principal successUrlFor cancelUrlFor =
-    startOrResumeCheckoutForPrincipalWithTransaction
-        (\_ _ action -> withTransaction action)
-        (const (pure ()))
-        stripeClient
-        stripeConfig
-        venue
-        principal
-        successUrlFor
-        cancelUrlFor
 
 startOrResumeCheckoutForPrincipalWithTransaction
     :: (?modelContext :: ModelContext)

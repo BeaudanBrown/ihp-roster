@@ -22,7 +22,7 @@ import Application.Helper.SurfaceResource (LiveMutationResult (..),
                                            liveMutationResult)
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Application.RosterPublication (rosterDaysArePublished)
-import Application.RosterPublication.Mutations (withRosterWindowDateLock)
+import Application.RosterPublication.Mutations (withRosterWindowDateLockInCurrentTransaction)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           applyRosterShiftAssignment)
 import Application.RosterTemplates
@@ -104,7 +104,7 @@ applyRosterTemplateApplicationInCurrentTransaction ::
     Int ->
     IO (Either RosterTemplateApplicationError RosterTemplateApplicationResult)
 applyRosterTemplateApplicationInCurrentTransaction actor request expectedVersion expectedTargetRevision expectedCalendarRevision =
-    withRosterWindowDateLock
+    withRosterWindowDateLockInCurrentTransaction
         (rosterTemplateActorVenueId actor)
         request.applicationTargetRosterGroupId
         request.applicationTargetWindowStart

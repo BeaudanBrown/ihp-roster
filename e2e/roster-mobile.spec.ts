@@ -4,6 +4,7 @@ import {
     rosterColumnEditStartDomAttr,
     toggleRootDomAttr,
 } from '../frontend/ts/generated/contracts';
+import { E2E_TIMEOUT } from './timeouts';
 import {
     ensureRosterLayout,
     expectContainerToManageHorizontalOverflow,
@@ -26,24 +27,29 @@ async function ensureAtLeastTwoRosterColumns(page: Page) {
         return Number.parseInt(getComputedStyle(element).getPropertyValue('--roster-slot-count'), 10) || 1;
     });
 
-    if (slotCount > 1) return;
+    if (slotCount <= 1) {
+        await frame.locator(`[${rosterColumnEditStartDomAttr}="true"]`).click();
+        await expect(page.getByRole('button', { name: 'Add roster column' })).toBeVisible();
 
-    await frame.locator(`[${rosterColumnEditStartDomAttr}="true"]`).click();
-    await expect(page.getByRole('button', { name: 'Add roster column' })).toBeVisible();
-
-    const createResponsePromise = page.waitForResponse((response) => {
-        return response.request().method() === 'POST' && response.url().includes('/CreateRosterWeekSlotDefinition');
-    });
-    await page.getByRole('button', { name: 'Add roster column' }).click();
-    const createResponse = await createResponsePromise;
-    expect(createResponse.status(), await createResponse.text()).toBe(200);
+        const createResponsePromise = page.waitForResponse((response) => {
+            return response.request().method() === 'POST' && response.url().includes('/CreateRosterWeekSlotDefinition');
+        });
+        await page.getByRole('button', { name: 'Add roster column' }).click();
+        const createResponse = await createResponsePromise;
+        expect(createResponse.status(), await createResponse.text()).toBe(200);
+    }
 
     await expect.poll(async () => {
-        return slotScroller.evaluate((element) => {
-            if (!(element instanceof HTMLElement)) return 1;
-            return Number.parseInt(getComputedStyle(element).getPropertyValue('--roster-slot-count'), 10) || 1;
-        });
-    }).toBeGreaterThan(1);
+        return slotScroller.evaluate(async (element, settleMs) => {
+            if (!(element instanceof HTMLElement)) return false;
+            await new Promise((resolve) => window.setTimeout(resolve, settleMs));
+            const currentSlotCount = Number.parseInt(getComputedStyle(element).getPropertyValue('--roster-slot-count'), 10) || 1;
+            return element.isConnected
+                && currentSlotCount > 1
+                && element.clientWidth > 0
+                && element.scrollWidth > element.clientWidth;
+        }, E2E_TIMEOUT.rosterGeometrySettle);
+    }).toBe(true);
 }
 
 test.describe('Roster mobile baseline', () => {
@@ -536,8 +542,8 @@ test.describe('Roster mobile baseline', () => {
                     return false;
                 }
                 stableSince ??= Date.now();
-                return Date.now() - stableSince >= 500;
-            }, { timeout: 10_000, intervals: [50] }).toBe(true);
+                return Date.now() - stableSince >= E2E_TIMEOUT.stableGeometryWindow;
+            }, { timeout: E2E_TIMEOUT.navigation, intervals: [E2E_TIMEOUT.pollInterval] }).toBe(true);
             return settledMetrics;
         };
 

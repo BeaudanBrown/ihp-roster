@@ -51,7 +51,7 @@ import Data.UUID (UUID)
 import Web.Controller.Prelude
 import Web.RosterWeeks.SurfaceInvalidation (activeRosterResourcesForStaffGroups)
 import Web.SurfaceInvalidation (withDurableLiveMutation,
-                                 withDurableLiveMutationOutcome)
+                                withDurableLiveMutationOutcome)
 
 staffXeroPayItemScopeChanged :: Staff -> Staff -> Bool
 staffXeroPayItemScopeChanged oldStaff newStaff =

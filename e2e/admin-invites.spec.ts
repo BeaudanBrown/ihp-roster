@@ -28,7 +28,10 @@ function inviteRow(page: Page, email: string) {
 }
 
 async function submitInviteCreateForm(page: Page) {
-    await page.locator('#admin-invites-fragment form').getByRole('button', { name: 'Send' }).click();
+    await page.locator('#admin-invites-fragment form').evaluate((form) => {
+        if (!(form instanceof HTMLFormElement)) throw new Error('Expected the invite form');
+        form.requestSubmit();
+    });
 }
 
 async function fillRequiredInviteeStaffDetails(page: Page) {

@@ -1,10 +1,8 @@
 module Application.Billing.Webhook
     ( BillingWebhookResult (..)
     , StripeWebhookEvent (..)
-    , handleStripeWebhookPayload
     , handleStripeWebhookPayloadInCurrentTransaction
     , parseStripeWebhookEvent
-    , processStripeWebhookEvent
     )
 where
 
@@ -171,12 +169,6 @@ parseStripeWebhookEvent rawBody =
         Left err    -> Left ("Unable to decode Stripe webhook event: " <> cs err)
         Right event -> Right event
 
-handleStripeWebhookPayload :: (?modelContext :: ModelContext) => StripeMode -> LByteString.ByteString -> IO (Either Text BillingWebhookResult)
-handleStripeWebhookPayload expectedMode rawBody =
-    case parseStripeWebhookEvent rawBody >>= validateStripeWebhookContract expectedMode of
-        Left err    -> pure (Left err)
-        Right event -> Right <$> processStripeWebhookEvent event
-
 handleStripeWebhookPayloadInCurrentTransaction :: (?modelContext :: ModelContext) => StripeMode -> LByteString.ByteString -> IO (Either Text BillingWebhookResult)
 handleStripeWebhookPayloadInCurrentTransaction expectedMode rawBody =
     case parseStripeWebhookEvent rawBody >>= validateStripeWebhookContract expectedMode of
@@ -224,10 +216,6 @@ stripeWebhookEventContract eventType
 -- Every durable webhook effect is part of this transaction. In particular, do
 -- not turn a supported-event exception into a failed event row: Stripe must see
 -- a non-success response and retry the whole event instead.
-processStripeWebhookEvent :: (?modelContext :: ModelContext) => StripeWebhookEvent -> IO BillingWebhookResult
-processStripeWebhookEvent event =
-    withTransaction (processStripeWebhookEventInCurrentTransaction event)
-
 processStripeWebhookEventInCurrentTransaction :: (?modelContext :: ModelContext) => StripeWebhookEvent -> IO BillingWebhookResult
 processStripeWebhookEventInCurrentTransaction event = do
         lockStripeEventForWebhook event.stripeEventId

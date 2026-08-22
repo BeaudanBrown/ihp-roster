@@ -27,7 +27,7 @@ import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWindowScopes)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource
 import Application.Helper.SurfaceResource
-import Application.RosterPublication.Mutations (withRosterWindowDateLock)
+import Application.RosterPublication.Mutations (withRosterWindowDateLockInCurrentTransaction)
 import Application.Staff.Mutations (withStaffOperationalLocksInCurrentTransaction)
 import Application.VenueTime.Model (ShiftCopyOccurrenceSelections)
 import Control.Monad (guard, void)
@@ -169,7 +169,7 @@ toggleRosterWeekLiveStatusMutation scope rosterWeek nextLiveStatus =
 
 withRosterWindowMutationLock :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO value -> IO value
 withRosterWindowMutationLock scope =
-    withRosterWindowDateLock
+    withRosterWindowDateLockInCurrentTransaction
         scope.rosterWindowVenueId
         scope.rosterWindowRosterGroupId
         scope.rosterWindowStart

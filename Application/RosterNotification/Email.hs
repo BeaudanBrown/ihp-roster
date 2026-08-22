@@ -2,22 +2,20 @@ module Application.RosterNotification.Email
     ( RosterNotificationMailProjection (..)
     , isRosterNotificationMailKind
     , loadRosterNotificationMail
-    , publishRosterNotificationStatusResource
+    , rosterNotificationStatusResources
     , rosterNotificationMailKind
     ) where
 
+import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)
 import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterNotificationStatusResource)
 import Application.Helper.Mail
-import Application.Helper.SurfaceResource (liveMutationResult)
 import Application.RosterNotification
-import Control.Monad (void)
 import Data.List (find)
 import Data.Time.Calendar (addDays)
 import Generated.Types
 import IHP.ControllerPrelude
 import Web.Mail.RosterNotification
 import Web.RosterWeeks.Paths (rosterWindowUrl)
-import Web.SurfaceInvalidation (publishTouchedResourcesWithoutContext)
 
 isRosterNotificationMailKind :: Text -> Bool
 isRosterNotificationMailKind = (== rosterNotificationMailKind)
@@ -81,16 +79,13 @@ validateRecipient recipientAccountId recipientAddress recipients =
             | recipient.recipientEmail == recipientAddress -> pure recipient
         _ -> fail "Roster notification recipient does not match the immutable run snapshot"
 
-publishRosterNotificationStatusResource ::
+rosterNotificationStatusResources ::
     (?modelContext :: ModelContext) =>
-    Text ->
     UUID ->
-    IO ()
-publishRosterNotificationStatusResource label runId = do
+    IO [SurfaceResourceValue]
+rosterNotificationStatusResources runId = do
     maybeRun <- query @RosterNotificationRun
         |> filterWhere (#id, Id runId)
         |> fetchOneOrNothing
-    forM_ maybeRun \run ->
-        void $
-            publishTouchedResourcesWithoutContext label $
-                liveMutationResult () [rosterNotificationStatusResource run.rosterGroupId run.weekStart run.windowEnd]
+    pure $
+        maybe [] (\run -> [rosterNotificationStatusResource run.rosterGroupId run.weekStart run.windowEnd]) maybeRun

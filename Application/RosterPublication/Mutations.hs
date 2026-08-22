@@ -1,7 +1,9 @@
 module Application.RosterPublication.Mutations
     ( normalizePublishedRosterWindows
     , withRosterCalendarLock
+    , withRosterCalendarLockInCurrentTransaction
     , withRosterWindowDateLock
+    , withRosterWindowDateLockInCurrentTransaction
     ) where
 
 import qualified Database.PostgreSQL.Simple as PG
@@ -33,16 +35,23 @@ normalizePublishedRosterWindows venueId rosterWeekStartsOn =
 
 withRosterCalendarLock :: (?modelContext :: ModelContext) => Id Venue -> IO value -> IO value
 withRosterCalendarLock venueId action =
-    withTransaction do
-        let lockKey = "roster-calendar:" <> tshow venueId
-        _ :: Bool <- sqlQueryScalar
-            "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS roster_calendar_lock"
-            (PG.Only lockKey)
-        action
+    withTransaction (withRosterCalendarLockInCurrentTransaction venueId action)
+
+withRosterCalendarLockInCurrentTransaction :: (?modelContext :: ModelContext) => Id Venue -> IO value -> IO value
+withRosterCalendarLockInCurrentTransaction venueId action = do
+    let lockKey = "roster-calendar:" <> tshow venueId
+    _ :: Bool <- sqlQueryScalar
+        "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS roster_calendar_lock"
+        (PG.Only lockKey)
+    action
 
 withRosterWindowDateLock :: (?modelContext :: ModelContext) => Id Venue -> Id RosterGroup -> Day -> Day -> IO value -> IO value
 withRosterWindowDateLock venueId rosterGroupId windowStart windowEnd action =
-    withRosterCalendarLock venueId do
+    withTransaction (withRosterWindowDateLockInCurrentTransaction venueId rosterGroupId windowStart windowEnd action)
+
+withRosterWindowDateLockInCurrentTransaction :: (?modelContext :: ModelContext) => Id Venue -> Id RosterGroup -> Day -> Day -> IO value -> IO value
+withRosterWindowDateLockInCurrentTransaction venueId rosterGroupId windowStart windowEnd action =
+    withRosterCalendarLockInCurrentTransaction venueId do
         let lockKey = "roster-window-date:" <> tshow venueId <> ":" <> tshow rosterGroupId <> ":" <> tshow windowStart <> ":" <> tshow windowEnd
         _ :: Bool <- sqlQueryScalar
             "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS roster_window_date_lock"

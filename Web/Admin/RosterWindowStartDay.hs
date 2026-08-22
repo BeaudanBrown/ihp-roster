@@ -14,11 +14,12 @@ import Application.Helper.RosterOffsetCompatibility (applyLegacyWeekOffsetEpoch)
 import Application.Helper.SurfaceResource
 import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.RosterPublication.Mutations (normalizePublishedRosterWindows,
-                                                withRosterCalendarLock)
+                                                withRosterCalendarLock,
+                                                withRosterCalendarLockInCurrentTransaction)
 import qualified Data.Map.Strict as Map
 import Generated.Types
 import Web.Controller.Prelude
-import Web.SurfaceInvalidation (invalidateTouchedResources)
+import Web.SurfaceInvalidation (withDurableLiveMutationOutcome)
 
 data RosterWindowStartDayImpact = RosterWindowStartDayImpact
     { currentRosterWindowStartDay  :: !Int
@@ -53,27 +54,25 @@ confirmRosterWindowStartDayMutation ::
 confirmRosterWindowStartDayMutation submittedConfig expectedImpact
     | submittedConfig.venueId /= unpackId currentVenueId = pure (Left "Choose settings from the current venue.")
     | not (validRosterWindowStartDay expectedImpact.proposedRosterWindowStartDay) = pure (Left "Choose a valid roster window start day.")
-    | otherwise = do
-        outcome <- withRosterCalendarLock currentVenueId do
-            currentConfig <- fetch submittedConfig.id
-            if currentConfig.rosterCalendarRevision /= expectedImpact.rosterCalendarRevision
-                || currentStartDay currentConfig /= expectedImpact.currentRosterWindowStartDay
-                then pure (Left staleCalendarMessage)
-                else do
-                    currentImpact <- calculateRosterWindowStartDayImpact currentConfig expectedImpact.proposedRosterWindowStartDay
-                    if currentImpact /= expectedImpact
-                        then pure (Left staleImpactMessage)
-                        else do
-                            updated <- applyRosterWindowStartDay currentConfig expectedImpact.proposedRosterWindowStartDay
-                            pure (Right updated)
-        case outcome of
-            Left message -> pure (Left message)
-            Right updated ->
-                Right <$> invalidateTouchedResources
-                    "admin.venue_config.roster_window_start_day"
-                    (liveMutationResult updated (rosterWeekStartsOnTouchedResources currentVenueId))
+    | otherwise =
+        withDurableLiveMutationOutcome publicationFor do
+            outcome <- withRosterCalendarLockInCurrentTransaction currentVenueId do
+                currentConfig <- fetch submittedConfig.id
+                if currentConfig.rosterCalendarRevision /= expectedImpact.rosterCalendarRevision
+                    || currentStartDay currentConfig /= expectedImpact.currentRosterWindowStartDay
+                    then pure (Left staleCalendarMessage)
+                    else do
+                        currentImpact <- calculateRosterWindowStartDayImpact currentConfig expectedImpact.proposedRosterWindowStartDay
+                        if currentImpact /= expectedImpact
+                            then pure (Left staleImpactMessage)
+                            else do
+                                updated <- applyRosterWindowStartDay currentConfig expectedImpact.proposedRosterWindowStartDay
+                                pure (Right updated)
+            pure (fmap (\updated -> liveMutationResult updated resources) outcome)
   where
     currentStartDay config = config.rosterWeekStartsOn
+    resources = rosterWeekStartsOnTouchedResources currentVenueId
+    publicationFor = either (const Nothing) (\result -> Just ("admin.venue_config.roster_window_start_day", result.liveMutationTouchedResources))
 
 calculateRosterWindowStartDayImpact ::
     (?modelContext :: ModelContext) =>

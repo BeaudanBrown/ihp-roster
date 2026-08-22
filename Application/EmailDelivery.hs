@@ -21,17 +21,20 @@ import Application.EmailDelivery.Enqueue
 import Application.Feedback.Email (feedbackSubmittedMailKind,
                                    loadFeedbackNotificationMail)
 import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
+import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
 import Application.Helper.Mail
+import Application.Helper.SurfaceResource (liveMutationResult)
 import Application.InvitationDelivery.Email
 import Application.InvitationDelivery.Types
 import Application.RosterNotification.Email
 import Application.StaffDocuments.Rsa.Email
-import Application.VenueInvitation.Mutations (withVenueInvitationLock)
+import Application.VenueInvitation.Mutations (withVenueInvitationLockInCurrentTransaction)
 import Application.VenueOnboardingInvitation.Mutations (withVenueOnboardingInvitationLock)
 import Application.WageSourceAlert.Email
 import Application.WageSourceNotification.Email
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
+import qualified Data.Set as Set
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.EnvVar (envOrDefault)
@@ -40,6 +43,8 @@ import IHP.Job.Types (JobStatus (JobStatusSucceeded))
 import IHP.Mail (sendMail)
 import IHP.MailPrelude (BuildMail)
 import IHP.ModelSupport (withTransaction)
+import Web.SurfaceInvalidation (withDurableLiveMutationOutcomeWithoutContext,
+                                withDurableLiveMutationWithoutContext)
 
 data EmailDeliveryPayload = EmailDeliveryPayload
     { payloadMailKind           :: !Text
@@ -318,25 +323,30 @@ performVenueInvitationPayload ::
     IO ()
 performVenueInvitationPayload deliverMail deliveryStatus appJob payload settings appBaseUrl = do
     validateRelatedTable appJob "venue_invitations" payload.payloadDomainReferenceId
-    lockedResult <- withVenueInvitationLock payload.payloadDomainReferenceId do
-        projection <-
-            loadVenueInvitationMail
-                payload.payloadRecipientAccountId
-                payload.payloadRecipientAddress
-                payload.payloadDomainReferenceId
-                appJob.venueId
-                settings
-                appBaseUrl
-        case projection of
-            VenueInvitationMailSkipped reason ->
-                completeEmailDelivery appJob payload "delivery_skipped" (Just reason)
-            VenueInvitationMailReady mail -> do
-                deliverMail mail
-                void (completeVenueInvitationEmail payload.payloadDomainReferenceId)
-                completeEmailDelivery appJob payload deliveryStatus Nothing
+    lockedResult <-
+        withDurableLiveMutationOutcomeWithoutContext publicationFor $
+            withVenueInvitationLockInCurrentTransaction payload.payloadDomainReferenceId do
+                projection <-
+                    loadVenueInvitationMail
+                        payload.payloadRecipientAccountId
+                        payload.payloadRecipientAddress
+                        payload.payloadDomainReferenceId
+                        appJob.venueId
+                        settings
+                        appBaseUrl
+                case projection of
+                    VenueInvitationMailSkipped reason ->
+                        completeEmailDelivery appJob payload "delivery_skipped" (Just reason)
+                    VenueInvitationMailReady mail -> do
+                        deliverMail mail
+                        void (completeVenueInvitationEmail payload.payloadDomainReferenceId)
+                        completeEmailDelivery appJob payload deliveryStatus Nothing
+                invitation <- fetch (Id payload.payloadDomainReferenceId :: Id VenueInvitation)
+                pure invitation.venueId
     when (isNothing lockedResult) $
         completeEmailDelivery appJob payload "delivery_skipped" (Just "domain_reference_missing")
-    publishVenueInvitationDeliveryStatus payload.payloadDomainReferenceId
+  where
+    publicationFor = fmap (\venueId -> ("admin.invites.delivery", Set.singleton (adminInvitesResource venueId)))
 
 performVenueOnboardingInvitationPayload ::
     (?modelContext :: ModelContext) =>
@@ -383,14 +393,25 @@ handleEmailDeliveryFailureAfterFinalAttempt appJob
                 Aeson.Success payload -> do
                     when (isAccountSecurityMailKind payload.payloadMailKind) $
                         completeAccountSecurityEmail payload.payloadMailKind payload.payloadDomainReferenceId
-                    when (isInvitationMailKind payload.payloadMailKind) do
-                        markInvitationDeliveryFailed payload.payloadMailKind payload.payloadDomainReferenceId
-                        when (payload.payloadMailKind == venueInvitationMailKind) $
-                            publishVenueInvitationDeliveryStatus payload.payloadDomainReferenceId
+                    if payload.payloadMailKind == venueInvitationMailKind
+                        then do
+                            void $
+                                withDurableLiveMutationOutcomeWithoutContext invitationFailurePublication do
+                                    markInvitationDeliveryFailed payload.payloadMailKind payload.payloadDomainReferenceId
+                                    query @VenueInvitation
+                                        |> filterWhere (#id, Id payload.payloadDomainReferenceId)
+                                        |> fetchOneOrNothing
+                        else when (payload.payloadMailKind == venueOnboardingInvitationMailKind) $
+                            markInvitationDeliveryFailed payload.payloadMailKind payload.payloadDomainReferenceId
                     when (isRosterNotificationMailKind payload.payloadMailKind) $
-                        publishRosterNotificationStatusResource
-                            "roster.notification.delivery.failed"
-                            payload.payloadDomainReferenceId
+                        void $
+                            withDurableLiveMutationOutcomeWithoutContext rosterFailurePublication $
+                                rosterNotificationStatusResources payload.payloadDomainReferenceId
+  where
+    invitationFailurePublication = fmap (\invitation -> ("admin.invites.delivery", Set.singleton (adminInvitesResource invitation.venueId)))
+    rosterFailurePublication resources
+        | null resources = Nothing
+        | otherwise = Just ("roster.notification.delivery.failed", Set.fromList resources)
 
 completeRosterNotificationDelivery ::
     (?modelContext :: ModelContext) =>
@@ -398,11 +419,12 @@ completeRosterNotificationDelivery ::
     EmailDeliveryPayload ->
     Text ->
     IO ()
-completeRosterNotificationDelivery appJob payload deliveryStatus = do
-    completeEmailDelivery appJob payload deliveryStatus Nothing
-    publishRosterNotificationStatusResource
-        "roster.notification.delivery.complete"
-        payload.payloadDomainReferenceId
+completeRosterNotificationDelivery appJob payload deliveryStatus =
+    void $
+        withDurableLiveMutationWithoutContext "roster.notification.delivery.complete" do
+            completeEmailDelivery appJob payload deliveryStatus Nothing
+            resources <- rosterNotificationStatusResources payload.payloadDomainReferenceId
+            pure (liveMutationResult () resources)
 
 completeRsaReminderEmail ::
     (?modelContext :: ModelContext) =>

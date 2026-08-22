@@ -70,10 +70,10 @@ data LiveUpdateMessage
         , resync         :: !Bool
         }
     | Invalidate
-        { scope          :: !SurfaceScope
-        , scopeKey       :: !Text
-        , version        :: !Int
-        , fragments      :: ![SurfaceFragmentKey]
+        { scope     :: !SurfaceScope
+        , scopeKey  :: !Text
+        , version   :: !Int
+        , fragments :: ![SurfaceFragmentKey]
         }
     | Error
         { message :: !Text

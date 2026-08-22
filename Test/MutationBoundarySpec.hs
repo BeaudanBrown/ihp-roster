@@ -209,7 +209,7 @@ tests = describe "Mutation boundary guard" do
             , "Web/Staff/Mutations.hs"
             , "Web/StaffDocuments/Mutations.hs"
             , "Web/Timesheets/Mutations.hs"
-            , "Application/RosterNotification/Delivery.hs"
+            , "Application/RosterNotification/Email.hs"
             ]
         let forbiddenTokens =
                 [ "invalidateTouchedResources"
@@ -222,14 +222,16 @@ tests = describe "Mutation boundary guard" do
     it "keeps admin, billing, integration, export, and support producers off sequential live publication" do
         sources <- mapM Text.readFile
             [ "Web/Admin/Mutations.hs"
+            , "Web/Admin/RosterWindowStartDay.hs"
             , "Web/Admin/Xero/Mutations.hs"
             , "Web/Billing/Mutations.hs"
             , "Web/Controller/StripeWebhooks.hs"
             , "Web/Controller/Support.hs"
             , "Web/Exports/Mutations.hs"
             , "Application/Billing/Reconciliation.hs"
+            , "Application/EmailDelivery.hs"
             , "Application/FwcMapd/Job.hs"
-            , "Application/InvitationDelivery/Job.hs"
+            , "Application/InvitationDelivery/Email.hs"
             , "Application/PublicHolidays/Job.hs"
             , "Application/Xero/Keepalive.hs"
             , "Application/Xero/ReferenceSyncJob.hs"

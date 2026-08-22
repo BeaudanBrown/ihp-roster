@@ -53,6 +53,10 @@ performBillingNotificationJob =
             , deliverMail = \_ -> pure ()
             }
 
+handleStripeWebhookPayload :: (?modelContext :: ModelContext) => StripeMode -> LByteString.ByteString -> IO (Either Text BillingWebhookResult)
+handleStripeWebhookPayload expectedMode rawBody =
+    withTransaction (handleStripeWebhookPayloadInCurrentTransaction expectedMode rawBody)
+
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "BillingWebhook" do

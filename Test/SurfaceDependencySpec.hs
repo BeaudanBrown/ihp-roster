@@ -360,7 +360,7 @@ tests = do
             let rosterDayUuid = fromWords 17 0 0 0
             let rosterGroupId = Id rosterGroupUuid :: Id RosterGroup
             let rosterDayId = Id rosterDayUuid :: Id RosterDay
-            let scopeValue = RosterWeekScopeValue venueId rosterGroupId 4 Nothing
+            let scopeValue = rosterScopeValue venueId rosterGroupId 4
             let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0)], rosterMountedTemplateUserId = Nothing }
             let resources = Set.singleton (rosterGroupStaffResource rosterGroupUuid)
 

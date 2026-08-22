@@ -35,8 +35,8 @@
       },
       {
         "path": "Application/Helper/FrontendContract/Surface/Roster/TemplateApplication.hi",
-        "bytes_max": 37748736,
-        "reason": "GHC 9.10 retains typed Roster template-application evidence required by runtime rendering"
+        "bytes_max": 38797312,
+        "reason": "GHC 9.10 retains typed dated Roster template-application and roster-group staff dependency evidence required by runtime rendering; epic #383 measured 37,756,523 bytes after the durable/date-native staging reconciliation"
       },
       {
         "path": "Application/Helper/FrontendContract/Surface/Roster/Resource.hi",

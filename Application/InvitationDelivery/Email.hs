@@ -6,23 +6,19 @@ module Application.InvitationDelivery.Email
     , loadVenueInvitationMail
     , loadVenueOnboardingInvitationMail
     , markInvitationDeliveryFailed
-    , publishVenueInvitationDeliveryStatus
     ) where
 
-import Application.Helper.FrontendContract.Surface.Admin.Resource (adminInvitesResource)
 import Application.Helper.Mail
-import Application.Helper.SurfaceResource
 import Application.Helper.VenueInvitation
 import Application.Helper.VenueOnboardingInvitation
 import Application.InvitationDelivery.Types
-import Application.VenueInvitation.Mutations (withVenueInvitationLock)
+import Application.VenueInvitation.Mutations (withVenueInvitationLockInCurrentTransaction)
 import Application.VenueOnboardingInvitation.Mutations (withVenueOnboardingInvitationLock)
 import Control.Monad (void)
 import Generated.Types
 import IHP.ControllerPrelude
 import Web.Mail.Users.VenueInvitation
 import Web.Mail.Users.VenueOnboardingInvitation
-import Web.SurfaceInvalidation (publishTouchedResourcesWithoutContext)
 
 data VenueInvitationMailProjection
     = VenueInvitationMailSkipped !Text
@@ -132,7 +128,7 @@ markInvitationDeliveryFailed ::
     IO ()
 markInvitationDeliveryFailed mailKind invitationId
     | mailKind == venueInvitationMailKind =
-        void $ withVenueInvitationLock invitationId do
+        void $ withVenueInvitationLockInCurrentTransaction invitationId do
             invitation <- fetch (Id invitationId :: Id VenueInvitation)
             now <- getCurrentTime
             when (isNothing (invitationSkipReason now invitation)) $
@@ -152,19 +148,6 @@ markInvitationDeliveryFailed mailKind invitationId
                         |> set #deliveryError (Just "Email delivery failed after ten attempts.")
                         |> updateRecord
     | otherwise = pure ()
-
-publishVenueInvitationDeliveryStatus ::
-    (?modelContext :: ModelContext) =>
-    UUID ->
-    IO ()
-publishVenueInvitationDeliveryStatus invitationId = do
-    maybeInvitation <- query @VenueInvitation
-        |> filterWhere (#id, Id invitationId)
-        |> fetchOneOrNothing
-    forM_ maybeInvitation \invitation ->
-        void $
-            publishTouchedResourcesWithoutContext "admin.invites.delivery" $
-                liveMutationResult invitation [adminInvitesResource invitation.venueId]
 
 invitationSkipReason :: UTCTime -> VenueInvitation -> Maybe Text
 invitationSkipReason now invitation
