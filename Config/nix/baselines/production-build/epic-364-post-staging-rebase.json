@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "status": "inspected",
-  "captured_at": "2026-08-22T06:13:23.996Z",
+  "status": "succeeded",
+  "captured_at": "2026-08-22T06:22:01.279Z",
   "builder": {
     "hostname": "grill",
     "system": "x86_64-linux",
@@ -14,19 +14,19 @@
       "configured_max_jobs": 12,
       "configured_builders": "@/etc/nix/machines",
       "sandbox": true,
-      "profile_forced_local": false,
-      "profile_max_jobs": 0
+      "profile_forced_local": true,
+      "profile_max_jobs": 1
     }
   },
   "revision": {
-    "commit": "af59fd8ec7d1594510ed659ea8159da1a97856c6",
+    "commit": "79b6f2c8bc1dbb525ace018e10c2743eff6ad299",
     "dirty": false
   },
   "derivations": {
-    "production": "/nix/store/sdg6bf4ihyali0xj6m2xhsfm4623ixyg-app.drv",
-    "app_library": "/nix/store/5fb6zz17bmmjyqafyh0f5129wgvngkjd-app-lib-0.1.0.drv",
-    "app_library_output": "/nix/store/8877m1dlmakp7b4157wa8lz7fg6c0mby-app-lib-0.1.0",
-    "app_library_source": "/nix/store/pvw3gpj2wk31pbid83dcj9s5bi5srhpk-app-lib-src",
+    "production": "/nix/store/0xdr8w6k5362jkajv2r9mypgs5ipnx5g-app.drv",
+    "app_library": "/nix/store/iffz8psfi02r4fx31hq19vwz2mp5wjwn-app-lib-0.1.0.drv",
+    "app_library_output": "/nix/store/wcz52j5vmiakbhz7qq6f6slnb1sbrj2v-app-lib-0.1.0",
+    "app_library_source": "/nix/store/rdm0sfjdc4zggh1qha80nkym785qbgw4-app-lib-src",
     "direct_input_count": 30
   },
   "configuration": {
@@ -40,37 +40,46 @@
     "ghc_heap_allocation_area": "64M"
   },
   "build": {
-    "forced_clean": false,
-    "output_was_present": true,
+    "forced_clean": true,
+    "output_was_present": false,
     "nix_rebuild_check": false,
     "cores": 12,
-    "wall_seconds": 0,
-    "cpu_seconds": 0,
-    "command": [],
+    "wall_seconds": 254.110529366,
+    "cpu_seconds": 1207.58,
+    "command": [
+      "build",
+      "/nix/store/iffz8psfi02r4fx31hq19vwz2mp5wjwn-app-lib-0.1.0.drv^out",
+      "--no-link",
+      "--max-jobs",
+      "1",
+      "--cores",
+      "12",
+      "--print-build-logs"
+    ],
     "exit_status": 0,
     "rebuilt_output_differs": false
   },
   "memory": {
-    "builder_process_peak_rss_bytes": null,
-    "nix_daemon_cgroup_start_bytes": null,
-    "nix_daemon_cgroup_peak_bytes": null,
-    "nix_daemon_cgroup_peak_growth_bytes": null,
-    "swap_start_bytes": null,
-    "swap_end_bytes": null,
-    "swap_delta_bytes": null,
-    "cpu_seconds": 0,
-    "samples": 0
+    "builder_process_peak_rss_bytes": 25311150080,
+    "nix_daemon_cgroup_start_bytes": 17402462208,
+    "nix_daemon_cgroup_peak_bytes": 35454738432,
+    "nix_daemon_cgroup_peak_growth_bytes": 18052276224,
+    "swap_start_bytes": 33960697856,
+    "swap_end_bytes": 34358784000,
+    "swap_delta_bytes": 398086144,
+    "cpu_seconds": 1207.58,
+    "samples": 510
   },
   "app_library": {
     "module_count": 523,
-    "self_size_bytes": 778338861,
-    "allocated_size_bytes": 779472896,
-    "nar_size_bytes": 778463424,
-    "closure_size_bytes": 6710130080,
+    "self_size_bytes": 778342285,
+    "allocated_size_bytes": 779476992,
+    "nar_size_bytes": 778466840,
+    "closure_size_bytes": 6710133496,
     "artifacts": {
       ".a": {
         "count": 1,
-        "bytes": 159615248
+        "bytes": 159618672
       },
       ".conf": {
         "count": 1,
