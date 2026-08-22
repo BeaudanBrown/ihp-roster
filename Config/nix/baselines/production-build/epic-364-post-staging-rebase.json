@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "status": "inspected",
-  "captured_at": "2026-08-21T13:45:24.765Z",
+  "captured_at": "2026-08-22T06:13:23.996Z",
   "builder": {
     "hostname": "grill",
     "system": "x86_64-linux",
@@ -19,14 +19,14 @@
     }
   },
   "revision": {
-    "commit": "e1e657e8b2f842a24d55380bc7522438e47b30af",
+    "commit": "af59fd8ec7d1594510ed659ea8159da1a97856c6",
     "dirty": false
   },
   "derivations": {
-    "production": "/nix/store/c4sa6ihgam9mr1chk78qxqfw35qv0sm1-app.drv",
-    "app_library": "/nix/store/861afr6gwyp7c8n01a94g5rpq2mavbml-app-lib-0.1.0.drv",
-    "app_library_output": "/nix/store/nilsl42k56k10k870xiz8y39qchhgyib-app-lib-0.1.0",
-    "app_library_source": "/nix/store/kskby6kf3ib0lhabv78amkngmc0sg8cj-app-lib-src",
+    "production": "/nix/store/sdg6bf4ihyali0xj6m2xhsfm4623ixyg-app.drv",
+    "app_library": "/nix/store/5fb6zz17bmmjyqafyh0f5129wgvngkjd-app-lib-0.1.0.drv",
+    "app_library_output": "/nix/store/8877m1dlmakp7b4157wa8lz7fg6c0mby-app-lib-0.1.0",
+    "app_library_source": "/nix/store/pvw3gpj2wk31pbid83dcj9s5bi5srhpk-app-lib-src",
     "direct_input_count": 30
   },
   "configuration": {
@@ -62,23 +62,23 @@
     "samples": 0
   },
   "app_library": {
-    "module_count": 507,
-    "self_size_bytes": 776152693,
-    "allocated_size_bytes": 777256960,
-    "nar_size_bytes": 776273392,
-    "closure_size_bytes": 6707729472,
+    "module_count": 523,
+    "self_size_bytes": 778338861,
+    "allocated_size_bytes": 779472896,
+    "nar_size_bytes": 778463424,
+    "closure_size_bytes": 6710130080,
     "artifacts": {
       ".a": {
         "count": 1,
-        "bytes": 157851602
+        "bytes": 159615248
       },
       ".conf": {
         "count": 1,
-        "bytes": 25932
+        "bytes": 26596
       },
       ".hi": {
-        "count": 507,
-        "bytes": 618273793
+        "count": 523,
+        "bytes": 618695651
       },
       "[no extension]": {
         "count": 1,
@@ -88,7 +88,7 @@
     "largest_interfaces": [
       {
         "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-Br9nBnTeLNy7CNUMyDBiPH/Application/Helper/FrontendContract/Surface/Roster/WeekOverview.hi",
-        "bytes": 96960561,
+        "bytes": 96960558,
         "kind": ".hi"
       },
       {
@@ -103,87 +103,87 @@
       },
       {
         "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-Br9nBnTeLNy7CNUMyDBiPH/Application/Helper/FrontendContract/Surface/Roster/ImageExport.hi",
-        "bytes": 47053657,
+        "bytes": 47053653,
         "kind": ".hi"
       },
       {
         "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-Br9nBnTeLNy7CNUMyDBiPH/Application/Helper/FrontendContract/Surface/Roster/StaffPanel.hi",
-        "bytes": 40856556,
+        "bytes": 40856552,
         "kind": ".hi"
       },
       {
         "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-Br9nBnTeLNy7CNUMyDBiPH/Application/Helper/FrontendContract/Surface/Roster/TemplateApplication.hi",
-        "bytes": 37604853,
+        "bytes": 37604845,
         "kind": ".hi"
       },
       {
         "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-Br9nBnTeLNy7CNUMyDBiPH/Application/Helper/FrontendContract/Surface/Roster/Resource.hi",
-        "bytes": 29794127,
+        "bytes": 29794130,
         "kind": ".hi"
       },
       {
         "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-Br9nBnTeLNy7CNUMyDBiPH/Web/RosterWeeks/FrontendSurface.hi",
-        "bytes": 22330946,
+        "bytes": 22330943,
         "kind": ".hi"
       },
       {
         "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-Br9nBnTeLNy7CNUMyDBiPH/Application/Helper/FrontendContract/Surface/Roster/Chrome.hi",
-        "bytes": 22159079,
+        "bytes": 22159080,
         "kind": ".hi"
       },
       {
         "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-Br9nBnTeLNy7CNUMyDBiPH/Web/RosterWeeks/Dom.hi",
-        "bytes": 20267486,
+        "bytes": 20267485,
         "kind": ".hi"
       },
       {
         "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-Br9nBnTeLNy7CNUMyDBiPH/Web/RosterTemplates/Mutations.hi",
-        "bytes": 19945410,
+        "bytes": 19945412,
         "kind": ".hi"
       },
       {
         "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-Br9nBnTeLNy7CNUMyDBiPH/Web/RosterWeeks/Mutations.hi",
-        "bytes": 18171464,
+        "bytes": 18171461,
         "kind": ".hi"
       },
       {
         "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-Br9nBnTeLNy7CNUMyDBiPH/Web/RosterWeeks/SurfaceInvalidation.hi",
-        "bytes": 14929816,
+        "bytes": 14929818,
         "kind": ".hi"
       },
       {
         "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-Br9nBnTeLNy7CNUMyDBiPH/Application/Helper/FrontendContract/Wire/Passkey.hi",
-        "bytes": 10550956,
+        "bytes": 10550955,
         "kind": ".hi"
       },
       {
         "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-Br9nBnTeLNy7CNUMyDBiPH/Application/Helper/FrontendContract/Wire/LiveUpdate.hi",
-        "bytes": 6566951,
+        "bytes": 6566947,
         "kind": ".hi"
       },
       {
         "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-Br9nBnTeLNy7CNUMyDBiPH/Application/Helper/FrontendContract/Toggle/Runtime.hi",
-        "bytes": 5455411,
+        "bytes": 5455407,
         "kind": ".hi"
       },
       {
         "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-Br9nBnTeLNy7CNUMyDBiPH/Application/Helper/FrontendContract/Surface/Roster/SidePanel.hi",
-        "bytes": 5433046,
+        "bytes": 5433044,
         "kind": ".hi"
       },
       {
         "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-Br9nBnTeLNy7CNUMyDBiPH/Web/RosterWeeks/WageFilter.hi",
-        "bytes": 5070108,
+        "bytes": 5070101,
         "kind": ".hi"
       },
       {
         "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-Br9nBnTeLNy7CNUMyDBiPH/Web/Admin/Mutations.hi",
-        "bytes": 3253405,
+        "bytes": 3255538,
         "kind": ".hi"
       },
       {
         "path": "lib/ghc-9.10.3/lib/x86_64-linux-ghc-9.10.3-5702/app-lib-0.1.0-Br9nBnTeLNy7CNUMyDBiPH/Application/Helper/FrontendContract/Surface/Timesheets/Generated/Live.hi",
-        "bytes": 2820579,
+        "bytes": 2820578,
         "kind": ".hi"
       }
     ]
