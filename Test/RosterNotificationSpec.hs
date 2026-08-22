@@ -1,5 +1,6 @@
 module Test.RosterNotificationSpec where
 
+import Application.Async.Queue (appJobMaxAttempts)
 import Application.Async.Registry (dispatchAppJob)
 import Application.EmailDelivery
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
@@ -19,7 +20,7 @@ import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types hiding (createRosterNotificationRun)
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig (withFrameworkConfig)
-import IHP.Job.Types (JobStatus (JobStatusSucceeded))
+import IHP.Job.Types (JobStatus (JobStatusFailed, JobStatusSucceeded))
 import qualified IHP.MailPrelude as Mail
 import IHP.Test.Mocking (withContext)
 import Network.Mail.Mime (Address (..))
@@ -271,6 +272,26 @@ tests = aroundAll withDatabaseTestContext do
                         secondJob
                 disabled <- fetch secondJob.id
                 resultText "deliveryStatus" disabled `shouldBe` Just "delivery_disabled"
+
+        it "invalidates aggregate status after the shared final delivery failure" $ withContext do
+            withCleanDb do
+                (run, _, _, _, _) <- createRosterMailFixture
+                appJob <- query @AppJob |> filterWhere (#relatedId, Just (unpackId run.id)) |> fetchOne
+                finalFailureJob <-
+                    appJob
+                        |> set #attemptsCount appJobMaxAttempts
+                        |> set #status JobStatusFailed
+                        |> updateRecord
+
+                handleEmailDeliveryFailureAfterFinalAttempt finalFailureJob
+
+                [event] <- query @LiveInvalidationEvent
+                    |> filterWhere (#source, "roster.notification.delivery.failed" :: Text)
+                    |> fetch
+                query @LiveInvalidationEventResource
+                    |> filterWhere (#eventId, unpackId event.id)
+                    |> fetchCount
+                    `shouldReturn` 1
 
         it "routes production dispatch only through the shared job kind" $ withContext do
             withCleanDb do

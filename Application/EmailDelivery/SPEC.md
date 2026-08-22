@@ -87,8 +87,8 @@ snapshotted account and address. Delivery validates the envelope relationship,
 venue, run identity, snapshot version, and exact recipient entry. It renders only
 that recipient's assigned shifts and the snapshot's Open shifts, so later roster
 changes cannot reveal another staff member's schedule. Related shared-job states
-continue to drive run summaries; successful and disabled outcomes publish the
-existing status resource.
+continue to drive run summaries; successful, disabled, and terminal-failure
+outcomes publish the existing status resource.
 
 RSA reminder envelopes reference one `staff_documents` row and snapshot its linked
 account and address. The domain rechecks that the expiring/expired event remains due

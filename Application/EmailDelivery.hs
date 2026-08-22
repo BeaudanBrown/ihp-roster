@@ -387,6 +387,10 @@ handleEmailDeliveryFailureAfterFinalAttempt appJob
                         markInvitationDeliveryFailed payload.payloadMailKind payload.payloadDomainReferenceId
                         when (payload.payloadMailKind == venueInvitationMailKind) $
                             publishVenueInvitationDeliveryStatus payload.payloadDomainReferenceId
+                    when (isRosterNotificationMailKind payload.payloadMailKind) $
+                        publishRosterNotificationStatusResource
+                            "roster.notification.delivery.failed"
+                            payload.payloadDomainReferenceId
 
 completeRosterNotificationDelivery ::
     (?modelContext :: ModelContext) =>
