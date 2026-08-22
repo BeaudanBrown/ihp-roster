@@ -50,7 +50,7 @@ function immutableProvenanceLineAccepts(sourcePath, line) {
       /^\s*\|> set #weekOffset \(\(\.weekOffset\) <\$> legacyWeek\)\s*$/,
       /^\s*, snapshotWeekOffset = \(\.weekOffset\) <\$> legacyWeek\s*$/,
     ],
-    'Application/RosterNotification/Delivery.hs': [
+    'Application/RosterNotification/Email.hs': [
       /^\s*&& snapshot\.snapshotWeekOffset == run\.weekOffset\s*$/,
     ],
   };

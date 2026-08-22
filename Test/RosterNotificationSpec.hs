@@ -125,7 +125,7 @@ tests = aroundAll withDatabaseTestContext do
 
         it "excludes migration-retired legacy jobs from delivered run summaries" $ withContext do
             withCleanDb do
-                (run, _, _, rosterWeek, _) <- createRosterMailFixture
+                (run, _, _, _, _) <- createRosterMailFixture
                 [retiredJob, sentJob] <- query @AppJob
                     |> filterWhere (#relatedId, Just (unpackId run.id))
                     |> orderByAsc #createdAt
@@ -144,7 +144,12 @@ tests = aroundAll withDatabaseTestContext do
                     |> set #result (Aeson.object ["deliveryStatus" Aeson..= ("sent" :: Text)])
                     |> updateRecord
 
-                Just summary <- fetchLatestRosterNotificationRunSummary rosterWeek
+                Just summary <-
+                    fetchLatestRosterNotificationRunSummaryForWindow
+                        (Id run.venueId)
+                        (Id run.rosterGroupId)
+                        run.weekStart
+                        run.windowEnd
                 summary.summaryRecipientCount `shouldBe` 2
                 summary.summaryDeliveredCount `shouldBe` 1
                 summary.summaryInProgressCount `shouldBe` 0
