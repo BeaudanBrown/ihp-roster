@@ -42,7 +42,8 @@ tests = aroundAll withDatabaseTestContext do
         it "executes against representative predecessor data without losing dated or immutable evidence" $ withContext do
             withCleanDb do
                 predecessorSql <- TextIO.readFile "Test/Fixtures/date-native-roster/pre-retirement-schema.sql"
-                migrationSql <- TextIO.readFile "Application/Migration/1788100000.sql"
+                retirementMigrationSql <- TextIO.readFile "Application/Migration/1788100000.sql"
+                triggerRepairMigrationSql <- TextIO.readFile "Application/Migration/1788100100.sql"
                 sqlExecDiscardResult "DROP SCHEMA IF EXISTS roster_retirement_374 CASCADE" ()
                 withTransaction do
                     sqlExecDiscardResult "CREATE SCHEMA roster_retirement_374" ()
@@ -51,7 +52,20 @@ tests = aroundAll withDatabaseTestContext do
                         Nothing -> error "Roster retirement fixture requires a transaction runner"
                         Just runner -> do
                             runInTransaction runner (HasqlSession.script predecessorSql)
-                            runInTransaction runner (HasqlSession.script migrationSql)
+                            runInTransaction runner (HasqlSession.script retirementMigrationSql)
+
+                    sqlExecDiscardResult "SAVEPOINT stale_roster_day_trigger" ()
+                    staleDayWrite <- try (sqlExecDiscardResult "UPDATE roster_days SET operational_date = operational_date WHERE id = '50000000-0000-0000-0000-000000000001'" ()) :: IO (Either SomeException ())
+                    staleDayWrite `shouldSatisfy` either (Text.isInfixOf "roster_week_id" . show) (const False)
+                    sqlExecDiscardResult "ROLLBACK TO SAVEPOINT stale_roster_day_trigger" ()
+                    sqlExecDiscardResult "SAVEPOINT stale_roster_slot_trigger" ()
+                    staleSlotWrite <- try (sqlExecDiscardResult "UPDATE roster_slots SET starts_at = starts_at WHERE id = '80000000-0000-0000-0000-000000000001'" ()) :: IO (Either SomeException ())
+                    staleSlotWrite `shouldSatisfy` either (Text.isInfixOf "roster_week_slot_definition_id" . show) (const False)
+                    sqlExecDiscardResult "ROLLBACK TO SAVEPOINT stale_roster_slot_trigger" ()
+
+                    case transactionRunner ?modelContext of
+                        Nothing -> error "Roster trigger repair fixture requires a transaction runner"
+                        Just runner -> runInTransaction runner (HasqlSession.script triggerRepairMigrationSql)
 
                     retiredTables :: [PG.Only (Maybe Text)] <-
                         sqlQuery "SELECT to_regclass(name)::text FROM unnest(ARRAY['roster_retirement_374.roster_weeks', 'roster_retirement_374.roster_week_slot_definitions']) AS names(name) ORDER BY name" ()
@@ -73,6 +87,26 @@ tests = aroundAll withDatabaseTestContext do
                     exportEvidenceCount :: Int <- sqlQueryScalar "SELECT count(*)::int FROM export_job_entries WHERE source_roster_slot_id IS NOT NULL AND row_snapshot->>'operationalDate' = '2026-08-03'" ()
                     timesheetEvidenceCount `shouldBe` 1
                     exportEvidenceCount `shouldBe` 1
+                    sqlExecDiscardResult "UPDATE roster_days SET operational_date = operational_date WHERE id = '50000000-0000-0000-0000-000000000001'" ()
+                    sqlExecDiscardResult "UPDATE roster_slots SET starts_at = starts_at WHERE id = '80000000-0000-0000-0000-000000000001'" ()
+
+                    sqlExecDiscardResult "SAVEPOINT repaired_day_scope" ()
+                    invalidDayScope <- try (sqlExecDiscardResult "UPDATE roster_days SET venue_id = '20000000-0000-0000-0000-000000000099' WHERE id = '50000000-0000-0000-0000-000000000001'" ()) :: IO (Either SomeException ())
+                    invalidDayScope `shouldSatisfy` either (Text.isInfixOf "roster day venue and roster group must share scope" . show) (const False)
+                    sqlExecDiscardResult "ROLLBACK TO SAVEPOINT repaired_day_scope" ()
+                    sqlExecDiscardResult "SAVEPOINT repaired_slot_lane_scope" ()
+                    invalidSlotLane <- try (sqlExecDiscardResult "UPDATE roster_slots SET roster_day_id = '50000000-0000-0000-0000-000000000099' WHERE id = '80000000-0000-0000-0000-000000000001'" ()) :: IO (Either SomeException ())
+                    invalidSlotLane `shouldSatisfy` either (Text.isInfixOf "roster slot lane must be active and belong to its roster day" . show) (const False)
+                    sqlExecDiscardResult "ROLLBACK TO SAVEPOINT repaired_slot_lane_scope" ()
+                    sqlExecDiscardResult "SAVEPOINT repaired_slot_shift_type_scope" ()
+                    invalidSlotShiftType <- try (sqlExecDiscardResult "UPDATE roster_slots SET shift_type_id = 'c0000000-0000-0000-0000-000000000001' WHERE id = '80000000-0000-0000-0000-000000000001'" ()) :: IO (Either SomeException ())
+                    invalidSlotShiftType `shouldSatisfy` either (Text.isInfixOf "roster slot shift type must stay within roster day venue" . show) (const False)
+                    sqlExecDiscardResult "ROLLBACK TO SAVEPOINT repaired_slot_shift_type_scope" ()
+                    sqlExecDiscardResult "SAVEPOINT repaired_slot_staff_scope" ()
+                    invalidSlotStaff <- try (sqlExecDiscardResult "UPDATE roster_slots SET staff_id = 'd0000000-0000-0000-0000-000000000001' WHERE id = '80000000-0000-0000-0000-000000000001'" ()) :: IO (Either SomeException ())
+                    invalidSlotStaff `shouldSatisfy` either (Text.isInfixOf "roster slot staff assignment must stay within roster day venue" . show) (const False)
+                    sqlExecDiscardResult "ROLLBACK TO SAVEPOINT repaired_slot_staff_scope" ()
+
                     sqlExecDiscardResult "SET LOCAL search_path TO public" ()
                     sqlExecDiscardResult "DROP SCHEMA roster_retirement_374 CASCADE" ()
 

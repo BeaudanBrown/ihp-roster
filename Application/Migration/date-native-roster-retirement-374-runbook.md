@@ -1,7 +1,9 @@
 # Date-native Roster compatibility retirement (#374)
 
-This runbook governs migration `1788100000.sql`, which permanently removes the
-legacy roster-week/offset rollback substrate after production observation. The
+This runbook governs migrations `1788100000.sql` and `1788100100.sql`. The
+first permanently removes the legacy roster-week/offset rollback substrate
+after production observation; the second replaces two retained integrity
+trigger functions whose predecessor bodies referenced the retired columns. The
 operator's explicit approval of #374 authorizes repository implementation only;
 production deployment still requires the named deployment approval below.
 
@@ -52,9 +54,12 @@ predecessor application rollback remains necessary.
 
 1. Restore the approved backup into isolated staging.
 2. Stop application writers and queue consumers for that copy.
-3. Deploy the candidate package and run the normal migration runner once.
-   Migration `1788100000.sql` aborts transactionally if date-native day scope,
-   lane/slot identity or notification windows contradict the retained schema.
+3. Deploy the candidate package and run the normal migration runner once so it
+   applies `1788100000.sql` followed by `1788100100.sql`. The retirement
+   migration aborts transactionally if date-native day scope, lane/slot identity
+   or notification windows contradict the retained schema. The repair migration
+   must then replace the retained day/slot integrity function bodies before any
+   application writes resume.
 4. Verify the retired objects are absent:
 
    ```sql
@@ -71,19 +76,23 @@ predecessor application rollback remains necessary.
    ```
 
    Both relation values and the column query must be empty/null.
-5. Run authentication and the acceptance matrix from the required evidence,
+5. Execute harmless updates against representative `roster_days` and
+   `roster_slots` rows and confirm both retained integrity triggers complete
+   without referring to removed fields.
+6. Run authentication and the acceptance matrix from the required evidence,
    plus roster creation, lane add/remove, Draft/Published transitions,
    notification delivery and a venue start-day change/reversal on disposable
    staging data.
-6. Run the repository's full verification against the candidate.
+7. Run the repository's full verification against the candidate.
 
 ## Production deployment
 
 1. Enter the approved maintenance window. Pause web writes and queue consumers.
 2. Take the final approved backup and record its digest.
 3. Confirm the exact candidate commit and named approval.
-4. Run the normal transactional migration runner once. Do not manually mark the
-   migration applied or retry against a modified database.
+4. Run the normal transactional migration runner once, applying both retirement
+   migrations in order. Do not manually mark either migration applied or retry
+   against a modified database.
 5. Deploy the candidate application, then resume app and worker processes.
 6. Run the bounded absence queries above and smoke-test Draft/Published roster,
    Timesheets, roster notification history, payroll/export and Xero readiness.
