@@ -284,7 +284,7 @@ data RosterWeeksController
     | UpdateRosterAssignmentFiltersAction
     | CreateRosterWeekAction
     | CopyRosterWeekAction
-    | ToggleRosterWeekLiveStatusAction { rosterWeekId :: !(Id RosterWeek) }
+    | ToggleRosterWeekLiveStatusAction
     | ShowRosterNotificationConfirmationAction
     | CreateRosterNotificationRunAction
     | CreateRosterWeekSlotDefinitionAction

@@ -36,19 +36,18 @@ import qualified Data.Set as Set
 import Data.Time (Day, addDays, getCurrentTime)
 import Data.Traversable (traverse)
 import Data.UUID (UUID)
-import qualified Data.UUID as UUID
 import qualified Database.PostgreSQL.Simple as PG
 import Network.HTTP.Types.Status (status409)
 import qualified Network.Wai as Wai
 import Web.Controller.Prelude
 import Web.RosterWeeks.DateRange (RosterWindow (..), RosterWindowDay (..),
                                   RosterWindowScope (..),
+                                  RosterWindowState (..),
                                   appendRosterWindowLane, fetchRosterWindow,
                                   materializeRosterWindow,
                                   removeRosterDayRowByLanes,
                                   removeRosterWindowLane, repackRosterWindow,
                                   rosterWindowIsPublished)
-import Web.RosterWeeks.LegacyCompatibility (legacyPlanningRosterWeekForScope)
 import Web.RosterWeeks.Service
 import Web.SurfaceInvalidation (withDurableLiveMutationOutcome)
 
@@ -76,7 +75,7 @@ materializeRosterWindowMutation scope =
     withRosterWindowMutationLock scope $
         materializeRosterWindow scope
 
-ensureRosterWeekExistsMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO (Either Text (LiveMutationResult (RosterWeek, Bool)))
+ensureRosterWeekExistsMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO (Either Text (LiveMutationResult (RosterWindowState, Bool)))
 ensureRosterWeekExistsMutation scope =
     withDurableLiveMutationOutcome publicationFor do
         materialized <- withRosterWindowMutationLock scope do
@@ -88,8 +87,11 @@ ensureRosterWeekExistsMutation scope =
         case materialized of
             Left message -> pure (Left message)
             Right (_days, wasCreated) -> do
-                rosterWeek <- legacyPlanningRosterWeekForScope scope False
-                let result = (rosterWeek, wasCreated)
+                let windowState = RosterWindowState
+                        { windowRosterGroupId = unpackId scope.rosterWindowRosterGroupId
+                        , windowIsPublished = False
+                        }
+                let result = (windowState, wasCreated)
                 pure (Right (liveMutationResult result (rosterWeekStructuralTouchedResources scope)))
   where
     publicationFor (Right result)
@@ -126,8 +128,8 @@ copyRosterWindowFromSourceMutation selections rosterGroupId sourceStart targetSt
                         else copyRosterWindowByDates selections currentVenueId rosterGroupId sourceStart targetStart
         traverse (\() -> pure (liveMutationResult () (rosterWeekStructuralTouchedResources targetScope))) copyResult
 
-toggleRosterWeekLiveStatusMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterWeek -> Bool -> IO (Either Text (LiveMutationResult RosterWeek))
-toggleRosterWeekLiveStatusMutation scope rosterWeek nextLiveStatus =
+toggleRosterWeekLiveStatusMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterWindowState -> Bool -> IO (Either Text (LiveMutationResult RosterWindowState))
+toggleRosterWeekLiveStatusMutation scope windowState nextLiveStatus =
     withDurableRosterMutation "roster.window.publication_status" do
         result <- withRosterWindowMutationLock scope do
             venueConfig <- fetchVenueConfig
@@ -137,9 +139,6 @@ toggleRosterWeekLiveStatusMutation scope rosterWeek nextLiveStatus =
                 Nothing -> do
                     let windowStartDate = scope.rosterWindowStart
                     when (not nextLiveStatus) do
-                        when (unpackId rosterWeek.id /= UUID.nil) do
-                            _ <- rosterWeek |> set #isLive False |> updateRecord
-                            pure ()
                         window <- fetchRosterWindow scope.rosterWindowVenueId scope.rosterWindowRosterGroupId windowStartDate
                         forM_ (mapMaybe (.persistedRosterDay) window.rosterWindowProjectedDays) \day ->
                             void (day |> set #publicationState Draft |> updateRecord)
@@ -151,20 +150,15 @@ toggleRosterWeekLiveStatusMutation scope rosterWeek nextLiveStatus =
                     case publishValidationError of
                         Just message -> pure (Left message)
                         Nothing -> do
-                            updatedRosterWeek <-
-                                if unpackId rosterWeek.id == UUID.nil
-                                    then pure (rosterWeek |> set #isLive nextLiveStatus)
-                                    else rosterWeek
-                                        |> set #isLive nextLiveStatus
-                                        |> updateRecord
+                            let updatedWindowState = windowState { windowIsPublished = nextLiveStatus }
                             let publicationState = if nextLiveStatus then Published else Draft
                             forM_ rosterDays \day ->
                                 void (day |> set #publicationState publicationState |> updateRecord)
-                            pure (Right updatedRosterWeek)
+                            pure (Right updatedWindowState)
         case result of
             Left message -> pure (Left message)
-            Right updatedRosterWeek -> do
-                mutationResult <- rosterMutationResult updatedRosterWeek (rosterWeekLiveStatusTouchedResources scope)
+            Right updatedWindowState -> do
+                mutationResult <- rosterMutationResult updatedWindowState (rosterWeekLiveStatusTouchedResources scope)
                 pure (Right mutationResult)
 
 withRosterWindowMutationLock :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO value -> IO value

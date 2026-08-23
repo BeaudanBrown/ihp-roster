@@ -22,7 +22,8 @@ import Web.RosterWeeks.Dom (rosterWeekShellId)
 import Web.RosterWeeks.FrontendSurface (rosterDeleteShiftDropzoneRef)
 import Web.RosterWeeks.Paths (rosterTimelineWindowUrl, rosterWindowUrl)
 import Web.RosterWeeks.Types (RosterGridViewMode (..),
-                              RosterViewCapabilities (..))
+                              RosterViewCapabilities (..),
+                              RosterWindowState (..))
 import Web.View.Prelude
 import Web.View.RosterWeeks.Overview (renderRosterWeekLabel)
 
@@ -35,7 +36,7 @@ rosterActionRoute actionUrl =
         , actionRouteExtraAttrs = []
         }
 
-renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> RosterGroup -> Day -> RosterViewCapabilities -> Maybe RosterWagePrediction -> Bool -> RosterGridViewMode -> Maybe Text -> Html
+renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWindowState -> Int -> RosterGroup -> Day -> RosterViewCapabilities -> Maybe RosterWagePrediction -> Bool -> RosterGridViewMode -> Maybe Text -> Html
 renderRosterGridHeader maybeRosterWeek rosterCalendarRevision currentRosterGroup weekStartDate viewCapabilities rosterWagePrediction canToggleSidePanel gridViewMode timelineTodayUrl =
     let toolbarHtml = renderWeekToolbar WeekToolbarConfig
             { weekToolbarVariant = WeekToolbarRoster
@@ -48,7 +49,7 @@ renderRosterGridHeader maybeRosterWeek rosterCalendarRevision currentRosterGroup
             , weekToolbarAuxiliary = renderRosterWeekWageSummary rosterWagePrediction
             }
         deleteDropzoneKey = "delete" :: Text
-     in if currentUserIsManager && maybe False (not . (.isLive)) maybeRosterWeek
+     in if currentUserIsManager && maybe False (not . (.windowIsPublished)) maybeRosterWeek
             then SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDeleteShiftDropzoneRef deleteDropzoneKey toolbarHtml
             else toolbarHtml
 
@@ -139,7 +140,7 @@ renderWeekNavigationLink iconClass ariaLabel url anchorDate rosterGroupId =
             }
         [hsx|<i class={"bi " <> iconClass} aria-hidden="true"></i>|]
 
-renderLiveToggle :: (?context :: ControllerContext) => Maybe RosterWeek -> Day -> Int -> RosterGroup -> RosterViewCapabilities -> Html
+renderLiveToggle :: (?context :: ControllerContext) => Maybe RosterWindowState -> Day -> Int -> RosterGroup -> RosterViewCapabilities -> Html
 renderLiveToggle (Just rosterWeek) anchorDate rosterCalendarRevision rosterGroup viewCapabilities
     | viewCapabilities.canToggleRosterLive = renderLiveToggleForm rosterWeek anchorDate rosterCalendarRevision rosterGroup
 renderLiveToggle _ _ _ _ _ = mempty
@@ -165,7 +166,7 @@ renderThisWeekButton gridViewMode currentRosterGroup timelineTodayUrl =
             RosterDayTimelineGridView _ -> fromMaybe (appendQueryParams (pathTo RosterWeeksAction) [("rosterGroupId", tshow currentRosterGroup.id), ("rosterView", "timeline")]) timelineTodayUrl
             RosterWeekGridView -> pathTo RosterWeeksAction
 
-renderLiveToggleForm :: RosterWeek -> Day -> Int -> RosterGroup -> Html
+renderLiveToggleForm :: RosterWindowState -> Day -> Int -> RosterGroup -> Html
 renderLiveToggleForm rosterWeek anchorDate rosterCalendarRevision rosterGroup =
     renderFrontendSurfaceActionForm
         (RosterAction.toggleRosterWeekLiveStatusAction fields)
@@ -179,17 +180,17 @@ renderLiveToggleForm rosterWeek anchorDate rosterCalendarRevision rosterGroup =
         |]
   where
     actionUrl = appendQueryParams
-        (pathTo (ToggleRosterWeekLiveStatusAction rosterWeek.id))
+        (pathTo ToggleRosterWeekLiveStatusAction)
         [("anchorDate", tshow anchorDate), ("rosterGroupId", tshow rosterGroup.id)]
-    fields = RosterAction.toggleRosterWeekLiveStatusActionFields rosterWeek.isLive rosterCalendarRevision
+    fields = RosterAction.toggleRosterWeekLiveStatusActionFields rosterWeek.windowIsPublished rosterCalendarRevision
 
-renderLiveToggleButton :: ActionFields RosterAction.ToggleRosterWeekLiveStatusActionOperation -> RosterWeek -> Html
+renderLiveToggleButton :: ActionFields RosterAction.ToggleRosterWeekLiveStatusActionOperation -> RosterWindowState -> Html
 renderLiveToggleButton fields rosterWeek =
     renderAppToggleButton $
         ( defaultAppToggleButtonConfig
-            (liveToggleInputId rosterWeek.id)
+            (liveToggleInputId (Id rosterWeek.windowRosterGroupId))
             (surfaceToggleScalarField @Surface.IsLive fields True False)
-            rosterWeek.isLive
+            rosterWeek.windowIsPublished
             [hsx|<span class="fw-semibold">Published</span>|]
         )
             { appToggleButtonClass = "app-week-live-toggle"
@@ -197,5 +198,5 @@ renderLiveToggleButton fields rosterWeek =
             , appToggleSubmitPolicy = ToggleSubmitImmediate
             }
 
-liveToggleInputId :: Id RosterWeek -> Text
-liveToggleInputId rosterWeekId = "roster-live-toggle-" <> tshow rosterWeekId
+liveToggleInputId :: Id RosterGroup -> Text
+liveToggleInputId rosterGroupId = "roster-live-toggle-" <> tshow rosterGroupId

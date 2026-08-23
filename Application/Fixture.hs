@@ -5,10 +5,6 @@ import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
                                         ensureVenueRosterDefaults)
-import Application.Helper.RosterOffsetCompatibility (applyLegacyRosterDayOffset,
-                                                     applyLegacyRosterWeekOffset,
-                                                     legacyRosterWeekStartForRecord,
-                                                     venueWeekStartDate)
 import Application.Helper.VenueBootstrap
 import Application.RosterShiftAssignment (RosterShiftAssignment,
                                           applyRosterShiftAssignment)
@@ -17,7 +13,6 @@ import Application.VenueTime.Model
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Char as Char
-import Data.Maybe (fromJust)
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays, fromGregorian)
@@ -188,49 +183,49 @@ createStaffRosterGroupRecord staff rosterGroup =
         |> set #rosterGroupId (unpackId (get #id rosterGroup))
         |> createRecord
 
-createRosterWeekRecord :: (?modelContext :: ModelContext) => Venue -> Int -> Bool -> IO RosterWeek
-createRosterWeekRecord venue compatibilityOffset isLive = do
+data FixtureRosterWindow = FixtureRosterWindow
+    { fixtureVenueId           :: !UUID
+    , fixtureRosterGroupId     :: !UUID
+    , fixtureWindowStart       :: !Day
+    , fixtureWindowIsPublished :: !Bool
+    }
+    deriving (Eq, Show)
+
+createRosterWeekRecord :: (?modelContext :: ModelContext) => Venue -> Day -> Bool -> IO FixtureRosterWindow
+createRosterWeekRecord venue windowStart isLive = do
     rosterGroup <- ensureVenueDefaultRosterGroup venue
-    createRosterWeekRecordForRosterGroup venue rosterGroup compatibilityOffset isLive
+    createRosterWeekRecordForRosterGroup venue rosterGroup windowStart isLive
 
-createRosterWeekRecordForRosterGroup :: (?modelContext :: ModelContext) => Venue -> RosterGroup -> Int -> Bool -> IO RosterWeek
-createRosterWeekRecordForRosterGroup venue rosterGroup compatibilityOffset isLive = do
-    venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-    createRosterWeekRecordForWindow venue rosterGroup (venueWeekStartDate venueConfig compatibilityOffset) isLive
+createRosterWeekRecordForRosterGroup :: (?modelContext :: ModelContext) => Venue -> RosterGroup -> Day -> Bool -> IO FixtureRosterWindow
+createRosterWeekRecordForRosterGroup venue rosterGroup windowStart isLive =
+    pure FixtureRosterWindow
+        { fixtureVenueId = unpackId venue.id
+        , fixtureRosterGroupId = unpackId rosterGroup.id
+        , fixtureWindowStart = windowStart
+        , fixtureWindowIsPublished = isLive
+        }
 
-createRosterWeekRecordForWindow :: (?modelContext :: ModelContext) => Venue -> RosterGroup -> Day -> Bool -> IO RosterWeek
-createRosterWeekRecordForWindow venue rosterGroup windowStart isLive = do
-    venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-    newRecord @RosterWeek
-        |> set #venueId (unpackId (get #id venue))
-        |> set #rosterGroupId (unpackId rosterGroup.id)
-        |> applyLegacyRosterWeekOffset venueConfig windowStart
-        |> set #isLive isLive
-        |> createRecord
+createRosterWeekRecordForWindow :: (?modelContext :: ModelContext) => Venue -> RosterGroup -> Day -> Bool -> IO FixtureRosterWindow
+createRosterWeekRecordForWindow = createRosterWeekRecordForRosterGroup
 
-createRosterDayRecord :: (?modelContext :: ModelContext) => RosterWeek -> Int -> IO RosterDay
-createRosterDayRecord rosterWeek compatibilityDayIndex = do
-    venueConfig <- query @VenueConfig |> filterWhere (#venueId, rosterWeek.venueId) |> fetchOne
-    let windowStart = legacyRosterWeekStartForRecord venueConfig rosterWeek
-    createRosterDayRecordForOperationalDate rosterWeek windowStart (addDays (toInteger compatibilityDayIndex) windowStart)
+createRosterDayRecord :: (?modelContext :: ModelContext) => FixtureRosterWindow -> Int -> IO RosterDay
+createRosterDayRecord rosterWindow dayIndex =
+    createRosterDayRecordForOperationalDate rosterWindow rosterWindow.fixtureWindowStart (addDays (toInteger dayIndex) rosterWindow.fixtureWindowStart)
 
-createRosterDayRecordForOperationalDate :: (?modelContext :: ModelContext) => RosterWeek -> Day -> Day -> IO RosterDay
-createRosterDayRecordForOperationalDate rosterWeek windowStart operationalDate =
+createRosterDayRecordForOperationalDate :: (?modelContext :: ModelContext) => FixtureRosterWindow -> Day -> Day -> IO RosterDay
+createRosterDayRecordForOperationalDate rosterWindow _windowStart operationalDate =
     newRecord @RosterDay
-        |> set #rosterWeekId (Just (unpackId (get #id rosterWeek)))
-        |> set #venueId rosterWeek.venueId
-        |> set #rosterGroupId rosterWeek.rosterGroupId
+        |> set #venueId rosterWindow.fixtureVenueId
+        |> set #rosterGroupId rosterWindow.fixtureRosterGroupId
         |> set #operationalDate operationalDate
-        |> set #publicationState (if rosterWeek.isLive then Published else Draft)
-        |> applyLegacyRosterDayOffset windowStart
+        |> set #publicationState (if rosterWindow.fixtureWindowIsPublished then Published else Draft)
         |> set #isClosed False
         |> createRecord
 
 createRosterSlotRecord :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> RosterShiftAssignment -> Int -> IO RosterSlot
 createRosterSlotRecord rosterDay slotName assignment rowIndex = do
-    slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
-    rosterWeek <- fetch (Id (fromJust rosterDay.rosterWeekId) :: Id RosterWeek)
-    venue <- fetch (Id rosterWeek.venueId :: Id Venue)
+    rosterLane <- ensureRosterLaneForSlotName rosterDay slotName
+    venue <- fetch (Id rosterDay.venueId :: Id Venue)
     shiftType <- ensureVenueDefaultShiftType venue
     let rosterDate = rosterDay.operationalDate
         boundaries =
@@ -245,27 +240,26 @@ createRosterSlotRecord rosterDay slotName assignment rowIndex = do
                     }
     newRecord @RosterSlot
         |> set #rosterDayId (unpackId (get #id rosterDay))
-        |> set #rosterWeekSlotDefinitionId (Just (unpackId (get #id slotDefinition)))
-        |> set #slotSortOrder slotDefinition.sortOrder
+        |> set #rosterLaneId (unpackId (get #id rosterLane))
+        |> set #slotSortOrder rosterLane.sortOrder
         |> set #rowIndex rowIndex
         |> set #shiftTypeId (Just (unpackId shiftType.id))
         |> applyRosterShiftAssignment assignment
         |> applyRosterSlotBoundaries boundaries
         |> createRecord
 
-ensureRosterWeekSlotDefinitionForSlotName :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> IO RosterWeekSlotDefinition
-ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName = do
-    let rosterWeekId = fromJust rosterDay.rosterWeekId
-    existing <- query @RosterWeekSlotDefinition
-        |> filterWhere (#rosterWeekId, rosterWeekId)
+ensureRosterLaneForSlotName :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> IO RosterLane
+ensureRosterLaneForSlotName rosterDay slotName = do
+    existing <- query @RosterLane
+        |> filterWhere (#rosterDayId, unpackId rosterDay.id)
         |> filterWhere (#name, slotName.name)
         |> filterWhere (#deletedAt, Nothing)
         |> fetchOneOrNothing
     case existing of
-        Just slotDefinition -> pure slotDefinition
+        Just rosterLane -> pure rosterLane
         Nothing ->
-            newRecord @RosterWeekSlotDefinition
-                |> set #rosterWeekId rosterWeekId
+            newRecord @RosterLane
+                |> set #rosterDayId (unpackId rosterDay.id)
                 |> set #name slotName.name
                 |> set #sortOrder slotName.sortOrder
                 |> createRecord

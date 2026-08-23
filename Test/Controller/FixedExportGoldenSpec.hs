@@ -378,7 +378,7 @@ seedPayrollMatrixFixture = do
     let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 3600)
     venue <- createVenueWithConfig "Payroll Matrix Venue"
     venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-    _ <- venueConfig |> set #rosterWeekStartsOn 2 |> set #weekOffsetEpoch weekStart |> updateRecord
+    _ <- venueConfig |> set #rosterWeekStartsOn 2 |> updateRecord
     admin <- createUserRecord "payroll-matrix-admin@example.com" "staff" True
     _ <- createVenueMembershipRecord venue admin VenueAdmin
     dayNames <- seedWeekDayNames venue

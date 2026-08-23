@@ -336,7 +336,6 @@ validateAssignments targetGroup = traverse validateAssignment
                                 let candidate =
                                         newRecord @RosterSlot
                                             |> set #rosterDayId (unpackId plan.preparedTargetDay.id)
-                                            |> set #rosterWeekSlotDefinitionId Nothing
                                             |> set #slotSortOrder plan.preparedTemplateColumn.sortOrder
                                             |> set #rowIndex plan.preparedTemplateShift.rowIndex
                                             |> set #startsAt (Just plan.preparedStartsAt)
@@ -430,7 +429,6 @@ targetRevision prepared =
               , slot.rosterDayId
               , slot.assignmentState
               , slot.staffId
-              , slot.rosterWeekSlotDefinitionId
               , slot.slotSortOrder
               , slot.rowIndex
               , slot.startsAt

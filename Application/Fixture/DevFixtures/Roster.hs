@@ -12,7 +12,6 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureVenueDefaultRosterGroup,
                                         fetchActiveRosterGroupSlotNames,
                                         syncStaffRosterGroupAssignments)
-import Application.Helper.RosterOffsetCompatibility (applyLegacyRosterDayOffset)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..))
 import Application.Helper.TimeRules (rosterShiftStartDate)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
@@ -20,7 +19,6 @@ import Application.RosterShiftAssignment (RosterShiftAssignment (..),
 import Application.VenueTime.Model
 import Control.Monad (void)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromJust)
 import Data.Time.Calendar (Day, addDays, dayOfWeek, fromGregorian)
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -522,23 +520,21 @@ rotateList offset values =
         clampedOffset = offset `mod` length values
 
 
-createRosterDayRecords :: (?modelContext :: ModelContext) => RosterWeek -> Day -> [Day] -> IO [RosterDay]
+createRosterDayRecords :: (?modelContext :: ModelContext) => FixtureRosterWindow -> Day -> [Day] -> IO [RosterDay]
 createRosterDayRecords _ _ [] = pure []
 createRosterDayRecords rosterWeek windowStart operationalDates = do
     rosterDayIds <- map Id <$> freshUUIDs (length operationalDates)
     now <- getCurrentTime
     createMany (zipWith (rosterDayRecord now rosterWeek windowStart) rosterDayIds operationalDates)
 
-rosterDayRecord :: UTCTime -> RosterWeek -> Day -> Id RosterDay -> Day -> RosterDay
-rosterDayRecord now rosterWeek windowStart rosterDayId operationalDate =
+rosterDayRecord :: UTCTime -> FixtureRosterWindow -> Day -> Id RosterDay -> Day -> RosterDay
+rosterDayRecord now rosterWindow _windowStart rosterDayId operationalDate =
     newRecord @RosterDay
         |> set #id rosterDayId
-        |> set #rosterWeekId (Just (unpackId (get #id rosterWeek)))
-        |> set #venueId rosterWeek.venueId
-        |> set #rosterGroupId rosterWeek.rosterGroupId
+        |> set #venueId rosterWindow.fixtureVenueId
+        |> set #rosterGroupId rosterWindow.fixtureRosterGroupId
         |> set #operationalDate operationalDate
-        |> set #publicationState (if rosterWeek.isLive then Published else Draft)
-        |> applyLegacyRosterDayOffset windowStart
+        |> set #publicationState (if rosterWindow.fixtureWindowIsPublished then Published else Draft)
         |> set #isClosed False
         |> set #createdAt now
         |> set #updatedAt now
@@ -551,28 +547,27 @@ createRosterRow ::
     [(Text, DevRosterSlotSeed)] ->
     IO ()
 createRosterRow rosterDay slotNames rowIndex assignments = do
-    rosterWeek <- fetch (Id (fromJust rosterDay.rosterWeekId) :: Id RosterWeek)
     venueConfig <- query @VenueConfig
-        |> filterWhere (#venueId, rosterWeek.venueId)
+        |> filterWhere (#venueId, rosterDay.venueId)
         |> fetchOne
     let rosterDate = rosterDay.operationalDate
-    slotDefinitions <- forM slotNames (ensureRosterWeekSlotDefinitionForSlotName rosterDay)
-    let assignedSlotDefinitions =
-            [ (slotDefinition, slotSeed)
-            | slotDefinition <- slotDefinitions
-            , Just slotSeed <- [lookup (get #name slotDefinition) assignments]
+    rosterLanes <- forM slotNames (ensureRosterLaneForSlotName rosterDay)
+    let assignedRosterLanes =
+            [ (rosterLane, slotSeed)
+            | rosterLane <- rosterLanes
+            , Just slotSeed <- [lookup (get #name rosterLane) assignments]
             ]
-    rosterSlotIds <- map Id <$> freshUUIDs (length assignedSlotDefinitions)
+    rosterSlotIds <- map Id <$> freshUUIDs (length assignedRosterLanes)
     now <- getCurrentTime
-    void (createMany (zipWith (rosterSlotRecord now rosterDate venueConfig.timezone rosterDay rowIndex) rosterSlotIds assignedSlotDefinitions))
+    void (createMany (zipWith (rosterSlotRecord now rosterDate venueConfig.timezone rosterDay rowIndex) rosterSlotIds assignedRosterLanes))
     where
-        rosterSlotRecord now rosterDate timezone rosterDay rowIndex rosterSlotId (slotDefinition, slotSeed) =
+        rosterSlotRecord now rosterDate timezone rosterDay rowIndex rosterSlotId (rosterLane, slotSeed) =
             let baseSlot =
                     newRecord @RosterSlot
                         |> set #id rosterSlotId
                         |> set #rosterDayId (unpackId (get #id rosterDay))
-                        |> set #rosterWeekSlotDefinitionId (Just (unpackId (get #id slotDefinition)))
-                        |> set #slotSortOrder slotDefinition.sortOrder
+                        |> set #rosterLaneId (unpackId (get #id rosterLane))
+                        |> set #slotSortOrder rosterLane.sortOrder
                         |> applyRosterShiftAssignment (maybe OpenAssignment (StaffAssignment . (.id)) slotSeed.slotStaff)
                         |> set #shiftTypeId slotSeed.slotShiftTypeId
                         |> set #rowIndex rowIndex

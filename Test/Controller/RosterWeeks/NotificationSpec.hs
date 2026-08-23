@@ -212,7 +212,7 @@ tests = aroundAll withDatabaseTestContext do
                 workerResponse <- withUserAndCurrentVenue worker venue.id do
                     callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                 rosterDays <- query @RosterDay
-                    |> filterWhere (#rosterGroupId, rosterWeek.rosterGroupId)
+                    |> filterWhere (#rosterGroupId, rosterWeek.fixtureRosterGroupId)
                     |> fetch
                 _ <- mapM (updateRecord . set #publicationState Draft) rosterDays
                 managerResponse <- withUserAndCurrentVenue manager venue.id do

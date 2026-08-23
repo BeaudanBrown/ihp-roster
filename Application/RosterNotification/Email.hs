@@ -65,8 +65,6 @@ validateRunIdentity run snapshot jobVenueId = do
     unless
         ( snapshot.snapshotVenueId == run.venueId
             && snapshot.snapshotRosterGroupId == run.rosterGroupId
-            && snapshot.snapshotRosterWeekId == run.rosterWeekId
-            && snapshot.snapshotWeekOffset == run.weekOffset
             && snapshot.snapshotWeekStart == run.weekStart
             && addDays 1 snapshot.snapshotWeekEnd == run.windowEnd
         ) $

@@ -1,6 +1,5 @@
 module Test.RosterTemplateDesignerSpec where
 
-import Application.Helper.RosterOffsetCompatibility (venueWeekStartDate)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..))
 import Application.RosterTemplates
 import Control.Concurrent (newEmptyMVar, putMVar, readMVar, takeMVar,
@@ -141,7 +140,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createCompleteRosterSlotRecord sourceDay slotName staff 0
                     >>= updateRecord
                         . setTestRosterSlotBoundaries
-                            (venueWeekStartDate venueConfig 0)
+                            (testAnchorForOffset 0)
                             (TimeOfDay 9 0 0)
                             (TimeOfDay 17 0 0)
                 let actor = rosterTemplateActor owner venue True
@@ -173,7 +172,7 @@ tests = aroundAll withDatabaseTestContext do
                     >>= updateRecord
                         . set #shiftTypeId (Just (unpackId shiftType.id))
                         . setTestRosterSlotBoundaries
-                            (venueWeekStartDate venueConfig 0)
+                            (testAnchorForOffset 0)
                             (TimeOfDay 9 0 0)
                             (TimeOfDay 17 0 0)
                 let actor = rosterTemplateActor owner venue True
@@ -199,7 +198,7 @@ tests = aroundAll withDatabaseTestContext do
                 owner <- createUserRecord "designer-week-reference@example.com" "staff" True
                 sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 4 False
                 sourceDays <- forM [0 .. 6] (createRosterDayRecord sourceWeek)
-                _ <- forM sourceDays (\day -> day |> set #rowCount (day.dayOffset + 1) |> set #isClosed (day.dayOffset == 6) |> updateRecord)
+                _ <- forM (zip [0 ..] sourceDays) (\(dayIndex, day) -> day |> set #rowCount (dayIndex + 1) |> set #isClosed (dayIndex == 6) |> updateRecord)
                 let actor = rosterTemplateActor owner venue True
 
                 result <- startRosterTemplateDraftFromReference actor rosterGroup "Reference week" (RosterTemplateWeekReference (sourceDays !! 0).operationalDate (addDays 1 (sourceDays !! 6).operationalDate))
@@ -274,24 +273,22 @@ tests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue Nothing "Reference" "Worker"
                 slotName <- fetchSlotNameRecordForRosterGroup rosterGroup "Early"
                 shiftType <- ensureVenueDefaultShiftType venue
-                sourceDay <- createNativeRosterDayRecord venue rosterGroup (addDays 2 (venueWeekStartDate venueConfig 0)) 2
+                sourceDay <- createNativeRosterDayRecord venue rosterGroup (addDays 2 (testAnchorForOffset 0)) 2
                 _ <- sourceDay |> set #publicationState Published |> set #rowCount 2 |> updateRecord
                 sourceLane <- newRecord @RosterLane
                     |> set #rosterDayId (unpackId sourceDay.id)
-                    |> set #legacyRosterWeekSlotDefinitionId Nothing
                     |> set #name slotName.name
                     |> set #sortOrder 0
                     |> createRecord
                 sourceSlot <- newRecord @RosterSlot
                     |> set #rosterDayId (unpackId sourceDay.id)
                     |> set #rosterLaneId (unpackId sourceLane.id)
-                    |> set #rosterWeekSlotDefinitionId Nothing
                     |> set #assignmentState "staff"
                     |> set #staffId (Just (unpackId staff.id))
                     |> set #rowIndex 1
                     |> set #shiftTypeId (Just (unpackId shiftType.id))
                     |> setTestRosterSlotBoundaries
-                        (addDays 2 (venueWeekStartDate venueConfig 0))
+                        (addDays 2 (testAnchorForOffset 0))
                         (TimeOfDay 9 0 0)
                         (TimeOfDay 17 0 0)
                     |> createRecord

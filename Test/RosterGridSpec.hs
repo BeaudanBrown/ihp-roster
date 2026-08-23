@@ -21,13 +21,13 @@ import Web.View.RosterWeeks.Grid (compactDayColumnSlots, lastRowIndexForRows,
 tests :: Spec
 tests = describe "Roster grid row grouping" do
     it "sorts day-column slots by start time" do
-        let slotA = newRecord @RosterWeekSlotDefinition
-            slotB = newRecord @RosterWeekSlotDefinition
-            slotC = newRecord @RosterWeekSlotDefinition
+        let slotA = newRecord @RosterLane
+            slotB = newRecord @RosterLane
+            slotC = newRecord @RosterLane
 
             mkSlot daySlot startTime staffId =
                 newRecord @RosterSlot
-                    |> set #rosterWeekSlotDefinitionId (Just (unpackId daySlot.id))
+                    |> set #rosterLaneId (unpackId daySlot.id)
                     |> setTestStartTime startTime
                     |> set #staffId staffId
 
@@ -35,22 +35,22 @@ tests = describe "Roster grid row grouping" do
             second = mkSlot slotB (Just $ TimeOfDay 8 0 0) (Just (UUID.nil))
             third = mkSlot slotC (Just $ TimeOfDay 12 0 0) (Just (UUID.nil))
             sorted = compactDayColumnSlots [] [first, second, third]
-        map (get #rosterWeekSlotDefinitionId) sorted `shouldBe`
-            [Just (unpackId slotB.id), Just (unpackId slotA.id), Just (unpackId slotC.id)]
+        map (get #rosterLaneId) sorted `shouldBe`
+            [unpackId slotB.id, unpackId slotA.id, unpackId slotC.id]
 
     it "puts untimed visible slots after timed ones" do
-        let slotA = newRecord @RosterWeekSlotDefinition
-            slotB = newRecord @RosterWeekSlotDefinition
+        let slotA = newRecord @RosterLane
+            slotB = newRecord @RosterLane
 
             mkTimedSlot startTime =
                 newRecord @RosterSlot
-                    |> set #rosterWeekSlotDefinitionId (Just (unpackId slotA.id))
+                    |> set #rosterLaneId (unpackId slotA.id)
                     |> setTestStartTime (Just startTime)
                     |> set #staffId (Just UUID.nil)
 
             mkUntimedSlot =
                 newRecord @RosterSlot
-                    |> set #rosterWeekSlotDefinitionId (Just (unpackId slotB.id))
+                    |> set #rosterLaneId (unpackId slotB.id)
                     |> setTestStartTime Nothing
                     |> setTestEndTime (Just $ TimeOfDay 9 0 0)
                     |> set #staffId Nothing
@@ -58,8 +58,8 @@ tests = describe "Roster grid row grouping" do
             first = mkTimedSlot (TimeOfDay 9 0 0)
             second = mkUntimedSlot
             sorted = compactDayColumnSlots [] [second, first]
-        map (get #rosterWeekSlotDefinitionId) sorted `shouldBe`
-            [Just (unpackId slotA.id), Just (unpackId slotB.id)]
+        map (get #rosterLaneId) sorted `shouldBe`
+            [unpackId slotA.id, unpackId slotB.id]
 
     it "returns two visible rows when an open day has no slots" do
         rowsForDay (newRecord @RosterDay) [] `shouldBe` [(0, []), (1, [])]

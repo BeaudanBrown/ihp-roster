@@ -52,8 +52,8 @@ intent helpers rather than ad hoc JSON/fetch endpoints or handwritten HTMX
 contracts.
 
 Workflow dialogs use dedicated fragment actions and the shared dialog mount;
-pickers and toasts are separate lanes. Preserve URL context such as
-`weekOffset`; `RosterWeeksAction` remains the canonical current-week reset.
+pickers and toasts are separate lanes. Preserve URL context through ISO
+`anchorDate`; `RosterWeeksAction` remains the canonical current-window reset.
 
 ## Verification
 

@@ -41,7 +41,6 @@ applyPreparedApplication actor prepared = do
         newRecord @RosterSlot
             |> set #rosterDayId (unpackId plan.preparedTargetDay.id)
             |> set #rosterLaneId (unpackId lane.id)
-            |> set #rosterWeekSlotDefinitionId Nothing
             |> set #slotSortOrder lane.sortOrder
             |> set #rowIndex plan.preparedTemplateShift.rowIndex
             |> set #startsAt (Just plan.preparedStartsAt)
@@ -183,7 +182,6 @@ createLaneAtSort :: (?modelContext :: ModelContext) => RosterDay -> RosterTempla
 createLaneAtSort rosterDay column sortOrder =
     newRecord @RosterLane
         |> set #rosterDayId (unpackId rosterDay.id)
-        |> set #legacyRosterWeekSlotDefinitionId Nothing
         |> set #name column.name
         |> set #sortOrder sortOrder
         |> createRecord

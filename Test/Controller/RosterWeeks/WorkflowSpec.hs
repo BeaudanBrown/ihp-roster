@@ -4,7 +4,6 @@ import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
-import Application.Helper.RosterOffsetCompatibility (venueWeekStartDate)
 import Application.Helper.SurfaceResource
 import Application.Helper.UserPreferences
 import Application.VenueTime (RepeatedTimeOccurrence (..))
@@ -66,12 +65,12 @@ tests = aroundAll withDatabaseTestContext do
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slotName <- fetchSlotNameRecord venue "Early"
                 rosterSlot <- createRosterSlotRecord rosterDay slotName Nothing 0
-                let rosterGroupId = coerce rosterWeek.rosterGroupId
+                let rosterGroupId = coerce rosterWeek.fixtureRosterGroupId
 
                 manager <- createUserRecord "roster-touched-resources@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager Manager
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                let windowStart = testAnchorForOffset rosterWeek.weekOffset
+                let windowStart = rosterWeek.fixtureWindowStart
                 let windowEnd = addDays 7 windowStart
                 let scope = rosterWindowScopeForAnchor venueConfig rosterGroupId windowStart
                 (slotResources, weekResources, structuralResources, slotStructureResources, publicationResources, mutationResources, dayResources) <- withUserAndCurrentVenue manager venue.id do
@@ -88,8 +87,8 @@ tests = aroundAll withDatabaseTestContext do
                 weekResources `shouldBe` [rosterWeekResource (unpackId rosterGroupId) windowStart windowEnd]
                 Set.fromList structuralResources `shouldBe` Set.fromList [rosterWeekResource (unpackId rosterGroupId) windowStart windowEnd, rosterWeekStructureResource (unpackId rosterGroupId) windowStart windowEnd]
                 Set.fromList slotStructureResources `shouldBe` Set.fromList [rosterWeekResource (unpackId rosterGroupId) windowStart windowEnd, rosterSlotsStructureResource (unpackId rosterGroupId) windowStart windowEnd]
-                Set.fromList publicationResources `shouldBe` Set.fromList [rosterWeekResource (unpackId rosterGroupId) windowStart windowEnd, rosterWeekStructureResource (unpackId rosterGroupId) windowStart windowEnd, timesheetWeekResource rosterWeek.venueId windowStart windowEnd]
-                Set.fromList mutationResources `shouldBe` Set.fromList [rosterWeekResource (unpackId rosterGroupId) windowStart windowEnd, rosterDayResource (unpackId rosterDay.id), timesheetWeekResource rosterWeek.venueId windowStart windowEnd]
+                Set.fromList publicationResources `shouldBe` Set.fromList [rosterWeekResource (unpackId rosterGroupId) windowStart windowEnd, rosterWeekStructureResource (unpackId rosterGroupId) windowStart windowEnd, timesheetWeekResource rosterWeek.fixtureVenueId windowStart windowEnd]
+                Set.fromList mutationResources `shouldBe` Set.fromList [rosterWeekResource (unpackId rosterGroupId) windowStart windowEnd, rosterDayResource (unpackId rosterDay.id), timesheetWeekResource rosterWeek.fixtureVenueId windowStart windowEnd]
                 dayResources `shouldBe` [rosterWeekResource (unpackId rosterGroupId) windowStart windowEnd, rosterDayResource (unpackId rosterDay.id)]
 
         it "rejects stale calendar revisions before sparse window materialization" $ withContext do
@@ -99,7 +98,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue manager Manager
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
-                beforeDays <- query @RosterDay |> filterWhere (#rosterGroupId, rosterWeek.rosterGroupId) |> fetchCount
+                beforeDays <- query @RosterDay |> filterWhere (#rosterGroupId, rosterWeek.fixtureRosterGroupId) |> fetchCount
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams
@@ -109,7 +108,7 @@ tests = aroundAll withDatabaseTestContext do
                         ]
 
                 response `responseStatusShouldBe` status409
-                afterDays <- query @RosterDay |> filterWhere (#rosterGroupId, rosterWeek.rosterGroupId) |> fetchCount
+                afterDays <- query @RosterDay |> filterWhere (#rosterGroupId, rosterWeek.fixtureRosterGroupId) |> fetchCount
                 afterDays `shouldBe` beforeDays
                 persistedDay <- fetch rosterDay.id
                 persistedDay.rowCount `shouldBe` rosterDay.rowCount
@@ -138,7 +137,7 @@ tests = aroundAll withDatabaseTestContext do
                 manager <- createUserRecord "roster-manager-public-holidays@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager Manager
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                let weekStartDate = venueWeekStartDate venueConfig 0
+                let weekStartDate = testAnchorForOffset 0
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 _ <- createRosterDayRecord rosterWeek 0
                 _ <- createRosterDayRecord rosterWeek 1
@@ -238,14 +237,12 @@ tests = aroundAll withDatabaseTestContext do
                 let createWeekTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 createWeekTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterContentFragmentId))
 
-                legacyWeeks <- query @RosterWeek |> filterWhere (#venueId, unpackId venue.id) |> fetch
-                legacyWeeks `shouldBe` []
                 datedDays <- query @RosterDay
                     |> filterWhere (#venueId, unpackId venue.id)
                     |> orderByAsc #operationalDate
                     |> fetch
                 length datedDays `shouldBe` 7
-                datedDays `shouldSatisfy` all (isNothing . (.rosterWeekId))
+                map (.operationalDate) datedDays `shouldBe` map (`addDays` testAnchorForOffset 0) [0 .. 6]
                 datedDays `shouldSatisfy` all ((== Draft) . (.publicationState))
                 activeLanes <- query @RosterLane
                     |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) datedDays)
@@ -280,7 +277,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 rosterDay <- query @RosterDay
                     |> filterWhere (#venueId, unpackId venue.id)
-                    |> filterWhere (#dayOffset, 0)
+                    |> filterWhere (#operationalDate, testAnchorForOffset 0)
                     |> fetchOne
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -414,7 +411,7 @@ tests = aroundAll withDatabaseTestContext do
                 preservedFirst <- fetch early2.id
                 deletedRightmost <- fetch late2.id
                 preservedFirst.deletedAt `shouldBe` Nothing
-                preservedFirst.rosterWeekSlotDefinitionId `shouldBe` late0.rosterWeekSlotDefinitionId
+                preservedFirst.rosterLaneId `shouldBe` late0.rosterLaneId
                 preservedFirst.rowIndex `shouldBe` 1
                 deletedRightmost.deletedAt `shouldSatisfy` isJust
 
@@ -505,25 +502,25 @@ tests = aroundAll withDatabaseTestContext do
                 sortedAlphaSlot <- fetch alphaSlot.id
                 sortedBravoSlot <- fetch bravoSlot.id
                 sortedCharlieSlot <- fetch charlieSlot.id
-                earlyDefinition <- query @RosterWeekSlotDefinition
-                    |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+                earlyDefinition <- query @RosterLane
+                    |> filterWhere (#rosterDayId, unpackId rosterDay.id)
                     |> filterWhere (#name, "Early")
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetchOne
-                lateDefinition <- query @RosterWeekSlotDefinition
-                    |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+                lateDefinition <- query @RosterLane
+                    |> filterWhere (#rosterDayId, unpackId rosterDay.id)
                     |> filterWhere (#name, "Late")
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetchOne
 
                 sortedAlphaSlot.id `shouldBe` alphaSlot.id
-                sortedAlphaSlot.rosterWeekSlotDefinitionId `shouldBe` Just (unpackId earlyDefinition.id)
+                sortedAlphaSlot.rosterLaneId `shouldBe` unpackId earlyDefinition.id
                 sortedAlphaSlot.rowIndex `shouldBe` 0
                 sortedBravoSlot.id `shouldBe` bravoSlot.id
-                sortedBravoSlot.rosterWeekSlotDefinitionId `shouldBe` Just (unpackId earlyDefinition.id)
+                sortedBravoSlot.rosterLaneId `shouldBe` unpackId earlyDefinition.id
                 sortedBravoSlot.rowIndex `shouldBe` 1
                 sortedCharlieSlot.id `shouldBe` charlieSlot.id
-                sortedCharlieSlot.rosterWeekSlotDefinitionId `shouldBe` Just (unpackId lateDefinition.id)
+                sortedCharlieSlot.rosterLaneId `shouldBe` unpackId lateDefinition.id
                 sortedCharlieSlot.rowIndex `shouldBe` 0
 
         it "deleting a populated roster column reallocates shifts into remaining columns and adds rows" $ withContext do
@@ -544,20 +541,20 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- updateRecord (bravoSlot |> setTestStartTime (Just (timeOfDay 10 0)))
                 _ <- updateRecord (charlieSlot |> setTestStartTime (Just (timeOfDay 11 0)))
                 _ <- updateRecord (alphaSlot |> setTestStartTime (Just (timeOfDay 9 0)))
-                earlyDefinition <- query @RosterWeekSlotDefinition
-                    |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+                earlyDefinition <- query @RosterLane
+                    |> filterWhere (#rosterDayId, unpackId rosterDay.id)
                     |> filterWhere (#name, "Early")
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetchOne
-                lateDefinition <- query @RosterWeekSlotDefinition
-                    |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+                lateDefinition <- query @RosterLane
+                    |> filterWhere (#rosterDayId, unpackId rosterDay.id)
                     |> filterWhere (#name, "Late")
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetchOne
 
                 lateLane <- fetchRosterLaneForDefinition rosterDay lateDefinition
                 lateLanes <- query @RosterLane
-                    |> filterWhere (#legacyRosterWeekSlotDefinitionId, Just (unpackId lateDefinition.id))
+                    |> filterWhere (#id, lateDefinition.id)
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetch
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -574,7 +571,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> filterWhere (#rosterDayId, unpackId rosterDay.id)
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetch
-                let packedDataSlots = sortOn (.rowIndex) (filter (\slot -> slot.rosterWeekSlotDefinitionId == Just (unpackId earlyDefinition.id) && isJust slot.staffId) packedSlots)
+                let packedDataSlots = sortOn (.rowIndex) (filter (\slot -> slot.rosterLaneId == unpackId earlyDefinition.id && isJust slot.staffId) packedSlots)
                 map (.id) packedDataSlots `shouldBe` [alphaSlot.id, bravoSlot.id, charlieSlot.id]
                 map (.rowIndex) packedDataSlots `shouldBe` [0, 1, 2]
                 map testStartTime packedDataSlots `shouldBe` map (Just . uncurry timeOfDay) [(9, 0), (10, 0), (11, 0)]
@@ -601,7 +598,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                            ToggleRosterWeekLiveStatusAction
                             [("anchorDate", "2025-01-06"), ("isLive", "on"), ("rosterCalendarRevision", "1")]
 
                 response `responseStatusShouldBe` status200
@@ -769,7 +766,7 @@ tests = aroundAll withDatabaseTestContext do
                 filledSlot.endsAt `shouldBe` openSlot.endsAt
                 filledSlot.shiftTypeId `shouldBe` openSlot.shiftTypeId
                 filledSlot.rosterDayId `shouldBe` openSlot.rosterDayId
-                filledSlot.rosterWeekSlotDefinitionId `shouldBe` openSlot.rosterWeekSlotDefinitionId
+                filledSlot.rosterLaneId `shouldBe` openSlot.rosterLaneId
                 filledSlot.rowIndex `shouldBe` openSlot.rowIndex
 
                 afterFill <- withUserAndCurrentVenue manager venue.id do
@@ -1088,7 +1085,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (ToggleRosterWeekLiveStatusAction (Id UUID.nil))
+                        callActionWithParams ToggleRosterWeekLiveStatusAction
                             [ ("anchorDate", "2025-01-06")
                             , ("isLive", "on")
                             , ("rosterCalendarRevision", "1")
@@ -1116,7 +1113,7 @@ tests = aroundAll withDatabaseTestContext do
                         withUserAndCurrentVenue manager venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
                                 callActionWithParams
-                                    (ToggleRosterWeekLiveStatusAction (Id UUID.nil))
+                                    ToggleRosterWeekLiveStatusAction
                                     [ ("isLive", nextState)
                                     , ("anchorDate", "2025-01-06")
                                     , ("rosterCalendarRevision", "1")
@@ -1130,7 +1127,6 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetch
                 length publishedDays `shouldBe` 7
                 publishedDays `shouldSatisfy` all ((== Published) . (.publicationState))
-                query @RosterWeek |> fetchCount >>= (`shouldBe` 0)
                 suggestionDay <- maybe (expectationFailure "Expected a Published roster day" >> error "unreachable") pure (head publishedDays)
                 suggestionLane <- query @RosterLane
                     |> filterWhere (#rosterDayId, unpackId suggestionDay.id)
@@ -1158,7 +1154,6 @@ tests = aroundAll withDatabaseTestContext do
                     |> fetch
                 length draftedDays `shouldBe` 7
                 draftedDays `shouldSatisfy` all ((== Draft) . (.publicationState))
-                query @RosterWeek |> fetchCount >>= (`shouldBe` 0)
                 draftSuggestion <- withUserAndCurrentVenue manager venue.id do
                     withCurrentControllerContext do
                         fetchTimesheetSuggestionForRosterSlot suggestionSlot.id
@@ -1184,27 +1179,26 @@ tests = aroundAll withDatabaseTestContext do
                         withUserAndCurrentVenue manager venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
                                 callActionWithParams
-                                    (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                                    ToggleRosterWeekLiveStatusAction
                                     [("anchorDate", "2025-01-06"), ("isLive", "on"), ("rosterCalendarRevision", "1")]
 
                 blocked <- publish
                 blocked `responseStatusShouldBe` status200
                 blocked `responseBodyShouldContain` "Part-time roster shifts must project between 3 and 11.5 working hours after the automatic unpaid meal break."
-                fetch rosterWeek.id >>= (\week -> week.isLive `shouldBe` False)
+                fetchTestRosterWindowDays rosterWeek >>= (`shouldSatisfy` all ((== Draft) . (.publicationState)))
 
                 _ <- updateRecord
                     (partTimeSlot |> setTestRosterSlotBoundaries (fromGregorian 2025 1 6) (timeOfDay 9 0) (timeOfDay 12 0))
                 published <- publish
                 published `responseStatusShouldBe` status200
-                fetch rosterWeek.id >>= (\week -> week.isLive `shouldBe` True)
+                fetchTestRosterWindowDays rosterWeek >>= (`shouldSatisfy` all ((== Published) . (.publicationState)))
                 publishedDays <- query @RosterDay
-                    |> filterWhere (#rosterGroupId, rosterWeek.rosterGroupId)
+                    |> filterWhere (#rosterGroupId, rosterWeek.fixtureRosterGroupId)
                     |> fetch
                 length publishedDays `shouldBe` 7
                 publishedDays `shouldSatisfy` all ((== Published) . (.publicationState))
-                _ <- rosterWeek |> set #isLive False |> updateRecord
                 retainedPublishedDays <- query @RosterDay
-                    |> filterWhere (#rosterGroupId, rosterWeek.rosterGroupId)
+                    |> filterWhere (#rosterGroupId, rosterWeek.fixtureRosterGroupId)
                     |> fetch
                 retainedPublishedDays `shouldSatisfy` all ((== Published) . (.publicationState))
                 authoritativeResponse <- withUserAndCurrentVenue manager venue.id do
@@ -1234,11 +1228,11 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (ToggleRosterWeekLiveStatusAction rosterWeek.id) [("anchorDate", "2025-01-06"), ("isLive", "on"), ("rosterCalendarRevision", "1")]
+                        callActionWithParams ToggleRosterWeekLiveStatusAction [("anchorDate", "2025-01-06"), ("isLive", "on"), ("rosterCalendarRevision", "1")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Resolve pay configuration for the selected staff member or shift type before saving this roster shift."
-                fetch rosterWeek.id >>= (\week -> week.isLive `shouldBe` False)
+                fetchTestRosterWindowDays rosterWeek >>= (`shouldSatisfy` all ((== Draft) . (.publicationState)))
 
         it "rejects copying unresolved pay configuration without replacing existing target data" $ withContext do
             withCleanDb do
@@ -1282,7 +1276,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterWeek <- createRosterWeekRecord venue 64 False
                 rosterDay <- createRosterDayRecord rosterWeek 5
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                _ <- venueConfig |> set #rosterWeekStartsOn 2 |> set #weekOffsetEpoch (addDays 1 venueConfig.weekOffsetEpoch) |> updateRecord
+                _ <- venueConfig |> set #rosterWeekStartsOn 2 |> updateRecord
                 let submission startOccurrence = RosterShiftDialogSubmission
                         { submittedRosterShiftStaffId = Just (tshow staffMember.id)
                         , submittedRosterShiftStartTime = Just "02:30"
@@ -1293,8 +1287,8 @@ tests = aroundAll withDatabaseTestContext do
                         }
                 (missingOccurrenceResult, selectedOccurrenceResult) <- withUserAndCurrentVenue manager venue.id do
                     withCurrentControllerContext do
-                        missing <- validateRosterShiftDialogSubmission (Id rosterWeek.rosterGroupId) rosterDay Nothing (submission "")
-                        selected <- validateRosterShiftDialogSubmission (Id rosterWeek.rosterGroupId) rosterDay Nothing (submission "second")
+                        missing <- validateRosterShiftDialogSubmission (Id rosterWeek.fixtureRosterGroupId) rosterDay Nothing (submission "")
+                        selected <- validateRosterShiftDialogSubmission (Id rosterWeek.fixtureRosterGroupId) rosterDay Nothing (submission "second")
                         pure (missing, selected)
 
                 case missingOccurrenceResult of
@@ -1405,13 +1399,13 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                            ToggleRosterWeekLiveStatusAction
                             [("anchorDate", "2025-01-06"), ("isLive", "on"), ("rosterCalendarRevision", "1")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "valid end time"
-                updatedWeek <- fetch rosterWeek.id
-                updatedWeek.isLive `shouldBe` False
+                updatedDays <- fetchTestRosterWindowDays rosterWeek
+                updatedDays `shouldSatisfy` all ((== Draft) . (.publicationState))
 
         it "allows valid overnight staffed shifts to be Published" $ withContext do
             withCleanDb do
@@ -1438,15 +1432,15 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                            ToggleRosterWeekLiveStatusAction
                             [("anchorDate", "2025-01-06"), ("isLive", "on"), ("rosterCalendarRevision", "1")]
 
                 response `responseStatusShouldBe` status200
                 lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
                 response `responseBodyShouldContain` "Roster window Published."
                 response `responseBodyShouldNotContain` cs rosterContentFragmentId
-                updatedWeek <- fetch rosterWeek.id
-                updatedWeek.isLive `shouldBe` True
+                updatedDays <- fetchTestRosterWindowDays rosterWeek
+                updatedDays `shouldSatisfy` all ((== Published) . (.publicationState))
 
         it "renders Published closed days as read-only closed text without the lock control" $ withContext do
             withCleanDb do
@@ -1497,7 +1491,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "No roster exists for this week yet."
 
                 rosterDays <- query @RosterDay
-                    |> filterWhere (#rosterGroupId, rosterWeek.rosterGroupId)
+                    |> filterWhere (#rosterGroupId, rosterWeek.fixtureRosterGroupId)
                     |> fetch
                 _ <- mapM (updateRecord . set #publicationState Draft) rosterDays
                 draftResponse <- withUser user do
@@ -1566,7 +1560,7 @@ tests = aroundAll withDatabaseTestContext do
                 draftManagerResponse `responseBodyShouldContain` "class=\"roster-shift-unit-cell slot-empty-cell\" data-bepis-roster-image-export-cell=\"{&quot;imageExportEndEllipsis&quot;:false,&quot;imageExportText&quot;:&quot;&quot;}\""
 
                 _ <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (ToggleRosterWeekLiveStatusAction draftWeek.id) [("anchorDate", "2025-01-06"), ("isLive", "on"), ("rosterCalendarRevision", "1")]
+                    callActionWithParams ToggleRosterWeekLiveStatusAction [("anchorDate", "2025-01-06"), ("isLive", "on"), ("rosterCalendarRevision", "1")]
 
                 liveManagerResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
@@ -1746,7 +1740,7 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (ShowRosterWeekGridToolbarFragmentAction (tshow (testAnchorForOffset 0)))
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            [ ("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))
                             , ("pinnedStaffKey", "staff:" <> cs (tshow staffMember.id))
                             ]
                 alphaToolbarResponse `responseBodyShouldContain` "$150.00"
@@ -1758,7 +1752,7 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (ShowRosterWeekWageRailFragmentAction (tshow (testAnchorForOffset 0)))
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            [ ("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))
                             , ("pinnedStaffKey", "staff:" <> cs (tshow staffMember.id))
                             ]
                 alphaWageRailResponse `responseBodyShouldContain` "$150.00"
@@ -1768,7 +1762,7 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (ShowRosterWeekGridToolbarFragmentAction (tshow (testAnchorForOffset 0)))
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            [ ("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))
                             , ("pinnedStaffKey", "staff:" <> cs (tshow staffMember.id))
                             ]
                 supportToolbarResponse `responseBodyShouldContain` "$150.00"
@@ -1778,7 +1772,7 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (ShowRosterWeekGridToolbarFragmentAction (tshow (testAnchorForOffset 0)))
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            [ ("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))
                             , ("pinnedStaffKey", "staff:" <> cs (tshow staffMember.id))
                             ]
                 ownerToolbarResponse `responseBodyShouldContain` "$150.00"
@@ -1788,7 +1782,7 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (ShowRosterWeekGridToolbarFragmentAction (tshow (testAnchorForOffset 0)))
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            [ ("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))
                             , ("pinnedStaffKey", "staff:" <> cs (tshow secondStaff.id))
                             ]
                 bravoToolbarResponse `responseBodyShouldContain` "$80.00"
@@ -1798,14 +1792,14 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (ShowRosterWeekGridToolbarFragmentAction (tshow (testAnchorForOffset 0)))
-                            [("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))]
+                            [("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))]
                 unpinnedToolbarResponse `responseBodyShouldContain` "$230.00"
 
                 foreignPinToolbarResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (ShowRosterWeekGridToolbarFragmentAction (tshow (testAnchorForOffset 0)))
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            [ ("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))
                             , ("pinnedStaffKey", "staff:" <> cs (tshow foreignStaff.id))
                             ]
                 foreignPinToolbarResponse `responseBodyShouldContain` "$230.00"
@@ -1860,7 +1854,7 @@ tests = aroundAll withDatabaseTestContext do
                 hiddenWagesPanelResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams
                         (ShowRosterWeekStaffPanelFragmentAction (tshow (testAnchorForOffset 0)))
-                        [("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))]
+                        [("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))]
                 hiddenWagesPanelResponse `responseBodyShouldContain` "Wages disabled"
                 hiddenWagesFrameResponse `responseBodyShouldNotContain` "roster-wage-summary"
                 hiddenWagesFrameResponse `responseBodyShouldNotContain` "roster-day-wage-total"
@@ -1896,7 +1890,7 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (UpdateRosterOwnLiveShiftHighlightPreferenceAction)
-                            [("anchorDate", "2025-01-06"), ("highlightOwnLiveShifts", "false"), ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))]
+                            [("anchorDate", "2025-01-06"), ("highlightOwnLiveShifts", "false"), ("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))]
 
                 response `responseStatusShouldBe` status200
                 lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
@@ -1969,7 +1963,7 @@ tests = aroundAll withDatabaseTestContext do
                 shownWagesPanelResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams
                         (ShowRosterWeekStaffPanelFragmentAction (tshow (testAnchorForOffset 0)))
-                        [("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))]
+                        [("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))]
                 shownWagesPanelResponse `responseBodyShouldContain` "Wages enabled"
                 shownWagesFrameResponse `responseBodyShouldContain` "$150.00"
                 shownWagesFrameResponse `responseBodyShouldContain` "roster-wage-summary"
@@ -1991,9 +1985,6 @@ tests = aroundAll withDatabaseTestContext do
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
-                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                _ <- venueConfig |> set #weekOffsetEpoch (addDays 1 venueConfig.weekOffsetEpoch) |> updateRecord
-
                 shiftResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callRosterSlotActionWithParams
@@ -2010,16 +2001,16 @@ tests = aroundAll withDatabaseTestContext do
 
                 publishResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams
-                        (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                        ToggleRosterWeekLiveStatusAction
                         [ ("anchorDate", "2025-01-06")
-                        , ("rosterGroupId", cs (show rosterWeek.rosterGroupId))
+                        , ("rosterGroupId", cs (show rosterWeek.fixtureRosterGroupId))
                         , ("isLive", "on")
                         , ("rosterCalendarRevision", "1")
                         ]
                 publishResponse `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders publishResponse) `shouldSatisfy` maybe False (ByteString.isInfixOf "anchorDate=2025-01-06")
                 publishedDays <- query @RosterDay
-                    |> filterWhere (#rosterGroupId, rosterWeek.rosterGroupId)
+                    |> filterWhere (#rosterGroupId, rosterWeek.fixtureRosterGroupId)
                     |> filterWhere (#publicationState, Published)
                     |> orderByAsc #operationalDate
                     |> fetch
@@ -2035,17 +2026,17 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams
-                        (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                        ToggleRosterWeekLiveStatusAction
                         [ ("anchorDate", "2025-01-06")
-                        , ("rosterGroupId", cs (show rosterWeek.rosterGroupId))
+                        , ("rosterGroupId", cs (show rosterWeek.fixtureRosterGroupId))
                         , ("isLive", "on")
                         , ("rosterCalendarRevision", "1")
                         ]
 
                 response `responseStatusShouldBe` status302
 
-                publishedWeek <- fetch rosterWeek.id
-                publishedWeek.isLive `shouldBe` True
+                publishedDays <- fetchTestRosterWindowDays rosterWeek
+                publishedDays `shouldSatisfy` all ((== Published) . (.publicationState))
 
         it "publishes complete Open shifts without requiring pay assignment" $ withContext do
             withCleanDb do
@@ -2059,15 +2050,15 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (ToggleRosterWeekLiveStatusAction rosterWeek.id) [("anchorDate", "2025-01-06"), ("isLive", "on"), ("rosterCalendarRevision", "1")]
+                        callActionWithParams ToggleRosterWeekLiveStatusAction [("anchorDate", "2025-01-06"), ("isLive", "on"), ("rosterCalendarRevision", "1")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Roster window Published."
                 let publicationTrigger = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 publicationTrigger `shouldSatisfy` maybe False (Text.isInfixOf rosterContentFragmentId)
                 publicationTrigger `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-staff-panel\"")
-                published <- fetch rosterWeek.id
-                published.isLive `shouldBe` True
+                publishedDays <- fetchTestRosterWindowDays rosterWeek
+                publishedDays `shouldSatisfy` all ((== Published) . (.publicationState))
                 retained <- fetch openSlot.id
                 retained.assignmentState `shouldBe` "open"
                 retained.staffId `shouldBe` Nothing
@@ -2098,7 +2089,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                            ToggleRosterWeekLiveStatusAction
                             [("anchorDate", "2025-01-06"), ("isLive", "on"), ("rosterCalendarRevision", "1")]
 
                 response `responseStatusShouldBe` status200
@@ -2152,7 +2143,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 draftResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (ToggleRosterWeekLiveStatusAction rosterWeek.id) [("anchorDate", "2025-01-06"), ("isLive", "false"), ("rosterCalendarRevision", "1")]
+                        callActionWithParams ToggleRosterWeekLiveStatusAction [("anchorDate", "2025-01-06"), ("isLive", "false"), ("rosterCalendarRevision", "1")]
                 draftResponse `responseStatusShouldBe` status200
 
                 timesheetsResponse <- withUserAndCurrentVenue manager venue.id do
@@ -2196,7 +2187,7 @@ tests = aroundAll withDatabaseTestContext do
                 entry <- query @TimesheetEntry |> fetchOne
 
                 publishedDays <- query @RosterDay
-                    |> filterWhere (#rosterGroupId, rosterWeek.rosterGroupId)
+                    |> filterWhere (#rosterGroupId, rosterWeek.fixtureRosterGroupId)
                     |> fetch
                 _ <- mapM (updateRecord . set #publicationState Draft) publishedDays
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -2291,12 +2282,12 @@ tests = aroundAll withDatabaseTestContext do
                 rosterWeek <- createRosterWeekRecord venue 0 True
 
                 response <- withUser manager do
-                    callActionWithParams (ToggleRosterWeekLiveStatusAction rosterWeek.id) [("anchorDate", "2025-01-06"), ("isLive", "false"), ("rosterCalendarRevision", "1")]
+                    callActionWithParams ToggleRosterWeekLiveStatusAction [("anchorDate", "2025-01-06"), ("isLive", "false"), ("rosterCalendarRevision", "1")]
 
                 response `responseStatusShouldBe` status302
 
-                updatedWeek <- fetch rosterWeek.id
-                updatedWeek.isLive `shouldBe` False
+                updatedDays <- fetchTestRosterWindowDays rosterWeek
+                updatedDays `shouldSatisfy` all ((== Draft) . (.publicationState))
 
         it "manager can fetch a roster row fragment for the current venue" $ withContext do
             withCleanDb do
@@ -2592,12 +2583,6 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status302
 
-                query @RosterWeek
-                    |> filterWhere (#venueId, unpackId venue.id)
-                    |> filterWhere (#weekOffset, 1)
-                    |> fetchOneOrNothing
-                    >>= (`shouldBe` Nothing)
-
                 let targetStart = testAnchorForOffset 1
                 copiedDays <- query @RosterDay
                     |> filterWhere (#venueId, unpackId venue.id)
@@ -2606,7 +2591,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> orderByAsc #operationalDate
                     |> fetch
                 length copiedDays `shouldBe` 7
-                map (.rosterWeekId) copiedDays `shouldSatisfy` all isNothing
+                map (.operationalDate) copiedDays `shouldBe` map (`addDays` targetStart) [0 .. 6]
                 map (.publicationState) copiedDays `shouldSatisfy` all (== Draft)
 
                 let copiedDay = fromJust (head copiedDays)
@@ -2619,7 +2604,7 @@ tests = aroundAll withDatabaseTestContext do
                 let copiedSlot = fromJust (head copiedSlots)
                 copiedLane <- fetch (Id copiedSlot.rosterLaneId :: Id RosterLane)
                 copiedSlot.staffId `shouldBe` Just (unpackId staffMember.id)
-                copiedSlot.rosterWeekSlotDefinitionId `shouldBe` Nothing
+                copiedSlot.rosterLaneId `shouldNotBe` sourceSlot.rosterLaneId
                 copiedLane.name `shouldBe` slotName.name
                 copiedSlot.rowIndex `shouldBe` 0
                 testStartTime copiedSlot `shouldBe` Just (timeOfDay 9 0)
@@ -2647,11 +2632,12 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Part-time roster shifts must project between 3 and 11.5 working hours after the automatic unpaid meal break."
-                query @RosterWeek
+                query @RosterDay
                     |> filterWhere (#venueId, unpackId venue.id)
-                    |> filterWhere (#weekOffset, 64)
-                    |> fetchOneOrNothing
-                    >>= (`shouldBe` Nothing)
+                    |> filterWhereGreaterThanOrEqualTo (#operationalDate, testAnchorForOffset 64)
+                    |> filterWhereLessThan (#operationalDate, addDays 7 (testAnchorForOffset 64))
+                    |> fetchCount
+                    >>= (`shouldBe` 0)
 
         it "rejects copies whose target-date DST elapsed duration breaches Casual limits" $ withContext do
             withCleanDb do
@@ -2675,11 +2661,12 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Casual roster shifts must project no more than 12 working hours after the automatic unpaid meal break."
-                query @RosterWeek
+                query @RosterDay
                     |> filterWhere (#venueId, unpackId venue.id)
-                    |> filterWhere (#weekOffset, 64)
-                    |> fetchOneOrNothing
-                    >>= (`shouldBe` Nothing)
+                    |> filterWhereGreaterThanOrEqualTo (#operationalDate, testAnchorForOffset 64)
+                    |> filterWhereLessThan (#operationalDate, addDays 7 (testAnchorForOffset 64))
+                    |> fetchCount
+                    >>= (`shouldBe` 0)
 
         it "copies roster clocks across autumn only after choosing the repeated occurrence" $ withContext do
             withCleanDb do
@@ -2708,9 +2695,10 @@ tests = aroundAll withDatabaseTestContext do
                 chooserResponse `responseBodyShouldContain` "hx-target=\"#roster-content\""
                 chooserResponse `responseBodyShouldContain` "data-time-occurrence-chooser=\"copyStartOccurrence\""
                 chooserResponse `responseBodyShouldNotContain` "data-time-occurrence-chooser=\"copyEndOccurrence\""
-                query @RosterWeek
+                query @RosterDay
                     |> filterWhere (#venueId, unpackId venue.id)
-                    |> filterWhere (#weekOffset, 64)
+                    |> filterWhereGreaterThanOrEqualTo (#operationalDate, testAnchorForOffset 64)
+                    |> filterWhereLessThan (#operationalDate, addDays 7 (testAnchorForOffset 64))
                     |> fetchCount
                     >>= (`shouldBe` 0)
 
@@ -2722,7 +2710,7 @@ tests = aroundAll withDatabaseTestContext do
                 copiedResponse `responseStatusShouldBe` status200
                 copiedDay <- query @RosterDay
                     |> filterWhere (#venueId, unpackId venue.id)
-                    |> filterWhere (#rosterGroupId, sourceWeek.rosterGroupId)
+                    |> filterWhere (#rosterGroupId, sourceWeek.fixtureRosterGroupId)
                     |> filterWhere (#operationalDate, addDays 7 sourceDay.operationalDate)
                     |> fetchOne
                 copiedSlot <- query @RosterSlot
@@ -2772,23 +2760,21 @@ tests = aroundAll withDatabaseTestContext do
                         |> setTestStartTime (Just (timeOfDay 14 0))
                         |> setTestDurationMinutes (Just 180)
                     )
-                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                _ <- venueConfig |> set #weekOffsetEpoch (addDays 1 venueConfig.weekOffsetEpoch) |> updateRecord
-
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams CopyRosterWeekAction (rosterCopyParams 0 1)
 
                 response `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders response) `shouldSatisfy` maybe False (ByteString.isInfixOf "anchorDate=2025-01-13")
 
-                targetWeeks <- query @RosterWeek
+                targetDays <- query @RosterDay
                     |> filterWhere (#venueId, unpackId venue.id)
-                    |> filterWhere (#weekOffset, 1)
+                    |> filterWhereGreaterThanOrEqualTo (#operationalDate, testAnchorForOffset 1)
+                    |> filterWhereLessThan (#operationalDate, addDays 7 (testAnchorForOffset 1))
                     |> fetch
-                length targetWeeks `shouldBe` 1
+                length targetDays `shouldBe` 7
 
                 copiedDay <- query @RosterDay
-                    |> filterWhere (#rosterWeekId, Just (unpackId targetWeek.id))
+                    |> filterWhere (#rosterGroupId, targetWeek.fixtureRosterGroupId)
                     |> filterWhere (#operationalDate, targetDay.operationalDate)
                     |> fetchOne
                 copiedSlots <- query @RosterSlot
@@ -2800,7 +2786,7 @@ tests = aroundAll withDatabaseTestContext do
                 let copiedSlot = fromJust (head copiedSlots)
                 copiedLane <- fetch (Id copiedSlot.rosterLaneId :: Id RosterLane)
                 copiedSlot.staffId `shouldBe` Just (unpackId alpha.id)
-                copiedSlot.rosterWeekSlotDefinitionId `shouldBe` Nothing
+                copiedSlot.rosterLaneId `shouldNotBe` sourceSlot.rosterLaneId
                 copiedLane.name `shouldBe` early.name
                 testStartTime copiedSlot `shouldBe` Just (timeOfDay 8 0)
                 testDurationMinutes copiedSlot `shouldBe` Just 300
@@ -2817,7 +2803,7 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createRosterDayRecord sourceWeek 0
                 _ <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams
-                        (ToggleRosterWeekLiveStatusAction (Id UUID.nil))
+                        ToggleRosterWeekLiveStatusAction
                         [ ("isLive", "on")
                         , ("anchorDate", "2025-01-06")
                         , ("rosterCalendarRevision", "1")
@@ -2831,11 +2817,12 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Published roster windows are read-only. Return it to Draft before copying."
-                query @RosterWeek
+                query @RosterDay
                     |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
-                    |> filterWhere (#weekOffset, 0)
+                    |> filterWhereGreaterThanOrEqualTo (#operationalDate, testAnchorForOffset 0)
+                    |> filterWhereLessThan (#operationalDate, addDays 7 (testAnchorForOffset 0))
                     |> fetchCount
-                    >>= (`shouldBe` 0)
+                    >>= (`shouldSatisfy` (> 0))
                 targetDays <- query @RosterDay
                     |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
                     |> filterWhere (#publicationState, Published)
@@ -2848,11 +2835,12 @@ tests = aroundAll withDatabaseTestContext do
                         callActionWithParams CopyRosterWeekAction $
                             rosterCopyParams (-1) 0 <> [("rosterGroupId", idToParam rosterGroup.id)]
                 partialResponse `responseBodyShouldContain` "Published roster windows are read-only. Return it to Draft before copying."
-                query @RosterWeek
+                query @RosterDay
                     |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
-                    |> filterWhere (#weekOffset, 0)
+                    |> filterWhereGreaterThanOrEqualTo (#operationalDate, testAnchorForOffset 0)
+                    |> filterWhereLessThan (#operationalDate, addDays 7 (testAnchorForOffset 0))
                     |> fetchCount
-                    >>= (`shouldBe` 0)
+                    >>= (`shouldSatisfy` (> 0))
 
         it "rejects copying over a Published target window" $ withContext do
             withCleanDb do
@@ -2889,8 +2877,8 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Published roster windows are read-only. Return it to Draft before copying."
 
-                retainedWeek <- fetch targetWeek.id
-                retainedWeek.isLive `shouldBe` True
+                retainedDays <- fetchTestRosterWindowDays targetWeek
+                retainedDays `shouldSatisfy` all ((== Published) . (.publicationState))
                 retainedTargetSlot <- fetch targetSlot.id
                 retainedTargetSlot.deletedAt `shouldBe` Nothing
                 retainedTargetSlot.staffId `shouldBe` Just (unpackId bravo.id)
@@ -2932,8 +2920,8 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status302
 
                 frontCopiedDay <- query @RosterDay
-                    |> filterWhere (#rosterWeekId, Just (unpackId frontTargetWeek.id))
-                    |> filterWhere (#dayOffset, 0)
+                    |> filterWhere (#rosterGroupId, unpackId frontOfHouse.id)
+                    |> filterWhere (#operationalDate, frontTargetWeek.fixtureWindowStart)
                     |> fetchOne
                 frontCopiedSlots <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId frontCopiedDay.id)
@@ -2968,12 +2956,10 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Cannot copy a roster week onto itself."
 
-                persistedWeeks <- query @RosterWeek
+                persistedDays <- query @RosterDay
                     |> filterWhere (#venueId, unpackId venue.id)
-                    |> filterWhere (#weekOffset, 0)
                     |> fetch
-                length persistedWeeks `shouldBe` 1
-                map (.id) persistedWeeks `shouldBe` [originalWeek.id]
+                persistedDays `shouldBe` []
 
         it "rejects copying from a missing source week via HTMX without creating the target week" $ withContext do
             withCleanDb do
@@ -2988,11 +2974,12 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Source week not found. Cannot copy."
 
-                targetWeek <- query @RosterWeek
+                targetDays <- query @RosterDay
                     |> filterWhere (#venueId, unpackId venue.id)
-                    |> filterWhere (#weekOffset, 8)
-                    |> fetchOneOrNothing
-                targetWeek `shouldBe` Nothing
+                    |> filterWhereGreaterThanOrEqualTo (#operationalDate, testAnchorForOffset 8)
+                    |> filterWhereLessThan (#operationalDate, addDays 7 (testAnchorForOffset 8))
+                    |> fetch
+                targetDays `shouldBe` []
 
 callRosterSlotActionWithParams action params =
     callActionWithParams action (params <> rosterMutationParams 0)

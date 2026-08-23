@@ -29,8 +29,6 @@ import qualified Database.PostgreSQL.Simple as PG
 import IHP.ModelSupport (sqlQuery)
 import Web.Controller.Prelude
 import Web.RosterWeeks.DateRange
-import Web.RosterWeeks.LegacyCompatibility (fetchLegacyRosterWeekForScope,
-                                            legacyPlanningRosterWeekForScope)
 import Web.RosterWeeks.Rows
 import Web.RosterWeeks.StaffOptions
 import Web.RosterWeeks.Types
@@ -48,7 +46,7 @@ fetchRosterNotificationWindowDays venueId rosterGroupId windowStart windowEnd =
 -- Database-near base facts for roster read-model rendering. These reads are
 -- request-local and do not use a cross-request HTML/read-model cache.
 data RosterBaseFacts = RosterBaseFacts
-    { baseRosterWeek             :: !(Maybe RosterWeek)
+    { baseRosterWeek             :: !(Maybe RosterWindowState)
     , baseRosterDays             :: ![RosterDay]
     , baseAllSlots               :: ![RosterSlot]
     , baseVisibleSlots           :: ![RosterSlot]
@@ -82,16 +80,15 @@ fetchRosterBaseFactsForScopeDirect scope =
         let rosterGroupId = scope.rosterWindowRosterGroupId
         let windowStartDate = scope.rosterWindowStart
         let windowEndDate = scope.rosterWindowEnd
-        rosterWeekOrNothing <- profileActionSpan "roster.direct.fetch_legacy_week" (fetchLegacyRosterWeekForScope scope)
         window <- profileActionSpan "roster.direct.fetch_dated_window" (fetchRosterWindow scope.rosterWindowVenueId rosterGroupId windowStartDate)
         let rosterDays =
                 map
-                    (projectedRosterDay scope.rosterWindowVenueId rosterGroupId (get #id <$> rosterWeekOrNothing) windowStartDate)
+                    (projectedRosterDay scope.rosterWindowVenueId rosterGroupId)
                     window.rosterWindowProjectedDays
-        let windowIsPublished = rosterWindowIsPublished window
-        planningWeek <- case rosterWeekOrNothing of
-            Just rosterWeek -> pure (rosterWeek |> set #isLive windowIsPublished)
-            Nothing -> legacyPlanningRosterWeekForScope scope windowIsPublished
+        let windowState = RosterWindowState
+                { windowRosterGroupId = unpackId rosterGroupId
+                , windowIsPublished = rosterWindowIsPublished window
+                }
         allSlots <- profileActionSpan "roster.direct.fetch_dated_slots" do
             orderedSlotIds :: [PG.Only UUID.UUID] <- sqlQuery
                 "SELECT roster_slots.id \
@@ -113,7 +110,7 @@ fetchRosterBaseFactsForScopeDirect scope =
         shiftTypes <- profileActionSpan "roster.direct.fetch_shift_types" fetchCurrentVenueRosterShiftTypesDirect
         let staffMembers = nubBy (\left right -> left.id == right.id) (eligibleStaffMembers <> assignedStaffMembers)
         pure RosterBaseFacts
-            { baseRosterWeek = Just planningWeek
+            { baseRosterWeek = Just windowState
             , baseRosterDays = rosterDays
             , baseAllSlots = allSlots
             , baseVisibleSlots = visibleSlots

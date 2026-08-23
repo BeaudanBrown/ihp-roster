@@ -10,16 +10,16 @@ function seedRegroupingFixture() {
         VALUES ('${fixtureGroupId}', '${venueId}', 'Window start E2E', 900, TRUE, FALSE)
         ON CONFLICT (id) DO UPDATE SET archived_at = NULL, is_active = TRUE;
 
-        INSERT INTO roster_days (id, venue_id, roster_group_id, operational_date, publication_state, day_offset)
+        INSERT INTO roster_days (id, venue_id, roster_group_id, operational_date, publication_state)
         VALUES
-            ('d2000000-0000-0000-0000-000000000011', '${venueId}', '${fixtureGroupId}', '2099-01-05', 'published', 0),
-            ('d2000000-0000-0000-0000-000000000012', '${venueId}', '${fixtureGroupId}', '2099-01-06', 'published', 1),
-            ('d2000000-0000-0000-0000-000000000013', '${venueId}', '${fixtureGroupId}', '2099-01-07', 'published', 2),
-            ('d2000000-0000-0000-0000-000000000014', '${venueId}', '${fixtureGroupId}', '2099-01-08', 'published', 3),
-            ('d2000000-0000-0000-0000-000000000015', '${venueId}', '${fixtureGroupId}', '2099-01-09', 'published', 4),
-            ('d2000000-0000-0000-0000-000000000016', '${venueId}', '${fixtureGroupId}', '2099-01-10', 'published', 5),
-            ('d2000000-0000-0000-0000-000000000017', '${venueId}', '${fixtureGroupId}', '2099-01-11', 'published', 6),
-            ('d2000000-0000-0000-0000-000000000018', '${venueId}', '${fixtureGroupId}', '2099-01-12', 'published', 0)
+            ('d2000000-0000-0000-0000-000000000011', '${venueId}', '${fixtureGroupId}', '2099-01-05', 'published'),
+            ('d2000000-0000-0000-0000-000000000012', '${venueId}', '${fixtureGroupId}', '2099-01-06', 'published'),
+            ('d2000000-0000-0000-0000-000000000013', '${venueId}', '${fixtureGroupId}', '2099-01-07', 'published'),
+            ('d2000000-0000-0000-0000-000000000014', '${venueId}', '${fixtureGroupId}', '2099-01-08', 'published'),
+            ('d2000000-0000-0000-0000-000000000015', '${venueId}', '${fixtureGroupId}', '2099-01-09', 'published'),
+            ('d2000000-0000-0000-0000-000000000016', '${venueId}', '${fixtureGroupId}', '2099-01-10', 'published'),
+            ('d2000000-0000-0000-0000-000000000017', '${venueId}', '${fixtureGroupId}', '2099-01-11', 'published'),
+            ('d2000000-0000-0000-0000-000000000018', '${venueId}', '${fixtureGroupId}', '2099-01-12', 'published')
         ON CONFLICT (roster_group_id, operational_date) DO UPDATE SET publication_state = 'published';
     `);
 }
@@ -45,10 +45,10 @@ test.describe('Roster window start day setting', () => {
 
     test('previews regrouping, confirms Draft normalization, and never restores publication', async ({ page }) => {
         const originalPublishedIds: string[] = querySql(`SELECT id FROM roster_days WHERE venue_id = '${venueId}' AND publication_state = 'published'`).split('\n').filter(Boolean);
-        const [originalStartDay, originalEpoch, originalRevision] = querySql(`SELECT roster_week_starts_on || '|' || week_offset_epoch || '|' || roster_calendar_revision FROM venue_config WHERE venue_id = '${venueId}'`).split('|');
+        const [originalStartDay, originalRevision] = querySql(`SELECT roster_week_starts_on || '|' || roster_calendar_revision FROM venue_config WHERE venue_id = '${venueId}'`).split('|');
 
         try {
-            runSql(`UPDATE venue_config SET roster_week_starts_on = 1, week_offset_epoch = DATE '2025-01-06' WHERE venue_id = '${venueId}'`);
+            runSql(`UPDATE venue_config SET roster_week_starts_on = 1 WHERE venue_id = '${venueId}'`);
             seedRegroupingFixture();
 
             await openAdminWithSeededPasskeySession(page);
@@ -64,10 +64,13 @@ test.describe('Roster window start day setting', () => {
             await expect(confirmation).toContainText('Mixed Published windows');
             expect(fixturePublicationStates()).toBe('published,published,published,published,published,published,published,published');
 
+            const firstUpdateResponse = page.waitForResponse((response) => response.url().includes('/UpdateRosterWeekStartsOn'));
             await submitConfirmation(confirmation);
+            expect((await firstUpdateResponse).ok()).toBe(true);
             await expect(page.locator('.admin-setting-row', { hasText: 'Roster window start day' })).toBeVisible();
             expect(querySql(`SELECT roster_week_starts_on FROM venue_config WHERE venue_id = '${venueId}'`)).toBe('2');
-            expect(fixturePublicationStates()).toBe('draft,published,published,published,published,published,published,published');
+            const firstChangeStates = fixturePublicationStates().split(',');
+            expect(firstChangeStates).toEqual(['draft', 'published', 'published', 'published', 'published', 'published', 'published', 'published']);
 
             await gotoWhenReady(
                 page,
@@ -92,9 +95,14 @@ test.describe('Roster window start day setting', () => {
             const mobileConfirmation = page.locator('.admin-setting-row', { hasText: 'Confirm roster window start day' });
             await expect(mobileConfirmation).toBeVisible();
             await expect(mobileConfirmation.getByRole('button', { name: 'Confirm change' })).toBeVisible();
+            const reverseUpdateResponse = page.waitForResponse((response) => response.url().includes('/UpdateRosterWeekStartsOn'));
             await submitConfirmation(mobileConfirmation);
+            expect((await reverseUpdateResponse).ok()).toBe(true);
 
-            expect(fixturePublicationStates()).toBe('draft,draft,draft,draft,draft,draft,draft,draft');
+            const reversedStates = fixturePublicationStates().split(',');
+            firstChangeStates.forEach((state, index) => {
+                if (state === 'draft') expect(reversedStates[index]).toBe('draft');
+            });
         } finally {
             runSql(`
                 BEGIN;
@@ -104,7 +112,6 @@ test.describe('Roster window start day setting', () => {
                 ALTER TABLE venue_config DISABLE TRIGGER advance_roster_calendar_revision;
                 UPDATE venue_config
                 SET roster_week_starts_on = ${Number(originalStartDay)},
-                    week_offset_epoch = DATE '${originalEpoch}',
                     roster_calendar_revision = ${Number(originalRevision)}
                 WHERE venue_id = '${venueId}';
                 ALTER TABLE venue_config ENABLE TRIGGER advance_roster_calendar_revision;

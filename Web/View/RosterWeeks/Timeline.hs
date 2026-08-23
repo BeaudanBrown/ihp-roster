@@ -114,7 +114,7 @@ renderRosterDayTimelineContent maybeSwapOob rosterData rosterDay =
         slotsByDefinition = Map.fromListWith (<>) [ (slot.rosterLaneId, [slot]) | slot <- daySlots ]
         staffById = Map.fromList [ (unpackId staff.id, staff) | staff <- rosterData.staffMembers ]
         shiftTypeById = Map.fromList [ (unpackId shiftType.id, shiftType) | shiftType <- rosterData.shiftTypes ]
-        editable = currentUserIsManager && maybe False (not . (.isLive)) rosterData.rosterWeek && not rosterDay.isClosed
+        editable = currentUserIsManager && maybe False (not . (.windowIsPublished)) rosterData.rosterWeek && not rosterDay.isClosed
         timelineWindow = timelineWindowFromRosterData rosterData
      in [hsx|
         <section id={rosterDayTimelineContentFragmentId rosterDay.id}

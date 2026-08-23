@@ -39,7 +39,8 @@ import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl, rosterCopyWeekUrl,
 import Web.RosterWeeks.Types (RosterAssignmentFilters (..),
                               RosterGridViewMode (..),
                               RosterStaffPanelRenderModel (..),
-                              RosterViewCapabilities (..))
+                              RosterViewCapabilities (..),
+                              RosterWindowState (..))
 import Web.View.Prelude
 
 rosterWeekShellSyncRoute :: Text -> FrontendSurfaceActionRoute
@@ -265,7 +266,7 @@ renderRosterAssignmentFilterToggleButton inputId binding isChecked label =
             , appToggleSubmitPolicy = ToggleSubmitImmediate
             }
 
-renderRosterWeekActions :: (?context :: ControllerContext) => Maybe RosterWeek -> Day -> Int -> Id RosterGroup -> RosterViewCapabilities -> Html
+renderRosterWeekActions :: (?context :: ControllerContext) => Maybe RosterWindowState -> Day -> Int -> Id RosterGroup -> RosterViewCapabilities -> Html
 renderRosterWeekActions maybeRosterWeek anchorDate calendarRevision rosterGroupId viewCapabilities = [hsx|
     <div class="roster-week-action-grid">
         {renderRosterSortForm maybeRosterWeek anchorDate calendarRevision rosterGroupId viewCapabilities}
@@ -273,11 +274,11 @@ renderRosterWeekActions maybeRosterWeek anchorDate calendarRevision rosterGroupI
     </div>
 |]
 
-shouldShowRosterSortForm :: Maybe RosterWeek -> RosterViewCapabilities -> Bool
-shouldShowRosterSortForm (Just rosterWeek) viewCapabilities = viewCapabilities.canManageRosterColumns && not rosterWeek.isLive
+shouldShowRosterSortForm :: Maybe RosterWindowState -> RosterViewCapabilities -> Bool
+shouldShowRosterSortForm (Just rosterWeek) viewCapabilities = viewCapabilities.canManageRosterColumns && not rosterWeek.windowIsPublished
 shouldShowRosterSortForm Nothing _ = False
 
-renderRosterSortForm :: (?context :: ControllerContext) => Maybe RosterWeek -> Day -> Int -> Id RosterGroup -> RosterViewCapabilities -> Html
+renderRosterSortForm :: (?context :: ControllerContext) => Maybe RosterWindowState -> Day -> Int -> Id RosterGroup -> RosterViewCapabilities -> Html
 renderRosterSortForm (Just rosterWeek) anchorDate calendarRevision rosterGroupId viewCapabilities
     | shouldShowRosterSortForm (Just rosterWeek) viewCapabilities =
         renderFrontendSurfaceActionForm
@@ -316,14 +317,14 @@ renderCopyPreviousWeekForm anchorDate calendarRevision rosterGroupId =
             </button>
         |]
 
-shouldShowRosterExport :: Maybe RosterWeek -> RosterViewCapabilities -> RosterLayoutModeEnum -> RosterGridViewMode -> Bool
+shouldShowRosterExport :: Maybe RosterWindowState -> RosterViewCapabilities -> RosterLayoutModeEnum -> RosterGridViewMode -> Bool
 shouldShowRosterExport maybeRosterWeek viewCapabilities rosterLayoutMode viewMode =
     viewCapabilities.canExportRosterImage
-        && maybe False (.isLive) maybeRosterWeek
+        && maybe False (.windowIsPublished) maybeRosterWeek
         && viewMode == RosterWeekGridView
         && not (rosterLayoutModeIsDayColumns rosterLayoutMode)
 
-renderRosterShareSection :: (?context :: ControllerContext) => Maybe RosterWeek -> RosterGroup -> Day -> Int -> Maybe RosterNotificationPanelData -> RosterViewCapabilities -> RosterLayoutModeEnum -> RosterGridViewMode -> Html
+renderRosterShareSection :: (?context :: ControllerContext) => Maybe RosterWindowState -> RosterGroup -> Day -> Int -> Maybe RosterNotificationPanelData -> RosterViewCapabilities -> RosterLayoutModeEnum -> RosterGridViewMode -> Html
 renderRosterShareSection maybeRosterWeek rosterGroup weekStartDate calendarRevision notificationPanelData viewCapabilities rosterLayoutMode viewMode = [hsx|
     <div class="d-grid gap-2">
         {renderRosterEmailAction rosterGroup.id weekStartDate calendarRevision notificationPanelData}

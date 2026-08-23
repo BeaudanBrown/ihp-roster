@@ -3,7 +3,6 @@ module Test.XeroTimesheetPreviewSpec where
 import Application.Fixture.PayrollFixtures (TimesheetFixtureValues,
                                             createAndApproveEntry)
 import Application.Helper.Pay
-import Application.Helper.RosterOffsetCompatibility (defaultWeekOffsetEpochForStartDay)
 import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculation)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
@@ -420,7 +419,6 @@ createPreviewFixtureAtPeriodWithRosterStart rosterWeekStartsOn calendarType peri
     venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
     _ <- venueConfig
         |> set #rosterWeekStartsOn rosterWeekStartsOn
-        |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay rosterWeekStartsOn)
         |> updateRecord
     owner <- createUserRecord "preview-owner@example.com" "admin" True
     _ <- createVenueMembershipRecord venue owner VenueOwner

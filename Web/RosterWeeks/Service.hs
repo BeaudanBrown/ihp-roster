@@ -17,7 +17,6 @@ module Web.RosterWeeks.Service
     ) where
 
 import qualified Application.Helper.RosterAwardDuration as RosterAwardDuration
-import Application.Helper.RosterOffsetCompatibility (applyLegacyRosterDayOffset)
 import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyValid)
 import Application.PayAssignment
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
@@ -309,7 +308,6 @@ copyRosterWindowByDates selections venueId rosterGroupId sourceStart targetStart
                         targetDay <- maybe (fail "Roster copy target day missing") pure (Map.lookup targetDate targetDaysByDate)
                         targetLane <- newRecord @RosterLane
                             |> set #rosterDayId (unpackId targetDay.id)
-                            |> set #legacyRosterWeekSlotDefinitionId Nothing
                             |> set #name sourceLane.name
                             |> set #sortOrder sourceLane.sortOrder
                             |> createRecord
@@ -332,7 +330,6 @@ copyRosterWindowByDates selections venueId rosterGroupId sourceStart targetStart
                                 copied
                                     |> set #rosterDayId (unpackId targetDay.id)
                                     |> set #rosterLaneId (unpackId targetLane.id)
-                                    |> set #rosterWeekSlotDefinitionId Nothing
                                     |> set #slotSortOrder targetLane.sortOrder
                                     |> set #rowIndex plan.windowCopiedSourceSlot.rowIndex
                                     |> set #startsAt plan.windowCopiedStartsAt
@@ -375,12 +372,10 @@ materializeCopyTargetDays venueId rosterGroupId sourceStart targetStart sourceDa
                 |> set #rowCount (maybe 4 (.rowCount) sourceDay)
                 |> updateRecord
             Nothing -> newRecord @RosterDay
-                |> set #rosterWeekId Nothing
                 |> set #venueId (unpackId venueId)
                 |> set #rosterGroupId (unpackId rosterGroupId)
                 |> set #operationalDate targetDate
                 |> set #publicationState Draft
-                |> applyLegacyRosterDayOffset targetStart
                 |> set #isClosed (maybe False (.isClosed) sourceDay)
                 |> set #rowCount (maybe 4 (.rowCount) sourceDay)
                 |> createRecord

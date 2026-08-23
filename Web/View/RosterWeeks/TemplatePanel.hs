@@ -19,16 +19,17 @@ import qualified Prelude
 import Web.RosterWeeks.Dom (rosterTemplateLibraryFragmentId)
 import Web.RosterWeeks.FrontendSurface (rosterDayTemplateDragSourceRef,
                                         rosterWeekTemplateDragSourceRef)
+import Web.RosterWeeks.Types (RosterWindowState (..))
 import Web.View.Prelude
 
-renderRosterTemplateLibraryFragment :: (?context :: ControllerContext) => Id User -> Day -> Int -> RosterGroup -> Maybe RosterWeek -> RosterTemplateLibrary -> Html
+renderRosterTemplateLibraryFragment :: (?context :: ControllerContext) => Id User -> Day -> Int -> RosterGroup -> Maybe RosterWindowState -> RosterTemplateLibrary -> Html
 renderRosterTemplateLibraryFragment userId anchorDate calendarRevision rosterGroup maybeRosterWeek library = [hsx|
     <div id={rosterTemplateLibraryFragmentId userId}>
         {renderRosterTemplatePanel anchorDate calendarRevision rosterGroup maybeRosterWeek library}
     </div>
 |]
 
-renderRosterTemplatePanel :: (?context :: ControllerContext) => Day -> Int -> RosterGroup -> Maybe RosterWeek -> RosterTemplateLibrary -> Html
+renderRosterTemplatePanel :: (?context :: ControllerContext) => Day -> Int -> RosterGroup -> Maybe RosterWindowState -> RosterTemplateLibrary -> Html
 renderRosterTemplatePanel anchorDate calendarRevision rosterGroup maybeRosterWeek library = [hsx|
     <section class="roster-template-panel" aria-labelledby="roster-template-panel-heading">
         <div class="app-side-panel-content-header roster-staff-panel-header">
@@ -45,9 +46,9 @@ renderRosterTemplatePanel anchorDate calendarRevision rosterGroup maybeRosterWee
     </section>
 |]
 
-renderLiveRosterTemplateMessage :: Maybe RosterWeek -> Html
+renderLiveRosterTemplateMessage :: Maybe RosterWindowState -> Html
 renderLiveRosterTemplateMessage (Just rosterWeek)
-    | rosterWeek.isLive = [hsx|
+    | rosterWeek.windowIsPublished = [hsx|
         <div class="alert alert-info small" role="status">Templates cannot be applied to a Published roster. Return this window to Draft to apply one.</div>
     |]
 renderLiveRosterTemplateMessage _ = mempty
@@ -60,7 +61,7 @@ renderPrivateDraft draft = [hsx|
     </div>
 |]
 
-renderTemplateScaleSection :: (?context :: ControllerContext) => Text -> RosterTemplateScaleEnum -> Day -> Int -> RosterGroup -> Maybe RosterWeek -> [RosterTemplate] -> Html
+renderTemplateScaleSection :: (?context :: ControllerContext) => Text -> RosterTemplateScaleEnum -> Day -> Int -> RosterGroup -> Maybe RosterWindowState -> [RosterTemplate] -> Html
 renderTemplateScaleSection heading scale anchorDate calendarRevision rosterGroup maybeRosterWeek templates = [hsx|
     <section class="roster-template-scale-section mt-3" aria-label={heading}>
         <h3 class="h6 text-muted">{heading}</h3>
@@ -70,11 +71,11 @@ renderTemplateScaleSection heading scale anchorDate calendarRevision rosterGroup
   where
     matchingTemplates = filter ((== scale) . (.scale)) templates
 
-renderTemplateCards :: (?context :: ControllerContext) => Day -> Int -> RosterGroup -> Maybe RosterWeek -> [RosterTemplate] -> Html
+renderTemplateCards :: (?context :: ControllerContext) => Day -> Int -> RosterGroup -> Maybe RosterWindowState -> [RosterTemplate] -> Html
 renderTemplateCards _ _ _ _ [] = [hsx|<p class="small text-muted">No saved templates.</p>|]
 renderTemplateCards anchorDate calendarRevision rosterGroup maybeRosterWeek templates = forEach templates (renderTemplateCard anchorDate calendarRevision rosterGroup maybeRosterWeek)
 
-renderTemplateCard :: (?context :: ControllerContext) => Day -> Int -> RosterGroup -> Maybe RosterWeek -> RosterTemplate -> Html
+renderTemplateCard :: (?context :: ControllerContext) => Day -> Int -> RosterGroup -> Maybe RosterWindowState -> RosterTemplate -> Html
 renderTemplateCard anchorDate calendarRevision rosterGroup maybeRosterWeek template = cardHtml
   where
     cardHtml = [hsx|
@@ -99,7 +100,7 @@ renderTemplateCard anchorDate calendarRevision rosterGroup maybeRosterWeek templ
             {previewForm}
         </article>
     |]
-    applicationAvailable = maybe False (not . (.isLive)) maybeRosterWeek
+    applicationAvailable = maybe False (not . (.windowIsPublished)) maybeRosterWeek
     applyButton = (if applicationAvailable then SurfaceInteraction.withFrontendSurfaceSourceRef templateSourceRef (tshow template.id) else Prelude.id) [hsx|
         <button class="btn text-start flex-grow-1 p-3 roster-template-card-apply"
                 type="button"

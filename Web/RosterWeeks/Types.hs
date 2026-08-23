@@ -14,6 +14,7 @@ module Web.RosterWeeks.Types
     , RosterStaffPanelEntry (..)
     , RosterViewCapabilities (..)
     , RosterWeekOverviewDay (..)
+    , RosterWindowState (..)
     , ShowView (..)
     , NoRosterGroupView (..)
     ) where
@@ -29,7 +30,8 @@ import Data.Time.Clock (NominalDiffTime)
 import Data.UUID (UUID)
 import Generated.Types
 import IHP.Prelude
-import Web.RosterWeeks.DateRange (RosterWindowLane, RosterWindowScope)
+import Web.RosterWeeks.DateRange (RosterWindowLane, RosterWindowScope,
+                                  RosterWindowState (..))
 
 data NoRosterGroupView = NoRosterGroupView
     { noRosterGroupPasskeySetupPrompt :: Maybe PasskeySetupPromptMode
@@ -37,7 +39,7 @@ data NoRosterGroupView = NoRosterGroupView
     }
 
 data ShowView = ShowView
-    { rosterWeek             :: Maybe RosterWeek
+    { rosterWeek             :: Maybe RosterWindowState
     , rosterDays             :: [RosterDay]
     , rosterWindowScope      :: RosterWindowScope
     , rosterGroups           :: [RosterGroup]
@@ -119,7 +121,7 @@ data RosterStaffPanelEntry = RosterStaffPanelEntry
     }
 
 data RosterStaffPanelRenderModel = RosterStaffPanelRenderModel
-    { staffPanelRosterWeek             :: Maybe RosterWeek
+    { staffPanelRosterWeek             :: Maybe RosterWindowState
     , staffPanelWeekStartDate          :: Day
     , staffPanelCalendarRevision       :: Int
     , staffPanelRosterGroups           :: [RosterGroup]
@@ -171,7 +173,7 @@ data RosterAssignmentOptionState = RosterAssignmentOptionState
     }
 
 data RosterRenderData = RosterRenderData
-    { rosterWeek            :: Maybe RosterWeek
+    { rosterWeek            :: Maybe RosterWindowState
     , rosterWindowScope     :: RosterWindowScope
     , rosterGroups          :: [RosterGroup]
     , currentRosterGroup    :: RosterGroup
@@ -203,7 +205,7 @@ data RosterRenderData = RosterRenderData
 }
 
 data RosterGridRenderModel = RosterGridRenderModel
-    { gridRosterWeek            :: Maybe RosterWeek
+    { gridRosterWeek            :: Maybe RosterWindowState
     , gridRosterDays            :: [RosterDay]
     , gridWindowScope           :: RosterWindowScope
     , gridRosterGroups          :: [RosterGroup]

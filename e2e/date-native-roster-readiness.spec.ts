@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
-import { querySql } from './test-helpers';
+import { querySql, runSql } from './test-helpers';
 
 test.describe('Date-native Roster production readiness', () => {
     test('captures a bounded zero-violation read-only reconciliation', async ({}, testInfo) => {
@@ -12,6 +12,35 @@ test.describe('Date-native Roster production readiness', () => {
         const outputDirectory = mkdtempSync(join(tmpdir(), 'bepis-date-native-readiness-'));
 
         try {
+            runSql(`
+                CREATE TABLE roster_weeks (
+                    id UUID PRIMARY KEY,
+                    venue_id UUID NOT NULL,
+                    roster_group_id UUID NOT NULL
+                );
+                CREATE TABLE roster_week_slot_definitions (
+                    id UUID PRIMARY KEY,
+                    roster_week_id UUID NOT NULL
+                );
+                ALTER TABLE roster_days ADD COLUMN roster_week_id UUID;
+                ALTER TABLE roster_lanes ADD COLUMN legacy_roster_week_slot_definition_id UUID;
+                ALTER TABLE roster_slots ADD COLUMN roster_week_slot_definition_id UUID;
+                INSERT INTO roster_weeks (id, venue_id, roster_group_id)
+                SELECT md5('readiness-week-' || id::text)::uuid, venue_id, roster_group_id
+                FROM roster_days;
+                UPDATE roster_days
+                SET roster_week_id = md5('readiness-week-' || id::text)::uuid;
+                INSERT INTO roster_week_slot_definitions (id, roster_week_id)
+                SELECT md5('readiness-definition-' || lane.id::text)::uuid, day.roster_week_id
+                FROM roster_lanes lane
+                JOIN roster_days day ON day.id = lane.roster_day_id;
+                UPDATE roster_lanes
+                SET legacy_roster_week_slot_definition_id = md5('readiness-definition-' || id::text)::uuid;
+                UPDATE roster_slots slot
+                SET roster_week_slot_definition_id = lane.legacy_roster_week_slot_definition_id
+                FROM roster_lanes lane
+                WHERE lane.id = slot.roster_lane_id;
+            `);
             const commandEnvironment = { ...process.env };
             delete commandEnvironment.DATE_NATIVE_ROSTER_READINESS_DATABASE_URL;
             delete commandEnvironment.DATABASE_URL;
@@ -45,6 +74,13 @@ test.describe('Date-native Roster production readiness', () => {
             expect(manifest).toContain('audit.json');
             expect(manifest).toContain('capture-metadata.txt');
         } finally {
+            runSql(`
+                ALTER TABLE roster_slots DROP COLUMN IF EXISTS roster_week_slot_definition_id;
+                ALTER TABLE roster_lanes DROP COLUMN IF EXISTS legacy_roster_week_slot_definition_id;
+                ALTER TABLE roster_days DROP COLUMN IF EXISTS roster_week_id;
+                DROP TABLE IF EXISTS roster_week_slot_definitions;
+                DROP TABLE IF EXISTS roster_weeks;
+            `);
             rmSync(outputDirectory, { recursive: true, force: true });
         }
     });

@@ -6,7 +6,26 @@ fail() {
     exit 1
 }
 
-node scripts/date-native-offset-authority.mjs
+legacy_schema_vocabulary="$(
+    rg -n 'roster_weeks|roster_week_slot_definitions|week_offset_epoch|week_offset|day_offset|roster_week_id|roster_week_slot_definition_id|legacy_roster_week_slot_definition_id' \
+        Application/Schema.sql Application/Fixtures.sql Application Web frontend/ts e2e \
+        --glob '*.hs' --glob '*.sql' --glob '*.ts' \
+        --glob '!Application/Migration/**' \
+        --glob '!Application/Helper/FrontendContract/Surface/Roster/Generated/**' \
+        --glob '!e2e/date-native-roster-readiness.spec.ts' \
+        || true
+)"
+[[ -z "$legacy_schema_vocabulary" ]] \
+    || fail $'Retired roster persistence vocabulary returned outside historical migrations:\n'"$legacy_schema_vocabulary"
+
+legacy_generated_models="$(
+    rg -n '@RosterWeek\b|\bId RosterWeek\b|\bRosterWeekSlotDefinition\b|\.weekOffset\b|#weekOffset\b|\.weekOffsetEpoch\b|#weekOffsetEpoch\b' \
+        Application Web --glob '*.hs' \
+        --glob '!Application/Helper/FrontendContract/Surface/**' \
+        || true
+)"
+[[ -z "$legacy_generated_models" ]] \
+    || fail $'Retired generated roster models or persisted offset fields returned:\n'"$legacy_generated_models"
 
 extract_controller() {
     local controller="$1"
@@ -80,7 +99,7 @@ notification_offset_authority="$(
         || true
 )"
 [[ -z "$notification_offset_authority" ]] \
-    || fail $'Roster notifications may retain offset provenance but must select and lock explicit windows:\n'"$notification_offset_authority"
+    || fail $'Roster notifications must select and lock explicit windows:\n'"$notification_offset_authority"
 
 legacy_authority_queries="$(
     rg -n 'filterWhere[[:space:]]*\(#weekOffset|week_offset[[:space:]]*=' \
@@ -105,15 +124,13 @@ legacy_roster_day_offset_reads="$(
         || true
 )"
 [[ -z "$legacy_roster_day_offset_reads" ]] \
-    || fail $'Runtime code must read RosterDay.operationalDate, not retained day_offset compatibility state:\n'"$legacy_roster_day_offset_reads"
+    || fail $'Runtime code must read RosterDay.operationalDate; day_offset persistence is retired:\n'"$legacy_roster_day_offset_reads"
 
-non_compatibility_day_offset_writes="$(
-    rg -n 'set #dayOffset' Application Web --glob '*.hs' \
-        | rg -v '^Application/Helper/RosterOffsetCompatibility[.]hs:' \
-        || true
+legacy_roster_day_offset_writes="$(
+    rg -n 'set #dayOffset' Application Web --glob '*.hs' || true
 )"
-[[ -z "$non_compatibility_day_offset_writes" ]] \
-    || fail $'Retained day_offset writes must stay behind the compatibility helper or fixture construction:\n'"$non_compatibility_day_offset_writes"
+[[ -z "$legacy_roster_day_offset_writes" ]] \
+    || fail $'Runtime code must not write retired day_offset persistence:\n'"$legacy_roster_day_offset_writes"
 
 rg -q 'operationalDate' Web/Timesheets/Projection.hs \
     || fail "Timesheets projection must retain explicit Operational-date authority"

@@ -1,6 +1,5 @@
 module Application.Script.SeedProfile where
 
-import Application.Helper.RosterOffsetCompatibility (legacyWeekOffsetForEpoch)
 import Application.Helper.Url (appendQueryParams, replaceQueryParams)
 import Application.Helper.WeekBoundaries (defaultRosterWeekStartsOn,
                                           startOfWeekFor)
@@ -10,7 +9,7 @@ import Control.Monad (foldM)
 import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
-import Data.Time.Calendar (Day, addDays, fromGregorian)
+import Data.Time.Calendar (Day, addDays)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import Data.Time.LocalTime (TimeOfDay (..))
 import IHP.ControllerPrelude (pathTo)
@@ -89,9 +88,8 @@ buildProfileSeedPlan options currentWindowStart =
             , ("staff", staffCount)
             , ("staff_pay_versions", venueCount options * staffPerVenue options)
             , ("shift_type_pay_versions", venueCount options * length shiftTypeTemplates)
-            , ("roster_weeks", rosterWeekCount)
             , ("roster_days", rosterDayCount)
-            , ("roster_week_slot_definitions", rosterWeekCount * slotNamesPerGroup)
+            , ("roster_lanes", rosterDayCount * slotNamesPerGroup)
             , ("roster_slots", rosterSlotCount)
             , ("timesheet_entries", timesheetEntryCount)
             , ("leave_requests", leaveRequestCount)
@@ -106,8 +104,7 @@ buildProfileSeedPlan options currentWindowStart =
         weekCount = weeksHistory options + weeksFuture options
         staffCount = venueCount options * (staffPerVenue options + 1)
         userCount = 1 + venueCount options * (staffPerVenue options + 1)
-        rosterWeekCount = venueCount options * groupsPerVenue * weekCount
-        rosterDayCount = rosterWeekCount * 7
+        rosterDayCount = venueCount options * groupsPerVenue * weekCount * 7
         rosterSlotCount = rosterDayCount * rowsPerDay options * slotNamesPerGroup
         timesheetEntryCount = venueCount options * staffPerVenue options * min 52 (max 1 (weeksHistory options))
         leaveRequestCount = venueCount options * staffPerVenue options * 3
@@ -343,9 +340,8 @@ data ProfileTable
     | ProfileSlotNames
     | ProfileStaffRosterGroups
     | ProfileStaffShiftPreferences
-    | ProfileRosterWeeks
     | ProfileRosterDays
-    | ProfileRosterWeekSlotDefinitions
+    | ProfileRosterLanes
     | ProfileRosterSlots
     | ProfileLeaveRequests
     | ProfileTimesheetEntries
@@ -392,9 +388,8 @@ profileTableDescriptor profileTable =
         ProfileSlotNames -> descriptor "slot_names" "slot_names.csv" slotNameColumns slotNameRows
         ProfileStaffRosterGroups -> descriptor "staff_roster_groups" "staff_roster_groups.csv" staffRosterGroupColumns staffRosterGroupRows
         ProfileStaffShiftPreferences -> descriptor "staff_shift_preferences" "staff_shift_preferences.csv" staffShiftPreferenceColumns staffShiftPreferenceRows
-        ProfileRosterWeeks -> descriptor "roster_weeks" "roster_weeks.csv" rosterWeekColumns rosterWeekRows
         ProfileRosterDays -> descriptor "roster_days" "roster_days.csv" rosterDayColumns rosterDayRows
-        ProfileRosterWeekSlotDefinitions -> descriptor "roster_week_slot_definitions" "roster_week_slot_definitions.csv" rosterWeekSlotDefinitionColumns rosterWeekSlotDefinitionRows
+        ProfileRosterLanes -> descriptor "roster_lanes" "roster_lanes.csv" rosterLaneColumns rosterLaneRows
         ProfileRosterSlots -> descriptor "roster_slots" "roster_slots.csv" rosterSlotColumns rosterSlotRows
         ProfileLeaveRequests -> descriptor "leave_requests" "leave_requests.csv" leaveRequestColumns leaveRequestRows
         ProfileTimesheetEntries -> descriptor "timesheet_entries" "timesheet_entries.csv" timesheetEntryColumns timesheetEntryRows
@@ -445,7 +440,7 @@ venueColumns, userColumns, passkeyColumns, venueConfigColumns, venueMembershipCo
 venueColumns = ["id", "name", "status"]
 userColumns = ["id", "email", "password_hash", "user_role", "platform_role", "is_profile_completed", "email_verified_at", "failed_login_attempts", "locked_at"]
 passkeyColumns = ["id", "user_id", "credential_id", "public_key", "sign_count", "name", "created_at", "last_used_at", "updated_at"]
-venueConfigColumns = ["id", "venue_id", "timezone", "roster_week_starts_on", "week_offset_epoch", "late_to_early_min_start_gap_minutes", "staff_timesheet_edit_window_days"]
+venueConfigColumns = ["id", "venue_id", "timezone", "roster_week_starts_on", "late_to_early_min_start_gap_minutes", "staff_timesheet_edit_window_days"]
 venueMembershipColumns = ["id", "venue_id", "user_id", "venue_role", "is_active"]
 staffColumns = ["id", "venue_id", "user_id", "first_name", "last_name", "preferred_name", "phone", "emergency_contact_name", "emergency_contact_phone", "ideal_shifts_per_week", "is_active"]
 
@@ -460,12 +455,11 @@ rosterGroupColumns = ["id", "venue_id", "name", "sort_order", "is_active", "is_d
 slotNameColumns = ["id", "venue_id", "roster_group_id", "name", "sort_order", "is_active"]
 staffRosterGroupColumns = ["id", "staff_id", "roster_group_id"]
 
-staffShiftPreferenceColumns, rosterWeekColumns, rosterDayColumns, rosterWeekSlotDefinitionColumns, rosterSlotColumns :: [Text]
+staffShiftPreferenceColumns, rosterDayColumns, rosterLaneColumns, rosterSlotColumns :: [Text]
 staffShiftPreferenceColumns = ["id", "venue_id", "staff_id", "weekday_index", "preferred_start_hour", "preferred_end_hour"]
-rosterWeekColumns = ["id", "venue_id", "roster_group_id", "week_offset", "is_live"]
-rosterDayColumns = ["id", "roster_week_id", "venue_id", "roster_group_id", "operational_date", "publication_state", "day_offset", "is_closed"]
-rosterWeekSlotDefinitionColumns = ["id", "roster_week_id", "name", "sort_order"]
-rosterSlotColumns = ["id", "roster_day_id", "staff_id", "roster_week_slot_definition_id", "slot_sort_order", "row_index", "starts_at", "ends_at", "timezone"]
+rosterDayColumns = ["id", "venue_id", "roster_group_id", "operational_date", "publication_state", "is_closed"]
+rosterLaneColumns = ["id", "roster_day_id", "name", "sort_order"]
+rosterSlotColumns = ["id", "roster_day_id", "roster_lane_id", "assignment_state", "staff_id", "slot_sort_order", "row_index", "starts_at", "ends_at", "timezone", "shift_type_id"]
 
 leaveRequestColumns, timesheetEntryColumns, timesheetEntryVersionColumns :: [Text]
 leaveRequestColumns = ["id", "venue_id", "staff_id", "start_date", "end_date", "status", "notes"]
@@ -524,7 +518,7 @@ passkeyRow passkeyId userId passkeyName =
 
 venueConfigRows :: ProfileSeedPlan -> [[Maybe Text]]
 venueConfigRows plan =
-    [ row [uuidText 2 venueIndex 0 0, venueId venueIndex, "Australia/Melbourne", "1", "2025-01-06", "600", "7"]
+    [ row [uuidText 2 venueIndex 0 0, venueId venueIndex, "Australia/Melbourne", "1", "600", "7"]
     | venueIndex <- venueIndexes plan
     ]
 
@@ -634,24 +628,14 @@ staffShiftPreferenceRows plan =
     , let weekdayIndex = (prefIndex + deterministicIndex plan [venueIndex, staffIndex, 9] 7) `mod` 7
     ]
 
-rosterWeekRows :: ProfileSeedPlan -> [[Maybe Text]]
-rosterWeekRows plan =
-    [ row [rosterWeekId venueIndex groupIndex window.compatibilityOffset, venueId venueIndex, rosterGroupId venueIndex groupIndex, tshow window.compatibilityOffset, if window.windowStart <= plan.currentWindowStart then "true" else "false"]
-    | venueIndex <- venueIndexes plan
-    , (groupIndex, _) <- rosterGroupTemplates
-    , window <- profileWindows plan
-    ]
-
 rosterDayRows :: ProfileSeedPlan -> [[Maybe Text]]
 rosterDayRows plan =
     [ row
-        [ rosterDayId venueIndex groupIndex window.compatibilityOffset dayIndex
-        , rosterWeekId venueIndex groupIndex window.compatibilityOffset
+        [ rosterDayId venueIndex groupIndex window.windowOrdinal dayIndex
         , venueId venueIndex
         , rosterGroupId venueIndex groupIndex
         , dateText operationalDate
         , if window.windowStart <= plan.currentWindowStart then "published" else "draft"
-        , tshow dayIndex
         , "false"
         ]
     | venueIndex <- venueIndexes plan
@@ -661,34 +645,43 @@ rosterDayRows plan =
     , let operationalDate = addDays (toInteger dayIndex) window.windowStart
     ]
 
-rosterWeekSlotDefinitionRows :: ProfileSeedPlan -> [[Maybe Text]]
-rosterWeekSlotDefinitionRows plan =
-    [ row [rosterWeekSlotDefinitionId venueIndex groupIndex window.compatibilityOffset slotIndex, rosterWeekId venueIndex groupIndex window.compatibilityOffset, slotName, tshow slotIndex]
+rosterLaneRows :: ProfileSeedPlan -> [[Maybe Text]]
+rosterLaneRows plan =
+    [ row
+        [ rosterLaneId venueIndex groupIndex window.windowOrdinal dayIndex slotIndex
+        , rosterDayId venueIndex groupIndex window.windowOrdinal dayIndex
+        , slotName
+        , tshow slotIndex
+        ]
     | venueIndex <- venueIndexes plan
     , (groupIndex, _) <- rosterGroupTemplates
     , window <- profileWindows plan
+    , dayIndex <- [0 .. 6]
     , (slotIndex, slotName) <- slotNameTemplates
     ]
 
 rosterSlotRows :: ProfileSeedPlan -> [[Maybe Text]]
 rosterSlotRows plan =
-    [ [ Just (rosterSlotId venueIndex groupIndex window.compatibilityOffset dayIndex rowIndex slotIndex)
-      , Just (rosterDayId venueIndex groupIndex window.compatibilityOffset dayIndex)
-      , maybeStaffId
-      , Just (rosterWeekSlotDefinitionId venueIndex groupIndex window.compatibilityOffset slotIndex)
-      , Just (tshow slotIndex)
-      , Just (tshow rowIndex)
-      , if isJust maybeStaffId then Just (instantText rosterDate startTime) else Nothing
-      , if isJust maybeStaffId then Just (instantText rosterDate (addTimeMinutes startTime 360)) else Nothing
-      , Just melbourneTimeZoneName
-      ]
+    [ row
+        [ rosterSlotId venueIndex groupIndex window.windowOrdinal dayIndex rowIndex slotIndex
+        , rosterDayId venueIndex groupIndex window.windowOrdinal dayIndex
+        , rosterLaneId venueIndex groupIndex window.windowOrdinal dayIndex slotIndex
+        , "staff"
+        , staffId venueIndex selectedStaffIndex
+        , tshow slotIndex
+        , tshow rowIndex
+        , instantText rosterDate startTime
+        , instantText rosterDate (addTimeMinutes startTime 360)
+        , melbourneTimeZoneName
+        , shiftTypeId venueIndex ((slotIndex `mod` length shiftTypeTemplates) + 1)
+        ]
     | venueIndex <- venueIndexes plan
     , (groupIndex, _) <- rosterGroupTemplates
     , window <- profileWindows plan
     , dayIndex <- [0 .. 6]
     , rowIndex <- [0 .. rowsPerDay plan.options - 1]
     , (slotIndex, _) <- slotNameTemplates
-    , let maybeStaffId = assignedStaffId plan venueIndex groupIndex window.compatibilityOffset dayIndex rowIndex slotIndex
+    , Just selectedStaffIndex <- [assignedStaffIndex plan venueIndex groupIndex window.windowOrdinal dayIndex rowIndex slotIndex]
     , let rosterDate = addDays (toInteger dayIndex) window.windowStart
     , let startTime = timeFor slotIndex dayIndex
     ]
@@ -828,13 +821,13 @@ xeroStaffMappingRows plan =
     , staffIndex <- [1 .. mappedXeroStaffCount plan.options]
     ]
 
-assignedStaffId :: ProfileSeedPlan -> Int -> Int -> Int -> Int -> Int -> Int -> Maybe Text
-assignedStaffId plan venueIndex groupIndex compatibilityOffset dayIndex rowIndex slotIndex
-    | deterministicIndex plan [venueIndex, groupIndex, compatibilityOffset, dayIndex, rowIndex, slotIndex] 100 >= rosterFill plan.options = Nothing
-    | otherwise = Just (staffId venueIndex selectedStaffIndex)
+assignedStaffIndex :: ProfileSeedPlan -> Int -> Int -> Int -> Int -> Int -> Int -> Maybe Int
+assignedStaffIndex plan venueIndex groupIndex windowOrdinal dayIndex rowIndex slotIndex
+    | deterministicIndex plan [venueIndex, groupIndex, windowOrdinal, dayIndex, rowIndex, slotIndex] 100 >= rosterFill plan.options = Nothing
+    | otherwise = Just selectedStaffIndex
     where
         candidates = eligibleStaffIndexesForGroup plan groupIndex
-        selectedStaffIndex = candidates !! deterministicIndex plan [venueIndex, groupIndex, compatibilityOffset, dayIndex, rowIndex, slotIndex, 99] (length candidates)
+        selectedStaffIndex = candidates !! deterministicIndex plan [venueIndex, groupIndex, windowOrdinal, dayIndex, rowIndex, slotIndex, 99] (length candidates)
 
 eligibleStaffIndexesForGroup :: ProfileSeedPlan -> Int -> [Int]
 eligibleStaffIndexesForGroup plan groupIndex =
@@ -863,8 +856,8 @@ mappedXeroStaffCount options =
     min options.staffPerVenue (min (max 0 (options.xeroEmployees - 1)) options.xeroMappedStaff)
 
 data ProfileSeedWindow = ProfileSeedWindow
-    { windowStart         :: !Day
-    , compatibilityOffset :: !Int
+    { windowStart   :: !Day
+    , windowOrdinal :: !Int
     }
     deriving (Eq, Show)
 
@@ -872,14 +865,11 @@ profileWindows :: ProfileSeedPlan -> [ProfileSeedWindow]
 profileWindows plan =
     [ ProfileSeedWindow
         { windowStart
-        , compatibilityOffset = legacyWeekOffsetForEpoch profileCompatibilityEpoch windowStart
+        , windowOrdinal
         }
-    | relativeWeek <- [negate (weeksHistory plan.options) + 1 .. weeksFuture plan.options]
+    | (windowOrdinal, relativeWeek) <- zip [0 ..] [negate (weeksHistory plan.options) + 1 .. weeksFuture plan.options]
     , let windowStart = addDays (toInteger (relativeWeek * 7)) plan.currentWindowStart
     ]
-
-profileCompatibilityEpoch :: Day
-profileCompatibilityEpoch = fromGregorian 2025 1 6
 
 
 dateText :: Day -> Text
@@ -991,19 +981,16 @@ rosterGroupId venueIndex groupIndex = uuidText 12 venueIndex groupIndex 0
 slotNameId :: Int -> Int -> Int -> Text
 slotNameId venueIndex groupIndex slotIndex = uuidText 13 venueIndex groupIndex slotIndex
 
-rosterWeekId :: Int -> Int -> Int -> Text
-rosterWeekId venueIndex groupIndex compatibilityOffset = uuidText 17 venueIndex groupIndex (compatibilityOffset + 10000)
-
 rosterDayId :: Int -> Int -> Int -> Int -> Text
-rosterDayId venueIndex groupIndex compatibilityOffset dayIndex = uuidText 18 venueIndex groupIndex ((compatibilityOffset + 10000) * 10 + dayIndex)
+rosterDayId venueIndex groupIndex windowOrdinal dayIndex = uuidText 18 venueIndex groupIndex (windowOrdinal * 10 + dayIndex)
 
-rosterWeekSlotDefinitionId :: Int -> Int -> Int -> Int -> Text
-rosterWeekSlotDefinitionId venueIndex groupIndex compatibilityOffset slotIndex =
-    uuidText 28 venueIndex groupIndex (((compatibilityOffset + 10000) * 10) + slotIndex)
+rosterLaneId :: Int -> Int -> Int -> Int -> Int -> Text
+rosterLaneId venueIndex groupIndex windowOrdinal dayIndex slotIndex =
+    uuidText 28 venueIndex groupIndex (windowOrdinal * 100 + dayIndex * 10 + slotIndex)
 
 rosterSlotId :: Int -> Int -> Int -> Int -> Int -> Int -> Text
-rosterSlotId venueIndex groupIndex compatibilityOffset dayIndex rowIndex slotIndex =
-    uuidText 19 venueIndex groupIndex (((compatibilityOffset + 10000) * 1000) + dayIndex * 100 + rowIndex * 10 + slotIndex)
+rosterSlotId venueIndex groupIndex windowOrdinal dayIndex rowIndex slotIndex =
+    uuidText 19 venueIndex groupIndex (windowOrdinal * 1000 + dayIndex * 100 + rowIndex * 10 + slotIndex)
 
 timesheetEntryId :: Int -> Int -> Int -> Text
 timesheetEntryId venueIndex staffIndex weekOrdinal = uuidText 20 venueIndex staffIndex weekOrdinal

@@ -40,20 +40,19 @@ export default function globalTeardown() {
         WHERE roster_day_id IN (
             SELECT rd.id
             FROM roster_days rd
-            JOIN roster_weeks rw ON rw.id = rd.roster_week_id
-            JOIN venues v ON v.id = rw.venue_id
+            JOIN venues v ON v.id = rd.venue_id
+            WHERE v.name LIKE 'e2e-owner-%'
+        );
+
+        DELETE FROM roster_lanes
+        WHERE roster_day_id IN (
+            SELECT rd.id
+            FROM roster_days rd
+            JOIN venues v ON v.id = rd.venue_id
             WHERE v.name LIKE 'e2e-owner-%'
         );
 
         DELETE FROM roster_days
-        WHERE roster_week_id IN (
-            SELECT rw.id
-            FROM roster_weeks rw
-            JOIN venues v ON v.id = rw.venue_id
-            WHERE v.name LIKE 'e2e-owner-%'
-        );
-
-        DELETE FROM roster_weeks
         WHERE venue_id IN (
             SELECT id FROM venues WHERE name LIKE 'e2e-owner-%'
         );

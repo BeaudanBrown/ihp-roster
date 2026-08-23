@@ -43,7 +43,7 @@ tests = aroundAll withDatabaseTestContext do
             let firstSlotId = Id (fromMaybe (error "first slot uuid") (UUID.fromString "20000000-0000-0000-0000-000000000001")) :: Id RosterSlot
             let targetSlotId = Id (fromMaybe (error "target slot uuid") (UUID.fromString "30000000-0000-0000-0000-000000000001")) :: Id RosterSlot
             let staffId = Id (fromMaybe (error "staff uuid") (UUID.fromString "40000000-0000-0000-0000-000000000001")) :: Id Staff
-            let day = newRecord @RosterDay |> set #id dayId |> set #dayOffset 0
+            let day = newRecord @RosterDay |> set #id dayId |> set #operationalDate (Calendar.fromGregorian 2025 1 6)
             let assignedSlot = newRecord @RosterSlot |> set #id firstSlotId |> set #rosterDayId (unpackId dayId) |> set #assignmentState "staff" |> set #staffId (Just (unpackId staffId))
             let targetSlot = newRecord @RosterSlot |> set #id targetSlotId |> set #rosterDayId (unpackId dayId)
             let staff = newRecord @Staff |> set #id staffId |> set #idealShiftsPerWeek 5
@@ -59,8 +59,8 @@ tests = aroundAll withDatabaseTestContext do
                         fetchRosterBaseFactsDirect fixture.windowScope
 
                 let RosterBaseFacts { baseRosterWeek, baseRosterDays, baseAllSlots, baseVisibleSlots, baseOrderedSlotDefinitions, baseShiftTypes, baseEligibleStaff, baseAssignedStaff, baseStaffMembers } = fromJust facts
-                ((.id) <$> baseRosterWeek) `shouldBe` Just fixture.rosterWeek.id
-                map (.dayOffset) baseRosterDays `shouldBe` [0 .. 6]
+                ((.windowRosterGroupId) <$> baseRosterWeek) `shouldBe` Just (unpackId fixture.rosterGroup.id)
+                map (.operationalDate) baseRosterDays `shouldBe` map (`Calendar.addDays` fixture.windowScope.rosterWindowStart) [0 .. 6]
                 map (.rowIndex) baseVisibleSlots `shouldBe` [3]
                 map (.id) baseAllSlots `shouldContain` [fixture.closedDaySlot.id]
                 map (.id) baseVisibleSlots `shouldNotContain` [fixture.closedDaySlot.id, fixture.otherGroupSlot.id]
@@ -83,26 +83,23 @@ tests = aroundAll withDatabaseTestContext do
 
                 map isNothing results `shouldBe` [True, True]
 
-        it "does not project a sparse explicit window from an offset-only legacy week" $ withContext do
+        it "does not project a sparse explicit window from another dated window" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Sparse Explicit Window Venue"
                 manager <- createUserRecord "sparse-explicit-window-manager@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager Manager
                 rosterGroup <- ensureVenueDefaultRosterGroup venue
-                legacyWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup (-1) True
+                _previousWindow <- createRosterWeekRecordForRosterGroup venue rosterGroup (-1) True
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                staleEpochConfig <- venueConfig
-                    |> set #weekOffsetEpoch (Calendar.addDays 1 venueConfig.weekOffsetEpoch)
-                    |> updateRecord
-                let scope = rosterWindowScopeForAnchor staleEpochConfig rosterGroup.id (testAnchorForOffset 0)
+                let scope = rosterWindowScopeForAnchor venueConfig rosterGroup.id (testAnchorForOffset 0)
 
                 facts <- withUserAndCurrentVenue manager venue.id do
                     withCurrentControllerContext do
                         fetchRosterBaseFactsDirect scope
 
-                let projectedWeek = fromJust (fromJust facts).baseRosterWeek
-                projectedWeek.isLive `shouldBe` False
-                projectedWeek.id `shouldNotBe` legacyWeek.id
+                let projectedWindow = fromJust (fromJust facts).baseRosterWeek
+                projectedWindow.windowIsPublished `shouldBe` False
+                projectedWindow.windowRosterGroupId `shouldBe` unpackId rosterGroup.id
                 map (.operationalDate) (fromJust facts).baseRosterDays
                     `shouldBe` map (\dayIndex -> Calendar.addDays dayIndex (testAnchorForOffset 0)) [0 .. 6]
 
@@ -124,7 +121,7 @@ tests = aroundAll withDatabaseTestContext do
                         fetchVisibleRosterReadModel fixture.windowScope
 
                 let rosterData = fromJust renderData
-                ((.id) <$> rosterData.rosterWeek) `shouldBe` Just fixture.rosterWeek.id
+                ((.windowRosterGroupId) <$> rosterData.rosterWeek) `shouldBe` Just fixture.rosterWeek.fixtureRosterGroupId
                 map (.id) rosterData.staffMembers `shouldContain` [fixture.eligibleStaff.id, fixture.assignedInactiveStaff.id]
                 map (.id) rosterData.allSlots `shouldContain` [fixture.visibleSparseSlot.id, fixture.closedDaySlot.id]
                 map (.rosterWindowLaneFirstSeen) rosterData.orderedSlotNames `shouldBe` sortOn (\value -> value) (map (.rosterWindowLaneFirstSeen) rosterData.orderedSlotNames)
@@ -184,10 +181,9 @@ tests = aroundAll withDatabaseTestContext do
                             |> set #defaultAwardLevelId (Just wageLevel.id)
                             |> updateRecord
                         wageSlot <- createCompleteRosterSlotRecord openDay fixture.earlySlotName wageStaff 12
-                        let compatibilityCollisionDays = map (set #dayOffset 0) initialData.rosterDays
-                        let expectedDate = (.operationalDate) (fromJust (find ((== wageSlot.rosterDayId) . unpackId . (.id)) compatibilityCollisionDays))
+                        let expectedDate = (.operationalDate) (fromJust (find ((== wageSlot.rosterDayId) . unpackId . (.id)) initialData.rosterDays))
 
-                        prediction <- fetchRosterWagePrediction venueConfig fixture.rosterWeek compatibilityCollisionDays [wageSlot]
+                        prediction <- fetchRosterWagePredictionForWindow venueConfig initialData.rosterDays [wageSlot]
 
                         prediction.predictionCalculationFailures `shouldBe` []
                         sum (map (.predictionDayShiftCount) prediction.predictionDays) `shouldBe` prediction.predictionCompleteShiftCount
@@ -247,7 +243,7 @@ tests = aroundAll withDatabaseTestContext do
                         openSlot <- createRosterSlotRecord rosterDay fixture.earlySlotName Nothing 12
                         venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetchOne
 
-                        prediction <- fetchRosterWagePrediction venueConfig fixture.rosterWeek initialData.rosterDays [openSlot]
+                        prediction <- fetchRosterWagePredictionForWindow venueConfig initialData.rosterDays [openSlot]
                         prediction.predictionWeekTotal `shouldBe` 0
                         prediction.predictionCompleteShiftCount `shouldBe` 0
                         prediction.predictionIncompleteShiftCount `shouldBe` 0
@@ -285,8 +281,8 @@ addDirectReadModelConflictFacts fixture = do
     initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.windowScope
     openDay <- fetch (Id fixture.visibleSparseSlot.rosterDayId) :: IO RosterDay
     nextDay <- query @RosterDay
-        |> filterWhere (#rosterWeekId, Just (unpackId fixture.rosterWeek.id))
-        |> filterWhere (#dayOffset, 1)
+        |> filterWhere (#rosterGroupId, unpackId fixture.rosterGroup.id)
+        |> filterWhere (#operationalDate, Calendar.addDays 1 fixture.windowScope.rosterWindowStart)
         |> fetchOne
     _ <- nextDay |> set #isClosed False |> updateRecord
     _ <- fixture.assignedInactiveStaff |> set #idealShiftsPerWeek 1 |> updateRecord
@@ -311,7 +307,7 @@ data DirectReadModelFixture = DirectReadModelFixture
     , windowScope           :: RosterWindowScope
     , manager               :: User
     , rosterGroup           :: RosterGroup
-    , rosterWeek            :: RosterWeek
+    , rosterWeek            :: TestRosterWindow
     , earlySlotName         :: SlotName
     , eligibleUser          :: User
     , eligibleStaff         :: Staff

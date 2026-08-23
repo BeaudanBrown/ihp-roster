@@ -83,7 +83,7 @@ import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.DateRange (RosterDayRowRemovalPreview (..),
                                   RosterWindow (..), RosterWindowDay (..),
                                   RosterWindowLane (..), RosterWindowScope (..),
-                                  fetchRosterWindow,
+                                  RosterWindowState (..), fetchRosterWindow,
                                   previewRemoveRosterDayRowByLanes,
                                   projectedRosterDayId,
                                   resolveRosterLaneReference,
@@ -95,8 +95,6 @@ import Web.RosterWeeks.Filters
 import Web.RosterWeeks.FrontendSurface (rosterDuplicateShiftIntentForm,
                                         rosterMoveShiftIntentForm,
                                         rosterTimelineMoveShiftIntentForm)
-import Web.RosterWeeks.LegacyCompatibility (fetchLegacyRosterWeekForScope,
-                                            legacyPlanningRosterWeekForScope)
 import Web.RosterWeeks.Mutations
 import Web.RosterWeeks.Overview
 import Web.RosterWeeks.Paths (rosterCopyWeekUrl, rosterTimelineWindowUrl,
@@ -277,7 +275,7 @@ instance Controller RosterWeeksController where
         case maybeRosterData of
             Nothing -> respondHtmlProfiled mempty
             Just rosterData -> do
-                let canViewTimeline = maybe False (.isLive) rosterData.rosterWeek || hasRole Manager
+                let canViewTimeline = maybe False (.windowIsPublished) rosterData.rosterWeek || hasRole Manager
                 accessDeniedUnless canViewTimeline
                 let maybeRosterDay = find (\rosterDay -> rosterDay.id == rosterDayId) rosterData.rosterDays
                 respondHtmlProfiled (maybe mempty (renderRosterDayTimelineContent Nothing rosterData) maybeRosterDay)
@@ -546,17 +544,16 @@ instance Controller RosterWeeksController where
                                                 setSuccessMessage successMessage
                                                 redirectToPath targetPath
 
-    action currentAction@ToggleRosterWeekLiveStatusAction { rosterWeekId } = runBepis currentAction BepisMutationAction do
+    action currentAction@ToggleRosterWeekLiveStatusAction = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
         scope <- rosterMutationScope rosterGroup.id
         window <- fetchRosterWindow scope.rosterWindowVenueId scope.rosterWindowRosterGroupId scope.rosterWindowStart
-        let isPublished = rosterDaysArePublished (mapMaybe (.persistedRosterDay) window.rosterWindowProjectedDays)
-        rosterWeek <- legacyPlanningRosterWeekForScope scope isPublished
-        when (unpackId rosterWeekId /= UUID.nil) do
-            persistedWeek <- fetchLegacyRosterWeekForScope scope
-            accessDeniedUnless (maybe False ((== rosterWeekId) . (.id)) persistedWeek)
+        let windowState = RosterWindowState
+                { windowRosterGroupId = unpackId rosterGroup.id
+                , windowIsPublished = rosterDaysArePublished (mapMaybe (.persistedRosterDay) window.rosterWindowProjectedDays)
+                }
         let targetPath = rosterWindowUrl scope.rosterWindowStart scope.rosterWindowRosterGroupId
         case RosterAction.parseToggleRosterWeekLiveStatusActionParams of
             Left errors -> do
@@ -568,7 +565,7 @@ instance Controller RosterWeeksController where
                         redirectToPath targetPath
             Right fields -> do
                 let nextLiveStatus = surfaceFieldValue @Surface.IsLive fields
-                mutationResult <- toggleRosterWeekLiveStatusMutation scope rosterWeek nextLiveStatus
+                mutationResult <- toggleRosterWeekLiveStatusMutation scope windowState nextLiveStatus
                 case mutationResult of
                     Left errorMessage ->
                         if isHtmxRequest
@@ -835,7 +832,6 @@ instance Controller RosterWeeksController where
                                                 let updatedSlot = copiedBoundariesSlot
                                                         |> set #rosterDayId (unpackId targetRosterDay.id)
                                                         |> set #rosterLaneId (unpackId targetSlotDefinition.id)
-                                                        |> set #rosterWeekSlotDefinitionId (targetSlotDefinition.legacyRosterWeekSlotDefinitionId <|> sourceSlot.rosterWeekSlotDefinitionId)
                                                         |> set #slotSortOrder targetSlotDefinition.sortOrder
                                                         |> set #rowIndex targetRowIndex
                                                 mutationResult <- moveRosterSlotMutation scope sourceRosterDay targetRosterDay sourceSlot updatedSlot
@@ -875,7 +871,6 @@ instance Controller RosterWeeksController where
                                 let updatedSlot = timelineSourceSlot
                                         |> set #rosterDayId (unpackId timelineTargetRosterDay.id)
                                         |> set #rosterLaneId (unpackId timelineTargetSlotDefinition.id)
-                                        |> set #rosterWeekSlotDefinitionId (timelineTargetSlotDefinition.legacyRosterWeekSlotDefinitionId <|> timelineSourceSlot.rosterWeekSlotDefinitionId)
                                         |> set #slotSortOrder timelineTargetSlotDefinition.sortOrder
                                         |> set #rowIndex timelineTargetRowIndex
                                         |> applyRosterSlotBoundaries boundaries
@@ -925,7 +920,6 @@ instance Controller RosterWeeksController where
                                                         let copiedSlot = assignmentSlot
                                                                 |> set #rosterDayId (unpackId targetRosterDay.id)
                                                                 |> set #rosterLaneId (unpackId targetSlotDefinition.id)
-                                                                |> set #rosterWeekSlotDefinitionId (targetSlotDefinition.legacyRosterWeekSlotDefinitionId <|> sourceSlot.rosterWeekSlotDefinitionId)
                                                                 |> set #slotSortOrder targetSlotDefinition.sortOrder
                                                                 |> set #rowIndex targetRowIndex
                                                                 |> set #startsAt copiedBoundariesSlot.startsAt
@@ -1069,7 +1063,6 @@ instance Controller RosterWeeksController where
                             ( newRecord @RosterSlot
                             |> set #rosterDayId (unpackId rosterDay.id)
                             |> set #rosterLaneId (unpackId slotDefinition.id)
-                            |> set #rosterWeekSlotDefinitionId slotDefinition.legacyRosterWeekSlotDefinitionId
                             |> set #slotSortOrder slotDefinition.sortOrder
                             |> set #rowIndex rowIndex
                             )
@@ -1569,7 +1562,7 @@ renderRosterWeekPage requestedScope =
                 let visibleRosterWeek =
                         case rosterWeek of
                             Just legacyRosterWeek
-                                | legacyRosterWeek.isLive || hasRole Manager -> Just legacyRosterWeek
+                                | legacyRosterWeek.windowIsPublished || hasRole Manager -> Just legacyRosterWeek
                             _ -> Nothing
                  in profileActionSpan "roster.page.respond" $
                         respondWithRosterWeekView

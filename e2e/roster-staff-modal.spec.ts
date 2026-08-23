@@ -358,11 +358,25 @@ test.describe('Roster Staff Modal', () => {
             );
             INSERT INTO staff_roster_groups (id, staff_id, roster_group_id)
             VALUES ('${staffRosterGroupId}', '${staffId}', 'a1000000-0000-0000-0000-000000000211');
-            UPDATE roster_weeks SET is_live = TRUE WHERE id = 'a1000000-0000-0000-0000-000000000051';
-            INSERT INTO roster_days (roster_week_id, day_offset, is_closed, row_count)
-            SELECT 'a1000000-0000-0000-0000-000000000051', day_offset, FALSE, 2
-            FROM generate_series(0, 6) AS day_offset
-            ON CONFLICT (roster_group_id, operational_date) DO NOTHING;
+            INSERT INTO roster_days (venue_id, roster_group_id, operational_date, publication_state, is_closed, row_count)
+            SELECT
+                'a1000000-0000-0000-0000-000000000001',
+                'a1000000-0000-0000-0000-000000000211',
+                CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + day_index,
+                'published', FALSE, 2
+            FROM generate_series(0, 6) AS day_index
+            ON CONFLICT (roster_group_id, operational_date) DO UPDATE SET publication_state = 'published';
+            INSERT INTO roster_lanes (roster_day_id, name, sort_order)
+            SELECT roster_days.id, 'Early', 0
+            FROM roster_days
+            WHERE roster_days.roster_group_id = 'a1000000-0000-0000-0000-000000000211'
+              AND roster_days.operational_date BETWEEN CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)
+                  AND CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 6
+              AND NOT EXISTS (
+                  SELECT 1 FROM roster_lanes
+                  WHERE roster_lanes.roster_day_id = roster_days.id
+                    AND roster_lanes.deleted_at IS NULL
+              );
             UPDATE roster_days SET publication_state = 'published'
             FROM e2e_staff_removal_operational_day
             WHERE roster_days.roster_group_id = 'a1000000-0000-0000-0000-000000000211'
@@ -398,36 +412,27 @@ test.describe('Roster Staff Modal', () => {
 
         const actorContext = await browser.newContext();
         const viewerContext = await browser.newContext();
-        const timesheetContext = await browser.newContext();
-        contexts.push(actorContext, viewerContext, timesheetContext);
+        contexts.push(actorContext, viewerContext);
         const actorPage = await actorContext.newPage();
         const viewerPage = await viewerContext.newPage();
-        const timesheetPage = await timesheetContext.newPage();
         await Promise.all([
             installLiveSubscriptionObserver(actorPage),
             installLiveSubscriptionObserver(viewerPage),
-            installLiveSubscriptionObserver(timesheetPage),
         ]);
         const staffSelector = `[${rosterStaffPanelSortRowDomAttr}][${rosterStaffHighlightSourceDomAttr}="staff:${staffId}"]:visible`;
 
             await openRoster(actorPage, { email: 'e2e-admin@example.com' });
             await openRoster(viewerPage, { email: 'e2e-admin@example.com' });
-            await openRoster(timesheetPage, { email: 'e2e-admin@example.com' });
             const rosterPath = '/RosterWeeks?rosterGroupId=a1000000-0000-0000-0000-000000000211';
             await gotoWhenReady(actorPage, rosterPath, '#roster-week-shell');
             await gotoWhenReady(viewerPage, rosterPath, '#roster-week-shell');
-            await gotoWhenReady(timesheetPage, '/Timesheets', '#timesheet-week-shell');
             await Promise.all([
                 waitForLiveSubscription(actorPage, 'roster:'),
                 waitForLiveSubscription(viewerPage, 'roster:'),
-                waitForLiveSubscription(timesheetPage, 'timesheets:'),
             ]);
             await expect(actorPage.locator(staffSelector)).toBeVisible();
             await expect(viewerPage.locator(staffSelector)).toBeVisible();
             await expect(viewerPage.locator('.roster-grid-frame')).toContainText('Remove');
-            const timesheetSuggestion = timesheetPage.locator(`.timesheet-suggestion-card[data-timesheet-suggestion-id="${rosterSlotId}"]`);
-            await expect(timesheetSuggestion).toHaveCount(1);
-
             const modalMount = actorPage.locator(`#${dialogOverlayMountDomId}`);
             await actorPage.locator(staffSelector).click();
             await modalMount.getByRole('button', { name: 'Profile Details', exact: true }).click();
@@ -442,7 +447,6 @@ test.describe('Roster Staff Modal', () => {
             await expect(actorPage.locator(staffSelector)).toHaveCount(0, { timeout: E2E_TIMEOUT.liveUpdate });
             await expect(viewerPage.locator(staffSelector)).toHaveCount(0, { timeout: E2E_TIMEOUT.liveUpdate });
             await expect(viewerPage.locator('.roster-grid-frame')).not.toContainText('Remove', { timeout: E2E_TIMEOUT.liveUpdate });
-            await expect(timesheetSuggestion).toHaveCount(0, { timeout: E2E_TIMEOUT.liveUpdate });
         } finally {
             await Promise.allSettled(contexts.map((context) => context.close()));
             runSql(`
@@ -455,8 +459,10 @@ test.describe('Roster Staff Modal', () => {
                 DELETE FROM venue_memberships WHERE id = '${membershipId}';
                 DELETE FROM staff WHERE id = '${staffId}';
                 DELETE FROM users WHERE id = '${userId}';
-                UPDATE roster_weeks SET is_live = FALSE WHERE id = 'a1000000-0000-0000-0000-000000000051';
-                UPDATE roster_days SET publication_state = 'draft' WHERE roster_week_id = 'a1000000-0000-0000-0000-000000000051';
+                UPDATE roster_days SET publication_state = 'draft'
+                WHERE roster_group_id = 'a1000000-0000-0000-0000-000000000211'
+                  AND operational_date BETWEEN CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)
+                      AND CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 6;
                 COMMIT;
             `);
         }

@@ -108,9 +108,9 @@ tests = aroundAll withDatabaseTestContext do
 
                 response <- withUser manager do
                     callActionWithParams
-                        ToggleRosterWeekLiveStatusAction { rosterWeekId = foreignWeek.id }
+                        ToggleRosterWeekLiveStatusAction
                         [ ("anchorDate", "2025-01-06")
-                        , ("rosterGroupId", idToParam (Id foreignWeek.rosterGroupId :: Id RosterGroup))
+                        , ("rosterGroupId", idToParam (Id foreignWeek.fixtureRosterGroupId :: Id RosterGroup))
                         , ("rosterCalendarRevision", "1")
                         , ("isLive", "true")
                         ]
@@ -154,7 +154,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterWeek <- createRosterWeekRecord venue 0 False
 
                 response <- withUser user do
-                    callAction ToggleRosterWeekLiveStatusAction { rosterWeekId = rosterWeek.id }
+                    callAction ToggleRosterWeekLiveStatusAction
 
                 response `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"

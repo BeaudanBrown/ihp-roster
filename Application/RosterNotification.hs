@@ -10,7 +10,6 @@ module Application.RosterNotification
     , CreateRosterNotificationRunResult (..)
     , rosterNotificationMailKind
     , rosterNotificationSnapshotSchemaVersion
-    , createRosterNotificationRun
     , createRosterNotificationRunForWindow
     , createRosterNotificationRunForWindowUnlessActiveAtRevision
     , fetchRosterNotificationAudience
@@ -49,8 +48,6 @@ data RosterNotificationSnapshot = RosterNotificationSnapshot
     , snapshotVenueName       :: !Text
     , snapshotRosterGroupId   :: !UUID
     , snapshotRosterGroupName :: !Text
-    , snapshotRosterWeekId    :: !(Maybe UUID)
-    , snapshotWeekOffset      :: !(Maybe Int)
     , snapshotWeekStart       :: !Day
     , snapshotWeekEnd         :: !Day
     , snapshotShifts          :: ![RosterNotificationShiftSnapshot]
@@ -128,8 +125,6 @@ instance Aeson.ToJSON RosterNotificationSnapshot where
             , "venueName" Aeson..= snapshot.snapshotVenueName
             , "rosterGroupId" Aeson..= snapshot.snapshotRosterGroupId
             , "rosterGroupName" Aeson..= snapshot.snapshotRosterGroupName
-            , "rosterWeekId" Aeson..= snapshot.snapshotRosterWeekId
-            , "weekOffset" Aeson..= snapshot.snapshotWeekOffset
             , "weekStart" Aeson..= snapshot.snapshotWeekStart
             , "weekEnd" Aeson..= snapshot.snapshotWeekEnd
             , "shifts" Aeson..= snapshot.snapshotShifts
@@ -142,8 +137,6 @@ instance Aeson.FromJSON RosterNotificationSnapshot where
             <*> object Aeson..: "venueName"
             <*> object Aeson..: "rosterGroupId"
             <*> object Aeson..: "rosterGroupName"
-            <*> object Aeson..: "rosterWeekId"
-            <*> object Aeson..: "weekOffset"
             <*> object Aeson..: "weekStart"
             <*> object Aeson..: "weekEnd"
             <*> object Aeson..: "shifts"
@@ -216,25 +209,6 @@ instance Aeson.FromJSON RosterNotificationSkippedRecipient where
             <*> object Aeson..: "name"
             <*> object Aeson..: "reason"
 
-explicitWindowForLegacyRosterWeek :: (?modelContext :: ModelContext) => RosterWeek -> IO (Day, Day)
-explicitWindowForLegacyRosterWeek rosterWeek = do
-    rosterDays <-
-        query @RosterDay
-            |> filterWhere (#rosterWeekId, Just (unpackId rosterWeek.id))
-            |> filterWhere (#venueId, rosterWeek.venueId)
-            |> filterWhere (#rosterGroupId, rosterWeek.rosterGroupId)
-            |> orderBy #operationalDate
-            |> fetch
-    firstOperationalDate <-
-        maybe
-            (fail "Legacy roster notification provenance has no matching explicit Operational dates")
-            (pure . (.operationalDate))
-            (listToMaybe rosterDays)
-    let expectedOperationalDates = map (`addDays` firstOperationalDate) [0 .. 6]
-    unless (map (.operationalDate) rosterDays == expectedOperationalDates) $
-        fail "Legacy roster notification provenance does not contain one contiguous explicit Operational window"
-    pure (firstOperationalDate, addDays 7 firstOperationalDate)
-
 createRosterNotificationRunForWindowUnlessActiveAtRevision ::
     (?modelContext :: ModelContext) =>
     User ->
@@ -245,19 +219,18 @@ createRosterNotificationRunForWindowUnlessActiveAtRevision ::
     Int ->
     IO CreateRosterNotificationRunResult
 createRosterNotificationRunForWindowUnlessActiveAtRevision actor venue rosterGroup windowStart windowEnd expectedCalendarRevision =
-    createRosterNotificationRunForWindowUnlessActiveWithLegacy actor venue rosterGroup windowStart windowEnd Nothing (Just expectedCalendarRevision)
+    createRosterNotificationRunForWindowUnlessActive actor venue rosterGroup windowStart windowEnd (Just expectedCalendarRevision)
 
-createRosterNotificationRunForWindowUnlessActiveWithLegacy ::
+createRosterNotificationRunForWindowUnlessActive ::
     (?modelContext :: ModelContext) =>
     User ->
     Venue ->
     RosterGroup ->
     Day ->
     Day ->
-    Maybe RosterWeek ->
     Maybe Int ->
     IO CreateRosterNotificationRunResult
-createRosterNotificationRunForWindowUnlessActiveWithLegacy actor venue rosterGroup windowStart windowEnd legacyWeek expectedCalendarRevision =
+createRosterNotificationRunForWindowUnlessActive actor venue rosterGroup windowStart windowEnd expectedCalendarRevision =
     withRosterWindowDateLock venue.id rosterGroup.id windowStart windowEnd do
         currentVenueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
         if maybe False (/= currentVenueConfig.rosterCalendarRevision) expectedCalendarRevision
@@ -273,19 +246,8 @@ createRosterNotificationRunForWindowUnlessActiveWithLegacy actor venue rosterGro
                 if activeDeliveryExists
                     then pure RosterNotificationRunAlreadyActive
                     else do
-                        createdRun <- createRosterNotificationRunInCurrentTransaction actor venue rosterGroup windowStart windowEnd legacyWeek
+                        createdRun <- createRosterNotificationRunInCurrentTransaction actor venue rosterGroup windowStart windowEnd
                         pure $ maybe RosterNotificationRunHasNoEligibleRecipients RosterNotificationRunCreated createdRun
-
-createRosterNotificationRun ::
-    (?modelContext :: ModelContext) =>
-    User ->
-    RosterWeek ->
-    IO RosterNotificationRun
-createRosterNotificationRun actor rosterWeek = do
-    venue <- fetch (Id rosterWeek.venueId :: Id Venue)
-    rosterGroup <- fetch (Id rosterWeek.rosterGroupId :: Id RosterGroup)
-    (windowStart, windowEnd) <- explicitWindowForLegacyRosterWeek rosterWeek
-    createRosterNotificationRunForWindowWithLegacy actor venue rosterGroup windowStart windowEnd (Just rosterWeek)
 
 createRosterNotificationRunForWindow ::
     (?modelContext :: ModelContext) =>
@@ -296,21 +258,9 @@ createRosterNotificationRunForWindow ::
     Day ->
     IO RosterNotificationRun
 createRosterNotificationRunForWindow actor venue rosterGroup windowStart windowEnd =
-    createRosterNotificationRunForWindowWithLegacy actor venue rosterGroup windowStart windowEnd Nothing
-
-createRosterNotificationRunForWindowWithLegacy ::
-    (?modelContext :: ModelContext) =>
-    User ->
-    Venue ->
-    RosterGroup ->
-    Day ->
-    Day ->
-    Maybe RosterWeek ->
-    IO RosterNotificationRun
-createRosterNotificationRunForWindowWithLegacy actor venue rosterGroup windowStart windowEnd legacyWeek =
     withRosterWindowDateLock venue.id rosterGroup.id windowStart windowEnd do
         Mutations.lockRosterNotificationWindow venue.id rosterGroup.id windowStart windowEnd
-        createdRun <- createRosterNotificationRunInCurrentTransaction actor venue rosterGroup windowStart windowEnd legacyWeek
+        createdRun <- createRosterNotificationRunInCurrentTransaction actor venue rosterGroup windowStart windowEnd
         maybe (fail "Roster notification runs require at least one eligible recipient") pure createdRun
 
 activeRunDeliveryExists :: (?modelContext :: ModelContext) => [RosterNotificationRun] -> IO Bool
@@ -331,9 +281,8 @@ createRosterNotificationRunInCurrentTransaction ::
     RosterGroup ->
     Day ->
     Day ->
-    Maybe RosterWeek ->
     IO (Maybe RosterNotificationRun)
-createRosterNotificationRunInCurrentTransaction actor suppliedVenue suppliedRosterGroup windowStart windowEnd legacyWeek = do
+createRosterNotificationRunInCurrentTransaction actor suppliedVenue suppliedRosterGroup windowStart windowEnd = do
     persistedActor <- fetch actor.id
     venue <- fetch suppliedVenue.id
     rosterGroup <- fetch suppliedRosterGroup.id
@@ -348,7 +297,7 @@ createRosterNotificationRunInCurrentTransaction actor suppliedVenue suppliedRost
         |> fetch
     unless (map (.operationalDate) rosterDays == map (`addDays` windowStart) [0 .. 6] && rosterDaysArePublished rosterDays)
         (fail "Roster notification runs require a Published roster window")
-    snapshot <- buildRosterSnapshot venue rosterGroup rosterDays windowStart windowEnd legacyWeek
+    snapshot <- buildRosterSnapshot venue rosterGroup rosterDays windowStart windowEnd
     audience <- fetchRosterNotificationAudience venue rosterGroup
     let recipients = audience.audienceRecipients
     let skippedRecipients = audience.audienceSkippedRecipients
@@ -359,8 +308,6 @@ createRosterNotificationRunInCurrentTransaction actor suppliedVenue suppliedRost
                 newRecord @RosterNotificationRun
                     |> set #venueId (unpackId venue.id)
                     |> set #rosterGroupId (unpackId rosterGroup.id)
-                    |> set #rosterWeekId (unpackId . (.id) <$> legacyWeek)
-                    |> set #weekOffset ((.weekOffset) <$> legacyWeek)
                     |> set #weekStart windowStart
                     |> set #windowEnd windowEnd
                     |> set #snapshotSchemaVersion rosterNotificationSnapshotSchemaVersion
@@ -379,20 +326,13 @@ buildRosterSnapshot ::
     [RosterDay] ->
     Day ->
     Day ->
-    Maybe RosterWeek ->
     IO RosterNotificationSnapshot
-buildRosterSnapshot venue rosterGroup rosterDays windowStart windowEnd legacyWeek = do
+buildRosterSnapshot venue rosterGroup rosterDays windowStart windowEnd = do
     let rosterDayIds = map (unpackId . (.id)) rosterDays
     lanes <- if null rosterDayIds then pure [] else query @RosterLane
         |> filterWhereIn (#rosterDayId, rosterDayIds)
         |> filterWhere (#deletedAt, Nothing)
         |> fetch
-    definitions <- case legacyWeek of
-        Nothing -> pure []
-        Just rosterWeek -> query @RosterWeekSlotDefinition
-            |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
-            |> filterWhere (#deletedAt, Nothing)
-            |> fetch
     shifts <- if null rosterDayIds
         then pure []
         else query @RosterSlot
@@ -404,16 +344,13 @@ buildRosterSnapshot venue rosterGroup rosterDays windowStart windowEnd legacyWee
     shiftTypes <- if null shiftTypeIds then pure [] else query @ShiftType |> filterWhereIn (#id, shiftTypeIds) |> fetch
     let dayById = Map.fromList [(unpackId day.id, day) | day <- rosterDays]
     let laneById = Map.fromList [(unpackId lane.id, lane) | lane <- lanes]
-    let definitionById = Map.fromList [(unpackId definition.id, definition) | definition <- definitions]
     let shiftTypeById = Map.fromList [(unpackId shiftType.id, shiftType) | shiftType <- shiftTypes]
-    let snapshotShifts = mapMaybe (snapshotShift dayById laneById definitionById shiftTypeById) shifts
+    let snapshotShifts = mapMaybe (snapshotShift dayById laneById shiftTypeById) shifts
     pure RosterNotificationSnapshot
         { snapshotVenueId = unpackId venue.id
         , snapshotVenueName = venue.name
         , snapshotRosterGroupId = unpackId rosterGroup.id
         , snapshotRosterGroupName = rosterGroup.name
-        , snapshotRosterWeekId = unpackId . (.id) <$> legacyWeek
-        , snapshotWeekOffset = (.weekOffset) <$> legacyWeek
         , snapshotWeekStart = windowStart
         , snapshotWeekEnd = addDays (-1) windowEnd
         , snapshotShifts
@@ -422,15 +359,12 @@ buildRosterSnapshot venue rosterGroup rosterDays windowStart windowEnd legacyWee
 snapshotShift ::
     Map.Map UUID RosterDay ->
     Map.Map UUID RosterLane ->
-    Map.Map UUID RosterWeekSlotDefinition ->
     Map.Map UUID ShiftType ->
     RosterSlot ->
     Maybe RosterNotificationShiftSnapshot
-snapshotShift dayById laneById definitionById shiftTypeById slot = do
+snapshotShift dayById laneById shiftTypeById slot = do
     rosterDay <- Map.lookup slot.rosterDayId dayById
-    laneName <-
-        (.name) <$> Map.lookup slot.rosterLaneId laneById
-            <|> (slot.rosterWeekSlotDefinitionId >>= fmap (.name) . (`Map.lookup` definitionById))
+    laneName <- (.name) <$> Map.lookup slot.rosterLaneId laneById
     pure RosterNotificationShiftSnapshot
         { shiftRosterSlotId = unpackId slot.id
         , shiftStaffId = slot.staffId

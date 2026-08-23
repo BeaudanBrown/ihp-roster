@@ -38,6 +38,44 @@ tests = aroundAll withDatabaseTestContext do
             map PG.fromOnly retiredTables `shouldBe` replicate 3 Nothing
             map PG.fromOnly retainedTables `shouldSatisfy` all isJust
 
+    describe "date-native roster compatibility retirement migration" do
+        it "executes against representative predecessor data without losing dated or immutable evidence" $ withContext do
+            withCleanDb do
+                predecessorSql <- TextIO.readFile "Test/Fixtures/date-native-roster/pre-retirement-schema.sql"
+                migrationSql <- TextIO.readFile "Application/Migration/1788100000.sql"
+                sqlExecDiscardResult "DROP SCHEMA IF EXISTS roster_retirement_374 CASCADE" ()
+                withTransaction do
+                    sqlExecDiscardResult "CREATE SCHEMA roster_retirement_374" ()
+                    sqlExecDiscardResult "SET LOCAL search_path TO roster_retirement_374, public" ()
+                    case transactionRunner ?modelContext of
+                        Nothing -> error "Roster retirement fixture requires a transaction runner"
+                        Just runner -> do
+                            runInTransaction runner (HasqlSession.script predecessorSql)
+                            runInTransaction runner (HasqlSession.script migrationSql)
+
+                    retiredTables :: [PG.Only (Maybe Text)] <-
+                        sqlQuery "SELECT to_regclass(name)::text FROM unnest(ARRAY['roster_retirement_374.roster_weeks', 'roster_retirement_374.roster_week_slot_definitions']) AS names(name) ORDER BY name" ()
+                    map PG.fromOnly retiredTables `shouldBe` [Nothing, Nothing]
+                    datedFacts :: [(Day, Text, Text)] <-
+                        sqlQuery "SELECT day.operational_date, day.publication_state, lane.name FROM roster_days day JOIN roster_lanes lane ON lane.roster_day_id = day.id" ()
+                    datedFacts `shouldBe` [(fromGregorian 2026 8 3, "published", "Early")]
+                    slotFacts :: [(UTCTime, UTCTime)] <-
+                        sqlQuery "SELECT starts_at, ends_at FROM roster_slots" ()
+                    slotFacts `shouldBe`
+                        [ ( UTCTime (fromGregorian 2026 8 2) (secondsToDiffTime (23 * 60 * 60))
+                          , UTCTime (fromGregorian 2026 8 3) (secondsToDiffTime (7 * 60 * 60))
+                          )
+                        ]
+                    notificationFacts :: [(Day, Day, Text)] <-
+                        sqlQuery "SELECT week_start, window_end, roster_snapshot->>'weekStart' FROM roster_notification_runs" ()
+                    notificationFacts `shouldBe` [(fromGregorian 2026 8 3, fromGregorian 2026 8 10, "2026-08-03")]
+                    timesheetEvidenceCount :: Int <- sqlQueryScalar "SELECT count(*)::int FROM timesheet_entries WHERE source_roster_slot_id IS NOT NULL AND operational_date = '2026-08-03'" ()
+                    exportEvidenceCount :: Int <- sqlQueryScalar "SELECT count(*)::int FROM export_job_entries WHERE source_roster_slot_id IS NOT NULL AND row_snapshot->>'operationalDate' = '2026-08-03'" ()
+                    timesheetEvidenceCount `shouldBe` 1
+                    exportEvidenceCount `shouldBe` 1
+                    sqlExecDiscardResult "SET LOCAL search_path TO public" ()
+                    sqlExecDiscardResult "DROP SCHEMA roster_retirement_374 CASCADE" ()
+
     describe "database hard-delete protection" do
         it "keeps approval-pinned imported Xero remote identities immutable" $ withContext do
             withCleanDb do
@@ -435,17 +473,17 @@ tests = aroundAll withDatabaseTestContext do
                     :: IO (Either SomeException ())
                 nonPositiveRoster <- try
                     (sqlExecDiscardResult
-                        "INSERT INTO roster_slots (roster_day_id, roster_week_slot_definition_id, row_index, starts_at, ends_at, timezone) VALUES (?, ?, 0, ?, ?, 'Australia/Melbourne')"
+                        "INSERT INTO roster_slots (roster_day_id, roster_lane_id, row_index, starts_at, ends_at, timezone) VALUES (?, ?, 0, ?, ?, 'Australia/Melbourne')"
                         (unpackId rosterDay.id, unpackId slotDefinition.id, startsAt, startsAt))
                     :: IO (Either SomeException ())
                 emptyRosterTimezone <- try
                     (sqlExecDiscardResult
-                        "INSERT INTO roster_slots (roster_day_id, roster_week_slot_definition_id, row_index, timezone) VALUES (?, ?, 1, '')"
+                        "INSERT INTO roster_slots (roster_day_id, roster_lane_id, row_index, timezone) VALUES (?, ?, 1, '')"
                         (unpackId rosterDay.id, unpackId slotDefinition.id))
                     :: IO (Either SomeException ())
                 unsupportedRosterTimezone <- try
                     (sqlExecDiscardResult
-                        "INSERT INTO roster_slots (roster_day_id, roster_week_slot_definition_id, row_index, timezone) VALUES (?, ?, 2, 'not-a-zone')"
+                        "INSERT INTO roster_slots (roster_day_id, roster_lane_id, row_index, timezone) VALUES (?, ?, 2, 'not-a-zone')"
                         (unpackId rosterDay.id, unpackId slotDefinition.id))
                     :: IO (Either SomeException ())
 
@@ -616,7 +654,7 @@ tests = aroundAll withDatabaseTestContext do
                     insertShift rowIndex assignmentState maybeStaffId maybeStartsAt maybeEndsAt maybeShiftTypeId =
                         try
                             ( sqlExecDiscardResult
-                                "INSERT INTO roster_slots (roster_day_id, roster_week_slot_definition_id, row_index, assignment_state, staff_id, starts_at, ends_at, timezone, shift_type_id) VALUES (?, ?, ?, ?, ?, ?, ?, 'Australia/Melbourne', ?)"
+                                "INSERT INTO roster_slots (roster_day_id, roster_lane_id, row_index, assignment_state, staff_id, starts_at, ends_at, timezone, shift_type_id) VALUES (?, ?, ?, ?, ?, ?, ?, 'Australia/Melbourne', ?)"
                                 (unpackId rosterDay.id, unpackId slotDefinition.id, rowIndex, assignmentState :: Text, maybeStaffId, maybeStartsAt, maybeEndsAt, maybeShiftTypeId)
                             ) :: IO (Either SomeException ())
 
@@ -643,14 +681,14 @@ tests = aroundAll withDatabaseTestContext do
 
                 result <- try
                     ( sqlExecDiscardResult
-                        "INSERT INTO roster_slots (roster_day_id, roster_week_slot_definition_id, row_index, assignment_state, staff_id, timezone, deleted_at, delete_reason) VALUES (?, ?, 0, 'open', NULL, 'Australia/Melbourne', NOW(), 'historical_fixture')"
+                        "INSERT INTO roster_slots (roster_day_id, roster_lane_id, row_index, assignment_state, staff_id, timezone, deleted_at, delete_reason) VALUES (?, ?, 0, 'open', NULL, 'Australia/Melbourne', NOW(), 'historical_fixture')"
                         (unpackId rosterDay.id, unpackId slotDefinition.id)
                     ) :: IO (Either SomeException ())
 
                 result `shouldSatisfy` isRight
 
     describe "database tenant integrity protection" do
-        it "rejects direct SQL roster weeks whose venue does not match the roster group" $ withContext do
+        it "rejects direct SQL roster days whose venue does not match the roster group" $ withContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Tenant Roster A"
                 venueB <- createVenueWithConfig "Tenant Roster B"
@@ -662,8 +700,8 @@ tests = aroundAll withDatabaseTestContext do
                 result <-
                     try
                         ( sqlExecDiscardResult
-                            "INSERT INTO roster_weeks (venue_id, roster_group_id, week_offset) VALUES (?, ?, ?)"
-                            (unpackId venueA.id, unpackId foreignGroup.id, 42 :: Int)
+                            "INSERT INTO roster_days (venue_id, roster_group_id, operational_date, publication_state, is_closed, row_count) VALUES (?, ?, DATE '2026-08-03', 'draft', FALSE, 2)"
+                            (unpackId venueA.id, unpackId foreignGroup.id)
                         ) :: IO (Either SomeException ())
 
                 result `shouldSatisfy` isLeft

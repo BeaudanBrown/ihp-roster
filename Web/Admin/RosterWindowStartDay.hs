@@ -10,7 +10,6 @@ import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsR
                                                                    xeroConnectionResource)
 import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterWeekBoundaryConfigResource)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekBoundaryConfigResource)
-import Application.Helper.RosterOffsetCompatibility (applyLegacyWeekOffsetEpoch)
 import Application.Helper.SurfaceResource
 import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.RosterPublication.Mutations (normalizePublishedRosterWindows,
@@ -122,7 +121,6 @@ applyRosterWindowStartDay currentConfig proposedStartDay
         normalizePublishedRosterWindows (Id currentConfig.venueId) proposedStartDay
         currentConfig
             |> set #rosterWeekStartsOn proposedStartDay
-            |> applyLegacyWeekOffsetEpoch proposedStartDay
             |> updateRecord
 
 rosterWeekStartsOnTouchedResources :: Id Venue -> [SurfaceResourceValue]

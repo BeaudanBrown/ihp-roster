@@ -11,7 +11,6 @@ module Application.Helper.VenueBootstrap
 
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
                                         ensureVenueRosterDefaults)
-import Application.Helper.RosterOffsetCompatibility (applyLegacyWeekOffsetEpoch)
 import qualified Data.Char as Char
 import qualified Data.Text as Text
 import Generated.Types
@@ -44,7 +43,6 @@ createVenueWithBootstrapConfigInCurrentTransaction bootstrapConfig = do
             |> set #venueId (unpackId venue.id)
             |> set #timezone bootstrapConfig.venueBootstrapTimezone
             |> set #rosterWeekStartsOn bootstrapConfig.venueBootstrapRosterWeekStartsOn
-            |> applyLegacyWeekOffsetEpoch bootstrapConfig.venueBootstrapRosterWeekStartsOn
             |> set #rosterEndTimesEnabled bootstrapConfig.venueBootstrapRosterEndTimesEnabled
             |> set #rosterLayoutMode DayColumns
             |> set #defaultStaffPayAssignmentMode RosterOnly

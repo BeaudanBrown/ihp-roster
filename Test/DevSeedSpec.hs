@@ -25,7 +25,7 @@ import Test.Support
 data DevSeedOutcome = DevSeedOutcome
     { staffRows      :: ![(Text, Text, Maybe Text, Int)]
     , preferenceRows :: ![(Text, Text, Int, Int, Int)]
-    , rosterRows     :: ![(Int, Int, Int, Int, Maybe (Text, Text), Maybe TimeOfDay, Maybe TimeOfDay, Maybe Text)]
+    , rosterRows     :: ![(Day, Int, Int, Maybe (Text, Text), Maybe TimeOfDay, Maybe TimeOfDay, Maybe Text)]
     , leaveRows      :: ![(Day, Day, Text, Maybe Text)]
     , timesheetRows  :: ![(Day, TimeOfDay, TimeOfDay, Bool, Bool)]
     }
@@ -89,20 +89,11 @@ tests = aroundAll withDatabaseTestContext do
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
                         |> orderByAsc #sortOrder
                         |> fetch
-                rosterWeeks <-
-                    query @RosterWeek
-                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
-                        |> filterWhere (#weekOffset, fixture.compatibilityWeekOffset)
-                        |> fetch
-                allRosterWeeks <-
-                    query @RosterWeek
-                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
-                        |> orderByAsc #weekOffset
-                        |> fetch
-                rosterDays <-
-                    query @RosterDay
-                        |> filterWhereIn (#rosterWeekId, map (Just . unpackId . (.id)) rosterWeeks)
-                        |> fetch
+                rosterDays <- fetchFixtureWindowDays fixture
+                allRosterDays <- query @RosterDay
+                    |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                    |> orderByAsc #operationalDate
+                    |> fetch
                 rosterSlots <-
                     query @RosterSlot
                         |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
@@ -137,11 +128,10 @@ tests = aroundAll withDatabaseTestContext do
                         , ("staff@bepis.lol", "0342d268-4d58-4c11-b925-124db23b4758")
                         , ("venue@bepis.lol", "c3b1be9d-12de-49d1-9f21-e507af4c14ab")
                         ]
-                length rosterWeeks `shouldBe` 2
-                map (.weekOffset) allRosterWeeks `shouldBe` concatMap (replicate 2) [fixture.compatibilityWeekOffset - 1, fixture.compatibilityWeekOffset, fixture.compatibilityWeekOffset + 1]
                 length rosterDays `shouldBe` 14
+                length allRosterDays `shouldBe` 42
                 length rosterSlots `shouldSatisfy` (> 30)
-                sort (map (.isLive) rosterWeeks) `shouldBe` [False, True]
+                length (filter ((== Published) . (.publicationState)) rosterDays) `shouldBe` 7
                 length (filter (isJust . testStartTime) rosterSlots) `shouldSatisfy` (> 10)
                 length (filter (isJust . testEndTime) rosterSlots) `shouldBe` length (filter (isJust . testStartTime) rosterSlots)
                 sort (nub (map (.idealShiftsPerWeek) seededStaff)) `shouldBe` [0, 1, 2, 3, 4, 5]
@@ -158,15 +148,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 -- Every roster day retains enough staffed rows for realistic UI exercise.
 
-                rosterWeeks <-
-                    query @RosterWeek
-                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
-                        |> filterWhere (#weekOffset, fixture.compatibilityWeekOffset)
-                        |> fetch
-                rosterDays <-
-                    query @RosterDay
-                        |> filterWhereIn (#rosterWeekId, map (Just . unpackId . (.id)) rosterWeeks)
-                        |> fetch
+                rosterDays <- fetchFixtureWindowDays fixture
                 rosterSlots <-
                     query @RosterSlot
                         |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
@@ -218,15 +200,10 @@ tests = aroundAll withDatabaseTestContext do
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
                         |> filterWhere (#status, LeaveRequestStatusEnumDenied)
                         |> fetchCount
-                mondayWeeks <-
-                    query @RosterWeek
-                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
-                        |> filterWhere (#weekOffset, fixture.compatibilityWeekOffset)
-                        |> fetch
                 mondayDays <-
                     query @RosterDay
-                        |> filterWhere (#dayOffset, 0)
-                        |> filterWhereIn (#rosterWeekId, map (Just . unpackId . (.id)) mondayWeeks)
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> filterWhere (#operationalDate, fixture.currentWindowStart)
                         |> fetch
                 bobMondayAssignments <-
                     query @RosterSlot
@@ -237,10 +214,10 @@ tests = aroundAll withDatabaseTestContext do
                         mapMaybe (.notes) leaveRequests
                 let seededScenario = get #scenario fixture
                 let expectedApprovedLeaves = get #leaveRequestCount seededScenario - get #pendingLeaveCount seededScenario - get #deniedLeaveCount seededScenario
-                let leaveWeekOffsets =
+                let leaveWindowStarts =
                         sort
                             (nub
-                                [ testWeekOffsetForDay day
+                                [ testWindowStartForDay day
                                 | leaveRequest <- leaveRequests
                                 , day <- [leaveRequest.startDate, addDays (-1) leaveRequest.endDate]
                                 ])
@@ -250,8 +227,8 @@ tests = aroundAll withDatabaseTestContext do
                 approvedLeaveCount `shouldBe` expectedApprovedLeaves
                 pendingLeaveCount `shouldBe` get #pendingLeaveCount seededScenario
                 deniedLeaveCount `shouldBe` get #deniedLeaveCount seededScenario
-                leaveWeekOffsets `shouldSatisfy` all (`elem` [fixture.compatibilityWeekOffset - 1, fixture.compatibilityWeekOffset, fixture.compatibilityWeekOffset + 1])
-                [fixture.compatibilityWeekOffset - 1, fixture.compatibilityWeekOffset, fixture.compatibilityWeekOffset + 1] `shouldSatisfy` all (`elem` leaveWeekOffsets)
+                leaveWindowStarts `shouldSatisfy` all (`elem` map (`addDays` fixture.currentWindowStart) [-7, 0, 7])
+                map (`addDays` fixture.currentWindowStart) [-7, 0, 7] `shouldSatisfy` all (`elem` leaveWindowStarts)
                 length leaveNotes `shouldBe` length leaveRequests
                 leaveNotes `shouldSatisfy` all (not . Text.null)
                 fmap (.startDate) (head leaveRequests) `shouldBe` Just (addDays (-7) defaultWeekEpoch)
@@ -379,15 +356,7 @@ tests = aroundAll withDatabaseTestContext do
                 map (\version -> (version.payrollLabel, version.payAssignmentMode, tshow <$> version.overrideAwardLevelId, isJust version.importedXeroPayItemId)) shiftTypeVersions
                     `shouldBe` expectedSeedShiftTypeVersionsByLabel
 
-                rosterWeeks <-
-                    query @RosterWeek
-                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
-                        |> filterWhere (#weekOffset, fixture.compatibilityWeekOffset)
-                        |> fetch
-                rosterDays <-
-                    query @RosterDay
-                        |> filterWhereIn (#rosterWeekId, map (Just . unpackId . (.id)) rosterWeeks)
-                        |> fetch
+                rosterDays <- fetchFixtureWindowDays fixture
                 rosterSlots <-
                     query @RosterSlot
                         |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
@@ -477,7 +446,7 @@ tests = aroundAll withDatabaseTestContext do
                 let entriesWithBreaks = length (filter testHadBreak timesheetEntries)
                 let scenarioTimesheetCount = seededScenario.approvedTimesheets + seededScenario.pendingTimesheets
                 let requiredBreakCount = ceiling ((fromIntegral scenarioTimesheetCount :: Double) * 0.8)
-                let timesheetWeekOffsets = sort (nub (map (testWeekOffsetForDay . testWorkedOn) timesheetEntries))
+                let timesheetWindowStarts = sort (nub (map (testWindowStartForDay . testWorkedOn) timesheetEntries))
                 let xeroMatchedStaffIds = map (unpackId . (.id)) xeroMatchedStaff
                 let approvedTimesheets = filter (.isApproved) timesheetEntries
                 let pendingTimesheetCount = length timesheetEntries - length approvedTimesheets
@@ -503,8 +472,8 @@ tests = aroundAll withDatabaseTestContext do
                 pendingTimesheetCount `shouldBe` seededScenario.pendingTimesheets
                 totalTimesheetCount `shouldBe` (length approvedTimesheets + seededScenario.pendingTimesheets)
                 entriesWithBreaks `shouldSatisfy` (>= requiredBreakCount)
-                timesheetWeekOffsets `shouldSatisfy` \offsets ->
-                    all (`elem` offsets) [fixture.compatibilityWeekOffset - 1, fixture.compatibilityWeekOffset, fixture.compatibilityWeekOffset + 1]
+                timesheetWindowStarts `shouldSatisfy` \windowStarts ->
+                    all (`elem` windowStarts) (map (`addDays` fixture.currentWindowStart) [-7, 0, 7])
                 xeroMatchedApprovedCount `shouldSatisfy` (> otherApprovedCount)
 
                 -- Staff preferences include realistic names and recurring availability.
@@ -551,15 +520,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 -- Most assigned shifts align with recurring day preferences.
 
-                rosterWeeks <-
-                    query @RosterWeek
-                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
-                        |> filterWhere (#weekOffset, fixture.compatibilityWeekOffset)
-                        |> fetch
-                rosterDays <-
-                    query @RosterDay
-                        |> filterWhereIn (#rosterWeekId, map (Just . unpackId . (.id)) rosterWeeks)
-                        |> fetch
+                rosterDays <- fetchFixtureWindowDays fixture
                 assignedSlots <-
                     query @RosterSlot
                         |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
@@ -573,7 +534,7 @@ tests = aroundAll withDatabaseTestContext do
                 let rosterDayContextById =
                         Map.fromList
                             (map
-                                (\rosterDay -> (unpackId rosterDay.id, rosterDay.dayOffset))
+                                (\rosterDay -> (unpackId rosterDay.id, rosterDay.operationalDate))
                                 rosterDays
                             )
                 let preferenceKeys =
@@ -584,8 +545,8 @@ tests = aroundAll withDatabaseTestContext do
                         mapMaybe
                             (\slot -> do
                                 staffId <- slot.staffId
-                                dayOffset <- Map.lookup slot.rosterDayId rosterDayContextById
-                                pure (staffId, weekdayIndexForDayOffset dayOffset)
+                                operationalDate <- Map.lookup slot.rosterDayId rosterDayContextById
+                                pure (staffId, weekdayIndexForOperationalDate operationalDate)
                             )
                             assignedSlotsWithStaff
                 let matchedAssignedCount = length (filter (`elem` preferenceKeys) assignedPreferenceKeys)
@@ -597,18 +558,18 @@ tests = aroundAll withDatabaseTestContext do
                 characterizedOutcome <- captureDevSeedOutcome fixture
                 take 12 characterizedOutcome.rosterRows
                     `shouldBe`
-                        [ (-1, 0, 0, 0, Just ("Luca", "Pass"), Just (TimeOfDay 6 30 0), Just (TimeOfDay 12 0 0), Just "Cellar")
-                        , (-1, 0, 0, 0, Just ("Willa", "Worker"), Just (TimeOfDay 6 30 0), Just (TimeOfDay 12 0 0), Just "Bar")
-                        , (-1, 0, 0, 1, Just ("Bob", "Both"), Just (TimeOfDay 11 0 0), Just (TimeOfDay 16 30 0), Just "Runner")
-                        , (-1, 0, 0, 1, Just ("Taylor", "Trial 1"), Just (TimeOfDay 11 0 0), Just (TimeOfDay 16 30 0), Just "Glassy")
-                        , (-1, 0, 0, 2, Just ("Alice", "Front"), Just (TimeOfDay 16 30 0), Just (TimeOfDay 22 0 0), Just "Gaming")
-                        , (-1, 0, 0, 2, Just ("Omar", "Floor"), Just (TimeOfDay 16 30 0), Just (TimeOfDay 22 0 0), Just "Functions")
-                        , (-1, 0, 1, 2, Just ("Kira", "Cafe"), Just (TimeOfDay 16 30 0), Just (TimeOfDay 22 0 0), Just "Floor")
-                        , (-1, 0, 1, 2, Just ("Tracy", "Green"), Just (TimeOfDay 16 30 0), Just (TimeOfDay 22 0 0), Just "Gaming")
-                        , (-1, 1, 0, 0, Just ("Tracy", "Green"), Just (TimeOfDay 7 30 0), Just (TimeOfDay 13 0 0), Just "Door")
-                        , (-1, 1, 0, 1, Just ("Morgan", "Manager"), Just (TimeOfDay 12 0 0), Just (TimeOfDay 17 30 0), Just "Floor")
-                        , (-1, 1, 0, 2, Just ("Noah", "Dish"), Just (TimeOfDay 17 30 0), Just (TimeOfDay 23 0 0), Just "Supervisor")
-                        , (-1, 1, 0, 2, Just ("Oliver", "Grey"), Just (TimeOfDay 17 30 0), Just (TimeOfDay 23 0 0), Just "Door")
+                        [ (fromGregorian 2024 12 30, 0, 0, Just ("Luca", "Pass"), Just (TimeOfDay 6 30 0), Just (TimeOfDay 12 0 0), Just "Cellar")
+                        , (fromGregorian 2024 12 30, 0, 0, Just ("Willa", "Worker"), Just (TimeOfDay 6 30 0), Just (TimeOfDay 12 0 0), Just "Bar")
+                        , (fromGregorian 2024 12 30, 0, 1, Just ("Bob", "Both"), Just (TimeOfDay 11 0 0), Just (TimeOfDay 16 30 0), Just "Runner")
+                        , (fromGregorian 2024 12 30, 0, 1, Just ("Taylor", "Trial 1"), Just (TimeOfDay 11 0 0), Just (TimeOfDay 16 30 0), Just "Glassy")
+                        , (fromGregorian 2024 12 30, 0, 2, Just ("Alice", "Front"), Just (TimeOfDay 16 30 0), Just (TimeOfDay 22 0 0), Just "Gaming")
+                        , (fromGregorian 2024 12 30, 0, 2, Just ("Omar", "Floor"), Just (TimeOfDay 16 30 0), Just (TimeOfDay 22 0 0), Just "Functions")
+                        , (fromGregorian 2024 12 30, 1, 2, Just ("Kira", "Cafe"), Just (TimeOfDay 16 30 0), Just (TimeOfDay 22 0 0), Just "Floor")
+                        , (fromGregorian 2024 12 30, 1, 2, Just ("Tracy", "Green"), Just (TimeOfDay 16 30 0), Just (TimeOfDay 22 0 0), Just "Gaming")
+                        , (fromGregorian 2024 12 31, 0, 0, Just ("Tracy", "Green"), Just (TimeOfDay 7 30 0), Just (TimeOfDay 13 0 0), Just "Door")
+                        , (fromGregorian 2024 12 31, 0, 1, Just ("Morgan", "Manager"), Just (TimeOfDay 12 0 0), Just (TimeOfDay 17 30 0), Just "Floor")
+                        , (fromGregorian 2024 12 31, 0, 2, Just ("Noah", "Dish"), Just (TimeOfDay 17 30 0), Just (TimeOfDay 23 0 0), Just "Supervisor")
+                        , (fromGregorian 2024 12 31, 0, 2, Just ("Oliver", "Grey"), Just (TimeOfDay 17 30 0), Just (TimeOfDay 23 0 0), Just "Door")
                         ]
 
         it "supports deterministic scenario overrides for realistic demo seeding" $ withContext do
@@ -645,6 +606,14 @@ tests = aroundAll withDatabaseTestContext do
                 repeatedOutcome <- captureDevSeedOutcome repeatedFixture
                 repeatedOutcome `shouldBe` firstOutcome
 
+fetchFixtureWindowDays :: (?modelContext :: ModelContext) => DevSeedFixture -> IO [RosterDay]
+fetchFixtureWindowDays fixture =
+    query @RosterDay
+        |> filterWhere (#venueId, unpackId fixture.sandboxVenue.id)
+        |> filterWhereGreaterThanOrEqualTo (#operationalDate, fixture.currentWindowStart)
+        |> filterWhereLessThan (#operationalDate, addDays 7 fixture.currentWindowStart)
+        |> fetch
+
 captureDevSeedOutcome :: (?modelContext :: ModelContext) => DevSeedFixture -> IO DevSeedOutcome
 captureDevSeedOutcome fixture = do
     staff <-
@@ -655,13 +624,9 @@ captureDevSeedOutcome fixture = do
         query @StaffShiftPreference
             |> filterWhere (#venueId, unpackId fixture.sandboxVenue.id)
             |> fetch
-    rosterWeeks <-
-        query @RosterWeek
-            |> filterWhere (#venueId, unpackId fixture.sandboxVenue.id)
-            |> fetch
     rosterDays <-
         query @RosterDay
-            |> filterWhereIn (#rosterWeekId, map (Just . unpackId . (.id)) rosterWeeks)
+            |> filterWhere (#venueId, unpackId fixture.sandboxVenue.id)
             |> fetch
     rosterSlots <-
         query @RosterSlot
@@ -680,12 +645,7 @@ captureDevSeedOutcome fixture = do
             |> filterWhere (#venueId, unpackId fixture.sandboxVenue.id)
             |> fetch
     let staffById = Map.fromList [(unpackId row.id, (row.firstName, row.lastName)) | row <- staff]
-    let rosterWeekById = Map.fromList [(unpackId row.id, row.weekOffset) | row <- rosterWeeks]
-    let rosterDayById =
-            Map.fromList
-                [ (unpackId row.id, (row.rosterWeekId >>= (`Map.lookup` rosterWeekById), row.dayOffset))
-                | row <- rosterDays
-                ]
+    let rosterDayById = Map.fromList [(unpackId row.id, row.operationalDate) | row <- rosterDays]
     let shiftTypeById = Map.fromList [(unpackId row.id, row.name) | row <- shiftTypes]
     pure
         DevSeedOutcome
@@ -702,8 +662,7 @@ captureDevSeedOutcome fixture = do
                     ]
             , rosterRows =
                 sort
-                    [ ( weekOffset
-                      , dayOffset
+                    [ ( operationalDate
                       , row.rowIndex
                       , row.slotSortOrder
                       , row.staffId >>= (`Map.lookup` staffById)
@@ -712,7 +671,7 @@ captureDevSeedOutcome fixture = do
                       , row.shiftTypeId >>= (`Map.lookup` shiftTypeById)
                       )
                     | row <- rosterSlots
-                    , Just (Just weekOffset, dayOffset) <- [Map.lookup row.rosterDayId rosterDayById]
+                    , Just operationalDate <- [Map.lookup row.rosterDayId rosterDayById]
                     ]
             , leaveRows =
                 sort
@@ -766,12 +725,12 @@ floorAwardLevelIdText = "2cba4998-4691-4eeb-9bd3-e79263c54769"
 kitchenAwardLevelIdText :: Text
 kitchenAwardLevelIdText = "8a53b7c8-574c-49f8-abd4-0caf3b46a22f"
 
-weekdayIndexForDayOffset :: Int -> Int
-weekdayIndexForDayOffset dayOffset =
-    case (dayOffset + 1) `mod` 7 of
+weekdayIndexForOperationalDate :: Day -> Int
+weekdayIndexForOperationalDate operationalDate =
+    case (fromInteger (diffDays operationalDate defaultWeekEpoch) + 1) `mod` 7 of
         0     -> 0
         index -> index
 
-testWeekOffsetForDay :: Day -> Int
-testWeekOffsetForDay day =
-    fromInteger (diffDays day defaultWeekEpoch `div` 7)
+testWindowStartForDay :: Day -> Day
+testWindowStartForDay day =
+    addDays (negate (diffDays day defaultWeekEpoch `mod` 7)) day

@@ -41,9 +41,8 @@ tests = do
                     , ("staff", 3)
                     , ("staff_pay_versions", 2)
                     , ("shift_type_pay_versions", 3)
-                    , ("roster_weeks", 4)
                     , ("roster_days", 28)
-                    , ("roster_week_slot_definitions", 12)
+                    , ("roster_lanes", 84)
                     , ("roster_slots", 84)
                     , ("timesheet_entries", 2)
                     , ("leave_requests", 6)
@@ -101,9 +100,8 @@ tests = do
                     , "slot_names.csv"
                     , "staff_roster_groups.csv"
                     , "staff_shift_preferences.csv"
-                    , "roster_weeks.csv"
                     , "roster_days.csv"
-                    , "roster_week_slot_definitions.csv"
+                    , "roster_lanes.csv"
                     , "roster_slots.csv"
                     , "leave_requests.csv"
                     , "timesheet_entries.csv"
@@ -116,14 +114,14 @@ tests = do
 
         it "keeps load SQL shape, escaping, and boundary statements stable" do
             let loadLines = Text.lines (renderLoadSql "/tmp/profile seed's")
-            length loadLines `shouldBe` 36
+            length loadLines `shouldBe` 35
             head loadLines `shouldBe` "BEGIN;"
             loadLines !! 1
                 `shouldBe` "\\copy venues (id, name, status) FROM '/tmp/profile seed''s/venues.csv' WITH (FORMAT csv, NULL '\\N')"
             loadLines `shouldContain` ["CREATE TEMP TABLE profile_seed_timesheet_entries (LIKE timesheet_entries INCLUDING DEFAULTS);"]
             loadLines `shouldSatisfy` any (Text.isPrefixOf "UPDATE timesheet_pay_calculations calculation SET sealed_at")
             loadLines `shouldSatisfy` any (Text.isPrefixOf "UPDATE timesheet_entries entry SET active_pay_calculation_id")
-            drop 34 loadLines `shouldBe` ["COMMIT;", "ANALYZE;"]
+            drop 33 loadLines `shouldBe` ["COMMIT;", "ANALYZE;"]
 
     describe "ProfileSeed application routes" do
         it "keeps typed-route target bytes stable" do

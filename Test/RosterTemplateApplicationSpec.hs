@@ -2,9 +2,7 @@ module Test.RosterTemplateApplicationSpec where
 
 import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
-import Application.Helper.RosterOffsetCompatibility (defaultWeekOffsetEpochForStartDay,
-                                                     venueWeekOffsetForDay,
-                                                     venueWeekStartDate)
+import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           applyRosterShiftAssignment)
 import Application.RosterTemplates
@@ -103,7 +101,6 @@ tests = aroundAll withDatabaseTestContext do
                 map (.assignmentState) activeTargetSlots `shouldBe` ["staff"]
                 retainedUnrelated `shouldSatisfy` isJust
                 replacedSlot.deletedAt `shouldSatisfy` isJust
-                earlyDefinition.deletedAt `shouldBe` Nothing
 
         it "rejects forbidden, cross-group, and live target weeks" $ withContext do
             withCleanDb do
@@ -285,9 +282,9 @@ tests = aroundAll withDatabaseTestContext do
                 Right () <- replaceRosterTemplateDraftContent actor springDraft.draftDesign.id (oneOpenShiftContent shiftType.id 1560 1620)
                 Right springSaved <- saveRosterTemplateDraft actor springDraft.draftDesign.id
                 let springOperationalDay = fromGregorian 2026 10 3
-                let springWeekOffset = venueWeekOffsetForDay venueConfig springOperationalDay
-                let springDayOffset = fromInteger (diffDays springOperationalDay (venueWeekStartDate venueConfig springWeekOffset))
-                springWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup springWeekOffset False
+                let springWindowStart = startOfWeekFor venueConfig.rosterWeekStartsOn springOperationalDay
+                let springDayOffset = fromInteger (diffDays springOperationalDay springWindowStart)
+                springWeek <- createRosterWindowRecordForRosterGroupAt venue rosterGroup springWindowStart False
                 _ <- createRosterDayRecord springWeek springDayOffset
                 let springRequest = applicationRequestForTestWindow springSaved.savedTemplate.id springWeek (Just springDayOffset) noShiftCopyOccurrenceSelections
 
@@ -299,9 +296,9 @@ tests = aroundAll withDatabaseTestContext do
                 Right () <- replaceRosterTemplateDraftContent actor autumnDraft.draftDesign.id (oneOpenShiftContent shiftType.id 1590 1650)
                 Right autumnSaved <- saveRosterTemplateDraft actor autumnDraft.draftDesign.id
                 let autumnOperationalDay = fromGregorian 2026 4 4
-                let autumnWeekOffset = venueWeekOffsetForDay venueConfig autumnOperationalDay
-                let autumnDayOffset = fromInteger (diffDays autumnOperationalDay (venueWeekStartDate venueConfig autumnWeekOffset))
-                autumnWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup autumnWeekOffset False
+                let autumnWindowStart = startOfWeekFor venueConfig.rosterWeekStartsOn autumnOperationalDay
+                let autumnDayOffset = fromInteger (diffDays autumnOperationalDay autumnWindowStart)
+                autumnWeek <- createRosterWindowRecordForRosterGroupAt venue rosterGroup autumnWindowStart False
                 _ <- createRosterDayRecord autumnWeek autumnDayOffset
                 let autumnRequest occurrence = applicationRequestForTestWindow
                         autumnSaved.savedTemplate.id
@@ -566,11 +563,10 @@ tests = aroundAll withDatabaseTestContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 _ <- venueConfig
                     |> set #rosterWeekStartsOn 4
-                    |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay 4)
                     |> set #rosterCalendarRevision (venueConfig.rosterCalendarRevision + 1)
                     |> updateRecord
-                targetWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 17 False
-                let rotatedWindowStart = addDays (17 * 7) (defaultWeekOffsetEpochForStartDay 4)
+                let rotatedWindowStart = fromGregorian 2025 5 8
+                targetWeek <- createRosterWindowRecordForRosterGroupAt venue rosterGroup rotatedWindowStart False
                 targetDays <- forM [0 .. 6] \dayOffset -> createNativeRosterDayRecord venue rosterGroup (addDays dayOffset rotatedWindowStart) (fromInteger dayOffset)
                 let request = (applicationRequestForTestWindow saved.savedTemplate.id targetWeek Nothing noShiftCopyOccurrenceSelections)
                         { applicationTargetWindowStart = rotatedWindowStart
@@ -621,8 +617,10 @@ tests = aroundAll withDatabaseTestContext do
 
                 result <- applyRosterTemplateApplication actor request confirmation.applicationExpectedVersion confirmation.applicationExpectedTargetRevision confirmation.applicationRosterCalendarRevision
                 refreshedDays <- query @RosterDay
-                    |> filterWhere (#rosterWeekId, Just (unpackId targetWeek.id))
-                    |> orderByAsc #dayOffset
+                    |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+                    |> filterWhereGreaterThanOrEqualTo (#operationalDate, targetWeek.fixtureWindowStart)
+                    |> filterWhereLessThan (#operationalDate, addDays 7 targetWeek.fixtureWindowStart)
+                    |> orderByAsc #operationalDate
                     |> fetch
                 firstDayLanes <- query @RosterLane
                     |> filterWhere (#rosterDayId, unpackId (targetDays !! 0).id)
@@ -635,7 +633,6 @@ tests = aroundAll withDatabaseTestContext do
                     |> orderByAsc #rowIndex
                     |> fetch
                 replacedSlot <- fetch oldSlot.id
-                replacedDefinition <- fetch oldDefinition.id
 
                 result `shouldSatisfy` isRight
                 map (.name) firstDayLanes `shouldBe` ["Late", "Early"]
@@ -643,7 +640,6 @@ tests = aroundAll withDatabaseTestContext do
                     `shouldBe` [(False, 1), (False, 2), (False, 3), (False, 4), (False, 5), (False, 6), (True, 7)]
                 map (.rowIndex) activeSlots `shouldBe` [0, 2]
                 replacedSlot.deletedAt `shouldSatisfy` isJust
-                replacedDefinition.deletedAt `shouldBe` Nothing
 
         it "rejects an incomplete Week template without changing the target" $ withContext do
             withCleanDb do
@@ -671,18 +667,18 @@ tests = aroundAll withDatabaseTestContext do
                 preview `shouldBe` Left (RosterTemplateApplicationInvalidStructure "Week templates must contain all seven weekdays.")
                 refreshedSlot.deletedAt `shouldBe` Nothing
 
-applicationRequestForTestWindow :: Id RosterTemplate -> RosterWeek -> Maybe Int -> ShiftCopyOccurrenceSelections -> RosterTemplateApplicationRequest
+applicationRequestForTestWindow :: Id RosterTemplate -> TestRosterWindow -> Maybe Int -> ShiftCopyOccurrenceSelections -> RosterTemplateApplicationRequest
 applicationRequestForTestWindow templateId targetWeek targetDayOffset occurrenceSelections =
     RosterTemplateApplicationRequest
         { applicationTemplateId = templateId
-        , applicationTargetRosterGroupId = Id targetWeek.rosterGroupId
+        , applicationTargetRosterGroupId = Id targetWeek.fixtureRosterGroupId
         , applicationTargetWindowStart = windowStart
         , applicationTargetWindowEnd = addDays 7 windowStart
         , applicationTargetOperationalDate = (`addDays` windowStart) . toInteger <$> targetDayOffset
         , applicationOccurrenceSelections = occurrenceSelections
         }
   where
-    windowStart = testAnchorForOffset targetWeek.weekOffset
+    windowStart = targetWeek.fixtureWindowStart
 
 oneOpenShiftContent :: Id ShiftType -> Int -> Int -> RosterTemplateContent
 oneOpenShiftContent shiftTypeId startMinute endMinute =
@@ -696,22 +692,30 @@ isBoundaryFailure :: Either RosterTemplateApplicationError value -> Bool
 isBoundaryFailure Left { } = True
 isBoundaryFailure _        = False
 
-createDefinition :: (?modelContext :: ModelContext) => RosterWeek -> Text -> Int -> IO RosterWeekSlotDefinition
-createDefinition rosterWeek name sortOrder =
-    newRecord @RosterWeekSlotDefinition
-        |> set #rosterWeekId (unpackId rosterWeek.id)
-        |> set #name name
-        |> set #sortOrder sortOrder
-        |> createRecord
+data TestLaneDefinition = TestLaneDefinition
+    { definitionName      :: !Text
+    , definitionSortOrder :: !Int
+    }
 
-createSlot :: (?modelContext :: ModelContext) => RosterDay -> RosterWeekSlotDefinition -> ShiftType -> RosterShiftAssignment -> Int -> IO RosterSlot
+createDefinition :: (?modelContext :: ModelContext) => TestRosterWindow -> Text -> Int -> IO TestLaneDefinition
+createDefinition _rosterWindow name sortOrder = pure TestLaneDefinition
+    { definitionName = name
+    , definitionSortOrder = sortOrder
+    }
+
+createSlot :: (?modelContext :: ModelContext) => RosterDay -> TestLaneDefinition -> ShiftType -> RosterShiftAssignment -> Int -> IO RosterSlot
 createSlot rosterDay definition shiftType assignment rowIndex = do
+    rosterLane <- newRecord @RosterLane
+        |> set #rosterDayId (unpackId rosterDay.id)
+        |> set #name definition.definitionName
+        |> set #sortOrder definition.definitionSortOrder
+        |> createRecord
     let startsAt = UTCTime (fromGregorian 2026 3 2) (secondsToDiffTime 0)
     let endsAt = UTCTime (fromGregorian 2026 3 2) (secondsToDiffTime (8 * 60 * 60))
     newRecord @RosterSlot
         |> set #rosterDayId (unpackId rosterDay.id)
-        |> set #rosterWeekSlotDefinitionId (Just (unpackId definition.id))
-        |> set #slotSortOrder definition.sortOrder
+        |> set #rosterLaneId (unpackId rosterLane.id)
+        |> set #slotSortOrder definition.definitionSortOrder
         |> set #rowIndex rowIndex
         |> set #startsAt (Just startsAt)
         |> set #endsAt (Just endsAt)

@@ -19,7 +19,7 @@ import {
 test.describe('Roster notification workflow', () => {
     test('adds and removes Email roster live for actor and passive manager tabs', async ({ browser, page }, testInfo) => {
         test.skip(testInfo.project.name !== 'desktop-chromium', 'Publication live-update fanout is covered once on desktop.');
-        runSql(`UPDATE roster_weeks SET is_live = FALSE WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND week_offset = 0;`);
+        runSql(`UPDATE roster_days SET publication_state = 'draft' WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND operational_date BETWEEN CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) AND CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 6;`);
         const viewerContext = await browser.newContext();
         const viewerPage = await viewerContext.newPage();
         try {
@@ -57,7 +57,7 @@ test.describe('Roster notification workflow', () => {
             await expect(viewerPage.locator('#roster-email-button')).toHaveCount(0, { timeout: E2E_TIMEOUT.liveUpdate });
         } finally {
             await viewerContext.close();
-            runSql(`UPDATE roster_weeks SET is_live = FALSE WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND week_offset = 0;`);
+            runSql(`UPDATE roster_days SET publication_state = 'draft' WHERE roster_group_id = '${defaultE2ERosterGroupId}' AND operational_date BETWEEN CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) AND CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 6;`);
         }
     });
 
@@ -65,18 +65,14 @@ test.describe('Roster notification workflow', () => {
         test.skip(testInfo.project.name !== 'desktop-chromium', 'Role-specific notification workflow is covered once on desktop.');
         const weekOffset = 52;
         runSql(`
-            INSERT INTO roster_weeks (id, venue_id, roster_group_id, week_offset, is_live)
-            VALUES (
-                'a1000000-0000-0000-0000-000000000597',
+            INSERT INTO roster_days (venue_id, roster_group_id, operational_date, publication_state, is_closed, row_count)
+            SELECT
                 'a1000000-0000-0000-0000-000000000001',
                 'a1000000-0000-0000-0000-000000000211',
-                ${weekOffset},
-                FALSE
-            )
-            ON CONFLICT (id) DO UPDATE SET is_live = FALSE;
-            UPDATE roster_days
-            SET publication_state = 'draft'
-            WHERE roster_week_id = 'a1000000-0000-0000-0000-000000000597';
+                CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + (${weekOffset} * 7) + day_index,
+                'draft', FALSE, 2
+            FROM generate_series(0, 6) AS day_index
+            ON CONFLICT (roster_group_id, operational_date) DO UPDATE SET publication_state = 'draft';
         `);
         await openRoster(page, { weekOffset });
         const publishToggleRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Published' });
@@ -125,17 +121,16 @@ test.describe('Roster notification workflow', () => {
         testInfo.setTimeout(E2E_TIMEOUT.slowTest);
         const recipientEmail = `${uniqueE2EValue('e2e-roster-notification')}-retry-${testInfo.retry}@example.com`;
         const rosterGroupId = randomUUID();
-        const rosterWeekId = randomUUID();
         const rosterGroupName = uniqueE2EValue('e2e-notification-acceptance');
         runSql(`
             INSERT INTO roster_groups (id, venue_id, name, sort_order, is_active, is_default)
             VALUES ('${rosterGroupId}', 'a1000000-0000-0000-0000-000000000001', '${rosterGroupName}', 99, TRUE, FALSE);
-            INSERT INTO roster_weeks (id, venue_id, roster_group_id, week_offset, is_live)
-            VALUES ('${rosterWeekId}', 'a1000000-0000-0000-0000-000000000001', '${rosterGroupId}', 0, TRUE);
-            INSERT INTO roster_days (roster_week_id, day_offset, is_closed, row_count)
-            SELECT '${rosterWeekId}', day_offset, FALSE, 2 FROM generate_series(0, 6) AS day_offset;
-            INSERT INTO roster_week_slot_definitions (roster_week_id, name, sort_order)
-            VALUES ('${rosterWeekId}', 'Acceptance lane', 0);
+            INSERT INTO roster_days (venue_id, roster_group_id, operational_date, publication_state, is_closed, row_count)
+            SELECT
+                'a1000000-0000-0000-0000-000000000001', '${rosterGroupId}',
+                CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + day_index,
+                'published', FALSE, 2
+            FROM generate_series(0, 6) AS day_index;
             INSERT INTO staff_roster_groups (staff_id, roster_group_id)
             SELECT staff_id, '${rosterGroupId}'
             FROM staff_roster_groups
@@ -205,9 +200,6 @@ test.describe('Roster notification workflow', () => {
             await expect(page.locator('body')).toContainText('Roster email queued for 4 recipients. 1 skipped.');
 
             runSql(`
-                UPDATE roster_weeks
-                SET is_live = FALSE
-                WHERE id = '${rosterWeekId}';
                 UPDATE roster_days SET publication_state = 'draft' WHERE roster_group_id = '${rosterGroupId}' AND operational_date >= '${windowStart}'::date AND operational_date < '${windowStart}'::date + 7;
                 DROP TRIGGER e2e_defer_roster_notification_jobs ON app_jobs;
                 UPDATE app_jobs
@@ -234,9 +226,6 @@ test.describe('Roster notification workflow', () => {
             `), 10), { timeout: E2E_TIMEOUT.mailhog }).toBe(0);
 
             runSql(`
-                UPDATE roster_weeks
-                SET is_live = TRUE
-                WHERE id = '${rosterWeekId}';
                 UPDATE roster_days SET publication_state = 'published' WHERE roster_group_id = '${rosterGroupId}' AND operational_date >= '${windowStart}'::date AND operational_date < '${windowStart}'::date + 7;
                 UPDATE app_jobs
                 SET status = 'job_status_retry', run_at = NOW() + INTERVAL '1 hour'
@@ -271,9 +260,6 @@ test.describe('Roster notification workflow', () => {
             await waitForMailhogMessages(request, recipientEmail, 2, E2E_TIMEOUT.mailhog);
         } finally {
             runSql(`
-                UPDATE roster_weeks
-                SET is_live = FALSE
-                WHERE id = '${rosterWeekId}';
                 UPDATE roster_days SET publication_state = 'draft' WHERE roster_group_id = '${rosterGroupId}' AND operational_date >= '${windowStart}'::date AND operational_date < '${windowStart}'::date + 7;
                 UPDATE roster_groups
                 SET is_active = FALSE

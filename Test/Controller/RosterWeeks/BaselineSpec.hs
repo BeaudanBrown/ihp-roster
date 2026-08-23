@@ -70,16 +70,12 @@ tests = aroundAll withDatabaseTestContext do
                     bodyText <- cs . LByteString.unpack <$> responseBody contentFragment
                     bodyText `shouldContain` "data-roster-row"
 
-        it "keeps reads and lane mutations on the anchor-date window when the legacy epoch is stale" $ withContext do
+        it "keeps reads and lane mutations on the anchor-date window" $ withContext do
             withCleanDb do
                 BaselineRoster { brVenue, brManager, brRosterDay } <- createBaselineRoster
                 venueConfig <- query @VenueConfig
                     |> filterWhere (#venueId, unpackId brVenue.id)
                     |> fetchOne
-                _ <- venueConfig
-                    |> set #weekOffsetEpoch (addDays 1 venueConfig.weekOffsetEpoch)
-                    |> updateRecord
-
                 fullPage <- withUserAndCurrentVenue brManager brVenue.id do
                     callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
                 contentFragment <- withUserAndCurrentVenue brManager brVenue.id do
@@ -184,10 +180,10 @@ createBaselineRoster = do
     rosterDays <- forM [0 :: Int .. 6] \dayOffset -> do
         day <- createRosterDayRecord rosterWeek dayOffset
         day |> set #rowCount 2 |> updateRecord
-    createdSlots <- forM rosterDays \day -> do
+    createdSlots <- forM (zip [0 :: Int ..] rosterDays) \(dayIndex, day) -> do
         forM [0 :: Int, 1] \rowIndex -> do
-            earlySlot <- createRosterSlotRecord day earlySlotName (Just (staffMembers !! ((day.dayOffset + rowIndex) `mod` length staffMembers))) rowIndex
-            lateSlot <- createRosterSlotRecord day lateSlotName (Just (staffMembers !! ((day.dayOffset + rowIndex + 2) `mod` length staffMembers))) rowIndex
+            earlySlot <- createRosterSlotRecord day earlySlotName (Just (staffMembers !! ((dayIndex + rowIndex) `mod` length staffMembers))) rowIndex
+            lateSlot <- createRosterSlotRecord day lateSlotName (Just (staffMembers !! ((dayIndex + rowIndex + 2) `mod` length staffMembers))) rowIndex
             mapM_ (\slot -> slot |> setTestStartTime (Just (TimeOfDay (8 + rowIndex) 0 0)) |> setTestEndTime (Just (TimeOfDay (12 + rowIndex) 0 0)) |> set #shiftTypeId (Just (unpackId shiftType.id)) |> updateRecord) [earlySlot, lateSlot]
             pure (earlySlot, lateSlot)
     let firstDay = fromJust (head rosterDays)

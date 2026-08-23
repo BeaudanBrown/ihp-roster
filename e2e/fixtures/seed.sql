@@ -39,20 +39,19 @@ WHERE venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0
 
 DELETE FROM roster_slots
 WHERE roster_day_id IN (
-    SELECT rd.id
-    FROM roster_days rd
-    JOIN roster_weeks rw ON rw.id = rd.roster_week_id
-    WHERE rw.venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000002')
-);
-
-DELETE FROM roster_days
-WHERE roster_week_id IN (
     SELECT id
-    FROM roster_weeks
+    FROM roster_days
     WHERE venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000002')
 );
 
-DELETE FROM roster_weeks
+DELETE FROM roster_lanes
+WHERE roster_day_id IN (
+    SELECT id
+    FROM roster_days
+    WHERE venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000002')
+);
+
+DELETE FROM roster_days
 WHERE venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000002');
 
 DELETE FROM shift_types
@@ -66,14 +65,13 @@ ON CONFLICT (id) DO UPDATE SET
     name = EXCLUDED.name,
     status = EXCLUDED.status;
 
-INSERT INTO venue_config (id, venue_id, timezone, roster_week_starts_on, week_offset_epoch, late_to_early_min_start_gap_minutes, staff_timesheet_edit_window_days)
+INSERT INTO venue_config (id, venue_id, timezone, roster_week_starts_on, late_to_early_min_start_gap_minutes, staff_timesheet_edit_window_days)
 VALUES
     (
         'a1000000-0000-0000-0000-000000000011',
         'a1000000-0000-0000-0000-000000000001',
         'Australia/Melbourne',
         1,
-        CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
         600,
         7
     ),
@@ -82,7 +80,6 @@ VALUES
         'a1000000-0000-0000-0000-000000000002',
         'Australia/Melbourne',
         1,
-        CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
         600,
         7
     )
@@ -90,7 +87,6 @@ ON CONFLICT (id) DO UPDATE SET
     venue_id = EXCLUDED.venue_id,
     timezone = EXCLUDED.timezone,
     roster_week_starts_on = EXCLUDED.roster_week_starts_on,
-    week_offset_epoch = EXCLUDED.week_offset_epoch,
     late_to_early_min_start_gap_minutes = EXCLUDED.late_to_early_min_start_gap_minutes,
     staff_timesheet_edit_window_days = EXCLUDED.staff_timesheet_edit_window_days;
 
@@ -1138,41 +1134,32 @@ ON CONFLICT (id) DO UPDATE SET
     sort_order = EXCLUDED.sort_order,
     is_active = EXCLUDED.is_active;
 
-INSERT INTO roster_weeks (id, venue_id, roster_group_id, week_offset, is_live)
+INSERT INTO roster_days (id, venue_id, roster_group_id, operational_date, publication_state, is_closed, row_count)
 VALUES
-    ('a1000000-0000-0000-0000-000000000051', 'a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000211', 0, FALSE),
-    ('a1000000-0000-0000-0000-000000000053', 'a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000211', 1, FALSE),
-    ('a1000000-0000-0000-0000-000000000052', 'a1000000-0000-0000-0000-000000000002', 'a1000000-0000-0000-0000-000000000212', 0, FALSE)
+    ('a1000000-0000-0000-0000-000000000061', 'a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000211', CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1), 'draft', FALSE, 4),
+    ('a1000000-0000-0000-0000-000000000063', 'a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000211', CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 7, 'draft', FALSE, 4),
+    ('a1000000-0000-0000-0000-000000000062', 'a1000000-0000-0000-0000-000000000002', 'a1000000-0000-0000-0000-000000000212', CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1), 'draft', FALSE, 4)
 ON CONFLICT (id) DO UPDATE SET
     venue_id = EXCLUDED.venue_id,
     roster_group_id = EXCLUDED.roster_group_id,
-    week_offset = EXCLUDED.week_offset,
-    is_live = EXCLUDED.is_live;
-
-INSERT INTO roster_days (id, roster_week_id, day_offset, is_closed, row_count)
-VALUES
-    ('a1000000-0000-0000-0000-000000000061', 'a1000000-0000-0000-0000-000000000051', 0, FALSE, 4),
-    ('a1000000-0000-0000-0000-000000000063', 'a1000000-0000-0000-0000-000000000053', 0, FALSE, 4),
-    ('a1000000-0000-0000-0000-000000000062', 'a1000000-0000-0000-0000-000000000052', 0, FALSE, 4)
-ON CONFLICT (id) DO UPDATE SET
-    roster_week_id = EXCLUDED.roster_week_id,
-    day_offset = EXCLUDED.day_offset,
+    operational_date = EXCLUDED.operational_date,
+    publication_state = EXCLUDED.publication_state,
     is_closed = EXCLUDED.is_closed,
     row_count = EXCLUDED.row_count;
 
-INSERT INTO roster_week_slot_definitions (id, roster_week_id, name, sort_order)
+INSERT INTO roster_lanes (id, roster_day_id, name, sort_order)
 VALUES
-    ('a1000000-0000-0000-0000-000000000081', 'a1000000-0000-0000-0000-000000000051', 'Early', 0),
-    ('a1000000-0000-0000-0000-000000000082', 'a1000000-0000-0000-0000-000000000052', 'Late', 0),
-    ('a1000000-0000-0000-0000-000000000083', 'a1000000-0000-0000-0000-000000000053', 'Early', 0)
+    ('a1000000-0000-0000-0000-000000000081', 'a1000000-0000-0000-0000-000000000061', 'Early', 0),
+    ('a1000000-0000-0000-0000-000000000082', 'a1000000-0000-0000-0000-000000000062', 'Late', 0),
+    ('a1000000-0000-0000-0000-000000000083', 'a1000000-0000-0000-0000-000000000063', 'Early', 0)
 ON CONFLICT (id) DO UPDATE SET
-    roster_week_id = EXCLUDED.roster_week_id,
+    roster_day_id = EXCLUDED.roster_day_id,
     name = EXCLUDED.name,
     sort_order = EXCLUDED.sort_order,
     deleted_at = NULL,
     updated_at = NOW();
 
-INSERT INTO roster_slots (id, roster_day_id, staff_id, assignment_state, roster_week_slot_definition_id, row_index, starts_at, ends_at, timezone, shift_type_id)
+INSERT INTO roster_slots (id, roster_day_id, staff_id, assignment_state, roster_lane_id, row_index, starts_at, ends_at, timezone, shift_type_id)
 VALUES
     (
         'a1000000-0000-0000-0000-000000000071',
@@ -1226,7 +1213,7 @@ ON CONFLICT (id) DO UPDATE SET
     roster_day_id = EXCLUDED.roster_day_id,
     staff_id = EXCLUDED.staff_id,
     assignment_state = EXCLUDED.assignment_state,
-    roster_week_slot_definition_id = EXCLUDED.roster_week_slot_definition_id,
+    roster_lane_id = EXCLUDED.roster_lane_id,
     row_index = EXCLUDED.row_index,
     starts_at = EXCLUDED.starts_at,
     ends_at = EXCLUDED.ends_at,

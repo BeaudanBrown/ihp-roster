@@ -1,6 +1,5 @@
 module Test.Controller.RosterTemplatesSpec where
 
-import Application.Helper.RosterOffsetCompatibility (venueWeekStartDate)
 import Application.RosterTemplates (RosterTemplateDraft (..),
                                     RosterTemplateSave (..),
                                     fetchPrivateRosterTemplateDraft,
@@ -9,6 +8,7 @@ import Application.RosterTemplates (RosterTemplateDraft (..),
                                     saveRosterTemplateDraft,
                                     startRosterTemplateEditDraft)
 import qualified Data.ByteString.Char8 as ByteString
+import Data.Maybe (fromJust)
 import qualified Data.Text as Text
 import Data.Time.Clock (addUTCTime)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -95,13 +95,13 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- createVenueMembershipRecord venue manager Manager
                 sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 True
                 _ <- forM [0 .. 6] (createRosterDayRecord sourceWeek)
-                beforeCount <- query @RosterWeek |> fetchCount
+                beforeCount <- query @RosterDay |> fetchCount
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ShowRosterTemplateReferenceAction
                         { rosterGroupId = rosterGroup.id }
                         [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Reference day"), ("scale", "day")]
-                afterCount <- query @RosterWeek |> fetchCount
+                afterCount <- query @RosterDay |> fetchCount
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Select a reference day"
@@ -163,7 +163,7 @@ tests = aroundAll withDatabaseTestContext do
                 sourceSlot <- createCompleteRosterSlotRecord sourceDay slotName staff 0
                     >>= updateRecord
                         . setTestRosterSlotBoundaries
-                            (addDays 1 (venueWeekStartDate venueConfig 0))
+                            (addDays 1 (testAnchorForOffset 0))
                             (TimeOfDay 9 0 0)
                             (TimeOfDay 17 0 0)
 
@@ -355,7 +355,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Discard and start new"
                 response `responseBodyShouldContain` "Cancel"
 
-        it "keeps confirmed dated references valid when legacy week provenance is archived" $ withContext do
+        it "keeps confirmed dated references independent of retired weekly provenance" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Template disappearing reference"
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
@@ -370,8 +370,6 @@ tests = aroundAll withDatabaseTestContext do
                         { rosterGroupId = rosterGroup.id }
                         [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1"), ("name", "Replacement reference"), ("scale", "day"), ("operationalDate", "2025-01-06")]
                     confirmationToken <- hiddenInputValue "confirmationToken" confirmation
-                    now <- getCurrentTime
-                    _ <- sourceWeek |> set #archivedAt (Just now) |> updateRecord
                     callActionWithParams DiscardAndRestartRosterTemplateDraftAction
                         { rosterGroupId = rosterGroup.id, rosterTemplateDesignId = existing.draftDesign.id }
                         [ ("name", "Replacement reference")
@@ -479,7 +477,7 @@ tests = aroundAll withDatabaseTestContext do
                 lookup "HX-Refresh" (responseHeaders response) `shouldBe` Just "true"
                 response `responseBodyShouldContain` "The roster calendar changed. Review the refreshed window and try again."
 
-        it "applies a confirmed Week template to explicit dates when the legacy epoch is stale" $ withContext do
+        it "applies a confirmed Week template to explicit dates" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Template application mutation"
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
@@ -489,11 +487,9 @@ tests = aroundAll withDatabaseTestContext do
                 Right draft <- startBlankRosterTemplateDesignerDraft actor rosterGroup Week "Standard week"
                 Right saved <- saveRosterTemplateDraft actor draft.draftDesign.id
                 targetWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 False
-                _ <- forM [0 .. 6] (createRosterDayRecord targetWeek)
-                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                _ <- venueConfig |> set #weekOffsetEpoch (addDays 1 venueConfig.weekOffsetEpoch) |> updateRecord
-                _ <- newRecord @RosterWeekSlotDefinition
-                    |> set #rosterWeekId (unpackId targetWeek.id)
+                targetDays <- forM [0 .. 6] (createRosterDayRecord targetWeek)
+                _ <- newRecord @RosterLane
+                    |> set #rosterDayId (unpackId (fromJust (head targetDays)).id)
                     |> set #name "Old lane"
                     |> set #sortOrder 0
                     |> createRecord
@@ -513,10 +509,7 @@ tests = aroundAll withDatabaseTestContext do
                         , ("expectedTemplateVersion", cs expectedVersion)
                         , ("expectedTargetRevision", cs expectedRevision)
                         ]
-                targetDay <- query @RosterDay
-                    |> filterWhere (#rosterWeekId, Just (unpackId targetWeek.id))
-                    |> filterWhere (#dayOffset, 0)
-                    |> fetchOne
+                let targetDay = fromJust (head targetDays)
                 activeLanes <- query @RosterLane
                     |> filterWhere (#rosterDayId, unpackId targetDay.id)
                     |> filterWhere (#deletedAt, Nothing)

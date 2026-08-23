@@ -243,7 +243,6 @@ Application/Helper/ProfileLeave.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Profiling.hs	production	runtime	Main	Reachable from Main
 Application/Helper/RosterAwardDuration.hs	production	runtime	Main	Reachable from Main
 Application/Helper/RosterGroups.hs	production	runtime	Main	Reachable from Main
-Application/Helper/RosterOffsetCompatibility.hs	production	runtime	Main	Reachable from Main
 Application/Helper/RosterTemplateScale.hs	production	runtime	Main	Reachable from Main
 Application/Helper/RosterTimesheetBoundaries.hs	production	runtime	Main	Reachable from Main
 Application/Helper/RosterWagePrediction.hs	production	runtime	Main	Reachable from Main
@@ -456,7 +455,6 @@ Web/RosterWeeks/Dom.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/DropWorkflow.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/Filters.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/FrontendSurface.hs	production	runtime	Main	Reachable from Main
-Web/RosterWeeks/LegacyCompatibility.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/Mutations.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/Overview.hs	production	runtime	Main	Reachable from Main
 Web/RosterWeeks/Paths.hs	production	runtime	Main	Reachable from Main

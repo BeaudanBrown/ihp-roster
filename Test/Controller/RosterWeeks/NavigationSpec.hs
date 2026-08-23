@@ -84,7 +84,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "Mon 06/01"
                 response `responseBodyShouldContain` "Sun 12/01"
 
-        it "visiting a sparse window does not materialize legacy weeks or dated days" $ withContext do
+        it "visiting a sparse window does not materialize dated days" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "roster-auto-create@example.com" "staff" True
@@ -94,11 +94,6 @@ tests = aroundAll withDatabaseTestContext do
                     callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
 
                 response `responseStatusShouldBe` status200
-                legacyWeeks <- query @RosterWeek
-                    |> filterWhere (#venueId, unpackId venue.id)
-                    |> filterWhere (#weekOffset, 0)
-                    |> fetch
-                legacyWeeks `shouldBe` []
                 datedDays <- query @RosterDay
                     |> filterWhere (#venueId, unpackId venue.id)
                     |> fetch
@@ -210,7 +205,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetchCount
                 activeAssignments `shouldBe` 0
-                query @RosterWeek
+                query @RosterDay
                     |> filterWhere (#venueId, unpackId venue.id)
                     |> fetchCount
                     >>= (`shouldBe` 0)
@@ -300,7 +295,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` ">Alpha</div>"
                 response `responseBodyShouldContain` "hx-get=\"/EditRosterSlotDialog?rosterSlotId="
-                response `responseBodyShouldContain` "hx-post=\"/ToggleRosterWeekLiveStatus?rosterWeekId="
+                response `responseBodyShouldContain` "hx-post=\"/ToggleRosterWeekLiveStatus?anchorDate=2025-01-06&amp;rosterGroupId="
                 response `responseBodyShouldContain` "name=\"rosterCalendarRevision\" value=\"1\""
                 response `responseBodyShouldContain` ">Published</span></label>"
 

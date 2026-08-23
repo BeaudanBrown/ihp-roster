@@ -46,27 +46,21 @@ tests = aroundAll withDatabaseTestContext do
                 let windowEnd = addDays 7 windowStart
                 forM_ [0 .. 6] \dayOffset ->
                     newRecord @RosterDay
-                        |> set #rosterWeekId Nothing
                         |> set #venueId (unpackId venue.id)
                         |> set #rosterGroupId (unpackId rosterGroup.id)
                         |> set #operationalDate (addDays dayOffset windowStart)
                         |> set #publicationState Published
-                        |> set #dayOffset (fromInteger dayOffset)
                         |> createRecord
 
                 run <- createRosterNotificationRunForWindow actor venue rosterGroup windowStart windowEnd
                 snapshot <- decodeRosterNotificationSnapshot run
 
-                run.rosterWeekId `shouldBe` Nothing
-                run.weekOffset `shouldBe` Nothing
                 run.weekStart `shouldBe` windowStart
                 run.windowEnd `shouldBe` windowEnd
-                snapshot.snapshotRosterWeekId `shouldBe` Nothing
-                snapshot.snapshotWeekOffset `shouldBe` Nothing
                 snapshot.snapshotWeekStart `shouldBe` windowStart
                 snapshot.snapshotWeekEnd `shouldBe` addDays (-1) windowEnd
 
-        it "uses explicit Operational dates while retaining stale legacy offset provenance" $ withContext do
+        it "uses explicit Operational dates for notification identity" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Notification Venue"
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
@@ -80,10 +74,8 @@ tests = aroundAll withDatabaseTestContext do
                 inactiveStaff <- query @Staff |> filterWhere (#userId, Just (unpackId inactiveUser.id)) |> fetchOne
                 _ <- inactiveStaff |> set #isActive False |> updateRecord
                 rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 2 True
-                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                _ <- venueConfig |> set #rosterWeekStartsOn 2 |> set #weekOffsetEpoch (addDays 35 venueConfig.weekOffsetEpoch) |> updateRecord
 
-                run <- createRosterNotificationRun actor rosterWeek
+                run <- createRosterNotificationRunForWindow actor venue rosterGroup rosterWeek.fixtureWindowStart (addDays 7 rosterWeek.fixtureWindowStart)
 
                 recipients <- decodeRosterNotificationRecipients run
                 skipped <- decodeRosterNotificationSkippedRecipients run
@@ -92,8 +84,6 @@ tests = aroundAll withDatabaseTestContext do
                 Set.fromList (map (.skippedReason) skipped)
                     `shouldBe` Set.fromList [RosterNotificationSkippedUnlinked, RosterNotificationSkippedInactive]
                 run.requestedByUserId `shouldBe` unpackId actor.id
-                run.rosterWeekId `shouldBe` Just (unpackId rosterWeek.id)
-                run.weekOffset `shouldBe` Just 2
                 run.weekStart `shouldBe` testAnchorForOffset 2
                 jobs <- query @AppJob
                     |> filterWhere (#relatedTable, Just "roster_notification_runs")
@@ -106,25 +96,16 @@ tests = aroundAll withDatabaseTestContext do
                 map payloadMailKind jobs `shouldSatisfy` all (== Just rosterNotificationMailKind)
                 tshow (map (.payload) jobs) `shouldSatisfy` not . isInfixOf "Notification Venue"
 
-        it "rejects mismatched legacy day provenance instead of selecting another group window" $ withContext do
+        it "rejects a window whose Published days belong to another group" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Mismatched notification provenance"
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 otherGroup <- createVenueRosterGroupWithDefaults venue "Other group" 2 False
                 actor <- createUserRecord "mismatched-notify@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue actor Manager
-                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 False
-                _ <-
-                    newRecord @RosterDay
-                        |> set #rosterWeekId (Just (unpackId rosterWeek.id))
-                        |> set #venueId (unpackId venue.id)
-                        |> set #rosterGroupId (unpackId otherGroup.id)
-                        |> set #operationalDate (testAnchorForOffset 0)
-                        |> set #publicationState Published
-                        |> set #dayOffset 0
-                        |> createRecord
+                _otherWindow <- createRosterWindowRecordForRosterGroupAt venue otherGroup (testAnchorForOffset 0) True
 
-                result <- Exception.try (createRosterNotificationRun actor rosterWeek) :: IO (Either Exception.SomeException RosterNotificationRun)
+                result <- Exception.try (createRosterNotificationRunForWindow actor venue rosterGroup (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0))) :: IO (Either Exception.SomeException RosterNotificationRun)
                 result `shouldSatisfy` isLeft
 
         it "excludes migration-retired legacy jobs from delivered run summaries" $ withContext do
@@ -193,7 +174,7 @@ tests = aroundAll withDatabaseTestContext do
                     |> set #staffId (Just (unpackId recipientStaff.id))
                     |> updateRecord
                 rosterDays <- query @RosterDay
-                    |> filterWhere (#rosterGroupId, rosterWeek.rosterGroupId)
+                    |> filterWhere (#rosterGroupId, rosterWeek.fixtureRosterGroupId)
                     |> fetch
                 _ <- mapM (updateRecord . set #publicationState Draft) rosterDays
                 jobs <- query @AppJob |> filterWhere (#relatedId, Just (unpackId run.id)) |> fetch
@@ -312,7 +293,7 @@ tests = aroundAll withDatabaseTestContext do
 
 createRosterMailFixture ::
     (?modelContext :: ModelContext) =>
-    IO (RosterNotificationRun, User, User, RosterWeek, RosterSlot)
+    IO (RosterNotificationRun, User, User, TestRosterWindow, RosterSlot)
 createRosterMailFixture = do
     venue <- createVenueWithConfig "Snapshot Mail Venue"
     rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
@@ -333,7 +314,7 @@ createRosterMailFixture = do
         >>= updateRecord
             . set #shiftTypeId ownShift.shiftTypeId
             . setTestRosterSlotBoundaries defaultWeekEpoch (TimeOfDay 12 0 0) (TimeOfDay 16 0 0)
-    run <- createRosterNotificationRun recipientUser rosterWeek
+    run <- createRosterNotificationRunForWindow recipientUser venue rosterGroup rosterWeek.fixtureWindowStart (addDays 7 rosterWeek.fixtureWindowStart)
     pure (run, recipientUser, otherUser, rosterWeek, openShift)
 
 mailTextFor :: Text -> [(Text, Text)] -> IO Text

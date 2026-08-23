@@ -62,18 +62,16 @@ test.describe('Roster mobile baseline', () => {
 
     test('fits the Published roster email confirmation within the viewport', async ({ page }) => {
         runSql(`
-            INSERT INTO roster_weeks (id, venue_id, roster_group_id, week_offset, is_live)
-            VALUES (
-                'a1000000-0000-0000-0000-000000000598',
+            INSERT INTO roster_days (venue_id, roster_group_id, operational_date, publication_state, is_closed, row_count)
+            SELECT
                 'a1000000-0000-0000-0000-000000000001',
                 'a1000000-0000-0000-0000-000000000211',
-                51,
-                FALSE
-            )
-            ON CONFLICT (id) DO UPDATE SET is_live = FALSE;
-            UPDATE roster_days
-            SET publication_state = 'draft'
-            WHERE roster_week_id = 'a1000000-0000-0000-0000-000000000598';
+                CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1) + 357 + day_index,
+                'draft',
+                FALSE,
+                2
+            FROM generate_series(0, 6) AS day_index
+            ON CONFLICT (roster_group_id, operational_date) DO UPDATE SET publication_state = 'draft';
         `);
         await openRoster(page, { weekOffset: 51, useCurrentSession: true });
         const publishToggleRoot = page.locator(`[${toggleRootDomAttr}]`).filter({ hasText: 'Published' });

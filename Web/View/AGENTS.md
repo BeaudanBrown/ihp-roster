@@ -52,9 +52,9 @@ inline layout styles, hard-coded light-theme classes, raw colours, viewport
 horizontal overflow, hover-only actions, and clipped mobile dialogs. Read
 `static/css/README.md` before CSS work.
 
-Roster week browsing remains URL-driven through `weekOffset`; use canonical
-actions and stable shell/fragment IDs. Live fragment GETs return plain target
-nodes, not OOB wrappers.
+Roster window browsing remains URL-driven through ISO `anchorDate`; use
+canonical actions and stable shell/fragment IDs. Live fragment GETs return plain
+target nodes, not OOB wrappers.
 
 ## Verification
 

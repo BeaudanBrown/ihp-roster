@@ -6,7 +6,6 @@
 module Application.Helper.RosterWagePrediction
     ( RosterWagePrediction (..)
     , RosterWagePredictionDay (..)
-    , fetchRosterWagePrediction
     , fetchRosterWagePredictionForWindow
     , lookupRosterWagePredictionDayByDate
     , formatMoneyAmount
@@ -57,16 +56,6 @@ data PredictedShift = PredictedShift
     , predictedShiftAmount :: !Scientific
     }
     deriving (Eq, Show)
-
-fetchRosterWagePrediction ::
-    (?modelContext :: ModelContext) =>
-    VenueConfig ->
-    RosterWeek ->
-    [RosterDay] ->
-    [RosterSlot] ->
-    IO RosterWagePrediction
-fetchRosterWagePrediction venueConfig _rosterWeek rosterDays rosterSlots =
-    fetchRosterWagePredictionForWindow venueConfig rosterDays rosterSlots
 
 fetchRosterWagePredictionForWindow ::
     (?modelContext :: ModelContext) =>

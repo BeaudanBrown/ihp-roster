@@ -160,16 +160,13 @@ tests = aroundAll withDatabaseTestContext do
                 lookup "Location" (responseHeaders fragmentResponse) `shouldBe` Nothing
                 fragmentResponse `responseBodyShouldContain` "id=\"timesheet-day-section-2025-01-06\""
 
-        it "keeps preference redirects and refreshes on explicit windows when the legacy epoch is stale" $ withContext do
+        it "keeps preference redirects and refreshes on explicit windows" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Preference Venue"
                 user <- createUserRecord "timesheet-preferences@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user Worker
                 staff <- createStaffRecord venue (Just user) "Perry" "Preferences"
                 _ <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 21)
-                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                _ <- venueConfig |> set #weekOffsetEpoch (addDays 1 venueConfig.weekOffsetEpoch) |> updateRecord
-
                 selectedWindowResponse <- withUserAndCurrentVenue user venue.id do
                     callAction (ShowTimesheetWindowAction "2025-01-20")
                 selectedWindowResponse `responseStatusShouldBe` status200
@@ -2216,7 +2213,7 @@ tests = aroundAll withDatabaseTestContext do
                 hiddenCreateTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"operationalDate\":\"2025-01-07\"")
                 hiddenCreateTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "timesheet-day-section-2025-01-07")
 
-        it "keeps HTMX mutation refreshes on the explicit window when the legacy week epoch is stale" $ withContext do
+        it "keeps HTMX mutation refreshes on the explicit window" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"
                 user <- createUserRecord "timesheet-htmx-create@example.com" "staff" True
@@ -2225,9 +2222,6 @@ tests = aroundAll withDatabaseTestContext do
                 payLevel <- createPayLevelRecord venue "Level 1"
                 _ <- updateRecord (staff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just payLevel.id))
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
-                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                _ <- venueConfig |> set #weekOffsetEpoch (addDays 1 venueConfig.weekOffsetEpoch) |> updateRecord
-
                 versionBefore <- currentLiveUpdateVersion (TimesheetsLive.timesheetWeekLiveScope (unpackId venue.id) (testAnchorForOffset 0) (addDays 7 (testAnchorForOffset 0)) 1)
 
                 response <- withUserAndCurrentVenue user venue.id do

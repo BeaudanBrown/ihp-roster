@@ -30,8 +30,9 @@ import Text.Read (readMaybe)
 import Web.Controller.Prelude
 import qualified Web.RosterTemplates.Mutations as TemplateMutations
 import Web.RosterWeeks.DateRange (RosterWindowScope (..),
+                                  RosterWindowState (..), fetchRosterWindow,
+                                  rosterWindowIsPublished,
                                   rosterWindowScopeForAnchor)
-import Web.RosterWeeks.LegacyCompatibility (fetchLegacyRosterWeekForScope)
 import Web.RosterWeeks.Paths (rosterWindowUrl)
 import Web.RosterWeeks.Responses (respondWithRosterTemplateApplicationUpdate)
 import Web.RosterWeeks.TemplateApplication
@@ -379,8 +380,12 @@ instance Controller RosterTemplatesController where
         scope <- rosterTemplateWindowScope rosterGroup
         maybeLibrary <- fetchRosterTemplateLibrary actor rosterGroup
         accessDeniedUnless (isJust maybeLibrary)
-        maybeRosterWeek <- fetchLegacyRosterWeekForScope scope
-        respondHtml (renderRosterTemplateLibraryFragment (rosterTemplateActorUserId actor) scope.rosterWindowStart scope.rosterWindowCalendarRevision rosterGroup maybeRosterWeek (fromMaybe (error "authorized template library missing") maybeLibrary))
+        window <- fetchRosterWindow scope.rosterWindowVenueId scope.rosterWindowRosterGroupId scope.rosterWindowStart
+        let windowState = RosterWindowState
+                { windowRosterGroupId = unpackId rosterGroup.id
+                , windowIsPublished = rosterWindowIsPublished window
+                }
+        respondHtml (renderRosterTemplateLibraryFragment (rosterTemplateActorUserId actor) scope.rosterWindowStart scope.rosterWindowCalendarRevision rosterGroup (Just windowState) (fromMaybe (error "authorized template library missing") maybeLibrary))
 
     action currentAction@ConfirmDeleteRosterTemplateAction { rosterTemplateId, rosterGroupId } = runBepis currentAction BepisPageAction do
         actor <- authorizedDesignerActor

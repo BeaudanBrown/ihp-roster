@@ -10,7 +10,6 @@ import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         fetchActiveRosterGroupSlotNames)
-import Application.Helper.RosterOffsetCompatibility (defaultWeekOffsetEpochForStartDay)
 import Application.Helper.SurfaceResource
 import Application.Helper.TimesheetPayLedger (backfillApprovedTimesheetPayCalculations)
 import Application.Helper.Xero

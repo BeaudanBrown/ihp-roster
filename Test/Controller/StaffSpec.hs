@@ -14,8 +14,6 @@ import Application.Helper.PasskeySetupTokens (PasskeySetupTokenPurpose (..),
                                               issuePasskeySetupToken)
 import Application.Helper.PasswordResetTokens (issuePasswordResetToken)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
-import Application.Helper.RosterOffsetCompatibility (venueWeekOffsetForDay,
-                                                     venueWeekStartDate)
 import Application.Helper.StaffShiftPreferences (encodeShiftPreferenceKey,
                                                  shiftPreferenceEndHourParamName,
                                                  shiftPreferenceStartHourParamName)
@@ -1410,12 +1408,12 @@ tests = aroundAll withDatabaseTestContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 now <- getCurrentTime
                 operationalToday <- operationalDayForUtcTime venueConfig now
-                let currentWeekOffset = venueWeekOffsetForDay venueConfig operationalToday
-                pastWeek <- createRosterWeekRecordForRosterGroup venue defaultGroup (currentWeekOffset - 1) True
-                currentWeek <- createRosterWeekRecordForRosterGroup venue defaultGroup currentWeekOffset True
-                futureWeek <- createRosterWeekRecordForRosterGroup venue secondGroup (currentWeekOffset + 1) True
+                let currentWindowIndex = testWindowIndexForDay operationalToday
+                pastWeek <- createRosterWeekRecordForRosterGroup venue defaultGroup (currentWindowIndex - 1) True
+                currentWeek <- createRosterWeekRecordForRosterGroup venue defaultGroup currentWindowIndex True
+                futureWeek <- createRosterWeekRecordForRosterGroup venue secondGroup (currentWindowIndex + 1) True
                 pastDay <- createRosterDayRecord pastWeek 0
-                currentDay <- createRosterDayRecord currentWeek (fromInteger (diffDays operationalToday (venueWeekStartDate venueConfig currentWeekOffset)))
+                currentDay <- createRosterDayRecord currentWeek (fromInteger (diffDays operationalToday (testAnchorForOffset currentWindowIndex)))
                 futureDay <- createRosterDayRecord futureWeek 0
                 pastSlot <- createRosterSlotRecord pastDay defaultSlotName (Just staff) 0
                 currentSlot <- createRosterSlotRecord currentDay defaultSlotName (Just staff) 0
@@ -1447,9 +1445,9 @@ tests = aroundAll withDatabaseTestContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 now <- getCurrentTime
                 operationalToday <- operationalDayForUtcTime venueConfig now
-                let currentWeekOffset = venueWeekOffsetForDay venueConfig operationalToday
-                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWeekOffset True
-                rosterDay <- createRosterDayRecord rosterWeek (fromInteger (diffDays operationalToday (venueWeekStartDate venueConfig currentWeekOffset)))
+                let currentWindowIndex = testWindowIndexForDay operationalToday
+                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWindowIndex True
+                rosterDay <- createRosterDayRecord rosterWeek (fromInteger (diffDays operationalToday (testAnchorForOffset currentWindowIndex)))
                 slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
                 ensureTestUserHasPasskey admin
 
@@ -1465,7 +1463,7 @@ tests = aroundAll withDatabaseTestContext do
                                   , ("endTime", "17:00")
                                   , ("shiftTypeId", cs (tshow shiftType.id))
                                   ]
-                                    <> rosterMutationParams currentWeekOffset
+                                    <> rosterMutationParams currentWindowIndex
                                 )
                     ]
 
@@ -1539,9 +1537,9 @@ tests = aroundAll withDatabaseTestContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 now <- getCurrentTime
                 operationalToday <- operationalDayForUtcTime venueConfig now
-                let currentWeekOffset = venueWeekOffsetForDay venueConfig operationalToday
-                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWeekOffset True
-                rosterDay <- createRosterDayRecord rosterWeek (fromInteger (diffDays operationalToday (venueWeekStartDate venueConfig currentWeekOffset)))
+                let currentWindowIndex = testWindowIndexForDay operationalToday
+                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWindowIndex True
+                rosterDay <- createRosterDayRecord rosterWeek (fromInteger (diffDays operationalToday (testAnchorForOffset currentWindowIndex)))
                 rosterSlot <- createRosterSlotRecord rosterDay slotName (Just removedStaff) 0
                     >>= updateRecord
                         . setTestStartTime (Just (TimeOfDay 9 0 0))
@@ -1561,7 +1559,7 @@ tests = aroundAll withDatabaseTestContext do
                                   , ("endTime", "17:00")
                                   , ("shiftTypeId", cs (tshow shiftType.id))
                                   ]
-                                    <> rosterMutationParams currentWeekOffset
+                                    <> rosterMutationParams currentWindowIndex
                                 )
                     ]
 
@@ -1590,12 +1588,12 @@ tests = aroundAll withDatabaseTestContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 now <- getCurrentTime
                 operationalToday <- operationalDayForUtcTime venueConfig now
-                let currentWeekOffset = venueWeekOffsetForDay venueConfig operationalToday
-                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWeekOffset True
-                rosterDay <- createRosterDayRecord rosterWeek (fromInteger (diffDays operationalToday (venueWeekStartDate venueConfig currentWeekOffset)))
+                let currentWindowIndex = testWindowIndexForDay operationalToday
+                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWindowIndex True
+                rosterDay <- createRosterDayRecord rosterWeek (fromInteger (diffDays operationalToday (testAnchorForOffset currentWindowIndex)))
                 rosterSlot <- createCompleteRosterSlotRecord rosterDay slotName staff 0
                 let sourceToken = "existing:" <> tshow rosterSlot.id
-                let targetToken = "new:" <> tshow rosterDay.id <> ":" <> tshow rosterSlot.rosterWeekSlotDefinitionId <> ":1"
+                let targetToken = "new:" <> tshow rosterDay.id <> ":" <> tshow rosterSlot.rosterLaneId <> ":1"
                 ensureTestUserHasPasskey admin
 
                 results <- runConcurrentStaffActionList
@@ -1608,7 +1606,7 @@ tests = aroundAll withDatabaseTestContext do
                                   , ("sourceItemKey", cs sourceToken)
                                   , ("targetDropzoneKey", cs targetToken)
                                   ]
-                                    <> rosterMutationParams currentWeekOffset
+                                    <> rosterMutationParams currentWindowIndex
                                 )
                     ]
 
@@ -1671,11 +1669,11 @@ tests = aroundAll withDatabaseTestContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 now <- getCurrentTime
                 operationalToday <- operationalDayForUtcTime venueConfig now
-                let currentWeekOffset = venueWeekOffsetForDay venueConfig operationalToday
-                sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWeekOffset True
-                let operationalDayOffset = fromInteger (diffDays operationalToday (venueWeekStartDate venueConfig currentWeekOffset))
+                let currentWindowIndex = testWindowIndexForDay operationalToday
+                sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWindowIndex True
+                let operationalDayOffset = fromInteger (diffDays operationalToday (testAnchorForOffset currentWindowIndex))
                 sourceDay <- createRosterDayRecord sourceWeek operationalDayOffset
-                targetWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup (currentWeekOffset + 1) False
+                targetWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup (currentWindowIndex + 1) False
                 _ <- createRosterDayRecord targetWeek operationalDayOffset
                 _ <- createRosterSlotRecord sourceDay slotName (Just staff) 0
                     >>= updateRecord
@@ -1689,7 +1687,7 @@ tests = aroundAll withDatabaseTestContext do
                         callAction (RemoveStaffAction staff.id)
                     , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
-                            callActionWithParams CopyRosterWeekAction (rosterCopyParams currentWeekOffset (currentWeekOffset + 1))
+                            callActionWithParams CopyRosterWeekAction (rosterCopyParams currentWindowIndex (currentWindowIndex + 1))
                     ]
 
                 lefts results `shouldSatisfy` null
@@ -1725,9 +1723,9 @@ tests = aroundAll withDatabaseTestContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 now <- getCurrentTime
                 operationalToday <- operationalDayForUtcTime venueConfig now
-                let currentWeekOffset = venueWeekOffsetForDay venueConfig operationalToday
-                sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWeekOffset True
-                sourceDay <- createRosterDayRecord sourceWeek (fromInteger (diffDays operationalToday (venueWeekStartDate venueConfig currentWeekOffset)))
+                let currentWindowIndex = testWindowIndexForDay operationalToday
+                sourceWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup currentWindowIndex True
+                sourceDay <- createRosterDayRecord sourceWeek (fromInteger (diffDays operationalToday (testAnchorForOffset currentWindowIndex)))
                 _ <- createRosterSlotRecord sourceDay slotName (Just staff) 0
                     >>= updateRecord
                         . setTestStartTime (Just (TimeOfDay 9 0 0))
@@ -1740,7 +1738,7 @@ tests = aroundAll withDatabaseTestContext do
                         callAction (RemoveStaffAction staff.id)
                     , withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         withRequestHeaders [("HX-Request", "true")] do
-                            callActionWithParams CopyRosterWeekAction (rosterCopyParams currentWeekOffset (currentWeekOffset + 1))
+                            callActionWithParams CopyRosterWeekAction (rosterCopyParams currentWindowIndex (currentWindowIndex + 1))
                     ]
 
                 lefts results `shouldSatisfy` null

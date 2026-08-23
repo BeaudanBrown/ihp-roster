@@ -4,15 +4,14 @@ module Web.RosterWeeks.Capabilities
 
 import Application.Helper.View (ViewAudience (ManagerAudience),
                                 currentUserIsAdmin, currentUserMatchesAudience)
-import Generated.Types
 import IHP.Controller.Context (ControllerContext)
 import IHP.Prelude
 import Web.RosterWeeks.Types
 
-buildRosterViewCapabilities :: (?context :: ControllerContext) => Maybe RosterWeek -> RosterViewCapabilities
+buildRosterViewCapabilities :: (?context :: ControllerContext) => Maybe RosterWindowState -> RosterViewCapabilities
 buildRosterViewCapabilities maybeRosterWeek =
     let managerAudience = currentUserMatchesAudience ManagerAudience
-        draftWeek = maybe False (not . (.isLive)) maybeRosterWeek
+        draftWeek = maybe False (not . (.windowIsPublished)) maybeRosterWeek
      in RosterViewCapabilities
             { canToggleRosterLive = managerAudience && isJust maybeRosterWeek
             , canCopyRosterWeek = managerAudience && draftWeek

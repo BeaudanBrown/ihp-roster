@@ -4,6 +4,7 @@ module Web.RosterWeeks.DateRange
     , RosterWindowDay (..)
     , RosterWindowLane (..)
     , RosterWindowScope (..)
+    , RosterWindowState (..)
     , appendRosterWindowLane
     , laneForOperationalDate
     , materializeRosterWindow
@@ -23,7 +24,6 @@ module Web.RosterWeeks.DateRange
     , fetchRosterWindow
     ) where
 
-import Application.Helper.RosterOffsetCompatibility (applyLegacyRosterDayOffset)
 import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.RosterPublication (rosterDaysArePublished)
 import Control.Monad (void)
@@ -62,6 +62,14 @@ data RosterWindowScope = RosterWindowScope
     , rosterWindowStart            :: !Day
     , rosterWindowEnd              :: !Day
     , rosterWindowCalendarRevision :: !Int
+    }
+    deriving (Eq, Show)
+
+-- | Request-local publication state for one explicit roster window. This is a
+-- projection, never persisted identity.
+data RosterWindowState = RosterWindowState
+    { windowRosterGroupId :: !UUID
+    , windowIsPublished   :: !Bool
     }
     deriving (Eq, Show)
 
@@ -155,19 +163,17 @@ rosterWindowLaneRepresentative :: RosterWindowLane -> RosterLane
 rosterWindowLaneRepresentative lane =
     snd (fromMaybe (error "Roster window lane has no date-local lane") (Map.lookupMin lane.rosterWindowLaneByDate))
 
-projectedRosterDay :: Id Venue -> Id RosterGroup -> Maybe (Id RosterWeek) -> Day -> RosterWindowDay -> RosterDay
-projectedRosterDay venueId rosterGroupId maybeRosterWeekId windowStartDate windowDay =
+projectedRosterDay :: Id Venue -> Id RosterGroup -> RosterWindowDay -> RosterDay
+projectedRosterDay venueId rosterGroupId windowDay =
     case windowDay.persistedRosterDay of
         Just rosterDay -> rosterDay
         Nothing ->
             newRecord @RosterDay
                 |> set #id (projectedRosterDayId rosterGroupId windowDay.operationalDate)
-                |> set #rosterWeekId (unpackId <$> maybeRosterWeekId)
                 |> set #venueId (unpackId venueId)
                 |> set #rosterGroupId (unpackId rosterGroupId)
                 |> set #operationalDate windowDay.operationalDate
                 |> set #publicationState Draft
-                |> applyLegacyRosterDayOffset windowStartDate
 
 projectedRosterDayId :: Id RosterGroup -> Day -> Id RosterDay
 projectedRosterDayId rosterGroupId operationalDate =
@@ -230,7 +236,6 @@ fetchRosterWindow venueId rosterGroupId startDate = do
                      in newRecord @RosterLane
                             |> set #id (projectedRosterLaneId rosterDayId slotName.name)
                             |> set #rosterDayId (unpackId rosterDayId)
-                            |> set #legacyRosterWeekSlotDefinitionId Nothing
                             |> set #name slotName.name
                             |> set #sortOrder slotName.sortOrder
             pure persistedWindow { rosterWindowLanes = projectedWindowLanes }
@@ -248,7 +253,6 @@ fetchRosterWindow venueId rosterGroupId startDate = do
              in newRecord @RosterLane
                     |> set #id (projectedRosterLaneId rosterDayId windowLane.rosterWindowLaneName)
                     |> set #rosterDayId (unpackId rosterDayId)
-                    |> set #legacyRosterWeekSlotDefinitionId Nothing
                     |> set #name windowLane.rosterWindowLaneName
                     |> set #sortOrder sortOrder
 
@@ -267,7 +271,7 @@ materializeRosterWindow scope = do
         case windowDay.persistedRosterDay of
             Just day -> pure day
             Nothing ->
-                projectedRosterDay venueId rosterGroupId Nothing startDate windowDay
+                projectedRosterDay venueId rosterGroupId windowDay
                     |> createRecord
     configuredNames <- query @SlotName
         |> filterWhere (#venueId, unpackId venueId)
@@ -302,29 +306,19 @@ materializeRosterWindow scope = do
                             newRecord @RosterLane
                                 |> set #id (projectedRosterLaneId day.id name)
                                 |> set #rosterDayId (unpackId day.id)
-                                |> set #legacyRosterWeekSlotDefinitionId Nothing
                                 |> set #name (Text.strip name)
                                 |> set #sortOrder sortOrder
                                 |> createRecord
     pure (materializedDays, any (isNothing . (.persistedRosterDay)) window.rosterWindowProjectedDays)
 
--- | Resolve current date-local lane IDs, with a bounded compatibility fallback
--- for callers still carrying a legacy weekly definition UUID.
+-- | Resolve a current date-local lane ID, optionally constrained to one day.
 resolveRosterLaneReference :: (?modelContext :: ModelContext) => Maybe (Id RosterDay) -> Id RosterLane -> IO (Maybe RosterLane)
-resolveRosterLaneReference maybeRosterDayId requestedId = do
-    direct <- query @RosterLane
+resolveRosterLaneReference maybeRosterDayId requestedId =
+    query @RosterLane
         |> filterWhere (#id, requestedId)
         |> filterWhere (#deletedAt, Nothing)
         |> maybeFilterDay
         |> fetchOneOrNothing
-    case direct of
-        Just lane -> pure (Just lane)
-        Nothing -> query @RosterLane
-            |> filterWhere (#legacyRosterWeekSlotDefinitionId, Just (unpackId requestedId))
-            |> filterWhere (#deletedAt, Nothing)
-            |> maybeFilterDay
-            |> orderByAsc #createdAt
-            |> fetchOneOrNothing
   where
     maybeFilterDay queryBuilder = case maybeRosterDayId of
         Nothing -> queryBuilder
@@ -363,7 +357,6 @@ appendRosterWindowLane scope requestedName = do
                                 newRecord @RosterLane
                                     |> set #id (projectedRosterLaneId day.id requestedName)
                                     |> set #rosterDayId (unpackId day.id)
-                                    |> set #legacyRosterWeekSlotDefinitionId Nothing
                                     |> set #name (Text.strip requestedName)
                                     |> set #sortOrder nextSortOrder
                                     |> createRecord
@@ -412,9 +405,8 @@ removeRosterWindowLane scope requestedLaneId deletedByUserId = do
                                         void (slot |> set #rowIndex (temporaryBase + index) |> updateRecord)
                                     forM_ placements \(slot, lane, rowIndex) ->
                                         void $
-                                            slot
+                                                            slot
                                                 |> set #rosterLaneId (unpackId lane.id)
-                                                |> set #rosterWeekSlotDefinitionId lane.legacyRosterWeekSlotDefinitionId
                                                 |> set #slotSortOrder lane.sortOrder
                                                 |> set #rowIndex rowIndex
                                                 |> updateRecord
@@ -429,21 +421,6 @@ removeRosterWindowLane scope requestedLaneId deletedByUserId = do
                                                 |> set #deleteReason (Just "roster_window_lane_removed")
                                                 |> updateRecord
                         repackRosterWindow scope
-                        -- Legacy slot compatibility projection may reactivate a
-                        -- lane while slots are repacked. Tombstone the removed
-                        -- date-local identity last, after all slot writes.
-                        forM_ window.rosterWindowProjectedDays \windowDay ->
-                            forM_ windowDay.persistedRosterDay \day -> do
-                                removedLanes <- query @RosterLane
-                                    |> filterWhere (#rosterDayId, unpackId day.id)
-                                    |> fetch
-                                forM_ (filter ((== removedWindowLane.rosterWindowLaneNormalizedName) . normalizeLaneName . (.name)) removedLanes) \lane ->
-                                    void $
-                                        lane
-                                            |> set #deletedAt (Just now)
-                                            |> set #deletedByUserId (Just (unpackId deletedByUserId))
-                                            |> set #deleteReason (Just "roster_window_lane_removed")
-                                            |> updateRecord
                         pure (Right ())
 
 data LaneRowRemovalPlan = LaneRowRemovalPlan
@@ -471,7 +448,6 @@ removeRosterDayRowByLanes rosterDay actorUserId = do
         void $
             slot
                 |> set #rosterLaneId (unpackId lane.id)
-                |> set #rosterWeekSlotDefinitionId lane.legacyRosterWeekSlotDefinitionId
                 |> set #slotSortOrder lane.sortOrder
                 |> set #rowIndex rowIndex
                 |> updateRecord
@@ -553,7 +529,6 @@ repackRosterWindow scope = do
                     void $
                         slot
                             |> set #rosterLaneId (unpackId lane.id)
-                            |> set #rosterWeekSlotDefinitionId lane.legacyRosterWeekSlotDefinitionId
                             |> set #slotSortOrder lane.sortOrder
                             |> set #rowIndex rowIndex
                             |> updateRecord
