@@ -168,6 +168,7 @@ in
         http-polling-policy-check = script ../scripts/verification/http-polling-policy;
         http-polling-policy-test = script ../scripts/verification/http-polling-policy-test;
         http-repository-check = script ../scripts/verification/http-repository-check;
+        production-manifest-check = script ../scripts/verification/production-manifest-check;
         production-inventory-check = script ../scripts/verification/production-inventory;
         production-inspection-check = script ../scripts/verification/production-inspection-check;
         production-source-repository-check = script ../scripts/verification/production-source-repository-check;

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-production-inventory-check
+production-manifest-check
 
 tools_root="$(nix build --no-link --print-out-paths .#frontend-contract-tools --accept-flake-config)"
 production_root="$(nix build --no-link --print-out-paths .#optimized-prod-server --accept-flake-config)"
