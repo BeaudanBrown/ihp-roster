@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+node scripts/architecture/email-transport.mjs >/dev/null
+node scripts/architecture/fixture-reset-manifest.mjs >/dev/null
+node scripts/production-inventory.mjs --check >/dev/null
+bash ./Config/nix/scripts/architecture/facts >/dev/null
+node scripts/architecture/surface-request-closure.mjs >/dev/null
+ARCHITECTURE_FACTS_CURRENT=1 node scripts/architecture/schema.mjs >/dev/null
+ARCHITECTURE_FACTS_CURRENT=1 node scripts/architecture/web-map.mjs >/dev/null
+# The whole-graph SVG is deterministic evidence but not useful feedback here.
+ARCHITECTURE_FACTS_CURRENT=1 ARCHITECTURE_SKIP_MODULE_GRAPH_SVG=1 node scripts/architecture/module-graph.mjs >/dev/null
+node scripts/architecture/gate.mjs >/dev/null
+printf '%s\n' '{"name":"conventions","args":{"failOnViolations":true,"requireAllControllers":true}}' | node scripts/architecture/query.mjs >/dev/null
+echo "Architecture repository checks succeeded. Outputs are under output/architecture/."

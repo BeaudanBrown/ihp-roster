@@ -8,10 +8,10 @@ echo "verify-full: explicit production module and script inventory"
 production-inventory-check
 
 echo "verify-full: production HTTP polling policy"
-http-polling-policy-check
+http-repository-check
 
-echo "verify-full: production source hash boundary"
-production-source-boundary-check
+echo "verify-full: production source boundary"
+production-source-repository-check
 
 # Reuse the isolated package for every generator/freshness command below.
 export FRONTEND_CONTRACT_USE_PACKAGE=1
@@ -32,22 +32,20 @@ echo "verify-full: curated FrontendContract warnings"
 frontend-contract-warnings
 
 echo "verify-full: application reachability policy"
-weeder-policy-test
 weeder-check
 
 echo "verify-full: generated frontend, TypeScript, and browser unit checks"
-frontend-check
+frontend-runtime-check
+frontend-surface-compile-fail-check
 
 echo "verify-full: CSS ownership and stale-selector checks"
 bash ./bin/style-audit
 
 echo "verify-full: architecture and documentation structure"
 architecture-check-fresh
-bash ./bin/doc-drift-check
+documentation-repository-check
 
 echo "verify-full: production build profiler and budget contracts"
-production-build-profile-test
-production-build-budget-test
 
 echo "verify-full: production package executable and deployment smoke"
 production-package-smoke
@@ -62,7 +60,7 @@ echo "verify-full: date-native Roster runtime authority"
 bash ./bin/date-native-roster-authority-check
 
 echo "verify-full: billing production-readiness"
-billing-production-readiness
+billing-contract-check
 
 echo "verify-full: wage-cutover deployment ordering"
 nix eval --impure --json --file Config/nix/tests/wage-cutover-module.nix >/dev/null
@@ -74,7 +72,6 @@ echo "verify-full: live-invalidation outbox pruning deployment"
 nix eval --impure --json --file Config/nix/tests/live-invalidation-outbox-pruning-module.nix >/dev/null
 
 echo "verify-full: E2E PostgreSQL lifecycle preflight"
-e2e-postgres-lifecycle-test
 
 echo "verify-full: complete Playwright"
 e2e

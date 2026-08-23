@@ -166,9 +166,11 @@ in
         billing-contract-check = script ../scripts/verification/billing-contract-check;
         deployment-module-check = script ../scripts/verification/deployment-module-check;
         http-polling-policy-check = script ../scripts/verification/http-polling-policy;
+        http-polling-policy-test = script ../scripts/verification/http-polling-policy-test;
         http-repository-check = script ../scripts/verification/http-repository-check;
         production-inventory-check = script ../scripts/verification/production-inventory;
         production-inspection-check = script ../scripts/verification/production-inspection-check;
+        production-source-repository-check = script ../scripts/verification/production-source-repository-check;
         production-source-boundary-check = script ../scripts/verification/production-source-boundary;
         production-package-smoke = script ../scripts/verification/production-package-smoke;
         frontend-runtime-check = script ../scripts/verification/frontend-runtime-check;

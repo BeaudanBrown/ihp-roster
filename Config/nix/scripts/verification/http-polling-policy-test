@@ -3,6 +3,4 @@ set -euo pipefail
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$repo_root"
-
-http-polling-policy-test
-http-repository-check
+node --test scripts/http-polling-policy.test.mjs

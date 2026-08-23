@@ -7,6 +7,7 @@ cd "$repo_root"
 bash Config/nix/scripts/frontend/contracts-check
 bash Config/nix/scripts/frontend/surface-adapters-check
 bash Config/nix/scripts/frontend/surface-guardrails
+bash Config/nix/scripts/frontend/surface-adapter-publication-test
 bash Config/nix/scripts/frontend/surface-compile-fail-check
 tsc --project tsconfig.json --noEmit
 bash Config/nix/scripts/frontend/no-ts-nocheck

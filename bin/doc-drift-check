@@ -9,6 +9,6 @@ cd "$repo_root"
 # frontend boundaries, and wage authority belong to their architecture,
 # generator, frontend, and domain gates.
 node --test scripts/documentation/check.test.mjs >/dev/null
-node scripts/documentation/check.mjs
+documentation-repository-check
 
 echo "doc-drift-check: ok"

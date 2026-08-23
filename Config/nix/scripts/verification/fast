@@ -5,7 +5,7 @@ echo "verify-fast: working-tree devenv script freshness"
 devenv-script-freshness-check
 
 echo "verify-fast: production HTTP polling policy"
-http-polling-policy-check
+http-repository-check
 
 echo "verify-fast: typecheck"
 typecheck

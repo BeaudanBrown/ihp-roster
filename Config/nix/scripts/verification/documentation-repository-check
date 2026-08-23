@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-bash ./bin/doc-drift-check
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$repo_root"
+node scripts/documentation/check.mjs

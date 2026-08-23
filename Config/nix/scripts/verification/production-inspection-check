@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+production-source-repository-check
 production-source-boundary-check
 production-package-smoke
 production-build-budget-check

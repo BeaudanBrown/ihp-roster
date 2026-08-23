@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+app_drv="$(nix eval --raw .#optimized-prod-server.drvPath --accept-flake-config)"
+requisites="$(nix-store --query --requisites "$app_drv")"
+source_paths="$(printf '%s\n' "$requisites" | grep -- '-ihp-roster-source$' || true)"
+if [ "$(printf '%s\n' "$source_paths" | grep -c . || true)" -ne 1 ]; then
+    echo "production-source-repository: expected one filtered project source below $app_drv" >&2
+    exit 1
+fi
+production_source="$source_paths"
+if [ -e "$production_source/Test" ]; then
+    echo "production-source-repository: Test leaked into filtered production source" >&2
+    exit 1
+fi
+while IFS= read -r -d '' required_path; do
+    if [ ! -e "$production_source/$required_path" ]; then
+        echo "production-source-repository: required production input omitted: $required_path" >&2
+        exit 1
+    fi
+done < <(git ls-files -z -- Application/Schema.sql Application/Migration static Config/nix/hosts Config/nix/modules)
+echo "production-source-repository: filtered source contains required production inputs"
