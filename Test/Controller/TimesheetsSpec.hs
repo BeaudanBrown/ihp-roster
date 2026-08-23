@@ -11,6 +11,7 @@ import Application.Helper.FrontendContract.Surface.Timesheets.Resource
 import Application.Helper.LiveUpdate
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
+import Application.Helper.TimeRules (currentOperationalDayForVenue)
 import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.VenueTime (RepeatedTimeOccurrence (..))
 import Application.VenueTime.Model (ShiftBoundaryInput (..),
@@ -32,7 +33,6 @@ import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
-import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude
@@ -124,14 +124,14 @@ tests = aroundAll withDatabaseTestContext do
                 user <- createUserRecord "timesheet-current-week@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user Worker
                 staff <- createStaffRecord venue (Just user) "Current" "Week"
-                today <- utctDay <$> getCurrentTime
-
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                operationalToday <- currentOperationalDayForVenue venueConfig
                 response <- withUserAndCurrentVenue user venue.id do
                     callActionWithParams TimesheetsAction [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
 
                 response `responseStatusShouldBe` status302
                 let location = cs <$> lookup "Location" (responseHeaders response)
-                location `shouldSatisfy` maybe False (Text.isInfixOf ("anchorDate=" <> tshow today))
+                location `shouldSatisfy` maybe False (Text.isInfixOf ("anchorDate=" <> tshow operationalToday))
                 unauthorizedFilterResponse <- withUserAndCurrentVenue user venue.id do
                     callActionWithParams (ShowTimesheetWindowAction (tshow (testAnchorForOffset 4)))
                         [("staffFilterId", idToParam staff.id)]
