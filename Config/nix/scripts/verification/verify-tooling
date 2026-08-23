@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# This tier is intentionally independent of verify-full. Subsequent verification
+# work moves every synthetic checker/harness fixture here; keep this topology
+# command small until those private atoms are introduced.
+echo "verify-tooling: working-tree devenv script freshness"
+devenv-script-freshness-check
