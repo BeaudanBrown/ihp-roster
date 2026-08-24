@@ -13,9 +13,10 @@ fi
 production_derivation="$(nix-store --query --deriver "$output")"
 requisites="$(nix-store --query --requisites "$production_derivation")"
 
-# The frontend tooling package is generated earlier in verify-full. Check its
-# isolation here, alongside the sole optimized-production closure traversal.
-if [ -n "${FRONTEND_CONTRACT_TOOLS_ROOT:-}" ] && printf '%s\n' "$requisites" | grep -Fxq "$FRONTEND_CONTRACT_TOOLS_ROOT"; then
+# verify-full hands over its generated tooling root. Standalone package smoke
+# resolves the same root so production/tooling isolation remains unconditional.
+tooling_root="${FRONTEND_CONTRACT_TOOLS_ROOT:-$(nix build --no-link --print-out-paths .#frontend-contract-tools --accept-flake-config)}"
+if printf '%s\n' "$requisites" | grep -Fxq "$tooling_root"; then
     echo "production-package-smoke: production closure references frontend-contract tooling output" >&2
     exit 1
 fi
