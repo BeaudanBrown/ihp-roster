@@ -275,10 +275,11 @@ instance Controller AuthController where
                     ]
                 )
         redirectUrl <- getSessionAndClear passkeyStepUpRedirectSessionKey
+        let safeRedirectUrl = redirectUrl >>= safePasskeyReturnPath
         renderJson
             ( PasskeyWire.PasskeyAuthenticated
                 (unpackId currentUser.id)
-                (fromMaybe (Sessions.afterLoginRedirectPath @User) redirectUrl)
+                (fromMaybe (Sessions.afterLoginRedirectPath @User) safeRedirectUrl)
             )
 
     action currentAction@NewPasskeySetupAction = runBepis currentAction BepisFormAction do

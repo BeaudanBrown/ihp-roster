@@ -33,6 +33,7 @@ module Application.Helper.FrontendContract.AppShell
     , ManagerNoteField
     , OpenPasskeySetupDialog
     , OpenPasskeyRecoveryCodeDialog
+    , SubmitPasskeyProtectedAction
     , CreateLeaveRequestOverlay
     , OpenXeroTimesheetPreparationOverlay
     , RunXeroTimesheetPreparationOverlay
@@ -129,6 +130,7 @@ data ManagerNoteField
 
 data OpenPasskeySetupDialog
 data OpenPasskeyRecoveryCodeDialog
+data SubmitPasskeyProtectedAction
 data CreateLeaveRequestOverlay
 data OpenXeroTimesheetPreparationOverlay
 data RunXeroTimesheetPreparationOverlay
@@ -242,6 +244,13 @@ type AppShellContract =
              ]
          , AppShellAction OpenPasskeySetupDialog DialogLauncherFields DialogLauncherOptions
          , AppShellAction OpenPasskeyRecoveryCodeDialog DialogLauncherFields DialogLauncherOptions
+         , AppShellAction SubmitPasskeyProtectedAction
+            '[]
+            '[ AppShellHtmxMethod 'AppShellPost
+             , AppShellHtmxTarget DialogOverlayMount
+             , AppShellHtmxSwap "innerHTML"
+             , AppShellHtmxPushUrl 'AppShellPushUrlFalse
+             ]
          , AppShellAction CreateLeaveRequestOverlay
             '[ Field StartDateField 'WireText
              , Field EndDateField 'WireText

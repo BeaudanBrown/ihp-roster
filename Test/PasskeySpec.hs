@@ -23,11 +23,11 @@ import Test.Hspec
 tests :: Spec
 tests = describe "Passkey contract runtime" do
     it "renders an exact generated login flow with a mount-local status relationship" do
-        passkeyLoginAttrs "/begin" "/finish" (Just "/after")
+        passkeyLoginAttrs "/begin" "/finish" (Just "/after") False False
             `shouldBe`
                 [ ("data-bepis-passkey-login", "true")
                 , ( "data-bepis-passkey-flow-config"
-                  , "{\"beginUrl\":\"/begin\",\"cancelledMessage\":\"No passkey was selected.\",\"failureMessage\":\"Passkey request failed.\",\"finishUrl\":\"/finish\",\"pendingLabel\":\"Please wait\",\"statusKey\":\"status\",\"successMessage\":\"Signed in.\",\"successRedirect\":\"/after\",\"tag\":\"login\",\"unsupportedMessage\":\"Passkeys are not supported in this browser.\",\"waitingMessage\":\"Waiting for your passkey...\"}"
+                  , "{\"autoStart\":false,\"beginUrl\":\"/begin\",\"cancelledMessage\":\"No passkey was selected.\",\"closeOverlayOnSuccess\":false,\"failureMessage\":\"Passkey request failed.\",\"finishUrl\":\"/finish\",\"pendingLabel\":\"Please wait\",\"statusKey\":\"status\",\"successMessage\":\"Signed in.\",\"successRedirect\":\"/after\",\"tag\":\"login\",\"unsupportedMessage\":\"Passkeys are not supported in this browser.\",\"waitingMessage\":\"Waiting for your passkey...\"}"
                   )
                 ]
         passkeyActionButtonAttrs
@@ -40,7 +40,7 @@ tests = describe "Passkey contract runtime" do
             `shouldBe`
                 [ ("data-bepis-passkey-registration", "true")
                 , ( "data-bepis-passkey-flow-config"
-                  , "{\"beginUrl\":\"/register\",\"cancelledMessage\":\"Passkey registration was cancelled.\",\"failureMessage\":\"Passkey request failed.\",\"finishUrl\":\"/finish-registration\",\"pendingLabel\":\"Please wait\",\"statusKey\":\"status\",\"successMessage\":\"Passkey added.\",\"tag\":\"registration\",\"unsupportedMessage\":\"Passkeys are not supported in this browser.\",\"waitingMessage\":\"Waiting for your passkey...\"}"
+                  , "{\"autoStart\":false,\"beginUrl\":\"/register\",\"cancelledMessage\":\"Passkey registration was cancelled.\",\"closeOverlayOnSuccess\":false,\"failureMessage\":\"Passkey request failed.\",\"finishUrl\":\"/finish-registration\",\"pendingLabel\":\"Please wait\",\"statusKey\":\"status\",\"successMessage\":\"Passkey added.\",\"tag\":\"registration\",\"unsupportedMessage\":\"Passkeys are not supported in this browser.\",\"waitingMessage\":\"Waiting for your passkey...\"}"
                   )
                 ]
         passkeySetupPromptAttrs "user-1" PasskeyAdditionalDevice
@@ -149,7 +149,7 @@ tests = describe "Passkey contract runtime" do
             `shouldSatisfy` isAesonError
 
     it "rejects empty Haskell-owned flow URLs before rendering browser configuration" do
-        evaluate (attrsTextLength (passkeyLoginAttrs " " "/finish" Nothing))
+        evaluate (attrsTextLength (passkeyLoginAttrs " " "/finish" Nothing False False))
             `shouldThrow` errorCall "Passkey begin URL must not be empty"
         evaluate (attrsTextLength (passkeyRegistrationAttrs "/begin" "" Nothing))
             `shouldThrow` errorCall "Passkey finish URL must not be empty"

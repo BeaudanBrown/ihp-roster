@@ -18,6 +18,8 @@ module Application.Helper.FrontendContract.Passkey
     , FailureMessage
     , PendingLabel
     , CancelledMessage
+    , AutoStart
+    , CloseOverlayOnSuccess
     , PromptUserKey
     , SetupPromptMode
     , PasskeySetupPromptMode
@@ -125,6 +127,8 @@ data UnsupportedMessage
 data FailureMessage
 data PendingLabel
 data CancelledMessage
+data AutoStart
+data CloseOverlayOnSuccess
 data PromptUserKey
 data SetupPromptMode
 
@@ -146,6 +150,8 @@ type PasskeyStatusFields =
      , Field FailureMessage 'WireText
      , Field PendingLabel 'WireText
      , Field CancelledMessage 'WireText
+     , Field AutoStart 'WireBool
+     , Field CloseOverlayOnSuccess 'WireBool
      ]
 
 -- Exact passkey wire DTOs -----------------------------------------------------

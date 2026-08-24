@@ -10,12 +10,13 @@
   }
   var pageReadyEvent = "bepis:page-ready";
   var dialogDismissedEvent = "bepis:dialog-dismissed";
+  var dialogMountDomAttr = "data-bepis-dialog-mount";
   var dialogCloseDomAttr = "data-bepis-dialog-close";
   function isPasskeySetupPromptMode(value) {
     return typeof value === "string" && ["first-passkey", "additional-device"].includes(value);
   }
   function isPasskeyFlowConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["tag", "beginUrl", "finishUrl", "successRedirect", "statusKey", "waitingMessage", "successMessage", "unsupportedMessage", "failureMessage", "pendingLabel", "cancelledMessage"], ["tag", "beginUrl", "finishUrl", "statusKey", "waitingMessage", "successMessage", "unsupportedMessage", "failureMessage", "pendingLabel", "cancelledMessage"]) && value["tag"] === "login" && typeof value["beginUrl"] === "string" && typeof value["finishUrl"] === "string" && (!("successRedirect" in value) || typeof value["successRedirect"] === "string") && typeof value["statusKey"] === "string" && typeof value["waitingMessage"] === "string" && typeof value["successMessage"] === "string" && typeof value["unsupportedMessage"] === "string" && typeof value["failureMessage"] === "string" && typeof value["pendingLabel"] === "string" && typeof value["cancelledMessage"] === "string" || isRecord(value) && hasExactKeys(value, ["tag", "beginUrl", "finishUrl", "successRedirect", "statusKey", "waitingMessage", "successMessage", "unsupportedMessage", "failureMessage", "pendingLabel", "cancelledMessage"], ["tag", "beginUrl", "finishUrl", "statusKey", "waitingMessage", "successMessage", "unsupportedMessage", "failureMessage", "pendingLabel", "cancelledMessage"]) && value["tag"] === "registration" && typeof value["beginUrl"] === "string" && typeof value["finishUrl"] === "string" && (!("successRedirect" in value) || typeof value["successRedirect"] === "string") && typeof value["statusKey"] === "string" && typeof value["waitingMessage"] === "string" && typeof value["successMessage"] === "string" && typeof value["unsupportedMessage"] === "string" && typeof value["failureMessage"] === "string" && typeof value["pendingLabel"] === "string" && typeof value["cancelledMessage"] === "string" || isRecord(value) && hasExactKeys(value, ["tag", "promptUserKey", "setupPromptMode"], ["tag", "promptUserKey", "setupPromptMode"]) && value["tag"] === "setup-prompt" && typeof value["promptUserKey"] === "string" && isPasskeySetupPromptMode(value["setupPromptMode"]);
+    return isRecord(value) && hasExactKeys(value, ["tag", "beginUrl", "finishUrl", "successRedirect", "statusKey", "waitingMessage", "successMessage", "unsupportedMessage", "failureMessage", "pendingLabel", "cancelledMessage", "autoStart", "closeOverlayOnSuccess"], ["tag", "beginUrl", "finishUrl", "statusKey", "waitingMessage", "successMessage", "unsupportedMessage", "failureMessage", "pendingLabel", "cancelledMessage", "autoStart", "closeOverlayOnSuccess"]) && value["tag"] === "login" && typeof value["beginUrl"] === "string" && typeof value["finishUrl"] === "string" && (!("successRedirect" in value) || typeof value["successRedirect"] === "string") && typeof value["statusKey"] === "string" && typeof value["waitingMessage"] === "string" && typeof value["successMessage"] === "string" && typeof value["unsupportedMessage"] === "string" && typeof value["failureMessage"] === "string" && typeof value["pendingLabel"] === "string" && typeof value["cancelledMessage"] === "string" && typeof value["autoStart"] === "boolean" && typeof value["closeOverlayOnSuccess"] === "boolean" || isRecord(value) && hasExactKeys(value, ["tag", "beginUrl", "finishUrl", "successRedirect", "statusKey", "waitingMessage", "successMessage", "unsupportedMessage", "failureMessage", "pendingLabel", "cancelledMessage", "autoStart", "closeOverlayOnSuccess"], ["tag", "beginUrl", "finishUrl", "statusKey", "waitingMessage", "successMessage", "unsupportedMessage", "failureMessage", "pendingLabel", "cancelledMessage", "autoStart", "closeOverlayOnSuccess"]) && value["tag"] === "registration" && typeof value["beginUrl"] === "string" && typeof value["finishUrl"] === "string" && (!("successRedirect" in value) || typeof value["successRedirect"] === "string") && typeof value["statusKey"] === "string" && typeof value["waitingMessage"] === "string" && typeof value["successMessage"] === "string" && typeof value["unsupportedMessage"] === "string" && typeof value["failureMessage"] === "string" && typeof value["pendingLabel"] === "string" && typeof value["cancelledMessage"] === "string" && typeof value["autoStart"] === "boolean" && typeof value["closeOverlayOnSuccess"] === "boolean" || isRecord(value) && hasExactKeys(value, ["tag", "promptUserKey", "setupPromptMode"], ["tag", "promptUserKey", "setupPromptMode"]) && value["tag"] === "setup-prompt" && typeof value["promptUserKey"] === "string" && isPasskeySetupPromptMode(value["setupPromptMode"]);
   }
   function parsePasskeyFlowConfig(value) {
     if (isPasskeyFlowConfig(value)) return value;
@@ -391,6 +392,20 @@
       recoveryCode: recoveryCodes[0]
     };
   }
+  function readOverlayClose(root, config, report) {
+    if (!config.closeOverlayOnSuccess) return null;
+    const dialog = root.closest(`[${dialogMountDomAttr}]`);
+    if (!(dialog instanceof HTMLElement)) {
+      report(diagnostic(root, "invalid-overlay-close-relationship", "In-place passkey login must be inside one generated dialog"));
+      return null;
+    }
+    const closes = Array.from(dialog.querySelectorAll(`[${dialogCloseDomAttr}]`)).filter((element) => element instanceof HTMLButtonElement && roleIsTrue(element, dialogCloseDomAttr));
+    if (closes.length === 0) {
+      report(diagnostic(root, "invalid-overlay-close-relationship", "In-place passkey login requires a generated dialog close button"));
+      return null;
+    }
+    return closes[0];
+  }
   function readLoginControl(root, config, report) {
     const action = readAction(root, report);
     const status = readStatus(root, config, false, report);
@@ -399,7 +414,9 @@
       report(diagnostic(root, "invalid-device-name-relationship", "Passkey login must not contain a registration device-name role"));
       return null;
     }
-    return { root, action, config, status };
+    const overlayClose = readOverlayClose(root, config, report);
+    if (config.closeOverlayOnSuccess && overlayClose === null) return null;
+    return { root, action, config, status, overlayClose };
   }
   function readRegistrationControl(root, config, report) {
     const action = readAction(root, report);
@@ -436,6 +453,7 @@
         control.action.addEventListener("click", () => {
           void runPasskeyLogin(control);
         });
+        if (control.config.autoStart) void runPasskeyLogin(control);
         return;
       }
       case "registration": {
@@ -480,30 +498,45 @@
     }
   }
   async function runPasskeyLogin(control) {
-    await withPasskeyButton(control, async () => {
-      setPasskeyStatus(control.status, "info", control.config.waitingMessage);
-      const beginResponse = await postJson(
-        control.config.beginUrl,
-        control.config.failureMessage,
-        parsePasskeyAuthenticationOptions
-      );
-      const credential = await window.navigator.credentials.get({
-        publicKey: authenticationOptionsToNative(beginResponse)
+    const abortController = control.overlayClose === null ? null : new AbortController();
+    const dialog = control.root.closest(`[${dialogMountDomAttr}]`);
+    const abortPendingRequest = () => abortController?.abort();
+    if (dialog !== null && abortController !== null) {
+      dialog.addEventListener(dialogDismissedEvent, abortPendingRequest, { once: true });
+    }
+    try {
+      await withPasskeyButton(control, async () => {
+        setPasskeyStatus(control.status, "info", control.config.waitingMessage);
+        const beginResponse = await postJson(
+          control.config.beginUrl,
+          control.config.failureMessage,
+          parsePasskeyAuthenticationOptions
+        );
+        const credential = await window.navigator.credentials.get({
+          publicKey: authenticationOptionsToNative(beginResponse),
+          signal: abortController?.signal
+        });
+        if (!(credential instanceof PublicKeyCredential)) throw new PasskeyStatusError(control.config.cancelledMessage);
+        const finishResponse = await postJson(
+          control.config.finishUrl,
+          control.config.failureMessage,
+          parsePasskeyFinishResponse,
+          serializeAuthenticationCredential(credential)
+        );
+        if (finishResponse.tag !== "authenticated") {
+          throw new PasskeyStatusError(control.config.failureMessage);
+        }
+        markPasskeySeen(requirePasskeyResponseText("user id", finishResponse.userId));
+        setPasskeyStatus(control.status, "success", control.config.successMessage);
+        if (control.config.closeOverlayOnSuccess) {
+          control.overlayClose?.click();
+        } else {
+          redirectToPasskeyDestination(finishResponse.redirectTo);
+        }
       });
-      if (!(credential instanceof PublicKeyCredential)) throw new PasskeyStatusError(control.config.cancelledMessage);
-      const finishResponse = await postJson(
-        control.config.finishUrl,
-        control.config.failureMessage,
-        parsePasskeyFinishResponse,
-        serializeAuthenticationCredential(credential)
-      );
-      if (finishResponse.tag !== "authenticated") {
-        throw new PasskeyStatusError(control.config.failureMessage);
-      }
-      markPasskeySeen(requirePasskeyResponseText("user id", finishResponse.userId));
-      setPasskeyStatus(control.status, "success", control.config.successMessage);
-      redirectToPasskeyDestination(finishResponse.redirectTo);
-    });
+    } finally {
+      dialog?.removeEventListener(dialogDismissedEvent, abortPendingRequest);
+    }
   }
   async function runPasskeyRegistration(control) {
     await withPasskeyButton(control, async () => {

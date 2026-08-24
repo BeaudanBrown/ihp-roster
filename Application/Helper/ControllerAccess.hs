@@ -1,5 +1,6 @@
 module Application.Helper.ControllerAccess where
 
+import Data.Char (isControl, isHexDigit)
 import Data.Coerce (coerce)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
@@ -13,7 +14,7 @@ import qualified Network.Wai as Wai
 import qualified System.Environment as Environment
 import Text.Read (readMaybe)
 import Web.Routes ()
-import Web.Types (PasskeysController (PasskeySetupAction, PasskeyStepUpAction),
+import Web.Types (PasskeysController (PasskeySetupAction, PasskeyStepUpAction, ShowPasskeyStepUpDialogAction),
                   ProfilesController (EditProfileAction),
                   RosterWeeksController (RosterWeeksAction),
                   SessionsController (NewSessionAction),
@@ -24,6 +25,7 @@ import Application.Bepis.Fact (BepisFact (..), BepisRoleKind (..),
                                emitBepisFact)
 import Application.Helper.ControllerContext
 import Application.Helper.ControllerSupport
+import Application.Helper.Htmx (isHtmxRequest)
 import Application.VenueRole (hasVenueRole)
 
 passkeyVerifiedUserSessionKey :: ByteString
@@ -188,8 +190,13 @@ ensurePrivilegedPasskeySetupComplete = do
             withRequestContext do
                 let setupPath = mandatoryPasskeySetupPath
                 unless (currentRequestPath == setupPath) do
-                    setErrorMessage "Venue admins and owners must add a passkey before continuing."
-                    redirectToPath setupPath
+                    if isHtmxRequest
+                        then do
+                            setHeader ("HX-Redirect", cs setupPath)
+                            renderPlain ""
+                        else do
+                            setErrorMessage "Venue admins and owners must add a passkey before continuing."
+                            redirectToPath setupPath
 
 isCurrentUserPasskeyVerified :: (?context :: ControllerContext) => IO Bool
 isCurrentUserPasskeyVerified =
@@ -253,8 +260,12 @@ ensureFreshPasskeyReadyFor redirectPath = do
     hasPasskey <- currentUserHasPasskey
     if not hasPasskey
         then withRequestContext do
-            setSession passkeyStepUpRedirectSessionKey redirectPath
-            redirectTo PasskeySetupAction
+            setSession passkeyStepUpRedirectSessionKey (safePasskeyReturnPathOrRoster redirectPath)
+            if isHtmxRequest
+                then do
+                    setHeader ("HX-Redirect", cs (pathTo PasskeySetupAction))
+                    renderPlain ""
+                else redirectTo PasskeySetupAction
         else ensureFreshPasskeyVerifiedFor redirectPath
 
 ensureFreshPasskeyVerifiedFor :: (?context :: ControllerContext) => Text -> IO ()
@@ -262,14 +273,42 @@ ensureFreshPasskeyVerifiedFor redirectPath = do
     verified <- isCurrentUserPasskeyVerified
     unless verified do
         withRequestContext do
-            setSession passkeyStepUpRedirectSessionKey redirectPath
-            setErrorMessage "Verify with your passkey to continue."
-            redirectTo PasskeyStepUpAction
+            setSession passkeyStepUpRedirectSessionKey (safePasskeyReturnPathOrRoster redirectPath)
+            if isHtmxRequest
+                then redirectTo ShowPasskeyStepUpDialogAction
+                else do
+                    setErrorMessage "Verify with your passkey to continue."
+                    redirectTo PasskeyStepUpAction
 
 
 currentRequestPath :: (?request :: Request) => Text
 currentRequestPath =
     TextEncoding.decodeUtf8 (Wai.rawPathInfo ?request <> Wai.rawQueryString ?request)
+
+safePasskeyReturnPath :: Text -> Maybe Text
+safePasskeyReturnPath value
+    | not ("/" `Text.isPrefixOf` value) = Nothing
+    | "//" `Text.isPrefixOf` value = Nothing
+    | "\\" `Text.isInfixOf` value = Nothing
+    | Text.any isControl value = Nothing
+    | not (hasValidPercentEncoding value) = Nothing
+    | otherwise = Just value
+
+safePasskeyReturnPathOrRoster :: Text -> Text
+safePasskeyReturnPathOrRoster =
+    fromMaybe (pathTo RosterWeeksAction) . safePasskeyReturnPath
+
+hasValidPercentEncoding :: Text -> Bool
+hasValidPercentEncoding value =
+    case Text.breakOn "%" value of
+        (_, remainder)
+            | Text.null remainder -> True
+            | otherwise ->
+                case Text.unpack (Text.take 3 remainder) of
+                    ['%', firstDigit, secondDigit]
+                        | isHexDigit firstDigit && isHexDigit secondDigit ->
+                            hasValidPercentEncoding (Text.drop 3 remainder)
+                    _ -> False
 
 profileSecurityPath :: Text
 profileSecurityPath = pathTo EditProfileAction <> "?section=security"

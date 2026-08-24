@@ -44,6 +44,7 @@ data PasswordResetsController
 
 data PasskeysController
     = PasskeyStepUpAction
+    | ShowPasskeyStepUpDialogAction
     | PasskeySetupAction
     | DismissMandatoryPasskeySetupAction
     | ShowPasskeySetupDialogAction

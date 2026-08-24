@@ -97,6 +97,8 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "AUD 100/month"
                 response `responseBodyShouldContain` "Subscription inactive"
                 response `responseBodyShouldContain` "Subscribe"
+                response `responseBodyShouldContain` "hx-post=\"/CreateBillingCheckoutSession\""
+                response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
                 response `responseBodyShouldContain` "If you like Bepis, please support its development by subscribing."
                 response `responseBodyShouldNotContain` "Manual Controls"
                 response `responseBodyShouldNotContain` "Recent Stripe events"
@@ -528,9 +530,17 @@ tests = aroundAll withDatabaseTestContext do
                     callAction CreateBillingCheckoutSessionAction
                 portalResponse <- withUserAndCurrentVenue owner venue.id do
                     callAction CreateBillingPortalSessionAction
+                htmxCheckoutResponse <- withUserAndCurrentVenue owner venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction CreateBillingCheckoutSessionAction
+                htmxPortalResponse <- withUserAndCurrentVenue owner venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction CreateBillingPortalSessionAction
 
                 lookup "Location" (responseHeaders checkoutResponse) `shouldBe` Just "http://localhost/PasskeyStepUp"
                 lookup "Location" (responseHeaders portalResponse) `shouldBe` Just "http://localhost/PasskeyStepUp"
+                lookup "Location" (responseHeaders htmxCheckoutResponse) `shouldBe` Just "http://localhost/ShowPasskeyStepUpDialog"
+                lookup "Location" (responseHeaders htmxPortalResponse) `shouldBe` Just "http://localhost/ShowPasskeyStepUpDialog"
                 query @BillingCheckoutAttempt |> filterWhere (#venueId, unpackId venue.id) |> fetchCount `shouldReturn` 0
 
         it "lets an owner without a passkey start Checkout when privileged strong authentication is disabled" $ withContext do

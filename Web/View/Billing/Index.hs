@@ -4,6 +4,10 @@ module Web.View.Billing.Index where
 
 import Application.Billing.Checkout (checkoutAllowedForSubscription, venueSubscriptionIsLive)
 import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.FrontendContract.AppShell (SubmitPasskeyProtectedAction)
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             appShellActionByMarker,
+                                                             renderAppShellActionForm)
 import Application.Helper.FrontendContract.Overlay.Runtime (navigationLoadingAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Billing as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
@@ -323,14 +327,23 @@ renderOwnerBillingAction BillingViewModel { stripePortalAvailable } (OwnerOpenBi
 renderOwnerBillingActionForm :: Text -> Text -> Bool -> Html -> Html
 renderOwnerBillingActionForm actionUrl label available unavailableNotice = [hsx|
     <div class="d-flex flex-column align-items-start gap-2">
-        <form method="POST"
-              action={actionUrl}
-              {...navigationLoadingAttrs "Opening Stripe" "Please wait while Bepis opens Stripe's secure billing page."}>
-            <button type="submit" class="btn btn-primary" disabled={not available}>{label}</button>
-        </form>
+        {renderPasskeyProtectedBillingForm actionUrl label available}
         {if available then renderPaymentStepUpNotice else unavailableNotice}
     </div>
 |]
+
+renderPasskeyProtectedBillingForm :: Text -> Text -> Bool -> Html
+renderPasskeyProtectedBillingForm actionUrl label available =
+    renderAppShellActionForm
+        (appShellActionByMarker @SubmitPasskeyProtectedAction)
+        AppShellActionRoute
+            { appShellActionRouteUrl = actionUrl
+            , appShellActionRouteFields = []
+            , appShellActionRouteCustomHtmx = []
+            , appShellActionRouteStandardUrl = Nothing
+            , appShellActionRouteExtraAttrs = navigationLoadingAttrs "Opening Stripe" "Please wait while Bepis opens Stripe's secure billing page."
+            }
+        [hsx|<button type="submit" class="btn btn-primary" disabled={not available}>{label}</button>|]
 
 renderPaymentStepUpNotice :: Html
 renderPaymentStepUpNotice = [hsx|
