@@ -213,57 +213,69 @@ data OwnerBillingAction
     | OwnerOpenBillingPortal !Text
     deriving (Eq, Show)
 
-data OwnerBillingPresentation = OwnerBillingPresentation
-    { ownerStateLabel      :: !Text
-    , ownerStateBadgeClass :: !Text
-    , ownerStateGuidance   :: !Text
-    , ownerStateAction     :: !OwnerBillingAction
-    }
-
 renderOwnerSubscriptionPanel :: BillingViewModel -> Html
 renderOwnerSubscriptionPanel viewModel@BillingViewModel { maybeSubscription } =
-    let presentation = ownerBillingPresentation maybeSubscription
-     in simpleAppPanel
+    simpleAppPanel
         "Venue subscription"
         Nothing
         [hsx|
             <div class="d-flex flex-column align-items-start gap-4">
-                <section aria-label="Subscription status">
-                    <span class={"badge " <> presentation.ownerStateBadgeClass}>{presentation.ownerStateLabel}</span>
-                </section>
+                {renderOwnerSubscriptionStatus maybeSubscription}
                 <p class="h3 mb-0">$100/month</p>
-                {renderOwnerCancellationNotice maybeSubscription}
-                {renderOwnerBillingAction viewModel presentation.ownerStateAction}
+                {renderOwnerBillingAction viewModel (ownerBillingAction maybeSubscription)}
             </div>
         |]
 
-ownerBillingPresentation :: Maybe VenueSubscription -> OwnerBillingPresentation
-ownerBillingPresentation maybeSubscription =
+renderOwnerSubscriptionStatus :: Maybe VenueSubscription -> Html
+renderOwnerSubscriptionStatus maybeSubscription =
+    case maybeSubscription of
+        Just subscription
+            | venueSubscriptionIsLive maybeSubscription && subscription.cancelAtPeriodEnd -> [hsx|
+                <section
+                    class="alert alert-warning mb-0 w-100"
+                    role="status"
+                    aria-label="Subscription status"
+                    data-billing-subscription-status="cancellation-scheduled"
+                >
+                    <strong>Cancellation scheduled.</strong>
+                    This subscription remains active until {renderOwnerPeriodEnd subscription.currentPeriodEnd} and will not renew.
+                </section>
+            |]
+            | venueSubscriptionIsLive maybeSubscription -> [hsx|
+                <section
+                    class="alert alert-success mb-0 w-100"
+                    role="status"
+                    aria-label="Subscription status"
+                    data-billing-subscription-status="active"
+                >
+                    <strong>Subscription active</strong>
+                </section>
+            |]
+            | otherwise -> renderInactiveSubscriptionStatus
+        Nothing -> renderInactiveSubscriptionStatus
+
+renderInactiveSubscriptionStatus :: Html
+renderInactiveSubscriptionStatus = [hsx|
+    <section
+        class="alert alert-warning mb-0 w-100"
+        role="status"
+        aria-label="Subscription status"
+        data-billing-subscription-status="inactive"
+    >
+        <strong>Subscription inactive</strong>
+    </section>
+|]
+
+ownerBillingAction :: Maybe VenueSubscription -> OwnerBillingAction
+ownerBillingAction maybeSubscription =
     case maybeSubscription of
         Just subscription | venueSubscriptionIsLive maybeSubscription ->
             if subscription.cancelAtPeriodEnd
-                then ownerPresentation
-                    "Cancellation scheduled"
-                    "text-bg-warning"
-                    "The subscription remains active for the current period but will not renew."
-                    (OwnerOpenBillingPortal "Manage Cancellation")
-                else ownerPresentation
-                    "Active"
-                    "text-bg-success"
-                    "Your subscription is active and renews automatically each month."
-                    (OwnerOpenBillingPortal "Manage Billing")
-        _ ->
-            ownerPresentation
-                "Subscription inactive"
-                "text-bg-warning"
-                "If you like Bepis, please support its development by subscribing."
-                (if checkoutAllowedForSubscription maybeSubscription
-                    then OwnerStartSubscription "Subscribe"
-                    else OwnerOpenBillingPortal "Manage subscription")
-
-ownerPresentation :: Text -> Text -> Text -> OwnerBillingAction -> OwnerBillingPresentation
-ownerPresentation ownerStateLabel ownerStateBadgeClass ownerStateGuidance ownerStateAction =
-    OwnerBillingPresentation { .. }
+                then OwnerOpenBillingPortal "Manage Cancellation"
+                else OwnerOpenBillingPortal "Manage Billing"
+        _
+            | checkoutAllowedForSubscription maybeSubscription -> OwnerStartSubscription "Subscribe"
+            | otherwise -> OwnerOpenBillingPortal "Manage subscription"
 
 renderOwnerBillingPeriodRow :: Maybe VenueSubscription -> Html
 renderOwnerBillingPeriodRow maybeSubscription =
@@ -283,16 +295,6 @@ renderOwnerBillingPeriod (Just subscription) =
         (Nothing, Just periodEnd) -> "Ends " <> formatDateDisplay (utctDay periodEnd)
         (Just periodStart, Nothing) -> "Started " <> formatDateDisplay (utctDay periodStart)
         (Nothing, Nothing) -> "Timing not yet available"
-
-renderOwnerCancellationNotice :: Maybe VenueSubscription -> Html
-renderOwnerCancellationNotice (Just subscription)
-    | venueSubscriptionIsLive (Just subscription) && subscription.cancelAtPeriodEnd = [hsx|
-        <div class="alert alert-warning mb-0" role="status">
-            <strong>Cancellation scheduled.</strong>
-            This subscription remains active until {renderOwnerPeriodEnd subscription.currentPeriodEnd} and will not renew.
-        </div>
-    |]
-renderOwnerCancellationNotice _ = mempty
 
 renderOwnerPeriodEnd :: Maybe UTCTime -> Text
 renderOwnerPeriodEnd =

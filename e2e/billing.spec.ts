@@ -294,6 +294,8 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         await gotoWhenReady(page, '/Billing', '[data-billing-owner-view="true"]');
         const ownerBillingView = page.locator('[data-billing-owner-view="true"]');
         await expect(ownerBillingView.getByText('Subscription inactive', { exact: true })).toBeVisible();
+        await expect(ownerBillingView.locator('[data-billing-subscription-status="inactive"]')).toBeVisible();
+        await expect(ownerBillingView.locator('.badge')).toHaveCount(0);
         await expect(page.locator('.app-page-description')).toHaveText('If you like Bepis, please support its development by subscribing.');
         await expect(ownerBillingView.getByText('If you like Bepis, please support its development by subscribing.', { exact: true })).toHaveCount(0);
         await expect(page.getByText('$100/month', { exact: true })).toBeVisible();
@@ -404,7 +406,7 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         ] });
 
         await expect(page.getByText('Subscription confirmed', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
-        await expect(page.getByText('Active', { exact: true })).toBeVisible();
+        await expect(ownerBillingView.locator('[data-billing-subscription-status="active"]')).toContainText('Subscription active');
         await expect(page.getByRole('button', { name: 'Check again' })).toHaveCount(0);
         await expect.poll(() => querySql(`
             SELECT EXISTS (
@@ -433,6 +435,7 @@ test.describe('Billing through the strict local Stripe boundary', () => {
 
         await gotoWhenReady(page, '/Billing', '[data-billing-owner-view="true"]');
         await expect(page.locator('.app-page-description')).toHaveText('Thank you for supporting the development of Bepis.');
+        await expect(ownerBillingView.locator('[data-billing-subscription-status="active"]')).toContainText('Subscription active');
         await expect(page.getByText('$100/month', { exact: true })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Manage Billing' })).toBeVisible();
         const portalResponse = await page.request.post('/CreateBillingPortalSession', { maxRedirects: 0 });
@@ -444,8 +447,9 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         await deliverSignedWebhook(page, subscriptionEvent('evt_e2e-subscription_past_due', 'customer.subscription.updated', 'past_due'));
         await expect(ownerBillingView.getByText('Subscription inactive', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
         await deliverSignedWebhook(page, subscriptionEvent('evt_e2e-subscription_cancel_pending', 'customer.subscription.updated', 'active', true));
-        await expect(ownerBillingView.getByText('Cancellation scheduled', { exact: true }).first()).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
-        await expect(ownerBillingView.getByText(/This subscription remains active until .* and will not renew\./)).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
+        const scheduledCancellationStatus = ownerBillingView.locator('[data-billing-subscription-status="cancellation-scheduled"]');
+        await expect(scheduledCancellationStatus.getByText('Cancellation scheduled.', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
+        await expect(scheduledCancellationStatus.getByText(/This subscription remains active until .* and will not renew\./)).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
         await deliverSignedWebhook(page, subscriptionEvent('evt_e2e-subscription_deleted', 'customer.subscription.deleted', 'canceled'));
         await expect(ownerBillingView.getByText('Subscription inactive', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
         await deliverSignedWebhook(page, subscriptionEvent('evt_e2e-subscription_expired', 'customer.subscription.updated', 'incomplete_expired'));

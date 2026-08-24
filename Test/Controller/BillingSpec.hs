@@ -353,18 +353,18 @@ tests = aroundAll withDatabaseTestContext do
 
         it "renders one privacy-safe inactive subscription signal for every non-active state" $ withContext do
             forM_
-                [ (Nothing, False, "Subscription inactive", "Subscribe")
-                , (Just "active", False, "Active", "Manage Billing")
-                , (Just "active", True, "Cancellation scheduled", "Manage Cancellation")
-                , (Just "past_due", False, "Subscription inactive", "Manage subscription")
-                , (Just "unpaid", True, "Subscription inactive", "Manage subscription")
-                , (Just "incomplete", False, "Subscription inactive", "Manage subscription")
-                , (Just "trialing", False, "Subscription inactive", "Manage subscription")
-                , (Just "paused", False, "Subscription inactive", "Manage subscription")
-                , (Just "canceled", False, "Subscription inactive", "Subscribe")
-                , (Just "incomplete_expired", False, "Subscription inactive", "Subscribe")
+                [ (Nothing, False, "Subscription inactive", "inactive", "Subscribe")
+                , (Just "active", False, "Subscription active", "active", "Manage Billing")
+                , (Just "active", True, "Cancellation scheduled", "cancellation-scheduled", "Manage Cancellation")
+                , (Just "past_due", False, "Subscription inactive", "inactive", "Manage subscription")
+                , (Just "unpaid", True, "Subscription inactive", "inactive", "Manage subscription")
+                , (Just "incomplete", False, "Subscription inactive", "inactive", "Manage subscription")
+                , (Just "trialing", False, "Subscription inactive", "inactive", "Manage subscription")
+                , (Just "paused", False, "Subscription inactive", "inactive", "Manage subscription")
+                , (Just "canceled", False, "Subscription inactive", "inactive", "Subscribe")
+                , (Just "incomplete_expired", False, "Subscription inactive", "inactive", "Subscribe")
                 ]
-                \(maybeStatus, cancelAtPeriodEnd, stateLabel, actionLabel) -> withCleanDb do
+                \(maybeStatus, cancelAtPeriodEnd, stateLabel, stateValue, actionLabel) -> withCleanDb do
                     venue <- createVenueWithConfig ("Billing State " <> stateLabel <> " Venue")
                     owner <- createUserRecord ("billing-state-" <> Text.replace " " "-" (Text.toLower stateLabel) <> "@example.com") "staff" True
                     _ <- createVenueMembershipRecord venue owner VenueOwner
@@ -392,7 +392,9 @@ tests = aroundAll withDatabaseTestContext do
 
                     response `responseStatusShouldBe` status200
                     response `responseBodyShouldContain` stateLabel
+                    response `responseBodyShouldContain` ("data-billing-subscription-status=\"" <> stateValue <> "\"")
                     response `responseBodyShouldContain` actionLabel
+                    response `responseBodyShouldNotContain` "<span class=\"badge text-bg-success\">Active</span>"
                     response `responseBodyShouldContain` "$100/month"
                     response `responseBodyShouldNotContain` "Current period"
                     response `responseBodyShouldNotContain` "You will verify with your passkey before Stripe opens."
