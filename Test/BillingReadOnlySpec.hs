@@ -48,7 +48,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Billing"
-                response `responseBodyShouldContain` "Start Subscription"
+                response `responseBodyShouldContain` "Subscribe"
 
         it "blocks representative roster writes" $ withContext do
             withCleanDb do

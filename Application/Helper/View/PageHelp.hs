@@ -283,9 +283,9 @@ pageHelpTopics =
         ]
     , topic "billing" "Billing"
         [ section HelpOwnerOnly "Billing tasks"
-            [ iconItem HelpOwnerOnly "bi-receipt" "Status" "Understand your subscription" "Review the plain-language status, AUD 100 monthly plan, current billing period, and any cancellation notice for this venue. Status viewing does not require a fresh passkey check."
-            , buttonItem HelpOwnerOnly "bi-credit-card" "Payment" "Start or restart a subscription" "Click Start Subscription or Restart Subscription when shown. Repeated requests safely resume the same available Stripe Checkout. Payment actions require fresh passkey verification." "btn btn-primary" Nothing "Start Subscription"
-            , buttonItem HelpOwnerOnly "bi-credit-card" "Payment" "Manage or resolve billing" "Use the state-specific button to open Stripe for payment details, receipts, payment recovery, or cancellation. Payment actions require fresh passkey verification." "btn btn-outline-primary" Nothing "Manage Billing"
+            [ iconItem HelpOwnerOnly "bi-receipt" "Status" "Understand your subscription" "Review whether this venue has a live subscription, the AUD 100 monthly plan, current billing period, and any cancellation notice. If it is not live, Bepis asks you to support development by subscribing. Status viewing does not require a fresh passkey check."
+            , buttonItem HelpOwnerOnly "bi-credit-card" "Payment" "Subscribe" "Click Subscribe when shown. Repeated requests safely resume the same available Stripe Checkout. Payment actions require fresh passkey verification." "btn btn-primary" Nothing "Subscribe"
+            , buttonItem HelpOwnerOnly "bi-credit-card" "Payment" "Manage billing" "Use Manage Billing to open Stripe for payment details, receipts, payment recovery, or cancellation. Payment actions require fresh passkey verification." "btn btn-outline-primary" Nothing "Manage Billing"
             , iconItem HelpOwnerOnly "bi-arrow-clockwise" "Refresh" "Wait for secure confirmation" "After Checkout returns, Bepis shows pending, confirmed, or failed progress for that exact attempt and updates the live status automatically."
             ]
         , section HelpSupportOnly "Founder support"

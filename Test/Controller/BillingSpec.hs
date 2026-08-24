@@ -95,8 +95,9 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "billing-status-fragment"
                 response `responseBodyShouldContain` "billing:"
                 response `responseBodyShouldContain` "AUD 100/month"
-                response `responseBodyShouldContain` "No subscription"
-                response `responseBodyShouldContain` "Start Subscription"
+                response `responseBodyShouldContain` "Subscription inactive"
+                response `responseBodyShouldContain` "Subscribe"
+                response `responseBodyShouldContain` "If you like Bepis, please support its development by subscribing."
                 response `responseBodyShouldNotContain` "Manual Controls"
                 response `responseBodyShouldNotContain` "Recent Stripe events"
                 response `responseBodyShouldNotContain` "data-billing-founder-diagnostics"
@@ -230,7 +231,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "id=\"billing-status-fragment\""
-                response `responseBodyShouldContain` "Start Subscription"
+                response `responseBodyShouldContain` "Subscribe"
                 response `responseBodyShouldNotContain` "id=\"app\""
 
         it "rejects non-owner venue members" $ withContext do
@@ -299,7 +300,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "bounded support event failure"
                 response `responseBodyShouldContain` "Last synchronized"
                 response `responseBodyShouldContain` "Synchronize with Stripe"
-                response `responseBodyShouldNotContain` "Start Subscription"
+                response `responseBodyShouldNotContain` "Subscribe"
                 response `responseBodyShouldNotContain` "Manage Billing"
                 response `responseBodyShouldNotContain` "Manual Controls"
                 response `responseBodyShouldNotContain` "Manual read-only"
@@ -346,14 +347,18 @@ tests = aroundAll withDatabaseTestContext do
                 ownerResponse `responseBodyShouldNotContain` "Synchronize with Stripe"
                 ownerResponse `responseBodyShouldNotContain` "subscription_metadata_mismatch"
 
-        it "renders state-specific owner guidance and actions" $ withContext do
+        it "renders one privacy-safe inactive subscription signal for every non-active state" $ withContext do
             forM_
-                [ (Nothing, False, "No subscription", "Start Subscription", "Start a subscription for this venue")
+                [ (Nothing, False, "Subscription inactive", "Subscribe", "If you like Bepis, please support its development by subscribing.")
                 , (Just "active", False, "Active", "Manage Billing", "renews automatically")
                 , (Just "active", True, "Cancellation scheduled", "Manage Cancellation", "will not renew")
-                , (Just "past_due", False, "Payment needs attention", "Resolve Payment", "update your payment method")
-                , (Just "canceled", False, "Canceled", "Restart Subscription", "subscription has ended")
-                , (Just "incomplete_expired", False, "Setup expired", "Restart Subscription", "payment setup expired")
+                , (Just "past_due", False, "Subscription inactive", "Manage subscription", "If you like Bepis, please support its development by subscribing.")
+                , (Just "unpaid", True, "Subscription inactive", "Manage subscription", "If you like Bepis, please support its development by subscribing.")
+                , (Just "incomplete", False, "Subscription inactive", "Manage subscription", "If you like Bepis, please support its development by subscribing.")
+                , (Just "trialing", False, "Subscription inactive", "Manage subscription", "If you like Bepis, please support its development by subscribing.")
+                , (Just "paused", False, "Subscription inactive", "Manage subscription", "If you like Bepis, please support its development by subscribing.")
+                , (Just "canceled", False, "Subscription inactive", "Subscribe", "If you like Bepis, please support its development by subscribing.")
+                , (Just "incomplete_expired", False, "Subscription inactive", "Subscribe", "If you like Bepis, please support its development by subscribing.")
                 ]
                 \(maybeStatus, cancelAtPeriodEnd, stateLabel, actionLabel, guidance) -> withCleanDb do
                     venue <- createVenueWithConfig ("Billing State " <> stateLabel <> " Venue")
@@ -389,6 +394,8 @@ tests = aroundAll withDatabaseTestContext do
                     response `responseBodyShouldContain` "data-bepis-navigation-loading=\"true\""
                     response `responseBodyShouldContain` "data-bepis-navigation-loading-config="
                     response `responseBodyShouldContain` "Opening Stripe"
+                    when (maybeStatus /= Just "active") do
+                        response `responseBodyShouldNotContain` "Cancellation scheduled"
                     forM_ maybeStatus \status -> do
                         response `responseBodyShouldNotContain` ("sub_" <> status)
                         response `responseBodyShouldNotContain` ("cus_owner_hidden_" <> status)
@@ -418,6 +425,10 @@ tests = aroundAll withDatabaseTestContext do
                 visibleResponse <- withStripeConfigForTest (Right visibleConfig) do
                     withUserAndCurrentVenue owner venue.id do
                         callAction BillingAction
+                activeSubscription <- createVenueSubscriptionWithStatus venue "active"
+                activeResponse <- withStripeConfigForTest (Right visibleConfig) do
+                    withUserAndCurrentVenue owner venue.id do
+                        callAction BillingAction
                 supportResponse <- withStripeConfigForTest (Right visibleConfig) do
                     withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
                         callAction BillingAction
@@ -426,6 +437,11 @@ tests = aroundAll withDatabaseTestContext do
                 hiddenResponse `responseBodyShouldNotContain` "href=\"/Billing\""
                 visibleResponse `responseStatusShouldBe` status200
                 visibleResponse `responseBodyShouldContain` "href=\"/Billing\""
+                visibleResponse `responseBodyShouldContain` "data-billing-subscription-alert=\"true\""
+                activeResponse `responseStatusShouldBe` status200
+                activeResponse `responseBodyShouldContain` "href=\"/Billing\""
+                activeResponse `responseBodyShouldNotContain` "data-billing-subscription-alert=\"true\""
+                activeSubscription.status `shouldBe` "active"
                 supportResponse `responseStatusShouldBe` status200
                 supportResponse `responseBodyShouldNotContain` "href=\"/Billing\""
                 visibleBody <- (cs <$> responseBody visibleResponse) :: IO Text
@@ -453,7 +469,7 @@ tests = aroundAll withDatabaseTestContext do
                             pure (billingResponse, checkoutResponse)
 
                 billingResponse `responseStatusShouldBe` status200
-                billingResponse `responseBodyShouldContain` "Start Subscription"
+                billingResponse `responseBodyShouldContain` "Subscribe"
                 billingResponse `responseBodyShouldNotContain` "data-billing-founder-diagnostics"
                 lookup "Location" (responseHeaders checkoutResponse) `shouldBe` Just "https://checkout.stripe.com/c/pay/cs_test_123"
                 customer <- query @VenueBillingCustomer |> filterWhere (#venueId, unpackId venue.id) |> fetchOne

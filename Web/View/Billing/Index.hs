@@ -2,6 +2,7 @@
 
 module Web.View.Billing.Index where
 
+import Application.Billing.Checkout (checkoutAllowedForSubscription, venueSubscriptionIsLive)
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendContract.Overlay.Runtime (navigationLoadingAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Billing as Surface
@@ -254,43 +255,28 @@ renderOwnerSubscriptionPanel viewModel@BillingViewModel { maybeSubscription } =
         |]
 
 ownerBillingPresentation :: Maybe VenueSubscription -> OwnerBillingPresentation
-ownerBillingPresentation Nothing =
-    ownerPresentation
-        "No subscription"
-        "text-bg-secondary"
-        "Start a subscription for this venue at AUD 100 per month. Checkout is hosted securely by Stripe."
-        (OwnerStartSubscription "Start Subscription")
-ownerBillingPresentation (Just subscription)
-    | subscription.status == "canceled" =
-        ownerPresentation
-            "Canceled"
-            "text-bg-secondary"
-            "This venue's subscription has ended. Restart it whenever you are ready."
-            (OwnerStartSubscription "Restart Subscription")
-    | subscription.status == "incomplete_expired" =
-        ownerPresentation
-            "Setup expired"
-            "text-bg-secondary"
-            "The previous payment setup expired before it was completed. You can start again safely."
-            (OwnerStartSubscription "Restart Subscription")
-    | subscription.cancelAtPeriodEnd =
-        ownerPresentation
-            "Cancellation scheduled"
-            "text-bg-warning"
-            "The subscription remains active for the current period but will not renew."
-            (OwnerOpenBillingPortal "Manage Cancellation")
-    | subscription.status `elem` ["past_due", "unpaid", "paused", "incomplete"] =
-        ownerPresentation
-            "Payment needs attention"
-            "text-bg-warning"
-            "Open Stripe to update your payment method and review the payment that needs attention."
-            (OwnerOpenBillingPortal "Resolve Payment")
-    | otherwise =
-        ownerPresentation
-            "Active"
-            "text-bg-success"
-            "Your subscription is active and renews automatically each month."
-            (OwnerOpenBillingPortal "Manage Billing")
+ownerBillingPresentation maybeSubscription =
+    case maybeSubscription of
+        Just subscription | venueSubscriptionIsLive maybeSubscription ->
+            if subscription.cancelAtPeriodEnd
+                then ownerPresentation
+                    "Cancellation scheduled"
+                    "text-bg-warning"
+                    "The subscription remains active for the current period but will not renew."
+                    (OwnerOpenBillingPortal "Manage Cancellation")
+                else ownerPresentation
+                    "Active"
+                    "text-bg-success"
+                    "Your subscription is active and renews automatically each month."
+                    (OwnerOpenBillingPortal "Manage Billing")
+        _ ->
+            ownerPresentation
+                "Subscription inactive"
+                "text-bg-warning"
+                "If you like Bepis, please support its development by subscribing."
+                (if checkoutAllowedForSubscription maybeSubscription
+                    then OwnerStartSubscription "Subscribe"
+                    else OwnerOpenBillingPortal "Manage subscription")
 
 ownerPresentation :: Text -> Text -> Text -> OwnerBillingAction -> OwnerBillingPresentation
 ownerPresentation ownerStateLabel ownerStateBadgeClass ownerStateGuidance ownerStateAction =
@@ -308,7 +294,7 @@ renderOwnerBillingPeriod (Just subscription) =
 
 renderOwnerCancellationNotice :: Maybe VenueSubscription -> Html
 renderOwnerCancellationNotice (Just subscription)
-    | subscription.cancelAtPeriodEnd = [hsx|
+    | venueSubscriptionIsLive (Just subscription) && subscription.cancelAtPeriodEnd = [hsx|
         <div class="alert alert-warning mb-0" role="status">
             <strong>Cancellation scheduled.</strong>
             This subscription will not renew after {renderOwnerPeriodEnd subscription.currentPeriodEnd}.

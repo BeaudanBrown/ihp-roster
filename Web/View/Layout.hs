@@ -2,7 +2,7 @@
 
 module Web.View.Layout (defaultLayout, developmentLiveReloadWebsocketUrlForHost, Html) where
 
-import Application.Billing.Stripe (StripeOwnerNavigationVisibility (..))
+import Application.Billing.Stripe (BillingNavigationContext (..))
 import Application.Helper.Controller (EffectiveUser (..),
                                       ImpersonationRequestContext (..),
                                       SupportImpersonationOption (..),
@@ -162,19 +162,33 @@ renderMobileNavLinks = [hsx|
 
 renderOwnerBillingDesktopNavLink :: (?context :: ControllerContext, ?request :: Request) => Html
 renderOwnerBillingDesktopNavLink =
-    when ownerBillingNavigationIsVisible $
-        renderDesktopNavLink "billing" "bi-credit-card" (pathTo BillingAction) ["/Billing"]
+    when ownerBillingNavigationIsVisible [hsx|
+        <span class="position-relative d-inline-flex">
+            {renderDesktopNavLink "billing" "bi-credit-card" (pathTo BillingAction) ["/Billing"]}
+            {renderBillingSubscriptionAlert}
+        </span>
+    |]
 
 renderOwnerBillingMobileNavLink :: (?context :: ControllerContext, ?request :: Request) => Html
 renderOwnerBillingMobileNavLink =
-    when ownerBillingNavigationIsVisible $
-        renderMobileNavLink "Billing" "bi-credit-card" (pathTo BillingAction) ["/Billing"]
+    when ownerBillingNavigationIsVisible [hsx|
+        <span class="position-relative d-inline-flex">
+            {renderMobileNavLink "Billing" "bi-credit-card" (pathTo BillingAction) ["/Billing"]}
+            {renderBillingSubscriptionAlert}
+        </span>
+    |]
+
+renderBillingSubscriptionAlert :: (?context :: ControllerContext) => Html
+renderBillingSubscriptionAlert =
+    unless (fromFrozenContext @BillingNavigationContext).ownerBillingSubscriptionIsLive [hsx|
+        <span class="badge rounded-pill text-bg-warning" data-billing-subscription-alert="true" aria-label="Subscription inactive">!</span>
+    |]
 
 ownerBillingNavigationIsVisible :: (?context :: ControllerContext) => Bool
 ownerBillingNavigationIsVisible =
     (not currentUserIsSupportAdmin || currentUserIsImpersonating)
         && currentUserIsVenueOwner
-        && (fromFrozenContext @StripeOwnerNavigationVisibility).ownerBillingNavigationVisible
+        && (fromFrozenContext @BillingNavigationContext).ownerBillingNavigationVisible
 
 renderDesktopNavLink :: (?context :: ControllerContext, ?request :: Request) => Text -> Text -> Text -> [Text] -> Html
 renderDesktopNavLink label iconClass url activePrefixes = [hsx|

@@ -1,10 +1,12 @@
 module Web.FrontController where
 
-import Application.Billing.Stripe (StripeDeploymentControls (..),
-                                   StripeOwnerNavigationVisibility (..),
+import Application.Billing.Checkout (venueSubscriptionIsLive)
+import Application.Billing.Stripe (BillingNavigationContext (..),
+                                   StripeDeploymentControls (..),
                                    readStripeDeploymentControls)
 import Application.Helper.Controller (clearCurrentUserPasskeyVerification,
                                       currentUserIsSuperAdmin,
+                                      currentVenueOrNothing,
                                       currentVenueSessionKey)
 import Application.Helper.Feedback (SupportUnreadFeedbackCount (..),
                                     fetchSupportUnreadFeedbackCount)
@@ -106,14 +108,21 @@ clearAuthenticatedSessionContext = do
     deleteSession impersonationSessionIdSessionKey
     putContext (Nothing :: Maybe User)
 
-initBillingNavigationContext :: (?context :: ControllerContext) => IO ()
+initBillingNavigationContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 initBillingNavigationContext =
     profileActionSpan "context.billing-navigation.init" do
         deploymentControls <- readStripeDeploymentControls
-        putContext StripeOwnerNavigationVisibility
+        maybeSubscription <- join <$> traverse fetchVenueSubscription currentVenueOrNothing
+        putContext BillingNavigationContext
             { ownerBillingNavigationVisible =
                 either (const False) (.stripeOwnerNavigationVisible) deploymentControls
+            , ownerBillingSubscriptionIsLive = venueSubscriptionIsLive maybeSubscription
             }
+  where
+    fetchVenueSubscription venue =
+        query @VenueSubscription
+            |> filterWhere (#venueId, unpackId venue.id)
+            |> fetchOneOrNothing
 
 initFeedbackContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 initFeedbackContext =

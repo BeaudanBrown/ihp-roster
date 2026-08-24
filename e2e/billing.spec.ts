@@ -237,7 +237,7 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         await markCurrentSessionPasskeyVerified(page);
         await gotoWhenReady(page, '/Billing', '[data-billing-owner-view="true"]');
 
-        const startSubscription = page.getByRole('button', { name: 'Start Subscription' });
+        const startSubscription = page.getByRole('button', { name: 'Subscribe' });
         const stripeLoadingDialog = page.getByRole('dialog', { name: 'Opening Stripe' });
         await expect(stripeLoadingDialog).toHaveCount(0);
 
@@ -292,8 +292,9 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         await page.click('button[type="submit"]');
         await expect(page).toHaveURL(/(EditProfile|RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
         await gotoWhenReady(page, '/Billing', '[data-billing-owner-view="true"]');
-        await expect(page.getByText('No subscription', { exact: true })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Start Subscription' })).toBeEnabled();
+        await expect(page.getByText('Subscription inactive', { exact: true })).toBeVisible();
+        await expect(page.getByText('If you like Bepis, please support its development by subscribing.', { exact: true })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Subscribe' })).toBeEnabled();
         await expect(page.locator('header a[href="/Billing"]')).toBeVisible();
 
         const checkoutResponse = await page.request.post('/CreateBillingCheckoutSession', { maxRedirects: 0 });
@@ -341,7 +342,7 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         await expect(page.getByText('Subscription needs attention', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
 
         await gotoWhenReady(page, '/Billing', '[data-billing-owner-view="true"]');
-        await expect(page.getByText('No subscription', { exact: true })).toBeVisible();
+        await expect(page.getByText('Subscription inactive', { exact: true })).toBeVisible();
         const retryCheckoutResponse = await page.request.post('/CreateBillingCheckoutSession', { maxRedirects: 0 });
         expect(retryCheckoutResponse.status()).toBe(302);
         expect(retryCheckoutResponse.headers().location).toBe('https://checkout.stripe.com/c/pay/cs_test_e2e-retry-sanitized');
@@ -433,13 +434,13 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         await gotoWhenReady(page, '/Billing', '[data-billing-owner-view="true"]');
         await deliverSignedWebhook(page, invoicePaymentFailedEvent('evt_e2e-invoice_payment_failed'));
         await deliverSignedWebhook(page, subscriptionEvent('evt_e2e-subscription_past_due', 'customer.subscription.updated', 'past_due'));
-        await expect(page.getByText('Payment needs attention', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
+        await expect(page.getByText('Subscription inactive', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
         await deliverSignedWebhook(page, subscriptionEvent('evt_e2e-subscription_cancel_pending', 'customer.subscription.updated', 'active', true));
         await expect(page.getByText('Cancellation scheduled', { exact: true }).first()).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
         await deliverSignedWebhook(page, subscriptionEvent('evt_e2e-subscription_deleted', 'customer.subscription.deleted', 'canceled'));
-        await expect(page.getByText('Canceled', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
+        await expect(page.getByText('Subscription inactive', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
         await deliverSignedWebhook(page, subscriptionEvent('evt_e2e-subscription_expired', 'customer.subscription.updated', 'incomplete_expired'));
-        await expect(page.getByText('Setup expired', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
+        await expect(page.getByText('Subscription inactive', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
 
         const finalMockStatusResponse = await request.get(`${mockBaseUrl}/__status`);
         expect(await finalMockStatusResponse.json()).toMatchObject({
@@ -461,7 +462,7 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         await loginAsPrivilegedUserWithSeededPasskeySession(page, 'e2e-super-admin@example.com');
         await gotoWhenReady(page, '/Billing', '[data-billing-founder-diagnostics="true"]');
         await expect(page.getByText('Billing diagnostics', { exact: true })).toBeVisible();
-        await expect(page.getByRole('button', { name: /Start Subscription|Restart Subscription|Manage Billing|Resolve Payment/ })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: /Subscribe|Manage subscription|Manage Billing/ })).toHaveCount(0);
         await expect(page.locator('header a[href="/Billing"]')).toHaveCount(0);
     });
 });

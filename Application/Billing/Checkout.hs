@@ -5,6 +5,7 @@ module Application.Billing.Checkout
     , CheckoutStartOutcome (..)
     , CheckoutStartResult (..)
     , checkoutAllowedForSubscription
+    , venueSubscriptionIsLive
     , startOrResumeCheckoutForPrincipalWithTransaction
     )
 where
@@ -56,6 +57,9 @@ data CheckoutPreparation
 data LockedCheckoutResult
     = CheckoutFinished !CheckoutStartResult !Bool
     | CheckoutRestart !PreparedCheckout
+
+venueSubscriptionIsLive :: Maybe VenueSubscription -> Bool
+venueSubscriptionIsLive = maybe False ((== "active") . (.status))
 
 checkoutAllowedForSubscription :: Maybe VenueSubscription -> Bool
 checkoutAllowedForSubscription Nothing = True

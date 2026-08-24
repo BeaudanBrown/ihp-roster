@@ -78,10 +78,10 @@ tests = do
             billing <- maybe (expectationFailure "missing billing topic" >> error "missing billing topic") pure (lookupPageHelpTopic (PageHelpTopicId "billing"))
             let ownerHelp = flattenHelpText (filterPageHelpTopic ownerContext billing)
             let supportHelp = flattenHelpText (filterPageHelpTopic supportContext billing)
-            ownerHelp `shouldSatisfy` any (Text.isInfixOf "Start Subscription")
+            ownerHelp `shouldSatisfy` any (Text.isInfixOf "Subscribe")
             ownerHelp `shouldSatisfy` all (not . Text.isInfixOf "Synchronize with Stripe")
             supportHelp `shouldSatisfy` any (Text.isInfixOf "Synchronize with Stripe")
-            supportHelp `shouldSatisfy` all (not . Text.isInfixOf "Start Subscription")
+            supportHelp `shouldSatisfy` all (not . Text.isInfixOf "Subscribe")
             supportHelp `shouldSatisfy` all (not . Text.isInfixOf "manual read-only")
   where
     topicContexts =

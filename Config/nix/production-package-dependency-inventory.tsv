@@ -64,13 +64,13 @@ Data.Time	time	Web/Controller/RosterWeeks.hs via Main
 Data.Time.Calendar	time	Web/SurfaceInvalidation.hs via Main
 Data.Time.Calendar.WeekDate	time	Application/Helper/WeekBoundaries.hs via Main
 Data.Time.Clock	time	Application/Helper/LiveUpdate/DurableListener.hs via Main
-Data.Time.Clock.POSIX	time	Application/Billing/Stripe.hs via Main
+Data.Time.Clock.POSIX	time	Application/Billing/Checkout.hs via Main
 Data.Time.Format	time	Web/Controller/Prelude.hs via Main
 Data.Time.LocalTime	time	Web/Controller/RosterWeeks.hs via Main
 Data.Time.Zones	tz	Application/VenueTime.hs via Main
 Data.Time.Zones.All	tz	Application/VenueTime.hs via Main
 Data.Traversable	base	Application/VenueTime/Model.hs via Main
-Data.Tuple.Only	Only	Web/Timesheets/Mutations.hs via Main
+Data.Tuple.Only	Only	Application/Billing/Persistence.hs via Main
 Data.Typeable	base	Web/Controller/Prelude.hs via Main
 Data.UUID	uuid	Application/Helper/LiveUpdate/DurableListener.hs via Main
 Data.UUID.V4	uuid	Application/Helper/Profiling.hs via Main
@@ -96,7 +96,7 @@ IHP.Controller.Param	ihp	Application/Helper/FrontendContract/Surface/Request.hs 
 IHP.Controller.Render	ihp	Application/Helper/Profiling.hs via Main
 IHP.Controller.Response	ihp	Application/Helper/Telemetry.hs via Main
 IHP.Controller.Session	ihp	Web/FrontController.hs via Main
-IHP.ControllerPrelude	ihp	Application/Helper/Feedback.hs via Main
+IHP.ControllerPrelude	ihp	Application/Billing/Checkout.hs via Main
 IHP.ControllerSupport	ihp	Application/Helper/Profiling.hs via Main
 IHP.EnvVar	ihp	Config/Config.hs via Main
 IHP.Environment	ihp	Config/Config.hs via Main
