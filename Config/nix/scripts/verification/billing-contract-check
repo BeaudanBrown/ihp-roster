@@ -3,4 +3,3 @@ set -euo pipefail
 
 python3 scripts/check-stripe-openapi-contract
 billing-migration-check
-nix eval --impure --json --file Config/nix/tests/billing-stripe-module.nix >/dev/null

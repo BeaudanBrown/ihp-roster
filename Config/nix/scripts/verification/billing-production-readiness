@@ -6,6 +6,9 @@ set -euo pipefail
 echo "billing-production-readiness: repository contracts"
 billing-contract-check
 
+echo "billing-production-readiness: deployment modules"
+deployment-module-check
+
 echo "billing-production-readiness: Stripe Sandbox probe sanitizer"
 stripe-sandbox-contract-parity --self-test
 
