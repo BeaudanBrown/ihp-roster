@@ -420,9 +420,13 @@ export async function registerFirstPasskeyForCurrentUser(page: Page) {
 }
 
 export async function registerFirstSupportPasskeyForCurrentUser(page: Page) {
-    await gotoWhenReady(page, '/Support', `[${passkeyRegistrationDomAttr}]`);
+    await gotoWhenReady(page, '/Support', '#support-impersonation-user');
+    if (!(await passkeyRegistrationButton(page).isVisible().catch(() => false))) {
+        await page.getByRole('link', { name: 'Create passkey' }).click();
+        await expect(page.locator(`[${passkeyRegistrationDomAttr}]`)).toBeVisible({ timeout: E2E_TIMEOUT.action });
+    }
     await registerFirstPasskeyFromVisibleControl(page);
-    await gotoWhenReady(page, '/Support', `[${passkeyRegistrationDomAttr}]`);
+    await gotoWhenReady(page, '/Support', '#support-impersonation-user');
     await expect(currentPasskeyTable(page).locator('tbody tr')).toHaveCount(1, { timeout: E2E_TIMEOUT.passkey });
 }
 

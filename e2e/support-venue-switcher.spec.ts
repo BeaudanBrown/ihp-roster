@@ -1,10 +1,20 @@
 import { expect, test } from '@playwright/test';
+import {
+    dialogOverlayMountDomId,
+    toastMountDomAttr,
+    toastOverlayMountDomId,
+} from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
 import {
+    clearCurrentSessionPasskeyVerification,
+    clearE2EUserPasskeys,
     defaultE2ERosterGroupId,
+    enableVirtualPasskeyAuthenticator,
     gotoWhenReady,
     loginAsPrivilegedUserWithSeededPasskeySession,
+    loginAsWithFreshBrowserSession,
     openRoster,
+    registerFirstSupportPasskeyForCurrentUser,
     webauthnBaseURL,
 } from './test-helpers';
 
@@ -38,19 +48,57 @@ test.describe('Super-admin venue and user switchers', () => {
         await expect(userSwitcher).toContainText('Super admin');
         await expect(userSwitcher).toContainText('Alpha — Worker');
         await expect(userSwitcher).not.toContainText('@');
+        const rosterUrl = page.url();
 
         await userSwitcher.selectOption({ label: 'Alpha — Worker' });
-        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page).toHaveURL(rosterUrl, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#roster-week-shell')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#support-impersonation-user option:checked')).toHaveText('Alpha — Worker');
         await expect(page.getByRole('link', { name: 'support', exact: true })).toBeVisible();
         await expect(page.getByRole('link', { name: 'admin', exact: true })).toHaveCount(0);
 
         await page.locator('#support-impersonation-user').selectOption({ label: 'Super admin' });
-        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page).toHaveURL(rosterUrl, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#roster-week-shell')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#support-impersonation-user option:checked')).toHaveText('Super admin');
         await expect(page.getByRole('link', { name: 'support', exact: true })).toBeVisible();
+
+        await gotoWhenReady(page, '/Support', '#support-impersonation-user');
+        await page.locator('#support-impersonation-user').selectOption({ label: 'Alpha — Worker' });
+        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
+        const fallbackToast = page.locator(`#${toastOverlayMountDomId} [${toastMountDomAttr}]`);
+        await expect(fallbackToast).toContainText('That page is not available for the resulting account. Showing its Roster instead.');
+    });
+
+    test('passkey overlay keeps context and requires the blocked switch to be repeated', async ({ page }) => {
+        clearE2EUserPasskeys('e2e-super-admin@example.com');
+        await enableVirtualPasskeyAuthenticator(page);
+        await loginAsWithFreshBrowserSession(page, 'e2e-super-admin@example.com', 'test-password-123');
+        await registerFirstSupportPasskeyForCurrentUser(page);
+        await gotoWhenReady(page, '/RosterWeeks', '#roster-content');
+        await openRoster(page, {
+            email: 'e2e-super-admin@example.com',
+            password: 'test-password-123',
+            ensureEditable: false,
+            useCurrentSession: true,
+        });
+        await clearCurrentSessionPasskeyVerification(page);
+        const rosterUrl = page.url();
+        const userSwitcher = page.locator('#support-impersonation-user');
+        const finishStepUpResponse = page.waitForResponse(
+            (response) => new URL(response.url()).pathname === '/FinishPasskeyStepUpAuthentication',
+            { timeout: E2E_TIMEOUT.passkey },
+        );
+
+        await userSwitcher.selectOption({ label: 'Alpha — Worker' });
+        expect((await finishStepUpResponse).status()).toBe(200);
+        await expect(page.locator(`#${dialogOverlayMountDomId}`)).toBeEmpty({ timeout: E2E_TIMEOUT.passkey });
+        await expect(page).toHaveURL(rosterUrl);
+        await expect(userSwitcher).toHaveValue('');
+
+        await userSwitcher.selectOption({ label: 'Alpha — Worker' });
+        await expect(page).toHaveURL(rosterUrl, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('#support-impersonation-user option:checked')).toHaveText('Alpha — Worker');
     });
 
     test('keeps impersonation isolated between concurrent founder sessions', async ({ browser }) => {

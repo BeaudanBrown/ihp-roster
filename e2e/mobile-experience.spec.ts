@@ -45,17 +45,17 @@ test.describe('Mobile experience smoke', () => {
 
         await userSwitcher.selectOption({ label: 'Alpha — Worker' });
         await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('#support-impersonation-user-mobile option:checked')).toHaveText('Alpha — Worker');
         await expect(page.locator('#roster-week-shell')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await openAuthenticatedNavIfCollapsed(page);
-        await expect(page.locator('#support-impersonation-user-mobile option:checked')).toHaveText('Alpha — Worker');
-        await expect(page.getByRole('link', { name: 'Support', exact: true })).toBeVisible();
+        await expect(page.locator('a[href="/Support"]:visible')).toHaveCount(1);
         await expectNoHorizontalViewportOverflow(page);
 
         await page.locator('#support-impersonation-user-mobile').selectOption({ label: 'Super admin' });
         await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('#support-impersonation-user-mobile option:checked')).toHaveText('Super admin');
         await expect(page.locator('#roster-week-shell')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await openAuthenticatedNavIfCollapsed(page);
-        await expect(page.locator('#support-impersonation-user-mobile option:checked')).toHaveText('Super admin');
         await expectNoHorizontalViewportOverflow(page);
     });
 

@@ -12,10 +12,12 @@ import Application.Helper.Controller (EffectiveUser (..),
                                       currentUserIsImpersonating,
                                       currentVenueMembershipOrNothing,
                                       currentVenueOrNothing)
-import Application.Helper.FrontendContract.AppShell (OpenFeedbackDialog)
+import Application.Helper.FrontendContract.AppShell (OpenFeedbackDialog,
+                                                     SubmitPasskeyProtectedAction)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
-                                                             applyAppShellActionAttrs)
+                                                             applyAppShellActionAttrs,
+                                                             renderAppShellActionForm)
 import Application.Helper.View
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
@@ -254,18 +256,26 @@ renderSupportVenueOption venue = [hsx|
 |]
 
 renderSupportImpersonationSwitcher :: (?context :: ControllerContext, ?request :: Request) => Text -> Text -> Html
-renderSupportImpersonationSwitcher switchId formClass = [hsx|
-    <form class={formClass} method="POST" action={SwitchSupportImpersonationAction}>
-        <input type="hidden" name="next" value={TextEncoding.decodeUtf8 getRequestPathAndQuery}/>
-        <div class="input-group input-group-sm">
-            <label class="input-group-text" for={switchId}>View as</label>
-            <select id={switchId} class="form-select" name="userId" onchange="this.form.submit()">
-                <option value="" selected={isNothing currentImpersonationOrNothing}>Super admin</option>
-                {forEach currentSupportImpersonationOptions renderSupportImpersonationOption}
-            </select>
-        </div>
-    </form>
-|]
+renderSupportImpersonationSwitcher switchId formClass =
+    renderAppShellActionForm
+        (appShellActionByMarker @SubmitPasskeyProtectedAction)
+        AppShellActionRoute
+            { appShellActionRouteUrl = pathTo SwitchSupportImpersonationAction
+            , appShellActionRouteFields = []
+            , appShellActionRouteCustomHtmx = []
+            , appShellActionRouteStandardUrl = Just (pathTo SwitchSupportImpersonationAction)
+            , appShellActionRouteExtraAttrs = [("class", formClass)]
+            }
+        [hsx|
+            <input type="hidden" name="next" value={TextEncoding.decodeUtf8 getRequestPathAndQuery}/>
+            <div class="input-group input-group-sm">
+                <label class="input-group-text" for={switchId}>View as</label>
+                <select id={switchId} class="form-select" name="userId" onchange="this.form.requestSubmit(); this.form.reset()">
+                    <option value="" selected={isNothing currentImpersonationOrNothing}>Super admin</option>
+                    {forEach currentSupportImpersonationOptions renderSupportImpersonationOption}
+                </select>
+            </div>
+        |]
 
 renderSupportImpersonationOption :: (?context :: ControllerContext) => SupportImpersonationOption -> Html
 renderSupportImpersonationOption userOption = [hsx|

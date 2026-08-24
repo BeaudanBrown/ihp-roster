@@ -69,6 +69,10 @@ newtype EffectiveUser = EffectiveUser { effectiveUserRecord :: User }
 
 newtype EffectiveStaffContext = EffectiveStaffContext { effectiveStaffContextValue :: Maybe Staff }
 
+newtype ImpersonationReturnFallbackContext = ImpersonationReturnFallbackContext
+    { impersonationReturnFallbackVisible :: Bool
+    }
+
 data ImpersonationRequestContext = ImpersonationRequestContext
     { impersonationSessionId       :: !UUID
     , impersonationEffectiveUser   :: !EffectiveUser
@@ -110,6 +114,11 @@ effectiveVenueRoleOrNothing :: (?context :: ControllerContext) => Maybe VenueRol
 effectiveVenueRoleOrNothing =
     (.impersonationVenueRole) <$> currentImpersonationOrNothing
         <|> currentVenueRoleOrNothing
+
+currentImpersonationReturnFallbackVisible :: (?context :: ControllerContext) => Bool
+currentImpersonationReturnFallbackVisible =
+    maybe False (.impersonationReturnFallbackVisible) (unsafePerformIO (maybeFromContext @ImpersonationReturnFallbackContext))
+{-# NOINLINE currentImpersonationReturnFallbackVisible #-}
 
 effectiveStaffOrNothing :: (?context :: ControllerContext) => Maybe Staff
 effectiveStaffOrNothing =

@@ -12,9 +12,11 @@ import Application.Helper.Feedback (SupportUnreadFeedbackCount (..),
                                     fetchSupportUnreadFeedbackCount)
 import Application.Helper.FrontendContract.Surface.Support.Resource
 import Application.Helper.FwcMapd (FwcMapdAdminData, fetchFwcMapdAdminData)
+import Application.Helper.RosterTemplateScale (parseRosterTemplateScale)
 import Application.Helper.SurfaceResource (SurfaceResourceValue,
                                            liveMutationResult,
                                            liveMutationValue)
+import Application.Helper.View (PageHelpTopicId (..), lookupPageHelpTopic)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationIsActive,
                                                      venueOnboardingInvitationLifetime)
 import Application.InvitationDelivery.Enqueue (enqueueVenueOnboardingInvitationEmail)
@@ -27,10 +29,16 @@ import Application.Support.LiveUpdates
 import Application.VenueOnboardingInvitation.Mutations (withVenueOnboardingInvitationRenewalLock)
 import Application.Xero.Timesheets.Diagnostic (XeroTimesheetDiagnosticError (..),
                                                fetchXeroTimesheetDiagnostic)
-import Control.Monad (forM, forM_, void)
+import Control.Monad (forM, forM_, guard, void)
 import Data.Char (isControl)
 import Data.Coerce (coerce)
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as TextEncoding
+import Data.Time.Calendar (Day)
+import Data.Time.Format (defaultTimeLocale, parseTimeM)
+import qualified Data.UUID as UUID
+import qualified Network.HTTP.Types.URI as URI
+import Text.Read (readMaybe)
 import Web.Controller.Prelude
 import Web.RosterWeeks.Paths (supportVenueSwitchReturnPath)
 import Web.SurfaceInvalidation (withDurableLiveMutation)
@@ -280,20 +288,24 @@ instance Controller SupportController where
 
     action currentAction@StartSupportImpersonationAction = runBepis currentAction BepisMutationAction do
         ensureCurrentVenue
-        ensureFreshPasskeyReady
+        let nextPath = paramOrNothing @Text "next"
+        ensureFreshPasskeyReadyFor (safeSupportReturnPathOrRoster nextPath)
         case paramOrNothing @Text "userId" >>= parseUUIDText of
             Nothing -> renderAccessDenied
             Just userId ->
                 enterCurrentVenueImpersonation (Id userId) >>= \case
                     Nothing -> renderAccessDenied
-                    Just _ -> do
+                    Just impersonationContext -> do
                         setSuccessMessage "Support impersonation started."
-                        redirectTo RosterWeeksAction
+                        destination <- authorizedSupportReturnPath impersonationContext nextPath
+                        redirectAfterImpersonationTransition destination
 
     action currentAction@ExitSupportImpersonationAction = runBepis currentAction BepisMutationAction do
+        let nextPath = paramOrNothing @Text "next"
         void (exitCurrentImpersonation "manual_exit")
         setSuccessMessage "Returned to Super admin mode."
-        redirectTo SupportAction
+        destination <- founderSupportReturnPath nextPath
+        redirectAfterImpersonationTransition destination
 
     action currentAction@SwitchSupportImpersonationAction = runBepis currentAction BepisMutationAction do
         let selectedUserId = Text.strip (paramOrDefault @Text "" "userId")
@@ -302,22 +314,20 @@ instance Controller SupportController where
             then do
                 void (exitCurrentImpersonation "selector_exit")
                 setSuccessMessage "Returned to Super admin mode."
-                case nextPath of
-                    Just safePath | isSafeReturnPath safePath -> redirectToPath safePath
-                    _ -> redirectTo SupportAction
+                destination <- founderSupportReturnPath nextPath
+                redirectAfterImpersonationTransition destination
             else do
                 ensureCurrentVenue
-                ensureFreshPasskeyReady
+                ensureFreshPasskeyReadyFor (safeSupportReturnPathOrRoster nextPath)
                 case parseUUIDText selectedUserId of
                     Nothing -> renderAccessDenied
                     Just userId ->
                         enterCurrentVenueImpersonation (Id userId) >>= \case
                             Nothing -> renderAccessDenied
-                            Just _ -> do
+                            Just impersonationContext -> do
                                 setSuccessMessage "Support impersonation started."
-                                case nextPath of
-                                    Just safePath | isSafeReturnPath safePath -> redirectToPath safePath
-                                    _ -> redirectTo RosterWeeksAction
+                                destination <- authorizedSupportReturnPath impersonationContext nextPath
+                                redirectAfterImpersonationTransition destination
 
     action currentAction@SwitchSupportVenueAction = runBepis currentAction BepisPageAction do
         void (exitCurrentImpersonation "venue_switch")
@@ -335,7 +345,7 @@ instance Controller SupportController where
             Just currentVenue -> do
                 setSession currentVenueSessionKey currentVenue.id
                 setSuccessMessage ("Support venue switched to " <> currentVenue.name)
-                if isSafeReturnPath nextPath
+                if isSafeSupportVenueReturnPath nextPath
                     then redirectToPath (supportVenueSwitchReturnPath nextPath)
                     else redirectTo SupportAction
 
@@ -462,9 +472,226 @@ respondToPublicHolidayRefresh =
             respondHtml (renderPublicHolidaysSection publicHolidayCoverage latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
         else redirectTo SupportAction
 
-isSafeReturnPath :: Text -> Bool
-isSafeReturnPath candidate =
+isSafeSupportVenueReturnPath :: Text -> Bool
+isSafeSupportVenueReturnPath candidate =
     Text.isPrefixOf "/" candidate
     && not (Text.isPrefixOf "//" candidate)
     && not (Text.isInfixOf "://" candidate)
     && Text.all (\character -> not (isControl character) && character /= '\\') candidate
+
+safeSupportReturnPathOrRoster :: Maybe Text -> Text
+safeSupportReturnPathOrRoster candidate =
+    fromMaybe (pathTo RosterWeeksAction) do
+        safePath <- candidate >>= safePasskeyReturnPath
+        guard (isJust (supportReturnAuthority safePath))
+        pure safePath
+
+founderSupportReturnPath :: (?context :: ControllerContext, ?request :: Request) => Maybe Text -> IO Text
+founderSupportReturnPath candidate =
+    case candidate >>= safePasskeyReturnPath of
+        Just safePath | isJust (supportReturnAuthority safePath) -> do
+            clearImpersonationReturnFallback
+            pure safePath
+        _ -> do
+            when (isJust candidate) markImpersonationReturnFallback
+            pure (pathTo RosterWeeksAction)
+
+authorizedSupportReturnPath :: (?context :: ControllerContext, ?request :: Request) => ImpersonationRequestContext -> Maybe Text -> IO Text
+authorizedSupportReturnPath impersonationContext candidate =
+    case candidate >>= safePasskeyReturnPath of
+        Just safePath | effectiveUserCanReturnTo impersonationContext safePath -> do
+            clearImpersonationReturnFallback
+            pure safePath
+        _ -> do
+            when (isJust candidate) markImpersonationReturnFallback
+            pure (pathTo RosterWeeksAction)
+
+data SupportReturnAuthority
+    = SupportReturnProfile
+    | SupportReturnVenueUser
+    | SupportReturnStaff
+    | SupportReturnManager
+    | SupportReturnAdmin
+    | SupportReturnOwner
+    | SupportReturnFounder
+
+effectiveUserCanReturnTo :: ImpersonationRequestContext -> Text -> Bool
+effectiveUserCanReturnTo impersonationContext candidate =
+    case supportReturnAuthority candidate of
+        Just SupportReturnProfile -> True
+        Just SupportReturnVenueUser -> profileCompleted
+        Just SupportReturnStaff -> profileCompleted
+        Just SupportReturnManager -> profileCompleted && hasRequiredRole Manager
+        Just SupportReturnAdmin -> profileCompleted && hasRequiredRole VenueAdmin
+        Just SupportReturnOwner -> profileCompleted && hasRequiredRole VenueOwner
+        Just SupportReturnFounder -> False
+        Nothing -> False
+  where
+    profileCompleted = maybe False requiredProfileFieldsCompleted impersonationContext.impersonationStaff
+    hasRequiredRole = hasVenueRole impersonationContext.impersonationVenueRole
+
+supportReturnAuthority :: Text -> Maybe SupportReturnAuthority
+supportReturnAuthority candidate
+    | returnPathIs "/Support" && queryAllows ["section"] = Just SupportReturnFounder
+    | returnPathIs "/Billing"
+        && queryAllows ["checkout", "attempt_id", "session_id"]
+        && returnQueryOptionalValueIsValid candidate "checkout" (== "success")
+        && returnQueryOptionalValueIsValid candidate "attempt_id" (isJust . UUID.fromText)
+        && returnQueryOptionalValueIsValid candidate "session_id" (not . Text.null) = Just SupportReturnOwner
+    | returnPathIs "/BillingSuccess"
+        && queryAllows ["attempt_id", "session_id"]
+        && returnQueryHasUUID "attempt_id"
+        && returnQueryHasNonEmpty "session_id" = Just SupportReturnOwner
+    | returnPathIs "/BillingCancel"
+        && queryAllows ["attempt_id"]
+        && returnQueryHasUUID "attempt_id" = Just SupportReturnOwner
+    | returnPathIs "/Xero" && queryAllows [] = Just SupportReturnOwner
+    | returnPathIs "/Admin"
+        && queryAllows ["anchorDate", "rosterGroupId", "showExports"]
+        && returnQueryOptionalDayIsValid candidate "anchorDate"
+        && returnQueryOptionalUUIDIsValid candidate "rosterGroupId" = Just SupportReturnAdmin
+    | returnPathIs "/ExportJobs" && queryAllows [] = Just SupportReturnAdmin
+    | returnPathIs "/NewRosterTemplate"
+        && queryAllows ["rosterGroupId", "name", "scale", "startingPoint"]
+        && returnQueryHasUUID "rosterGroupId"
+        && returnQueryOptionalValueIsValid candidate "name" (not . Text.null)
+        && returnQueryOptionalValueIsValid candidate "scale" (isJust . parseRosterTemplateScale)
+        && returnQueryOptionalValueIsValid candidate "startingPoint" (`elem` ["blank", "reference"]) = Just SupportReturnManager
+    | returnPathIs "/ShowRosterTemplateReference"
+        && queryAllows ["rosterGroupId", "name", "scale"]
+        && returnQueryHasUUID "rosterGroupId"
+        && validTemplateReferenceSelectionQuery candidate = Just SupportReturnManager
+    | returnPathIs "/ConfirmRosterTemplateReference"
+        && queryAllows ["rosterGroupId", "name", "scale", "operationalDate"]
+        && returnQueryHasUUID "rosterGroupId"
+        && validTemplateReferenceConfirmationQuery candidate = Just SupportReturnManager
+    | returnPathIs "/ShowRosterTemplateDesigner" && queryAllows ["rosterTemplateDesignId"] && returnQueryHasUUID "rosterTemplateDesignId" = Just SupportReturnManager
+    | returnPathIs "/ShowRosterTemplateApplicationConfirmation"
+        && queryAllows ["rosterTemplateId", "rosterGroupId", "targetDropzoneKey"]
+        && returnQueryHasUUID "rosterTemplateId"
+        && returnQueryHasUUID "rosterGroupId"
+        && returnQueryHasNonEmpty "targetDropzoneKey" = Just SupportReturnManager
+    | returnPathIs "/NewStaff"
+        && queryAllows ["anchorDate", "rosterGroupId"]
+        && returnQueryOptionalDayIsValid candidate "anchorDate"
+        && returnQueryOptionalUUIDIsValid candidate "rosterGroupId" = Just SupportReturnManager
+    | returnPathIs "/EditStaff"
+        && queryAllows ["staffId", "anchorDate", "rosterGroupId", "section"]
+        && returnQueryHasUUID "staffId"
+        && returnQueryOptionalDayIsValid candidate "anchorDate"
+        && returnQueryOptionalUUIDIsValid candidate "rosterGroupId" = Just SupportReturnManager
+    | returnPathIs "/EditProfile" && queryAllows ["section"] && returnQueryHas "section" "security" = Just SupportReturnFounder
+    | returnPathIs "/EditProfile" && queryAllows ["section"] = Just SupportReturnProfile
+    | returnPathIs "/NewFeedback" && queryAllows [] = Just SupportReturnProfile
+    | returnPathIs "/ShowPageHelp"
+        && queryAllows ["topic"]
+        && maybe False (isJust . lookupPageHelpTopic . PageHelpTopicId) (returnQueryValue candidate "topic") = Just SupportReturnProfile
+    | returnPathIs "/Timesheets" && queryAllows [] = Just SupportReturnStaff
+    | returnPathIs "/ShowTimesheetWindow"
+        && queryAllows ["anchorDate", "staffFilterId", "rosterGroupFilterId"]
+        && returnQueryHasDay "anchorDate"
+        && returnQueryOptionalUUIDIsValid candidate "staffFilterId"
+        && returnQueryOptionalUUIDIsValid candidate "rosterGroupFilterId" = Just SupportReturnStaff
+    | returnPathIs "/LeaveRequests"
+        && queryAllows ["archivePage", "openSection", "section", "weekOffset"]
+        && returnQueryOptionalValueIsValid candidate "archivePage" validPositiveInt
+        && returnQueryOptionalValueIsValid candidate "weekOffset" validInt
+        && returnQueryOptionalValueIsValid candidate "openSection" (== "archive")
+        && returnQueryOptionalValueIsValid candidate "section" (`elem` ["pending", "approved", "denied", "archive"]) = Just SupportReturnManager
+    | returnPathIs "/NewLeaveRequest" && queryAllows [] = Just SupportReturnStaff
+    | returnPathIs "/RosterWeeks"
+        && queryAllows ["rosterGroupId", "rosterView", "dayOffset"]
+        && returnQueryOptionalUUIDIsValid candidate "rosterGroupId"
+        && validRosterViewQuery candidate = Just SupportReturnVenueUser
+    | returnPathIs "/ShowRosterWindow"
+        && queryAllows ["anchorDate", "rosterGroupId", "rosterView", "dayDate", "dayOffset"]
+        && returnQueryHasDay "anchorDate"
+        && returnQueryOptionalUUIDIsValid candidate "rosterGroupId"
+        && returnQueryOptionalDayIsValid candidate "dayDate"
+        && validRosterViewQuery candidate = Just SupportReturnVenueUser
+    | otherwise = Nothing
+  where
+    candidatePath = Text.takeWhile (/= '?') candidate
+    returnPathIs expected = candidatePath == expected
+    queryAllows = returnQueryAllows candidate
+    returnQueryHas name value = returnQueryValue candidate name == Just value
+    returnQueryHasUUID name = maybe False (isJust . UUID.fromText) (returnQueryValue candidate name)
+    returnQueryHasNonEmpty name = maybe False (not . Text.null) (returnQueryValue candidate name)
+    returnQueryHasDay name = maybe False validIsoDay (returnQueryValue candidate name)
+
+returnQueryValue :: Text -> Text -> Maybe Text
+returnQueryValue candidate name =
+    join (lookup name (returnQuery candidate))
+
+returnQueryAllows :: Text -> [Text] -> Bool
+returnQueryAllows candidate allowedNames =
+    all (`elem` allowedNames) names
+        && all (isJust . snd) parsedQuery
+        && length names == length (nub names)
+  where
+    parsedQuery = returnQuery candidate
+    names = map fst parsedQuery
+
+returnQueryOptionalUUIDIsValid :: Text -> Text -> Bool
+returnQueryOptionalUUIDIsValid candidate name =
+    returnQueryOptionalValueIsValid candidate name (isJust . UUID.fromText)
+
+returnQueryOptionalDayIsValid :: Text -> Text -> Bool
+returnQueryOptionalDayIsValid candidate name =
+    returnQueryOptionalValueIsValid candidate name validIsoDay
+
+returnQueryOptionalValueIsValid :: Text -> Text -> (Text -> Bool) -> Bool
+returnQueryOptionalValueIsValid candidate name validValue =
+    case lookup name (returnQuery candidate) of
+        Nothing -> True
+        Just (Just value) -> validValue value
+        Just Nothing -> False
+
+returnQuery :: Text -> URI.QueryText
+returnQuery candidate =
+    URI.parseQueryText (TextEncoding.encodeUtf8 queryText)
+  where
+    queryText = Text.takeWhile (/= '#') (Text.drop 1 (snd (Text.breakOn "?" candidate)))
+
+validIsoDay :: Text -> Bool
+validIsoDay value =
+    isJust (parseTimeM True defaultTimeLocale "%F" (Text.unpack value) :: Maybe Day)
+
+validTemplateReferenceSelectionQuery :: Text -> Bool
+validTemplateReferenceSelectionQuery candidate =
+    maybe False (not . Text.null) (returnQueryValue candidate "name")
+        && maybe False (isJust . parseRosterTemplateScale) (returnQueryValue candidate "scale")
+
+validTemplateReferenceConfirmationQuery :: Text -> Bool
+validTemplateReferenceConfirmationQuery candidate =
+    validTemplateReferenceSelectionQuery candidate
+        && case returnQueryValue candidate "scale" >>= parseRosterTemplateScale of
+            Just Day -> maybe False validIsoDay (returnQueryValue candidate "operationalDate")
+            Just Week -> isNothing (returnQueryValue candidate "operationalDate")
+            Nothing -> False
+
+validRosterViewQuery :: Text -> Bool
+validRosterViewQuery candidate =
+    case returnQueryValue candidate "rosterView" of
+        Nothing -> isNothing (returnQueryValue candidate "dayDate") && isNothing (returnQueryValue candidate "dayOffset")
+        Just "timeline" -> returnQueryOptionalValueIsValid candidate "dayOffset" validRosterDayOffset
+        Just _ -> False
+
+validRosterDayOffset :: Text -> Bool
+validRosterDayOffset value =
+    maybe False (\offset -> offset >= (0 :: Int) && offset <= 6) (readMaybe (Text.unpack value))
+
+validPositiveInt :: Text -> Bool
+validPositiveInt value =
+    maybe False (> (0 :: Int)) (readMaybe (Text.unpack value))
+
+validInt :: Text -> Bool
+validInt value =
+    isJust (readMaybe (Text.unpack value) :: Maybe Int)
+
+redirectAfterImpersonationTransition :: (?context :: ControllerContext, ?request :: Request) => Text -> IO ()
+redirectAfterImpersonationTransition destination
+    | isHtmxRequest = do
+        setHeader ("HX-Redirect", cs destination)
+        renderPlain ""
+    | otherwise = redirectToPath destination

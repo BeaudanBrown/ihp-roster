@@ -237,14 +237,19 @@ instance Controller RosterWeeksController where
         annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenueOrSupportRedirect
-        ensureProfileCompleted
+        case ?theAction of
+            RosterWeeksAction -> unless (currentUserIsImpersonating && currentImpersonationReturnFallbackVisible) ensureProfileCompleted
+            ShowRosterWindowAction {} -> unless (currentUserIsImpersonating && currentImpersonationReturnFallbackVisible) ensureProfileCompleted
+            _ -> ensureProfileCompleted
         markStaleRosterCalendarResponseForRefresh
 
     action currentAction@RosterWeeksAction = runBepis currentAction BepisPageAction do
         venueConfig <- fetchVenueConfig
         today <- utctDay <$> getCurrentTime
         resolveRosterPageGroup >>= \case
-            Nothing -> renderNoRosterGroupPage
+            Nothing -> do
+                clearImpersonationReturnFallback
+                renderNoRosterGroupPage
             Just (currentRosterGroup, requestedGroupWasViewable) -> do
                 let currentWeekPath = case paramOrNothing @Text "rosterView" of
                         Just "timeline" -> rosterTimelineWindowUrl today currentRosterGroup.id
@@ -256,6 +261,7 @@ instance Controller RosterWeeksController where
                             setHeader ("HX-Redirect", cs currentWeekPath)
                             respondHtmlProfiled mempty
                         _ -> do
+                            clearImpersonationReturnFallback
                             setHtmxPushUrl currentWeekPath
                             renderRosterWeekPage (rosterWindowScopeForAnchor venueConfig currentRosterGroup.id today)
 
@@ -263,9 +269,14 @@ instance Controller RosterWeeksController where
         anchorDate <- parseIsoDayRouteParam anchorDateParam
         venueConfig <- fetchVenueConfig
         resolveRosterPageGroup >>= \case
-            Nothing -> renderNoRosterGroupPage
-            Just (rosterGroup, True) -> renderRosterWeekPage (rosterWindowScopeForAnchor venueConfig rosterGroup.id anchorDate)
-            Just (rosterGroup, False) -> redirectToPath (rosterWindowUrl anchorDate rosterGroup.id)
+            Nothing -> do
+                clearImpersonationReturnFallback
+                renderNoRosterGroupPage
+            Just (rosterGroup, True) -> do
+                clearImpersonationReturnFallback
+                renderRosterWeekPage (rosterWindowScopeForAnchor venueConfig rosterGroup.id anchorDate)
+            Just (rosterGroup, False) ->
+                redirectToPath (rosterWindowUrl anchorDate rosterGroup.id)
 
     action currentAction@ShowRosterDayTimelineContentFragmentAction { anchorDate = anchorDateParam, rosterDayId } = runBepis currentAction BepisFragmentAction do
         anchorDate <- parseIsoDayRouteParam anchorDateParam
