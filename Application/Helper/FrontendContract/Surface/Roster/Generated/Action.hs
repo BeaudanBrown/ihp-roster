@@ -11,10 +11,12 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , ApplyRosterTemplateApplicationActionOperation
     , CopyRosterWeekActionOperation
     , CreateRosterNotificationRunActionOperation
+    , CreateRosterTemplateCaptureActionOperation
     , CreateRosterWeekSlotDefinitionActionOperation
     , DeleteRosterWeekSlotDefinitionActionOperation
     , NavigateRosterWeekActionOperation
     , PreviewRosterTemplateApplicationActionOperation
+    , PreviewRosterTemplateCaptureActionOperation
     , RemoveRosterRowActionOperation
     , ShowRosterNotificationConfirmationActionOperation
     , SortRosterWeekActionOperation
@@ -33,6 +35,8 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , copyRosterWeekActionFields
     , createRosterNotificationRunAction
     , createRosterNotificationRunActionFields
+    , createRosterTemplateCaptureAction
+    , createRosterTemplateCaptureActionFields
     , createRosterWeekSlotDefinitionAction
     , createRosterWeekSlotDefinitionActionFields
     , deleteRosterWeekSlotDefinitionAction
@@ -43,7 +47,9 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , parseApplyRosterTemplateApplicationActionParams
     , parseCopyRosterWeekActionParams
     , parseCreateRosterNotificationRunActionParams
+    , parseCreateRosterTemplateCaptureActionParams
     , parsePreviewRosterTemplateApplicationActionParams
+    , parsePreviewRosterTemplateCaptureActionParams
     , parseShowRosterNotificationConfirmationActionParams
     , parseToggleRosterAssignmentFiltersActionParams
     , parseToggleRosterOwnLiveShiftHighlightActionParams
@@ -53,6 +59,8 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , parseToggleRosterWeekLiveStatusActionParams
     , previewRosterTemplateApplicationAction
     , previewRosterTemplateApplicationActionFields
+    , previewRosterTemplateCaptureAction
+    , previewRosterTemplateCaptureActionFields
     , removeRosterRowAction
     , removeRosterRowActionFields
     , showRosterNotificationConfirmationAction
@@ -252,6 +260,56 @@ parseCreateRosterNotificationRunActionParams =
     parseActionParams
         @CreateRosterNotificationRunActionOperation
 
+data CreateRosterTemplateCaptureActionOperation
+
+type instance ActionSurface CreateRosterTemplateCaptureActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
+type instance ActionMarker CreateRosterTemplateCaptureActionOperation = Types2.CreateRosterTemplateCapture
+type instance ActionFieldSpecs CreateRosterTemplateCaptureActionOperation =
+    '[ 'Field Types2.TemplateName 'WireText
+     , 'Field Types2.CaptureAssignmentMode ('WireClosed Types2.RosterTemplateCaptureAssignmentMode)
+     , 'OptionalField Types2.StaleShiftTypeIds ('WireList 'WireUUID)
+     , 'OptionalField Types2.MappedShiftTypeIds ('WireList 'WireUUID)
+     , 'Field Types2.ExpectedSourceRevision 'WireText
+     , 'Field Types2.RosterCalendarRevision 'WireInt
+     , 'Field Types2.WarningsConfirmed 'WireBool
+     ]
+
+createRosterTemplateCaptureActionFields ::
+    Text ->
+    Types2.RosterTemplateCaptureAssignmentMode ->
+    Maybe [UUID.UUID] ->
+    Maybe [UUID.UUID] ->
+    Text ->
+    Int ->
+    Bool ->
+    ActionFields CreateRosterTemplateCaptureActionOperation
+createRosterTemplateCaptureActionFields templateName captureAssignmentMode staleShiftTypeIds mappedShiftTypeIds expectedSourceRevision rosterCalendarRevision warningsConfirmed =
+    actionFields
+        (surfaceField @Types2.TemplateName templateName)
+        ( surfaceField @Types2.CaptureAssignmentMode captureAssignmentMode
+            &: surfaceOptionalField @Types2.StaleShiftTypeIds staleShiftTypeIds
+            &: surfaceOptionalField @Types2.MappedShiftTypeIds mappedShiftTypeIds
+            &: surfaceField @Types2.ExpectedSourceRevision expectedSourceRevision
+            &: surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision
+            &: surfaceField @Types2.WarningsConfirmed warningsConfirmed
+            &: noSurfaceFields
+        )
+
+createRosterTemplateCaptureActionEvidence :: ActionEvidence CreateRosterTemplateCaptureActionOperation
+createRosterTemplateCaptureActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "CreateRosterTemplateCapture" "create-roster-template-capture" [SurfaceIR.FieldIR "TemplateName" "templateName" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "CaptureAssignmentMode" "captureAssignmentMode" (SurfaceIR.WireClosedIR "RosterTemplateCaptureAssignmentMode" "Application.Helper.FrontendContract.Surface.Roster" "RosterTemplateCaptureAssignmentMode") SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaleShiftTypeIds" "staleShiftTypeIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "MappedShiftTypeIds" "mappedShiftTypeIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "ExpectedSourceRevision" "expectedSourceRevision" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "WarningsConfirmed" "warningsConfirmed" (SurfaceIR.WireBoolIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" []))])
+
+createRosterTemplateCaptureAction :: ActionFields CreateRosterTemplateCaptureActionOperation -> FrontendSurfaceAction
+createRosterTemplateCaptureAction =
+    frontendSurfaceActionFromEvidence createRosterTemplateCaptureActionEvidence
+
+parseCreateRosterTemplateCaptureActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields CreateRosterTemplateCaptureActionOperation)
+parseCreateRosterTemplateCaptureActionParams =
+    parseActionParams
+        @CreateRosterTemplateCaptureActionOperation
+
 data CreateRosterWeekSlotDefinitionActionOperation
 
 type instance ActionSurface CreateRosterWeekSlotDefinitionActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
@@ -399,6 +457,47 @@ parsePreviewRosterTemplateApplicationActionParams ::
 parsePreviewRosterTemplateApplicationActionParams =
     parseActionParams
         @PreviewRosterTemplateApplicationActionOperation
+
+data PreviewRosterTemplateCaptureActionOperation
+
+type instance ActionSurface PreviewRosterTemplateCaptureActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
+type instance ActionMarker PreviewRosterTemplateCaptureActionOperation = Types2.PreviewRosterTemplateCapture
+type instance ActionFieldSpecs PreviewRosterTemplateCaptureActionOperation =
+    '[ 'Field Types2.TemplateName 'WireText
+     , 'Field Types2.CaptureAssignmentMode ('WireClosed Types2.RosterTemplateCaptureAssignmentMode)
+     , 'OptionalField Types2.StaleShiftTypeIds ('WireList 'WireUUID)
+     , 'OptionalField Types2.MappedShiftTypeIds ('WireList 'WireUUID)
+     ]
+
+previewRosterTemplateCaptureActionFields ::
+    Text ->
+    Types2.RosterTemplateCaptureAssignmentMode ->
+    Maybe [UUID.UUID] ->
+    Maybe [UUID.UUID] ->
+    ActionFields PreviewRosterTemplateCaptureActionOperation
+previewRosterTemplateCaptureActionFields templateName captureAssignmentMode staleShiftTypeIds mappedShiftTypeIds =
+    actionFields
+        (surfaceField @Types2.TemplateName templateName)
+        ( surfaceField @Types2.CaptureAssignmentMode captureAssignmentMode
+            &: surfaceOptionalField @Types2.StaleShiftTypeIds staleShiftTypeIds
+            &: surfaceOptionalField @Types2.MappedShiftTypeIds mappedShiftTypeIds
+            &: noSurfaceFields
+        )
+
+previewRosterTemplateCaptureActionEvidence :: ActionEvidence PreviewRosterTemplateCaptureActionOperation
+previewRosterTemplateCaptureActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "PreviewRosterTemplateCapture" "preview-roster-template-capture" [SurfaceIR.FieldIR "TemplateName" "templateName" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "CaptureAssignmentMode" "captureAssignmentMode" (SurfaceIR.WireClosedIR "RosterTemplateCaptureAssignmentMode" "Application.Helper.FrontendContract.Surface.Roster" "RosterTemplateCaptureAssignmentMode") SurfaceIR.RequiredField, SurfaceIR.FieldIR "StaleShiftTypeIds" "staleShiftTypeIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "MappedShiftTypeIds" "mappedShiftTypeIds" (SurfaceIR.WireListIR (SurfaceIR.WireUuidIR)) SurfaceIR.OptionalFieldPresence] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" []))])
+
+previewRosterTemplateCaptureAction :: ActionFields PreviewRosterTemplateCaptureActionOperation -> FrontendSurfaceAction
+previewRosterTemplateCaptureAction =
+    frontendSurfaceActionFromEvidence previewRosterTemplateCaptureActionEvidence
+
+parsePreviewRosterTemplateCaptureActionParams ::
+    (?request :: Request) =>
+    Either [SurfaceRequestFieldError] (ActionFields PreviewRosterTemplateCaptureActionOperation)
+parsePreviewRosterTemplateCaptureActionParams =
+    parseActionParams
+        @PreviewRosterTemplateCaptureActionOperation
 
 data RemoveRosterRowActionOperation
 

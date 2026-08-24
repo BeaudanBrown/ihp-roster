@@ -10,6 +10,7 @@ module Application.RosterTemplates
     , RosterTemplateShiftInput (..)
     , RosterTemplateSnapshot (..)
     , createRosterTemplate
+    , createRosterTemplateInCurrentTransaction
     , currentRosterTemplateActor
     , fetchRosterTemplate
     , fetchRosterTemplateLibrary
@@ -39,8 +40,8 @@ import Application.RosterShiftAssignment (RosterShiftAssignment (..))
 import Application.RosterTemplates.Mutations (lockRosterTemplate,
                                               lockRosterTemplateContentReferenceRows,
                                               lockRosterTemplateName)
-import qualified "crypton" Crypto.Hash as Hash
 import Control.Monad (void)
+import qualified "crypton" Crypto.Hash as Hash
 import Data.List (sortOn)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -146,14 +147,25 @@ createRosterTemplate ::
     Text ->
     RosterTemplateContent ->
     IO (Either RosterTemplateError RosterTemplateSnapshot)
-createRosterTemplate actor rosterGroup scale requestedName content
+createRosterTemplate actor rosterGroup scale requestedName content =
+    withTransaction (createRosterTemplateInCurrentTransaction actor rosterGroup scale requestedName content)
+
+createRosterTemplateInCurrentTransaction ::
+    (?modelContext :: ModelContext) =>
+    RosterTemplateActor ->
+    RosterGroup ->
+    RosterTemplateScaleEnum ->
+    Text ->
+    RosterTemplateContent ->
+    IO (Either RosterTemplateError RosterTemplateSnapshot)
+createRosterTemplateInCurrentTransaction actor rosterGroup scale requestedName content
     | not actor.actorCanEditRosters = pure (Left RosterTemplateForbidden)
     | rosterGroup.venueId /= unpackId actor.actorVenueId = pure (Left RosterTemplateScopeMismatch)
     | scale /= Week = pure (Left RosterTemplateUnsupportedScale)
     | invalidTemplateName normalizedName = pure (Left RosterTemplateInvalidName)
     | otherwise = case validateTemplateContent scale content of
         Left problem -> pure (Left problem)
-        Right () -> withTransaction do
+        Right () -> do
             references <- validateContentReferences actor rosterGroup.id content
             case references of
                 Left problem -> pure (Left problem)
@@ -238,7 +250,7 @@ fetchRosterTemplate actor templateId
     | otherwise = do
         maybeTemplate <- fetchScopedTemplate actor templateId
         case maybeTemplate of
-            Nothing -> pure Nothing
+            Nothing       -> pure Nothing
             Just template -> Just <$> loadRosterTemplate template
 
 fetchSavedRosterTemplate ::

@@ -223,6 +223,8 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapterExcluded @RosterAdapterFamily @Roster.DropRosterStaff intentOnlyActionReason
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.PreviewRosterTemplateApplication allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ApplyRosterTemplateApplication allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.PreviewRosterTemplateCapture allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.CreateRosterTemplateCapture allRequestAdapterOperations
     , surfaceOperationLocalActionAdapterExcluded @RosterDayTimelineAdapterFamily @Roster.MoveRosterTimelineShift intentOnlyActionReason
     , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ArchiveLeaveRequestsPage requestAdapterOperationsWithParamsPresent
     , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ApproveLeaveRequest

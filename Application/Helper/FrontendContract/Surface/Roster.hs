@@ -61,6 +61,14 @@ module Application.Helper.FrontendContract.Surface.Roster
     , WeekTemplateDropzone
     , PreviewRosterTemplateApplication
     , ApplyRosterTemplateApplication
+    , PreviewRosterTemplateCapture
+    , CreateRosterTemplateCapture
+    , RosterTemplateCaptureAssignmentMode (..)
+    , CaptureAssignmentMode
+    , StaleShiftTypeIds
+    , MappedShiftTypeIds
+    , ExpectedSourceRevision
+    , WarningsConfirmed
     , ExpectedTemplateVersion
     , ExpectedTargetRevision
     , TemplateCardRole
@@ -234,6 +242,15 @@ import Generated.Types (RosterLayoutModeEnum, RosterTemplateScaleEnum)
 import IHP.ModelSupport (InputValue (..))
 import IHP.Prelude
 
+data RosterTemplateCaptureAssignmentMode
+    = KeepValidStaffAssignments
+    | MakeEveryShiftOpen
+    deriving (Eq, Ord, Show, Enum, Bounded)
+
+instance InputValue RosterTemplateCaptureAssignmentMode where
+    inputValue KeepValidStaffAssignments = "keep_staff"
+    inputValue MakeEveryShiftOpen        = "open"
+
 data RosterStaffScopeValue
     = RosterStaffCurrentGroup
     | RosterStaffAllVenue
@@ -307,6 +324,13 @@ data DayTemplateDropzone
 data WeekTemplateDropzone
 data PreviewRosterTemplateApplication
 data ApplyRosterTemplateApplication
+data PreviewRosterTemplateCapture
+data CreateRosterTemplateCapture
+data CaptureAssignmentMode
+data StaleShiftTypeIds
+data MappedShiftTypeIds
+data ExpectedSourceRevision
+data WarningsConfirmed
 data ExpectedTemplateVersion
 data ExpectedTargetRevision
 
@@ -754,6 +778,29 @@ type RosterActionBundle =
          , Field ExpectedTemplateVersion 'WireInt
          , Field ExpectedTargetRevision 'WireText
          , Field RosterCalendarRevision 'WireInt
+         ]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")
+         , 'HtmxSwap 'HtmxInnerHTML
+         ]
+     , Action PreviewRosterTemplateCapture
+        '[ Field TemplateName 'WireText
+         , Field CaptureAssignmentMode ('WireClosed RosterTemplateCaptureAssignmentMode)
+         , OptionalField StaleShiftTypeIds ('WireList 'WireUUID)
+         , OptionalField MappedShiftTypeIds ('WireList 'WireUUID)
+         ]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")
+         , 'HtmxSwap 'HtmxInnerHTML
+         ]
+     , Action CreateRosterTemplateCapture
+        '[ Field TemplateName 'WireText
+         , Field CaptureAssignmentMode ('WireClosed RosterTemplateCaptureAssignmentMode)
+         , OptionalField StaleShiftTypeIds ('WireList 'WireUUID)
+         , OptionalField MappedShiftTypeIds ('WireList 'WireUUID)
+         , Field ExpectedSourceRevision 'WireText
+         , Field RosterCalendarRevision 'WireInt
+         , Field WarningsConfirmed 'WireBool
          ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")

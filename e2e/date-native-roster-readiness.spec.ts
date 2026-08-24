@@ -22,6 +22,11 @@ test.describe('Date-native Roster production readiness', () => {
                     id UUID PRIMARY KEY,
                     roster_week_id UUID NOT NULL
                 );
+                CREATE TABLE roster_template_designs (
+                    id UUID PRIMARY KEY,
+                    scale roster_template_scale_enum NOT NULL
+                );
+                ALTER TABLE roster_template_days ADD COLUMN roster_template_design_id UUID;
                 ALTER TABLE roster_days ADD COLUMN roster_week_id UUID;
                 ALTER TABLE roster_lanes ADD COLUMN legacy_roster_week_slot_definition_id UUID;
                 ALTER TABLE roster_slots ADD COLUMN roster_week_slot_definition_id UUID;
@@ -78,6 +83,8 @@ test.describe('Date-native Roster production readiness', () => {
                 ALTER TABLE roster_slots DROP COLUMN IF EXISTS roster_week_slot_definition_id;
                 ALTER TABLE roster_lanes DROP COLUMN IF EXISTS legacy_roster_week_slot_definition_id;
                 ALTER TABLE roster_days DROP COLUMN IF EXISTS roster_week_id;
+                ALTER TABLE roster_template_days DROP COLUMN IF EXISTS roster_template_design_id;
+                DROP TABLE IF EXISTS roster_template_designs;
                 DROP TABLE IF EXISTS roster_week_slot_definitions;
                 DROP TABLE IF EXISTS roster_weeks;
             `);

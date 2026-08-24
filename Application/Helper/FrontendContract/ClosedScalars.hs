@@ -11,7 +11,8 @@ import Application.Helper.FrontendContract.DSL hiding (Enum)
 import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveSectionValue)
 import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue)
 import Application.Helper.FrontendContract.Surface.Roster (RosterImageExportStyle,
-                                                           RosterStaffScopeValue)
+                                                           RosterStaffScopeValue,
+                                                           RosterTemplateCaptureAssignmentMode)
 import Generated.Types (FeedbackTypeEnum, RosterLayoutModeEnum,
                         RosterTemplateScaleEnum, ShiftTypeColourKeyEnum,
                         StaffEmploymentBasisEnum, VenueRoleEnum)
@@ -26,6 +27,7 @@ type ClosedScalarContract =
          , ServerSchema (ClosedScalar FeedbackTypeEnum)
          , ServerSchema (ClosedScalar StaffProfileSectionValue)
          , ServerSchema (ClosedScalar RosterStaffScopeValue)
+         , ServerSchema (ClosedScalar RosterTemplateCaptureAssignmentMode)
          , BrowserInboundSchema (ClosedScalar LeaveSectionValue)
          , ServerSchema (ClosedScalar ShiftTypeColourKeyEnum)
          , ServerSchema (ClosedScalar VenueRoleEnum)

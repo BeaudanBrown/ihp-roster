@@ -1124,6 +1124,8 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "add-roster-row"
                        , "remove-roster-row"
                        , "apply-roster-template-application"
+                       , "preview-roster-template-capture"
+                       , "create-roster-template-capture"
                        , "toggle-roster-staff-scope"
                        , "set-roster-layout-mode"
                        , "move-roster-shift-to-slot"

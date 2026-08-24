@@ -19,6 +19,9 @@ module Web.RosterWeeks.Dom
     , rosterRowDomIdText
     , rosterStaffPanelFragmentClasses
     , rosterStaffPanelFragmentId
+    , rosterTemplateCaptureFormId
+    , rosterTemplateCaptureNameInputId
+    , rosterTemplateCaptureWarningConfirmationId
     , rosterTemplateLibraryFragmentId
     , rosterStaffPanelStaffPaneId
     , rosterStaffPanelStaffTabId
@@ -84,6 +87,11 @@ rosterSlotsGridFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surf
 
 rosterStaffPanelFragmentId :: Text
 rosterStaffPanelFragmentId = surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterStaffPanel noSurfaceFields
+
+rosterTemplateCaptureFormId, rosterTemplateCaptureNameInputId, rosterTemplateCaptureWarningConfirmationId :: Text
+rosterTemplateCaptureFormId = "roster-template-capture-form"
+rosterTemplateCaptureNameInputId = "roster-template-capture-name"
+rosterTemplateCaptureWarningConfirmationId = "roster-template-capture-warning-confirmation"
 
 rosterTemplateLibraryFragmentId :: Id User -> Text
 rosterTemplateLibraryFragmentId userId =

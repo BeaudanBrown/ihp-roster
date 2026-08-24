@@ -264,6 +264,8 @@ data RosterTemplatesController
     | ApplyRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate), rosterGroupId :: !(Id RosterGroup) }
     | ConfirmDeleteRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate), rosterGroupId :: !(Id RosterGroup) }
     | ShowRosterTemplateLibraryFragmentAction { rosterGroupId :: !(Id RosterGroup) }
+    | PreviewRosterTemplateCaptureAction { rosterGroupId :: !(Id RosterGroup) }
+    | CreateRosterTemplateCaptureAction { rosterGroupId :: !(Id RosterGroup) }
     deriving (Eq, Show, Data)
 
 data RosterWeeksController

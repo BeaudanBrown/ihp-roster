@@ -17,8 +17,9 @@ mutation invocation, and response selection; HSX lives in
 - `Mutations.hs` and `Service.hs` — roster writes and shared domain policy.
 - `ShiftWorkflow.hs` and `DropWorkflow.hs` — dialog and drag/drop request
   resolution before mutation.
-- `TemplateDesigner.hs` and `TemplateApplication.hs` — immutable template
-  authoring and locked application.
+- `TemplateCapture.hs` and `TemplateApplication.hs` — date-native detached
+  Week capture and locked application. `TemplateDesigner.hs` is only the
+  retirement tombstone for the removed parallel designer.
 - `Responses.hs`, `Paths.hs`, and `Dom.hs` — response shape, canonical URLs, and
   stable DOM identity.
 - `Capabilities.hs`, `Filters.hs`, `WageFilter.hs`, and `Overview.hs` —

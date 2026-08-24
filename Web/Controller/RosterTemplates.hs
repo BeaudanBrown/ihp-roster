@@ -7,14 +7,20 @@ import Application.Helper.Controller (ensureCurrentVenueOrSupportRedirect,
                                       ensureManagerRole, ensureProfileCompleted,
                                       ensureVenueWritable, fetchVenueConfig)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
+import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
+                                                            attachSurfaceRequestFieldErrors,
+                                                            surfaceRequestFieldErrorsMessage)
 import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
-import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
+import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom,
+                                                           surfaceFieldValue)
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.RosterTemplates
 import Application.VenueTime.Model (ShiftCopyOccurrenceSelections (..))
 import Control.Monad (guard)
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
+import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import Network.HTTP.Types.Status (status409)
 import qualified Network.Wai as Wai
@@ -26,16 +32,20 @@ import Web.RosterWeeks.DateRange (RosterWindowScope (..),
                                   rosterWindowIsPublished,
                                   rosterWindowScopeForAnchor)
 import Web.RosterWeeks.Paths (rosterWindowUrl)
-import Web.RosterWeeks.Responses (respondWithRosterTemplateApplicationUpdate)
+import Web.RosterWeeks.Responses (respondWithRosterTemplateApplicationUpdate,
+                                  respondWithRosterTemplateCaptureUpdate)
 import Web.RosterWeeks.TemplateApplication
+import Web.RosterWeeks.TemplateCapture
 import Web.View.RosterTemplates.ApplicationConfirmation
+import Web.View.RosterTemplates.CaptureConfirmation
 import Web.View.RosterTemplates.DeleteConfirmation
 import Web.View.RosterWeeks.TemplatePanel (renderRosterTemplateLibraryFragment)
 
 rosterTemplateWindowScope :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterGroup -> IO RosterWindowScope
 rosterTemplateWindowScope rosterGroup = do
     venueConfig <- fetchVenueConfig
-    pure (rosterWindowScopeForAnchor venueConfig rosterGroup.id (param @Day "anchorDate"))
+    anchorDate <- parseIsoDayRouteParam (paramOrDefault @Text "" "anchorDate")
+    pure (rosterWindowScopeForAnchor venueConfig rosterGroup.id anchorDate)
 
 abortStaleTemplateCalendarRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 abortStaleTemplateCalendarRequest =
@@ -131,6 +141,51 @@ instance Controller RosterTemplatesController where
                 }
         respondHtml (renderRosterTemplateLibraryFragment (rosterTemplateActorUserId actor) scope.rosterWindowStart scope.rosterWindowCalendarRevision rosterGroup (Just windowState) (fromMaybe (error "authorized template library missing") maybeLibrary))
 
+    action currentAction@PreviewRosterTemplateCaptureAction { rosterGroupId } = runBepis currentAction BepisPageAction do
+        actor <- authorizedTemplateActor
+        rosterGroup <- fetchScopedRosterGroup rosterGroupId
+        scope <- rosterTemplateWindowScope rosterGroup
+        case RosterAction.parsePreviewRosterTemplateCaptureActionParams of
+            Left errors -> renderTemplateCaptureInput rosterGroupId scope (captureTransportErrorMessage errors)
+            Right fields -> case rosterTemplateCaptureRequestFromValues
+                scope
+                (surfaceFieldValue @RosterSurface.TemplateName fields)
+                (surfaceFieldValue @RosterSurface.CaptureAssignmentMode fields)
+                (surfaceFieldValue @RosterSurface.StaleShiftTypeIds fields)
+                (surfaceFieldValue @RosterSurface.MappedShiftTypeIds fields) of
+                    Left message -> renderTemplateCaptureInput rosterGroupId scope message
+                    Right captureRequest -> do
+                        preview <- previewRosterTemplateCapture actor captureRequest
+                        case preview of
+                            Left failure -> renderTemplateCaptureInput rosterGroupId scope (templateCaptureErrorMessage failure)
+                            Right capturePreview -> respondHtml (renderRosterTemplateCaptureConfirmation rosterGroupId scope.rosterWindowStart captureRequest capturePreview Nothing)
+
+    action currentAction@CreateRosterTemplateCaptureAction { rosterGroupId } = runBepis currentAction BepisMutationAction do
+        actor <- authorizedTemplateActor
+        rosterGroup <- fetchScopedRosterGroup rosterGroupId
+        scope <- rosterTemplateWindowScope rosterGroup
+        case RosterAction.parseCreateRosterTemplateCaptureActionParams of
+            Left errors -> rerenderParsedTemplateCapture actor rosterGroupId scope (captureTransportErrorMessage errors)
+            Right fields -> case rosterTemplateCaptureRequestFromValues
+                scope
+                (surfaceFieldValue @RosterSurface.TemplateName fields)
+                (surfaceFieldValue @RosterSurface.CaptureAssignmentMode fields)
+                (surfaceFieldValue @RosterSurface.StaleShiftTypeIds fields)
+                (surfaceFieldValue @RosterSurface.MappedShiftTypeIds fields) of
+                    Left message -> renderTemplateCaptureInput rosterGroupId scope message
+                    Right captureRequest -> do
+                        let expectedSourceRevision = surfaceFieldValue @RosterSurface.ExpectedSourceRevision fields
+                            expectedCalendarRevision = surfaceFieldValue @RosterSurface.RosterCalendarRevision fields
+                            warningsConfirmed = surfaceFieldValue @RosterSurface.WarningsConfirmed fields
+                        created <- confirmRosterTemplateCaptureMutation actor captureRequest expectedSourceRevision expectedCalendarRevision warningsConfirmed
+                        case created of
+                            Right mutationResult
+                                | isHtmxRequest -> respondWithRosterTemplateCaptureUpdate scope mutationResult.liveMutationTouchedResources
+                                | otherwise -> do
+                                    setSuccessMessage "Template saved."
+                                    redirectToPath (rosterTemplateWindowUrl scope)
+                            Left failure -> rerenderTemplateCapture actor rosterGroupId scope captureRequest failure
+
     action currentAction@ConfirmDeleteRosterTemplateAction { rosterTemplateId, rosterGroupId } = runBepis currentAction BepisPageAction do
         actor <- authorizedTemplateActor
         rosterGroup <- fetchScopedRosterGroup rosterGroupId
@@ -191,6 +246,93 @@ parseTemplateTargetKey value = do
     rawDate <- Text.stripPrefix "window:" value
     readMaybe (cs rawDate)
 
+rosterTemplateCaptureRequestFromValues ::
+    RosterWindowScope ->
+    Text ->
+    RosterTemplateCaptureAssignmentMode ->
+    Maybe [UUID] ->
+    Maybe [UUID] ->
+    Either Text RosterTemplateCaptureRequest
+rosterTemplateCaptureRequestFromValues scope requestedName assignmentMode maybeStaleIds maybeMappedIds = do
+    mappings <- parseCaptureShiftTypeMappings (fromMaybe [] maybeStaleIds) (fromMaybe [] maybeMappedIds)
+    pure RosterTemplateCaptureRequest
+        { captureSourceScope = scope
+        , captureRequestedName = requestedName
+        , captureAssignmentMode = assignmentMode
+        , captureShiftTypeMappings = mappings
+        }
+
+parseCaptureShiftTypeMappings :: [UUID] -> [UUID] -> Either Text (Map.Map (Id ShiftType) (Id ShiftType))
+parseCaptureShiftTypeMappings staleIds mappedIds
+    | length staleIds /= length mappedIds = Left invalidMappingMessage
+    | length (nub staleIds) /= length staleIds = Left invalidMappingMessage
+    | otherwise = Right (Map.fromList [(Id staleId, Id mappedId) | (staleId, mappedId) <- zip staleIds mappedIds])
+  where
+    invalidMappingMessage = "Choose one active Shift type for each unavailable Shift type."
+
+captureTransportErrorMessage :: [SurfaceRequestFieldError] -> Text
+captureTransportErrorMessage errors =
+    validationCarrier.meta `seq` surfaceRequestFieldErrorsMessage errors
+  where
+    validationCarrier = attachSurfaceRequestFieldErrors errors (newRecord @RosterTemplate)
+
+rerenderParsedTemplateCapture ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) =>
+    RosterTemplateActor ->
+    Id RosterGroup ->
+    RosterWindowScope ->
+    Text ->
+    IO ()
+rerenderParsedTemplateCapture actor rosterGroupId scope message =
+    case RosterAction.parsePreviewRosterTemplateCaptureActionParams of
+        Left _ -> renderTemplateCaptureInput rosterGroupId scope message
+        Right fields -> case rosterTemplateCaptureRequestFromValues
+            scope
+            (surfaceFieldValue @RosterSurface.TemplateName fields)
+            (surfaceFieldValue @RosterSurface.CaptureAssignmentMode fields)
+            (surfaceFieldValue @RosterSurface.StaleShiftTypeIds fields)
+            (surfaceFieldValue @RosterSurface.MappedShiftTypeIds fields) of
+                Left _ -> renderTemplateCaptureInput rosterGroupId scope message
+                Right captureRequest -> rerenderTemplateCaptureMessage actor rosterGroupId scope captureRequest message
+
+rerenderTemplateCapture ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) =>
+    RosterTemplateActor ->
+    Id RosterGroup ->
+    RosterWindowScope ->
+    RosterTemplateCaptureRequest ->
+    RosterTemplateCaptureError ->
+    IO ()
+rerenderTemplateCapture actor rosterGroupId scope captureRequest failure =
+    rerenderTemplateCaptureMessage actor rosterGroupId scope captureRequest (templateCaptureErrorMessage failure)
+
+rerenderTemplateCaptureMessage ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) =>
+    RosterTemplateActor ->
+    Id RosterGroup ->
+    RosterWindowScope ->
+    RosterTemplateCaptureRequest ->
+    Text ->
+    IO ()
+rerenderTemplateCaptureMessage actor rosterGroupId scope captureRequest message = do
+    refreshed <- previewRosterTemplateCapture actor captureRequest
+    case refreshed of
+        Left refreshFailure -> renderTemplateCaptureInput rosterGroupId scope (templateCaptureErrorMessage refreshFailure)
+        Right preview -> respondHtml (renderRosterTemplateCaptureConfirmation rosterGroupId scope.rosterWindowStart captureRequest preview (Just message))
+
+renderTemplateCaptureInput ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    Id RosterGroup ->
+    RosterWindowScope ->
+    Text ->
+    IO ()
+renderTemplateCaptureInput rosterGroupId scope message =
+    respondHtml (renderRosterTemplateCaptureInput rosterGroupId scope.rosterWindowStart submittedName submittedMode message)
+  where
+    transportFields = RosterAction.previewRosterTemplateCaptureActionFields "" KeepValidStaffAssignments Nothing Nothing
+    submittedName = fromMaybe "" (paramOrNothing @Text (cs (surfaceFieldNameFrom @RosterSurface.TemplateName transportFields)))
+    submittedMode = paramOrNothing @Text (cs (surfaceFieldNameFrom @RosterSurface.CaptureAssignmentMode transportFields))
+
 invalidTemplateApplication :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> Text -> IO ()
 invalidTemplateApplication scope message = do
     setErrorMessage message
@@ -213,6 +355,21 @@ templateApplicationErrorMessage = \case
     RosterTemplateApplicationInvalidShiftTypes _ -> "The template uses Shift types that are no longer available."
     RosterTemplateApplicationBoundaryError {} -> "A template time cannot be applied on the target date."
     RosterTemplateApplicationInvalidStructure message -> message
+
+templateCaptureErrorMessage :: RosterTemplateCaptureError -> Text
+templateCaptureErrorMessage = \case
+    RosterTemplateCaptureForbidden -> "You cannot save roster templates."
+    RosterTemplateCaptureSourceNotFound -> "The viewed roster window no longer exists."
+    RosterTemplateCaptureScopeMismatch -> "The viewed roster is outside the current venue or roster group."
+    RosterTemplateCaptureCalendarConflict -> "The roster calendar changed. Review the refreshed window and try again."
+    RosterTemplateCaptureInvalidName -> "Template names must contain between 1 and 120 characters."
+    RosterTemplateCaptureDuplicateName -> "That template name is already reserved in this roster group."
+    RosterTemplateCaptureInvalidStructure message -> message
+    RosterTemplateCaptureInvalidShiftTypeMappings _ -> "Choose a current active Shift type for every unavailable Shift type."
+    RosterTemplateCaptureShiftTypeMappingsRequired _ -> "Review every unavailable Shift type mapping before saving."
+    RosterTemplateCaptureConfirmationRequired -> "Review and confirm the Staff assignments that will become Open."
+    RosterTemplateCaptureSourceConflict -> "The roster or validation requirements changed. Review the refreshed requirements and try again."
+    RosterTemplateCapturePersistenceError templateError -> templateErrorMessage templateError
 
 templateErrorMessage :: RosterTemplateError -> Text
 templateErrorMessage = \case

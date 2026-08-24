@@ -1,6 +1,7 @@
 module Application.RosterTemplates.Mutations
     ( lockRosterTemplate
     , lockRosterTemplateApplicationRows
+    , lockRosterTemplateCaptureGroup
     , lockRosterTemplateContentReferenceRows
     , lockRosterTemplateName
     , lockRosterTemplateReferenceRows
@@ -11,6 +12,13 @@ import Database.PostgreSQL.Simple (Only (..))
 import Generated.Types
 import IHP.ModelSupport (sqlQuery, unpackId)
 import IHP.Prelude
+
+lockRosterTemplateCaptureGroup :: (?modelContext :: ModelContext) => Id RosterGroup -> IO Bool
+lockRosterTemplateCaptureGroup rosterGroupId = do
+    locked :: [Only UUID] <- sqlQuery
+        "SELECT id FROM roster_groups WHERE id = ? FOR UPDATE"
+        (Only (unpackId rosterGroupId))
+    pure (locked == [Only (unpackId rosterGroupId)])
 
 lockRosterTemplate :: (?modelContext :: ModelContext) => Id RosterTemplate -> IO Bool
 lockRosterTemplate templateId = do

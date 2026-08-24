@@ -10,6 +10,7 @@ module Web.RosterWeeks.Responses
     , respondWithRosterResourceInvalidation
     , respondWithRosterToast
     , respondWithRosterTemplateApplicationUpdate
+    , respondWithRosterTemplateCaptureUpdate
     ) where
 
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
@@ -110,6 +111,13 @@ respondWithRosterTemplateApplicationUpdate scope touchedResources =
     respondWithRosterCompleteResourceInvalidation scope touchedResources [hsx|
         <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
         {renderToastOob ToastBottomCenter (successToast "Template applied.")}
+    |]
+
+respondWithRosterTemplateCaptureUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> IO ()
+respondWithRosterTemplateCaptureUpdate scope touchedResources =
+    respondWithRosterCompleteResourceInvalidation scope touchedResources [hsx|
+        <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+        {renderToastOob ToastBottomCenter (successToast "Template saved.")}
     |]
 
 respondWithRosterContentOob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO ()

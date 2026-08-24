@@ -27,7 +27,7 @@ tests = aroundAll withDatabaseTestContext do
                 let actor = rosterTemplateActor manager venue True
                 Right snapshot <- createRosterTemplate actor rosterGroup Week "Standard week" (completeWeekContent shiftType.id (StaffAssignment staff.id))
                 targetWeek <- createRosterWindowRecordForRosterGroupAt venue rosterGroup (testAnchorForOffset 10) False
-                targetDays <- forM [0 .. 6] (\dayIndex -> createNativeRosterDayRecord venue rosterGroup (addDays dayIndex targetWeek.fixtureWindowStart) dayIndex)
+                targetDays <- forM ([0 .. 6] :: [Int]) (\dayIndex -> createNativeRosterDayRecord venue rosterGroup (addDays (toInteger dayIndex) targetWeek.fixtureWindowStart) dayIndex)
                 existingDefinition <- createDefinition targetWeek "Existing" 0
                 oldSlot <- createSlot (targetDays !! 0) existingDefinition shiftType OpenAssignment 0
                 timesheet <- newRecord @TimesheetEntry
@@ -76,7 +76,7 @@ tests = aroundAll withDatabaseTestContext do
                 let actor = rosterTemplateActor manager venue True
                 Right snapshot <- createRosterTemplate actor rosterGroup Week "Conflict week" (completeWeekContent shiftType.id OpenAssignment)
                 targetWeek <- createRosterWindowRecordForRosterGroupAt venue rosterGroup (testAnchorForOffset 11) False
-                targetDays <- forM [0 .. 6] (\dayIndex -> createNativeRosterDayRecord venue rosterGroup (addDays dayIndex targetWeek.fixtureWindowStart) dayIndex)
+                targetDays <- forM ([0 .. 6] :: [Int]) (\dayIndex -> createNativeRosterDayRecord venue rosterGroup (addDays (toInteger dayIndex) targetWeek.fixtureWindowStart) dayIndex)
                 definition <- createDefinition targetWeek "Existing" 0
                 oldSlot <- createSlot (targetDays !! 0) definition shiftType OpenAssignment 0
                 let request = applicationRequest snapshot.snapshotTemplate.id targetWeek
@@ -100,7 +100,7 @@ tests = aroundAll withDatabaseTestContext do
                 let actor = rosterTemplateActor manager venue True
                 Right snapshot <- createRosterTemplate actor rosterGroup Week "Calendar week" (completeWeekContent shiftType.id OpenAssignment)
                 targetWeek <- createRosterWindowRecordForRosterGroupAt venue rosterGroup (testAnchorForOffset 12) False
-                targetDays <- forM [0 .. 6] (\dayIndex -> createNativeRosterDayRecord venue rosterGroup (addDays dayIndex targetWeek.fixtureWindowStart) dayIndex)
+                targetDays <- forM ([0 .. 6] :: [Int]) (\dayIndex -> createNativeRosterDayRecord venue rosterGroup (addDays (toInteger dayIndex) targetWeek.fixtureWindowStart) dayIndex)
                 definition <- createDefinition targetWeek "Existing" 0
                 oldSlot <- createSlot (targetDays !! 0) definition shiftType OpenAssignment 0
                 let request = applicationRequest snapshot.snapshotTemplate.id targetWeek
