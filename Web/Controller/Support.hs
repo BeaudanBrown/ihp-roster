@@ -12,13 +12,12 @@ import Application.Helper.Feedback (SupportUnreadFeedbackCount (..),
                                     fetchSupportUnreadFeedbackCount)
 import Application.Helper.FrontendContract.Surface.Support.Resource
 import Application.Helper.FwcMapd (FwcMapdAdminData, fetchFwcMapdAdminData)
-import Application.Helper.RosterTemplateScale (parseRosterTemplateScale)
 import Application.Helper.SurfaceResource (SurfaceResourceValue,
                                            liveMutationResult,
                                            liveMutationValue)
-import Application.Helper.View (PageHelpTopicId (..), lookupPageHelpTopic)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationIsActive,
                                                      venueOnboardingInvitationLifetime)
+import Application.Helper.View (PageHelpTopicId (..), lookupPageHelpTopic)
 import Application.InvitationDelivery.Enqueue (enqueueVenueOnboardingInvitationEmail)
 import Application.PublicHolidays.Coverage (PublicHolidayCoverageYear,
                                             fetchPublicHolidayCoverage)
@@ -551,26 +550,6 @@ supportReturnAuthority candidate
         && returnQueryOptionalDayIsValid candidate "anchorDate"
         && returnQueryOptionalUUIDIsValid candidate "rosterGroupId" = Just SupportReturnAdmin
     | returnPathIs "/ExportJobs" && queryAllows [] = Just SupportReturnAdmin
-    | returnPathIs "/NewRosterTemplate"
-        && queryAllows ["rosterGroupId", "name", "scale", "startingPoint"]
-        && returnQueryHasUUID "rosterGroupId"
-        && returnQueryOptionalValueIsValid candidate "name" (not . Text.null)
-        && returnQueryOptionalValueIsValid candidate "scale" (isJust . parseRosterTemplateScale)
-        && returnQueryOptionalValueIsValid candidate "startingPoint" (`elem` ["blank", "reference"]) = Just SupportReturnManager
-    | returnPathIs "/ShowRosterTemplateReference"
-        && queryAllows ["rosterGroupId", "name", "scale"]
-        && returnQueryHasUUID "rosterGroupId"
-        && validTemplateReferenceSelectionQuery candidate = Just SupportReturnManager
-    | returnPathIs "/ConfirmRosterTemplateReference"
-        && queryAllows ["rosterGroupId", "name", "scale", "operationalDate"]
-        && returnQueryHasUUID "rosterGroupId"
-        && validTemplateReferenceConfirmationQuery candidate = Just SupportReturnManager
-    | returnPathIs "/ShowRosterTemplateDesigner" && queryAllows ["rosterTemplateDesignId"] && returnQueryHasUUID "rosterTemplateDesignId" = Just SupportReturnManager
-    | returnPathIs "/ShowRosterTemplateApplicationConfirmation"
-        && queryAllows ["rosterTemplateId", "rosterGroupId", "targetDropzoneKey"]
-        && returnQueryHasUUID "rosterTemplateId"
-        && returnQueryHasUUID "rosterGroupId"
-        && returnQueryHasNonEmpty "targetDropzoneKey" = Just SupportReturnManager
     | returnPathIs "/NewStaff"
         && queryAllows ["anchorDate", "rosterGroupId"]
         && returnQueryOptionalDayIsValid candidate "anchorDate"
@@ -600,11 +579,11 @@ supportReturnAuthority candidate
         && returnQueryOptionalValueIsValid candidate "section" (`elem` ["pending", "approved", "denied", "archive"]) = Just SupportReturnManager
     | returnPathIs "/NewLeaveRequest" && queryAllows [] = Just SupportReturnStaff
     | returnPathIs "/RosterWeeks"
-        && queryAllows ["rosterGroupId", "rosterView", "dayOffset"]
+        && queryAllows ["rosterGroupId", "rosterView", "dayDate"]
         && returnQueryOptionalUUIDIsValid candidate "rosterGroupId"
         && validRosterViewQuery candidate = Just SupportReturnVenueUser
     | returnPathIs "/ShowRosterWindow"
-        && queryAllows ["anchorDate", "rosterGroupId", "rosterView", "dayDate", "dayOffset"]
+        && queryAllows ["anchorDate", "rosterGroupId", "rosterView", "dayDate"]
         && returnQueryHasDay "anchorDate"
         && returnQueryOptionalUUIDIsValid candidate "rosterGroupId"
         && returnQueryOptionalDayIsValid candidate "dayDate"
@@ -643,9 +622,9 @@ returnQueryOptionalDayIsValid candidate name =
 returnQueryOptionalValueIsValid :: Text -> Text -> (Text -> Bool) -> Bool
 returnQueryOptionalValueIsValid candidate name validValue =
     case lookup name (returnQuery candidate) of
-        Nothing -> True
+        Nothing           -> True
         Just (Just value) -> validValue value
-        Just Nothing -> False
+        Just Nothing      -> False
 
 returnQuery :: Text -> URI.QueryText
 returnQuery candidate =
@@ -657,29 +636,12 @@ validIsoDay :: Text -> Bool
 validIsoDay value =
     isJust (parseTimeM True defaultTimeLocale "%F" (Text.unpack value) :: Maybe Day)
 
-validTemplateReferenceSelectionQuery :: Text -> Bool
-validTemplateReferenceSelectionQuery candidate =
-    maybe False (not . Text.null) (returnQueryValue candidate "name")
-        && maybe False (isJust . parseRosterTemplateScale) (returnQueryValue candidate "scale")
-
-validTemplateReferenceConfirmationQuery :: Text -> Bool
-validTemplateReferenceConfirmationQuery candidate =
-    validTemplateReferenceSelectionQuery candidate
-        && case returnQueryValue candidate "scale" >>= parseRosterTemplateScale of
-            Just Day -> maybe False validIsoDay (returnQueryValue candidate "operationalDate")
-            Just Week -> isNothing (returnQueryValue candidate "operationalDate")
-            Nothing -> False
-
 validRosterViewQuery :: Text -> Bool
 validRosterViewQuery candidate =
     case returnQueryValue candidate "rosterView" of
-        Nothing -> isNothing (returnQueryValue candidate "dayDate") && isNothing (returnQueryValue candidate "dayOffset")
-        Just "timeline" -> returnQueryOptionalValueIsValid candidate "dayOffset" validRosterDayOffset
+        Nothing -> isNothing (returnQueryValue candidate "dayDate")
+        Just "timeline" -> maybe False validIsoDay (returnQueryValue candidate "dayDate")
         Just _ -> False
-
-validRosterDayOffset :: Text -> Bool
-validRosterDayOffset value =
-    maybe False (\offset -> offset >= (0 :: Int) && offset <= 6) (readMaybe (Text.unpack value))
 
 validPositiveInt :: Text -> Bool
 validPositiveInt value =

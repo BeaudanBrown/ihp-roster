@@ -556,7 +556,7 @@ tests = aroundAll withDatabaseTestContext do
                         (unavailablePath, lookup HTTP.hLocation (Wai.responseHeaders unavailableResponse))
                             `shouldBe` (unavailablePath, Just "http://localhost/RosterWeeks")
 
-                    forM_ ["/Billing/not-a-route", "/ShowRosterWindowGarbage", "/ShowRosterWindow?anchorDate=not-a-date", "/ShowRosterWindow?anchorDate=2026-08-10&rosterGroupId=not-a-uuid", "/ShowRosterWindow?anchorDate=2026-08-10&anchorDate=2026-08-11", "/ShowRosterWindow?anchorDate=2026-08-10&unexpected=value", "/ShowRosterWindow?anchorDate=2026-08-10&rosterView=invalid", "/RosterWeeks?rosterView"] \malformedPagePath -> do
+                    forM_ ["/Billing/not-a-route", "/ShowRosterWindowGarbage", "/ShowRosterWindow?anchorDate=not-a-date", "/ShowRosterWindow?anchorDate=2026-08-10&rosterGroupId=not-a-uuid", "/ShowRosterWindow?anchorDate=2026-08-10&anchorDate=2026-08-11", "/ShowRosterWindow?anchorDate=2026-08-10&unexpected=value", "/ShowRosterWindow?anchorDate=2026-08-10&rosterView=invalid", "/ShowRosterWindow?anchorDate=2026-08-10&rosterView=timeline&dayOffset=1", "/RosterWeeks?rosterView"] \malformedPagePath -> do
                         malformedPageResponse <- callActionWithParams
                             SwitchSupportImpersonationAction
                             [ ("userId", cs (inputValue worker.id))
@@ -608,21 +608,18 @@ tests = aroundAll withDatabaseTestContext do
                     lookup HTTP.hLocation (Wai.responseHeaders ownerLeaveResponse)
                         `shouldBe` Just "http://localhost/LeaveRequests?archivePage=2&openSection=archive&section=archive"
 
-                    ownerTemplateReferenceResponse <- callActionWithParams
-                        SwitchSupportImpersonationAction
-                        [ ("userId", cs (inputValue owner.id))
-                        , ("next", "/ShowRosterTemplateReference?rosterGroupId=11111111-1111-1111-1111-111111111111&name=Weekly%20Template&scale=week")
+                    forM_
+                        [ "/ShowRosterTemplateReference?rosterGroupId=11111111-1111-1111-1111-111111111111&name=Weekly%20Template&scale=week"
+                        , "/ShowRosterTemplateApplicationConfirmation?rosterTemplateId=22222222-2222-2222-2222-222222222222&rosterGroupId=11111111-1111-1111-1111-111111111111&targetDropzoneKey=day-1"
                         ]
-                    lookup HTTP.hLocation (Wai.responseHeaders ownerTemplateReferenceResponse)
-                        `shouldBe` Just "http://localhost/ShowRosterTemplateReference?rosterGroupId=11111111-1111-1111-1111-111111111111&name=Weekly%20Template&scale=week"
-
-                    ownerTemplateConfirmationResponse <- callActionWithParams
-                        SwitchSupportImpersonationAction
-                        [ ("userId", cs (inputValue owner.id))
-                        , ("next", "/ShowRosterTemplateApplicationConfirmation?rosterTemplateId=22222222-2222-2222-2222-222222222222&rosterGroupId=11111111-1111-1111-1111-111111111111&targetDropzoneKey=day-1")
-                        ]
-                    lookup HTTP.hLocation (Wai.responseHeaders ownerTemplateConfirmationResponse)
-                        `shouldBe` Just "http://localhost/ShowRosterTemplateApplicationConfirmation?rosterTemplateId=22222222-2222-2222-2222-222222222222&rosterGroupId=11111111-1111-1111-1111-111111111111&targetDropzoneKey=day-1"
+                        \retiredTemplatePath -> do
+                            retiredTemplateResponse <- callActionWithParams
+                                SwitchSupportImpersonationAction
+                                [ ("userId", cs (inputValue owner.id))
+                                , ("next", retiredTemplatePath)
+                                ]
+                            lookup HTTP.hLocation (Wai.responseHeaders retiredTemplateResponse)
+                                `shouldBe` Just "http://localhost/RosterWeeks"
 
                     workerTimesheetResponse <- callActionWithParams
                         SwitchSupportImpersonationAction
@@ -635,10 +632,10 @@ tests = aroundAll withDatabaseTestContext do
                     workerTimelineResponse <- callActionWithParams
                         SwitchSupportImpersonationAction
                         [ ("userId", cs (inputValue worker.id))
-                        , ("next", "/ShowRosterWindow?anchorDate=2026-08-10&rosterView=timeline&dayOffset=1")
+                        , ("next", "/ShowRosterWindow?anchorDate=2026-08-10&rosterView=timeline&dayDate=2026-08-11")
                         ]
                     lookup HTTP.hLocation (Wai.responseHeaders workerTimelineResponse)
-                        `shouldBe` Just "http://localhost/ShowRosterWindow?anchorDate=2026-08-10&rosterView=timeline&dayOffset=1"
+                        `shouldBe` Just "http://localhost/ShowRosterWindow?anchorDate=2026-08-10&rosterView=timeline&dayDate=2026-08-11"
 
                     workerRosterGroupResponse <- callActionWithParams
                         SwitchSupportImpersonationAction
