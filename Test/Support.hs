@@ -45,6 +45,7 @@ import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import IHP.LoginSupport.Middleware (initAuthentication)
+import qualified IHP.Log as Log
 import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.Prelude
 import qualified IHP.Prelude as Prelude
@@ -249,7 +250,28 @@ setTestDurationMinutes (Just minutes) slot =
 withDatabaseTestContext :: (MockContext WebApplication -> IO a) -> IO a
 withDatabaseTestContext action = do
     setEnv "IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH" "true"
-    withMockContext WebApplication config action
+    withMockContext WebApplication databaseTestConfig action
+
+-- Routine database suites suppress per-query Debug output. Focused diagnosis can
+-- restore the normal Development logger without replacing explicit test-local
+-- capture loggers installed on a ModelContext.
+databaseTestConfig :: ConfigBuilder
+databaseTestConfig = do
+    detailedSql <- configIO ((== Just "1") <$> lookupEnv "HSPEC_SQL_LOG")
+    logger <- configIO do
+        let Log.LoggerSettings
+                { Log.formatter = defaultFormatter
+                , Log.destination = defaultDestination
+                , Log.timeFormat = defaultTimeFormat
+                } = def
+        Log.newLogger Log.LoggerSettings
+            { Log.level = if detailedSql then Log.Debug else Log.Warn
+            , Log.formatter = defaultFormatter
+            , Log.destination = defaultDestination
+            , Log.timeFormat = defaultTimeFormat
+            }
+    option logger
+    config
 
 withPrivilegedStrongAuthentication :: Bool -> IO value -> IO value
 withPrivilegedStrongAuthentication enabled action =

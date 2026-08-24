@@ -16,16 +16,19 @@ import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey)
 import Application.Helper.TimesheetPayLedger (persistApprovedTimesheetPayCalculation)
 import Application.PayAssignment (StaffPayAssignment (..),
                                   staffAssignmentAllowsTimesheets)
+import Application.VenueTime (melbourneTimeZoneName)
 import Application.VenueTime.Model
+import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Time.Calendar (Day, addDays, fromGregorian)
-import Data.Time.Clock (UTCTime)
+import Data.Time.Clock (UTCTime, getCurrentTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.ModelSupport (sqlExecDiscardResult)
+import IHP.ModelSupport.Types (CanCreate (createMany))
 import IHP.Prelude
 import qualified IHP.Prelude as Prelude
 
@@ -185,17 +188,17 @@ seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift sta
     let approvedStaffPool = concat (replicate 3 (seededXeroMatchedStaffPool timesheetStaffPool)) <> timesheetStaffPool
     forM_ (zip [0 ..] (take remainingApprovedCount (cycle approvedStaffPool))) \(index, staff) -> do
         let globalIndex = index + seededXeroCaseCount
-        let shiftTypeId =
+        let shiftType =
                 if globalIndex `mod` 4 == 0
-                    then unpackId (get #id kitchenShift)
-                    else unpackId (get #id floorShift)
+                    then kitchenShift
+                    else floorShift
         let shiftStartTime = TimeOfDay (6 + ((globalIndex * 2) `mod` 8)) 0 0
         let shiftEndTime = TimeOfDay (12 + ((globalIndex * 2) `mod` 8)) 0 0
         let (hadBreak, breakStartTime, breakEndTime, _breakMinutes) =
                 seededBreakFields scenario.scenarioSeed globalIndex shiftStartTime shiftEndTime
         let workedOn = seededTimesheetWorkedOn fixtureWeekStart globalIndex
         entry <-
-            createTimesheetEntryRecord venue staff workedOn
+            createTimesheetEntryRecordForShiftType venue staff shiftType workedOn
                 >>= updateRecord
                     . applyDevTimesheetBoundaries workedOn
                         shiftStartTime
@@ -203,30 +206,39 @@ seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift sta
                         hadBreak
                         breakStartTime
                         breakEndTime
-                    . set #shiftTypeId shiftTypeId
         (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval admin.id entry
         lockPayVersionsForApproval admin.id approvedAt staffPayVersion shiftTypePayVersion
         _ <- approveSeededTimesheetEntryWithVersions admin approvedAt staffPayVersion shiftTypePayVersion entry
         pure ()
     let pendingStaffPool = nonXeroMatchedStaffPool timesheetStaffPool <> timesheetStaffPool
-    forM_ (zip [0 ..] (take scenario.pendingTimesheets (drop scenario.approvedTimesheets (cycle pendingStaffPool)))) \(index, staff) -> do
-        let globalIndex = scenario.approvedTimesheets + index
-        let shiftStartTime = TimeOfDay (9 + (index `mod` 3)) 0 0
-        let shiftEndTime = TimeOfDay (15 + (index `mod` 3)) 0 0
-        let (hadBreak, breakStartTime, breakEndTime, _breakMinutes) =
-                seededBreakFields scenario.scenarioSeed globalIndex shiftStartTime shiftEndTime
-        let workedOn = seededTimesheetWorkedOn fixtureWeekStart (globalIndex + 2)
-        _ <-
-            createTimesheetEntryRecord venue staff workedOn
-                >>= updateRecord
-                    . applyDevTimesheetBoundaries workedOn
+        pendingInputs = zip [0 ..] (take scenario.pendingTimesheets (drop scenario.approvedTimesheets (cycle pendingStaffPool)))
+    pendingIds <- map Id <$> freshUUIDs (length pendingInputs)
+    pendingCreatedAt <- getCurrentTime
+    let pendingEntries =
+            [ let globalIndex = scenario.approvedTimesheets + index
+                  shiftStartTime = TimeOfDay (9 + (index `mod` 3)) 0 0
+                  shiftEndTime = TimeOfDay (15 + (index `mod` 3)) 0 0
+                  (hadBreak, breakStartTime, breakEndTime, _breakMinutes) =
+                      seededBreakFields scenario.scenarioSeed globalIndex shiftStartTime shiftEndTime
+                  workedOn = seededTimesheetWorkedOn fixtureWeekStart (globalIndex + 2)
+               in newRecord @TimesheetEntry
+                    |> set #id pendingId
+                    |> set #venueId (unpackId venue.id)
+                    |> set #staffId (unpackId staff.id)
+                    |> set #shiftTypeId (unpackId floorShift.id)
+                    |> set #operationalDate workedOn
+                    |> set #timezone melbourneTimeZoneName
+                    |> applyDevTimesheetBoundaries workedOn
                         shiftStartTime
                         shiftEndTime
                         hadBreak
                         breakStartTime
                         breakEndTime
-                    . set #shiftTypeId (unpackId (get #id floorShift))
-        pure ()
+                    |> set #createdAt pendingCreatedAt
+                    |> set #updatedAt pendingCreatedAt
+            | (pendingId, (index, staff)) <- zip pendingIds pendingInputs
+            ]
+    unless (null pendingEntries) (void (createMany pendingEntries))
   where
     staffCanProduceTimesheets staff =
         staffAssignmentAllowsTimesheets
@@ -280,8 +292,9 @@ createApprovedSeededTimesheetCase ::
     IO TimesheetEntry
 createApprovedSeededTimesheetCase venue admin floorShift kitchenShift staff approvedAt seedCase = do
     let (hadBreak, breakStartTime, breakEndTime) = seededBreakBoundaries seedCase.caseBreak
+    let shiftType = seededCaseShiftType seedCase.caseShiftType floorShift kitchenShift
     entry <-
-        createTimesheetEntryRecord venue staff seedCase.caseWorkedOn
+        createTimesheetEntryRecordForShiftType venue staff shiftType seedCase.caseWorkedOn
             >>= updateRecord
                 . applyDevTimesheetBoundaries
                     seedCase.caseWorkedOn
@@ -290,7 +303,6 @@ createApprovedSeededTimesheetCase venue admin floorShift kitchenShift staff appr
                     hadBreak
                     breakStartTime
                     breakEndTime
-                . set #shiftTypeId (seededCaseShiftTypeId seedCase.caseShiftType floorShift kitchenShift)
     approveSeededTimesheetEntry admin approvedAt entry
 
 approveSeededTimesheetEntry ::
@@ -327,9 +339,9 @@ approveSeededTimesheetEntryWithVersions admin approvedAt staffPayVersion shiftTy
         |> set #activePayCalculationId (Just calculation.id)
         |> updateRecord
 
-seededCaseShiftTypeId :: SeededTimesheetShiftType -> ShiftType -> ShiftType -> UUID
-seededCaseShiftTypeId SeededFloorShift floorShift _ = unpackId (get #id floorShift)
-seededCaseShiftTypeId SeededKitchenShift _ kitchenShift = unpackId (get #id kitchenShift)
+seededCaseShiftType :: SeededTimesheetShiftType -> ShiftType -> ShiftType -> ShiftType
+seededCaseShiftType SeededFloorShift floorShift _ = floorShift
+seededCaseShiftType SeededKitchenShift _ kitchenShift = kitchenShift
 
 seededBreakBoundaries :: SeededTimesheetBreak -> (Bool, Maybe TimeOfDay, Maybe TimeOfDay)
 seededBreakBoundaries SeededNoBreak = (False, Nothing, Nothing)

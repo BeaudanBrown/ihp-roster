@@ -36,6 +36,7 @@ createVenueRecordWithRosterDefaults name = do
 
 data FixturePasswordInput
     = HashFixturePassword !Text
+    | UseRuntimeFixturePasswordHash !Text
     | UseFixturePasswordHash !Text
 
 createUserRecord :: (?modelContext :: ModelContext) => Text -> Text -> Bool -> IO User
@@ -64,8 +65,9 @@ createUserRecordWithPasswordAndPlatformRoleAndId emailAddress password globalRol
 createUserRecordWithPasswordInputAndPlatformRoleAndId :: (?modelContext :: ModelContext) => Text -> FixturePasswordInput -> Text -> Maybe PlatformRoleEnum -> Bool -> Maybe (Id User) -> IO User
 createUserRecordWithPasswordInputAndPlatformRoleAndId emailAddress passwordInput globalRole platformRole isProfileCompleted maybeUserId = do
     passwordHash <- case passwordInput of
-        HashFixturePassword password        -> hashPassword password
-        UseFixturePasswordHash existingHash -> pure existingHash
+        HashFixturePassword password               -> hashPassword password
+        UseRuntimeFixturePasswordHash existingHash -> pure existingHash
+        UseFixturePasswordHash existingHash        -> pure existingHash
     let user =
             newRecord @User
                 |> set #email emailAddress
@@ -271,6 +273,10 @@ createTimesheetEntryRecord venue staff workedOn =
 createTimesheetEntryRecordWithDefaultLevelName :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> Text -> IO TimesheetEntry
 createTimesheetEntryRecordWithDefaultLevelName venue staff workedOn defaultLevelName = do
     shiftType <- ensureVenueDefaultShiftTypeWithLevelName venue defaultLevelName
+    createTimesheetEntryRecordForShiftType venue staff shiftType workedOn
+
+createTimesheetEntryRecordForShiftType :: (?modelContext :: ModelContext) => Venue -> Staff -> ShiftType -> Day -> IO TimesheetEntry
+createTimesheetEntryRecordForShiftType venue staff shiftType workedOn = do
     let boundaries =
             either (error . ("Invalid support timesheet fixture: " <>) . show) Prelude.id $
                 resolveShiftBoundaries melbourneTimeZoneName ShiftBoundaryInput

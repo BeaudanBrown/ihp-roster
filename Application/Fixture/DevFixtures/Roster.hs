@@ -77,7 +77,10 @@ seedRosterProjection scenario fixtureWeekStart venue rosterFixture staffFixture 
         staffFixture.backOnlyStaff staffFixture.crossGroupStaff staffFixture.trialStaffs
     let allFrontCandidates = staffFixture.managerStaffs <> [staffFixture.xeroStaff] <> staffFixture.frontOnlyStaff <> staffFixture.crossGroupStaff <> staffFixture.trialStaffs
     let allBackCandidates = staffFixture.managerStaffs <> staffFixture.backOnlyStaff <> staffFixture.crossGroupStaff
-    seedRosterWindow scenario fixtureWeekStart venue frontGroup backGroup frontSlots backSlots allFrontCandidates allBackCandidates shiftTypes
+    venueConfig <- query @VenueConfig
+        |> filterWhere (#venueId, unpackId venue.id)
+        |> fetchOne
+    seedRosterWindow scenario fixtureWeekStart venue venueConfig frontGroup backGroup frontSlots backSlots allFrontCandidates allBackCandidates shiftTypes
     seedPayAssignmentMatrix
         frontGroup
         fixtureWeekStart
@@ -253,23 +256,25 @@ seedRosterGroup ::
     Int ->
     Int ->
     Day ->
+    VenueConfig ->
     RosterGroup ->
     [RosterDay] ->
     [SlotName] ->
     [Staff] ->
     [ShiftType] ->
     IO ()
-seedRosterGroup seedValue fillPercent fixtureWeekStart rosterGroup rosterDays slotNames staffPool shiftTypes = do
+seedRosterGroup seedValue fillPercent fixtureWeekStart venueConfig rosterGroup rosterDays slotNames staffPool shiftTypes = do
     forM_ (zip [0 :: Int ..] rosterDays) \(dayIndex, rosterDay) -> do
         let rowCount = 2
         _ <- rosterDay
             |> set #rowCount rowCount
             |> updateRecord
+        rosterLanes <- mapM (ensureRosterLaneForSlotName rosterDay) slotNames
         let seedRows _ [] = pure ()
             seedRows usedStaffIds (rowIndex:remainingRowIndexes) = do
                 let (assignments, nextUsedStaffIds) =
                         buildRowAssignments seedValue fillPercent dayIndex rowIndex slotNames staffPool shiftTypes usedStaffIds
-                createRosterRow rosterDay slotNames rowIndex assignments
+                createRosterRow venueConfig rosterDay rosterLanes rowIndex assignments
                 seedRows nextUsedStaffIds remainingRowIndexes
         seedRows [] [0 .. rowCount - 1]
     ensureAssignedShiftPreferenceCoverage rosterGroup rosterDays
@@ -279,6 +284,7 @@ seedRosterWindow ::
     SeedScenario ->
     Day ->
     Venue ->
+    VenueConfig ->
     RosterGroup ->
     RosterGroup ->
     [SlotName] ->
@@ -287,7 +293,7 @@ seedRosterWindow ::
     [Staff] ->
     [ShiftType] ->
     IO ()
-seedRosterWindow scenario currentWeekStart venue frontGroup backGroup frontSlots backSlots frontCandidates backCandidates shiftTypes =
+seedRosterWindow scenario currentWeekStart venue venueConfig frontGroup backGroup frontSlots backSlots frontCandidates backCandidates shiftTypes =
     forM_ devSeedWeekStarts \(weekIndex, weekStart) -> do
         frontWeek <- createRosterWeekRecordForWindow venue frontGroup weekStart (weekIndex == 0)
         backWeek <- createRosterWeekRecordForWindow venue backGroup weekStart False
@@ -295,8 +301,8 @@ seedRosterWindow scenario currentWeekStart venue frontGroup backGroup frontSlots
         frontDays <- createRosterDayRecords frontWeek weekStart operationalDates
         backDays <- createRosterDayRecords backWeek weekStart operationalDates
         let weekSeed = scenario.scenarioSeed + (weekIndex * 1009)
-        seedRosterGroup weekSeed (rosterFillForWeek scenario.rosterFillPercent weekIndex) weekStart frontGroup frontDays frontSlots frontCandidates shiftTypes
-        seedRosterGroup (weekSeed + 97) (max 40 (rosterFillForWeek scenario.rosterFillPercent weekIndex - 8)) weekStart backGroup backDays backSlots backCandidates shiftTypes
+        seedRosterGroup weekSeed (rosterFillForWeek scenario.rosterFillPercent weekIndex) weekStart venueConfig frontGroup frontDays frontSlots frontCandidates shiftTypes
+        seedRosterGroup (weekSeed + 97) (max 40 (rosterFillForWeek scenario.rosterFillPercent weekIndex - 8)) weekStart venueConfig backGroup backDays backSlots backCandidates shiftTypes
     where
         devSeedWeekStarts =
             [ (-1, addDays (-7) currentWeekStart)
@@ -541,17 +547,14 @@ rosterDayRecord now rosterWindow _windowStart rosterDayId operationalDate =
 
 createRosterRow ::
     (?modelContext :: ModelContext) =>
+    VenueConfig ->
     RosterDay ->
-    [SlotName] ->
+    [RosterLane] ->
     Int ->
     [(Text, DevRosterSlotSeed)] ->
     IO ()
-createRosterRow rosterDay slotNames rowIndex assignments = do
-    venueConfig <- query @VenueConfig
-        |> filterWhere (#venueId, rosterDay.venueId)
-        |> fetchOne
+createRosterRow venueConfig rosterDay rosterLanes rowIndex assignments = do
     let rosterDate = rosterDay.operationalDate
-    rosterLanes <- forM slotNames (ensureRosterLaneForSlotName rosterDay)
     let assignedRosterLanes =
             [ (rosterLane, slotSeed)
             | rosterLane <- rosterLanes

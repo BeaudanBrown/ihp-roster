@@ -27,7 +27,7 @@ Founder-facing Support product behavior does not belong here. Its runtime remain
 
 Shared row builders have one implementation here. `Test.Support` keeps its public test-context API and uses explicit wrappers only where behavior intentionally differs:
 
-- users pass `UseFixturePasswordHash testPasswordHash`; application/dev builders pass `HashFixturePassword`, preserving fast fixed test hashes and runtime hashing
+- tests pass `UseFixturePasswordHash testPasswordHash`; ordinary application/dev builders pass `HashFixturePassword`; the named DevSeed interpreter hashes each distinct runtime password once and passes `UseRuntimeFixturePasswordHash`, preserving fast fixed test hashes and runtime-derived development hashes without repeated password work
 - test venues request roster defaults inside their existing transaction; application/dev venues use the full bootstrap configuration
 - test memberships create linked profile staff for profile-complete users; application/dev memberships do not add that test convenience
 - test staff creation is idempotent for an existing linked user and uses fixed contact defaults; application/dev staff creation accepts complete fixture values
