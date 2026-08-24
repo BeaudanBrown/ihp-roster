@@ -301,6 +301,24 @@ a:not(.btn):hover {
     border-color: var(--app-accent-border-strong);
 }
 
+.app-mobile-nav-link-warning,
+.app-mobile-nav-link-warning.is-active {
+    color: var(--app-warning);
+    background-color: var(--app-warning-tint);
+    border-color: var(--app-warning-border-strong);
+}
+
+.app-mobile-nav-link-warning:hover,
+.app-mobile-nav-link-warning:focus {
+    color: var(--app-warning);
+    background-color: var(--app-warning-soft);
+    border-color: var(--app-warning-border-strong);
+}
+
+.app-mobile-nav-link-warning .app-mobile-nav-icon {
+    color: var(--app-warning);
+}
+
 .app-mobile-nav-icon {
     width: 1.25rem;
     flex: 0 0 1.25rem;

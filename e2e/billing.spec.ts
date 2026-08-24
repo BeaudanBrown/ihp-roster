@@ -298,7 +298,10 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         await expect(ownerBillingView.getByText('If you like Bepis, please support its development by subscribing.', { exact: true })).toHaveCount(0);
         await expect(page.getByText('$100/month', { exact: true })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Subscribe' })).toBeEnabled();
-        await expect(page.locator('header a[href="/Billing"]')).toBeVisible();
+        const desktopBillingLink = page.locator('header a[href="/Billing"]');
+        await expect(desktopBillingLink).toBeVisible();
+        await expect(desktopBillingLink).toHaveClass(/app-header-nav-item-warning/);
+        await expect(desktopBillingLink).toHaveAttribute('aria-label', 'Billing — subscription inactive');
 
         const checkoutResponse = await page.request.post('/CreateBillingCheckoutSession', { maxRedirects: 0 });
         expect(checkoutResponse.status()).toBe(302);

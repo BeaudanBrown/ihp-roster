@@ -445,11 +445,15 @@ tests = aroundAll withDatabaseTestContext do
                 hiddenResponse `responseBodyShouldNotContain` "href=\"/Billing\""
                 visibleResponse `responseStatusShouldBe` status200
                 visibleResponse `responseBodyShouldContain` "href=\"/Billing\""
-                visibleResponse `responseBodyShouldContain` "data-billing-subscription-alert=\"true\""
-                visibleResponse `responseBodyShouldContain` "<span class=\"visually-hidden\">Subscription inactive</span>"
+                visibleResponse `responseBodyShouldContain` "app-header-nav-item app-header-nav-item-warning"
+                visibleResponse `responseBodyShouldContain` "app-mobile-nav-link app-mobile-nav-link-warning"
+                visibleResponse `responseBodyShouldContain` "aria-label=\"Billing — subscription inactive\""
+                visibleResponse `responseBodyShouldNotContain` "data-billing-subscription-alert=\"true\""
                 activeResponse `responseStatusShouldBe` status200
                 activeResponse `responseBodyShouldContain` "href=\"/Billing\""
-                activeResponse `responseBodyShouldNotContain` "data-billing-subscription-alert=\"true\""
+                activeResponse `responseBodyShouldNotContain` "app-header-nav-item-warning"
+                activeResponse `responseBodyShouldNotContain` "app-mobile-nav-link-warning"
+                activeResponse `responseBodyShouldNotContain` "subscription inactive\""
                 activeSubscription.status `shouldBe` "active"
                 supportResponse `responseStatusShouldBe` status200
                 supportResponse `responseBodyShouldNotContain` "href=\"/Billing\""

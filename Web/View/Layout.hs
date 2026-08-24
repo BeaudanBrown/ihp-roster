@@ -165,29 +165,55 @@ renderMobileNavLinks = [hsx|
 renderOwnerBillingDesktopNavLink :: (?context :: ControllerContext, ?request :: Request) => Html
 renderOwnerBillingDesktopNavLink =
     when ownerBillingNavigationIsVisible [hsx|
-        <span class="position-relative d-inline-flex">
-            {renderDesktopNavLink "billing" "bi-credit-card" (pathTo BillingAction) ["/Billing"]}
-            {renderBillingSubscriptionAlert}
-        </span>
+        <a
+            class={ownerBillingDesktopNavLinkClass}
+            href={pathTo BillingAction}
+            aria-current={navAriaCurrent ["/Billing"]}
+            aria-label={ownerBillingNavigationLabel}
+        >
+            <i class="bi bi-credit-card" aria-hidden="true"></i>
+            <span>billing</span>
+        </a>
     |]
 
 renderOwnerBillingMobileNavLink :: (?context :: ControllerContext, ?request :: Request) => Html
 renderOwnerBillingMobileNavLink =
     when ownerBillingNavigationIsVisible [hsx|
-        <span class="position-relative d-inline-flex">
-            {renderMobileNavLink "Billing" "bi-credit-card" (pathTo BillingAction) ["/Billing"]}
-            {renderBillingSubscriptionAlert}
-        </span>
+        <a
+            class={ownerBillingMobileNavLinkClass}
+            href={pathTo BillingAction}
+            aria-current={navAriaCurrent ["/Billing"]}
+            aria-label={ownerBillingNavigationLabel}
+        >
+            <i class="bi bi-credit-card app-mobile-nav-icon" aria-hidden="true"></i>
+            <span>Billing</span>
+        </a>
     |]
 
-renderBillingSubscriptionAlert :: (?context :: ControllerContext) => Html
-renderBillingSubscriptionAlert =
-    unless (fromFrozenContext @BillingNavigationContext).ownerBillingSubscriptionIsLive [hsx|
-        <span class="badge rounded-pill text-bg-warning" data-billing-subscription-alert="true">
-            <span aria-hidden="true">!</span>
-            <span class="visually-hidden">Subscription inactive</span>
-        </span>
-    |]
+ownerBillingDesktopNavLinkClass :: (?context :: ControllerContext, ?request :: Request) => Text
+ownerBillingDesktopNavLinkClass =
+    classes
+        [ ("btn btn-outline-secondary btn-sm app-header-nav-item", billingSubscriptionIsLive)
+        , ("btn btn-warning btn-sm app-header-nav-item app-header-nav-item-warning", not billingSubscriptionIsLive)
+        , ("is-active", navItemIsActive ["/Billing"])
+        ]
+
+ownerBillingMobileNavLinkClass :: (?context :: ControllerContext, ?request :: Request) => Text
+ownerBillingMobileNavLinkClass =
+    classes
+        [ ("app-mobile-nav-link", True)
+        , ("app-mobile-nav-link-warning", not billingSubscriptionIsLive)
+        , ("is-active", navItemIsActive ["/Billing"])
+        ]
+
+ownerBillingNavigationLabel :: (?context :: ControllerContext) => Text
+ownerBillingNavigationLabel
+    | billingSubscriptionIsLive = "Billing"
+    | otherwise = "Billing — subscription inactive"
+
+billingSubscriptionIsLive :: (?context :: ControllerContext) => Bool
+billingSubscriptionIsLive =
+    (fromFrozenContext @BillingNavigationContext).ownerBillingSubscriptionIsLive
 
 ownerBillingNavigationIsVisible :: (?context :: ControllerContext) => Bool
 ownerBillingNavigationIsVisible =
