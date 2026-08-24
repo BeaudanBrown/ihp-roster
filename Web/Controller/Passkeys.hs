@@ -131,12 +131,6 @@ instance Controller PasskeysController where
         setSuccessMessage "Passkey removed."
         redirectToPath managementPath
 
-nonEmptyText :: Text -> Maybe Text
-nonEmptyText value =
-    if Text.null value
-        then Nothing
-        else Just value
-
 safeLocalRedirect :: Text -> Text
 safeLocalRedirect value
     | "/" `Text.isPrefixOf` value && not ("//" `Text.isPrefixOf` value) = value
