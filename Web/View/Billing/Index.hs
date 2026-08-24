@@ -289,7 +289,7 @@ renderOwnerCancellationNotice (Just subscription)
     | venueSubscriptionIsLive (Just subscription) && subscription.cancelAtPeriodEnd = [hsx|
         <div class="alert alert-warning mb-0" role="status">
             <strong>Cancellation scheduled.</strong>
-            This subscription will not renew after {renderOwnerPeriodEnd subscription.currentPeriodEnd}.
+            This subscription remains active until {renderOwnerPeriodEnd subscription.currentPeriodEnd} and will not renew.
         </div>
     |]
 renderOwnerCancellationNotice _ = mempty

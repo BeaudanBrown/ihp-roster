@@ -445,6 +445,7 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         await expect(ownerBillingView.getByText('Subscription inactive', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
         await deliverSignedWebhook(page, subscriptionEvent('evt_e2e-subscription_cancel_pending', 'customer.subscription.updated', 'active', true));
         await expect(ownerBillingView.getByText('Cancellation scheduled', { exact: true }).first()).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
+        await expect(ownerBillingView.getByText(/This subscription remains active until .* and will not renew\./)).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
         await deliverSignedWebhook(page, subscriptionEvent('evt_e2e-subscription_deleted', 'customer.subscription.deleted', 'canceled'));
         await expect(ownerBillingView.getByText('Subscription inactive', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
         await deliverSignedWebhook(page, subscriptionEvent('evt_e2e-subscription_expired', 'customer.subscription.updated', 'incomplete_expired'));

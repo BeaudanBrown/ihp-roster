@@ -402,6 +402,11 @@ tests = aroundAll withDatabaseTestContext do
                     response `responseBodyShouldContain` "data-bepis-navigation-loading=\"true\""
                     response `responseBodyShouldContain` "data-bepis-navigation-loading-config="
                     response `responseBodyShouldContain` "Opening Stripe"
+                    if maybeStatus == Just "active" && cancelAtPeriodEnd
+                        then do
+                            response `responseBodyShouldContain` "This subscription remains active until"
+                            response `responseBodyShouldContain` "and will not renew."
+                        else response `responseBodyShouldNotContain` "This subscription remains active until"
                     when (maybeStatus /= Just "active") do
                         response `responseBodyShouldNotContain` "Cancellation scheduled"
                     forM_ maybeStatus \status -> do
