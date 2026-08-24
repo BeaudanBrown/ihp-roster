@@ -35,6 +35,6 @@ fi
 export FRONTEND_CONTRACT_TOOLS_ROOT="$tools_root"
 frontend-contracts-check
 frontend-surface-adapters-check
-architecture-repository-check
+architecture-contracts >/dev/null
 
 echo "frontend-contract-package-check: ok ($tool_modules source modules, $compiled_interfaces interfaces, 3 tools, production closure isolated)"

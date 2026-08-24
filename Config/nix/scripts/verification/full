@@ -14,6 +14,9 @@ http-repository-check
 export FRONTEND_CONTRACT_USE_PACKAGE=1
 echo "verify-full: isolated frontend-contract tooling package"
 frontend-contract-package-check
+# The package check generated these contracts; later architecture validation
+# consumes that same checked output rather than regenerating it.
+export ARCHITECTURE_CONTRACTS_CURRENT=1
 
 echo "verify-full: typecheck"
 typecheck
@@ -39,7 +42,7 @@ echo "verify-full: CSS ownership and stale-selector checks"
 bash ./bin/style-audit
 
 echo "verify-full: architecture and documentation structure"
-architecture-check-fresh
+architecture-repository-check
 documentation-repository-check
 
 echo "verify-full: production build profiler and budget contracts"
