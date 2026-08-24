@@ -228,10 +228,8 @@ rosterOwnLiveShiftHighlightPreferenceUrl anchorDate rosterGroupId =
     appendQueryParams (pathTo UpdateRosterOwnLiveShiftHighlightPreferenceAction) (rosterWindowActionQuery anchorDate rosterGroupId)
 
 rosterTemplateApplicationUrl :: Day -> Id RosterTemplate -> Id RosterGroup -> Text
-rosterTemplateApplicationUrl anchorDate rosterTemplateId rosterGroupId =
-    appendQueryParams
-        (pathTo (ApplyRosterTemplateAction rosterTemplateId rosterGroupId))
-        [("anchorDate", formatDayParam anchorDate)]
+rosterTemplateApplicationUrl _anchorDate rosterTemplateId rosterGroupId =
+    pathTo (ApplyRosterTemplateAction rosterTemplateId rosterGroupId)
 
 rosterTemplateReferenceUrl :: Day -> Id RosterGroup -> Text -> Text -> Text
 rosterTemplateReferenceUrl anchorDate rosterGroupId templateName templateScale =

@@ -8,10 +8,9 @@ import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           applyRosterShiftAssignment)
 import Application.RosterTemplates (RosterTemplateActor,
-                                    remediateRosterTemplateAssignmentsInCurrentTransaction,
-                                    rosterTemplateActorUserId,
-                                    snapshotColumns, snapshotDays,
-                                    snapshotTemplate)
+                                    replaceRosterTemplateContentInCurrentTransaction,
+                                    rosterTemplateActorUserId, snapshotColumns,
+                                    snapshotDays, snapshotTemplate)
 import Application.VenueTime (melbourneTimeZoneName)
 import Control.Monad (void)
 import qualified Data.Map.Strict as Map
@@ -24,7 +23,7 @@ applyPreparedApplication ::
     (?modelContext :: ModelContext) =>
     RosterTemplateActor ->
     PreparedApplication ->
-    IO Int
+    IO Bool
 applyPreparedApplication actor prepared = do
     now <- getCurrentTime
     forM_ prepared.preparedExistingSlots \slot ->
@@ -34,7 +33,7 @@ applyPreparedApplication actor prepared = do
             |> set #deleteReason (Just "roster_template_applied")
             |> updateRecord
             |> void
-    appliedVersion <- persistCleanedTemplateSnapshot actor prepared
+    templateChanged <- persistCleanedTemplateSnapshot actor prepared
     applyDayStates prepared
     lanes <- ensureTargetLanes prepared
     let laneByDayAndName = Map.fromList [((lane.rosterDayId, Text.toCaseFold (Text.strip lane.name)), lane) | lane <- lanes]
@@ -48,30 +47,24 @@ applyPreparedApplication actor prepared = do
             |> set #startsAt (Just plan.preparedStartsAt)
             |> set #endsAt (Just plan.preparedEndsAt)
             |> set #timezone melbourneTimeZoneName
-            |> set #shiftTypeId (Just plan.preparedTemplateShift.shiftTypeId)
+            |> set #shiftTypeId (Just (unpackId plan.preparedShiftTypeId))
             |> applyRosterShiftAssignment plan.preparedAssignment
             |> createRecord
             |> void
-    pure appliedVersion
+    pure templateChanged
 
 persistCleanedTemplateSnapshot ::
     (?modelContext :: ModelContext) =>
     RosterTemplateActor ->
     PreparedApplication ->
-    IO Int
-persistCleanedTemplateSnapshot actor prepared
-    | null invalidShiftIds = pure 0
-    | otherwise = do
-        remediated <- remediateRosterTemplateAssignmentsInCurrentTransaction actor prepared.preparedSaved invalidShiftIds
+    IO Bool
+persistCleanedTemplateSnapshot actor prepared = case prepared.preparedCleanedTemplateContent of
+    Nothing -> pure False
+    Just cleanedContent -> do
+        remediated <- replaceRosterTemplateContentInCurrentTransaction actor prepared.preparedSaved.snapshotTemplate.id cleanedContent
         case remediated of
             Left templateError -> error ("validated roster template remediation failed: " <> show templateError)
-            Right _ -> pure 0
-  where
-    invalidShiftIds =
-        [ plan.preparedTemplateShift.id
-        | plan <- prepared.preparedShiftPlans
-        , isJust plan.preparedAssignmentIssue
-        ]
+            Right _ -> pure True
 
 applyDayStates :: (?modelContext :: ModelContext) => PreparedApplication -> IO ()
 applyDayStates prepared = do

@@ -17,6 +17,7 @@ module Application.RosterTemplates
     , fetchSavedRosterTemplate
     , remediateRosterTemplateAssignmentsInCurrentTransaction
     , replaceRosterTemplateContent
+    , replaceRosterTemplateContentInCurrentTransaction
     , rosterTemplateActor
     , rosterTemplateActorCanEditRosters
     , rosterTemplateActorUserId

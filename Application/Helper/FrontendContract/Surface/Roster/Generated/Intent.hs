@@ -11,7 +11,6 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Intent
     , DuplicateRosterShiftToDayIntentOperation
     , MoveRosterShiftToSlotIntentOperation
     , MoveRosterTimelineShiftIntentOperation
-    , PreviewRosterTemplateApplicationIntentOperation
     , SetRosterLayoutModeIntentOperation
     , dropRosterStaffIntentFields
     , dropRosterStaffIntentForm
@@ -25,10 +24,7 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Intent
     , parseDuplicateRosterShiftToDayIntentParams
     , parseMoveRosterShiftToSlotIntentParams
     , parseMoveRosterTimelineShiftIntentParams
-    , parsePreviewRosterTemplateApplicationIntentParams
     , parseSetRosterLayoutModeIntentParams
-    , previewRosterTemplateApplicationIntentFields
-    , previewRosterTemplateApplicationIntentForm
     , setRosterLayoutModeIntentFields
     , setRosterLayoutModeIntentForm
     ) where
@@ -335,68 +331,6 @@ parseMoveRosterTimelineShiftIntentParams ::
 parseMoveRosterTimelineShiftIntentParams =
     parseIntentParams
         @MoveRosterTimelineShiftIntentOperation
-
-data PreviewRosterTemplateApplicationIntentOperation
-
-type instance IntentSurface PreviewRosterTemplateApplicationIntentOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.RosterAdapterFamily)
-type instance IntentMarker PreviewRosterTemplateApplicationIntentOperation = Types2.PreviewRosterTemplateApplication
-type instance IntentFieldSpecs PreviewRosterTemplateApplicationIntentOperation =
-    '[ 'Field Types1.SourceItemKey 'WireText
-     , 'Field Types1.TargetDropzoneKey 'WireText
-     , 'OptionalField Types1.SessionKind 'WireText
-     , 'OptionalField Types1.PointerId 'WireText
-     , 'OptionalField Types1.PointerType 'WireText
-     , 'OptionalField Types1.StartClientX 'WireText
-     , 'OptionalField Types1.StartClientY 'WireText
-     , 'OptionalField Types1.CurrentClientX 'WireText
-     , 'OptionalField Types1.CurrentClientY 'WireText
-     , 'OptionalField Types1.DeltaX 'WireText
-     , 'OptionalField Types1.DeltaY 'WireText
-     ]
-
-previewRosterTemplateApplicationIntentFields ::
-    Text ->
-    Text ->
-    Maybe Text ->
-    Maybe Text ->
-    Maybe Text ->
-    Maybe Text ->
-    Maybe Text ->
-    Maybe Text ->
-    Maybe Text ->
-    Maybe Text ->
-    Maybe Text ->
-    IntentFields PreviewRosterTemplateApplicationIntentOperation
-previewRosterTemplateApplicationIntentFields sourceItemKey targetDropzoneKey sessionKind pointerId pointerType startClientX startClientY currentClientX currentClientY deltaX deltaY =
-    intentFields
-        (surfaceField @Types1.SourceItemKey sourceItemKey)
-        ( surfaceField @Types1.TargetDropzoneKey targetDropzoneKey
-            &: surfaceOptionalField @Types1.SessionKind sessionKind
-            &: surfaceOptionalField @Types1.PointerId pointerId
-            &: surfaceOptionalField @Types1.PointerType pointerType
-            &: surfaceOptionalField @Types1.StartClientX startClientX
-            &: surfaceOptionalField @Types1.StartClientY startClientY
-            &: surfaceOptionalField @Types1.CurrentClientX currentClientX
-            &: surfaceOptionalField @Types1.CurrentClientY currentClientY
-            &: surfaceOptionalField @Types1.DeltaX deltaX
-            &: surfaceOptionalField @Types1.DeltaY deltaY
-            &: noSurfaceFields
-        )
-
-previewRosterTemplateApplicationIntentEvidence :: IntentEvidence PreviewRosterTemplateApplicationIntentOperation
-previewRosterTemplateApplicationIntentEvidence =
-    intentEvidence (SurfaceIR.IntentIR "PreviewRosterTemplateApplication" "preview-roster-template-application" [SurfaceIR.FieldIR "SourceItemKey" "sourceItemKey" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "TargetDropzoneKey" "targetDropzoneKey" (SurfaceIR.WireTextIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "SessionKind" "sessionKind" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "PointerId" "pointerId" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "PointerType" "pointerType" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "StartClientX" "startClientX" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "StartClientY" "startClientY" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "CurrentClientX" "currentClientX" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "CurrentClientY" "currentClientY" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DeltaX" "deltaX" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence, SurfaceIR.FieldIR "DeltaY" "deltaY" (SurfaceIR.WireTextIR) SurfaceIR.OptionalFieldPresence] [])
-
-previewRosterTemplateApplicationIntentForm :: IntentFields PreviewRosterTemplateApplicationIntentOperation -> FrontendSurfaceHtmxRequest -> FrontendSurfaceIntentForm
-previewRosterTemplateApplicationIntentForm =
-    frontendSurfaceIntentFormFromEvidence previewRosterTemplateApplicationIntentEvidence
-
-parsePreviewRosterTemplateApplicationIntentParams ::
-    (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (IntentFields PreviewRosterTemplateApplicationIntentOperation)
-parsePreviewRosterTemplateApplicationIntentParams =
-    parseIntentParams
-        @PreviewRosterTemplateApplicationIntentOperation
 
 data SetRosterLayoutModeIntentOperation
 

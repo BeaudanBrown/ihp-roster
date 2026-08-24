@@ -558,7 +558,7 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
         extraDiagnosticCodes `shouldContain` ["missing-adapter-action-home"]
 
     it "publishes one authoritative inventory decision for every Intent declaration" do
-        length registeredSurfaceAdapterRegistry.surfaceIntentAdapterRegistrations `shouldBe` 6
+        length registeredSurfaceAdapterRegistry.surfaceIntentAdapterRegistrations `shouldBe` 5
         case generateSurfaceIntentAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
             Left diagnostics -> expectationFailure (cs (show diagnostics))
             Right generatedModules ->

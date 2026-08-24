@@ -77,29 +77,14 @@ controller, mail, and delivery tests.
 
 ## Templates
 
-- Day/Week templates are roster-group-scoped immutable versions with
-  case-insensitively unique trimmed names. One private recoverable draft exists
-  per effective user; optimistic conflicts offer reload-latest or save-as-new.
-- Reference creation reads only confirmed Published/Draft source content. Proof is
-  session-bound to source and occupied-draft revisions; stale or replayed proof
-  fails before mutation. Source roster rows are never changed.
-- Week template days persist explicit calendar-weekday identity and rotate into the current venue window order without changing weekday meaning. Day templates remain target-date-relative.
-- Saved templates contain complete shifts explicitly assigned Staff/Open.
-  Unavailable or pay-invalid staff become Open with warnings in a new version;
-  stale shift types fail atomically.
-- Application targets an explicit Draft window in the same group. Day replaces
-  one day while preserving unrelated days; Week replaces all seven days and
-  column order. Preview carries authoritative revisions, resolved boundaries,
-  destructive scope, assignment cleanup, Timesheet warnings, and touched
-  resources.
-- Confirmation locks and revalidates template, target, relevant Timesheet,
-  Shift-type, Staff, and membership state, then applies atomically. Replaced
-  shifts are soft-deleted so Timesheet provenance survives. Melbourne DST rules
-  apply to target clocks.
+- Week templates are roster-group-scoped detached snapshots with case-insensitively unique trimmed names. Capture reads one exact seven-day date-native roster window, preserves weekday identity, structure, local times, Shift types, and Staff/Open assignments, and never stores publication state.
+- Application resolves a submitted ISO anchor to one complete all-Draft window in the same venue and roster group. Saved weekdays map to matching target operational weekdays even when the venue window order rotates. Open/closed state, rows, columns/order, and shifts replace all seven target days; publication remains Draft.
+- Preview carries authoritative template, target, calendar, Staff, Shift-type, membership, leave, and pay-reference identity. Confirmation locks and revalidates those facts, the complete target, and relevant Timesheet snapshots before one atomic replacement.
+- Approved leave converts only affected target assignments to Open. Durable inactive, archived, wrong-venue, outside-group, or pay-invalid Staff assignments become Open in both target and saved template. Stale Shift types require explicit active same-venue mappings and permanently clean the template; multiple stale identities may share one replacement.
+- Replaced shifts are soft-deleted so materialized Timesheet values and source provenance survive. Application resolves repeated Melbourne boundaries to their first occurrence and rejects nonexistent local times.
+- The application launcher is a typed server-rendered button form; validation and stale confirmation failures rerender its overlay for HTMX, while ordinary form fallbacks redirect to the same date-native roster URL.
 
-Implementation authority is `TemplateDesigner.hs`, `TemplateApplication.hs`,
-and their tests; browser drag, keyboard, and touch paths converge on the same
-server confirmation.
+Implementation authority is `TemplateCapture.hs`, `TemplateApplication.hs`, their persistence modules, and focused database/controller tests.
 
 ## Staff And Venue Effects
 

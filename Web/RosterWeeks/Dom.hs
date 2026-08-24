@@ -22,6 +22,7 @@ module Web.RosterWeeks.Dom
     , rosterTemplateCaptureFormId
     , rosterTemplateCaptureNameInputId
     , rosterTemplateCaptureWarningConfirmationId
+    , rosterTemplateApplicationPreviewFormId
     , rosterTemplateLibraryFragmentId
     , rosterStaffPanelStaffPaneId
     , rosterStaffPanelStaffTabId
@@ -92,6 +93,9 @@ rosterTemplateCaptureFormId, rosterTemplateCaptureNameInputId, rosterTemplateCap
 rosterTemplateCaptureFormId = "roster-template-capture-form"
 rosterTemplateCaptureNameInputId = "roster-template-capture-name"
 rosterTemplateCaptureWarningConfirmationId = "roster-template-capture-warning-confirmation"
+
+rosterTemplateApplicationPreviewFormId :: Id RosterTemplate -> Text
+rosterTemplateApplicationPreviewFormId templateId = "roster-template-application-preview-" <> tshow templateId
 
 rosterTemplateLibraryFragmentId :: Id User -> Text
 rosterTemplateLibraryFragmentId userId =

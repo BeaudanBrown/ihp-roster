@@ -210,7 +210,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 impl.surfaceImplName `shouldBe` "roster"
                 map (.intentFormName) (rosterIntentForms scope True)
-                    `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day", "drop-roster-staff", "preview-roster-template-application"]
+                    `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day", "drop-roster-staff"]
                 mountConfig.mountSurfaceName `shouldBe` "roster"
                 mountConfig.mountScopeKey `shouldBe` "roster:00000000-0000-0000-0000-000000000111:00000000-0000-0000-0000-000000000222:2025-01-27:2025-02-03:1"
                 fragmentKeys
@@ -456,9 +456,6 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` ("data-bepis-roster-day-timeline-shift-group-highlight-source=\"existing:" <> cs (tshow timelineSlot.id) <> "\"")
                 response `responseBodyShouldContain` ("data-bepis-roster-day-timeline-shift-group-highlight-member=\"existing:" <> cs (tshow timelineSlot.id) <> "\"")
                 response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"drag-dropzone\""
-                response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"day-template-dropzone\""
-                response `responseBodyShouldContain` "data-bepis-roster-template-day-target=\"true\""
-                response `responseBodyShouldContain` "aria-label=\"Apply Day template to Mon 06/01\""
 
         it "renders an equal-clock repeated shift on the roster timeline" $ withContext do
             withCleanDb do

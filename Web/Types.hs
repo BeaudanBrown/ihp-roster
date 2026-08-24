@@ -259,8 +259,7 @@ data RosterTemplatesController
     | SaveRosterTemplateDraftAsNewAction { rosterTemplateDesignId :: !(Id RosterTemplate) }
     | EditRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate) }
     | DeleteRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate) }
-    | PreviewRosterTemplateDropAction { rosterGroupId :: !(Id RosterGroup) }
-    | ShowRosterTemplateApplicationConfirmationAction { rosterTemplateId :: !(Id RosterTemplate), rosterGroupId :: !(Id RosterGroup) }
+    | PreviewRosterTemplateApplicationAction { rosterGroupId :: !(Id RosterGroup) }
     | ApplyRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate), rosterGroupId :: !(Id RosterGroup) }
     | ConfirmDeleteRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate), rosterGroupId :: !(Id RosterGroup) }
     | ShowRosterTemplateLibraryFragmentAction { rosterGroupId :: !(Id RosterGroup) }

@@ -283,7 +283,6 @@ registeredSurfaceIntentAdapterRegistrations =
     , surfaceOperationLocalIntentAdapter @RosterAdapterFamily @Roster.MoveRosterShiftToSlot allRequestAdapterOperations
     , surfaceOperationLocalIntentAdapter @RosterAdapterFamily @Roster.DuplicateRosterShiftToDay allRequestAdapterOperations
     , surfaceOperationLocalIntentAdapter @RosterAdapterFamily @Roster.DropRosterStaff allRequestAdapterOperations
-    , surfaceOperationLocalIntentAdapter @RosterAdapterFamily @Roster.PreviewRosterTemplateApplication allRequestAdapterOperations
     , surfaceOperationLocalIntentAdapter @RosterDayTimelineAdapterFamily @Roster.MoveRosterTimelineShift allRequestAdapterOperations
     ]
 

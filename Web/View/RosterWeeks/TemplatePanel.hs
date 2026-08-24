@@ -5,20 +5,14 @@ module Web.View.RosterWeeks.TemplatePanel
     , renderRosterTemplatePanel
     ) where
 
-import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
-import Application.Helper.FrontendContract.Surface.Roster.TemplateApplication
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             renderFrontendSurfaceActionForm)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom)
-import Application.Helper.Url (appendQueryParams)
-import Application.Helper.View.Overlay (dialogOverlayMountId)
 import Application.RosterTemplates
-import qualified Prelude
-import Web.RosterWeeks.Dom (rosterTemplateLibraryFragmentId)
-import Web.RosterWeeks.FrontendSurface (rosterDayTemplateDragSourceRef,
-                                        rosterWeekTemplateDragSourceRef)
+import Web.RosterWeeks.Dom (rosterTemplateApplicationPreviewFormId,
+                            rosterTemplateLibraryFragmentId)
 import Web.RosterWeeks.Types (RosterWindowState (..))
 import Web.View.Prelude
 
@@ -34,7 +28,6 @@ renderRosterTemplatePanel anchorDate calendarRevision rosterGroup maybeRosterWee
     <section class="roster-template-panel" aria-labelledby="roster-template-panel-heading">
         <div class="app-side-panel-content-header roster-staff-panel-header">
             <h2 id="roster-template-panel-heading" class="h5 mb-0">Templates</h2>
-            <button class="btn btn-sm btn-outline-secondary" type="button" hidden="hidden" {...rosterTemplateCancelAttrs}>Cancel</button>
         </div>
         {renderLiveRosterTemplateMessage maybeRosterWeek}
         {renderTemplateScaleSection "Week templates" Week anchorDate calendarRevision rosterGroup maybeRosterWeek library.libraryTemplates}
@@ -66,8 +59,7 @@ renderTemplateCard :: (?context :: ControllerContext) => Day -> Int -> RosterGro
 renderTemplateCard anchorDate calendarRevision rosterGroup maybeRosterWeek template = cardHtml
   where
     cardHtml = [hsx|
-        <article class="roster-template-card border rounded-3 mb-2"
-                 {...rosterTemplateCardAttrs (unpackId template.id) template.name template.scale}>
+        <article class="roster-template-card border rounded-3 mb-2">
             <div class="d-flex align-items-stretch">
                 {applyButton}
                 <div class="d-flex align-items-center gap-1 pe-2 roster-template-card-actions">
@@ -83,9 +75,10 @@ renderTemplateCard anchorDate calendarRevision rosterGroup maybeRosterWeek templ
         </article>
     |]
     applicationAvailable = maybe False (not . (.windowIsPublished)) maybeRosterWeek
-    applyButton = (if applicationAvailable then SurfaceInteraction.withFrontendSurfaceSourceRef templateSourceRef (tshow template.id) else Prelude.id) [hsx|
+    applyButton = [hsx|
         <button class="btn text-start flex-grow-1 p-3 roster-template-card-apply"
-                type="button"
+                type="submit"
+                form={previewFormId}
                 disabled={not applicationAvailable}
                 aria-label={"Apply " <> template.name}>
             <strong class="d-block">{template.name}</strong>
@@ -95,23 +88,15 @@ renderTemplateCard anchorDate calendarRevision rosterGroup maybeRosterWeek templ
     previewForm
         | not applicationAvailable = mempty
         | otherwise = renderFrontendSurfaceActionForm (RosterAction.previewRosterTemplateApplicationAction previewFields) previewRoute [hsx|
-        <input type="hidden" name={surfaceFieldNameFrom @SurfaceInteraction.SourceItemKey previewFields} value={tshow template.id} />
-        <input type="hidden" name={surfaceFieldNameFrom @SurfaceInteraction.TargetDropzoneKey previewFields} value={initialTargetKey} {...rosterTemplateTargetInputAttrs} />
+        <input type="hidden" name={surfaceFieldNameFrom @Surface.TemplateId previewFields} value={tshow template.id} />
+        <input type="hidden" name={surfaceFieldNameFrom @Surface.AnchorDate previewFields} value={tshow anchorDate} />
+        <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterCalendarRevision previewFields} value={tshow calendarRevision} />
     |]
-    templateSourceRef = case template.scale of
-        Day  -> rosterDayTemplateDragSourceRef
-        Week -> rosterWeekTemplateDragSourceRef
-    initialTargetKey = case template.scale of
-        Day  -> ""
-        Week -> if applicationAvailable then "window:" <> tshow anchorDate else ""
-    previewFields = RosterAction.previewRosterTemplateApplicationActionFields (tshow template.id) initialTargetKey Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing calendarRevision
+    previewFormId = rosterTemplateApplicationPreviewFormId template.id
+    previewFields = RosterAction.previewRosterTemplateApplicationActionFields (unpackId template.id) anchorDate calendarRevision Nothing Nothing
     previewRoute = FrontendSurfaceActionRoute
-        { actionRouteUrl = appendQueryParams
-            (pathTo PreviewRosterTemplateDropAction { rosterGroupId = rosterGroup.id })
-            [("anchorDate", tshow anchorDate)]
+        { actionRouteUrl = pathTo PreviewRosterTemplateApplicationAction { rosterGroupId = rosterGroup.id }
         , actionRouteCustomHtmx = []
-        , actionRouteStandardUrl = Just (appendQueryParams
-            (pathTo PreviewRosterTemplateDropAction { rosterGroupId = rosterGroup.id })
-            [("anchorDate", tshow anchorDate)])
-        , actionRouteExtraAttrs = rosterTemplateApplicationFormAttrs <> [("class", "d-none")]
+        , actionRouteStandardUrl = Just (pathTo PreviewRosterTemplateApplicationAction { rosterGroupId = rosterGroup.id })
+        , actionRouteExtraAttrs = [("id", previewFormId), ("class", "d-none")]
         }

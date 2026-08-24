@@ -6,7 +6,6 @@ import Application.Bepis.Controller
 import Application.Helper.Controller (ensureCurrentVenueOrSupportRedirect,
                                       ensureManagerRole, ensureProfileCompleted,
                                       ensureVenueWritable, fetchVenueConfig)
-import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
                                                             attachSurfaceRequestFieldErrors,
                                                             surfaceRequestFieldErrorsMessage)
@@ -22,8 +21,6 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
-import Network.HTTP.Types.Status (status409)
-import qualified Network.Wai as Wai
 import Text.Read (readMaybe)
 import Web.Controller.Prelude
 import qualified Web.RosterTemplates.Mutations as TemplateMutations
@@ -47,81 +44,50 @@ rosterTemplateWindowScope rosterGroup = do
     anchorDate <- parseIsoDayRouteParam (paramOrDefault @Text "" "anchorDate")
     pure (rosterWindowScopeForAnchor venueConfig rosterGroup.id anchorDate)
 
-abortStaleTemplateCalendarRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
-abortStaleTemplateCalendarRequest =
-    when isHtmxRequest $
-        forM_ (paramOrNothing @Int "rosterCalendarRevision") \expectedRevision -> do
-            venueConfig <- fetchVenueConfig
-            when (expectedRevision /= venueConfig.rosterCalendarRevision) do
-                respondAndExit
-                    ( Wai.responseLBS
-                        status409
-                        [("Content-Type", "text/plain"), ("HX-Refresh", "true")]
-                        "The roster calendar changed. Review the refreshed window and try again."
-                    )
-                error "unreachable"
-
 instance Controller RosterTemplatesController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         ensureIsUser
         ensureCurrentVenueOrSupportRedirect
         ensureProfileCompleted
-        abortStaleTemplateCalendarRequest
 
-    action currentAction@PreviewRosterTemplateDropAction { rosterGroupId } = runBepis currentAction BepisMutationAction do
+    action currentAction@PreviewRosterTemplateApplicationAction { rosterGroupId } = runBepis currentAction BepisMutationAction do
         rosterGroup <- fetchScopedRosterGroup rosterGroupId
         scope <- rosterTemplateWindowScope rosterGroup
         case RosterAction.parsePreviewRosterTemplateApplicationActionParams of
-            Left _ -> invalidTemplateApplication scope "Choose a compatible roster template."
+            Left errors -> invalidTemplateApplicationTransport scope errors
             Right fields -> do
-                let sourceKey = surfaceFieldValue @SurfaceInteraction.SourceItemKey fields
-                let targetDropzoneKey = surfaceFieldValue @SurfaceInteraction.TargetDropzoneKey fields
-                case Id <$> UUID.fromText sourceKey of
-                    Nothing -> invalidTemplateApplication scope "Choose a compatible roster template."
-                    Just rosterTemplateId -> do
-                        actor <- authorizedTemplateActor
-                        maybeRequest <- resolveTemplateApplicationRequest rosterTemplateId rosterGroup scope targetDropzoneKey
-                        case maybeRequest of
-                            Nothing -> invalidTemplateApplication scope "Choose a compatible week target."
-                            Just applicationRequest -> do
-                                preview <- previewRosterTemplateApplication actor applicationRequest
-                                either (invalidTemplateApplication scope . templateApplicationErrorMessage)
-                                    (respondHtml . renderRosterTemplateApplicationConfirmation rosterTemplateId rosterGroupId targetDropzoneKey)
-                                    preview
-
-    action currentAction@ShowRosterTemplateApplicationConfirmationAction { rosterTemplateId, rosterGroupId } = runBepis currentAction BepisPageAction do
-        actor <- authorizedTemplateActor
-        rosterGroup <- fetchScopedRosterGroup rosterGroupId
-        scope <- rosterTemplateWindowScope rosterGroup
-        let targetDropzoneKey = param @Text "targetDropzoneKey"
-        maybeRequest <- resolveTemplateApplicationRequest rosterTemplateId rosterGroup scope targetDropzoneKey
-        case maybeRequest of
-            Nothing -> invalidTemplateApplication scope "Choose a compatible week target."
-            Just applicationRequest -> do
-                preview <- previewRosterTemplateApplication actor applicationRequest
-                either (invalidTemplateApplication scope . templateApplicationErrorMessage)
-                    (respondHtml . renderRosterTemplateApplicationConfirmation rosterTemplateId rosterGroupId targetDropzoneKey)
-                    preview
+                let rosterTemplateId = Id (surfaceFieldValue @RosterSurface.TemplateId fields)
+                    submittedAnchorDate = surfaceFieldValue @RosterSurface.AnchorDate fields
+                    mappings = applicationShiftTypeMappingsFromValues (surfaceFieldValue @RosterSurface.StaleShiftTypeIds fields) (surfaceFieldValue @RosterSurface.MappedShiftTypeIds fields)
+                actor <- authorizedTemplateActor
+                maybeRequest <- resolveTemplateApplicationRequest rosterTemplateId rosterGroup scope submittedAnchorDate mappings
+                case maybeRequest of
+                    Nothing -> invalidTemplateApplication scope "Choose a compatible week target."
+                    Just applicationRequest -> do
+                        preview <- previewRosterTemplateApplication actor applicationRequest
+                        either (invalidTemplateApplication scope . templateApplicationErrorMessage)
+                            (\confirmation -> respondHtml (renderRosterTemplateApplicationConfirmation rosterTemplateId rosterGroupId confirmation Nothing))
+                            preview
 
     action currentAction@ApplyRosterTemplateAction { rosterTemplateId, rosterGroupId } = runBepis currentAction BepisMutationAction do
         actor <- authorizedTemplateActor
         rosterGroup <- fetchScopedRosterGroup rosterGroupId
         scope <- rosterTemplateWindowScope rosterGroup
         case RosterAction.parseApplyRosterTemplateApplicationActionParams of
-            Left _ -> invalidTemplateApplication scope "Review the template confirmation and try again."
+            Left errors -> invalidTemplateApplicationTransport scope errors
             Right fields -> do
                 accessDeniedUnless (surfaceFieldValue @RosterSurface.TemplateId fields == unpackId rosterTemplateId)
-                let targetDropzoneKey = surfaceFieldValue @SurfaceInteraction.TargetDropzoneKey fields
-                let expectedTemplateVersion = surfaceFieldValue @RosterSurface.ExpectedTemplateVersion fields
+                let submittedAnchorDate = surfaceFieldValue @RosterSurface.AnchorDate fields
                 let expectedTargetRevision = surfaceFieldValue @RosterSurface.ExpectedTargetRevision fields
                 let expectedCalendarRevision = surfaceFieldValue @RosterSurface.RosterCalendarRevision fields
-                maybeRequest <- resolveTemplateApplicationRequest rosterTemplateId rosterGroup scope targetDropzoneKey
+                let mappings = applicationShiftTypeMappingsFromValues (surfaceFieldValue @RosterSurface.StaleShiftTypeIds fields) (surfaceFieldValue @RosterSurface.MappedShiftTypeIds fields)
+                maybeRequest <- resolveTemplateApplicationRequest rosterTemplateId rosterGroup scope submittedAnchorDate mappings
                 case maybeRequest of
                     Nothing -> invalidTemplateApplication scope "Choose a compatible week target."
                     Just applicationRequest -> do
-                        applied <- applyRosterTemplateApplicationMutation actor applicationRequest expectedTemplateVersion expectedTargetRevision expectedCalendarRevision
+                        applied <- applyRosterTemplateApplicationMutation actor applicationRequest expectedTargetRevision expectedCalendarRevision
                         case applied of
-                            Left applicationError -> invalidTemplateApplication scope (templateApplicationErrorMessage applicationError)
+                            Left applicationError -> rerenderTemplateApplication actor rosterTemplateId rosterGroupId scope applicationRequest applicationError
                             Right mutationResult -> if isHtmxRequest
                                 then respondWithRosterTemplateApplicationUpdate scope mutationResult.liveMutationTouchedResources
                                 else do
@@ -217,9 +183,10 @@ resolveTemplateApplicationRequest ::
     Id RosterTemplate ->
     RosterGroup ->
     RosterWindowScope ->
-    Text ->
+    Day ->
+    Map.Map (Id ShiftType) (Id ShiftType) ->
     IO (Maybe RosterTemplateApplicationRequest)
-resolveTemplateApplicationRequest rosterTemplateId rosterGroup scope targetDropzoneKey = do
+resolveTemplateApplicationRequest rosterTemplateId rosterGroup scope submittedAnchorDate shiftTypeMappings = do
     let windowStart = scope.rosterWindowStart
     let windowEnd = scope.rosterWindowEnd
     let applicationRequest = RosterTemplateApplicationRequest
@@ -227,11 +194,10 @@ resolveTemplateApplicationRequest rosterTemplateId rosterGroup scope targetDropz
             , applicationTargetRosterGroupId = rosterGroup.id
             , applicationTargetWindowStart = windowStart
             , applicationTargetWindowEnd = windowEnd
-            , applicationTargetOperationalDate = Nothing
-            , applicationOccurrenceSelections = ShiftCopyOccurrenceSelections Nothing Nothing Nothing Nothing
+            , applicationShiftTypeMappings = shiftTypeMappings
             }
-    case parseTemplateTargetKey targetDropzoneKey of
-        Just targetWindowStart | targetWindowStart == windowStart -> do
+    if submittedAnchorDate >= windowStart && submittedAnchorDate < windowEnd
+        then do
             dayCount <- query @RosterDay
                 |> filterWhere (#venueId, rosterGroup.venueId)
                 |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
@@ -239,12 +205,30 @@ resolveTemplateApplicationRequest rosterTemplateId rosterGroup scope targetDropz
                 |> filterWhereLessThan (#operationalDate, windowEnd)
                 |> fetchCount
             pure (applicationRequest <$ guard (dayCount == 7))
-        _ -> pure Nothing
+        else pure Nothing
 
-parseTemplateTargetKey :: Text -> Maybe Day
-parseTemplateTargetKey value = do
-    rawDate <- Text.stripPrefix "window:" value
-    readMaybe (cs rawDate)
+applicationShiftTypeMappingsFromValues :: Maybe [UUID] -> Maybe [UUID] -> Map.Map (Id ShiftType) (Id ShiftType)
+applicationShiftTypeMappingsFromValues maybeStaleIds maybeMappedIds =
+    either (const invalidMapping) (\mappings -> mappings) (parseCaptureShiftTypeMappings (fromMaybe [] maybeStaleIds) (fromMaybe [] maybeMappedIds))
+  where
+    invalidMapping = Map.singleton (Id UUID.nil) (Id UUID.nil)
+
+rerenderTemplateApplication ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) =>
+    RosterTemplateActor ->
+    Id RosterTemplate ->
+    Id RosterGroup ->
+    RosterWindowScope ->
+    RosterTemplateApplicationRequest ->
+    RosterTemplateApplicationError ->
+    IO ()
+rerenderTemplateApplication actor rosterTemplateId rosterGroupId scope applicationRequest failure
+    | not isHtmxRequest = invalidTemplateApplication scope (templateApplicationErrorMessage failure)
+    | otherwise = do
+        refreshed <- previewRosterTemplateApplication actor applicationRequest
+        case refreshed of
+            Left refreshFailure -> invalidTemplateApplication scope (templateApplicationErrorMessage refreshFailure)
+            Right confirmation -> respondHtml (renderRosterTemplateApplicationConfirmation rosterTemplateId rosterGroupId confirmation (Just (templateApplicationErrorMessage failure)))
 
 rosterTemplateCaptureRequestFromValues ::
     RosterWindowScope ->
@@ -333,10 +317,19 @@ renderTemplateCaptureInput rosterGroupId scope message =
     submittedName = fromMaybe "" (paramOrNothing @Text (cs (surfaceFieldNameFrom @RosterSurface.TemplateName transportFields)))
     submittedMode = paramOrNothing @Text (cs (surfaceFieldNameFrom @RosterSurface.CaptureAssignmentMode transportFields))
 
+invalidTemplateApplicationTransport :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> [SurfaceRequestFieldError] -> IO ()
+invalidTemplateApplicationTransport scope errors
+    | isHtmxRequest = respondHtml (renderRosterTemplateApplicationTransportError message)
+    | otherwise = invalidTemplateApplication scope message
+  where
+    message = captureTransportErrorMessage errors
+
 invalidTemplateApplication :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> Text -> IO ()
-invalidTemplateApplication scope message = do
-    setErrorMessage message
-    redirectToPath (rosterTemplateWindowUrl scope)
+invalidTemplateApplication scope message
+    | isHtmxRequest = respondHtml (renderRosterTemplateApplicationTransportError message)
+    | otherwise = do
+        setErrorMessage message
+        redirectToPath (rosterTemplateWindowUrl scope)
 
 rosterTemplateWindowUrl :: RosterWindowScope -> Text
 rosterTemplateWindowUrl scope = rosterWindowUrl scope.rosterWindowStart scope.rosterWindowRosterGroupId
@@ -349,10 +342,10 @@ templateApplicationErrorMessage = \case
     RosterTemplateApplicationTargetLive -> "Templates cannot be applied to a Published roster. Return it to Draft first."
     RosterTemplateApplicationInvalidTargetDay -> "Choose a valid viewed week."
     RosterTemplateApplicationScaleMismatch -> "Choose a target compatible with this template."
-    RosterTemplateApplicationVersionConflict _ -> "The template changed before it could be applied. Review it and try again."
     RosterTemplateApplicationTargetConflict -> "The roster changed before the template could be applied. Review it and try again."
     RosterTemplateApplicationCalendarConflict -> "The roster calendar changed. Review the refreshed window and try again."
-    RosterTemplateApplicationInvalidShiftTypes _ -> "The template uses Shift types that are no longer available."
+    RosterTemplateApplicationShiftTypeMappingsRequired _ -> "Choose one active Shift type for each unavailable Shift type."
+    RosterTemplateApplicationInvalidShiftTypeMappings -> "Review the unavailable Shift type mappings and try again."
     RosterTemplateApplicationBoundaryError {} -> "A template time cannot be applied on the target date."
     RosterTemplateApplicationInvalidStructure message -> message
 

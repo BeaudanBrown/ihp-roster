@@ -124,9 +124,6 @@
   }
   var pageReadyEvent = "bepis:page-ready";
   var liveFragmentsRefreshEvent = "bepis:live-fragments-refresh";
-  function isRosterTemplateScaleEnum(value) {
-    return typeof value === "string" && ["day", "week"].includes(value);
-  }
   function isRosterImageExportStyle(value) {
     return typeof value === "string" && ["colour", "print"].includes(value);
   }
@@ -134,49 +131,9 @@
     return typeof value === "string" && ["pending", "approved", "denied", "archive"].includes(value);
   }
   var surfaceDomAttr = "data-bepis-surface";
-  var surfaceFamilyDomAttr = "data-bepis-surface-family";
-  var sessionDisabledDomAttr = "data-bepis-session-disabled";
-  var sessionReadOnlyDomAttr = "data-bepis-session-read-only";
-  var sessionThresholdDomAttr = "data-bepis-session-threshold";
-  var sessionTimeoutMsDomAttr = "data-bepis-session-timeout-ms";
-  var interactionActiveDomAttr = "data-bepis-interaction-active";
-  var disposableLayerDomAttr = "data-bepis-disposable-layer";
-  var conflictPoliciesDomAttr = "data-bepis-conflict-policies";
-  var intentFormDomAttr = "data-bepis-intent-form";
-  var intentDomAttr = "data-bepis-intent";
-  var intentFieldDomAttr = "data-bepis-intent-field";
-  var fieldPresenceDomAttr = "data-bepis-field-presence";
-  var sourceRefDomAttr = "data-bepis-source-ref";
-  var sourceKeyDomAttr = "data-bepis-source-key";
-  var dropzoneRefDomAttr = "data-bepis-dropzone-ref";
-  var dropzoneKeyDomAttr = "data-bepis-dropzone-key";
-  var activationRefDomAttr = "data-bepis-activation-ref";
-  var activeSourceRefDomAttr = "data-bepis-active-source-ref";
-  var enabledDomValue = "true";
-  var sessionKindFieldName = "sessionKind";
-  var pointerIdFieldName = "pointerId";
-  var pointerTypeFieldName = "pointerType";
-  var startClientXFieldName = "startClientX";
-  var startClientYFieldName = "startClientY";
-  var currentClientXFieldName = "currentClientX";
-  var currentClientYFieldName = "currentClientY";
-  var deltaXFieldName = "deltaX";
-  var deltaYFieldName = "deltaY";
-  var InteractionDom = {
-    attributes: { surface: surfaceDomAttr, surfaceFamily: surfaceFamilyDomAttr, sessionDisabled: sessionDisabledDomAttr, sessionReadOnly: sessionReadOnlyDomAttr, sessionThreshold: sessionThresholdDomAttr, sessionTimeoutMs: sessionTimeoutMsDomAttr, interactionActive: interactionActiveDomAttr, disposableLayer: disposableLayerDomAttr, conflictPolicies: conflictPoliciesDomAttr, intentForm: intentFormDomAttr, intent: intentDomAttr, intentField: intentFieldDomAttr, fieldPresence: fieldPresenceDomAttr, sourceRef: sourceRefDomAttr, sourceKey: sourceKeyDomAttr, dropzoneRef: dropzoneRefDomAttr, dropzoneKey: dropzoneKeyDomAttr, activationRef: activationRefDomAttr, activeSourceRef: activeSourceRefDomAttr },
-    values: { enabled: enabledDomValue },
-    pointerFields: { sessionKind: sessionKindFieldName, pointerId: pointerIdFieldName, pointerType: pointerTypeFieldName, startClientX: startClientXFieldName, startClientY: startClientYFieldName, currentClientX: currentClientXFieldName, currentClientY: currentClientYFieldName, deltaX: deltaXFieldName, deltaY: deltaYFieldName }
-  };
   var surfaceConfigDomAttr = "data-bepis-surface-config";
   function isTimesheetsTimesheetWeekScope(value) {
     return isRecord(value) && hasExactKeys(value, ["venueId", "windowStartDate", "windowEndDate", "rosterCalendarRevision"], ["venueId", "windowStartDate", "windowEndDate", "rosterCalendarRevision"]) && typeof value["venueId"] === "string" && typeof value["windowStartDate"] === "string" && typeof value["windowEndDate"] === "string" && (typeof value["rosterCalendarRevision"] === "number" && Number.isInteger(value["rosterCalendarRevision"]));
-  }
-  function isTemplateApplicationCardConfig(value) {
-    return isRecord(value) && hasExactKeys(value, ["templateId", "templateName", "templateScale"], ["templateId", "templateName", "templateScale"]) && typeof value["templateId"] === "string" && typeof value["templateName"] === "string" && isRosterTemplateScaleEnum(value["templateScale"]);
-  }
-  function parseTemplateApplicationCardConfig(value) {
-    if (isTemplateApplicationCardConfig(value)) return value;
-    throw new Error("Invalid TemplateApplicationCardConfig");
   }
   function isRosterImageExportConfig(value) {
     return isRecord(value) && hasExactKeys(value, ["imageExportFilename", "imageExportStyle", "imageExportMimeType", "imageExportQualityPercent", "imageExportPixelRatio", "imageExportMinimumWidth", "imageExportMaximumWidth", "imageExportIdleLabel", "imageExportPreparingLabel", "imageExportDownloadedLabel", "imageExportFailedLabel", "imageExportFailureMessage", "imageExportMissingProjectionMessage", "imageExportCloneFailureMessage", "imageExportRenderFailureMessage", "imageExportCanvasFailureMessage", "imageExportEncodingFailureMessage"], ["imageExportFilename", "imageExportStyle", "imageExportMimeType", "imageExportQualityPercent", "imageExportPixelRatio", "imageExportMinimumWidth", "imageExportMaximumWidth", "imageExportIdleLabel", "imageExportPreparingLabel", "imageExportDownloadedLabel", "imageExportFailedLabel", "imageExportFailureMessage", "imageExportMissingProjectionMessage", "imageExportCloneFailureMessage", "imageExportRenderFailureMessage", "imageExportCanvasFailureMessage", "imageExportEncodingFailureMessage"]) && typeof value["imageExportFilename"] === "string" && isRosterImageExportStyle(value["imageExportStyle"]) && typeof value["imageExportMimeType"] === "string" && (typeof value["imageExportQualityPercent"] === "number" && Number.isInteger(value["imageExportQualityPercent"])) && (typeof value["imageExportPixelRatio"] === "number" && Number.isInteger(value["imageExportPixelRatio"])) && (typeof value["imageExportMinimumWidth"] === "number" && Number.isInteger(value["imageExportMinimumWidth"])) && (typeof value["imageExportMaximumWidth"] === "number" && Number.isInteger(value["imageExportMaximumWidth"])) && typeof value["imageExportIdleLabel"] === "string" && typeof value["imageExportPreparingLabel"] === "string" && typeof value["imageExportDownloadedLabel"] === "string" && typeof value["imageExportFailedLabel"] === "string" && typeof value["imageExportFailureMessage"] === "string" && typeof value["imageExportMissingProjectionMessage"] === "string" && typeof value["imageExportCloneFailureMessage"] === "string" && typeof value["imageExportRenderFailureMessage"] === "string" && typeof value["imageExportCanvasFailureMessage"] === "string" && typeof value["imageExportEncodingFailureMessage"] === "string";
@@ -270,13 +227,6 @@
   var timesheetsTimesheetStaffHighlightSourceDomAttr = "data-bepis-timesheets-timesheet-staff-highlight-source";
   var timesheetsTimesheetStaffHighlightMemberDomAttr = "data-bepis-timesheets-timesheet-staff-highlight-member";
   var timesheetsTimesheetStaffHighlightPinDomAttr = "data-bepis-timesheets-timesheet-staff-highlight-pin";
-  var rosterTemplateCardDomAttr = "data-bepis-roster-template-card";
-  var rosterTemplateCardConfigDomAttr = "data-bepis-roster-template-card-config";
-  var rosterTemplateApplicationFormDomAttr = "data-bepis-roster-template-application-form";
-  var rosterTemplateTargetInputDomAttr = "data-bepis-roster-template-target-input";
-  var rosterTemplateCancelDomAttr = "data-bepis-roster-template-cancel";
-  var rosterTemplateDayTargetDomAttr = "data-bepis-roster-template-day-target";
-  var rosterTemplateWeekTargetDomAttr = "data-bepis-roster-template-week-target";
   var rosterColumnEditorDomAttr = "data-bepis-roster-column-editor";
   var rosterColumnEditStartDomAttr = "data-bepis-roster-column-edit-start";
   var rosterColumnEditDoneDomAttr = "data-bepis-roster-column-edit-done";
@@ -1603,205 +1553,10 @@
     return false;
   }
 
-  // frontend/ts/roster/template-application-selection.ts
-  var idle = { kind: "idle" };
-  function reduceTemplateApplicationSelection(state, event) {
-    switch (event.kind) {
-      case "isolated-control":
-        return state;
-      case "escape":
-      case "cancel":
-      case "invalid-area":
-        return idle;
-      case "activate-day":
-        return state.kind === "selecting-day" ? { kind: "commit", templateId: state.templateId, targetKey: event.targetKey } : state;
-      case "activate-card":
-        if (state.kind === "selecting-day" && state.templateId === event.templateId) return idle;
-        switch (event.scale) {
-          case "day":
-            return { kind: "selecting-day", templateId: event.templateId };
-          case "week":
-            return event.weekTargetKey ? { kind: "commit", templateId: event.templateId, targetKey: event.weekTargetKey } : idle;
-          default:
-            return assertNever2(event.scale);
-        }
-      default:
-        return assertNever2(event);
-    }
-  }
-  function assertNever2(value) {
-    throw new Error(`Unhandled template application event: ${String(value)}`);
-  }
-
-  // frontend/ts/roster/template-application.ts
-  var selectingClass = "is-template-day-targeting";
-  var selectedCardClass = "is-template-card-selected";
-  var cardSelector = `[${rosterTemplateCardDomAttr}]`;
-  var cardConfigSelector = `[${rosterTemplateCardConfigDomAttr}]`;
-  var dayTargetSelector = `[${rosterTemplateDayTargetDomAttr}]`;
-  var weekTargetSelector = `[${rosterTemplateWeekTargetDomAttr}]`;
-  var cancelSelector = `[${rosterTemplateCancelDomAttr}]`;
-  var formSelector = `[${rosterTemplateApplicationFormDomAttr}]`;
-  var targetInputSelector = `[${rosterTemplateTargetInputDomAttr}]`;
-  var rosterMountSelector = `[${InteractionDom.attributes.surface}]`;
-  var sessions = /* @__PURE__ */ new WeakMap();
-  function enableRosterTemplateApplication() {
-    if (typeof document === "undefined") return () => void 0;
-    const click = (event) => handleClick(event);
-    const keydown = (event) => handleKeydown(event);
-    const cleanup = (event) => {
-      if (!(event.target instanceof Element)) return;
-      if (event.target.matches(rosterMountSelector)) resetMount(event.target);
-      event.target.querySelectorAll(rosterMountSelector).forEach(resetMount);
-    };
-    document.addEventListener("click", click, true);
-    document.addEventListener("keydown", keydown);
-    document.addEventListener("htmx:beforeCleanupElement", cleanup);
-    return () => {
-      document.removeEventListener("click", click, true);
-      document.removeEventListener("keydown", keydown);
-      document.removeEventListener("htmx:beforeCleanupElement", cleanup);
-      document.querySelectorAll(rosterMountSelector).forEach(resetMount);
-    };
-  }
-  function handleClick(event) {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    const mount = target.closest(rosterMountSelector);
-    if (!mount) return;
-    if (target.closest(cancelSelector)) {
-      stopEvent(event);
-      transition(mount, { kind: "cancel" });
-      return;
-    }
-    if (target.closest(".roster-template-card-actions")) return;
-    const card = target.closest(cardSelector);
-    if (card && target.closest(".roster-template-card-apply")) {
-      stopEvent(event);
-      activateCard(mount, card);
-      return;
-    }
-    const selectionMount = closestSelectingMount(target);
-    if (!selectionMount) return;
-    const dayTarget = target.closest(dayTargetSelector);
-    const targetKey = dayTarget ? dayTargetKey(dayTarget) : null;
-    if (dayTarget && targetKey) {
-      stopEvent(event);
-      transition(selectionMount, { kind: "activate-day", targetKey });
-      return;
-    }
-    stopEvent(event);
-    transition(selectionMount, { kind: "invalid-area" });
-  }
-  function handleKeydown(event) {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    const mount = closestSelectingMount(target);
-    if (!mount) return;
-    if (event.key === "Escape") {
-      event.preventDefault();
-      transition(mount, { kind: "escape" });
-      return;
-    }
-    if (event.key !== "Enter" && event.key !== " " && event.key !== "Spacebar") return;
-    const dayTarget = target.closest(dayTargetSelector);
-    const targetKey = dayTarget ? dayTargetKey(dayTarget) : null;
-    if (!targetKey) return;
-    event.preventDefault();
-    transition(mount, { kind: "activate-day", targetKey });
-  }
-  function activateCard(mount, card) {
-    const configOwner = card.matches(cardConfigSelector) ? card : card.querySelector(cardConfigSelector);
-    if (!configOwner) return;
-    let config;
-    try {
-      config = parseTemplateApplicationCardConfig(JSON.parse(configOwner.getAttribute(rosterTemplateCardConfigDomAttr) ?? ""));
-    } catch {
-      return;
-    }
-    const session = sessionFor(mount);
-    session.activeCard = card;
-    switch (config.templateScale) {
-      case "day":
-        transition(mount, { kind: "activate-card", templateId: config.templateId, scale: config.templateScale });
-        return;
-      case "week": {
-        const weekTargetKey = mount.querySelector(weekTargetSelector)?.getAttribute(InteractionDom.attributes.dropzoneKey);
-        if (!weekTargetKey) return resetMount(mount);
-        transition(mount, { kind: "activate-card", templateId: config.templateId, scale: config.templateScale, weekTargetKey });
-        return;
-      }
-      default:
-        return assertNever3(config.templateScale);
-    }
-  }
-  function transition(mount, event) {
-    const session = sessionFor(mount);
-    session.state = reduceTemplateApplicationSelection(session.state, event);
-    if (session.state.kind === "commit") {
-      const form = session.activeCard?.querySelector(formSelector);
-      const targetInput = form?.querySelector(targetInputSelector);
-      if (form instanceof HTMLFormElement && targetInput instanceof HTMLInputElement) {
-        targetInput.value = session.state.targetKey;
-        form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-      }
-      resetMount(mount);
-      return;
-    }
-    renderMount(mount, session);
-  }
-  function renderMount(mount, session) {
-    const selecting = session.state.kind === "selecting-day";
-    mount.classList.toggle(selectingClass, selecting);
-    session.activeCard?.classList.toggle(selectedCardClass, selecting);
-    mount.querySelectorAll(cancelSelector).forEach((button) => {
-      if (button instanceof HTMLElement) button.hidden = !selecting;
-    });
-    mount.querySelectorAll(dayTargetSelector).forEach((target) => {
-      if (!(target instanceof HTMLElement)) return;
-      target.hidden = !selecting;
-      target.tabIndex = selecting ? 0 : -1;
-    });
-    if (!selecting) session.activeCard = null;
-  }
-  function resetMount(mount) {
-    const session = sessions.get(mount);
-    if (!session) return;
-    session.state = { kind: "idle" };
-    renderMount(mount, session);
-    sessions.delete(mount);
-  }
-  function sessionFor(mount) {
-    const existing = sessions.get(mount);
-    if (existing) return existing;
-    const created = { state: { kind: "idle" }, activeCard: null };
-    sessions.set(mount, created);
-    return created;
-  }
-  function closestSelectingMount(target) {
-    let mount = target.closest(rosterMountSelector);
-    while (mount) {
-      if (sessions.get(mount)?.state.kind === "selecting-day") return mount;
-      mount = mount.parentElement?.closest(rosterMountSelector) ?? null;
-    }
-    return null;
-  }
-  function dayTargetKey(target) {
-    return target.closest(`[${InteractionDom.attributes.dropzoneKey}]`)?.getAttribute(InteractionDom.attributes.dropzoneKey) ?? null;
-  }
-  function assertNever3(value) {
-    throw new Error(`Unhandled roster template scale: ${String(value)}`);
-  }
-  function stopEvent(event) {
-    if (event.cancelable) event.preventDefault();
-    event.stopImmediatePropagation();
-  }
-
   // frontend/ts/app-roster.ts
   enableRosterWeekOverview();
   enableRosterColumnEditMode();
   enableRosterImageExport();
-  enableRosterTemplateApplication();
   var rosterWageFilter = enableRosterWageFilter();
   enableFrontendSurfaceLinkedHighlight({ onPinChange: rosterWageFilter.pinChanged });
 })();

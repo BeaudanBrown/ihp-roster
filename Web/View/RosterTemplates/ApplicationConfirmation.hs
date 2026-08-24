@@ -2,25 +2,46 @@
 
 module Web.View.RosterTemplates.ApplicationConfirmation
     ( renderRosterTemplateApplicationConfirmation
+    , renderRosterTemplateApplicationTransportError
     ) where
 
+import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            renderFrontendSurfaceActionFormWithHiddenFields)
+                                                            renderFrontendSurfaceActionForm)
+import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom)
 import Application.Helper.View.Overlay
 import Web.RosterWeeks.Paths (rosterTemplateApplicationUrl)
 import Web.RosterWeeks.TemplateApplication
 import Web.View.Prelude
 
-renderRosterTemplateApplicationConfirmation :: (?context :: ControllerContext) => Id RosterTemplate -> Id RosterGroup -> Text -> RosterTemplateApplicationPreview -> Html
-renderRosterTemplateApplicationConfirmation rosterTemplateId rosterGroupId targetDropzoneKey preview =
+renderRosterTemplateApplicationTransportError :: Text -> Html
+renderRosterTemplateApplicationTransportError message =
+    renderDialogOverlay DialogOverlayConfig
+        { dialogOverlayTitle = "Review template application"
+        , dialogOverlayBody = [hsx|<p class="alert alert-danger">{message}</p>|]
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons =
+            [ OverlayButton
+                { overlayButtonLabel = "Close"
+                , overlayButtonClass = "btn btn-outline-secondary"
+                , overlayButtonAction = OverlayCloseAction
+                }
+            ]
+        , dialogOverlayDialogClass = ""
+        }
+
+renderRosterTemplateApplicationConfirmation :: (?context :: ControllerContext) => Id RosterTemplate -> Id RosterGroup -> RosterTemplateApplicationPreview -> Maybe Text -> Html
+renderRosterTemplateApplicationConfirmation rosterTemplateId rosterGroupId preview maybeMessage =
     renderDialogOverlay DialogOverlayConfig
         { dialogOverlayTitle = "Apply " <> preview.applicationPreviewTemplateName
         , dialogOverlayBody = [hsx|
-            <p>{replacementCopy preview}</p>
-            <p class="small text-muted">Existing rosters outside this target are unaffected.</p>
+            {forEach maybeMessage renderMessage}
+            <p>This will replace the complete viewed week.</p>
+            <p class="small text-muted">Existing rosters outside this target are unaffected. Every target day remains Draft.</p>
+            {renderShiftTypeRequirements preview actionFields}
             {renderWarnings preview.applicationWarnings}
-            {renderFrontendSurfaceActionFormWithHiddenFields (RosterAction.applyRosterTemplateApplicationAction actionFields) actionRoute mempty}
+            {renderFrontendSurfaceActionForm (RosterAction.applyRosterTemplateApplicationAction actionFields) actionRoute (renderApplicationFields rosterTemplateId preview actionFields)}
         |]
         , dialogOverlayStartButtons = []
         , dialogOverlayButtons =
@@ -42,10 +63,11 @@ renderRosterTemplateApplicationConfirmation rosterTemplateId rosterGroupId targe
     actionUrl = rosterTemplateApplicationUrl preview.applicationPreviewTargetWindowStart rosterTemplateId rosterGroupId
     actionFields = RosterAction.applyRosterTemplateApplicationActionFields
         (unpackId rosterTemplateId)
-        targetDropzoneKey
-        preview.applicationExpectedVersion
+        preview.applicationPreviewTargetWindowStart
         preview.applicationExpectedTargetRevision
         preview.applicationRosterCalendarRevision
+        Nothing
+        Nothing
     actionRoute = FrontendSurfaceActionRoute
         { actionRouteUrl = actionUrl
         , actionRouteCustomHtmx = []
@@ -53,10 +75,40 @@ renderRosterTemplateApplicationConfirmation rosterTemplateId rosterGroupId targe
         , actionRouteExtraAttrs = [("id", formId)]
         }
 
-replacementCopy :: RosterTemplateApplicationPreview -> Text
-replacementCopy preview = case preview.applicationPreviewScale of
-    Day  -> "This will replace the selected day in the viewed draft week."
-    Week -> "This will replace the complete viewed week."
+renderApplicationFields rosterTemplateId preview fields = [hsx|
+    <input type="hidden" name={surfaceFieldNameFrom @Surface.TemplateId fields} value={tshow rosterTemplateId}/>
+    <input type="hidden" name={surfaceFieldNameFrom @Surface.AnchorDate fields} value={tshow preview.applicationPreviewTargetWindowStart}/>
+    <input type="hidden" name={surfaceFieldNameFrom @Surface.ExpectedTargetRevision fields} value={preview.applicationExpectedTargetRevision}/>
+    <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterCalendarRevision fields} value={tshow preview.applicationRosterCalendarRevision}/>
+    {renderShiftTypeMappingInputs preview fields}
+|]
+
+renderShiftTypeRequirements preview _fields
+    | null preview.applicationShiftTypeRequirements = mempty
+    | otherwise = [hsx|
+        <div class="alert alert-warning">
+            <p class="mb-0">Map each unavailable Shift type before applying. These replacements permanently clean the saved template.</p>
+        </div>
+    |]
+
+renderShiftTypeMappingInputs preview fields =
+    forEach preview.applicationShiftTypeRequirements \requirement -> [hsx|
+        <div class="mb-3">
+            <label class="form-label">{requirement.applicationStaleShiftTypeName}</label>
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.StaleShiftTypeIds fields} value={tshow requirement.applicationStaleShiftTypeId}/>
+            <select class="form-select" name={surfaceFieldNameFrom @Surface.MappedShiftTypeIds fields} required="required">
+                <option value="">Choose an active Shift type</option>
+                {forEach preview.applicationAvailableShiftTypes (renderMappedOption requirement.applicationMappedShiftTypeId)}
+            </select>
+        </div>
+    |]
+
+renderMappedOption selectedId shiftType
+    | selectedId == Just shiftType.id = [hsx|<option value={tshow shiftType.id} selected="selected">{shiftType.name}</option>|]
+    | otherwise = [hsx|<option value={tshow shiftType.id}>{shiftType.name}</option>|]
+
+renderMessage :: Text -> Html
+renderMessage message = [hsx|<p class="alert alert-danger">{message}</p>|]
 
 renderWarnings :: [RosterTemplateApplicationWarning] -> Html
 renderWarnings warnings = forEach warnings \warning -> [hsx|
@@ -66,5 +118,12 @@ renderWarnings warnings = forEach warnings \warning -> [hsx|
 warningCopy :: RosterTemplateApplicationWarning -> Text
 warningCopy (RosterTemplateApplicationClearsDay _) = "Existing shifts in the selected day will be replaced."
 warningCopy RosterTemplateApplicationClearsWeek = "Existing shifts and columns in the viewed week will be replaced."
-warningCopy (RosterTemplateApplicationExistingTimesheetsRemain count) = tshow count <> " existing Timesheet snapshot(s) remain unchanged."
-warningCopy (RosterTemplateApplicationAssignmentConvertedToOpen _ _) = "A stale Staff assignment will be converted to Open."
+warningCopy (RosterTemplateApplicationExistingTimesheetsRemain count) = tshow count <> " existing Timesheet snapshot(s) remain unchanged with their source provenance."
+warningCopy (RosterTemplateApplicationAssignmentConvertedToOpen _ staffName issue count) =
+    staffName <> ": " <> issueCopy issue <> " (" <> tshow count <> " affected shift(s))."
+
+issueCopy :: RosterTemplateApplicationAssignmentIssue -> Text
+issueCopy RosterTemplateStaffUnavailable = "Staff is inactive, archived, missing, or outside this venue; the saved template will be cleaned"
+issueCopy RosterTemplateStaffOutsideGroup = "Staff is outside this roster group; the saved template will be cleaned"
+issueCopy RosterTemplateStaffPayInvalid = "Staff or Shift type pay configuration is invalid; the saved template will be cleaned"
+issueCopy RosterTemplateStaffOnApprovedLeave = "Staff has approved leave on the target date; only this roster application will become Open"

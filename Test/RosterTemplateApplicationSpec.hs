@@ -1,12 +1,16 @@
 module Test.RosterTemplateApplicationSpec where
 
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterTemplateLibraryResource)
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           applyRosterShiftAssignment)
 import Application.RosterTemplates
-import Application.VenueTime.Model (noShiftCopyOccurrenceSelections)
-import Data.Either (isRight)
-import Data.Time.Calendar (addDays)
+import Application.VenueTime (RepeatedTimeOccurrence (FirstOccurrence))
+import Application.VenueTime.Model (resolveBoundaryInstant)
+import Data.Either (fromRight, isRight)
+import qualified Data.Map.Strict as Map
+import Data.Time.Calendar (addDays, fromGregorian)
+import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types hiding (createRosterTemplate)
 import IHP.ControllerPrelude
 import IHP.Test.Mocking
@@ -50,7 +54,7 @@ tests = aroundAll withDatabaseTestContext do
                 let request = applicationRequest snapshot.snapshotTemplate.id targetWeek
 
                 Right preview <- previewRosterTemplateApplication actor request
-                applied <- applyRosterTemplateApplication actor request 0 preview.applicationExpectedTargetRevision preview.applicationRosterCalendarRevision
+                applied <- applyRosterTemplateApplication actor request preview.applicationExpectedTargetRevision preview.applicationRosterCalendarRevision
                 refreshedTemplate <- fetchRosterTemplate actor snapshot.snapshotTemplate.id
                 activeSlots <- query @RosterSlot
                     |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) targetDays)
@@ -85,11 +89,186 @@ tests = aroundAll withDatabaseTestContext do
                         { contentDays = [RosterTemplateDayInput dayIndex (Just dayIndex) (dayIndex == 0) 1 | dayIndex <- [0 .. 6]] }
                 Right _ <- replaceRosterTemplateContent actor snapshot.snapshotTemplate.id changedContent
 
-                applied <- applyRosterTemplateApplication actor request 0 preview.applicationExpectedTargetRevision preview.applicationRosterCalendarRevision
+                applied <- applyRosterTemplateApplication actor request preview.applicationExpectedTargetRevision preview.applicationRosterCalendarRevision
                 retainedSlot <- fetch oldSlot.id
 
                 applied `shouldBe` Left RosterTemplateApplicationTargetConflict
                 retainedSlot.deletedAt `shouldBe` Nothing
+
+        it "converts approved-leave assignments only in the target roster" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Snapshot approved leave"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                manager <- createUserRecord "snapshot-leave@example.com" "staff" True
+                staff <- createStaffRecord venue Nothing "Leave" "Worker"
+                shiftType <- ensureVenueDefaultShiftType venue
+                let actor = rosterTemplateActor manager venue True
+                Right snapshot <- createRosterTemplate actor rosterGroup Week "Leave week" (completeWeekContent shiftType.id (StaffAssignment staff.id))
+                targetWeek <- createRosterWindowRecordForRosterGroupAt venue rosterGroup (testAnchorForOffset 13) False
+                _ <- forM ([0 .. 6] :: [Int]) (\dayIndex -> createNativeRosterDayRecord venue rosterGroup (addDays (toInteger dayIndex) targetWeek.fixtureWindowStart) dayIndex)
+                let assignedDate = fromMaybe (error "target week missing Sunday") (find ((== 0) . weekdayIndexForDay) [addDays offset targetWeek.fixtureWindowStart | offset <- [0 .. 6]])
+                _ <- createLeaveRequestRecord venue staff assignedDate (addDays 1 assignedDate) LeaveRequestStatusEnumApproved
+                let request = applicationRequest snapshot.snapshotTemplate.id targetWeek
+
+                Right preview <- previewRosterTemplateApplication actor request
+                Right result <- applyRosterTemplateApplication actor request preview.applicationExpectedTargetRevision preview.applicationRosterCalendarRevision
+                refreshedTemplate <- fetchRosterTemplate actor snapshot.snapshotTemplate.id
+                targetSlots <- query @RosterSlot |> filterWhere (#deletedAt, Nothing) |> fetch
+
+                result.appliedTemplateChanged `shouldBe` False
+                map (.assignmentState) targetSlots `shouldBe` ["open"]
+                fmap (map (.assignmentState) . (.snapshotShifts)) refreshedTemplate `shouldBe` Just ["staff"]
+                preview.applicationWarnings `shouldContain`
+                    [RosterTemplateApplicationAssignmentConvertedToOpen staff.id "Leave Worker" RosterTemplateStaffOnApprovedLeave 1]
+
+        it "invalidates confirmation when referenced Staff facts change" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Snapshot Staff conflict"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                manager <- createUserRecord "snapshot-staff-conflict@example.com" "staff" True
+                staff <- createStaffRecord venue Nothing "Before" "Name"
+                shiftType <- ensureVenueDefaultShiftType venue
+                let actor = rosterTemplateActor manager venue True
+                Right snapshot <- createRosterTemplate actor rosterGroup Week "Staff conflict week" (completeWeekContent shiftType.id (StaffAssignment staff.id))
+                targetWeek <- createRosterWindowRecordForRosterGroupAt venue rosterGroup (testAnchorForOffset 17) False
+                _ <- forM ([0 .. 6] :: [Int]) (\dayIndex -> createNativeRosterDayRecord venue rosterGroup (addDays (toInteger dayIndex) targetWeek.fixtureWindowStart) dayIndex)
+                let request = applicationRequest snapshot.snapshotTemplate.id targetWeek
+                Right preview <- previewRosterTemplateApplication actor request
+                _ <- staff |> set #firstName "After" |> updateRecord
+
+                applied <- applyRosterTemplateApplication actor request preview.applicationExpectedTargetRevision preview.applicationRosterCalendarRevision
+                slotCount <- query @RosterSlot |> fetchCount
+
+                applied `shouldBe` Left RosterTemplateApplicationTargetConflict
+                slotCount `shouldBe` 0
+
+        it "requires stale Shift type mapping and atomically cleans target and template" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Snapshot Shift mapping"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                manager <- createUserRecord "snapshot-shift-map@example.com" "staff" True
+                staleShiftType <- ensureVenueDefaultShiftType venue
+                awardLevel <- query @AwardLevel |> filterWhere (#isActive, True) |> fetchOne
+                replacement <- newRecord @ShiftType
+                    |> set #venueId (unpackId venue.id)
+                    |> set #name "Replacement"
+                    |> set #sortOrder 10
+                    |> set #payAssignmentMode AwardRate
+                    |> set #overrideAwardLevelId (Just awardLevel.id)
+                    |> createRecord
+                let actor = rosterTemplateActor manager venue True
+                Right snapshot <- createRosterTemplate actor rosterGroup Week "Mapped week" (completeWeekContent staleShiftType.id OpenAssignment)
+                _ <- staleShiftType |> set #isActive False |> updateRecord
+                targetWeek <- createRosterWindowRecordForRosterGroupAt venue rosterGroup (testAnchorForOffset 14) False
+                _ <- forM ([0 .. 6] :: [Int]) (\dayIndex -> createNativeRosterDayRecord venue rosterGroup (addDays (toInteger dayIndex) targetWeek.fixtureWindowStart) dayIndex)
+                let unmappedRequest = applicationRequest snapshot.snapshotTemplate.id targetWeek
+
+                Right unmappedPreview <- previewRosterTemplateApplication actor unmappedRequest
+                unmapped <- applyRosterTemplateApplication actor unmappedRequest unmappedPreview.applicationExpectedTargetRevision unmappedPreview.applicationRosterCalendarRevision
+                let mappedRequest = unmappedRequest { applicationShiftTypeMappings = Map.singleton staleShiftType.id replacement.id }
+                Right initialMappedPreview <- previewRosterTemplateApplication actor mappedRequest
+                unavailableReplacement <- replacement |> set #isActive False |> updateRecord
+                mappingConflict <- applyRosterTemplateApplication actor mappedRequest initialMappedPreview.applicationExpectedTargetRevision initialMappedPreview.applicationRosterCalendarRevision
+                _ <- unavailableReplacement |> set #isActive True |> updateRecord
+                Right payReferencePreview <- previewRosterTemplateApplication actor mappedRequest
+                unavailableAwardLevel <- awardLevel |> set #isActive False |> updateRecord
+                payReferenceConflict <- applyRosterTemplateApplication actor mappedRequest payReferencePreview.applicationExpectedTargetRevision payReferencePreview.applicationRosterCalendarRevision
+                _ <- unavailableAwardLevel |> set #isActive True |> updateRecord
+                Right mappedPreview <- previewRosterTemplateApplication actor mappedRequest
+                firstTargetDay <- query @RosterDay
+                    |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+                    |> orderByAsc #operationalDate
+                    |> fetchOne
+                publishedTargetDay <- firstTargetDay |> set #publicationState Published |> updateRecord
+                blocked <- applyRosterTemplateApplication actor mappedRequest mappedPreview.applicationExpectedTargetRevision mappedPreview.applicationRosterCalendarRevision
+                retainedAfterRollback <- fetchRosterTemplate actor snapshot.snapshotTemplate.id
+                _ <- publishedTargetDay |> set #publicationState Draft |> updateRecord
+                Right refreshedPreview <- previewRosterTemplateApplication actor mappedRequest
+                Right result <- applyRosterTemplateApplication actor mappedRequest refreshedPreview.applicationExpectedTargetRevision refreshedPreview.applicationRosterCalendarRevision
+                refreshedTemplate <- fetchRosterTemplate actor snapshot.snapshotTemplate.id
+                targetSlots <- query @RosterSlot |> filterWhere (#deletedAt, Nothing) |> fetch
+
+                unmapped `shouldBe` Left (RosterTemplateApplicationShiftTypeMappingsRequired [staleShiftType.id])
+                mappingConflict `shouldBe` Left RosterTemplateApplicationTargetConflict
+                payReferenceConflict `shouldBe` Left RosterTemplateApplicationTargetConflict
+                blocked `shouldBe` Left RosterTemplateApplicationTargetLive
+                fmap (map (.shiftTypeId) . (.snapshotShifts)) retainedAfterRollback `shouldBe` Just [unpackId staleShiftType.id]
+                result.appliedTemplateChanged `shouldBe` True
+                map (.shiftTypeId) targetSlots `shouldBe` [Just (unpackId replacement.id)]
+                fmap (map (.shiftTypeId) . (.snapshotShifts)) refreshedTemplate `shouldBe` Just [unpackId replacement.id]
+                result.appliedTouchedResources `shouldContain` [rosterTemplateLibraryResource (unpackId rosterGroup.id)]
+
+        it "applies an empty Week snapshot to a complete Draft target" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Empty snapshot application"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                manager <- createUserRecord "snapshot-empty@example.com" "staff" True
+                shiftType <- ensureVenueDefaultShiftType venue
+                let actor = rosterTemplateActor manager venue True
+                    emptyContent = (completeWeekContent shiftType.id OpenAssignment) { contentShifts = [] }
+                Right snapshot <- createRosterTemplate actor rosterGroup Week "Empty week" emptyContent
+                targetWeek <- createRosterWindowRecordForRosterGroupAt venue rosterGroup (testAnchorForOffset 16) False
+                targetDays <- forM ([0 .. 6] :: [Int]) (\dayIndex -> createNativeRosterDayRecord venue rosterGroup (addDays (toInteger dayIndex) targetWeek.fixtureWindowStart) dayIndex)
+                existing <- createDefinition targetWeek "Existing" 0
+                _ <- createSlot (targetDays !! 0) existing shiftType OpenAssignment 0
+                let request = applicationRequest snapshot.snapshotTemplate.id targetWeek
+
+                Right preview <- previewRosterTemplateApplication actor request
+                Right _ <- applyRosterTemplateApplication actor request preview.applicationExpectedTargetRevision preview.applicationRosterCalendarRevision
+                activeSlotCount <- query @RosterSlot |> filterWhere (#deletedAt, Nothing) |> fetchCount
+
+                activeSlotCount `shouldBe` 0
+
+        it "rejects Published and incomplete targets without mutating either side" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Snapshot target guards"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                manager <- createUserRecord "snapshot-target-guards@example.com" "staff" True
+                shiftType <- ensureVenueDefaultShiftType venue
+                let actor = rosterTemplateActor manager venue True
+                Right snapshot <- createRosterTemplate actor rosterGroup Week "Guarded week" (completeWeekContent shiftType.id OpenAssignment)
+                targetWeek <- createRosterWindowRecordForRosterGroupAt venue rosterGroup (testAnchorForOffset 15) False
+                days <- forM ([0 .. 5] :: [Int]) (\dayIndex -> createNativeRosterDayRecord venue rosterGroup (addDays (toInteger dayIndex) targetWeek.fixtureWindowStart) dayIndex)
+                incomplete <- previewRosterTemplateApplication actor (applicationRequest snapshot.snapshotTemplate.id targetWeek)
+                _ <- createNativeRosterDayRecord venue rosterGroup (addDays 6 targetWeek.fixtureWindowStart) 6
+                _ <- (days !! 0) |> set #publicationState Published |> updateRecord
+                published <- previewRosterTemplateApplication actor (applicationRequest snapshot.snapshotTemplate.id targetWeek)
+                templateCount <- query @RosterTemplateShift |> fetchCount
+                slotCount <- query @RosterSlot |> fetchCount
+
+                incomplete `shouldBe` Left RosterTemplateApplicationInvalidTargetDay
+                published `shouldBe` Left RosterTemplateApplicationTargetLive
+                templateCount `shouldBe` 1
+                slotCount `shouldBe` 0
+
+        it "uses the first Melbourne occurrence and rejects nonexistent local times" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Snapshot DST application"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                manager <- createUserRecord "snapshot-dst@example.com" "staff" True
+                shiftType <- ensureVenueDefaultShiftType venue
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- venueConfig |> set #rosterWeekStartsOn 0 |> set #rosterCalendarRevision (venueConfig.rosterCalendarRevision + 1) |> updateRecord
+                let actor = rosterTemplateActor manager venue True
+                    repeatedContent = (completeWeekContent shiftType.id OpenAssignment)
+                        { contentShifts = [RosterTemplateShiftInput 0 0 0 150 210 shiftType.id OpenAssignment] }
+                Right repeatedSnapshot <- createRosterTemplate actor rosterGroup Week "Repeated week" repeatedContent
+                repeatedWindow <- createRosterWindowRecordForRosterGroupAt venue rosterGroup (fromGregorian 2026 4 5) False
+                _ <- forM ([0 .. 6] :: [Int]) (\dayIndex -> createNativeRosterDayRecord venue rosterGroup (addDays (toInteger dayIndex) repeatedWindow.fixtureWindowStart) dayIndex)
+
+                Right repeatedPreview <- previewRosterTemplateApplication actor (applicationRequest repeatedSnapshot.snapshotTemplate.id repeatedWindow)
+                let expectedStart = fromRight (error "expected repeated Melbourne boundary") (resolveBoundaryInstant "Australia/Melbourne" (fromGregorian 2026 4 5) (TimeOfDay 2 30 0) (Just FirstOccurrence))
+                map (.resolvedStartsAt) repeatedPreview.applicationResolvedShifts `shouldBe` [expectedStart]
+
+                let nonexistentContent = repeatedContent
+                        { contentShifts = [RosterTemplateShiftInput 0 0 0 150 240 shiftType.id OpenAssignment] }
+                Right nonexistentSnapshot <- createRosterTemplate actor rosterGroup Week "Nonexistent week" nonexistentContent
+                nonexistentWindow <- createRosterWindowRecordForRosterGroupAt venue rosterGroup (fromGregorian 2026 10 4) False
+                _ <- forM ([0 .. 6] :: [Int]) (\dayIndex -> createNativeRosterDayRecord venue rosterGroup (addDays (toInteger dayIndex) nonexistentWindow.fixtureWindowStart) dayIndex)
+                nonexistent <- previewRosterTemplateApplication actor (applicationRequest nonexistentSnapshot.snapshotTemplate.id nonexistentWindow)
+                nonexistent `shouldSatisfy` \case
+                    Left RosterTemplateApplicationBoundaryError {} -> True
+                    _ -> False
 
         it "rejects a stale calendar revision before replacing the target" $ withContext do
             withCleanDb do
@@ -108,7 +287,7 @@ tests = aroundAll withDatabaseTestContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 _ <- venueConfig |> set #rosterWeekStartsOn ((venueConfig.rosterWeekStartsOn + 1) `mod` 7) |> updateRecord
 
-                applied <- applyRosterTemplateApplication actor request 0 preview.applicationExpectedTargetRevision preview.applicationRosterCalendarRevision
+                applied <- applyRosterTemplateApplication actor request preview.applicationExpectedTargetRevision preview.applicationRosterCalendarRevision
                 retainedSlot <- fetch oldSlot.id
 
                 applied `shouldBe` Left RosterTemplateApplicationCalendarConflict
@@ -121,8 +300,7 @@ applicationRequest templateId targetWeek =
         , applicationTargetRosterGroupId = Id targetWeek.fixtureRosterGroupId
         , applicationTargetWindowStart = windowStart
         , applicationTargetWindowEnd = addDays 7 windowStart
-        , applicationTargetOperationalDate = Nothing
-        , applicationOccurrenceSelections = noShiftCopyOccurrenceSelections
+        , applicationShiftTypeMappings = Map.empty
         }
   where
     windowStart = targetWeek.fixtureWindowStart

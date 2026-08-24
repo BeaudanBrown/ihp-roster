@@ -340,9 +340,6 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"staff\""
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"settings\""
                 response `responseBodyShouldNotContain` "data-bepis-roster-staff-panel-tab=\"templates\""
-                response `responseBodyShouldNotContain` "data-bepis-roster-template-card=\"true\""
-                response `responseBodyShouldNotContain` "data-bepis-source-ref=\"day-template-drag-source\""
-                response `responseBodyShouldNotContain` "data-bepis-source-ref=\"week-template-drag-source\""
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-root=\"true\""
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-control=\"name\""
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-control=\"role\""
@@ -406,9 +403,6 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "roster-template-library-mount-"
                 response `responseBodyShouldNotContain` "Templates cannot be applied to a Published roster"
                 response `responseBodyShouldNotContain` "aria-label=\"Apply Lunch service\""
-                response `responseBodyShouldNotContain` "data-bepis-source-ref=\"day-template-drag-source\""
-                response `responseBodyShouldNotContain` "data-bepis-dropzone-ref=\"day-template-dropzone\""
-                response `responseBodyShouldNotContain` "data-bepis-dropzone-ref=\"week-template-dropzone\""
 
         it "keeps staff requiring pay remediation visible and editable in the roster staff panel" $ withContext do
             withCleanDb do

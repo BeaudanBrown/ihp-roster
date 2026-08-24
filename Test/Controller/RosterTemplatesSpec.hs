@@ -5,10 +5,14 @@ import qualified Application.Helper.FrontendContract.Surface.Roster.Action as Ro
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           applyRosterShiftAssignment)
+import Application.RosterTemplates
+import Data.Either (isRight)
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
-import Generated.Types
+import qualified Data.UUID as UUID
+import Generated.Types hiding (createRosterTemplate)
 import IHP.ControllerPrelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
@@ -17,10 +21,13 @@ import Test.Hspec
 import Test.Support
 import Web.Controller.RosterTemplates ()
 import Web.FrontController ()
+import Web.RosterWeeks.TemplateApplication
 import Web.Types
 
 capturePreviewTransportFields = RosterAction.previewRosterTemplateCaptureActionFields "" Surface.KeepValidStaffAssignments Nothing Nothing
 captureCreateTransportFields = RosterAction.createRosterTemplateCaptureActionFields "" Surface.KeepValidStaffAssignments Nothing Nothing "" 0 False
+applicationPreviewTransportFields = RosterAction.previewRosterTemplateApplicationActionFields UUID.nil (fromGregorian 2026 1 1) 0 Nothing Nothing
+applicationApplyTransportFields = RosterAction.applyRosterTemplateApplicationActionFields UUID.nil (fromGregorian 2026 1 1) "" 0 Nothing Nothing
 
 templateNameParam, captureAssignmentModeParam, staleShiftTypeIdsParam, mappedShiftTypeIdsParam, expectedSourceRevisionParam, rosterCalendarRevisionParam, warningsConfirmedParam :: ByteString
 templateNameParam = cs (surfaceFieldNameFrom @Surface.TemplateName capturePreviewTransportFields)
@@ -30,6 +37,9 @@ mappedShiftTypeIdsParam = cs (surfaceFieldNameFrom @Surface.MappedShiftTypeIds c
 expectedSourceRevisionParam = cs (surfaceFieldNameFrom @Surface.ExpectedSourceRevision captureCreateTransportFields)
 rosterCalendarRevisionParam = cs (surfaceFieldNameFrom @Surface.RosterCalendarRevision captureCreateTransportFields)
 warningsConfirmedParam = cs (surfaceFieldNameFrom @Surface.WarningsConfirmed captureCreateTransportFields)
+applicationAnchorDateParam = cs (surfaceFieldNameFrom @Surface.AnchorDate applicationPreviewTransportFields)
+applicationTemplateIdParam = cs (surfaceFieldNameFrom @Surface.TemplateId applicationApplyTransportFields)
+expectedTargetRevisionParam = cs (surfaceFieldNameFrom @Surface.ExpectedTargetRevision applicationApplyTransportFields)
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
@@ -195,6 +205,69 @@ tests = aroundAll withDatabaseTestContext do
                 malformedRevision `responseBodyShouldContain` "rosterCalendarRevision"
                 crossVenue `responseStatusShouldBe` status403
                 templateCount `shouldBe` 0
+
+    describe "RosterTemplatesController date-native application" do
+        it "previews and applies a Week template through typed button transport" $ withContext do
+            withCleanDb do
+                fixture <- controllerCaptureFixture "Controller application"
+                let actor = rosterTemplateActor fixture.manager fixture.venue True
+                    content = RosterTemplateContent
+                        { contentDays = [RosterTemplateDayInput dayIndex (Just dayIndex) False 1 | dayIndex <- [0 .. 6]]
+                        , contentColumns = [RosterTemplateColumnInput "Only" 0]
+                        , contentShifts = [RosterTemplateShiftInput 0 0 0 540 1020 fixture.shiftType.id OpenAssignment]
+                        }
+                Right snapshot <- createRosterTemplate actor fixture.rosterGroup Week "Controller week" content
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetchOne
+                let directRequest = RosterTemplateApplicationRequest
+                        { applicationTemplateId = snapshot.snapshotTemplate.id
+                        , applicationTargetRosterGroupId = fixture.rosterGroup.id
+                        , applicationTargetWindowStart = fixture.windowStart
+                        , applicationTargetWindowEnd = addDays 7 fixture.windowStart
+                        , applicationShiftTypeMappings = Map.empty
+                        }
+                directPreview <- previewRosterTemplateApplication actor directRequest
+                directPreview `shouldSatisfy` isRight
+                preview <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    callActionWithParams PreviewRosterTemplateApplicationAction { rosterGroupId = fixture.rosterGroup.id }
+                        [ (applicationTemplateIdParam, cs (tshow snapshot.snapshotTemplate.id))
+                        , (applicationAnchorDateParam, cs (tshow fixture.windowStart))
+                        , (rosterCalendarRevisionParam, cs (tshow venueConfig.rosterCalendarRevision))
+                        ]
+                renderedAnchorDate <- hiddenInputValue (surfaceFieldNameFrom @Surface.AnchorDate applicationApplyTransportFields) preview
+                expectedTargetRevision <- hiddenInputValue (surfaceFieldNameFrom @Surface.ExpectedTargetRevision applicationApplyTransportFields) preview
+                expectedCalendarRevision <- hiddenInputValue (surfaceFieldNameFrom @Surface.RosterCalendarRevision applicationApplyTransportFields) preview
+                applied <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    callActionWithParams ApplyRosterTemplateAction { rosterTemplateId = snapshot.snapshotTemplate.id, rosterGroupId = fixture.rosterGroup.id }
+                        [ (applicationTemplateIdParam, cs (tshow snapshot.snapshotTemplate.id))
+                        , (applicationAnchorDateParam, cs (tshow fixture.windowStart))
+                        , (expectedTargetRevisionParam, expectedTargetRevision)
+                        , (rosterCalendarRevisionParam, expectedCalendarRevision)
+                        ]
+                activeSlotCount <- query @RosterSlot |> filterWhere (#deletedAt, Nothing) |> fetchCount
+                durableEventCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_events WHERE source = 'roster.template.apply'" ()
+
+                preview `responseStatusShouldBe` status200
+                preview `responseBodyShouldContain` "Apply Controller week"
+                renderedAnchorDate `shouldBe` cs (tshow fixture.windowStart)
+                applied `responseStatusShouldBe` status302
+                activeSlotCount `shouldBe` 1
+                durableEventCount `shouldBe` 1
+
+        it "rerenders malformed typed application transport inside the HTMX dialog" $ withContext do
+            withCleanDb do
+                fixture <- controllerCaptureFixture "Controller application transport"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetchOne
+
+                response <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams PreviewRosterTemplateApplicationAction { rosterGroupId = fixture.rosterGroup.id }
+                            [ (applicationAnchorDateParam, cs (tshow fixture.windowStart))
+                            , (rosterCalendarRevisionParam, cs (tshow venueConfig.rosterCalendarRevision))
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Review template application"
+                response `responseBodyShouldContain` "templateId"
 
 data ControllerCaptureFixture = ControllerCaptureFixture
     { venue       :: !Venue

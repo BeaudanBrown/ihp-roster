@@ -12,10 +12,6 @@ module Web.RosterWeeks.FrontendSurface
     , rosterMountedFragmentForProjection
     , rosterDayColumnDropzoneRef
     , rosterDeleteShiftDropzoneRef
-    , rosterDayTemplateDragSourceRef
-    , rosterWeekTemplateDragSourceRef
-    , rosterDayTemplateDropzoneRef
-    , rosterWeekTemplateDropzoneRef
     , rosterDragDropzoneRef
     , rosterDragSourceRef
     , rosterExistingShiftDropzoneRef
@@ -57,7 +53,6 @@ import qualified Application.Helper.FrontendContract.Surface.Roster.Live as Surf
 import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.Url (appendQueryParams)
-import Application.Helper.View.Overlay (dialogOverlayMountId)
 import qualified Data.Map.Strict as Map
 import Data.Time.Calendar (Day, addDays)
 import qualified Data.UUID as UUID
@@ -176,18 +171,6 @@ rosterExistingShiftDropzoneRef = surfaceDropzoneRefValue @Surface.RosterSurface 
 
 rosterDeleteShiftDropzoneRef :: SurfaceIR.InteractionDropzoneRefIR
 rosterDeleteShiftDropzoneRef = surfaceDropzoneRefValue @Surface.RosterSurface @Surface.DeleteShiftDropzone
-
-rosterDayTemplateDragSourceRef :: SurfaceIR.InteractionSourceRefIR
-rosterDayTemplateDragSourceRef = surfaceSourceRefValue @Surface.RosterSurface @Surface.DayTemplateDragSource
-
-rosterWeekTemplateDragSourceRef :: SurfaceIR.InteractionSourceRefIR
-rosterWeekTemplateDragSourceRef = surfaceSourceRefValue @Surface.RosterSurface @Surface.WeekTemplateDragSource
-
-rosterDayTemplateDropzoneRef :: SurfaceIR.InteractionDropzoneRefIR
-rosterDayTemplateDropzoneRef = surfaceDropzoneRefValue @Surface.RosterSurface @Surface.DayTemplateDropzone
-
-rosterWeekTemplateDropzoneRef :: SurfaceIR.InteractionDropzoneRefIR
-rosterWeekTemplateDropzoneRef = surfaceDropzoneRefValue @Surface.RosterSurface @Surface.WeekTemplateDropzone
 
 rosterDayTimelineSourceRef :: SurfaceIR.InteractionSourceRefIR
 rosterDayTimelineSourceRef = surfaceSourceRefValue @Surface.RosterDayTimelineSurface @SurfaceInteraction.DragSourceRef
@@ -316,7 +299,7 @@ rosterTimelineMoveShiftIntentForm anchorDate rosterGroupId operationalDate calen
         (rosterDragDropRequest (rosterTimelineMoveShiftUrl anchorDate rosterGroupId operationalDate))
 
 rosterIntentForms :: RosterWeekScopeValue -> Bool -> [FrontendSurfaceIntentForm]
-rosterIntentForms scope templateApplicationAvailable =
+rosterIntentForms scope _templateApplicationAvailable =
     [ SurfaceIntent.setRosterLayoutModeIntentForm
         (SurfaceIntent.setRosterLayoutModeIntentFields DayRows)
         (rosterLayoutModeRequest scope)
@@ -329,12 +312,7 @@ rosterIntentForms scope templateApplicationAvailable =
     , SurfaceIntent.dropRosterStaffIntentForm
         (SurfaceIntent.dropRosterStaffIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") scope.rosterWeekCalendarRevision)
         (rosterDropStaffRequest scope)
-    ] <> if templateApplicationAvailable
-        then [ SurfaceIntent.previewRosterTemplateApplicationIntentForm
-                (SurfaceIntent.previewRosterTemplateApplicationIntentFields "" "" (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just "") (Just ""))
-                (rosterTemplatePreviewRequest scope)
-             ]
-        else []
+    ]
 
 rosterDayTimelineIntentForms :: RosterDayTimelineScopeValue -> [FrontendSurfaceIntentForm]
 rosterDayTimelineIntentForms scope =
@@ -363,17 +341,6 @@ rosterDuplicateShiftRequest scope =
 rosterDropStaffRequest :: RosterWeekScopeValue -> FrontendSurfaceHtmxRequest
 rosterDropStaffRequest scope =
     rosterDragDropRequest (rosterDropStaffUrl scope.rosterWeekWindowStart scope.rosterWeekGroupId)
-
-rosterTemplatePreviewRequest :: RosterWeekScopeValue -> FrontendSurfaceHtmxRequest
-rosterTemplatePreviewRequest scope =
-    FrontendSurfaceHtmxRequest
-        { htmxRequestMethod = FrontendSurfacePost
-        , htmxRequestUrl = appendQueryParams
-                (pathTo PreviewRosterTemplateDropAction { rosterGroupId = scope.rosterWeekGroupId })
-                [("anchorDate", tshow scope.rosterWeekWindowStart)]
-        , htmxRequestTarget = "#" <> dialogOverlayMountId
-        , htmxRequestSwap = "innerHTML"
-        }
 
 rosterDayTimelineMoveShiftRequest :: RosterDayTimelineScopeValue -> FrontendSurfaceHtmxRequest
 rosterDayTimelineMoveShiftRequest scope =

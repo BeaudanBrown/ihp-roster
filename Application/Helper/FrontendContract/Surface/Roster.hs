@@ -69,18 +69,8 @@ module Application.Helper.FrontendContract.Surface.Roster
     , MappedShiftTypeIds
     , ExpectedSourceRevision
     , WarningsConfirmed
-    , ExpectedTemplateVersion
     , ExpectedTargetRevision
-    , TemplateCardRole
-    , TemplateCardConfigRole
-    , TemplateApplicationFormRole
-    , TemplateTargetInputRole
-    , TemplateCancelRole
-    , TemplateDayTargetRole
-    , TemplateWeekTargetRole
-    , TemplateApplicationCardConfig
     , TemplateName
-    , TemplateScale
     , StaffShiftsHighlight
     , StaffHighlightSourceRole
     , StaffHighlightMemberRole
@@ -238,7 +228,7 @@ module Application.Helper.FrontendContract.Surface.Roster
 import Application.Helper.FrontendContract.Surface.DSL hiding (Enum)
 import Application.Helper.FrontendContract.Surface.Interaction
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as SelfServiceLeave
-import Generated.Types (RosterLayoutModeEnum, RosterTemplateScaleEnum)
+import Generated.Types (RosterLayoutModeEnum)
 import IHP.ModelSupport (InputValue (..))
 import IHP.Prelude
 
@@ -331,19 +321,9 @@ data StaleShiftTypeIds
 data MappedShiftTypeIds
 data ExpectedSourceRevision
 data WarningsConfirmed
-data ExpectedTemplateVersion
 data ExpectedTargetRevision
 
-data TemplateCardRole
-data TemplateCardConfigRole
-data TemplateApplicationFormRole
-data TemplateTargetInputRole
-data TemplateCancelRole
-data TemplateDayTargetRole
-data TemplateWeekTargetRole
-data TemplateApplicationCardConfig
 data TemplateName
-data TemplateScale
 
 data StaffShiftsHighlight
 data StaffHighlightSourceRole
@@ -774,10 +754,22 @@ type RosterActionBundle =
          ]
      , Action ApplyRosterTemplateApplication
         '[ Field TemplateId 'WireUUID
-         , Field TargetDropzoneKey 'WireText
-         , Field ExpectedTemplateVersion 'WireInt
+         , Field AnchorDate 'WireDay
          , Field ExpectedTargetRevision 'WireText
          , Field RosterCalendarRevision 'WireInt
+         , OptionalField StaleShiftTypeIds ('WireList 'WireUUID)
+         , OptionalField MappedShiftTypeIds ('WireList 'WireUUID)
+         ]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")
+         , 'HtmxSwap 'HtmxInnerHTML
+         ]
+     , Action PreviewRosterTemplateApplication
+        '[ Field TemplateId 'WireUUID
+         , Field AnchorDate 'WireDay
+         , Field RosterCalendarRevision 'WireInt
+         , OptionalField StaleShiftTypeIds ('WireList 'WireUUID)
+         , OptionalField MappedShiftTypeIds ('WireList 'WireUUID)
          ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")
@@ -849,43 +841,7 @@ type RosterInteractionBundle =
          , '[ Action DuplicateRosterShiftToDay (Concat '[ DragDropFields, RosterCopyOccurrenceFields ]) '[ 'Target RosterContent ] ]
          , '[ Intent DuplicateRosterShiftToDay (Concat '[ DragDropFields, RosterCopyOccurrenceFields ]) '[ 'SessionOption DragSession, 'BackedBy DuplicateRosterShiftToDay ] ]
          , DragDropIntentWithExtraFields DropRosterStaff RosterContent '[ Field RosterCalendarRevision 'WireInt ]
-         , '[ SourceRef DayTemplateDragSource
-                '[ 'SessionOption DragSession
-                 , 'Submits PreviewRosterTemplateApplication
-                 , 'SourceField SourceItemKey
-                 , 'CompatibleDropzone DayTemplateDropzone
-                 ]
-            , SourceRef WeekTemplateDragSource
-                '[ 'SessionOption DragSession
-                 , 'Submits PreviewRosterTemplateApplication
-                 , 'SourceField SourceItemKey
-                 , 'CompatibleDropzone WeekTemplateDropzone
-                 ]
-            , DropzoneRef DayTemplateDropzone '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
-            , DropzoneRef WeekTemplateDropzone '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
-            , Action PreviewRosterTemplateApplication (Concat '[ DragDropFields, '[ Field RosterCalendarRevision 'WireInt ] ])
-                '[ 'HtmxMethod 'HtmxPost
-                 , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")
-                 , 'HtmxSwap 'HtmxInnerHTML
-                 ]
-            , Intent PreviewRosterTemplateApplication DragDropFields '[ 'SessionOption DragSession, 'BackedBy PreviewRosterTemplateApplication ]
-            ]
          ]
-
-type RosterTemplateApplicationBrowserBundle =
-    '[ BrowserRole TemplateCardRole
-     , BrowserRole TemplateCardConfigRole
-     , BrowserRole TemplateApplicationFormRole
-     , BrowserRole TemplateTargetInputRole
-     , BrowserRole TemplateCancelRole
-     , BrowserRole TemplateDayTargetRole
-     , BrowserRole TemplateWeekTargetRole
-     , BrowserInboundDto TemplateApplicationCardConfig
-        '[ Field TemplateId 'WireUUID
-         , Field TemplateName 'WireText
-         , Field TemplateScale ('WireClosed RosterTemplateScaleEnum)
-         ]
-     ]
 
 type RosterStaffPanelBrowserBundle =
     '[ BrowserInboundDto RosterStaffPanelSortRow
@@ -1039,7 +995,7 @@ type RosterLinkedHighlightBundle =
      ]
 
 type RosterSurface =
-    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle, RosterTemplateApplicationBrowserBundle, RosterStaffPanelBrowserBundle, RosterChromeBrowserBundle, RosterImageExportBrowserBundle, RosterWageFilterBrowserBundle, RosterWeekOverviewBrowserBundle, RosterLinkedHighlightBundle ])
+    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle, RosterStaffPanelBrowserBundle, RosterChromeBrowserBundle, RosterImageExportBrowserBundle, RosterWageFilterBrowserBundle, RosterWeekOverviewBrowserBundle, RosterLinkedHighlightBundle ])
 
 type RosterTemplateDesignerSurface =
     Surface RosterTemplateDesigner

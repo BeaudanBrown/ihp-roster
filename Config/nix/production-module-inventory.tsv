@@ -173,7 +173,6 @@ Application/Helper/FrontendContract/Surface/Roster/Live.hs	production	runtime	Ma
 Application/Helper/FrontendContract/Surface/Roster/Resource.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/Roster/SidePanel.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/Roster/StaffPanel.hs	production	runtime	Main	Reachable from Main
-Application/Helper/FrontendContract/Surface/Roster/TemplateApplication.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/Roster/WeekOverview.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/Runtime.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/SelfServiceLeave.hs	production	runtime	Main	Reachable from Main
@@ -245,7 +244,7 @@ Application/Helper/ProfileLeave.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Profiling.hs	production	runtime	Main	Reachable from Main
 Application/Helper/RosterAwardDuration.hs	production	runtime	Main	Reachable from Main
 Application/Helper/RosterGroups.hs	production	runtime	Main	Reachable from Main
-Application/Helper/RosterTemplateScale.hs	production	runtime	Main	Reachable from Main
+Application/Helper/RosterTemplateScale.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Application/Helper/RosterTimesheetBoundaries.hs	production	runtime	Main	Reachable from Main
 Application/Helper/RosterWagePrediction.hs	production	runtime	Main	Reachable from Main
 Application/Helper/SessionVersion.hs	production	runtime	Main	Reachable from Main

@@ -418,10 +418,10 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 registeredSurfaceAdapterRegistry.surfaceIntentAdapterRegistrations of
                 Left diagnostics -> expectationFailure (cs (show diagnostics)) >> pure []
                 Right inventory -> pure inventory
-        length intentDeclarations `shouldBe` 6
+        length intentDeclarations `shouldBe` 5
         length intentInventory `shouldBe` length intentDeclarations
         let generatedIntentOperations = mapMaybe (.checkedSurfaceRequestAdapterOperations) intentInventory
-        length generatedIntentOperations `shouldBe` 6
+        length generatedIntentOperations `shouldBe` 5
         generatedIntentOperations
             `shouldSatisfy` all
                 (\operations ->
@@ -532,7 +532,6 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , "move-roster-shift-to-slot"
                 , "duplicate-roster-shift-to-day"
                 , "drop-roster-staff"
-                , "preview-roster-template-application"
                 ]
         map intentFormName timelineForms `shouldBe` ["move-roster-timeline-shift"]
 
@@ -542,7 +541,6 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("move-roster-shift-to-slot", "/MoveRosterShiftToSlot?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 14)
                 , ("duplicate-roster-shift-to-day", "/DuplicateRosterShiftToDay?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 14)
                 , ("drop-roster-staff", "/DropRosterStaff?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222", 12)
-                , ("preview-roster-template-application", "/PreviewRosterTemplateDrop?rosterGroupId=00000000-0000-0000-0000-000000000222&amp;anchorDate=2025-01-27", 11)
                 , ("move-roster-timeline-shift", "/MoveRosterTimelineShift?anchorDate=2025-01-27&amp;rosterGroupId=00000000-0000-0000-0000-000000000222&amp;rosterView=timeline&amp;dayDate=2025-01-29", 13)
                 ]
         forM_ (zip expectedFormMetadata renderedForms) \(metadata, html) ->
