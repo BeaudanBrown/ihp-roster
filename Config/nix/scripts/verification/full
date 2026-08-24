@@ -35,7 +35,9 @@ weeder-check
 # Reuse the isolated package for every generator/freshness command below.
 export FRONTEND_CONTRACT_USE_PACKAGE=1
 echo "verify-full: isolated frontend-contract tooling package"
-frontend-contract-package-check
+# Retain the resolved tooling root for the later single production-closure
+# traversal, which proves tooling isolation without a second package build.
+source "$(command -v frontend-contract-package-check)"
 # The package check generated these contracts; later architecture validation
 # consumes that same checked output rather than regenerating it.
 export ARCHITECTURE_CONTRACTS_CURRENT=1

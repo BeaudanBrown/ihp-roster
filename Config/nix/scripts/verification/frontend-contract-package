@@ -29,4 +29,4 @@ frontend-contracts-check
 frontend-surface-adapters-check
 architecture-contracts >/dev/null
 
-echo "frontend-contract-package-check: ok ($tool_modules source modules, $compiled_interfaces interfaces, 3 tools, production closure isolated)"
+echo "frontend-contract-package-check: ok ($tool_modules source modules, $compiled_interfaces interfaces, 3 tools)"
