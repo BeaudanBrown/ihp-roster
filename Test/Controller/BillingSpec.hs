@@ -94,12 +94,14 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-surface=\"billing\""
                 response `responseBodyShouldContain` "billing-status-fragment"
                 response `responseBodyShouldContain` "billing:"
-                response `responseBodyShouldContain` "AUD 100/month"
+                response `responseBodyShouldContain` "$100/month"
                 response `responseBodyShouldContain` "Subscription inactive"
                 response `responseBodyShouldContain` "Subscribe"
                 response `responseBodyShouldContain` "hx-post=\"/CreateBillingCheckoutSession\""
                 response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
                 response `responseBodyShouldContain` "If you like Bepis, please support its development by subscribing."
+                response `responseBodyShouldNotContain` "Manage this venue's Bepis subscription through Stripe-hosted payment pages."
+                response `responseBodyShouldNotContain` "You will verify with your passkey before Stripe opens."
                 response `responseBodyShouldNotContain` "Manual Controls"
                 response `responseBodyShouldNotContain` "Recent Stripe events"
                 response `responseBodyShouldNotContain` "data-billing-founder-diagnostics"
@@ -220,7 +222,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Billing"
-                response `responseBodyShouldContain` "AUD 100/month"
+                response `responseBodyShouldContain` "$100/month"
 
         it "serves the billing status fragment through the typed surface rule" $ withContext do
             withCleanDb do
@@ -351,18 +353,18 @@ tests = aroundAll withDatabaseTestContext do
 
         it "renders one privacy-safe inactive subscription signal for every non-active state" $ withContext do
             forM_
-                [ (Nothing, False, "Subscription inactive", "Subscribe", "If you like Bepis, please support its development by subscribing.")
-                , (Just "active", False, "Active", "Manage Billing", "renews automatically")
-                , (Just "active", True, "Cancellation scheduled", "Manage Cancellation", "will not renew")
-                , (Just "past_due", False, "Subscription inactive", "Manage subscription", "If you like Bepis, please support its development by subscribing.")
-                , (Just "unpaid", True, "Subscription inactive", "Manage subscription", "If you like Bepis, please support its development by subscribing.")
-                , (Just "incomplete", False, "Subscription inactive", "Manage subscription", "If you like Bepis, please support its development by subscribing.")
-                , (Just "trialing", False, "Subscription inactive", "Manage subscription", "If you like Bepis, please support its development by subscribing.")
-                , (Just "paused", False, "Subscription inactive", "Manage subscription", "If you like Bepis, please support its development by subscribing.")
-                , (Just "canceled", False, "Subscription inactive", "Subscribe", "If you like Bepis, please support its development by subscribing.")
-                , (Just "incomplete_expired", False, "Subscription inactive", "Subscribe", "If you like Bepis, please support its development by subscribing.")
+                [ (Nothing, False, "Subscription inactive", "Subscribe")
+                , (Just "active", False, "Active", "Manage Billing")
+                , (Just "active", True, "Cancellation scheduled", "Manage Cancellation")
+                , (Just "past_due", False, "Subscription inactive", "Manage subscription")
+                , (Just "unpaid", True, "Subscription inactive", "Manage subscription")
+                , (Just "incomplete", False, "Subscription inactive", "Manage subscription")
+                , (Just "trialing", False, "Subscription inactive", "Manage subscription")
+                , (Just "paused", False, "Subscription inactive", "Manage subscription")
+                , (Just "canceled", False, "Subscription inactive", "Subscribe")
+                , (Just "incomplete_expired", False, "Subscription inactive", "Subscribe")
                 ]
-                \(maybeStatus, cancelAtPeriodEnd, stateLabel, actionLabel, guidance) -> withCleanDb do
+                \(maybeStatus, cancelAtPeriodEnd, stateLabel, actionLabel) -> withCleanDb do
                     venue <- createVenueWithConfig ("Billing State " <> stateLabel <> " Venue")
                     owner <- createUserRecord ("billing-state-" <> Text.replace " " "-" (Text.toLower stateLabel) <> "@example.com") "staff" True
                     _ <- createVenueMembershipRecord venue owner VenueOwner
@@ -391,10 +393,12 @@ tests = aroundAll withDatabaseTestContext do
                     response `responseStatusShouldBe` status200
                     response `responseBodyShouldContain` stateLabel
                     response `responseBodyShouldContain` actionLabel
-                    response `responseBodyShouldContain` guidance
+                    response `responseBodyShouldContain` "$100/month"
+                    response `responseBodyShouldNotContain` "Current period"
+                    response `responseBodyShouldNotContain` "You will verify with your passkey before Stripe opens."
                     if maybeStatus == Just "active"
-                        then response `responseBodyShouldContain` "Current period"
-                        else response `responseBodyShouldNotContain` "Current period"
+                        then response `responseBodyShouldContain` "Thank you for supporting the development of Bepis."
+                        else response `responseBodyShouldContain` "If you like Bepis, please support its development by subscribing."
                     response `responseBodyShouldContain` "data-bepis-navigation-loading=\"true\""
                     response `responseBodyShouldContain` "data-bepis-navigation-loading-config="
                     response `responseBodyShouldContain` "Opening Stripe"

@@ -294,7 +294,9 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         await gotoWhenReady(page, '/Billing', '[data-billing-owner-view="true"]');
         const ownerBillingView = page.locator('[data-billing-owner-view="true"]');
         await expect(ownerBillingView.getByText('Subscription inactive', { exact: true })).toBeVisible();
-        await expect(ownerBillingView.getByText('If you like Bepis, please support its development by subscribing.', { exact: true })).toBeVisible();
+        await expect(page.locator('.app-page-description')).toHaveText('If you like Bepis, please support its development by subscribing.');
+        await expect(ownerBillingView.getByText('If you like Bepis, please support its development by subscribing.', { exact: true })).toHaveCount(0);
+        await expect(page.getByText('$100/month', { exact: true })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Subscribe' })).toBeEnabled();
         await expect(page.locator('header a[href="/Billing"]')).toBeVisible();
 
@@ -427,6 +429,8 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         }
 
         await gotoWhenReady(page, '/Billing', '[data-billing-owner-view="true"]');
+        await expect(page.locator('.app-page-description')).toHaveText('Thank you for supporting the development of Bepis.');
+        await expect(page.getByText('$100/month', { exact: true })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Manage Billing' })).toBeVisible();
         const portalResponse = await page.request.post('/CreateBillingPortalSession', { maxRedirects: 0 });
         expect(portalResponse.status()).toBe(302);

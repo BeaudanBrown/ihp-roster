@@ -60,7 +60,7 @@ instance View BillingView where
     html BillingView { viewModel } =
         renderAppPage AppPageConfig
             { appPageTitle = billingPageTitle viewModel.billingViewer
-            , appPageDescription = billingPageDescription viewModel.billingViewer
+            , appPageDescription = billingPageDescription viewModel
             , appPageActions = mempty
             , appPageHelpTopic = Just (PageHelpTopicId "billing")
             , appPageWidthClass = ""
@@ -87,9 +87,12 @@ billingPageTitle :: BillingViewer -> Text
 billingPageTitle BillingOwnerViewer   = "Billing"
 billingPageTitle BillingFounderViewer = "Billing diagnostics"
 
-billingPageDescription :: BillingViewer -> Maybe Text
-billingPageDescription BillingOwnerViewer = Just "Manage this venue's Bepis subscription through Stripe-hosted payment pages."
-billingPageDescription BillingFounderViewer = Just "Founder support diagnostics for the current venue. Payment administration remains in Stripe."
+billingPageDescription :: BillingViewModel -> Maybe Text
+billingPageDescription BillingViewModel { billingViewer = BillingOwnerViewer, maybeSubscription }
+    | venueSubscriptionIsLive maybeSubscription = Just "Thank you for supporting the development of Bepis."
+    | otherwise = Just "If you like Bepis, please support its development by subscribing."
+billingPageDescription BillingViewModel { billingViewer = BillingFounderViewer } =
+    Just "Founder support diagnostics for the current venue. Payment administration remains in Stripe."
 
 renderBillingResultPage :: Text -> Text -> Html
 renderBillingResultPage title message =
@@ -222,36 +225,15 @@ renderOwnerSubscriptionPanel viewModel@BillingViewModel { maybeSubscription } =
     let presentation = ownerBillingPresentation maybeSubscription
      in simpleAppPanel
         "Venue subscription"
-        (Just "Bepis costs AUD 100 per venue each month. Payment details stay on Stripe-hosted pages.")
+        Nothing
         [hsx|
-            <div class="d-flex flex-column gap-4">
+            <div class="d-flex flex-column align-items-start gap-4">
                 <section aria-label="Subscription status">
                     <span class={"badge " <> presentation.ownerStateBadgeClass}>{presentation.ownerStateLabel}</span>
-                    <p class="mb-0 mt-2">{presentation.ownerStateGuidance}</p>
                 </section>
-                <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-0">
-                        <tbody>
-                            <tr>
-                                <th scope="row" class="w-25">Venue</th>
-                                <td>{currentVenueName}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row">Plan</th>
-                                <td>Bepis venue subscription</td>
-                            </tr>
-                            <tr>
-                                <th scope="row">Price</th>
-                                <td>AUD 100/month</td>
-                            </tr>
-                            {renderOwnerBillingPeriodRow maybeSubscription}
-                        </tbody>
-                    </table>
-                </div>
+                <p class="h3 mb-0">$100/month</p>
                 {renderOwnerCancellationNotice maybeSubscription}
-                <div>
-                    {renderOwnerBillingAction viewModel presentation.ownerStateAction}
-                </div>
+                {renderOwnerBillingAction viewModel presentation.ownerStateAction}
             </div>
         |]
 
@@ -334,7 +316,7 @@ renderOwnerBillingActionForm :: Text -> Text -> Bool -> Html -> Html
 renderOwnerBillingActionForm actionUrl label available unavailableNotice = [hsx|
     <div class="d-flex flex-column align-items-start gap-2">
         {renderPasskeyProtectedBillingForm actionUrl label available}
-        {if available then renderPaymentStepUpNotice else unavailableNotice}
+        {unless available unavailableNotice}
     </div>
 |]
 
@@ -350,11 +332,6 @@ renderPasskeyProtectedBillingForm actionUrl label available =
             , appShellActionRouteExtraAttrs = navigationLoadingAttrs "Opening Stripe" "Please wait while Bepis opens Stripe's secure billing page."
             }
         [hsx|<button type="submit" class="btn btn-primary" disabled={not available}>{label}</button>|]
-
-renderPaymentStepUpNotice :: Html
-renderPaymentStepUpNotice = [hsx|
-    <p class="mb-0 app-muted small">You will verify with your passkey before Stripe opens.</p>
-|]
 
 renderCheckoutUnavailableNotice :: Html
 renderCheckoutUnavailableNotice = [hsx|
