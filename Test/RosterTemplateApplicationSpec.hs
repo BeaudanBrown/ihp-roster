@@ -1,6 +1,11 @@
 module Test.RosterTemplateApplicationSpec where
 
-import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterTemplateLibraryResource)
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterSlotsContentResource,
+                                                                    rosterSlotsStructureResource,
+                                                                    rosterTemplateLibraryResource,
+                                                                    rosterWeekResource,
+                                                                    rosterWeekStructureResource)
+import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           applyRosterShiftAssignment)
@@ -64,6 +69,11 @@ tests = aroundAll withDatabaseTestContext do
                 replacedSlot <- fetch oldSlot.id
 
                 applied `shouldSatisfy` isRight
+                let result = fromRight (error "expected successful Staff cleanup") applied
+                result.appliedTemplateChanged `shouldBe` True
+                result.appliedTouchedResources `shouldContain` [rosterTemplateLibraryResource (unpackId rosterGroup.id)]
+                result.appliedTouchedResources `shouldContain`
+                    [timesheetWeekResource (unpackId venue.id) targetWeek.fixtureWindowStart (addDays 7 targetWeek.fixtureWindowStart)]
                 map (.assignmentState) activeSlots `shouldBe` ["open"]
                 map (.operationalDate) (filter (\day -> unpackId day.id `elem` map (.rosterDayId) activeSlots) targetDays)
                     `shouldSatisfy` all ((== 0) . weekdayIndexForDay)
@@ -214,10 +224,20 @@ tests = aroundAll withDatabaseTestContext do
                 let request = applicationRequest snapshot.snapshotTemplate.id targetWeek
 
                 Right preview <- previewRosterTemplateApplication actor request
-                Right _ <- applyRosterTemplateApplication actor request preview.applicationExpectedTargetRevision preview.applicationRosterCalendarRevision
+                Right result <- applyRosterTemplateApplication actor request preview.applicationExpectedTargetRevision preview.applicationRosterCalendarRevision
                 activeSlotCount <- query @RosterSlot |> filterWhere (#deletedAt, Nothing) |> fetchCount
 
                 activeSlotCount `shouldBe` 0
+                result.appliedTemplateChanged `shouldBe` False
+                let targetWindowEnd = addDays 7 targetWeek.fixtureWindowStart
+                result.appliedTouchedResources `shouldMatchList`
+                    [ rosterWeekResource (unpackId rosterGroup.id) targetWeek.fixtureWindowStart targetWindowEnd
+                    , rosterWeekStructureResource (unpackId rosterGroup.id) targetWeek.fixtureWindowStart targetWindowEnd
+                    , rosterSlotsStructureResource (unpackId rosterGroup.id) targetWeek.fixtureWindowStart targetWindowEnd
+                    , rosterSlotsContentResource (unpackId rosterGroup.id) targetWeek.fixtureWindowStart targetWindowEnd
+                    , timesheetWeekResource (unpackId venue.id) targetWeek.fixtureWindowStart targetWindowEnd
+                    , rosterTemplateLibraryResource (unpackId rosterGroup.id)
+                    ]
 
         it "rejects Published and incomplete targets without mutating either side" $ withContext do
             withCleanDb do

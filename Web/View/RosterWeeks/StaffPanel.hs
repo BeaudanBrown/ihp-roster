@@ -84,9 +84,8 @@ renderRosterStaffPanel panelModel@RosterStaffPanelRenderModel { staffPanelCurren
             {renderRosterStaffPanelTable panelStaffMembers panelModel.staffPanelWeekStartDate staffPanelCurrentRosterGroup.id renderedPanelStaff}
         |]
         templatePanelContent = do
-            templateUserId <- panelModel.staffPanelTemplateUserId
             templateLibrary <- panelModel.staffPanelTemplateLibrary
-            pure (renderRosterTemplateLibraryFragment templateUserId panelModel.staffPanelWeekStartDate panelModel.staffPanelCalendarRevision staffPanelCurrentRosterGroup panelModel.staffPanelRosterWeek templateLibrary)
+            pure (renderRosterTemplateLibraryFragment panelModel.staffPanelWeekStartDate panelModel.staffPanelCalendarRevision staffPanelCurrentRosterGroup panelModel.staffPanelRosterWeek templateLibrary)
         settingsPanelContent = renderRosterSettingsPanel panelModel
 
 

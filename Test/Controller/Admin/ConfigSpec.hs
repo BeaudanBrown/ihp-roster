@@ -171,7 +171,7 @@ tests = aroundAll withDatabaseTestContext do
                     `shouldReturn` [(scope, expectedFragments)]
                 planFragments (rosterWeekBoundaryConfigResource venueId)
                     `shouldReturn` [(scope, expectedFragments)]
-                let templateFragment = RosterLive.rosterTemplateLibraryLiveFragment (unpackId admin.id)
+                let templateFragment = RosterLive.rosterTemplateLibraryLiveFragment
                 let templateSubscription = subscription { subscriptionFragmentKeys = [templateFragment] }
                 withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withCurrentControllerContext do

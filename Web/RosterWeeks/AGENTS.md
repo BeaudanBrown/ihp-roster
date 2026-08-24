@@ -56,9 +56,9 @@ or roster views.
   suggestions; include the corresponding Timesheet week touched resource.
 - Do not return `hx-swap-oob` wrappers from viewer-side fragment GET actions;
   return the plain target fragment and let the live runtime replace it.
-- The roster-template library fragment is user-specific because private drafts
-  belong to the effective user; carry that user id explicitly through frozen or
-  asynchronous render contexts.
+- The roster-template library fragment and resource are roster-group-scoped.
+  Keep effective-user identity out of their fragment/resource keys; authorize
+  every full-page and fragment request server-side.
 - Day template activation uses a separate temporary native button overlay. Do
   not put `role="button"` on day containers that own nested shift controls.
 - Timeline template targets sit across nested Roster and RosterDayTimeline

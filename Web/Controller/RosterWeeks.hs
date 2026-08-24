@@ -1571,7 +1571,7 @@ renderRosterWeekPage requestedScope =
         timelineTodayUrl <- profileActionSpan "roster.page.timeline_today_url" (buildRosterTimelineTodayUrl currentRosterGroup.id)
 
         case rosterDataOrNothing of
-            Just RosterRenderData { rosterWeek, rosterWindowScope, rosterDays, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } ->
+            Just RosterRenderData { rosterWeek, rosterWindowScope, rosterDays, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } ->
                 let visibleRosterWeek =
                         case rosterWeek of
                             Just legacyRosterWeek
@@ -1592,7 +1592,6 @@ renderRosterWeekPage requestedScope =
                                 , staffMembers
                                 , panelStaff
                                 , templateLibrary
-                                , templateLibraryUserId
                                 , showNotificationPanelData = rosterNotificationPanelData
                                 , staffSelfServicePanel
                                 , slotNames = orderedSlotNames

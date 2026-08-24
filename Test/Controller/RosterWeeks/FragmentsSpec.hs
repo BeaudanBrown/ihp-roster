@@ -174,7 +174,7 @@ tests = aroundAll withDatabaseTestContext do
                     withCurrentControllerContext do
                         let scope = RosterLive.rosterWeekLiveScope (unpackId venue.id) rosterWeek.fixtureRosterGroupId (rosterWeek.fixtureWindowStart) (addDays 7 (rosterWeek.fixtureWindowStart)) 1
                         let scopeValue = RosterWeekScopeValue { rosterWeekVenueId = unpackId venue.id, rosterWeekGroupId = Id rosterWeek.fixtureRosterGroupId, rosterWeekWindowStart = rosterWeek.fixtureWindowStart, rosterWeekWindowEnd = addDays 7 (rosterWeek.fixtureWindowStart), rosterWeekCalendarRevision = 1, rosterWeekTimelineDate = Nothing }
-                        let mountedPlan = RosterMountedFragmentPlan { rosterMountedDayIds = [], rosterMountedRows = [], rosterMountedTemplateUserId = Nothing }
+                        let mountedPlan = RosterMountedFragmentPlan { rosterMountedDayIds = [], rosterMountedRows = [], rosterMountedHasTemplateLibrary = False }
                         let subscription =
                                 SurfaceSubscription
                                     { subscriptionScope = scope
@@ -201,7 +201,7 @@ tests = aroundAll withDatabaseTestContext do
                 let rosterGroupId = Id "00000000-0000-0000-0000-000000000222" :: Id RosterGroup
                 let rosterDayId = Id "00000000-0000-0000-0000-000000000333" :: Id RosterDay
                 let scope = RosterWeekScopeValue { rosterWeekVenueId = venueId, rosterWeekGroupId = rosterGroupId, rosterWeekWindowStart = testAnchorForOffset 3, rosterWeekWindowEnd = addDays 7 (testAnchorForOffset 3), rosterWeekCalendarRevision = 1, rosterWeekTimelineDate = Nothing }
-                let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0), (rosterDayId, 1)], rosterMountedTemplateUserId = Nothing }
+                let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0), (rosterDayId, 1)], rosterMountedHasTemplateLibrary = False }
                 let impl = rosterSurfaceImpl scope plan
                 let mountConfig = impl.surfaceImplMountConfig
                 let fragmentTargets = map (.mountedFragmentTargetId) mountConfig.mountFragments

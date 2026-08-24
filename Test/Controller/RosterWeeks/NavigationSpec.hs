@@ -401,7 +401,7 @@ tests = aroundAll withDatabaseTestContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"templates\""
-                response `responseBodyShouldContain` "roster-template-library-mount-"
+                response `responseBodyShouldContain` "id=\"roster-template-library-mount\""
                 response `responseBodyShouldContain` "Save current week as template"
                 response `responseBodyShouldContain` "at least one day in the viewed window is Published"
                 response `responseBodyShouldContain` "No templates are saved."

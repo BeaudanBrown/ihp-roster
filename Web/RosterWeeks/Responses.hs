@@ -109,7 +109,7 @@ prepareRosterCompleteResourceInvalidation windowScope touchedResources = do
             setActorLiveResourcesRefresh (rosterSurfaceScope scope) touchedResources [rosterMountedFragmentForProjection scope RosterProjectionContent]
         Just rosterData -> do
             let scope = rosterFrontendScopeValue rosterData.rosterWindowScope
-                plan = rosterMountedFragmentPlanFromRenderData rosterData.templateLibraryUserId rosterData.rosterDays rosterData.renderIndexes
+                plan = rosterMountedFragmentPlanFromRenderData (isJust rosterData.templateLibrary) rosterData.rosterDays rosterData.renderIndexes
             setActorLiveResourcesRefresh (rosterSurfaceScope scope) touchedResources (rosterCandidateMountedFragments scope plan)
     setHeader ("HX-Reswap", "none")
 
@@ -146,7 +146,7 @@ respondWithRosterContentOob scope = do
         Nothing -> do
             TextIO.putStrLn ("roster_read_model_miss_oob: rosterGroupId=" <> tshow rosterGroupId <> " windowStart=" <> tshow scope.rosterWindowStart)
             respondHtmlProfiled [hsx|<div id="roster-content" hx-swap-oob="outerHTML"></div>|]
-        Just RosterRenderData { rosterWeek, rosterWindowScope, rosterDays, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } -> do
+        Just RosterRenderData { rosterWeek, rosterWindowScope, rosterDays, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } -> do
             let viewCapabilities = buildRosterViewCapabilities rosterWeek
             respondHtmlProfiled $
                     renderrosterContentLiveFragmentOob
@@ -160,7 +160,6 @@ respondWithRosterContentOob scope = do
                             , gridStaffMembers = staffMembers
                             , gridPanelStaff = panelStaff
                             , gridTemplateLibrary = templateLibrary
-                            , gridTemplateLibraryUserId = templateLibraryUserId
                             , gridNotificationPanelData = rosterNotificationPanelData
                             , gridStaffSelfServicePanel = staffSelfServicePanel
                             , gridSlotNames = orderedSlotNames
@@ -209,7 +208,7 @@ respondWithRosterContentToast scope publishAttempted toast = do
         mconcat
             [ case rosterData of
                 Nothing -> [hsx|<div id="roster-content"></div>|]
-                Just RosterRenderData { rosterWeek, rosterWindowScope, rosterDays, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, templateLibraryUserId, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } ->
+                Just RosterRenderData { rosterWeek, rosterWindowScope, rosterDays, weekStartDate, rosterCalendarRevision, assignmentFilters, staffMembers, panelStaff, templateLibrary, rosterNotificationPanelData, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, highlightOwnLiveShifts, currentViewerStaffKey, rosterPublicHolidays } ->
                     let viewCapabilities = buildRosterViewCapabilities rosterWeek
                      in renderrosterContentLiveFragment
                             RosterGridRenderModel
@@ -222,7 +221,6 @@ respondWithRosterContentToast scope publishAttempted toast = do
                                 , gridStaffMembers = staffMembers
                                 , gridPanelStaff = panelStaff
                                 , gridTemplateLibrary = templateLibrary
-                                , gridTemplateLibraryUserId = templateLibraryUserId
                                 , gridNotificationPanelData = rosterNotificationPanelData
                                 , gridStaffSelfServicePanel = staffSelfServicePanel
                                 , gridSlotNames = orderedSlotNames

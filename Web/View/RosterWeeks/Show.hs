@@ -66,7 +66,6 @@ renderRosterWeekShell ShowView { .. } =
                         , gridStaffMembers = staffMembers
                         , gridPanelStaff = panelStaff
                         , gridTemplateLibrary = templateLibrary
-                        , gridTemplateLibraryUserId = templateLibraryUserId
                         , gridNotificationPanelData = showNotificationPanelData
                         , gridStaffSelfServicePanel = staffSelfServicePanel
                         , gridSlotNames = slotNames
@@ -103,7 +102,7 @@ renderRosterWeekShell ShowView { .. } =
                 RosterDayTimelineGridView dayOffset -> Just (Calendar.addDays (toInteger dayOffset) rosterWindowScope.rosterWindowStart)
                 RosterWeekGridView                  -> Nothing
             }
-        rosterSurfacePlan = rosterMountedFragmentPlanFromRenderData templateLibraryUserId rosterDays renderIndexes
+        rosterSurfacePlan = rosterMountedFragmentPlanFromRenderData (isJust templateLibrary) rosterDays renderIndexes
         rosterSurface = rosterSurfaceImpl rosterSurfaceScope rosterSurfacePlan
         shell = [hsx|
             <section id={rosterWeekShellId}

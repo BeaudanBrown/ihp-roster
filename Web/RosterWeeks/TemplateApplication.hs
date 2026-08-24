@@ -509,13 +509,12 @@ touchedResources prepared =
     , rosterSlotsStructureResource groupId windowStart windowEnd
     , rosterSlotsContentResource groupId windowStart windowEnd
     , timesheetWeekResource prepared.preparedTargetGroup.venueId windowStart windowEnd
-    ] <> templateResources
+    , rosterTemplateLibraryResource groupId
+    ] <> templateRecordResources
   where
-    templateResources
+    templateRecordResources
         | isJust prepared.preparedCleanedTemplateContent =
-            [ rosterTemplateResource (unpackId prepared.preparedSaved.snapshotTemplate.id)
-            , rosterTemplateLibraryResource groupId
-            ]
+            [rosterTemplateResource (unpackId prepared.preparedSaved.snapshotTemplate.id)]
         | otherwise = []
     groupId = unpackId prepared.preparedTargetGroup.id
     windowStart = prepared.preparedTargetWindowStart

@@ -2450,7 +2450,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"staff\""
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"settings\""
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"templates\""
-                response `responseBodyShouldContain` "id=\"roster-template-library-mount-"
+                response `responseBodyShouldContain` "id=\"roster-template-library-mount\""
                 response `responseBodyShouldContain` "Save current week as template"
                 response `responseBodyShouldContain` "Own shifts highlighted"
 

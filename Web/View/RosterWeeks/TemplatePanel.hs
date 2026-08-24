@@ -20,9 +20,9 @@ import Web.RosterWeeks.Dom (rosterTemplateApplicationPreviewFormId,
 import Web.RosterWeeks.Types (RosterWindowState (..))
 import Web.View.Prelude
 
-renderRosterTemplateLibraryFragment :: (?context :: ControllerContext) => Id User -> Day -> Int -> RosterGroup -> Maybe RosterWindowState -> RosterTemplateLibrary -> Html
-renderRosterTemplateLibraryFragment userId anchorDate calendarRevision rosterGroup maybeRosterWeek library = [hsx|
-    <div id={rosterTemplateLibraryFragmentId userId}>
+renderRosterTemplateLibraryFragment :: (?context :: ControllerContext) => Day -> Int -> RosterGroup -> Maybe RosterWindowState -> RosterTemplateLibrary -> Html
+renderRosterTemplateLibraryFragment anchorDate calendarRevision rosterGroup maybeRosterWeek library = [hsx|
+    <div id={rosterTemplateLibraryFragmentId}>
         {renderRosterTemplatePanel anchorDate calendarRevision rosterGroup maybeRosterWeek library}
     </div>
 |]

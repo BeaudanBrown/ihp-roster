@@ -109,10 +109,9 @@ rosterTemplateApplicationPreviewFormId templateId = "roster-template-application
 rosterTemplateDeletePreviewFormId :: Id RosterTemplate -> Text
 rosterTemplateDeletePreviewFormId templateId = "roster-template-delete-preview-" <> tshow templateId
 
-rosterTemplateLibraryFragmentId :: Id User -> Text
-rosterTemplateLibraryFragmentId userId =
-    surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterTemplateLibraryFragment
-        (surfaceField @Surface.UserId (unpackId userId) &: noSurfaceFields)
+rosterTemplateLibraryFragmentId :: Text
+rosterTemplateLibraryFragmentId =
+    surfaceFragmentTargetId @Surface.RosterSurface @Surface.RosterTemplateLibraryFragment noSurfaceFields
 
 rosterStaffPanelFragmentClasses :: [Text]
 rosterStaffPanelFragmentClasses = ["col-12", "col-xl-4", "col-xxl-3", "roster-layout-side"]

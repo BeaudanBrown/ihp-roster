@@ -100,18 +100,18 @@ data RosterDayTimelineScopeValue = RosterDayTimelineScopeValue
     deriving (Eq, Show)
 
 data RosterMountedFragmentPlan = RosterMountedFragmentPlan
-    { rosterMountedDayIds         :: ![Id RosterDay]
-    , rosterMountedRows           :: ![(Id RosterDay, Int)]
-    , rosterMountedTemplateUserId :: !(Maybe (Id User))
+    { rosterMountedDayIds             :: ![Id RosterDay]
+    , rosterMountedRows               :: ![(Id RosterDay, Int)]
+    , rosterMountedHasTemplateLibrary :: !Bool
     }
     deriving (Eq, Show)
 
 
-rosterMountedFragmentPlanFromRenderData :: Maybe (Id User) -> [RosterDay] -> RosterRenderIndexes -> RosterMountedFragmentPlan
-rosterMountedFragmentPlanFromRenderData templateUserId rosterDays renderIndexes =
+rosterMountedFragmentPlanFromRenderData :: Bool -> [RosterDay] -> RosterRenderIndexes -> RosterMountedFragmentPlan
+rosterMountedFragmentPlanFromRenderData hasTemplateLibrary rosterDays renderIndexes =
     RosterMountedFragmentPlan
         { rosterMountedDayIds = map (.id) rosterDays
-        , rosterMountedTemplateUserId = templateUserId
+        , rosterMountedHasTemplateLibrary = hasTemplateLibrary
         , rosterMountedRows = do
             rosterDay <- rosterDays
             (rowIndex, _) <- fromMaybe [] (Map.lookup (unpackId rosterDay.id) renderIndexes.rosterDayRowsByDayId)
@@ -220,7 +220,7 @@ rosterTimelineModeMountedFragments scope plan =
     [ rosterGridToolbarMountedFragment scope
     , rosterGridFrameMountedFragment scope
     , rosterStaffPanelMountedFragment scope
-    ] <> maybe [] (pure . rosterTemplateLibraryMountedFragment scope) plan.rosterMountedTemplateUserId
+    ] <> [rosterTemplateLibraryMountedFragment scope | plan.rosterMountedHasTemplateLibrary]
 
 rosterWeekGridMountedFragments :: RosterWeekScopeValue -> RosterMountedFragmentPlan -> [FrontendSurfaceMountedFragment]
 rosterWeekGridMountedFragments scope plan =
@@ -233,7 +233,7 @@ rosterWeekGridMountedFragments scope plan =
     , rosterSlotsGridMountedFragment scope
     , rosterStaffPanelMountedFragment scope
     ]
-        <> maybe [] (pure . rosterTemplateLibraryMountedFragment scope) plan.rosterMountedTemplateUserId
+        <> [rosterTemplateLibraryMountedFragment scope | plan.rosterMountedHasTemplateLibrary]
         <> map (rosterDaySectionMountedFragment scope) plan.rosterMountedDayIds
         <> map (uncurry (rosterRowMountedFragment scope)) plan.rosterMountedRows
 
@@ -423,11 +423,11 @@ rosterStaffPanelMountedFragment scope =
         (rosterWeekStaffPanelFragmentUrl scope.rosterWeekWindowStart scope.rosterWeekGroupId)
         FrontendSurfaceReplace
 
-rosterTemplateLibraryMountedFragment :: RosterWeekScopeValue -> Id User -> FrontendSurfaceMountedFragment
-rosterTemplateLibraryMountedFragment scope userId =
+rosterTemplateLibraryMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
+rosterTemplateLibraryMountedFragment scope =
     frontendSurfaceMountedFragmentFor @Surface.RosterSurface @Surface.RosterTemplateLibraryFragment
-        (surfaceField @Surface.UserId (unpackId userId) &: noSurfaceFields)
-        (surfaceField @Surface.UserId (unpackId userId) &: noSurfaceFields)
+        noSurfaceFields
+        noSurfaceFields
         (appendQueryParams
             (pathTo ShowRosterTemplateLibraryFragmentAction { rosterGroupId = scope.rosterWeekGroupId })
             [("anchorDate", tshow scope.rosterWeekWindowStart)])

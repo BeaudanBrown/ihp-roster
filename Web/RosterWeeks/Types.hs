@@ -52,7 +52,6 @@ data ShowView = ShowView
     , panelStaff             :: [RosterStaffPanelEntry]
     , templateLibrary        :: Maybe RosterTemplateLibrary
     , showNotificationPanelData :: Maybe RosterNotificationPanelData
-    , templateLibraryUserId  :: Maybe (Id User)
     , staffSelfServicePanel  :: Maybe RosterStaffSelfServicePanel
     , slotNames              :: [RosterWindowLane]
     , allSlots               :: [RosterSlot]
@@ -136,7 +135,6 @@ data RosterStaffPanelRenderModel = RosterStaffPanelRenderModel
     , staffPanelScope                  :: RosterStaffPanelScope
     , staffPanelEntries                :: [RosterStaffPanelEntry]
     , staffPanelTemplateLibrary        :: Maybe RosterTemplateLibrary
-    , staffPanelTemplateUserId         :: Maybe (Id User)
     , staffPanelNotificationPanelData  :: Maybe RosterNotificationPanelData
     }
 
@@ -184,7 +182,6 @@ data RosterRenderData = RosterRenderData
     , staffMembers          :: [Staff]
     , panelStaff            :: [RosterStaffPanelEntry]
     , templateLibrary       :: Maybe RosterTemplateLibrary
-    , templateLibraryUserId :: Maybe (Id User)
     , rosterNotificationPanelData :: Maybe RosterNotificationPanelData
     , staffSelfServicePanel :: Maybe RosterStaffSelfServicePanel
     , orderedSlotNames      :: [RosterWindowLane]
@@ -214,7 +211,6 @@ data RosterGridRenderModel = RosterGridRenderModel
     , gridStaffMembers          :: [Staff]
     , gridPanelStaff            :: [RosterStaffPanelEntry]
     , gridTemplateLibrary       :: Maybe RosterTemplateLibrary
-    , gridTemplateLibraryUserId :: Maybe (Id User)
     , gridNotificationPanelData :: Maybe RosterNotificationPanelData
     , gridStaffSelfServicePanel :: Maybe RosterStaffSelfServicePanel
     , gridSlotNames             :: [RosterWindowLane]

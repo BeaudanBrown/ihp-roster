@@ -22,6 +22,7 @@ import Test.Hspec
 import Test.Support
 import Web.Controller.RosterTemplates ()
 import Web.FrontController ()
+import Web.RosterWeeks.Dom (rosterTemplateLibraryFragmentId)
 import Web.RosterWeeks.TemplateApplication
 import Web.Types
 
@@ -88,6 +89,29 @@ tests = aroundAll withDatabaseTestContext do
                 html `shouldNotContain` "Week snapshot"
                 html `shouldNotContain` "assignment mode"
                 Text.breakOn "alpha" htmlText `shouldSatisfy` (\(_, suffix) -> "Zulu" `Text.isInfixOf` suffix)
+
+        it "renders one shared library identity for authorized editors and rejects workers" $ withContext do
+            withCleanDb do
+                fixture <- controllerCaptureFixture "Controller shared library"
+                secondManager <- createUserRecord "shared-library-manager@example.com" "staff" True
+                worker <- createUserRecord "shared-library-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord fixture.venue secondManager Manager
+                _ <- createVenueMembershipRecord fixture.venue worker Worker
+                let fetchLibrary user = withUserAndCurrentVenue user fixture.venue.id do
+                        callActionWithParams ShowRosterTemplateLibraryFragmentAction { rosterGroupId = fixture.rosterGroup.id }
+                            [("anchorDate", cs (tshow fixture.windowStart))]
+                firstResponse <- fetchLibrary fixture.manager
+                secondResponse <- fetchLibrary secondManager
+                workerResponse <- fetchLibrary worker
+
+                firstResponse `responseStatusShouldBe` status200
+                secondResponse `responseStatusShouldBe` status200
+                firstResponse `responseBodyShouldContain` cs ("id=\"" <> rosterTemplateLibraryFragmentId <> "\"")
+                secondResponse `responseBodyShouldContain` cs ("id=\"" <> rosterTemplateLibraryFragmentId <> "\"")
+                firstResponse `responseBodyShouldNotContain` cs (tshow fixture.manager.id)
+                secondResponse `responseBodyShouldNotContain` cs (tshow secondManager.id)
+                workerResponse `responseStatusShouldBe` status302
+                workerResponse `responseBodyShouldNotContain` cs ("id=\"" <> rosterTemplateLibraryFragmentId <> "\"")
 
         it "deletes through the modal workflow and refreshes the library in place" $ withContext do
             withCleanDb do

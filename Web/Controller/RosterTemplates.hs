@@ -113,7 +113,7 @@ instance Controller RosterTemplatesController where
                 , windowIsPublished = rosterWindowIsPublished window
                 , windowHasPublishedDays = any ((== Published) . (.publicationState)) (mapMaybe (.persistedRosterDay) window.rosterWindowProjectedDays)
                 }
-        respondHtml (renderRosterTemplateLibraryFragment (rosterTemplateActorUserId actor) scope.rosterWindowStart scope.rosterWindowCalendarRevision rosterGroup (Just windowState) (fromMaybe (error "authorized template library missing") maybeLibrary))
+        respondHtml (renderRosterTemplateLibraryFragment scope.rosterWindowStart scope.rosterWindowCalendarRevision rosterGroup (Just windowState) (fromMaybe (error "authorized template library missing") maybeLibrary))
 
     action currentAction@PreviewRosterTemplateCaptureAction { rosterGroupId } = runBepis currentAction BepisPageAction do
         actor <- authorizedTemplateActor

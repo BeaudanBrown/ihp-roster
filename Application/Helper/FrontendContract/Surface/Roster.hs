@@ -586,11 +586,10 @@ type RosterFragmentBundle =
      , Fragment RosterStaffPanel '[] '[ 'MountTarget RosterStaffPanelFragment '[], 'Lazy '[ 'DependsOnFragment RosterContent, 'Contains RosterTemplateLibraryFragment ], 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterNotificationStatusResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ], 'DependsOn RosterGroupStaffResource '[ 'FromScope RosterGroupId ], 'DependsOn RosterLayoutConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterWeekOverview '[] '[ 'MountTarget RosterWeekOverviewMount '[ Field RosterGroupId 'WireUUID, Field WindowStartDate 'WireDay, Field WindowEndDate 'WireDay ], 'Lazy '[ 'DependsOnFragment RosterContent ], 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WindowStartDate, 'FromScope WindowEndDate ] ]
      , Fragment RosterTemplateLibraryFragment
-        '[ Field UserId 'WireUUID ]
-        '[ 'MountTarget RosterTemplateLibraryMount '[ Field UserId 'WireUUID ]
+        '[]
+        '[ 'MountTarget RosterTemplateLibraryMount '[]
          , 'Live
          , 'DependsOn RosterTemplateLibraryResource '[ 'FromScope RosterGroupId ]
-         , 'DependsOn RosterTemplateDraftResource '[ 'FromFragment UserId ]
          , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
          ]
      , Fragment RosterTemplateRecordFragment

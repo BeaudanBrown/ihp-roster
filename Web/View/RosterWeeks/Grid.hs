@@ -127,7 +127,7 @@ renderrosterContentLiveFragmentWithSwap maybeSwapOob gridModel =
         }
 
 renderRosterLayout :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
-renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWindowScope, gridRosterCalendarRevision, gridRosterGroups, gridCurrentRosterGroup, gridPanelStaff, gridTemplateLibrary, gridTemplateLibraryUserId, gridNotificationPanelData, gridStaffSelfServicePanel, gridRenderIndexes, gridViewMode } =
+renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWindowScope, gridRosterCalendarRevision, gridRosterGroups, gridCurrentRosterGroup, gridPanelStaff, gridTemplateLibrary, gridNotificationPanelData, gridStaffSelfServicePanel, gridRenderIndexes, gridViewMode } =
     let rosterSurfaceScope = RosterWeekScopeValue
             { rosterWeekVenueId = unpackId gridWindowScope.rosterWindowVenueId
             , rosterWeekGroupId = gridWindowScope.rosterWindowRosterGroupId
@@ -138,7 +138,7 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
                 RosterDayTimelineGridView dayOffset -> Just (Calendar.addDays (toInteger dayOffset) gridWindowScope.rosterWindowStart)
                 RosterWeekGridView                  -> Nothing
             }
-        rosterSurface = rosterSurfaceImpl rosterSurfaceScope (rosterMountedFragmentPlanFromRenderData gridTemplateLibraryUserId gridRosterDays gridRenderIndexes)
+        rosterSurface = rosterSurfaceImpl rosterSurfaceScope (rosterMountedFragmentPlanFromRenderData (isJust gridTemplateLibrary) gridRosterDays gridRenderIndexes)
         renderStaffPanelMount =
             if currentUserIsManager
                 then renderrosterStaffPanelLiveFragment RosterStaffPanelRenderModel
@@ -157,7 +157,6 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
                     , staffPanelScope = RosterStaffPanelCurrentGroup
                     , staffPanelEntries = gridPanelStaff
                     , staffPanelTemplateLibrary = gridModel.gridTemplateLibrary
-                    , staffPanelTemplateUserId = gridModel.gridTemplateLibraryUserId
                     , staffPanelNotificationPanelData = gridNotificationPanelData
                     }
                 else mempty

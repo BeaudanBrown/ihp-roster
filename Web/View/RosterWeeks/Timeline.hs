@@ -48,7 +48,7 @@ renderRosterDayTimelinePanel :: (?context :: ControllerContext) => RosterGridRen
 renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Nothing } _ = [hsx|
     <div class="alert alert-info mb-0">This draft roster is not visible.</div>
 |]
-renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Just rosterWeek, gridWindowScope, gridRosterDays, gridCurrentRosterGroup, gridWeekStartDate, gridRosterCalendarRevision, gridAssignmentFilters, gridStaffMembers, gridPanelStaff, gridTemplateLibrary, gridTemplateLibraryUserId, gridNotificationPanelData, gridStaffSelfServicePanel, gridSlotNames, gridShiftTypes, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterTimePickerStartMinute, gridRosterTimePickerFinalSelectableMinute, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridHighlightOwnLiveShifts, gridCurrentViewerStaffKey, gridPublicHolidays } rosterDay =
+renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Just rosterWeek, gridWindowScope, gridRosterDays, gridCurrentRosterGroup, gridWeekStartDate, gridRosterCalendarRevision, gridAssignmentFilters, gridStaffMembers, gridPanelStaff, gridTemplateLibrary, gridNotificationPanelData, gridStaffSelfServicePanel, gridSlotNames, gridShiftTypes, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterTimePickerStartMinute, gridRosterTimePickerFinalSelectableMinute, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridHighlightOwnLiveShifts, gridCurrentViewerStaffKey, gridPublicHolidays } rosterDay =
     let rosterData = RosterRenderData
             { rosterWeek = Just rosterWeek
             , rosterWindowScope = gridWindowScope
@@ -61,7 +61,6 @@ renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Just roste
             , staffMembers = gridStaffMembers
             , panelStaff = gridPanelStaff
             , templateLibrary = gridTemplateLibrary
-            , templateLibraryUserId = gridTemplateLibraryUserId
             , rosterNotificationPanelData = gridNotificationPanelData
             , staffSelfServicePanel = gridStaffSelfServicePanel
             , orderedSlotNames = gridSlotNames
