@@ -209,6 +209,7 @@ chmod +x "$fixture_root/bin/legacy-pi"
     cd "$fixture_repo"
     # The inner bash expands $1 after exec changes argv[0].
     # shellcheck disable=SC2016
+    unset BEPIS_HLS_CACHE_PROTOCOL
     XDG_CACHE_HOME="${legacy_root%/ghcide}/" \
         exec setsid bash -c 'exec -a pi "$1" -c "while :; do sleep 1; done"' bash "$fixture_root/bin/legacy-pi"
 ) &
