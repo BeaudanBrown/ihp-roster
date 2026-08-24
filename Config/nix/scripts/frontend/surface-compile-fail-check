@@ -31,12 +31,14 @@ declare -A matched_filters=()
 
 tmp_dir="$(mktemp -d)"
 cleanup() {
+    ihp_roster_release_verification_cache
     rm -rf "$tmp_dir"
 }
 trap cleanup EXIT
 
-mkdir -p "$tmp_dir/obj" "$tmp_dir/hi"
 GHC_OPTS="$(ihp_roster_ghc_opts)"
+ihp_roster_prepare_verification_cache "surface-compile-fail" "$GHC_OPTS" "v1"
+mkdir -p "$tmp_dir/obj" "$tmp_dir/hi"
 
 design_matrix="$repo_root/Config/nix/frontend-operation-evidence-matrix.tsv"
 script_source="$repo_root/Config/nix/scripts/frontend/surface-compile-fail-check"
@@ -147,8 +149,8 @@ run_compile_failure_checks() {
     # negative fixtures. -fkeep-going still asks GHC to diagnose every target.
     # shellcheck disable=SC2086 # GHC_OPTS is an intentional argument vector.
     if ghc $GHC_OPTS -fno-code -fkeep-going "${fixtures[@]}" \
-        -odir "$tmp_dir/obj" \
-        -hidir "$tmp_dir/hi" \
+        -odir "$IHP_ROSTER_GHC_CACHE_DIR/obj" \
+        -hidir "$IHP_ROSTER_GHC_CACHE_DIR/hi" \
         >"$combined_log" 2>&1; then
         echo "surface-compile-fail-check: expected fixtures to fail, but the batch compiled" >&2
         exit 1

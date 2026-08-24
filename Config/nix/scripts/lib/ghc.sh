@@ -91,6 +91,35 @@ ihp_roster_configure_compiler_tmpdir() {
     ihp_roster_report_tmp_pressure "$tmp_path" "$free_bytes" "$threshold" "using $TMPDIR"
 }
 
+# Persistent verification caches retain only successfully compiled dependencies.
+# Callers still pass every validation subject to GHC on every invocation.
+ihp_roster_prepare_verification_cache() {
+    local purpose="$1" ghc_opts="$2" format="$3" workspace parent root fingerprint stamp
+    workspace="$(git rev-parse --show-toplevel)"
+    parent="${BEPIS_GHC_CACHE_PARENT:-/var/tmp/bepis-ghc-cache-$(id -u)}"
+    root="$parent/$(printf '%s' "$workspace" | sha256sum | cut -c1-12)/$purpose"
+    mkdir -p "$root"
+    chmod 700 "$parent" "${root%/$purpose}" "$root"
+    exec {IHP_ROSTER_GHC_CACHE_FD}>>"$root/lock"
+    flock "$IHP_ROSTER_GHC_CACHE_FD"
+    # Include the current contents of every tracked source, not just HEAD, so
+    # dirty dependency/schema changes cannot reuse stale interfaces.
+    fingerprint="$({ printf '%s\n%s\n%s\n' "$(ghc --numeric-version)" "$ghc_opts" "$format"; git ls-files -z | xargs -0 git hash-object; } | sha256sum | cut -d' ' -f1)"
+    stamp="$root/fingerprint.sha256"
+    if [ "$(cat "$stamp" 2>/dev/null || true)" != "$fingerprint" ]; then
+        rm -rf "$root/obj" "$root/hi"
+        mkdir -p "$root/obj" "$root/hi"
+        printf '%s\n' "$fingerprint" >"$stamp"
+    fi
+    IHP_ROSTER_GHC_CACHE_DIR="$root"
+}
+
+ihp_roster_release_verification_cache() {
+    [ -n "${IHP_ROSTER_GHC_CACHE_FD:-}" ] || return 0
+    flock -u "$IHP_ROSTER_GHC_CACHE_FD"
+    eval "exec ${IHP_ROSTER_GHC_CACHE_FD}>&-"
+}
+
 ihp_roster_prepare_ghc_build_dir() {
     local build_dir="$1"
     local ghc_opts="$2"
