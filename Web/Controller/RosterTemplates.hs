@@ -24,13 +24,15 @@ import qualified Data.UUID as UUID
 import Text.Read (readMaybe)
 import Web.Controller.Prelude
 import qualified Web.RosterTemplates.Mutations as TemplateMutations
-import Web.RosterWeeks.DateRange (RosterWindowScope (..),
+import Web.RosterWeeks.DateRange (RosterWindow (..), RosterWindowDay (..),
+                                  RosterWindowScope (..),
                                   RosterWindowState (..), fetchRosterWindow,
                                   rosterWindowIsPublished,
                                   rosterWindowScopeForAnchor)
 import Web.RosterWeeks.Paths (rosterWindowUrl)
 import Web.RosterWeeks.Responses (respondWithRosterTemplateApplicationUpdate,
-                                  respondWithRosterTemplateCaptureUpdate)
+                                  respondWithRosterTemplateCaptureUpdate,
+                                  respondWithRosterTemplateDeleteUpdate)
 import Web.RosterWeeks.TemplateApplication
 import Web.RosterWeeks.TemplateCapture
 import Web.View.RosterTemplates.ApplicationConfirmation
@@ -42,6 +44,11 @@ rosterTemplateWindowScope :: (?context :: ControllerContext, ?modelContext :: Mo
 rosterTemplateWindowScope rosterGroup = do
     venueConfig <- fetchVenueConfig
     anchorDate <- parseIsoDayRouteParam (paramOrDefault @Text "" "anchorDate")
+    pure (rosterWindowScopeForAnchor venueConfig rosterGroup.id anchorDate)
+
+rosterTemplateWindowScopeForSubmittedAnchor :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterGroup -> Day -> IO RosterWindowScope
+rosterTemplateWindowScopeForSubmittedAnchor rosterGroup anchorDate = do
+    venueConfig <- fetchVenueConfig
     pure (rosterWindowScopeForAnchor venueConfig rosterGroup.id anchorDate)
 
 instance Controller RosterTemplatesController where
@@ -104,6 +111,7 @@ instance Controller RosterTemplatesController where
         let windowState = RosterWindowState
                 { windowRosterGroupId = unpackId rosterGroup.id
                 , windowIsPublished = rosterWindowIsPublished window
+                , windowHasPublishedDays = any ((== Published) . (.publicationState)) (mapMaybe (.persistedRosterDay) window.rosterWindowProjectedDays)
                 }
         respondHtml (renderRosterTemplateLibraryFragment (rosterTemplateActorUserId actor) scope.rosterWindowStart scope.rosterWindowCalendarRevision rosterGroup (Just windowState) (fromMaybe (error "authorized template library missing") maybeLibrary))
 
@@ -111,20 +119,26 @@ instance Controller RosterTemplatesController where
         actor <- authorizedTemplateActor
         rosterGroup <- fetchScopedRosterGroup rosterGroupId
         scope <- rosterTemplateWindowScope rosterGroup
-        case RosterAction.parsePreviewRosterTemplateCaptureActionParams of
-            Left errors -> renderTemplateCaptureInput rosterGroupId scope (captureTransportErrorMessage errors)
-            Right fields -> case rosterTemplateCaptureRequestFromValues
-                scope
-                (surfaceFieldValue @RosterSurface.TemplateName fields)
-                (surfaceFieldValue @RosterSurface.CaptureAssignmentMode fields)
-                (surfaceFieldValue @RosterSurface.StaleShiftTypeIds fields)
-                (surfaceFieldValue @RosterSurface.MappedShiftTypeIds fields) of
-                    Left message -> renderTemplateCaptureInput rosterGroupId scope message
-                    Right captureRequest -> do
-                        preview <- previewRosterTemplateCapture actor captureRequest
-                        case preview of
-                            Left failure -> renderTemplateCaptureInput rosterGroupId scope (templateCaptureErrorMessage failure)
-                            Right capturePreview -> respondHtml (renderRosterTemplateCaptureConfirmation rosterGroupId scope.rosterWindowStart captureRequest capturePreview Nothing)
+        case (submittedCaptureName, submittedCaptureMode) of
+            (Nothing, Nothing) -> renderTemplateCaptureInput rosterGroupId scope ""
+            _ -> case RosterAction.parsePreviewRosterTemplateCaptureActionParams of
+                Left errors -> renderTemplateCaptureInput rosterGroupId scope (captureTransportErrorMessage errors)
+                Right fields -> case rosterTemplateCaptureRequestFromValues
+                    scope
+                    (surfaceFieldValue @RosterSurface.TemplateName fields)
+                    (surfaceFieldValue @RosterSurface.CaptureAssignmentMode fields)
+                    (surfaceFieldValue @RosterSurface.StaleShiftTypeIds fields)
+                    (surfaceFieldValue @RosterSurface.MappedShiftTypeIds fields) of
+                        Left message -> renderTemplateCaptureInput rosterGroupId scope message
+                        Right captureRequest -> do
+                            preview <- previewRosterTemplateCapture actor captureRequest
+                            case preview of
+                                Left failure -> renderTemplateCaptureInput rosterGroupId scope (templateCaptureErrorMessage failure)
+                                Right capturePreview -> respondHtml (renderRosterTemplateCaptureConfirmation rosterGroupId scope.rosterWindowStart captureRequest capturePreview Nothing)
+      where
+        launcherFields = RosterAction.previewRosterTemplateCaptureActionFields "" KeepValidStaffAssignments Nothing Nothing
+        submittedCaptureName = paramOrNothing @Text (cs (surfaceFieldNameFrom @RosterSurface.TemplateName launcherFields))
+        submittedCaptureMode = paramOrNothing @Text (cs (surfaceFieldNameFrom @RosterSurface.CaptureAssignmentMode launcherFields))
 
     action currentAction@CreateRosterTemplateCaptureAction { rosterGroupId } = runBepis currentAction BepisMutationAction do
         actor <- authorizedTemplateActor
@@ -164,13 +178,20 @@ instance Controller RosterTemplatesController where
 
     action currentAction@DeleteRosterTemplateAction { rosterTemplateId } = runBepis currentAction BepisMutationAction do
         actor <- authorizedTemplateActor
-        deleted <- TemplateMutations.softDeleteRosterTemplateMutation actor rosterTemplateId "Deleted from template library"
-        either (setErrorMessage . templateErrorMessage) (const (setSuccessMessage "Template deleted.")) deleted
         case (paramOrNothing @Text "anchorDate", paramOrNothing @(Id RosterGroup) "rosterGroupId") of
             (Just rawAnchorDate, Just rosterGroupId) -> do
                 anchorDate <- parseIsoDayRouteParam rawAnchorDate
-                redirectToPath (rosterWindowUrl anchorDate rosterGroupId)
-            _ -> redirectTo RosterWeeksAction
+                rosterGroup <- fetchScopedRosterGroup rosterGroupId
+                scope <- rosterTemplateWindowScopeForSubmittedAnchor rosterGroup anchorDate
+                deleted <- TemplateMutations.softDeleteRosterTemplateMutation actor rosterTemplateId rosterGroupId "Deleted from template library"
+                case deleted of
+                    Left failure -> invalidTemplateDelete (Just scope) (templateErrorMessage failure)
+                    Right mutationResult
+                        | isHtmxRequest -> respondWithRosterTemplateDeleteUpdate scope mutationResult.liveMutationTouchedResources
+                        | otherwise -> do
+                            setSuccessMessage "Template deleted."
+                            redirectToPath (rosterTemplateWindowUrl scope)
+            _ -> invalidTemplateDelete Nothing "The viewed roster context is missing."
 
     action currentAction = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -316,6 +337,13 @@ renderTemplateCaptureInput rosterGroupId scope message =
     transportFields = RosterAction.previewRosterTemplateCaptureActionFields "" KeepValidStaffAssignments Nothing Nothing
     submittedName = fromMaybe "" (paramOrNothing @Text (cs (surfaceFieldNameFrom @RosterSurface.TemplateName transportFields)))
     submittedMode = paramOrNothing @Text (cs (surfaceFieldNameFrom @RosterSurface.CaptureAssignmentMode transportFields))
+
+invalidTemplateDelete :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Maybe RosterWindowScope -> Text -> IO ()
+invalidTemplateDelete maybeScope message
+    | isHtmxRequest = respondHtml (renderRosterTemplateDeleteError message)
+    | otherwise = do
+        setErrorMessage message
+        maybe (redirectTo RosterWeeksAction) (redirectToPath . rosterTemplateWindowUrl) maybeScope
 
 invalidTemplateApplicationTransport :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => RosterWindowScope -> [SurfaceRequestFieldError] -> IO ()
 invalidTemplateApplicationTransport scope errors

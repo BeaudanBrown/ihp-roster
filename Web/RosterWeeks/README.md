@@ -89,8 +89,7 @@ a registered `WireClosed` scalar; generated TypeScript owns the `"day" |
 - Roster writes validate venue/group scope and current Staff/Open/pay state at
   the server boundary, regardless of rendered controls.
 - The shared SidePanel owns only visibility and responsive mechanics. Roster
-  owns Staff/Settings content, permissions, and linked highlighting. Template
-  functionality remains implemented but is intentionally hidden for the next release.
+  owns authorized Staff/Templates/Settings content, permissions, and linked highlighting.
 - Emailing a Published roster is an explicit editor action. One immutable run
   snapshots its audience and roster; each recipient sees only their own assigned
   shifts and the snapshot's Open shifts. Durable jobs continue if the roster
@@ -108,7 +107,7 @@ Preview binds template content, target content, calendar configuration, and curr
 
 Approved leave is target-specific and leaves the saved assignment intact. Durable Staff invalidity changes both target and template to Open. Stale Shift types require blank-by-default explicit mappings to active same-venue types; mappings may converge many stale identities onto one replacement and permanently clean the template. Successful results state whether template content changed and publish typed library, Roster, and Timesheet touched resources transactionally.
 
-The current application launcher is a typed server-rendered Week button and confirmation overlay; final Templates-tab modal integration belongs to the next workstream issue. Published, incomplete, malformed, cross-group, or stale targets fail without mutation. Nonexistent Melbourne local times fail; repeated endpoints deterministically use their first occurrence for template application only.
+The manager SidePanel Templates tab owns one alphabetical Week-template library. Its header launches date-native capture; cards show only name, shift count, Apply, and Delete. Save, Apply, and Delete use generated typed server-rendered controls and shared Overlay dialogs on desktop and mobile. Any Published target day disables Apply without hiding Save, Delete, or the library. Successful HTMX mutations close the dialog, retain the selected tab and roster URL context, refresh authoritative fragments in place, and show a toast. Published, incomplete, malformed, cross-group, or stale targets fail without mutation. Nonexistent Melbourne local times fail; repeated endpoints deterministically use their first occurrence for template application only.
 
 ## Row-Grid Rendering Contract
 

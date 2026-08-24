@@ -1,7 +1,7 @@
 module Web.RosterTemplates.Mutations where
 
 import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterTemplateLibraryResource,
-                                                                      rosterTemplateResource)
+                                                                    rosterTemplateResource)
 import Application.Helper.SurfaceResource (LiveMutationResult (..),
                                            liveMutationResult)
 import Application.RosterTemplates
@@ -12,12 +12,17 @@ softDeleteRosterTemplateMutation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     RosterTemplateActor ->
     Id RosterTemplate ->
+    Id RosterGroup ->
     Text ->
-    IO (Either RosterTemplateError ())
-softDeleteRosterTemplateMutation actor templateId reason = do
+    IO (Either RosterTemplateError (LiveMutationResult ()))
+softDeleteRosterTemplateMutation actor templateId expectedRosterGroupId reason = do
     outcome <- withDurableLiveMutationOutcome publicationFor do
         maybeSaved <- fetchRosterTemplate actor templateId
-        deleted <- softDeleteRosterTemplateInCurrentTransaction actor templateId reason
+        deleted <- case maybeSaved of
+            Just saved | saved.snapshotTemplate.rosterGroupId == unpackId expectedRosterGroupId ->
+                softDeleteRosterTemplateInCurrentTransaction actor templateId reason
+            Just _ -> pure (Left RosterTemplateScopeMismatch)
+            Nothing -> pure (Left RosterTemplateNotFound)
         pure $
             case (deleted, maybeSaved) of
                 (Right (), Just saved) ->
@@ -29,6 +34,6 @@ softDeleteRosterTemplateMutation actor templateId reason = do
                                 ]
                 (Left failure, _) -> Left failure
                 (Right (), Nothing) -> Right Nothing
-    pure (fmap (maybe () (.liveMutationValue)) outcome)
+    pure (outcome >>= maybe (Left RosterTemplateNotFound) Right)
   where
     publicationFor = either (const Nothing) (fmap (\result -> ("roster.template.delete", result.liveMutationTouchedResources)))

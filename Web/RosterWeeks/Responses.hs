@@ -11,6 +11,7 @@ module Web.RosterWeeks.Responses
     , respondWithRosterToast
     , respondWithRosterTemplateApplicationUpdate
     , respondWithRosterTemplateCaptureUpdate
+    , respondWithRosterTemplateDeleteUpdate
     ) where
 
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
@@ -96,15 +97,21 @@ respondWithRosterDialogOverlay scope dialog =
 
 respondWithRosterCompleteResourceInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> Blaze.Html -> IO ()
 respondWithRosterCompleteResourceInvalidation windowScope touchedResources extraHtml = do
+    prepareRosterCompleteResourceInvalidation windowScope touchedResources
+    respondHtmlProfiled extraHtml
+
+prepareRosterCompleteResourceInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> IO ()
+prepareRosterCompleteResourceInvalidation windowScope touchedResources = do
     maybeRosterData <- fetchVisibleRosterReadModel windowScope
     case maybeRosterData of
-        Nothing -> respondWithRosterResourceInvalidation windowScope touchedResources [RosterProjectionContent] extraHtml
+        Nothing -> do
+            let scope = rosterFrontendScopeValue windowScope
+            setActorLiveResourcesRefresh (rosterSurfaceScope scope) touchedResources [rosterMountedFragmentForProjection scope RosterProjectionContent]
         Just rosterData -> do
             let scope = rosterFrontendScopeValue rosterData.rosterWindowScope
-            let plan = rosterMountedFragmentPlanFromRenderData rosterData.templateLibraryUserId rosterData.rosterDays rosterData.renderIndexes
-            setHeader ("HX-Reswap", "none")
+                plan = rosterMountedFragmentPlanFromRenderData rosterData.templateLibraryUserId rosterData.rosterDays rosterData.renderIndexes
             setActorLiveResourcesRefresh (rosterSurfaceScope scope) touchedResources (rosterCandidateMountedFragments scope plan)
-            respondHtmlProfiled extraHtml
+    setHeader ("HX-Reswap", "none")
 
 respondWithRosterTemplateApplicationUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> IO ()
 respondWithRosterTemplateApplicationUpdate scope touchedResources =
@@ -118,6 +125,13 @@ respondWithRosterTemplateCaptureUpdate scope touchedResources =
     respondWithRosterCompleteResourceInvalidation scope touchedResources [hsx|
         <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
         {renderToastOob ToastBottomCenter (successToast "Template saved.")}
+    |]
+
+respondWithRosterTemplateDeleteUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Set.Set SurfaceResourceValue -> IO ()
+respondWithRosterTemplateDeleteUpdate scope touchedResources =
+    respondWithRosterCompleteResourceInvalidation scope touchedResources [hsx|
+        <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+        {renderToastOob ToastBottomCenter (successToast "Template deleted.")}
     |]
 
 respondWithRosterContentOob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> IO ()

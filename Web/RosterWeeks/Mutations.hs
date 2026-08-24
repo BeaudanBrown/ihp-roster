@@ -90,6 +90,7 @@ ensureRosterWeekExistsMutation scope =
                 let windowState = RosterWindowState
                         { windowRosterGroupId = unpackId scope.rosterWindowRosterGroupId
                         , windowIsPublished = False
+                        , windowHasPublishedDays = False
                         }
                 let result = (windowState, wasCreated)
                 pure (Right (liveMutationResult result (rosterWeekStructuralTouchedResources scope)))
@@ -150,7 +151,7 @@ toggleRosterWeekLiveStatusMutation scope windowState nextLiveStatus =
                     case publishValidationError of
                         Just message -> pure (Left message)
                         Nothing -> do
-                            let updatedWindowState = windowState { windowIsPublished = nextLiveStatus }
+                            let updatedWindowState = windowState { windowIsPublished = nextLiveStatus, windowHasPublishedDays = nextLiveStatus }
                             let publicationState = if nextLiveStatus then Published else Draft
                             forM_ rosterDays \day ->
                                 void (day |> set #publicationState publicationState |> updateRecord)

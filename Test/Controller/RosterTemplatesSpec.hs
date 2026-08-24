@@ -3,6 +3,7 @@ module Test.Controller.RosterTemplatesSpec where
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom)
+import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           applyRosterShiftAssignment)
 import Application.RosterTemplates
@@ -16,7 +17,7 @@ import Generated.Types hiding (createRosterTemplate)
 import IHP.ControllerPrelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
-import Network.Wai (Response)
+import Network.Wai (Response, responseHeaders)
 import Test.Hspec
 import Test.Support
 import Web.Controller.RosterTemplates ()
@@ -40,10 +41,103 @@ warningsConfirmedParam = cs (surfaceFieldNameFrom @Surface.WarningsConfirmed cap
 applicationAnchorDateParam = cs (surfaceFieldNameFrom @Surface.AnchorDate applicationPreviewTransportFields)
 applicationTemplateIdParam = cs (surfaceFieldNameFrom @Surface.TemplateId applicationApplyTransportFields)
 expectedTargetRevisionParam = cs (surfaceFieldNameFrom @Surface.ExpectedTargetRevision applicationApplyTransportFields)
+deleteRosterGroupIdParam = "rosterGroupId"
 
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "RosterTemplatesController date-native capture" do
+        it "opens an empty modal with assignment mode unselected" $ withContext do
+            withCleanDb do
+                fixture <- controllerCaptureFixture "Controller capture launcher"
+                response <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams PreviewRosterTemplateCaptureAction { rosterGroupId = fixture.rosterGroup.id }
+                            [("anchorDate", cs (tshow fixture.windowStart))]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Save current week as template"
+                response `responseBodyShouldContain` "value=\"\""
+                response `responseBodyShouldNotContain` "checked=\"checked\""
+                response `responseBodyShouldNotContain` "alert alert-warning"
+
+        it "renders one alphabetical Week-template library and disables Apply for any Published target day" $ withContext do
+            withCleanDb do
+                fixture <- controllerCaptureFixture "Controller template library"
+                let actor = rosterTemplateActor fixture.manager fixture.venue True
+                    content = RosterTemplateContent
+                        { contentDays = [RosterTemplateDayInput dayIndex (Just dayIndex) False 1 | dayIndex <- [0 .. 6]]
+                        , contentColumns = [RosterTemplateColumnInput "Only" 0]
+                        , contentShifts = [RosterTemplateShiftInput 0 0 0 540 1020 fixture.shiftType.id OpenAssignment]
+                        }
+                Right _ <- createRosterTemplate actor fixture.rosterGroup Week "Zulu" content
+                Right _ <- createRosterTemplate actor fixture.rosterGroup Week "alpha" content
+                _ <- fixture.days !! 3 |> set #publicationState Published |> updateRecord
+                response <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    callActionWithParams ShowRosterTemplateLibraryFragmentAction { rosterGroupId = fixture.rosterGroup.id }
+                        [("anchorDate", cs (tshow fixture.windowStart))]
+                body <- responseBody response
+                let html = cs body :: String
+                    htmlText = cs body :: Text
+
+                response `responseStatusShouldBe` status200
+                html `shouldContain` "Save current week as template"
+                html `shouldNotContain` "No templates are saved."
+                html `shouldContain` "1 shift(s)"
+                html `shouldContain` "at least one day in the viewed window is Published"
+                html `shouldContain` "disabled"
+                html `shouldNotContain` "Week snapshot"
+                html `shouldNotContain` "assignment mode"
+                Text.breakOn "alpha" htmlText `shouldSatisfy` (\(_, suffix) -> "Zulu" `Text.isInfixOf` suffix)
+
+        it "deletes through the modal workflow and refreshes the library in place" $ withContext do
+            withCleanDb do
+                fixture <- controllerCaptureFixture "Controller template delete"
+                let actor = rosterTemplateActor fixture.manager fixture.venue True
+                    content = RosterTemplateContent
+                        { contentDays = [RosterTemplateDayInput dayIndex (Just dayIndex) False 1 | dayIndex <- [0 .. 6]]
+                        , contentColumns = [RosterTemplateColumnInput "Only" 0]
+                        , contentShifts = []
+                        }
+                Right snapshot <- createRosterTemplate actor fixture.rosterGroup Week "Delete me" content
+                response <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams DeleteRosterTemplateAction { rosterTemplateId = snapshot.snapshotTemplate.id }
+                            [ (applicationTemplateIdParam, cs (tshow snapshot.snapshotTemplate.id))
+                            , (applicationAnchorDateParam, cs (tshow fixture.windowStart))
+                            , (deleteRosterGroupIdParam, cs (tshow fixture.rosterGroup.id))
+                            ]
+                deleted <- fetch snapshot.snapshotTemplate.id
+                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+
+                response `responseStatusShouldBe` status200
+                deleted.deletedAt `shouldSatisfy` isJust
+                response `responseBodyShouldContain` "Template deleted."
+                response `responseBodyShouldContain` "id=\"dialog-overlay-mount\""
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "roster-template-library")
+
+        it "rejects deletion when submitted roster-group context does not own the template" $ withContext do
+            withCleanDb do
+                fixture <- controllerCaptureFixture "Controller cross-group delete"
+                otherGroup <- createVenueRosterGroupWithDefaults fixture.venue "Other group" 2 True
+                let actor = rosterTemplateActor fixture.manager fixture.venue True
+                    content = RosterTemplateContent
+                        { contentDays = [RosterTemplateDayInput dayIndex (Just dayIndex) False 1 | dayIndex <- [0 .. 6]]
+                        , contentColumns = [RosterTemplateColumnInput "Only" 0]
+                        , contentShifts = []
+                        }
+                Right snapshot <- createRosterTemplate actor otherGroup Week "Other group template" content
+                response <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams DeleteRosterTemplateAction { rosterTemplateId = snapshot.snapshotTemplate.id }
+                            [ ("anchorDate", cs (tshow fixture.windowStart))
+                            , ("rosterGroupId", cs (tshow fixture.rosterGroup.id))
+                            ]
+                retained <- fetch snapshot.snapshotTemplate.id
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "outside the current roster group"
+                retained.deletedAt `shouldBe` Nothing
+
         it "previews and confirms capture from a mixed-publication source" $ withContext do
             withCleanDb do
                 fixture <- controllerCaptureFixture "Controller capture"
@@ -70,7 +164,7 @@ tests = aroundAll withDatabaseTestContext do
                 durableEventCount :: Int <- sqlQueryScalar "SELECT COUNT(*)::INT FROM live_invalidation_events WHERE source = 'roster.template.capture'" ()
 
                 previewResponse `responseStatusShouldBe` status200
-                previewResponse `responseBodyShouldContain` "Draft/Published status is not saved"
+                previewResponse `responseBodyShouldNotContain` "Draft/Published status"
                 createResponse `responseStatusShouldBe` status302
                 map (.name) templates `shouldBe` ["Mixed source"]
                 retainedFirstDay.publicationState `shouldBe` Published

@@ -13,8 +13,11 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , CreateRosterNotificationRunActionOperation
     , CreateRosterTemplateCaptureActionOperation
     , CreateRosterWeekSlotDefinitionActionOperation
+    , DeleteRosterTemplateActionOperation
     , DeleteRosterWeekSlotDefinitionActionOperation
     , NavigateRosterWeekActionOperation
+    , OpenRosterTemplateCaptureActionOperation
+    , OpenRosterTemplateDeleteActionOperation
     , PreviewRosterTemplateApplicationActionOperation
     , PreviewRosterTemplateCaptureActionOperation
     , RemoveRosterRowActionOperation
@@ -39,11 +42,17 @@ module Application.Helper.FrontendContract.Surface.Roster.Generated.Action
     , createRosterTemplateCaptureActionFields
     , createRosterWeekSlotDefinitionAction
     , createRosterWeekSlotDefinitionActionFields
+    , deleteRosterTemplateAction
+    , deleteRosterTemplateActionFields
     , deleteRosterWeekSlotDefinitionAction
     , deleteRosterWeekSlotDefinitionActionFields
     , navigateRosterWeekAction
     , navigateRosterWeekActionFields
     , navigateRosterWeekActionParamsPresent
+    , openRosterTemplateCaptureAction
+    , openRosterTemplateCaptureActionFields
+    , openRosterTemplateDeleteAction
+    , openRosterTemplateDeleteActionFields
     , parseApplyRosterTemplateApplicationActionParams
     , parseCopyRosterWeekActionParams
     , parseCreateRosterNotificationRunActionParams
@@ -103,6 +112,7 @@ import Application.Helper.FrontendContract.Surface.Values (ActionFieldSpecs,
                                                            ActionMarker,
                                                            ActionSurface,
                                                            actionFields,
+                                                           noActionFields,
                                                            noSurfaceFields,
                                                            surfaceField,
                                                            surfaceOptionalField,
@@ -336,6 +346,25 @@ createRosterWeekSlotDefinitionAction :: ActionFields CreateRosterWeekSlotDefinit
 createRosterWeekSlotDefinitionAction =
     frontendSurfaceActionFromEvidence createRosterWeekSlotDefinitionActionEvidence
 
+data DeleteRosterTemplateActionOperation
+
+type instance ActionSurface DeleteRosterTemplateActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker DeleteRosterTemplateActionOperation = Types1.DeleteRosterTemplate
+type instance ActionFieldSpecs DeleteRosterTemplateActionOperation =
+    '[]
+
+deleteRosterTemplateActionFields :: ActionFields DeleteRosterTemplateActionOperation
+deleteRosterTemplateActionFields =
+    noActionFields
+
+deleteRosterTemplateActionEvidence :: ActionEvidence DeleteRosterTemplateActionOperation
+deleteRosterTemplateActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "DeleteRosterTemplate" "delete-roster-template" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" []))])
+
+deleteRosterTemplateAction :: ActionFields DeleteRosterTemplateActionOperation -> FrontendSurfaceAction
+deleteRosterTemplateAction =
+    frontendSurfaceActionFromEvidence deleteRosterTemplateActionEvidence
+
 data DeleteRosterWeekSlotDefinitionActionOperation
 
 type instance ActionSurface DeleteRosterWeekSlotDefinitionActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
@@ -394,6 +423,44 @@ navigateRosterWeekActionParamsPresent ::
 navigateRosterWeekActionParamsPresent =
     actionParamsPresent
         @NavigateRosterWeekActionOperation
+
+data OpenRosterTemplateCaptureActionOperation
+
+type instance ActionSurface OpenRosterTemplateCaptureActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker OpenRosterTemplateCaptureActionOperation = Types1.OpenRosterTemplateCapture
+type instance ActionFieldSpecs OpenRosterTemplateCaptureActionOperation =
+    '[]
+
+openRosterTemplateCaptureActionFields :: ActionFields OpenRosterTemplateCaptureActionOperation
+openRosterTemplateCaptureActionFields =
+    noActionFields
+
+openRosterTemplateCaptureActionEvidence :: ActionEvidence OpenRosterTemplateCaptureActionOperation
+openRosterTemplateCaptureActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "OpenRosterTemplateCapture" "open-roster-template-capture" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" []))])
+
+openRosterTemplateCaptureAction :: ActionFields OpenRosterTemplateCaptureActionOperation -> FrontendSurfaceAction
+openRosterTemplateCaptureAction =
+    frontendSurfaceActionFromEvidence openRosterTemplateCaptureActionEvidence
+
+data OpenRosterTemplateDeleteActionOperation
+
+type instance ActionSurface OpenRosterTemplateDeleteActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types2.RosterAdapterFamily)
+type instance ActionMarker OpenRosterTemplateDeleteActionOperation = Types1.OpenRosterTemplateDelete
+type instance ActionFieldSpecs OpenRosterTemplateDeleteActionOperation =
+    '[]
+
+openRosterTemplateDeleteActionFields :: ActionFields OpenRosterTemplateDeleteActionOperation
+openRosterTemplateDeleteActionFields =
+    noActionFields
+
+openRosterTemplateDeleteActionEvidence :: ActionEvidence OpenRosterTemplateDeleteActionOperation
+openRosterTemplateDeleteActionEvidence =
+    actionEvidence (SurfaceIR.HtmxActionIR "OpenRosterTemplateDelete" "open-roster-template-delete" [] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxRawSyntaxIR "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "innerHTML" []))])
+
+openRosterTemplateDeleteAction :: ActionFields OpenRosterTemplateDeleteActionOperation -> FrontendSurfaceAction
+openRosterTemplateDeleteAction =
+    frontendSurfaceActionFromEvidence openRosterTemplateDeleteActionEvidence
 
 data PreviewRosterTemplateApplicationActionOperation
 

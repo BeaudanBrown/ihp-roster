@@ -17,6 +17,7 @@ import Application.Helper.FrontendContract.Toggle.Runtime (ToggleFieldBinding,
                                                            toggleFieldName,
                                                            toggleTargetForState)
 import Application.Helper.View.Overlay
+import qualified Data.Text as Text
 import IHP.ModelSupport (InputValue (..))
 import Web.RosterWeeks.Dom (rosterTemplateCaptureFormId,
                             rosterTemplateCaptureNameInputId,
@@ -37,7 +38,7 @@ renderRosterTemplateCaptureInput rosterGroupId anchorDate submittedName submitte
         { dialogOverlayTitle = "Save current week as template"
         , dialogOverlayBody =
             renderFrontendSurfaceActionForm (RosterAction.previewRosterTemplateCaptureAction fields) route [hsx|
-                <p class="alert alert-warning">{errorMessage}</p>
+                {renderInputError errorMessage}
                 <div class="mb-3">
                     <label class="form-label" for={rosterTemplateCaptureNameInputId}>Template name</label>
                     <input class="form-control" id={rosterTemplateCaptureNameInputId} name={surfaceFieldNameFrom @Surface.TemplateName fields} value={submittedName} maxlength="120" required="required"/>
@@ -59,6 +60,11 @@ renderRosterTemplateCaptureInput rosterGroupId anchorDate submittedName submitte
     fields = RosterAction.previewRosterTemplateCaptureActionFields submittedName KeepValidStaffAssignments Nothing Nothing
     actionUrl = appendQueryParams (pathTo PreviewRosterTemplateCaptureAction { rosterGroupId }) [("anchorDate", tshow anchorDate)]
     route = captureActionRoute actionUrl
+
+renderInputError :: Text -> Html
+renderInputError message
+    | Text.null message = mempty
+    | otherwise = [hsx|<p class="alert alert-warning">{message}</p>|]
 
 renderAssignmentModeChoice :: Text -> Maybe Text -> RosterTemplateCaptureAssignmentMode -> Text -> Html
 renderAssignmentModeChoice fieldName submittedMode mode label = [hsx|
@@ -85,7 +91,6 @@ renderRosterTemplateCaptureConfirmation rosterGroupId anchorDate _request previe
         { dialogOverlayTitle = "Save current week as template"
         , dialogOverlayBody = [hsx|
             {forEach maybeMessage renderMessage}
-            <p>This saves the viewed seven-day roster structure as a detached Week template. Draft/Published status is not saved.</p>
             {renderStaffWarnings preview.capturePreviewWarnings}
             {renderCaptureConfirmationForm rosterGroupId anchorDate preview}
         |]

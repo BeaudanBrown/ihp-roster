@@ -37,8 +37,8 @@ renderRosterTemplateApplicationConfirmation rosterTemplateId rosterGroupId previ
         { dialogOverlayTitle = "Apply " <> preview.applicationPreviewTemplateName
         , dialogOverlayBody = [hsx|
             {forEach maybeMessage renderMessage}
-            <p>This will replace the complete viewed week.</p>
-            <p class="small text-muted">Existing rosters outside this target are unaffected. Every target day remains Draft.</p>
+            <p>This will replace the entire viewed window’s operational structure.</p>
+            <p class="small text-muted">Publication remains Draft. Existing Timesheets and their source provenance are preserved.</p>
             {renderShiftTypeRequirements preview actionFields}
             {renderWarnings preview.applicationWarnings}
             {renderFrontendSurfaceActionForm (RosterAction.applyRosterTemplateApplicationAction actionFields) actionRoute (renderApplicationFields rosterTemplateId preview actionFields)}

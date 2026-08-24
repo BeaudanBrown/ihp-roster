@@ -223,8 +223,14 @@ registeredSurfaceActionAdapterRegistrations =
     , surfaceOperationLocalActionAdapterExcluded @RosterAdapterFamily @Roster.DropRosterStaff intentOnlyActionReason
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.PreviewRosterTemplateApplication allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.ApplyRosterTemplateApplication allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.OpenRosterTemplateCapture
+        (requestAdapterOperationsWithoutParser "The zero-field modal launcher consumes canonical route context and has no Surface request parser")
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.PreviewRosterTemplateCapture allRequestAdapterOperations
     , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.CreateRosterTemplateCapture allRequestAdapterOperations
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.OpenRosterTemplateDelete
+        (requestAdapterOperationsWithoutParser "The zero-field modal launcher consumes canonical route context and has no Surface request parser")
+    , surfaceOperationLocalActionAdapter @RosterAdapterFamily @Roster.DeleteRosterTemplate
+        (requestAdapterOperationsWithoutParser "The zero-field delete endpoint consumes its route id and canonical query context")
     , surfaceOperationLocalActionAdapterExcluded @RosterDayTimelineAdapterFamily @Roster.MoveRosterTimelineShift intentOnlyActionReason
     , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ArchiveLeaveRequestsPage requestAdapterOperationsWithParamsPresent
     , surfaceOperationLocalActionAdapter @LeaveRequestsAdapterFamily @LeaveRequests.ApproveLeaveRequest

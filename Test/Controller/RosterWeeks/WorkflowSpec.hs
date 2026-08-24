@@ -2449,8 +2449,9 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "&quot;assignedShifts&quot;:1"
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"staff\""
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"settings\""
-                response `responseBodyShouldNotContain` "data-bepis-roster-staff-panel-tab=\"templates\""
-                response `responseBodyShouldNotContain` "id=\"roster-template-library-mount-"
+                response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"templates\""
+                response `responseBodyShouldContain` "id=\"roster-template-library-mount-"
+                response `responseBodyShouldContain` "Save current week as template"
                 response `responseBodyShouldContain` "Own shifts highlighted"
 
         it "manager roster staff panel fragment only shows staff applicable to the selected roster group" $ withContext do

@@ -353,14 +353,14 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 registeredSurfaceAdapterRegistry.surfaceActionAdapterRegistrations of
                 Left diagnostics -> expectationFailure (cs (show diagnostics)) >> pure []
                 Right inventory -> pure inventory
-        length actionDeclarations `shouldBe` 72
+        length actionDeclarations `shouldBe` 75
         length actionInventory `shouldBe` length actionDeclarations
         let generatedActionOperations = mapMaybe (.checkedSurfaceRequestAdapterOperations) actionInventory
-        length generatedActionOperations `shouldBe` 67
+        length generatedActionOperations `shouldBe` 70
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterFieldsBuilderOperation)) generatedActionOperations)
-            `shouldBe` 67
+            `shouldBe` 70
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRenderMetadataOperation)) generatedActionOperations)
-            `shouldBe` 67
+            `shouldBe` 70
         length (filter (surfaceAdapterOperationIsGenerated . (.surfaceAdapterRequestParserOperation)) generatedActionOperations)
             `shouldBe` 49
         let actionIdentity registration =
@@ -394,6 +394,9 @@ tests = describe "FrontendSurfaceRequestAdapter" do
                 , ("roster", "toggle-roster-day-closed")
                 , ("roster", "add-roster-row")
                 , ("roster", "remove-roster-row")
+                , ("roster", "open-roster-template-capture")
+                , ("roster", "open-roster-template-delete")
+                , ("roster", "delete-roster-template")
                 , ("leave-requests", "approve-leave-request")
                 , ("leave-requests", "deny-leave-request")
                 , ("leave-requests", "delete-unavailability-blackout")

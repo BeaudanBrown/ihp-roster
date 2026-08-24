@@ -82,7 +82,7 @@ controller, mail, and delivery tests.
 - Preview carries authoritative template, target, calendar, Staff, Shift-type, membership, leave, and pay-reference identity. Confirmation locks and revalidates those facts, the complete target, and relevant Timesheet snapshots before one atomic replacement.
 - Approved leave converts only affected target assignments to Open. Durable inactive, archived, wrong-venue, outside-group, or pay-invalid Staff assignments become Open in both target and saved template. Stale Shift types require explicit active same-venue mappings and permanently clean the template; multiple stale identities may share one replacement.
 - Replaced shifts are soft-deleted so materialized Timesheet values and source provenance survive. Application resolves repeated Melbourne boundaries to their first occurrence and rejects nonexistent local times.
-- The application launcher is a typed server-rendered button form; validation and stale confirmation failures rerender its overlay for HTMX, while ordinary form fallbacks redirect to the same date-native roster URL.
+- Authorized roster editors use one responsive SidePanel Templates tab. It shows a case-insensitive alphabetical Week list with name, shift count, Apply, and Delete only; Save remains in the header and the empty state retains it. Save, Apply, and Delete use generated button forms and shared server-rendered Overlay dialogs. Any Published target day disables Apply with explanatory copy while Save, Delete, and the library remain available. Successful HTMX writes retain the viewed date, group, layout, and selected Templates tab, refresh authoritative fragments in place, and show a toast. Validation and stale confirmation failures rerender the dialog with still-valid inputs preserved.
 
 Implementation authority is `TemplateCapture.hs`, `TemplateApplication.hs`, their persistence modules, and focused database/controller tests.
 
@@ -126,8 +126,7 @@ unsealed boundary as a Timesheet suggestion; roster-only shifts contribute
 neither totals nor errors. Wage visibility and staff filtering remain
 server-authorized and transient.
 
-Managers receive Staff and Settings in the shared transient SidePanel; Template
-functionality remains implemented but is intentionally hidden for the next release.
+Managers receive Staff, Templates, and Settings in the shared transient SidePanel.
 Feature content and authorization remain roster-owned. Its toggle uses
 the shared main-card header location, desktop focus/Escape contract, transient
 visibility, and phone stacking used by Timesheets and manager Unavailability. Published rosters

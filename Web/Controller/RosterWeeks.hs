@@ -561,9 +561,11 @@ instance Controller RosterWeeksController where
         rosterGroup <- resolveRequestedRosterGroup
         scope <- rosterMutationScope rosterGroup.id
         window <- fetchRosterWindow scope.rosterWindowVenueId scope.rosterWindowRosterGroupId scope.rosterWindowStart
+        let windowDays = mapMaybe (.persistedRosterDay) window.rosterWindowProjectedDays
         let windowState = RosterWindowState
                 { windowRosterGroupId = unpackId rosterGroup.id
-                , windowIsPublished = rosterDaysArePublished (mapMaybe (.persistedRosterDay) window.rosterWindowProjectedDays)
+                , windowIsPublished = rosterDaysArePublished windowDays
+                , windowHasPublishedDays = any ((== Published) . (.publicationState)) windowDays
                 }
         let targetPath = rosterWindowUrl scope.rosterWindowStart scope.rosterWindowRosterGroupId
         case RosterAction.parseToggleRosterWeekLiveStatusActionParams of

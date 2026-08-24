@@ -13,12 +13,18 @@ module Application.Helper.FrontendContract.Surface.Roster.Action
     , createRosterNotificationRunActionFields
     , createRosterWeekSlotDefinitionAction
     , createRosterWeekSlotDefinitionActionFields
+    , deleteRosterTemplateAction
+    , deleteRosterTemplateActionFields
     , deleteRosterWeekSlotDefinitionAction
     , deleteRosterWeekSlotDefinitionActionFields
     , NavigateRosterWeekActionOperation
     , navigateRosterWeekAction
     , navigateRosterWeekActionFields
     , navigateRosterWeekActionParamsPresent
+    , openRosterTemplateCaptureAction
+    , openRosterTemplateCaptureActionFields
+    , openRosterTemplateDeleteAction
+    , openRosterTemplateDeleteActionFields
     , parseApplyRosterTemplateApplicationActionParams
     , parseCopyRosterWeekActionParams
     , parseCreateRosterNotificationRunActionParams
@@ -88,11 +94,17 @@ import Application.Helper.FrontendContract.Surface.Roster.Generated.Action (AddR
                                                                             createRosterTemplateCaptureActionFields,
                                                                             createRosterWeekSlotDefinitionAction,
                                                                             createRosterWeekSlotDefinitionActionFields,
+                                                                            deleteRosterTemplateAction,
+                                                                            deleteRosterTemplateActionFields,
                                                                             deleteRosterWeekSlotDefinitionAction,
                                                                             deleteRosterWeekSlotDefinitionActionFields,
                                                                             navigateRosterWeekAction,
                                                                             navigateRosterWeekActionFields,
                                                                             navigateRosterWeekActionParamsPresent,
+                                                                            openRosterTemplateCaptureAction,
+                                                                            openRosterTemplateCaptureActionFields,
+                                                                            openRosterTemplateDeleteAction,
+                                                                            openRosterTemplateDeleteActionFields,
                                                                             parseApplyRosterTemplateApplicationActionParams,
                                                                             parseCopyRosterWeekActionParams,
                                                                             parseCreateRosterNotificationRunActionParams,

@@ -100,8 +100,9 @@ data RosterTemplateSnapshot = RosterTemplateSnapshot
     }
     deriving (Eq, Show)
 
-newtype RosterTemplateLibrary = RosterTemplateLibrary
-    { libraryTemplates :: [RosterTemplate]
+data RosterTemplateLibrary = RosterTemplateLibrary
+    { libraryTemplates   :: ![RosterTemplate]
+    , libraryShiftCounts :: !(Map.Map (Id RosterTemplate) Int)
     }
     deriving (Eq, Show)
 
@@ -274,9 +275,18 @@ fetchRosterTemplateLibrary actor rosterGroup
             query @RosterTemplate
                 |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
                 |> filterWhere (#deletedAt, Nothing)
+                |> filterWhere (#scale, Week)
                 |> orderByAsc #name
                 |> fetch
-        pure (Just (RosterTemplateLibrary (sortOn (Text.toCaseFold . (.name)) templates)))
+        shifts <- if null templates
+            then pure []
+            else query @RosterTemplateShift
+                |> filterWhereIn (#rosterTemplateId, map (unpackId . (.id)) templates)
+                |> fetch
+        pure (Just RosterTemplateLibrary
+            { libraryTemplates = sortOn (Text.toCaseFold . (.name)) templates
+            , libraryShiftCounts = Map.fromListWith (+) [(Id shift.rosterTemplateId, 1) | shift <- shifts]
+            })
 
 softDeleteRosterTemplate ::
     (?modelContext :: ModelContext) =>

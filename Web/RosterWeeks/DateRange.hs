@@ -68,8 +68,9 @@ data RosterWindowScope = RosterWindowScope
 -- | Request-local publication state for one explicit roster window. This is a
 -- projection, never persisted identity.
 data RosterWindowState = RosterWindowState
-    { windowRosterGroupId :: !UUID
-    , windowIsPublished   :: !Bool
+    { windowRosterGroupId    :: !UUID
+    , windowIsPublished      :: !Bool
+    , windowHasPublishedDays :: !Bool
     }
     deriving (Eq, Show)
 

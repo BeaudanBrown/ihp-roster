@@ -11,7 +11,11 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceActionForm)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom)
 import Application.RosterTemplates
+import qualified Data.Map.Strict as Map
 import Web.RosterWeeks.Dom (rosterTemplateApplicationPreviewFormId,
+                            rosterTemplateCaptureLauncherFormId,
+                            rosterTemplateCardId,
+                            rosterTemplateDeletePreviewFormId,
                             rosterTemplateLibraryFragmentId)
 import Web.RosterWeeks.Types (RosterWindowState (..))
 import Web.View.Prelude
@@ -28,70 +32,75 @@ renderRosterTemplatePanel anchorDate calendarRevision rosterGroup maybeRosterWee
     <section class="roster-template-panel" aria-labelledby="roster-template-panel-heading">
         <div class="app-side-panel-content-header roster-staff-panel-header">
             <h2 id="roster-template-panel-heading" class="h5 mb-0">Templates</h2>
+            {renderCaptureLauncher anchorDate rosterGroup.id}
         </div>
-        {renderLiveRosterTemplateMessage maybeRosterWeek}
-        {renderTemplateScaleSection "Week templates" Week anchorDate calendarRevision rosterGroup maybeRosterWeek library.libraryTemplates}
+        {renderPublishedTargetMessage maybeRosterWeek}
+        <div class="mt-3" aria-label="Saved Week templates">
+            {renderTemplateCards anchorDate calendarRevision rosterGroup maybeRosterWeek library}
+        </div>
     </section>
 |]
 
-renderLiveRosterTemplateMessage :: Maybe RosterWindowState -> Html
-renderLiveRosterTemplateMessage (Just rosterWeek)
-    | rosterWeek.windowIsPublished = [hsx|
-        <div class="alert alert-info small" role="status">Templates cannot be applied to a Published roster. Return this window to Draft to apply one.</div>
+renderCaptureLauncher :: (?context :: ControllerContext) => Day -> Id RosterGroup -> Html
+renderCaptureLauncher anchorDate rosterGroupId =
+    renderFrontendSurfaceActionForm (RosterAction.openRosterTemplateCaptureAction RosterAction.openRosterTemplateCaptureActionFields) route [hsx|
+        <button class="btn btn-sm btn-primary" type="submit">Save current week as template</button>
     |]
-renderLiveRosterTemplateMessage _ = mempty
-
-renderTemplateScaleSection :: (?context :: ControllerContext) => Text -> RosterTemplateScaleEnum -> Day -> Int -> RosterGroup -> Maybe RosterWindowState -> [RosterTemplate] -> Html
-renderTemplateScaleSection heading scale anchorDate calendarRevision rosterGroup maybeRosterWeek templates = [hsx|
-    <section class="roster-template-scale-section mt-3" aria-label={heading}>
-        <h3 class="h6 text-muted">{heading}</h3>
-        {renderTemplateCards anchorDate calendarRevision rosterGroup maybeRosterWeek matchingTemplates}
-    </section>
-|]
   where
-    matchingTemplates = filter ((== scale) . (.scale)) templates
+    actionUrl = appendQueryParams (pathTo PreviewRosterTemplateCaptureAction { rosterGroupId }) [("anchorDate", tshow anchorDate)]
+    route = FrontendSurfaceActionRoute
+        { actionRouteUrl = actionUrl
+        , actionRouteCustomHtmx = []
+        , actionRouteStandardUrl = Just actionUrl
+        , actionRouteExtraAttrs = [("id", rosterTemplateCaptureLauncherFormId), ("class", "app-side-panel-content-header-actions")]
+        }
 
-renderTemplateCards :: (?context :: ControllerContext) => Day -> Int -> RosterGroup -> Maybe RosterWindowState -> [RosterTemplate] -> Html
-renderTemplateCards _ _ _ _ [] = [hsx|<p class="small text-muted">No saved templates.</p>|]
-renderTemplateCards anchorDate calendarRevision rosterGroup maybeRosterWeek templates = forEach templates (renderTemplateCard anchorDate calendarRevision rosterGroup maybeRosterWeek)
+renderPublishedTargetMessage :: Maybe RosterWindowState -> Html
+renderPublishedTargetMessage (Just rosterWeek)
+    | rosterWeek.windowHasPublishedDays = [hsx|
+        <div class="alert alert-info small mt-3 mb-0" role="status">Apply is unavailable because at least one day in the viewed window is Published. Return every day to Draft to apply a template.</div>
+    |]
+renderPublishedTargetMessage _ = mempty
 
-renderTemplateCard :: (?context :: ControllerContext) => Day -> Int -> RosterGroup -> Maybe RosterWindowState -> RosterTemplate -> Html
-renderTemplateCard anchorDate calendarRevision rosterGroup maybeRosterWeek template = cardHtml
-  where
-    cardHtml = [hsx|
-        <article class="roster-template-card border rounded-3 mb-2">
-            <div class="d-flex align-items-stretch">
-                {applyButton}
-                <div class="d-flex align-items-center gap-1 pe-2 roster-template-card-actions">
-                    <form method="POST" action={ConfirmDeleteRosterTemplateAction template.id rosterGroup.id}>
-                        <input type="hidden" name="anchorDate" value={tshow anchorDate} />
-                        <button class="btn btn-sm btn-outline-danger app-icon-button" type="submit" title={"Delete " <> template.name} aria-label={"Delete " <> template.name}>
-                            <i class="bi bi-trash" aria-hidden="true"></i>
-                        </button>
-                    </form>
-                </div>
+renderTemplateCards :: (?context :: ControllerContext) => Day -> Int -> RosterGroup -> Maybe RosterWindowState -> RosterTemplateLibrary -> Html
+renderTemplateCards _ _ _ _ RosterTemplateLibrary { libraryTemplates = [] } = [hsx|<p class="small text-muted">No templates are saved.</p>|]
+renderTemplateCards anchorDate calendarRevision rosterGroup maybeRosterWeek library =
+    forEach library.libraryTemplates (renderTemplateCard anchorDate calendarRevision rosterGroup maybeRosterWeek library.libraryShiftCounts)
+
+renderTemplateCard :: (?context :: ControllerContext) => Day -> Int -> RosterGroup -> Maybe RosterWindowState -> Map.Map (Id RosterTemplate) Int -> RosterTemplate -> Html
+renderTemplateCard anchorDate calendarRevision rosterGroup maybeRosterWeek shiftCounts template = [hsx|
+    <article id={rosterTemplateCardId template.id} class="roster-template-card border rounded-3 mb-2 p-3">
+        <div class="d-flex align-items-center justify-content-between gap-3">
+            <div class="min-w-0">
+                <strong class="d-block text-truncate">{template.name}</strong>
+                <span class="small text-muted">{shiftCount} shift(s)</span>
             </div>
-            {previewForm}
-        </article>
-    |]
-    applicationAvailable = maybe False (not . (.windowIsPublished)) maybeRosterWeek
-    applyButton = [hsx|
-        <button class="btn text-start flex-grow-1 p-3 roster-template-card-apply"
-                type="submit"
-                form={previewFormId}
-                disabled={not applicationAvailable}
-                aria-label={"Apply " <> template.name}>
-            <strong class="d-block">{template.name}</strong>
-            <span class="small text-muted">Week snapshot</span>
-        </button>
-    |]
+            <div class="d-flex align-items-center gap-2 roster-template-card-actions">
+                <button class="btn btn-sm btn-outline-primary"
+                        type="submit"
+                        form={previewFormId}
+                        disabled={not applicationAvailable}
+                        title={applyTitle}
+                        aria-label={"Apply " <> template.name}>Apply</button>
+                {renderDeleteLauncher anchorDate rosterGroup.id template}
+            </div>
+        </div>
+        {previewForm}
+    </article>
+|]
+  where
+    shiftCount = Map.findWithDefault 0 template.id shiftCounts
+    applicationAvailable = maybe False (not . (.windowHasPublishedDays)) maybeRosterWeek
+    applyTitle
+        | applicationAvailable = "Apply " <> template.name
+        | otherwise = "Apply requires every day in the viewed window to be Draft"
     previewForm
         | not applicationAvailable = mempty
         | otherwise = renderFrontendSurfaceActionForm (RosterAction.previewRosterTemplateApplicationAction previewFields) previewRoute [hsx|
-        <input type="hidden" name={surfaceFieldNameFrom @Surface.TemplateId previewFields} value={tshow template.id} />
-        <input type="hidden" name={surfaceFieldNameFrom @Surface.AnchorDate previewFields} value={tshow anchorDate} />
-        <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterCalendarRevision previewFields} value={tshow calendarRevision} />
-    |]
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.TemplateId previewFields} value={tshow template.id} />
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.AnchorDate previewFields} value={tshow anchorDate} />
+            <input type="hidden" name={surfaceFieldNameFrom @Surface.RosterCalendarRevision previewFields} value={tshow calendarRevision} />
+        |]
     previewFormId = rosterTemplateApplicationPreviewFormId template.id
     previewFields = RosterAction.previewRosterTemplateApplicationActionFields (unpackId template.id) anchorDate calendarRevision Nothing Nothing
     previewRoute = FrontendSurfaceActionRoute
@@ -99,4 +108,20 @@ renderTemplateCard anchorDate calendarRevision rosterGroup maybeRosterWeek templ
         , actionRouteCustomHtmx = []
         , actionRouteStandardUrl = Just (pathTo PreviewRosterTemplateApplicationAction { rosterGroupId = rosterGroup.id })
         , actionRouteExtraAttrs = [("id", previewFormId), ("class", "d-none")]
+        }
+
+renderDeleteLauncher :: (?context :: ControllerContext) => Day -> Id RosterGroup -> RosterTemplate -> Html
+renderDeleteLauncher anchorDate rosterGroupId template =
+    renderFrontendSurfaceActionForm (RosterAction.openRosterTemplateDeleteAction RosterAction.openRosterTemplateDeleteActionFields) route [hsx|
+        <button class="btn btn-sm btn-outline-danger app-icon-button" type="submit" title={"Delete " <> template.name} aria-label={"Delete " <> template.name}>
+            <i class="bi bi-trash" aria-hidden="true"></i>
+        </button>
+    |]
+  where
+    actionUrl = appendQueryParams (pathTo (ConfirmDeleteRosterTemplateAction template.id rosterGroupId)) [("anchorDate", tshow anchorDate)]
+    route = FrontendSurfaceActionRoute
+        { actionRouteUrl = actionUrl
+        , actionRouteCustomHtmx = []
+        , actionRouteStandardUrl = Just actionUrl
+        , actionRouteExtraAttrs = [("id", rosterTemplateDeletePreviewFormId template.id)]
         }

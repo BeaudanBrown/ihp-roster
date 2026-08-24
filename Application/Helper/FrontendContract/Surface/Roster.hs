@@ -61,8 +61,11 @@ module Application.Helper.FrontendContract.Surface.Roster
     , WeekTemplateDropzone
     , PreviewRosterTemplateApplication
     , ApplyRosterTemplateApplication
+    , OpenRosterTemplateCapture
     , PreviewRosterTemplateCapture
     , CreateRosterTemplateCapture
+    , OpenRosterTemplateDelete
+    , DeleteRosterTemplate
     , RosterTemplateCaptureAssignmentMode (..)
     , CaptureAssignmentMode
     , StaleShiftTypeIds
@@ -314,8 +317,11 @@ data DayTemplateDropzone
 data WeekTemplateDropzone
 data PreviewRosterTemplateApplication
 data ApplyRosterTemplateApplication
+data OpenRosterTemplateCapture
 data PreviewRosterTemplateCapture
 data CreateRosterTemplateCapture
+data OpenRosterTemplateDelete
+data DeleteRosterTemplate
 data CaptureAssignmentMode
 data StaleShiftTypeIds
 data MappedShiftTypeIds
@@ -775,6 +781,12 @@ type RosterActionBundle =
          , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")
          , 'HtmxSwap 'HtmxInnerHTML
          ]
+     , Action OpenRosterTemplateCapture
+        '[]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")
+         , 'HtmxSwap 'HtmxInnerHTML
+         ]
      , Action PreviewRosterTemplateCapture
         '[ Field TemplateName 'WireText
          , Field CaptureAssignmentMode ('WireClosed RosterTemplateCaptureAssignmentMode)
@@ -794,6 +806,18 @@ type RosterActionBundle =
          , Field RosterCalendarRevision 'WireInt
          , Field WarningsConfirmed 'WireBool
          ]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")
+         , 'HtmxSwap 'HtmxInnerHTML
+         ]
+     , Action OpenRosterTemplateDelete
+        '[]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")
+         , 'HtmxSwap 'HtmxInnerHTML
+         ]
+     , Action DeleteRosterTemplate
+        '[]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxTarget ('HtmxRawSelector "#dialog-overlay-mount" "the generated global Overlay dialog lane is not a Roster DOM token")
          , 'HtmxSwap 'HtmxInnerHTML

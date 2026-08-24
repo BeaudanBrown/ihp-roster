@@ -88,6 +88,7 @@ fetchRosterBaseFactsForScopeDirect scope =
         let windowState = RosterWindowState
                 { windowRosterGroupId = unpackId rosterGroupId
                 , windowIsPublished = rosterWindowIsPublished window
+                , windowHasPublishedDays = any ((== Published) . (.publicationState)) rosterDays
                 }
         allSlots <- profileActionSpan "roster.direct.fetch_dated_slots" do
             orderedSlotIds :: [PG.Only UUID.UUID] <- sqlQuery

@@ -339,7 +339,8 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldNotContain` "data-roster-week-controls=\"manager-actions\""
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"staff\""
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"settings\""
-                response `responseBodyShouldNotContain` "data-bepis-roster-staff-panel-tab=\"templates\""
+                response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"templates\""
+                response `responseBodyShouldContain` "Save current week as template"
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-root=\"true\""
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-control=\"name\""
                 response `responseBodyShouldContain` "data-bepis-roster-staff-panel-sort-control=\"role\""
@@ -386,7 +387,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"sort-roster-week\""
                 response `responseBodyShouldContain` "data-bepis-surface-action=\"copy-roster-week\""
 
-        it "keeps templates and application targets hidden on Published rosters" $ withContext do
+        it "keeps the template library and Save visible while Published targets disable Apply" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Live template target"
                 manager <- createUserRecord "live-template-target@example.com" "staff" True
@@ -399,10 +400,11 @@ tests = aroundAll withDatabaseTestContext do
                     callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldNotContain` "data-bepis-roster-staff-panel-tab=\"templates\""
-                response `responseBodyShouldNotContain` "roster-template-library-mount-"
-                response `responseBodyShouldNotContain` "Templates cannot be applied to a Published roster"
-                response `responseBodyShouldNotContain` "aria-label=\"Apply Lunch service\""
+                response `responseBodyShouldContain` "data-bepis-roster-staff-panel-tab=\"templates\""
+                response `responseBodyShouldContain` "roster-template-library-mount-"
+                response `responseBodyShouldContain` "Save current week as template"
+                response `responseBodyShouldContain` "at least one day in the viewed window is Published"
+                response `responseBodyShouldContain` "No templates are saved."
 
         it "keeps staff requiring pay remediation visible and editable in the roster staff panel" $ withContext do
             withCleanDb do
