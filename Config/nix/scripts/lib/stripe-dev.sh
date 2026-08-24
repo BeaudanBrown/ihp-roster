@@ -62,8 +62,7 @@ stripe_dev_start_listener() {
     stripe_dev_stop_listener "$pid_file"
     : > "$log_file"
     echo "[stripe-dev] launching stripe listen for pinned contract $IHP_ROSTER_STRIPE_API_VERSION" >>"$log_file"
-    setsid nohup stripe listen \
-        --api-key "$STRIPE_SECRET_KEY" \
+    STRIPE_API_KEY="$STRIPE_SECRET_KEY" setsid nohup stripe listen \
         --skip-update \
         --latest \
         --events "$IHP_ROSTER_STRIPE_WEBHOOK_EVENTS" \
@@ -100,4 +99,86 @@ stripe_dev_start_listener() {
     # The listener prints the secret once; retain only a non-secret readiness
     # record after passing it to the application process.
     printf '%s\n' '[stripe-dev] listener ready; secret-bearing startup output discarded' >"$log_file"
+}
+
+stripe_dev_delete_tunnel_endpoint() {
+    local state_dir="$1"
+    local endpoint_file="$state_dir/stripe-webhook-endpoint.id"
+    if [ ! -f "$endpoint_file" ]; then
+        return 0
+    fi
+
+    local endpoint_id
+    endpoint_id=$(cat "$endpoint_file")
+    if [ -n "$endpoint_id" ]; then
+        STRIPE_API_KEY="$STRIPE_SECRET_KEY" stripe webhook_endpoints delete "$endpoint_id" --confirm >/dev/null 2>&1 \
+            || echo "Warning: could not delete temporary Stripe webhook endpoint $endpoint_id." >&2
+    fi
+    rm -f "$endpoint_file"
+}
+
+stripe_dev_delete_stale_tunnel_endpoints() {
+    local public_base_url="$1"
+    local endpoint_url="$public_base_url/StripeWebhook"
+    local description="Bepis ddev ephemeral pinned webhook"
+    local endpoints_json
+    endpoints_json=$(STRIPE_API_KEY="$STRIPE_SECRET_KEY" stripe webhook_endpoints list --limit 100)
+    jq -r \
+        --arg url "$endpoint_url" \
+        --arg description "$description" \
+        '.data[] | select(.url == $url and .description == $description) | .id' \
+        <<<"$endpoints_json" \
+        | while IFS= read -r endpoint_id; do
+            if [ -n "$endpoint_id" ]; then
+                STRIPE_API_KEY="$STRIPE_SECRET_KEY" stripe webhook_endpoints delete "$endpoint_id" --confirm >/dev/null
+            fi
+        done
+}
+
+stripe_dev_create_tunnel_endpoint() {
+    local state_dir="$1"
+    local public_base_url="$2"
+    local endpoint_url="$public_base_url/StripeWebhook"
+    local endpoint_file="$state_dir/stripe-webhook-endpoint.id"
+    local description="Bepis ddev ephemeral pinned webhook"
+    local -a event_args=()
+    local -a event_names=()
+    local event_name
+
+    stripe_dev_delete_tunnel_endpoint "$state_dir"
+    stripe_dev_delete_stale_tunnel_endpoints "$public_base_url"
+
+    IFS=',' read -ra event_names <<<"$IHP_ROSTER_STRIPE_WEBHOOK_EVENTS"
+    for event_name in "${event_names[@]}"; do
+        event_args+=(--enabled-events "$event_name")
+    done
+
+    local endpoint_json
+    endpoint_json=$(
+        STRIPE_API_KEY="$STRIPE_SECRET_KEY" stripe webhook_endpoints create \
+            --confirm \
+            --api-version "$IHP_ROSTER_STRIPE_API_VERSION" \
+            --description "$description" \
+            --url "$endpoint_url" \
+            "${event_args[@]}"
+    )
+
+    local endpoint_id endpoint_secret endpoint_version created_url
+    endpoint_id=$(jq -r '.id // empty' <<<"$endpoint_json")
+    endpoint_secret=$(jq -r '.secret // empty' <<<"$endpoint_json")
+    endpoint_version=$(jq -r '.api_version // empty' <<<"$endpoint_json")
+    created_url=$(jq -r '.url // empty' <<<"$endpoint_json")
+    if [ -z "$endpoint_id" ] || [ -z "$endpoint_secret" ]; then
+        echo "Stripe did not return the temporary webhook endpoint ID and signing secret." >&2
+        return 1
+    fi
+    if [ "$endpoint_version" != "$IHP_ROSTER_STRIPE_API_VERSION" ] || [ "$created_url" != "$endpoint_url" ]; then
+        STRIPE_API_KEY="$STRIPE_SECRET_KEY" stripe webhook_endpoints delete "$endpoint_id" --confirm >/dev/null 2>&1 || true
+        echo "Stripe created the temporary webhook endpoint with an unexpected version or URL." >&2
+        return 1
+    fi
+
+    umask 077
+    printf '%s\n' "$endpoint_id" >"$endpoint_file"
+    export STRIPE_WEBHOOK_SECRET="$endpoint_secret"
 }

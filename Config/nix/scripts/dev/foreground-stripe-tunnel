@@ -27,6 +27,7 @@ cleanup() {
         kill -TERM "$TUNNEL_PID" 2>/dev/null || true
         wait "$TUNNEL_PID" 2>/dev/null || true
     fi
+    stripe_dev_delete_tunnel_endpoint "$STATE_DIR"
     stripe_dev_stop_listener "$STRIPE_PID_FILE"
 }
 trap cleanup EXIT INT TERM
@@ -41,8 +42,11 @@ if ! kill -0 "$TUNNEL_PID" 2>/dev/null; then
     exit 1
 fi
 
-stripe_dev_start_listener "$STATE_DIR" "$PORT"
-echo "Stripe webhooks forward locally to 127.0.0.1:$PORT/StripeWebhook." >&2
+# Remove a listener left by the previous ddev implementation before creating
+# the exact-version endpoint used by the public tunnel flow.
+stripe_dev_stop_listener "$STRIPE_PID_FILE"
+stripe_dev_create_tunnel_endpoint "$STATE_DIR" "$BEPIS_PUBLIC_APP_BASE_URL"
+echo "Stripe webhooks target $BEPIS_PUBLIC_APP_BASE_URL/StripeWebhook with pinned contract $IHP_ROSTER_STRIPE_API_VERSION." >&2
 
 # dev-foreground owns the app, frontend watchers, PostgreSQL, and MailHog. Its
 # foreground lifecycle keeps Ctrl-C teardown deterministic; this wrapper owns
