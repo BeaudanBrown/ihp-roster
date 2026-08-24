@@ -21,8 +21,7 @@ const mobileTestFiles = [
     /.*mobile-experience\.spec\.ts/,
     /.*pwa-install\.spec\.ts/,
     /.*roster-mobile\.spec\.ts/,
-    /.*roster-template-designer\.spec\.ts/,
-    /.*roster-template-application\.spec\.ts/,
+    /.*roster-template-modals\.spec\.ts/,
     ...(includeScreenshotSpecs ? [/.*roster-mobile-screenshots\.spec\.ts/] : []),
 ];
 

@@ -116,7 +116,6 @@ renderWarnings warnings = forEach warnings \warning -> [hsx|
 |]
 
 warningCopy :: RosterTemplateApplicationWarning -> Text
-warningCopy (RosterTemplateApplicationClearsDay _) = "Existing shifts in the selected day will be replaced."
 warningCopy RosterTemplateApplicationClearsWeek = "Existing shifts and columns in the viewed week will be replaced."
 warningCopy (RosterTemplateApplicationExistingTimesheetsRemain count) = tshow count <> " existing Timesheet snapshot(s) remain unchanged with their source provenance."
 warningCopy (RosterTemplateApplicationAssignmentConvertedToOpen _ staffName issue count) =

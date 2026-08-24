@@ -116,13 +116,12 @@ constructors directly; DSL-owned domains use their own `Bounded`/`Enum` ADT and
 canonical `InputValue` projection. Reflection enumerates that exact type—there
 is no registry scan or shadow ADT—and browser unions/guards/parsers are emitted
 only for the declaration's explicit reachability. Production registrations include generated `RosterLayoutModeEnum`,
-`RosterTemplateScaleEnum`, `VenueRoleEnum`, `StaffEmploymentBasisEnum`,
-`FeedbackTypeEnum`, and `ShiftTypeColourKeyEnum`, plus app-owned profile section,
-roster staff scope, leave section, and export-type authorities. Feature-local finite types live
-with their Surface/domain module; the aggregate `ClosedScalars` module only
-registers them. `RosterTemplateScaleEnum` drives the generated template-card DTO
-union and guard, while `LeaveSectionValue` is browser-inbound because live mount
-fragment keys carry it. Other request-only values remain server schemas.
+`VenueRoleEnum`, `StaffEmploymentBasisEnum`, `FeedbackTypeEnum`, and
+`ShiftTypeColourKeyEnum`, plus app-owned profile section, roster staff scope,
+leave section, and export-type authorities. Feature-local finite types live with
+their Surface/domain module; the aggregate `ClosedScalars` module only registers
+them. `LeaveSectionValue` is browser-inbound because live mount fragment keys
+carry it. Other request-only values remain server schemas.
 
 Outer field presence remains separate from recursive wire nullability. An absent
 `OptionalField` is omitted, a present optional nullable value can be explicit

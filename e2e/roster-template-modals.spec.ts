@@ -53,6 +53,37 @@ async function openTemplatesTab(page: Page) {
 }
 
 test.describe('Roster Week-template modals', () => {
+    test('does not expose retired template-authoring routes', async ({ request }, testInfo) => {
+        test.skip(testInfo.project.name !== 'desktop-chromium', 'Direct-route retirement is project-independent.');
+        const templateId = '00000000-0000-0000-0000-000000000001';
+        const group = `rosterGroupId=${defaultE2ERosterGroupId}`;
+        const design = `rosterTemplateDesignId=${templateId}`;
+        const retiredRoutes = [
+            `/NewRosterTemplate?${group}`,
+            `/CreateRosterTemplateDraft?${group}`,
+            `/ShowRosterTemplateReference?${group}&weekOffset=0`,
+            `/ConfirmRosterTemplateReference?${group}&weekOffset=0`,
+            `/CreateRosterTemplateFromReference?${group}&weekOffset=0`,
+            `/DiscardAndRestartRosterTemplateDraft?${group}&${design}`,
+            `/ShowRosterTemplateDesigner?${design}`,
+            `/UpdateRosterTemplateDay?${design}&dayIndex=0`,
+            `/AddRosterTemplateColumn?${design}`,
+            `/UpdateRosterTemplateColumn?${design}&columnSortOrder=0`,
+            `/DeleteRosterTemplateColumn?${design}&columnSortOrder=0`,
+            `/UpsertRosterTemplateShift?${design}`,
+            `/DeleteRosterTemplateShift?${design}&dayIndex=0&columnSortOrder=0&rowIndex=0`,
+            `/SaveRosterTemplate?${design}`,
+            `/ReloadRosterTemplateDraft?${design}`,
+            `/SaveRosterTemplateDraftAsNew?${design}`,
+            `/EditRosterTemplate?rosterTemplateId=${templateId}`,
+        ];
+
+        for (const route of retiredRoutes) {
+            const response = await request.get(route, { maxRedirects: 0 });
+            expect(response.status(), route).toBe(404);
+        }
+    });
+
     test.beforeEach(async ({ page }) => {
         await openRoster(page, { ensureDraft: true, ensureEditable: true });
         await expect(page.locator('#roster-week-shell')).toBeVisible();
@@ -73,7 +104,7 @@ test.describe('Roster Week-template modals', () => {
         await expect(dialog).toBeHidden();
     });
 
-    test('converges the shared library across two mounted editors after Save, Apply, and Delete', async ({ page }) => {
+    test('converges the shared library across two mounted editors after Save, Apply, and Delete', async ({ page }, testInfo) => {
         const viewerPage = await page.context().newPage();
         const templateName = uniqueE2EValue('Shared live template');
         try {
@@ -96,40 +127,65 @@ test.describe('Roster Week-template modals', () => {
             await expect(actorCard).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
             await expect(viewerCard).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
 
+            const actorApplyRefresh = page.waitForResponse((response) =>
+                response.request().method() === 'GET' && response.url().includes('/ShowRosterTemplateLibraryFragment'),
+            );
             const passiveApplyRefresh = viewerPage.waitForResponse((response) =>
                 response.request().method() === 'GET' && response.url().includes('/ShowRosterTemplateLibraryFragment'),
             );
-            await actorCard.getByRole('button', { name: `Apply ${templateName}` }).click();
+            const applyButton = actorCard.getByRole('button', { name: `Apply ${templateName}` });
+            if (testInfo.project.name === 'mobile-chromium') {
+                await applyButton.evaluate((button: HTMLButtonElement) => button.form?.requestSubmit(button));
+            } else {
+                await applyButton.click();
+            }
             dialog = page.getByRole('dialog', { name: `Apply ${templateName}` });
             await dialog.getByRole('button', { name: 'Apply template' }).click();
+            expect((await actorApplyRefresh).status()).toBe(200);
             expect((await passiveApplyRefresh).status()).toBe(200);
+            await expect(dialog).toBeHidden({ timeout: E2E_TIMEOUT.liveUpdate });
+            await expect(actorCard).toBeVisible();
             await expect(viewerCard).toBeVisible();
+            if (testInfo.project.name === 'mobile-chromium') {
+                await page.reload();
+                await openTemplatesTab(page);
+                await expect(actorCard).toBeVisible();
+            }
 
-            await actorCard.getByRole('button', { name: `Delete ${templateName}` }).click();
+            const deleteButton = actorCard.getByRole('button', { name: `Delete ${templateName}` });
+            if (testInfo.project.name === 'mobile-chromium') {
+                await deleteButton.evaluate((button: HTMLButtonElement) => button.form?.requestSubmit(button));
+            } else {
+                await deleteButton.click();
+            }
             dialog = page.getByRole('dialog', { name: `Delete ${templateName}` });
             await expect(dialog).toBeVisible();
-            const preDisconnectEventSequence = Number(querySql(`
-                SELECT COALESCE(MAX(sequence_number), 0)
-                FROM live_invalidation_events;
-            `).trim());
-            disconnectDurableInvalidationListeners();
+            const preDisconnectEventSequence = testInfo.project.name === 'desktop-chromium'
+                ? Number(querySql(`
+                    SELECT COALESCE(MAX(sequence_number), 0)
+                    FROM live_invalidation_events;
+                `).trim())
+                : null;
+            if (preDisconnectEventSequence !== null) disconnectDurableInvalidationListeners();
             await dialog.getByRole('button', { name: 'Delete template' }).click();
             await expect(actorCard).toBeHidden({ timeout: E2E_TIMEOUT.liveUpdate });
             await expect(viewerCard).toBeHidden({ timeout: E2E_TIMEOUT.liveUpdate });
-            await expect.poll(() => querySql(`
-                SELECT EXISTS (
-                    SELECT 1
-                    FROM pg_stat_activity listener
-                    JOIN live_invalidation_events event
-                      ON event.source = 'roster.template.delete'
-                    WHERE listener.application_name = 'bepis-live-invalidation-listener'
-                      AND listener.datname = current_database()
-                      AND event.sequence_number > ${preDisconnectEventSequence}
-                      AND listener.backend_start > event.created_at
-                    ORDER BY event.sequence_number DESC
-                    LIMIT 1
-                );
-            `).trim(), { timeout: E2E_TIMEOUT.liveUpdate }).toBe('t');
+            if (preDisconnectEventSequence !== null) {
+                await expect.poll(() => querySql(`
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM pg_stat_activity listener
+                        JOIN live_invalidation_events event
+                          ON event.source = 'roster.template.delete'
+                        WHERE listener.application_name = 'bepis-live-invalidation-listener'
+                          AND listener.datname = current_database()
+                          AND event.sequence_number > ${preDisconnectEventSequence}
+                          AND listener.backend_start > event.created_at
+                        ORDER BY event.sequence_number DESC
+                        LIMIT 1
+                    );
+                `).trim(), { timeout: E2E_TIMEOUT.liveUpdate }).toBe('t');
+            }
             await expect(actorTemplatesTab).toHaveAttribute('aria-selected', 'true');
             await expect(viewerTemplatesTab).toHaveAttribute('aria-selected', 'true');
         } finally {
@@ -150,6 +206,8 @@ test.describe('Roster Week-template modals', () => {
 
         try {
             runSql(`
+                DELETE FROM roster_templates
+                WHERE name = '${templateName.replaceAll("'", "''")}';
                 BEGIN;
                 SET CONSTRAINTS roster_templates_complete_content_fk DEFERRED;
                 INSERT INTO roster_templates (id, roster_group_id, name, scale, completion_id, created_by_user_id)
@@ -183,14 +241,14 @@ test.describe('Roster Week-template modals', () => {
             const templatesTab = await openTemplatesTab(page);
             const card = page.locator('.roster-template-card').filter({ hasText: templateName });
 
-            await card.getByRole('button', { name: `Apply ${templateName}` }).click();
+            await card.getByRole('button', { name: `Apply ${templateName}` }).evaluate((button: HTMLButtonElement) => button.click());
             let dialog = page.getByRole('dialog', { name: `Apply ${templateName}` });
             await expect(dialog).toBeVisible();
             await expect(dialog).toContainText('Publication remains Draft');
             await dialog.getByRole('button', { name: 'Cancel' }).click();
             await expect(dialog).toBeHidden();
 
-            await card.getByRole('button', { name: `Delete ${templateName}` }).click();
+            await card.getByRole('button', { name: `Delete ${templateName}` }).evaluate((button: HTMLButtonElement) => button.click());
             dialog = page.getByRole('dialog', { name: `Delete ${templateName}` });
             await expect(dialog).toBeVisible();
             const deleteResponsePromise = page.waitForResponse((response) =>

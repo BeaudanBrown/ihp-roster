@@ -42,7 +42,6 @@ type RegisteredSurfaceAdapterFamilies =
     '[ TimesheetsAdapterFamily
      , RosterAdapterFamily
      , RosterDayTimelineAdapterFamily
-     , RosterTemplateDesignerAdapterFamily
      , LeaveRequestsAdapterFamily
      , SelfServiceLeaveAdapterFamily
      , BillingAdapterFamily
@@ -75,7 +74,6 @@ type RegisteredSurfaceScopeAdapterHomes =
     '[ SurfaceScopeAdapterHome TimesheetsAdapterFamily Timesheets.TimesheetWeek
      , SurfaceScopeAdapterHome RosterAdapterFamily Roster.RosterWeek
      , SurfaceScopeAdapterHome RosterDayTimelineAdapterFamily Roster.RosterDayTimeline
-     , SurfaceScopeAdapterHome RosterTemplateDesignerAdapterFamily Roster.RosterTemplateDesignerScope
      , SurfaceScopeAdapterHome LeaveRequestsAdapterFamily LeaveRequests.LeaveRequestsScope
      , SurfaceScopeAdapterHome SelfServiceLeaveAdapterFamily SelfServiceLeave.SelfServiceLeaveScope
      , SurfaceScopeAdapterHome BillingAdapterFamily Billing.BillingVenue
@@ -152,8 +150,6 @@ type RegisteredSurfaceResourceAdapterHomes =
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterSlotsStructure
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterSlotsContent
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterTemplateLibrary
-     , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterTemplate
-     , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterTemplateDraft
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterDay
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterEndTimesConfig
      , SurfaceResourceAdapterHome RosterAdapterFamily Roster.RosterLayoutConfig

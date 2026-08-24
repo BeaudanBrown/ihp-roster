@@ -241,24 +241,7 @@ newtype LiveUpdatesWSApp
     deriving (Eq, Show, Data)
 
 data RosterTemplatesController
-    = NewRosterTemplateAction { rosterGroupId :: !(Id RosterGroup) }
-    | CreateRosterTemplateDraftAction { rosterGroupId :: !(Id RosterGroup) }
-    | ShowRosterTemplateReferenceAction { rosterGroupId :: !(Id RosterGroup) }
-    | ConfirmRosterTemplateReferenceAction { rosterGroupId :: !(Id RosterGroup) }
-    | CreateRosterTemplateFromReferenceAction { rosterGroupId :: !(Id RosterGroup) }
-    | DiscardAndRestartRosterTemplateDraftAction { rosterGroupId :: !(Id RosterGroup), rosterTemplateDesignId :: !(Id RosterTemplate) }
-    | ShowRosterTemplateDesignerAction { rosterTemplateDesignId :: !(Id RosterTemplate) }
-    | UpdateRosterTemplateDayAction { rosterTemplateDesignId :: !(Id RosterTemplate), dayIndex :: !Int }
-    | AddRosterTemplateColumnAction { rosterTemplateDesignId :: !(Id RosterTemplate) }
-    | UpdateRosterTemplateColumnAction { rosterTemplateDesignId :: !(Id RosterTemplate), columnSortOrder :: !Int }
-    | DeleteRosterTemplateColumnAction { rosterTemplateDesignId :: !(Id RosterTemplate), columnSortOrder :: !Int }
-    | UpsertRosterTemplateShiftAction { rosterTemplateDesignId :: !(Id RosterTemplate) }
-    | DeleteRosterTemplateShiftAction { rosterTemplateDesignId :: !(Id RosterTemplate), dayIndex :: !Int, columnSortOrder :: !Int, rowIndex :: !Int }
-    | SaveRosterTemplateAction { rosterTemplateDesignId :: !(Id RosterTemplate) }
-    | ReloadRosterTemplateDraftAction { rosterTemplateDesignId :: !(Id RosterTemplate) }
-    | SaveRosterTemplateDraftAsNewAction { rosterTemplateDesignId :: !(Id RosterTemplate) }
-    | EditRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate) }
-    | DeleteRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate) }
+    = DeleteRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate) }
     | PreviewRosterTemplateApplicationAction { rosterGroupId :: !(Id RosterGroup) }
     | ApplyRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate), rosterGroupId :: !(Id RosterGroup) }
     | ConfirmDeleteRosterTemplateAction { rosterTemplateId :: !(Id RosterTemplate), rosterGroupId :: !(Id RosterGroup) }

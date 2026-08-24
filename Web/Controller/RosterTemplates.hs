@@ -193,12 +193,6 @@ instance Controller RosterTemplatesController where
                             redirectToPath (rosterTemplateWindowUrl scope)
             _ -> invalidTemplateDelete Nothing "The viewed roster context is missing."
 
-    action currentAction = runBepis currentAction BepisMutationAction do
-        ensureManagerRole
-        ensureVenueWritable
-        setErrorMessage "The standalone template designer has been retired. Save templates from a roster week instead."
-        redirectTo RosterWeeksAction
-
 resolveTemplateApplicationRequest ::
     (?modelContext :: ModelContext) =>
     Id RosterTemplate ->

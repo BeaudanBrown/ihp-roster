@@ -3,7 +3,6 @@ module Test.EnumAuthoritySpec where
 import Application.Helper.FeedbackType
 import Application.Helper.InvitationStatus
 import Application.Helper.JobStatus
-import Application.Helper.RosterTemplateScale
 import Application.Helper.ShiftTypeColours
 import Application.Helper.UserPreferences
 import Application.Helper.View.Status
@@ -19,13 +18,6 @@ tests = describe "generated enum authority" do
             `shouldBe` ["Day rows", "Day columns"]
         map rosterLayoutModeIsDayColumns [DayRows, DayColumns]
             `shouldBe` [False, True]
-
-    it "projects every roster template scale through generated constructors" do
-        map rosterTemplateScaleValue [Day, Week] `shouldBe` ["day", "week"]
-        map rosterTemplateScaleLabel [Day, Week] `shouldBe` ["Day", "Week"]
-        map rosterTemplateScaleIsWeek [Day, Week] `shouldBe` [False, True]
-        map parseRosterTemplateScale ["day", "week", "month"]
-            `shouldBe` [Just Day, Just Week, Nothing]
 
     it "projects persisted feedback and shift-colour enums exhaustively" do
         map feedbackTypeLabel [Bug, Suggestion, Other]

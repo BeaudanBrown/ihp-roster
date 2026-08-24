@@ -1,7 +1,6 @@
 module Web.RosterTemplates.Mutations where
 
-import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterTemplateLibraryResource,
-                                                                    rosterTemplateResource)
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterTemplateLibraryResource)
 import Application.Helper.SurfaceResource (LiveMutationResult (..),
                                            liveMutationResult)
 import Application.RosterTemplates
@@ -29,9 +28,7 @@ softDeleteRosterTemplateMutation actor templateId expectedRosterGroupId reason =
                     Right $
                         Just $
                             liveMutationResult ()
-                                [ rosterTemplateLibraryResource saved.snapshotTemplate.rosterGroupId
-                                , rosterTemplateResource (unpackId saved.snapshotTemplate.id)
-                                ]
+                                [rosterTemplateLibraryResource saved.snapshotTemplate.rosterGroupId]
                 (Left failure, _) -> Left failure
                 (Right (), Nothing) -> Right Nothing
     pure (outcome >>= maybe (Left RosterTemplateNotFound) Right)

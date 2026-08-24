@@ -2,7 +2,7 @@
 
 `Application.RosterTemplates` owns the roster-group-scoped detached snapshot aggregate.
 
-- A template is the aggregate root. Days, columns, and shifts reference it directly; there are no private drafts, designs, versions, source links, or restore history. Its roster group, scale, and internal completion identity are immutable after creation.
+- A template is the direct snapshot aggregate root. Days, columns, and shifts reference it directly; no auxiliary authoring or restore lifecycle exists. Its roster group, scale, and internal completion identity are immutable after creation.
 - Persistence retains the Day/Week scale discriminator, but the current creation primitive accepts complete Week snapshots only.
 - Week content contains all seven unique day indexes and durable weekday identities, at least one valid column, unique cells, valid row placement and times, and explicit Staff/Open assignments. A deferred completion witness invalidated by every child mutation prevents incomplete aggregates from committing, including through direct SQL.
 - Staff and Shift type identities remain direct foreign keys. Names are resolved from current records rather than copied into snapshots.

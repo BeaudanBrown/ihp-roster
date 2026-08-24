@@ -30,20 +30,11 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterNotificationStatus
     , RosterTemplateLibrary
     , RosterTemplateLibraryFragment
-    , RosterTemplate
-    , RosterTemplateDraft
-    , RosterTemplateDesignerSurface
-    , RosterTemplateDesignerScope
-    , RosterTemplateDesignerContent
-    , TemplateReferenceTargetRole
-    , TemplateReferenceCompatibility
-    , Compatible
     , RosterSlotsStructure
     , RosterSlotsContent
     , RosterWeekBoundaryConfig
     , TimePickerConfig
     , TemplateId
-    , UserId
     , RosterWeekOverview
     , MoveRosterShiftToSlot
     , CopyStartOccurrence
@@ -55,10 +46,6 @@ module Application.Helper.FrontendContract.Surface.Roster
     , DayColumnDropzone
     , ExistingShiftDropzone
     , DeleteShiftDropzone
-    , DayTemplateDragSource
-    , WeekTemplateDragSource
-    , DayTemplateDropzone
-    , WeekTemplateDropzone
     , PreviewRosterTemplateApplication
     , ApplyRosterTemplateApplication
     , OpenRosterTemplateCapture
@@ -261,16 +248,7 @@ data RosterWeekStructure
 data RosterGroupStaff
 data RosterNotificationStatus
 data RosterTemplateLibrary
-data RosterTemplate
-data RosterTemplateDraft
-data RosterTemplateDesigner
-data RosterTemplateDesignerScope
-data RosterTemplateDesignerContent
-data TemplateReferenceTargetRole
-data TemplateReferenceCompatibility
-data Compatible
 data TemplateId
-data UserId
 data RosterSlotsStructure
 data RosterSlotsContent
 data VenueId
@@ -311,10 +289,6 @@ data DayColumnDropzone
 data ExistingShiftDropzone
 data DeleteShiftDropzone
 
-data DayTemplateDragSource
-data WeekTemplateDragSource
-data DayTemplateDropzone
-data WeekTemplateDropzone
 data PreviewRosterTemplateApplication
 data ApplyRosterTemplateApplication
 data OpenRosterTemplateCapture
@@ -505,11 +479,7 @@ data TimePickerConfig
 data RosterStaffPanelFragment
 data RosterWeekOverviewMount
 data RosterTemplateLibraryFragment
-data RosterTemplateRecordFragment
-data RosterTemplateDraftFragment
 data RosterTemplateLibraryMount
-data RosterTemplateRecordMount
-data RosterTemplateDraftMount
 
 type RosterWeekResource = Resource RosterWeek '[ Field RosterGroupId 'WireUUID, Field WindowStartDate 'WireDay, Field WindowEndDate 'WireDay ]
 type RosterWeekStructureResource = Resource RosterWeekStructure '[ Field RosterGroupId 'WireUUID, Field WindowStartDate 'WireDay, Field WindowEndDate 'WireDay ]
@@ -518,8 +488,6 @@ type RosterNotificationStatusResource = Resource RosterNotificationStatus '[ Fie
 type RosterSlotsStructureResource = Resource RosterSlotsStructure '[ Field RosterGroupId 'WireUUID, Field WindowStartDate 'WireDay, Field WindowEndDate 'WireDay ]
 type RosterSlotsContentResource = Resource RosterSlotsContent '[ Field RosterGroupId 'WireUUID, Field WindowStartDate 'WireDay, Field WindowEndDate 'WireDay ]
 type RosterTemplateLibraryResource = Resource RosterTemplateLibrary '[ Field RosterGroupId 'WireUUID ]
-type RosterTemplateResource = Resource RosterTemplate '[ Field TemplateId 'WireUUID ]
-type RosterTemplateDraftResource = Resource RosterTemplateDraft '[ Field UserId 'WireUUID ]
 type RosterDayResource = Resource RosterDay '[ Field RosterDayId 'WireUUID ]
 type RosterEndTimesConfigResource = Resource RosterEndTimesConfig '[ Field VenueId 'WireUUID ]
 type RosterLayoutConfigResource = Resource RosterLayoutConfig '[ Field VenueId 'WireUUID ]
@@ -591,16 +559,6 @@ type RosterFragmentBundle =
          , 'Live
          , 'DependsOn RosterTemplateLibraryResource '[ 'FromScope RosterGroupId ]
          , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
-         ]
-     , Fragment RosterTemplateRecordFragment
-        '[ Field TemplateId 'WireUUID ]
-        '[ 'MountTarget RosterTemplateRecordMount '[ Field TemplateId 'WireUUID ]
-         , 'DependsOn RosterTemplateResource '[ 'FromFragment TemplateId ]
-         ]
-     , Fragment RosterTemplateDraftFragment
-        '[ Field UserId 'WireUUID ]
-        '[ 'MountTarget RosterTemplateDraftMount '[ Field UserId 'WireUUID ]
-         , 'DependsOn RosterTemplateDraftResource '[ 'FromFragment UserId ]
          ]
      , Fragment RosterDaySection
         '[ Field RosterDayId 'WireUUID ]
@@ -1019,23 +977,6 @@ type RosterLinkedHighlightBundle =
 
 type RosterSurface =
     Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle, RosterStaffPanelBrowserBundle, RosterChromeBrowserBundle, RosterImageExportBrowserBundle, RosterWageFilterBrowserBundle, RosterWeekOverviewBrowserBundle, RosterLinkedHighlightBundle ])
-
-type RosterTemplateDesignerSurface =
-    Surface RosterTemplateDesigner
-        '[ Scope RosterTemplateDesignerScope
-            '[ Field VenueId 'WireUUID
-             , Field RosterGroupId 'WireUUID
-             , Field UserId 'WireUUID
-             ]
-            '[ 'Authorize 'CurrentVenueRosterGroup '[ VenueId, RosterGroupId ] ]
-         , Fragment RosterTemplateDesignerContent
-            '[]
-            '[ 'MountTarget RosterTemplateDesignerContent '[]
-             , 'Eager
-             ]
-         , BrowserRole TemplateReferenceTargetRole
-         , BrowserClosedState TemplateReferenceCompatibility '[ Compatible ]
-         ]
 
 type RosterDayTimelineScopeBundle =
     '[ Scope RosterDayTimeline

@@ -53,17 +53,8 @@ The explicit assignment state of a roster shift that needs a staff member, wheth
 _Avoid_: OpenShift, null staff, unassigned shift, empty slot
 
 **Roster template**:
-A reusable roster-group plan at Day or Week scale whose shifts may be assigned to staff or Open.
+A reusable detached roster-group Week snapshot whose shifts may be assigned to staff or Open. It contains one plan for each calendar weekday; the roster window start day changes presentation order, never weekday meaning.
 _Avoid_: Schedule preset, copied roster
-
-**Day template**:
-A roster template containing one relative roster day.
-
-**Week template**:
-A roster template containing one plan for each calendar weekday. The roster window start day changes their presentation order, never their weekday meaning.
-
-**Template draft**:
-A manager’s single private work-in-progress design for creating or editing a roster template. It is not available for roster application until saved.
 
 **Roster notification run**:
 One manager-requested email send for a Published roster-group window, with an immutable roster and recipient snapshot shared by every delivery job in the run.

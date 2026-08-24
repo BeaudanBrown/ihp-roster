@@ -26,8 +26,7 @@ data RosterTemplateApplicationAssignmentIssue
     deriving (Eq, Ord, Show)
 
 data RosterTemplateApplicationWarning
-    = RosterTemplateApplicationClearsDay !Int
-    | RosterTemplateApplicationClearsWeek
+    = RosterTemplateApplicationClearsWeek
     | RosterTemplateApplicationExistingTimesheetsRemain !Int
     | RosterTemplateApplicationAssignmentConvertedToOpen !(Id Staff) !Text !RosterTemplateApplicationAssignmentIssue !Int
     deriving (Eq, Show)
@@ -50,10 +49,8 @@ data RosterTemplateApplicationResolvedShift = RosterTemplateApplicationResolvedS
 
 data RosterTemplateApplicationPreview = RosterTemplateApplicationPreview
     { applicationPreviewTemplateName     :: !Text
-    , applicationPreviewScale            :: !RosterTemplateScaleEnum
     , applicationPreviewTargetWindowStart :: !Day
     , applicationPreviewTargetWindowEnd   :: !Day
-    , applicationPreviewTargetOperationalDate :: !(Maybe Day)
     , applicationExpectedTargetRevision  :: !Text
     , applicationExpectedTemplateRevision :: !Text
     , applicationRosterCalendarRevision  :: !Int

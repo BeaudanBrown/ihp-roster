@@ -18,8 +18,7 @@ mutation invocation, and response selection; HSX lives in
 - `ShiftWorkflow.hs` and `DropWorkflow.hs` — dialog and drag/drop request
   resolution before mutation.
 - `TemplateCapture.hs` and `TemplateApplication.hs` — date-native detached
-  Week capture and locked application. `TemplateDesigner.hs` is only the
-  retirement tombstone for the removed parallel designer.
+  Week capture and locked Week application.
 - `Responses.hs`, `Paths.hs`, and `Dom.hs` — response shape, canonical URLs, and
   stable DOM identity.
 - `Capabilities.hs`, `Filters.hs`, `WageFilter.hs`, and `Overview.hs` —
@@ -39,7 +38,7 @@ inventory here.
 - `Web/RosterWeeks/Paths.hs` - canonical route/query helpers.
 - `Web/RosterWeeks/Dom.hs` - stable DOM ids/selectors.
 - `Web/RosterWeeks/Service.hs` - roster workflow/domain service helpers.
-- `Web/RosterWeeks/TemplateApplication.hs` - authoritative Day/Week template preview, Melbourne boundary resolution, stale-assignment cleanup, locking, and atomic draft-week replacement.
+- `Web/RosterWeeks/TemplateApplication.hs` - authoritative Week-template preview, Melbourne boundary resolution, stale-assignment cleanup, locking, and atomic Draft-window replacement.
 - `Web/RosterWeeks/DropWorkflow.hs` - typed opaque drop-token parsing, venue/group/week resolution, sparse placement, no-op/delete decisions, and Melbourne repeated-time boundary preparation for move, duplicate, timeline, and staff drops.
 - `Web/RosterWeeks/ShiftWorkflow.hs` - shift-dialog create/edit context, render-data preparation, submitted field/DST validation, and authoritative slot application.
 - `Web/View/RosterWeeks/` - HSX rendering.
@@ -71,13 +70,7 @@ projections from `Application.Helper.UserPreferences`; use
 telemetry, persistence, or another external boundary. Do not branch on that
 rendered text.
 
-Persisted `RosterTemplateScaleEnum` follows the same rule through
-`Application.Helper.RosterTemplateScale`. Template-card browser DTOs carry it as
-a registered `WireClosed` scalar; generated TypeScript owns the `"day" |
-"week"` union and guard.
-
-## Template Designer Contract
-
+The active Templates-tab workflow accepts Week snapshots only.
 
 ## Boundaries
 
@@ -94,10 +87,6 @@ a registered `WireClosed` scalar; generated TypeScript owns the `"day" |
   snapshots its audience and roster; each recipient sees only their own assigned
   shifts and the snapshot's Open shifts. Durable jobs continue if the roster
   later changes or returns to draft.
-
-Creation selects Day/Week and blank/reference. Reference mode reads only existing Published or Draft windows, supports previous/next/this-week navigation, renders native keyboard/touch targets with a generated compatibility role/state, and confirms before copying. Confirmation proof is session-bound to the exact request, source-content revision, and occupied-draft revision; stale or replayed replacement attempts fail before changing the draft. Hover/focus alone shows the green compatible-target treatment. One private draft slot offers Continue, Discard and start new, or Cancel.
-
-The designer clearly identifies Template design. Complete day, column, and shift mutations autosave through typed draft content; incomplete shifts and stale Shift types/Staff/pay references do not persist. Saved edits retain immutable versions, optimistic conflicts, reload-latest/save-as-new recovery, and soft deletion. Source roster rows are never changed.
 
 ## Template Application Contract
 

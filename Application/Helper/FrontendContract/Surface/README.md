@@ -138,10 +138,8 @@ Wire fields use the closed browser wire universe: `WireText`, `WireInt`,
 `WireOptional`, `WireNullable`, and `WireRef`. `WireClosed value` must reference
 a registered `ClosedScalar value`; it produces that exact Haskell type in
 generated builders and parsers. Use the generated PostgreSQL enum type when
-persistence owns the domain, never a shadow ADT. Roster template-card browser
-DTOs therefore carry `WireClosed RosterTemplateScaleEnum`, not a handwritten
-`"day" | "week"` projection. A non-persisted app domain may use its own finite
-ADT beside the owning feature.
+persistence owns the domain, never a shadow ADT. A non-persisted app domain may
+use its own finite ADT beside the owning feature.
 
 `WireDomain value` represents an open text protocol with a domain-owned nominal
 Haskell value and `NominalText` codec. TypeScript still receives `string`, while
@@ -1289,14 +1287,9 @@ cross-process resource emitted for profile, membership, and staff-group changes;
 each listener matches it against its own active week scopes without producer-local
 scope discovery.
 
-Roster template consumers share three generated Roster Surface resources:
-`roster-template-library` is roster-group-scoped, `roster-template` identifies one
-saved template, and `roster-template-draft` identifies the effective user's
-private global draft. `Surface.Roster.Resource` owns their constructors and typed
-matchers; designer/library code must not create parallel resource names or expose
-a private draft through a group-only identity.
-
-`RosterTemplateDesignerSurface` owns the isolated designer/reference mount. Its scope carries venue, roster group, and effective user, but it declares no live fragments or ordinary roster mutation intents. A generated reference-target role and closed `compatible` state annotate native GET selection forms; Haskell/controller authority owns selection and confirmation while CSS provides hover/focus treatment and native forms provide keyboard/touch activation.
+Roster template consumers use the generated roster-group-scoped
+`roster-template-library` resource. `Surface.Roster.Resource` owns its constructor
+and typed matcher; template code must not create parallel resource names.
 
 The ordinary Roster Surface owns its editor-only template library and application interactions. Its parameter-free live library fragment is scoped by the mounted roster-group scope and depends on the group-library resource; effective-user identity is not part of shared library identity. Viewer authorization remains server-side. Generated template actions and roles remain the browser contract.
 

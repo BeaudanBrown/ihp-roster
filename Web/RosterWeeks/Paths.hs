@@ -10,7 +10,6 @@ module Web.RosterWeeks.Paths
     , rosterMoveShiftUrl
     , rosterTimelineMoveShiftUrl
     , rosterTemplateApplicationUrl
-    , rosterTemplateReferenceUrl
     , rosterDuplicateShiftUrl
     , rosterDropStaffUrl
     , rosterWarningPreferenceUrl
@@ -230,15 +229,6 @@ rosterOwnLiveShiftHighlightPreferenceUrl anchorDate rosterGroupId =
 rosterTemplateApplicationUrl :: Day -> Id RosterTemplate -> Id RosterGroup -> Text
 rosterTemplateApplicationUrl _anchorDate rosterTemplateId rosterGroupId =
     pathTo (ApplyRosterTemplateAction rosterTemplateId rosterGroupId)
-
-rosterTemplateReferenceUrl :: Day -> Id RosterGroup -> Text -> Text -> Text
-rosterTemplateReferenceUrl anchorDate rosterGroupId templateName templateScale =
-    appendQueryParams
-        (pathTo ShowRosterTemplateReferenceAction { rosterGroupId })
-        [ ("anchorDate", formatDayParam anchorDate)
-        , ("name", templateName)
-        , ("scale", templateScale)
-        ]
 
 rosterCopyWeekUrl :: Day -> Day -> Id RosterGroup -> Text
 rosterCopyWeekUrl sourceAnchorDate targetAnchorDate rosterGroupId =

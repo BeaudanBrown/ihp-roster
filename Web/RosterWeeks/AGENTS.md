@@ -59,11 +59,6 @@ or roster views.
 - The roster-template library fragment and resource are roster-group-scoped.
   Keep effective-user identity out of their fragment/resource keys; authorize
   every full-page and fragment request server-side.
-- Day template activation uses a separate temporary native button overlay. Do
-  not put `role="button"` on day containers that own nested shift controls.
-- Timeline template targets sit across nested Roster and RosterDayTimeline
-  mounts. Browser selection must resolve the ancestor mount that owns the active
-  template session instead of assuming the nearest Surface owns it.
 
 ## Verification
 

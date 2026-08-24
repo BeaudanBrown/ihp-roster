@@ -2,9 +2,9 @@ module Application.RosterTemplates.Mutations
     ( lockRosterTemplate
     , lockRosterTemplateApplicationRows
     , lockRosterTemplateCaptureGroup
+    , lockRosterTemplateCaptureRows
     , lockRosterTemplateContentReferenceRows
     , lockRosterTemplateName
-    , lockRosterTemplateReferenceRows
     ) where
 
 import qualified Data.Text as Text
@@ -53,16 +53,14 @@ lockRosterTemplateContentReferenceRows rosterGroupId shiftTypeIds staffIds = do
         (staffUuids, shiftTypeUuids)
     pure ()
 
-lockRosterTemplateReferenceRows ::
+lockRosterTemplateCaptureRows ::
     (?modelContext :: ModelContext) =>
     Id Venue ->
     Id RosterGroup ->
     Day ->
     Day ->
-    Maybe Day ->
     IO ()
-lockRosterTemplateReferenceRows venueId rosterGroupId windowStart windowEnd selectedDate = do
-    lockTargetRows venueId rosterGroupId windowStart windowEnd selectedDate
+lockRosterTemplateCaptureRows = lockTargetRows
 
 lockRosterTemplateApplicationRows ::
     (?modelContext :: ModelContext) =>
@@ -71,10 +69,9 @@ lockRosterTemplateApplicationRows ::
     Id RosterGroup ->
     Day ->
     Day ->
-    Maybe Day ->
     [Id ShiftType] ->
     IO ()
-lockRosterTemplateApplicationRows templateId venueId rosterGroupId windowStart windowEnd targetDate mappedShiftTypeIds = do
+lockRosterTemplateApplicationRows templateId venueId rosterGroupId windowStart windowEnd mappedShiftTypeIds = do
     _ <- lockRosterTemplate templateId
     _groupLocks :: [Only UUID] <- sqlQuery
         "SELECT id FROM roster_groups WHERE id = ? AND venue_id = ? FOR UPDATE"
@@ -82,10 +79,10 @@ lockRosterTemplateApplicationRows templateId venueId rosterGroupId windowStart w
     _configLocks :: [Only UUID] <- sqlQuery
         "SELECT id FROM venue_config WHERE venue_id = ? FOR UPDATE"
         (Only (unpackId venueId))
-    lockTargetRows venueId rosterGroupId windowStart windowEnd targetDate
+    lockTargetRows venueId rosterGroupId windowStart windowEnd
     _timesheetLocks :: [Only UUID] <- sqlQuery
-        "SELECT timesheet_entries.id FROM timesheet_entries JOIN roster_slots ON roster_slots.id = timesheet_entries.source_roster_slot_id JOIN roster_days ON roster_days.id = roster_slots.roster_day_id WHERE roster_days.venue_id = ? AND roster_days.roster_group_id = ? AND roster_days.operational_date >= ? AND roster_days.operational_date < ? AND (?::date IS NULL OR roster_days.operational_date = ?::date) AND timesheet_entries.deleted_at IS NULL ORDER BY timesheet_entries.id FOR UPDATE OF timesheet_entries"
-        (unpackId venueId, unpackId rosterGroupId, windowStart, windowEnd, targetDate, targetDate)
+        "SELECT timesheet_entries.id FROM timesheet_entries JOIN roster_slots ON roster_slots.id = timesheet_entries.source_roster_slot_id JOIN roster_days ON roster_days.id = roster_slots.roster_day_id WHERE roster_days.venue_id = ? AND roster_days.roster_group_id = ? AND roster_days.operational_date >= ? AND roster_days.operational_date < ? AND timesheet_entries.deleted_at IS NULL ORDER BY timesheet_entries.id FOR UPDATE OF timesheet_entries"
+        (unpackId venueId, unpackId rosterGroupId, windowStart, windowEnd)
     _shiftTypeLocks :: [Only UUID] <- sqlQuery
         "SELECT id FROM shift_types WHERE id IN (SELECT shift_type_id FROM roster_template_shifts WHERE roster_template_id = ?) OR id = ANY(?) ORDER BY id FOR UPDATE"
         (unpackId templateId, map unpackId mappedShiftTypeIds)
@@ -112,18 +109,17 @@ lockTargetRows ::
     Id RosterGroup ->
     Day ->
     Day ->
-    Maybe Day ->
     IO ()
-lockTargetRows venueId rosterGroupId windowStart windowEnd selectedDate = do
+lockTargetRows venueId rosterGroupId windowStart windowEnd = do
     _dayLocks :: [Only UUID] <- sqlQuery
-        "SELECT id FROM roster_days WHERE venue_id = ? AND roster_group_id = ? AND operational_date >= ? AND operational_date < ? AND (?::date IS NULL OR operational_date = ?::date) ORDER BY operational_date FOR UPDATE"
-        (unpackId venueId, unpackId rosterGroupId, windowStart, windowEnd, selectedDate, selectedDate)
+        "SELECT id FROM roster_days WHERE venue_id = ? AND roster_group_id = ? AND operational_date >= ? AND operational_date < ? ORDER BY operational_date FOR UPDATE"
+        (unpackId venueId, unpackId rosterGroupId, windowStart, windowEnd)
     _laneLocks :: [Only UUID] <- sqlQuery
-        "SELECT roster_lanes.id FROM roster_lanes JOIN roster_days ON roster_days.id = roster_lanes.roster_day_id WHERE roster_days.venue_id = ? AND roster_days.roster_group_id = ? AND roster_days.operational_date >= ? AND roster_days.operational_date < ? AND (?::date IS NULL OR roster_days.operational_date = ?::date) ORDER BY roster_lanes.id FOR UPDATE OF roster_lanes"
-        (unpackId venueId, unpackId rosterGroupId, windowStart, windowEnd, selectedDate, selectedDate)
+        "SELECT roster_lanes.id FROM roster_lanes JOIN roster_days ON roster_days.id = roster_lanes.roster_day_id WHERE roster_days.venue_id = ? AND roster_days.roster_group_id = ? AND roster_days.operational_date >= ? AND roster_days.operational_date < ? ORDER BY roster_lanes.id FOR UPDATE OF roster_lanes"
+        (unpackId venueId, unpackId rosterGroupId, windowStart, windowEnd)
     _slotLocks :: [Only UUID] <- sqlQuery
-        "SELECT roster_slots.id FROM roster_slots JOIN roster_days ON roster_days.id = roster_slots.roster_day_id WHERE roster_days.venue_id = ? AND roster_days.roster_group_id = ? AND roster_days.operational_date >= ? AND roster_days.operational_date < ? AND (?::date IS NULL OR roster_days.operational_date = ?::date) AND roster_slots.deleted_at IS NULL ORDER BY roster_slots.id FOR UPDATE OF roster_slots"
-        (unpackId venueId, unpackId rosterGroupId, windowStart, windowEnd, selectedDate, selectedDate)
+        "SELECT roster_slots.id FROM roster_slots JOIN roster_days ON roster_days.id = roster_slots.roster_day_id WHERE roster_days.venue_id = ? AND roster_days.roster_group_id = ? AND roster_days.operational_date >= ? AND roster_days.operational_date < ? AND roster_slots.deleted_at IS NULL ORDER BY roster_slots.id FOR UPDATE OF roster_slots"
+        (unpackId venueId, unpackId rosterGroupId, windowStart, windowEnd)
     pure ()
 
 lockRosterTemplateName :: (?modelContext :: ModelContext) => Id RosterGroup -> Text -> IO ()

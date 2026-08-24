@@ -97,7 +97,6 @@ applyRosterTemplateApplicationInCurrentTransaction actor request expectedTargetR
                 request.applicationTargetRosterGroupId
                 request.applicationTargetWindowStart
                 request.applicationTargetWindowEnd
-                Nothing
                 (Map.elems request.applicationShiftTypeMappings)
             preparedResult <- prepareRosterTemplateApplication actor request
             case preparedResult of
@@ -439,10 +438,8 @@ toPreview :: PreparedApplication -> RosterTemplateApplicationPreview
 toPreview prepared =
     RosterTemplateApplicationPreview
         { applicationPreviewTemplateName = prepared.preparedSaved.snapshotTemplate.name
-        , applicationPreviewScale = prepared.preparedSaved.snapshotTemplate.scale
         , applicationPreviewTargetWindowStart = prepared.preparedTargetWindowStart
         , applicationPreviewTargetWindowEnd = prepared.preparedTargetWindowEnd
-        , applicationPreviewTargetOperationalDate = Nothing
         , applicationExpectedTargetRevision = targetRevision prepared
         , applicationExpectedTemplateRevision = rosterTemplateSnapshotRevision prepared.preparedSaved
         , applicationRosterCalendarRevision = prepared.preparedCalendarRevision
@@ -510,12 +507,8 @@ touchedResources prepared =
     , rosterSlotsContentResource groupId windowStart windowEnd
     , timesheetWeekResource prepared.preparedTargetGroup.venueId windowStart windowEnd
     , rosterTemplateLibraryResource groupId
-    ] <> templateRecordResources
+    ]
   where
-    templateRecordResources
-        | isJust prepared.preparedCleanedTemplateContent =
-            [rosterTemplateResource (unpackId prepared.preparedSaved.snapshotTemplate.id)]
-        | otherwise = []
     groupId = unpackId prepared.preparedTargetGroup.id
     windowStart = prepared.preparedTargetWindowStart
     windowEnd = prepared.preparedTargetWindowEnd

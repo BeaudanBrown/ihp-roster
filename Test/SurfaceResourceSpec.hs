@@ -112,8 +112,6 @@ tests = do
             let xeroSyncState = AdminResource.xeroReferenceSyncStateResource nil
             let staffProfile = ProfileResource.staffProfileResource nil
             let templateLibrary = RosterResource.rosterTemplateLibraryResource nil
-            let template = RosterResource.rosterTemplateResource nil
-            let templateDraft = RosterResource.rosterTemplateDraftResource nil
 
             xeroSyncState `shouldNotBe` AdminResource.xeroConnectionResource nil
             RosterResource.matchRosterEndTimesConfigResource rosterConfig `shouldBe` Just nil
@@ -121,5 +119,3 @@ tests = do
             ProfileResource.matchStaffProfileResource staffProfile `shouldBe` Just nil
             ProfileResource.matchStaffPreferencesResource staffProfile `shouldBe` Nothing
             RosterResource.matchRosterTemplateLibraryResource templateLibrary `shouldBe` Just nil
-            RosterResource.matchRosterTemplateResource template `shouldBe` Just nil
-            RosterResource.matchRosterTemplateDraftResource templateDraft `shouldBe` Just nil

@@ -14,8 +14,7 @@ module Web.RosterWeeks.TemplateCapture
     ) where
 
 import Application.Helper.FrontendContract.Surface.Roster (RosterTemplateCaptureAssignmentMode (..))
-import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterTemplateLibraryResource,
-                                                                    rosterTemplateResource)
+import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterTemplateLibraryResource)
 import Application.Helper.SurfaceResource (LiveMutationResult (..),
                                            liveMutationResult)
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
@@ -29,8 +28,8 @@ import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           rosterShiftAssignment)
 import Application.RosterTemplates
 import Application.RosterTemplates.Mutations (lockRosterTemplateCaptureGroup,
-                                              lockRosterTemplateContentReferenceRows,
-                                              lockRosterTemplateReferenceRows)
+                                              lockRosterTemplateCaptureRows,
+                                              lockRosterTemplateContentReferenceRows)
 import Application.VenueTime (resolvedInstantFromUTC, resolvedInstantLocalTime)
 import Control.Monad (guard)
 import qualified "crypton" Crypto.Hash as Hash
@@ -161,9 +160,7 @@ confirmRosterTemplateCaptureMutation actor request expectedSourceRevision expect
   where
     withResources snapshot =
         liveMutationResult snapshot
-            [ rosterTemplateLibraryResource snapshot.snapshotTemplate.rosterGroupId
-            , rosterTemplateResource (unpackId snapshot.snapshotTemplate.id)
-            ]
+            [rosterTemplateLibraryResource snapshot.snapshotTemplate.rosterGroupId]
     publicationFor = either (const Nothing) (\result -> Just ("roster.template.capture", result.liveMutationTouchedResources))
 
 confirmRosterTemplateCaptureInCurrentTransaction ::
@@ -196,12 +193,11 @@ confirmLockedRosterTemplateCapture ::
     Bool ->
     IO (Either RosterTemplateCaptureError RosterTemplateSnapshot)
 confirmLockedRosterTemplateCapture actor request expectedSourceRevision expectedCalendarRevision warningsConfirmed = do
-    lockRosterTemplateReferenceRows
+    lockRosterTemplateCaptureRows
         scope.rosterWindowVenueId
         scope.rosterWindowRosterGroupId
         scope.rosterWindowStart
         scope.rosterWindowEnd
-        Nothing
     initial <- previewRosterTemplateCapture actor request
     case initial of
         Left failure -> pure (Left failure)

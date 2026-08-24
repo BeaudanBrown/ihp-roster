@@ -165,7 +165,7 @@ createRosterTemplateInCurrentTransaction actor rosterGroup scale requestedName c
     | rosterGroup.venueId /= unpackId actor.actorVenueId = pure (Left RosterTemplateScopeMismatch)
     | scale /= Week = pure (Left RosterTemplateUnsupportedScale)
     | invalidTemplateName normalizedName = pure (Left RosterTemplateInvalidName)
-    | otherwise = case validateTemplateContent scale content of
+    | otherwise = case validateTemplateContent content of
         Left problem -> pure (Left problem)
         Right () -> do
             references <- validateContentReferences actor rosterGroup.id content
@@ -205,7 +205,7 @@ replaceRosterTemplateContentInCurrentTransaction ::
     IO (Either RosterTemplateError RosterTemplateSnapshot)
 replaceRosterTemplateContentInCurrentTransaction actor templateId content
     | not actor.actorCanEditRosters = pure (Left RosterTemplateForbidden)
-    | otherwise = case validateTemplateContent Week content of
+    | otherwise = case validateTemplateContent content of
         Left problem -> pure (Left problem)
         Right () -> do
             exists <- lockRosterTemplate templateId
@@ -431,16 +431,11 @@ createTemplateShift template daysByIndex columnsBySortOrder input = do
         |> set #shiftTypeId (unpackId input.inputShiftTypeId)
         |> createRecord
 
-validateTemplateContent :: RosterTemplateScaleEnum -> RosterTemplateContent -> Either RosterTemplateError ()
-validateTemplateContent scale content
-    | scale == Week
-        && ( sort (map (.inputDayIndex) content.contentDays) /= [0 .. 6]
-            || sort (mapMaybe (.inputDayWeekdayIndex) content.contentDays) /= [0 .. 6]
-           ) =
+validateTemplateContent :: RosterTemplateContent -> Either RosterTemplateError ()
+validateTemplateContent content
+    | sort (map (.inputDayIndex) content.contentDays) /= [0 .. 6]
+        || sort (mapMaybe (.inputDayWeekdayIndex) content.contentDays) /= [0 .. 6] =
         Left (RosterTemplateInvalidContent "A Week template must contain all seven unique weekdays.")
-    | scale == Day
-        && map (\day -> (day.inputDayIndex, day.inputDayWeekdayIndex)) content.contentDays /= [(0, Nothing)] =
-        Left (RosterTemplateInvalidContent "A Day template must contain target-relative day zero.")
     | null content.contentColumns = Left (RosterTemplateInvalidContent "A template must contain at least one column.")
     | not (all validDay content.contentDays) = Left invalidStructure
     | not (unique (map (.inputDayIndex) content.contentDays)) = Left invalidStructure
