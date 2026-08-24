@@ -193,6 +193,7 @@ instance Sessions.SessionsControllerConfig User where
         markAuthenticatedSessionVersion user
         deleteSession effectiveUserSessionKey
         deleteSession impersonationSessionIdSessionKey
+        clearImpersonationReturnFallback
         when (isNothing user.emailVerifiedAt) do
             setSession pendingVerificationEmailSessionKey user.email
             setErrorMessage "Verify your email before signing in."
@@ -207,6 +208,7 @@ instance Sessions.SessionsControllerConfig User where
         deleteSession currentVenueSessionKey
         deleteSession effectiveUserSessionKey
         deleteSession impersonationSessionIdSessionKey
+        clearImpersonationReturnFallback
         clearAuthenticatedSessionVersion
         clearCurrentUserPasskeyVerification
 

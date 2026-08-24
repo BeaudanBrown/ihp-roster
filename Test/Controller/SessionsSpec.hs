@@ -54,6 +54,7 @@ tests = aroundAll withDatabaseTestContext do
                 response <- withSessionValues
                     [ (cs (LoginSupport.sessionKey @User), Serialize.encode user.id)
                     , (currentVenueSessionKey, Serialize.encode venue.id)
+                    , ("supportImpersonationReturnFallback", Serialize.encode True)
                     , (passkeyVerifiedUserSessionKey, Serialize.encode (inputValue user.id :: Text))
                     , (passkeyVerifiedAtSessionKey, Serialize.encode ("9999999999" :: Text))
                     ]
@@ -61,6 +62,7 @@ tests = aroundAll withDatabaseTestContext do
                         response <- callAction EditProfileAction
                         getSession @Text passkeyVerifiedUserSessionKey `shouldReturn` Nothing
                         getSession @Text passkeyVerifiedAtSessionKey `shouldReturn` Nothing
+                        getSession @Bool "supportImpersonationReturnFallback" `shouldReturn` Nothing
                         pure response
 
                 response `responseStatusShouldBe` status302

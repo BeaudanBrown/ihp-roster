@@ -311,5 +311,6 @@ clearImpersonationSession = do
     withRequestContext do
         deleteSession effectiveUserSessionKey
         deleteSession impersonationSessionIdSessionKey
+        clearImpersonationReturnFallback
     putContext (Nothing :: Maybe ImpersonationRequestContext)
     initAuthenticatedEffectiveStaffContext

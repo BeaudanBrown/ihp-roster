@@ -244,10 +244,7 @@ renderOwnerSubscriptionPanel viewModel@BillingViewModel { maybeSubscription } =
                                 <th scope="row">Price</th>
                                 <td>AUD 100/month</td>
                             </tr>
-                            <tr>
-                                <th scope="row">Current period</th>
-                                <td>{renderOwnerBillingPeriod maybeSubscription}</td>
-                            </tr>
+                            {renderOwnerBillingPeriodRow maybeSubscription}
                         </tbody>
                     </table>
                 </div>
@@ -285,6 +282,15 @@ ownerBillingPresentation maybeSubscription =
 ownerPresentation :: Text -> Text -> Text -> OwnerBillingAction -> OwnerBillingPresentation
 ownerPresentation ownerStateLabel ownerStateBadgeClass ownerStateGuidance ownerStateAction =
     OwnerBillingPresentation { .. }
+
+renderOwnerBillingPeriodRow :: Maybe VenueSubscription -> Html
+renderOwnerBillingPeriodRow maybeSubscription =
+    when (venueSubscriptionIsLive maybeSubscription) [hsx|
+        <tr>
+            <th scope="row">Current period</th>
+            <td>{renderOwnerBillingPeriod maybeSubscription}</td>
+        </tr>
+    |]
 
 renderOwnerBillingPeriod :: Maybe VenueSubscription -> Text
 renderOwnerBillingPeriod Nothing = "Starts after subscription confirmation"
@@ -393,10 +399,7 @@ renderFounderSubscriptionPanel maybeCustomer maybeSubscription =
                             <th scope="row">Provider status</th>
                             <td>{maybe "No local subscription" (.status) maybeSubscription}</td>
                         </tr>
-                        <tr>
-                            <th scope="row">Current period</th>
-                            <td>{renderOwnerBillingPeriod maybeSubscription}</td>
-                        </tr>
+                        {renderOwnerBillingPeriodRow maybeSubscription}
                         <tr>
                             <th scope="row">Cancellation at period end</th>
                             <td>{maybe "Not recorded" (yesNo . (.cancelAtPeriodEnd)) maybeSubscription}</td>

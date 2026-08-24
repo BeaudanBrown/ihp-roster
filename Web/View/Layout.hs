@@ -183,7 +183,10 @@ renderOwnerBillingMobileNavLink =
 renderBillingSubscriptionAlert :: (?context :: ControllerContext) => Html
 renderBillingSubscriptionAlert =
     unless (fromFrozenContext @BillingNavigationContext).ownerBillingSubscriptionIsLive [hsx|
-        <span class="badge rounded-pill text-bg-warning" data-billing-subscription-alert="true" aria-label="Subscription inactive">!</span>
+        <span class="badge rounded-pill text-bg-warning" data-billing-subscription-alert="true">
+            <span aria-hidden="true">!</span>
+            <span class="visually-hidden">Subscription inactive</span>
+        </span>
     |]
 
 ownerBillingNavigationIsVisible :: (?context :: ControllerContext) => Bool

@@ -392,7 +392,9 @@ tests = aroundAll withDatabaseTestContext do
                     response `responseBodyShouldContain` stateLabel
                     response `responseBodyShouldContain` actionLabel
                     response `responseBodyShouldContain` guidance
-                    response `responseBodyShouldContain` "Current period"
+                    if maybeStatus == Just "active"
+                        then response `responseBodyShouldContain` "Current period"
+                        else response `responseBodyShouldNotContain` "Current period"
                     response `responseBodyShouldContain` "data-bepis-navigation-loading=\"true\""
                     response `responseBodyShouldContain` "data-bepis-navigation-loading-config="
                     response `responseBodyShouldContain` "Opening Stripe"
@@ -440,6 +442,7 @@ tests = aroundAll withDatabaseTestContext do
                 visibleResponse `responseStatusShouldBe` status200
                 visibleResponse `responseBodyShouldContain` "href=\"/Billing\""
                 visibleResponse `responseBodyShouldContain` "data-billing-subscription-alert=\"true\""
+                visibleResponse `responseBodyShouldContain` "<span class=\"visually-hidden\">Subscription inactive</span>"
                 activeResponse `responseStatusShouldBe` status200
                 activeResponse `responseBodyShouldContain` "href=\"/Billing\""
                 activeResponse `responseBodyShouldNotContain` "data-billing-subscription-alert=\"true\""

@@ -10,7 +10,8 @@ import Application.Helper.Controller (clearCurrentUserPasskeyVerification,
                                       currentVenueSessionKey)
 import Application.Helper.Feedback (SupportUnreadFeedbackCount (..),
                                     fetchSupportUnreadFeedbackCount)
-import Application.Helper.Impersonation (effectiveUserSessionKey,
+import Application.Helper.Impersonation (clearImpersonationReturnFallback,
+                                         effectiveUserSessionKey,
                                          impersonationSessionIdSessionKey,
                                          initImpersonationContext,
                                          initSupportImpersonationOptions)
@@ -106,6 +107,7 @@ clearAuthenticatedSessionContext = do
     deleteSession currentVenueSessionKey
     deleteSession effectiveUserSessionKey
     deleteSession impersonationSessionIdSessionKey
+    clearImpersonationReturnFallback
     putContext (Nothing :: Maybe User)
 
 initBillingNavigationContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
