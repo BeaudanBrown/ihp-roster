@@ -27,7 +27,7 @@ the filtered production source. The default `typecheck` also checks inventory
 freshness before compiling `Main.hs`; this prevents the unfiltered development
 source from hiding a production-filter omission. `production-package-smoke` builds the optimized
 package, checks its exact `bin/` set, enters every binary through the non-mutating
-GHC RTS boundary, and evaluates wage-cutover and billing deployment modules.
+GHC RTS boundary. `deployment-module-check` separately owns all deployment-module evaluations.
 
 `project-source.nix` is the production-only source seam passed through IHP's
 `projectPath` option. It excludes the complete `Test/` tree from production
@@ -126,9 +126,10 @@ the tooling derivation. Development commands compile the working tree by default
 so uncommitted authoring remains usable; CI and `verify-full` set
 `FRONTEND_CONTRACT_USE_PACKAGE=1` and consume the isolated output.
 
-`frontend-contract-package-check` is blocking in both paths. It proves the
-optimized production closure does not reference the tooling output, checks the
+`frontend-contract-package-check` is blocking in both paths. It checks the
 exact binary set, retains interface/build-resource metrics, and reruns generated
 TypeScript, all generated Haskell adapters plus private proofs, and architecture
-emission through packaged binaries. Generated repository artifacts are accepted
-only when those package-backed freshness checks pass.
+emission through packaged binaries. In `verify-full`, the later single
+`production-package-smoke` traversal proves the optimized production closure
+does not reference this tooling output. Generated repository artifacts are
+accepted only when those package-backed freshness checks pass.

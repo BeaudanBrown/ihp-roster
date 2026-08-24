@@ -458,11 +458,14 @@ async function main() {
     const system = String(nixSetting(nixConfig, "system", process.arch));
     const configuredCores = Number(nixSetting(nixConfig, "cores", cpus().length));
     const cores = options.cores ?? configuredCores;
-    const productionDrv = command("nix", ["eval", "--raw", `.#packages.${system}.optimized-prod-server.drvPath`], { quietStderr: true });
-    const appDrv = appLibraryDerivation(productionDrv);
+    // production-package-smoke can hand off its already-resolved package to
+    // avoid a second optimized-production evaluation during budget inspection.
+    const productionDrv = process.env.PRODUCTION_PACKAGE_DERIVATION
+        ?? command("nix", ["eval", "--raw", `.#packages.${system}.optimized-prod-server.drvPath`], { quietStderr: true });
+    const appDrv = process.env.PRODUCTION_PACKAGE_APP_LIBRARY_DERIVATION ?? appLibraryDerivation(productionDrv);
     const drv = derivationValue(readJsonCommand("nix", ["derivation", "show", appDrv]));
-    const rawAppOutput = drv.outputs?.out?.path;
-    const source = drv.env?.src;
+    const rawAppOutput = process.env.PRODUCTION_PACKAGE_APP_LIBRARY_OUTPUT ?? drv.outputs?.out?.path;
+    const source = process.env.PRODUCTION_PACKAGE_APP_LIBRARY_SOURCE ?? drv.env?.src;
     if (!rawAppOutput || !source) throw new Error("app-lib derivation lacks required output or source evidence");
     const appOutput = rawAppOutput.startsWith("/") ? rawAppOutput : join("/nix/store", rawAppOutput);
 

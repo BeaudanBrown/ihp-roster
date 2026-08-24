@@ -10,13 +10,17 @@ production-manifest-check
 echo "verify-full: production HTTP polling policy"
 http-repository-check
 
-# Reuse the isolated package for every generator/freshness command below.
-export FRONTEND_CONTRACT_USE_PACKAGE=1
-echo "verify-full: isolated frontend-contract tooling package"
-frontend-contract-package-check
-# The package check generated these contracts; later architecture validation
-# consumes that same checked output rather than regenerating it.
-export ARCHITECTURE_CONTRACTS_CURRENT=1
+echo "verify-full: zero-bypass typed contract authority"
+typed-contract-authority-check
+
+echo "verify-full: canonical wage authority and fixtures"
+bash ./bin/wage-authority-check
+
+echo "verify-full: date-native Roster runtime authority"
+bash ./bin/date-native-roster-authority-check
+
+echo "verify-full: documentation links, anchors, archive inventory, and scoped retired terms"
+documentation-repository-check
 
 echo "verify-full: typecheck"
 typecheck
@@ -25,14 +29,19 @@ typecheck
 echo "verify-full: complete Hspec"
 hspec-test
 
-echo "verify-full: zero-bypass typed contract authority"
-typed-contract-authority-check
+echo "verify-full: application reachability policy"
+weeder-check
+
+# Reuse the isolated package for every generator/freshness command below.
+export FRONTEND_CONTRACT_USE_PACKAGE=1
+echo "verify-full: isolated frontend-contract tooling package"
+frontend-contract-package-check
+# The package check generated these contracts; later architecture validation
+# consumes that same checked output rather than regenerating it.
+export ARCHITECTURE_CONTRACTS_CURRENT=1
 
 echo "verify-full: curated FrontendContract warnings"
 frontend-contract-warnings
-
-echo "verify-full: application reachability policy"
-weeder-check
 
 echo "verify-full: generated frontend, TypeScript, and browser unit checks"
 frontend-runtime-check
@@ -41,23 +50,11 @@ frontend-surface-compile-fail-check
 echo "verify-full: CSS ownership and stale-selector checks"
 bash ./bin/style-audit
 
-echo "verify-full: architecture and documentation structure"
+echo "verify-full: current architecture authority"
 architecture-repository-check
-documentation-repository-check
 
-echo "verify-full: production build profiler and budget contracts"
-
-echo "verify-full: production package executable and deployment smoke"
-production-package-smoke
-
-echo "verify-full: stable production build and inventory budgets"
-production-build-budget-check
-
-echo "verify-full: canonical wage authority and fixtures"
-bash ./bin/wage-authority-check
-
-echo "verify-full: date-native Roster runtime authority"
-bash ./bin/date-native-roster-authority-check
+echo "verify-full: optimized production package and consolidated inspection"
+production-inspection-check
 
 echo "verify-full: billing contracts"
 billing-contract-check
@@ -65,7 +62,5 @@ billing-contract-check
 echo "verify-full: deployment modules"
 deployment-module-check
 
-echo "verify-full: E2E PostgreSQL lifecycle preflight"
-
 echo "verify-full: complete Playwright"
-e2e
+E2E_SHARDS=8 e2e

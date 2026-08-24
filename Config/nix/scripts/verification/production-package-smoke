@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-production-manifest-check
-
 output="$(nix build --no-link --print-out-paths .#optimized-prod-server --accept-flake-config)"
 actual="$(find "$output/bin" -maxdepth 1 -type f -printf '%f\n' | sort)"
 expected="$(awk -F '\t' 'NR > 1 { print $1 }' Config/nix/production-executable-inventory.tsv | sort)"
@@ -14,6 +12,13 @@ fi
 
 production_derivation="$(nix-store --query --deriver "$output")"
 requisites="$(nix-store --query --requisites "$production_derivation")"
+
+# The frontend tooling package is generated earlier in verify-full. Check its
+# isolation here, alongside the sole optimized-production closure traversal.
+if [ -n "${FRONTEND_CONTRACT_TOOLS_ROOT:-}" ] && printf '%s\n' "$requisites" | grep -Fxq "$FRONTEND_CONTRACT_TOOLS_ROOT"; then
+    echo "production-package-smoke: production closure references frontend-contract tooling output" >&2
+    exit 1
+fi
 
 # The optimized package traversal is the authority for the filtered project
 # source. Keep this coupled to package inspection so verify-full does not
@@ -103,6 +108,12 @@ if [ "${#app_lib_derivations[@]}" -ne 1 ]; then
     exit 1
 fi
 app_lib_output="$(nix-store --query --outputs "${app_lib_derivations[0]}")"
+# Hand the already-resolved derivation, source, and output to the following
+# budget inspection so it can profile this package without re-evaluating it.
+export PRODUCTION_PACKAGE_DERIVATION="$production_derivation"
+export PRODUCTION_PACKAGE_APP_LIBRARY_DERIVATION="${app_lib_derivations[0]}"
+export PRODUCTION_PACKAGE_APP_LIBRARY_OUTPUT="$app_lib_output"
+export PRODUCTION_PACKAGE_APP_LIBRARY_SOURCE="$app_lib_src"
 if find "$app_lib_output" \( -type f -o -type l \) \( -name '*.dyn_hi' -o -name '*.so' -o -name '*.so.*' \) -print -quit | grep -q .; then
     echo "production-package-smoke: static-only app-lib contains a dynamic interface or shared object" >&2
     find "$app_lib_output" \( -type f -o -type l \) \( -name '*.dyn_hi' -o -name '*.so' -o -name '*.so.*' \) -print >&2
@@ -145,14 +156,5 @@ while IFS= read -r executable; do
     fi
     "$wrapper" +RTS --info >/dev/null
 done <<< "$expected"
-
-# Focused deployed service evaluations retain migration/recovery, Stripe
-# reconciliation, and reference-refresh cadence consumers. Remaining executable
-# consumers are checked against their exact NixOS source markers by
-# production-inventory-check.
-nix eval --impure --json --file Config/nix/tests/wage-cutover-module.nix >/dev/null
-nix eval --impure --json --file Config/nix/tests/billing-stripe-module.nix >/dev/null
-nix eval --impure --json --file Config/nix/tests/fwc-mapd-refresh-module.nix >/dev/null
-nix eval --impure --json --file Config/nix/tests/live-invalidation-outbox-pruning-module.nix >/dev/null
 
 echo "production-package-smoke: ok ($(printf '%s\n' "$expected" | wc -l) packaged executables)"
