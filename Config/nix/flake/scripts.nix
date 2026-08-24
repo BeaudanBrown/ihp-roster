@@ -91,6 +91,7 @@ in
         dev-ensure-postgres = script ../scripts/dev/ensure-postgres;
         dev-ensure-mailhog = script ../scripts/dev/ensure-mailhog;
         dev-foreground = script ../scripts/dev/foreground;
+        dev-foreground-stripe-tunnel = script ../scripts/dev/foreground-stripe-tunnel;
         dev-observability-start = script ../scripts/dev/observability-start;
         dev-observability-stop = script ../scripts/dev/observability-stop;
         dev-observability-status = script ../scripts/dev/observability-status;

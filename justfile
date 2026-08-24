@@ -12,6 +12,9 @@ start:
 dev:
     dev-foreground
 
+ddev:
+    dev-foreground-stripe-tunnel
+
 stop:
     dev-stop
 

@@ -8,6 +8,13 @@ STATE_DIR="$(dev-agent-state-dir)"
 LOG_FILE="$STATE_DIR/devenv.log"
 DB_SOCKET="$PGHOST"
 APP_HEALTH_URL="$APP_BASE_URL"
+if [ -n "${BEPIS_PUBLIC_APP_BASE_URL:-}" ]; then
+    if [ "$BEPIS_PUBLIC_APP_BASE_URL" != "https://dev.bepis.lol" ]; then
+        echo "BEPIS_PUBLIC_APP_BASE_URL supports only https://dev.bepis.lol." >&2
+        exit 64
+    fi
+    export APP_BASE_URL="$BEPIS_PUBLIC_APP_BASE_URL"
+fi
 APP_PID=""
 FRONTEND_WATCH_PID=""
 FRONTEND_GENERATED_WATCH_PID=""

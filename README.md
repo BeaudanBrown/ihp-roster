@@ -98,8 +98,12 @@ bash ./bin/in-env seed-dev app
 bash ./bin/in-env psql -d app
 ```
 
-`just dev` runs foreground development. Managed workspaces derive isolated
-ports, PostgreSQL state, and runtime paths; inspect them with
+`just dev` runs foreground development. `just ddev` is the explicit public
+Stripe-test mode: it opens `https://dev.bepis.lol` with `dev-tunnel`, forwards
+Stripe CLI webhooks locally, and runs the app in the foreground with that public
+origin for Checkout and email links. It requires a valid local Stripe test
+configuration and exposes the primary workspace until Ctrl-C. Managed workspaces
+derive isolated ports, PostgreSQL state, and runtime paths; inspect them with
 `dev-workspace-info --json` rather than assuming addresses. See `AGENTS.md` for
 epic-worktree delegation and approval boundaries.
 
