@@ -13,10 +13,11 @@ import Application.Helper.StaffShiftPreferences
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
                                 renderToastOob, successToast)
+import Application.PayRateSelection (StaffPayRateSelection (StaffPayRateDefault))
 import Data.Time.Clock (getCurrentTime)
 import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
                                      fetchActiveImportedXeroPayItems,
-                                     parseSubmittedPayRateSelectionValue)
+                                     parseSubmittedStaffPayRateSelectionValue)
 import Web.Controller.Prelude
 import Web.Controller.Staff (buildStaffFromSurfaceSubmission,
                              emptyStaffPayRateSelection,
@@ -138,7 +139,7 @@ instance Controller ProfilesController where
                 | otherwise -> do
                     let canManageProfileStaff = hasRole VenueAdmin && isJust maybeExistingStaff
                     maybeSelectedRosterGroupIds <- if canManageProfileStaff then validateSubmittedRosterGroupIds staff submitted.submittedRosterGroupIds else pure Nothing
-                    maybeSubmittedPayRateSelection <- if canManageProfileStaff then parseSubmittedPayRateSelectionValue (fromMaybe "" submitted.submittedPayRateSelection) else pure (Just emptyStaffPayRateSelection)
+                    maybeSubmittedPayRateSelection <- if canManageProfileStaff then parseSubmittedStaffPayRateSelectionValue (fromMaybe StaffPayRateDefault submitted.submittedPayRateSelection) else pure (Just emptyStaffPayRateSelection)
                     let maybeSubmittedDefaultAwardLevelId = submittedAwardLevelId <$> maybeSubmittedPayRateSelection
                     let maybeSubmittedImportedXeroPayItemId = submittedImportedXeroPayItemId <$> maybeSubmittedPayRateSelection
                     staff

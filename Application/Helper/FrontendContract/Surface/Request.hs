@@ -41,6 +41,7 @@ import Application.Helper.FrontendContract.Surface.Diagnostics (AssertSurfaceFie
                                                                 SurfaceFieldPresence (..))
 import Application.Helper.FrontendContract.Surface.DSL
 import Application.Helper.FrontendContract.Surface.Values
+import Application.Helper.NominalText (NominalText (parseNominalText))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson.Types
 import qualified Data.Bifunctor as Bifunctor
@@ -503,6 +504,11 @@ instance KnownClosedScalar value => KnownSurfaceRequestWire ('WireClosed value) 
             (Left ("must be one of: " <> Text.intercalate ", " (closedScalarLiterals @value)))
             Right
             (parseClosedScalarLiteral @value literal)
+
+instance NominalText value => KnownSurfaceRequestWire ('WireDomain value) where
+    parseSurfaceRequestWire rawValue = do
+        literal <- Bifunctor.first (const "must be valid UTF-8 text") (Text.Encoding.decodeUtf8' rawValue)
+        parseNominalText literal
 
 instance (KnownSurfaceWireValue inner, KnownSurfaceRequestWire inner) => KnownSurfaceRequestWire ('WireList inner) where
     parseSurfaceRequestWire = parseJsonWire @('WireList inner)

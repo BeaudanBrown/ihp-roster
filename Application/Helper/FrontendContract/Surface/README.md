@@ -134,18 +134,22 @@ Available primitives include:
   browser token to have a production consumer.
 
 Wire fields use the closed browser wire universe: `WireText`, `WireInt`,
-`WireBool`, `WireUUID`, `WireDay`, `WireClosed`, `WireList`, `WireOptional`,
-`WireNullable`, and `WireRef`. `WireClosed value` must reference a registered
-`ClosedScalar value`; it produces that exact Haskell type in generated builders
-and parsers. Use the generated PostgreSQL enum type when persistence owns the
-domain, never a shadow ADT. Roster template-card browser DTOs therefore carry
-`WireClosed RosterTemplateScaleEnum`, not a handwritten `"day" | "week"`
-projection. A non-persisted app domain may use its own finite ADT beside the
-owning feature. Current request authorities include profile section, venue role,
-employment basis, roster staff scope, leave section, feedback type, shift-type
-colour, and export type. Open tagged reference selections such as Award/Xero pay
-references and provider-owned Xero employee ids are explicitly classified and
-must still obtain their field names from the nominal generated operation.
+`WireBool`, `WireUUID`, `WireDay`, `WireClosed`, `WireDomain`, `WireList`,
+`WireOptional`, `WireNullable`, and `WireRef`. `WireClosed value` must reference
+a registered `ClosedScalar value`; it produces that exact Haskell type in
+generated builders and parsers. Use the generated PostgreSQL enum type when
+persistence owns the domain, never a shadow ADT. Roster template-card browser
+DTOs therefore carry `WireClosed RosterTemplateScaleEnum`, not a handwritten
+`"day" | "week"` projection. A non-persisted app domain may use its own finite
+ADT beside the owning feature.
+
+`WireDomain value` represents an open text protocol with a domain-owned nominal
+Haskell value and `NominalText` codec. TypeScript still receives `string`, while
+generated Haskell builders and parsers retain the exact value type. Use it only
+when values are structurally open but raw `Text` would erase a meaningful domain
+boundary, such as the distinct staff and shift-type pay-rate selections or a
+provider-owned Xero employee selection. The domain module owns parsing and
+rendering; the FrontendContract declaration supplies only the focused wire use.
 Do not serialize arbitrary domain models through surface fields; convert to a
 narrow browser DTO or feature-specific render model first.
 

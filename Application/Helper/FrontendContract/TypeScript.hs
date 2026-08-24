@@ -976,6 +976,7 @@ wireType = \case
     WireUuidIR -> wirePrimitiveTypeName WireUuidIR
     WireDayIR -> wirePrimitiveTypeName WireDayIR
     WireClosedIR name _ _ -> name
+    WireDomainIR {} -> "string"
     WireUnknownIR -> "unknown"
     WireListIR inner -> "ReadonlyArray<" <> wireType inner <> ">"
     WireMapIR key value -> "Record<" <> wireType key <> ", " <> wireType value <> ">"
@@ -1022,6 +1023,7 @@ valueGuard access = \case
     WireUuidIR -> primitiveValueGuard access WireUuidIR
     WireDayIR -> primitiveValueGuard access WireDayIR
     WireClosedIR name _ _ -> "is" <> name <> "(" <> access <> ")"
+    WireDomainIR {} -> "typeof " <> access <> " === \"string\""
     WireUnknownIR -> "true"
     WireListIR inner -> "Array.isArray(" <> access <> ") && " <> access <> ".every((item) => " <> valueGuard "item" inner <> ")"
     WireMapIR key value -> "isRecord(" <> access <> ") && Object.entries(" <> access <> ").every(([key, entry]) => " <> valueGuard "key" key <> " && " <> valueGuard "entry" value <> ")"

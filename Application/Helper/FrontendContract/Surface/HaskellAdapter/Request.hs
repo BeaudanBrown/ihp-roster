@@ -624,6 +624,11 @@ renderPromotedWire aliases = \case
             { haskellTypeModule = sourceModule
             , haskellTypeName = sourceType
             }) <> ")"
+    WireDomainIR sourceModule sourceType ->
+        "('WireDomain " <> qualifyHaskellType aliases (HaskellTypeMetadata
+            { haskellTypeModule = sourceModule
+            , haskellTypeName = sourceType
+            }) <> ")"
     WireListIR inner -> "('WireList " <> renderPromotedWire aliases inner <> ")"
     WireOptionalIR inner -> "('WireOptional " <> renderPromotedWire aliases inner <> ")"
     WireNullableIR inner -> "('WireNullable " <> renderPromotedWire aliases inner <> ")"
@@ -700,6 +705,8 @@ renderWireIR = \case
     WireClosedIR schema sourceModule sourceType ->
         "SurfaceIR.WireClosedIR " <> renderTextLiteral schema <> " "
             <> renderTextLiteral sourceModule <> " " <> renderTextLiteral sourceType
+    WireDomainIR sourceModule sourceType ->
+        "SurfaceIR.WireDomainIR " <> renderTextLiteral sourceModule <> " " <> renderTextLiteral sourceType
     WireUnknownIR -> "SurfaceIR.WireUnknownIR"
     WireListIR inner -> "SurfaceIR.WireListIR (" <> renderWireIR inner <> ")"
     WireMapIR key value -> "SurfaceIR.WireMapIR (" <> renderWireIR key <> ") (" <> renderWireIR value <> ")"

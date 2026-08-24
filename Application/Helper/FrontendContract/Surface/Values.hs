@@ -131,6 +131,8 @@ import Application.Helper.FrontendContract.Surface.ContractIR hiding
 import Application.Helper.FrontendContract.Surface.Diagnostics
 import Application.Helper.FrontendContract.Surface.DSL
 import Application.Helper.FrontendContract.Surface.Reflect
+import Application.Helper.FrontendContract.TypeError (BepisTypeError)
+import Application.Helper.NominalText (NominalText (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Aeson.Key
 import qualified Data.Aeson.KeyMap as Aeson.KeyMap
@@ -143,7 +145,7 @@ import qualified Data.Text.Encoding as Text.Encoding
 import Data.Time (Day, defaultTimeLocale, formatTime, parseTimeM)
 import Data.Typeable (Typeable)
 import qualified Data.UUID as UUID
-import GHC.TypeLits (ErrorMessage (..), TypeError)
+import GHC.TypeLits (ErrorMessage (..))
 import IHP.Prelude
 
 -- | One caller-provided field whose wire is still fixed by the exact owning
@@ -473,6 +475,7 @@ type family SurfaceWireValue (wire :: WireType) :: Type where
     SurfaceWireValue 'WireUUID = UUID.UUID
     SurfaceWireValue 'WireDay = Day
     SurfaceWireValue ('WireClosed value) = value
+    SurfaceWireValue ('WireDomain value) = value
     SurfaceWireValue ('WireList inner) = [SurfaceWireValue inner]
     SurfaceWireValue ('WireOptional inner) = Maybe (SurfaceWireValue inner)
     SurfaceWireValue ('WireNullable inner) = Maybe (SurfaceWireValue inner)
@@ -501,7 +504,7 @@ type family LookupSurfaceField (marker :: Type) (fields :: [FieldSpec]) :: Surfa
     LookupSurfaceField marker (('OptionalField marker wire) ': rest) = 'SurfaceFieldOptional wire
     LookupSurfaceField marker (('NullableField marker wire) ': rest) = 'SurfaceFieldNullable wire
     LookupSurfaceField marker (field ': rest) = LookupSurfaceField marker rest
-    LookupSurfaceField marker '[] = TypeError
+    LookupSurfaceField marker '[] = BepisTypeError "BEPIS-FC-008"
         ( 'Text "FrontendSurface field bundle does not declare marker "
             ':<>: 'ShowType marker
         )
@@ -557,6 +560,11 @@ instance KnownClosedScalar value => KnownSurfaceWireValue ('WireClosed value) wh
             (fail ("Surface closed scalar has invalid literal: " <> cs literal))
             pure
             (parseClosedScalarLiteral @value literal)
+
+instance NominalText value => KnownSurfaceWireValue ('WireDomain value) where
+    surfaceWireJson = Aeson.String . renderNominalText
+    surfaceWireText = renderNominalText
+    parseSurfaceWireValue = Aeson.withText "Surface WireDomain" (either (fail . cs) pure . parseNominalText)
 
 instance KnownSurfaceWireValue inner => KnownSurfaceWireValue ('WireList inner) where
     surfaceWireJson = Aeson.toJSON . fmap (surfaceWireJson @inner)
@@ -862,7 +870,7 @@ type family FragmentOptionSpecs (primitive :: SurfacePrimitive) :: [PrimitiveOpt
 type family FindMountTarget (options :: [PrimitiveOption]) :: PrimitiveOption where
     FindMountTarget (('MountTarget marker fields) ': rest) = 'MountTarget marker fields
     FindMountTarget (option ': rest) = FindMountTarget rest
-    FindMountTarget '[] = TypeError
+    FindMountTarget '[] = BepisTypeError "BEPIS-FC-009"
         ( 'Text "FrontendSurface fragment does not declare a MountTarget"
         )
 
@@ -945,7 +953,7 @@ type family RequireBrowserClosedStateValue (primitive :: SurfacePrimitive) (valu
 type family RequireClosedStateValue (stateMarker :: Type) (value :: Type) (values :: [Type]) :: Constraint where
     RequireClosedStateValue stateMarker value (value ': rest) = ()
     RequireClosedStateValue stateMarker value (other ': rest) = RequireClosedStateValue stateMarker value rest
-    RequireClosedStateValue stateMarker value '[] = TypeError
+    RequireClosedStateValue stateMarker value '[] = BepisTypeError "BEPIS-FC-010"
         ( 'Text "FrontendSurface browser state "
             ':<>: 'ShowType stateMarker
             ':<>: 'Text " does not declare value "
@@ -966,7 +974,7 @@ type family RequireCompleteSetSortKey (primitive :: SurfacePrimitive) (key :: Ty
 type family RequireSortKey (sortMarker :: Type) (key :: Type) (keys :: [CompleteSetSortKeySpec]) :: Constraint where
     RequireSortKey sortMarker key (('SortKey key comparators) ': rest) = ()
     RequireSortKey sortMarker key (other ': rest) = RequireSortKey sortMarker key rest
-    RequireSortKey sortMarker key '[] = TypeError
+    RequireSortKey sortMarker key '[] = BepisTypeError "BEPIS-FC-011"
         ( 'Text "FrontendSurface complete-set sort "
             ':<>: 'ShowType sortMarker
             ':<>: 'Text " does not declare key "
@@ -1000,7 +1008,7 @@ type family FindSurfaceSidePanel (spec :: SurfaceSpec) (marker :: Type) (primiti
 type family RequireTabKey (tabSetMarker :: Type) (key :: Type) (keys :: [Type]) :: Constraint where
     RequireTabKey tabSetMarker key (key ': rest) = ()
     RequireTabKey tabSetMarker key (other ': rest) = RequireTabKey tabSetMarker key rest
-    RequireTabKey tabSetMarker key '[] = TypeError
+    RequireTabKey tabSetMarker key '[] = BepisTypeError "BEPIS-FC-012"
         ( 'Text "FrontendSurface tab set "
             ':<>: 'ShowType tabSetMarker
             ':<>: 'Text " does not declare key "
@@ -1015,7 +1023,7 @@ type family FindSurfaceDto (spec :: SurfaceSpec) (marker :: Type) (primitives ::
 -- | Rendering a Surface DTO into browser-visible markup requires an explicit
 -- non-server reachability on that exact declaration.
 type family AssertBrowserReachableSurfaceDto (primitive :: SurfacePrimitive) :: Constraint where
-    AssertBrowserReachableSurfaceDto ('SurfaceDto 'BrowserUnreachable marker fields) = TypeError
+    AssertBrowserReachableSurfaceDto ('SurfaceDto 'BrowserUnreachable marker fields) = BepisTypeError "BEPIS-FC-013"
         ( 'Text "FrontendSurface DTO "
             ':<>: 'ShowType marker
             ':<>: 'Text " is server-only and cannot be rendered to the browser"

@@ -58,3 +58,5 @@ Test/CompileFail/FrontendHorizontalScrollIncompleteConfig.hs	fields	unchanged	un
 Test/CompileFail/FrontendXeroCandidateRawProjection.hs	opaque	unchanged	unchanged	-
 Test/CompileFail/FrontendAppShellWrongActionField.hs	fields	unchanged	unchanged	-
 Test/CompileFail/FrontendAppShellWrongActionOperation.hs	operation	unchanged	unchanged	-
+Test/CompileFail/FrontendSurfacePayRateDomainInterchange.hs	fields	operation-local-action	operation-local-action	-
+Test/CompileFail/XeroEmployeeIdRawConstruction.hs	opaque	unchanged	unchanged	-

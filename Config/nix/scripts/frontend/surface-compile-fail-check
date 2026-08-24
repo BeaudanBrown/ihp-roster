@@ -499,6 +499,16 @@ expect_compile_failure \
     "Couldn't match type ‘AppShell.ApplyXeroTimesheetPreparationStaffDecisionOverlay’" \
     "with ‘AppShell.SelectXeroTimesheetPreparationPeriodOverlay’"
 
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfacePayRateDomainInterchange.hs" \
+    "BEPIS-FC-005" \
+    "ShiftTypePayRateSelection" \
+    "StaffPayRateSelection"
+
+expect_compile_failure \
+    "Test/CompileFail/XeroEmployeeIdRawConstruction.hs" \
+    "Illegal term-level use of the type constructor ‘XeroEmployeeId’"
+
 for filter in "${filters[@]}"; do
     if [[ -z "${matched_filters[$filter]:-}" ]]; then
         echo "surface-compile-fail-check: unknown fixture filter: $filter" >&2

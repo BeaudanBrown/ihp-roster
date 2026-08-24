@@ -122,6 +122,7 @@ validWire wire value = case wire of
     Contract.WireUuidIR -> maybe False (isJust . UUID.fromText) (asText value)
     Contract.WireDayIR -> maybe False (isJust . (parseTimeM True defaultTimeLocale "%F" :: String -> Maybe Day)) (cs <$> asText value)
     Contract.WireClosedIR {} -> isText value
+    Contract.WireDomainIR {} -> isText value
     Contract.WireUnknownIR -> False
     Contract.WireListIR child -> maybe False (all (validWire child)) (asArray value)
     Contract.WireMapIR _ child -> maybe False (all (validWire child)) (asObjectValues value)

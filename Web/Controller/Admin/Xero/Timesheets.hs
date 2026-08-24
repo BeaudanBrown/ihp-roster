@@ -48,6 +48,7 @@ import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..),
 import Application.Xero.ReferenceTrust.Service
 import Application.Xero.Timesheets.Prepare (XeroPreparationStaffDecision (..),
                                             loadXeroTimesheetPreparationView)
+import Application.Xero.EmployeeId (XeroEmployeeSelection (..))
 import qualified Data.Text as Text
 import Web.Admin.Xero.Mutations (applyXeroTimesheetPreparationStaffDecisionMutation,
                                  approveXeroTimesheetPreparationPayItemsMutation,
@@ -303,10 +304,9 @@ respondWithPreparationBlockingDialog runId message =
 
 parseStaffDecision :: AppShellActionFields ApplyXeroTimesheetPreparationStaffDecisionOverlay -> Either Text XeroPreparationStaffDecision
 parseStaffDecision fields =
-    case Text.strip (surfaceFieldValue @XeroEmployeeSelectionField fields) of
-        "" -> Left "Choose a Xero employee or Not paid through Xero before approving."
-        "not_applicable" -> Right MarkStaffNotPaidThroughXero
-        employeeId -> Right (SelectXeroEmployee employeeId)
+    case surfaceFieldValue @XeroEmployeeSelectionField fields of
+        XeroEmployeeNotApplicable -> Right MarkStaffNotPaidThroughXero
+        XeroEmployeeSelected employeeId -> Right (SelectXeroEmployee employeeId)
 
 respondWithPreparationDialog ::
     (?context :: ControllerContext, ?request :: Request) =>

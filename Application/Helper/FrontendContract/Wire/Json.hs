@@ -182,6 +182,7 @@ validateWireValueWith contract fieldName wire value =
         Contract.WireUuidIR -> expectString
         Contract.WireDayIR -> expectString
         Contract.WireClosedIR refName _ _ -> validateContractValueWithName contract refName value
+        Contract.WireDomainIR {} -> expectString
         Contract.WireUnknownIR -> pure ()
         Contract.WireListIR inner -> case value of
             Aeson.Array items -> mapM_ (validateWireValueWith contract fieldName inner) items

@@ -14,6 +14,7 @@ import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.StaffShiftPreferences
 import Application.PayAssignment (StaffPayAssignment (..),
                                   staffPayAssignmentRequiresRemediation)
+import Application.PayRateSelection (StaffPayRateSelection (..))
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import Web.View.Prelude
@@ -41,7 +42,7 @@ data StaffProfileDetailsSurfaceValues = StaffProfileDetailsSurfaceValues
     , profileDetailsSection               :: !StaffProfileSectionValue
     , profileDetailsVenueRole             :: !(Maybe VenueRoleEnum)
     , profileDetailsEmploymentBasis       :: !(Maybe StaffEmploymentBasisEnum)
-    , profileDetailsPayRateSelection      :: !(Maybe Text)
+    , profileDetailsPayRateSelection      :: !(Maybe StaffPayRateSelection)
     , profileDetailsRosterGroupIds        :: !(Maybe [UUID.UUID])
     }
 
@@ -74,14 +75,14 @@ staffShiftPreferencesSurfaceValues section selectedShiftPreferences =
         , shiftPreferenceKeys = Just (map (encodeShiftPreferenceKey . (.weekdayIndex)) selectedShiftPreferences)
         }
 
-staffPayRateSelectionValue :: Staff -> Text
+staffPayRateSelectionValue :: Staff -> StaffPayRateSelection
 staffPayRateSelectionValue staff =
     case staff.payAssignmentMode of
-        XeroRate -> maybe "" ("xero:" <>) (inputValue <$> staff.importedXeroPayItemId)
-        AwardRate -> maybe "" ("award:" <>) (inputValue <$> staff.defaultAwardLevelId)
-        RosterOnly -> ""
-        LegacyUnresolved -> "legacy-unresolved"
-        StaffDefault -> "legacy-unresolved"
+        XeroRate -> maybe StaffPayRateRosterOnly StaffPayRateXero staff.importedXeroPayItemId
+        AwardRate -> maybe StaffPayRateRosterOnly StaffPayRateAward staff.defaultAwardLevelId
+        RosterOnly -> StaffPayRateRosterOnly
+        LegacyUnresolved -> StaffPayRateLegacyUnresolved
+        StaffDefault -> StaffPayRateLegacyUnresolved
 
 renderPersonalProfileFields :: SurfaceFieldBundleOf Surface.StaffProfileFields fields => fields -> Staff -> Maybe Text -> Html
 renderPersonalProfileFields fields = renderPersonalProfileFieldsWithEmailId fields "email"

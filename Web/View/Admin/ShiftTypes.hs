@@ -23,6 +23,7 @@ import Application.Helper.ShiftTypeColours (ShiftTypeColourKeyEnum (..),
 import Application.Helper.SurfaceResource
 import Application.PayAssignment (ShiftPayAssignment (..),
                                   shiftPayAssignmentRequiresRemediation)
+import Application.PayRateSelection (ShiftTypePayRateSelection (..))
 import qualified Data.Text as Text
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminShiftTypesSurfaceImpl)
@@ -51,11 +52,11 @@ currentVenueScopeId =
         Just venue -> unpackId venue.id
         Nothing -> error "Admin shift types live surface requires a current venue"
 
-submittedPayRateSelectionValue :: PayAssignmentModeEnum -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Text
-submittedPayRateSelectionValue RosterOnly _ _ = "roster-only"
-submittedPayRateSelectionValue XeroRate _ (Just importedPayItemId) = "xero:" <> tshow importedPayItemId
-submittedPayRateSelectionValue AwardRate (Just awardLevelId) Nothing = "award:" <> tshow awardLevelId
-submittedPayRateSelectionValue _ _ _ = ""
+submittedPayRateSelectionValue :: PayAssignmentModeEnum -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> ShiftTypePayRateSelection
+submittedPayRateSelectionValue RosterOnly _ _ = ShiftTypePayRateRosterOnly
+submittedPayRateSelectionValue XeroRate _ (Just importedPayItemId) = ShiftTypePayRateXero importedPayItemId
+submittedPayRateSelectionValue AwardRate (Just awardLevelId) Nothing = ShiftTypePayRateAward awardLevelId
+submittedPayRateSelectionValue _ _ _ = ShiftTypePayRateDefault
 
 renderShiftTypesInactiveSummary :: [ShiftType] -> Bool -> Html
 renderShiftTypesInactiveSummary shiftTypes showInactive = [hsx|
@@ -113,7 +114,7 @@ renderShiftTypeCreateForm _shiftTypes showInactive awardLevels awardLevelBaseRat
     |]
     where
         defaultCreateColourKey = NoColour
-        fields = AdminAction.createShiftTypeActionFields showInactive "" "" defaultCreateColourKey True
+        fields = AdminAction.createShiftTypeActionFields showInactive "" ShiftTypePayRateDefault defaultCreateColourKey True
         route = FrontendSurfaceActionRoute
             { actionRouteUrl = pathTo CreateShiftTypeAction
             , actionRouteCustomHtmx = []

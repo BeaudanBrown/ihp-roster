@@ -319,6 +319,8 @@ instance ReflectWire 'WireUUID where reflectWire = WireUuidIR
 instance ReflectWire 'WireDay where reflectWire = WireDayIR
 instance Typeable value => ReflectWire ('WireClosed value) where
     reflectWire = WireClosedIR (typeMarker @value) (closedScalarSourceModule @value) (typeMarker @value)
+instance Typeable value => ReflectWire ('WireDomain value) where
+    reflectWire = WireDomainIR (closedScalarSourceModule @value) (typeMarker @value)
 instance ReflectWire inner => ReflectWire ('WireList inner) where reflectWire = WireListIR (reflectWire @inner)
 instance ReflectWire inner => ReflectWire ('WireOptional inner) where reflectWire = WireOptionalIR (reflectWire @inner)
 instance ReflectWire inner => ReflectWire ('WireNullable inner) where reflectWire = WireNullableIR (reflectWire @inner)

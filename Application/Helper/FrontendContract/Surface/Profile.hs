@@ -47,6 +47,7 @@ module Application.Helper.FrontendContract.Surface.Profile
     ) where
 
 import Application.Helper.FrontendContract.Surface.DSL hiding (Enum)
+import Application.PayRateSelection (StaffPayRateSelection)
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as SelfServiceLeave
 import Generated.Types (StaffEmploymentBasisEnum, VenueRoleEnum)
 import IHP.ModelSupport (InputValue (..))
@@ -132,7 +133,7 @@ type StaffProfileFields =
      , Field SectionField ('WireClosed StaffProfileSectionValue)
      , OptionalField VenueRoleField ('WireClosed VenueRoleEnum)
      , OptionalField EmploymentBasisField ('WireClosed StaffEmploymentBasisEnum)
-     , OptionalField PayRateSelectionField 'WireText
+     , OptionalField PayRateSelectionField ('WireDomain StaffPayRateSelection)
      , OptionalField RosterGroupIdsField ('WireList 'WireUUID)
      ]
 

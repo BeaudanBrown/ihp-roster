@@ -81,18 +81,14 @@ expect_no_match \
     'name="(feedbackType|content|feedbackViewportWidth|feedbackViewportHeight|feedbackDevicePixelRatio|feedbackDisplayMode|section|venueRole|employmentBasis|payRateSelection|exportType|colourKey|staffScope|leaveSection|periodKey|decision|xeroEmployeeSelection|accountCode|referenceWaitStartedAt|referenceDemand)"' \
     Web/View/Feedback Web/View/Profiles Web/View/Staff Web/View/Admin Web/View/RosterWeeks Web/LeaveRequests
 
-# Two open value shapes are classified rather than misrepresented as finite
-# scalars. Pay-rate selection is a server-validated tagged reference carrying an
-# Award/Xero UUID or roster-only/empty choice. Xero selection carries a
-# provider-owned employee id plus the explicit not-applicable sentinel.
-expect_count \
-    "pay-rate tagged-reference classification changed; replace it with a typed tagged request before changing this exception" \
-    6 \
+# Composite pay-rate and provider selections use domain-owned nominal values;
+# their protocol representation remains text without reopening raw Text here.
+expect_no_match \
+    "pay-rate selection regressed to raw WireText" \
     "(PayRateSelectionField|PayRateSelection)[^\n]*'WireText" \
     Application/Helper/FrontendContract
-expect_count \
-    "Xero provider-selection classification changed; keep provider ids open or introduce an exact tagged request" \
-    1 \
+expect_no_match \
+    "Xero employee selection regressed to raw WireText" \
     "XeroEmployeeSelectionField[^\n]*'WireText" \
     Application/Helper/FrontendContract/AppShell.hs
 
@@ -115,4 +111,4 @@ if [[ "$failures" -ne 0 ]]; then
     exit 1
 fi
 
-echo "typed-contract-authority-check: zero bypasses; two explicit open tagged/reference classifications"
+echo "typed-contract-authority-check: zero bypasses; nominal pay-rate and Xero employee domains enforced"

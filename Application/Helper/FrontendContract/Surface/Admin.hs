@@ -91,6 +91,7 @@ module Application.Helper.FrontendContract.Surface.Admin
     ) where
 
 import Application.Helper.Export.Types (ExportJobType)
+import Application.PayRateSelection (ShiftTypePayRateSelection)
 import Application.Helper.FrontendContract.Surface.DSL
 import Application.Helper.ShiftTypeColours (ShiftTypeColourKeyEnum)
 
@@ -341,7 +342,7 @@ type AdminShiftTypesSurface =
          , Action CreateShiftType
             '[ Field ShowInactiveShiftTypes 'WireBool
              , Field Name 'WireText
-             , Field PayRateSelection 'WireText
+             , Field PayRateSelection ('WireDomain ShiftTypePayRateSelection)
              , Field ColourKey ('WireClosed ShiftTypeColourKeyEnum)
              , Field IsActive 'WireBool
              ]
@@ -352,7 +353,7 @@ type AdminShiftTypesSurface =
          , Action UpdateShiftType
             '[ Field ShowInactiveShiftTypes 'WireBool
              , Field Name 'WireText
-             , Field PayRateSelection 'WireText
+             , Field PayRateSelection ('WireDomain ShiftTypePayRateSelection)
              , Field ColourKey ('WireClosed ShiftTypeColourKeyEnum)
              , Field IsActive 'WireBool
              ]
@@ -381,7 +382,7 @@ type AdminShiftTypesSurface =
          , Action AutosaveShiftTypeName
             '[ Field ShowInactiveShiftTypes 'WireBool
              , Field Name 'WireText
-             , Field PayRateSelection 'WireText
+             , Field PayRateSelection ('WireDomain ShiftTypePayRateSelection)
              , Field ColourKey ('WireClosed ShiftTypeColourKeyEnum)
              , Field IsActive 'WireBool
              ]
@@ -393,7 +394,7 @@ type AdminShiftTypesSurface =
          , Action AutosaveShiftTypeSelection
             '[ Field ShowInactiveShiftTypes 'WireBool
              , Field Name 'WireText
-             , Field PayRateSelection 'WireText
+             , Field PayRateSelection ('WireDomain ShiftTypePayRateSelection)
              , Field ColourKey ('WireClosed ShiftTypeColourKeyEnum)
              , Field IsActive 'WireBool
              ]

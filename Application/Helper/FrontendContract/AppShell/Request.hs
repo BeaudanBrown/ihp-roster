@@ -41,10 +41,11 @@ import Application.Helper.FrontendContract.Surface.Values (DeclaredRequestFields
                                                            declaredRequestFields,
                                                            noDeclaredRequestFields,
                                                            surfaceFieldsText)
+import Application.Helper.FrontendContract.TypeError (BepisTypeError)
 import Data.ByteString (ByteString)
 import Data.Kind (Type)
 import Data.Typeable (Typeable)
-import GHC.TypeLits (ErrorMessage (..), TypeError)
+import GHC.TypeLits (ErrorMessage (..))
 import IHP.Prelude
 import Network.Wai (Request)
 
@@ -63,7 +64,7 @@ type family FindAppShellPrimitiveFields (action :: Type) (primitives :: [Global.
     FindAppShellPrimitiveFields action (primitive ': rest) =
         FindAppShellPrimitiveFields action rest
     FindAppShellPrimitiveFields action '[] =
-        TypeError
+        BepisTypeError "BEPIS-FC-014"
             ( 'Text "AppShell contract does not declare action marker "
                 ':<>: 'ShowType action
             )
@@ -86,12 +87,13 @@ type family AppShellSurfaceWire (wire :: Global.WireType) :: Surface.WireType wh
     AppShellSurfaceWire 'Global.WireUUID = 'Surface.WireUUID
     AppShellSurfaceWire 'Global.WireDay = 'Surface.WireDay
     AppShellSurfaceWire ('Global.WireClosed value) = 'Surface.WireClosed value
+    AppShellSurfaceWire ('Global.WireDomain value) = 'Surface.WireDomain value
     AppShellSurfaceWire ('Global.WireList inner) = 'Surface.WireList (AppShellSurfaceWire inner)
     AppShellSurfaceWire ('Global.WireOptional inner) = 'Surface.WireOptional (AppShellSurfaceWire inner)
     AppShellSurfaceWire ('Global.WireNullable inner) = 'Surface.WireNullable (AppShellSurfaceWire inner)
     AppShellSurfaceWire ('Global.WireRef dto) = 'Surface.WireRef dto
     AppShellSurfaceWire wire =
-        TypeError
+        BepisTypeError "BEPIS-FC-015"
             ( 'Text "AppShell request fields do not support wire "
                 ':<>: 'ShowType wire
             )

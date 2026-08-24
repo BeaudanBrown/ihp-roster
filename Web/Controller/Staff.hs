@@ -29,6 +29,7 @@ import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 successToast)
 import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.PayAssignment (selectableStaffAssignmentMode)
+import Application.PayRateSelection (StaffPayRateSelection (StaffPayRateDefault))
 import Application.StaffDefaults (applyVenueDefaultStaffPayAssignment,
                                   validateStaffAwardRateAvailability)
 import qualified Data.Set as Set
@@ -39,7 +40,8 @@ import qualified Data.UUID as UUID
 import Text.Blaze.Html (Html)
 import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
                                      fetchActiveImportedXeroPayItems,
-                                     parseSubmittedPayRateSelectionValue)
+                                     parseSubmittedStaffPayRateSelectionText,
+                                     parseSubmittedStaffPayRateSelectionValue)
 import Web.Controller.Prelude
 import Web.RosterWeeks.DateRange (RosterWindowScope (..),
                                   rosterWindowScopeForAnchor)
@@ -257,7 +259,7 @@ instance Controller StaffController where
                 | otherwise -> do
                     maybeSelectedRosterGroupIds <- validateSubmittedRosterGroupIds staff submitted.submittedRosterGroupIds
                     maybeSubmittedVenueRole <- if canManageStaffPay then validateSubmittedStaffVenueRole staff maybeVenueMembership submitted.submittedVenueRole else pure (Just Nothing)
-                    maybeSubmittedPayRateSelection <- if canManageStaffPay then parseSubmittedPayRateSelectionValue (fromMaybe "" submitted.submittedPayRateSelection) else pure (Just emptyStaffPayRateSelection)
+                    maybeSubmittedPayRateSelection <- if canManageStaffPay then parseSubmittedStaffPayRateSelectionValue (fromMaybe StaffPayRateDefault submitted.submittedPayRateSelection) else pure (Just emptyStaffPayRateSelection)
                     let maybeSubmittedDefaultAwardLevelId = submittedAwardLevelId <$> maybeSubmittedPayRateSelection
                     let maybeSubmittedImportedXeroPayItemId = submittedImportedXeroPayItemId <$> maybeSubmittedPayRateSelection
                     staff
@@ -681,7 +683,7 @@ requireSubmittedPayRateSelection paramName =
         Nothing -> do
             setErrorMessage "Choose a default pay rate or No Timesheets (roster only)."
             pure Nothing
-        Just value -> parseSubmittedPayRateSelectionValue value
+        Just value -> parseSubmittedStaffPayRateSelectionText value
 
 
 fetchStaffLinkedUserEmail :: (?modelContext :: ModelContext) => Staff -> IO (Maybe Text)

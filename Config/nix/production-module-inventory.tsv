@@ -210,6 +210,7 @@ Application/Helper/FrontendContract/TimePicker.hs	production	runtime	Main	Reacha
 Application/Helper/FrontendContract/TimePicker/Runtime.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Toggle.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Toggle/Runtime.hs	production	runtime	Main	Reachable from Main
+Application/Helper/FrontendContract/TypeError.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/TypeScript.hs	development	build-tooling	-	Generator or architecture tooling outside deployed runtime closure
 Application/Helper/FrontendContract/UiRegion.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Values.hs	production	runtime	Main	Reachable from Main
@@ -233,6 +234,7 @@ Application/Helper/LiveUpdate/Internal.hs	production	runtime	Main	Reachable from
 Application/Helper/LiveUpdate/OutboxPruning.hs	production	operational-script-closure	Application.Script.LiveInvalidationOutboxPrune	Reachable from Application.Script.LiveInvalidationOutboxPrune
 Application/Helper/LiveUpdate/Runtime.hs	production	runtime	Main	Reachable from Main
 Application/Helper/Mail.hs	production	runtime	Main	Reachable from Main
+Application/Helper/NominalText.hs	production	runtime	Main	Reachable from Main
 Application/Helper/OpaqueToken.hs	production	runtime	Main	Reachable from Main
 Application/Helper/PasskeyRecoveryCodes.hs	production	runtime	Main	Reachable from Main
 Application/Helper/PasskeySetupTokens.hs	production	runtime	Main	Reachable from Main
@@ -296,6 +298,7 @@ Application/Job/App.hs	production	runtime	Main	Reachable from Main
 Application/Legal/Documents.hs	production	runtime	Main	Reachable from Main
 Application/PasswordReset/Mutations.hs	production	runtime	Main	Reachable from Main
 Application/PayAssignment.hs	production	runtime	Main	Reachable from Main
+Application/PayRateSelection.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/Coverage.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/Job.hs	production	runtime	Main	Reachable from Main
 Application/PublicHolidays/Policy.hs	production	runtime	Main	Reachable from Main
@@ -362,6 +365,7 @@ Application/Xero/Admin/ReadModel.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Admin/ReferenceData.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Admin/ReferenceSyncPolicy.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Connection.hs	production	runtime	Main	Reachable from Main
+Application/Xero/EmployeeId.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Keepalive.hs	production	runtime	Main	Reachable from Main
 Application/Xero/PayrollSourceKey.hs	production	runtime	Main	Reachable from Main
 Application/Xero/ReferenceDemand.hs	production	runtime	Main	Reachable from Main

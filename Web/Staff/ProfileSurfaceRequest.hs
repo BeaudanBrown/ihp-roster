@@ -14,6 +14,7 @@ import qualified Application.Helper.FrontendContract.Surface.Profile.Action as P
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError)
 import Application.Helper.FrontendContract.Surface.Values (SurfaceFieldBundleOf,
                                                            surfaceFieldValue)
+import Application.PayRateSelection (StaffPayRateSelection)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 
@@ -28,7 +29,7 @@ data StaffProfileDetailsSubmission = StaffProfileDetailsSubmission
     , submittedProfileSection        :: !StaffProfileSectionValue
     , submittedVenueRole             :: !(Maybe VenueRoleEnum)
     , submittedEmploymentBasis       :: !(Maybe StaffEmploymentBasisEnum)
-    , submittedPayRateSelection      :: !(Maybe Text)
+    , submittedPayRateSelection      :: !(Maybe StaffPayRateSelection)
     , submittedRosterGroupIds        :: !(Maybe [UUID.UUID])
     }
 

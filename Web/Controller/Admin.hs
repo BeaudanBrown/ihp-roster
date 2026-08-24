@@ -671,7 +671,7 @@ instance Controller AdminController where
                 case maybeName of
                     Nothing -> respondToShiftTypesSectionMutation (surfaceFieldValue @Surface.ShowInactiveShiftTypes fields)
                     Just name -> do
-                        maybePayRateSelection <- parseSubmittedPayRateSelectionValue (surfaceFieldValue @Surface.PayRateSelection fields)
+                        maybePayRateSelection <- parseSubmittedShiftTypePayRateSelectionValue (surfaceFieldValue @Surface.PayRateSelection fields)
                         case maybePayRateSelection of
                             Just payRateSelection -> do
                                 mutationResult <- createShiftTypeMutation name (surfaceFieldValue @Surface.IsActive fields) payRateSelection.submittedAwardLevelId payRateSelection.submittedImportedXeroPayItemId payRateSelection.submittedRosterOnly (Just (surfaceFieldValue @Surface.ColourKey fields))
@@ -690,7 +690,7 @@ instance Controller AdminController where
                 case maybeName of
                     Nothing -> respondToShiftTypesSectionMutation (surfaceFieldValue @Surface.ShowInactiveShiftTypes fields)
                     Just name -> do
-                        maybePayRateSelection <- parseSubmittedPayRateSelectionValue (surfaceFieldValue @Surface.PayRateSelection fields)
+                        maybePayRateSelection <- parseSubmittedShiftTypePayRateSelectionValue (surfaceFieldValue @Surface.PayRateSelection fields)
                         case maybePayRateSelection of
                             Just payRateSelection -> do
                                 mutationResult <- updateShiftTypeMutation shiftType name (surfaceFieldValue @Surface.IsActive fields) payRateSelection.submittedAwardLevelId payRateSelection.submittedImportedXeroPayItemId payRateSelection.submittedRosterOnly (Just (surfaceFieldValue @Surface.ColourKey fields))

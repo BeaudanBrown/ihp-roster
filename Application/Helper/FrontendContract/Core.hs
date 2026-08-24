@@ -92,6 +92,8 @@ data WireIR
     -- Browser renderers use only the schema name; generated Haskell adapters
     -- retain source identity without inspecting compiler syntax.
     | WireClosedIR !Text !Text !Text
+    -- | Open text protocol represented by a nominal domain-owned Haskell value.
+    | WireDomainIR !Text !Text
     | WireUnknownIR
     | WireListIR !WireIR
     | WireMapIR !WireIR !WireIR
@@ -241,6 +243,7 @@ wireRefs :: WireIR -> [Text]
 wireRefs = \case
     WireRefIR name -> [name]
     WireClosedIR name _ _ -> [name]
+    WireDomainIR {} -> []
     WireListIR inner -> wireRefs inner
     WireMapIR key value -> wireRefs key <> wireRefs value
     WireOptionalIR inner -> wireRefs inner

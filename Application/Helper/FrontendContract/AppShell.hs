@@ -91,6 +91,8 @@ module Application.Helper.FrontendContract.AppShell
 import Application.Helper.FrontendContract.DSL
 import Application.Helper.FrontendContract.Overlay (DialogOverlayMount)
 import Application.Helper.FrontendContract.Surface.Profile (StaffProfileSectionValue)
+import Application.PayRateSelection (StaffPayRateSelection)
+import Application.Xero.EmployeeId (XeroEmployeeSelection)
 import Generated.Types (FeedbackTypeEnum, StaffEmploymentBasisEnum,
                         VenueRoleEnum)
 
@@ -269,7 +271,7 @@ type AppShellContract =
          , AppShellAction RunXeroTimesheetPreparationSubmissionOverlay '[] DialogSubmitOptions
          , AppShellAction ApplyXeroTimesheetPreparationStaffDecisionOverlay
             '[ Field StaffIdField 'WireUUID
-             , Field XeroEmployeeSelectionField 'WireText
+             , Field XeroEmployeeSelectionField ('WireDomain XeroEmployeeSelection)
              ]
             '[ AppShellHtmxMethod 'AppShellPost
              , AppShellHtmxTarget DialogOverlayMount
@@ -382,7 +384,7 @@ type StaffProfileFields =
      , Field RosterGroupIdField 'WireText
      , Field VenueRoleField ('WireClosed VenueRoleEnum)
      , Field EmploymentBasisField ('WireClosed StaffEmploymentBasisEnum)
-     , Field PayRateSelectionField 'WireText
+     , Field PayRateSelectionField ('WireDomain StaffPayRateSelection)
      , Field RosterGroupIdsField 'WireText
      ]
 

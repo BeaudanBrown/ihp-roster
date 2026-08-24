@@ -78,6 +78,7 @@ import qualified Test.OrderedRangeSpec
 import qualified Test.OverlaySpec
 import qualified Test.PageHelpSpec
 import qualified Test.PasskeySpec
+import qualified Test.PayRateSelectionSpec
 import qualified Test.PaySpec
 import qualified Test.ProfileSeedSpec
 import qualified Test.ProfilingSpec
@@ -118,6 +119,7 @@ import qualified Test.WageSourceEnforcementSpec
 import qualified Test.WageSourcePolicySpec
 import qualified Test.XeroCandidateFilterSpec
 import qualified Test.XeroContractSpec
+import qualified Test.XeroEmployeeIdSpec
 import qualified Test.XeroImportedPayItemsSpec
 import qualified Test.XeroKeepaliveSpec
 import qualified Test.XeroReferenceDemandSpec
@@ -453,6 +455,7 @@ allSuites =
     , databaseSuite BroadCleanStateRequired CommittedVisibilityRequired SuiteDefinition{definitionLabel = "TimesheetsController", definitionEstimatedRuntimeSeconds = 7.5, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = TimesheetsAndLeave, definitionFixtureCost = LargeFixture, definitionExternalMocks = [], definitionOwnedInvariants = [A6, T1, T2, T5, T6], definitionPartialInvariants = []} Test.Controller.TimesheetsSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "VenueTime", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.VenueTimeSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "PayHelpers", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.PaySpec.tests
+    , pureSuite SuiteDefinition{definitionLabel = "PayRateSelection", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.PayRateSelectionSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "WageCutoverMigration", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = PayAndExports, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.WageCutoverMigrationSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "WageEngine.Components", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.WageEngine.ComponentsSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "WageEngine.Contract", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = BroadAcceptance, definitionInvariantFamily = PayAndExports, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.WageEngine.ContractSpec.tests
@@ -510,6 +513,7 @@ allSuites =
     , pureSuite SuiteDefinition{definitionLabel = "XeroCandidateFilter.Contract", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.XeroCandidateFilterSpec.pureTests
     , databaseSuite CleanStateNotRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "XeroCandidateFilter.Rendering", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.XeroCandidateFilterSpec.databaseTests
     , pureSuite SuiteDefinition{definitionLabel = "XeroContract", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = SmallFixture, definitionExternalMocks = [XeroHttpMock], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.XeroContractSpec.tests
+    , pureSuite SuiteDefinition{definitionLabel = "XeroEmployeeId", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.XeroEmployeeIdSpec.tests
     , pureSuite SuiteDefinition{definitionLabel = "XeroImportedPayItems", definitionEstimatedRuntimeSeconds = 0.1, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = FixtureFree, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.XeroImportedPayItemsSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "XeroKeepalive", definitionEstimatedRuntimeSeconds = 0.3, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.XeroKeepaliveSpec.tests
     , databaseSuite BroadCleanStateRequired CommittedVisibilityNotRequired SuiteDefinition{definitionLabel = "XeroReferenceDemand", definitionEstimatedRuntimeSeconds = 0.4, definitionFeedbackLane = RoutineCorrectness, definitionInvariantFamily = XeroPayroll, definitionFixtureCost = SmallFixture, definitionExternalMocks = [], definitionOwnedInvariants = [], definitionPartialInvariants = []} Test.XeroReferenceDemandSpec.tests

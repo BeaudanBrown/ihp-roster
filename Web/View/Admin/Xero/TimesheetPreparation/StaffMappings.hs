@@ -22,6 +22,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.XeroAdminTypes
 import Application.Xero.Admin.ReadModel (xeroEmployeeAvailableForStaff)
+import Application.Xero.EmployeeId (XeroEmployeeSelection (..), parseXeroEmployeeId)
 import Application.Xero.WorkflowState
 import Control.Monad (guard)
 import qualified Data.Text as Text
@@ -174,9 +175,12 @@ renderStaffEmployeeSelectionForm view row =
         fields =
             appShellActionFields @ApplyXeroTimesheetPreparationStaffDecisionOverlay
                 (surfaceField @StaffIdField (unpackId staff.id))
-                ( surfaceField @XeroEmployeeSelectionField currentSelection
+                ( surfaceField @XeroEmployeeSelectionField fieldSelection
                     &: noSurfaceFields
                 )
+        fieldSelection
+            | currentSelection == "not_applicable" || Text.null currentSelection = XeroEmployeeNotApplicable
+            | otherwise = either (const XeroEmployeeNotApplicable) XeroEmployeeSelected (parseXeroEmployeeId currentSelection)
 
 renderEmployeeOption :: Text -> XeroEmployee -> Html
 renderEmployeeOption currentSelection employee = [hsx|

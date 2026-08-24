@@ -40,6 +40,7 @@ import Application.Helper.FrontendContract.Surface.Values (ActionFields,
                                                            SurfaceFieldBundleOf,
                                                            surfaceFieldValue,
                                                            surfaceFieldsText)
+import Application.PayRateSelection (StaffPayRateSelection (StaffPayRateAward))
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.List as List
@@ -48,7 +49,7 @@ import qualified Data.Text.IO as Text
 import Data.Time (addDays, fromGregorian)
 import qualified Data.UUID as UUID
 import qualified Data.Vault.Lazy as Vault
-import Generated.Types (RosterDay, RosterGroup, RosterLayoutModeEnum (..),
+import Generated.Types (AwardLevel, RosterDay, RosterGroup, RosterLayoutModeEnum (..),
                         VenueRoleEnum (..))
 import IHP.ModelSupport.Types (Id' (Id))
 import IHP.Prelude
@@ -933,7 +934,7 @@ profileDetailsFields =
         StaffProfileDetailsSection
         (Just Manager)
         Nothing
-        (Just "award:level-1")
+        (Just fixtureStaffPayRateSelection)
         (Just [firstRosterGroupId, secondRosterGroupId])
 
 staffProfileDetailsFields :: ActionFields ProfileAction.UpdateStaffProfileActionOperation
@@ -949,7 +950,7 @@ staffProfileDetailsFields =
         StaffProfileDetailsSection
         (Just Manager)
         Nothing
-        (Just "award:level-1")
+        (Just fixtureStaffPayRateSelection)
         (Just [firstRosterGroupId, secondRosterGroupId])
 
 preferenceFields :: ActionFields ProfileAction.UpdateProfileShiftPreferencesActionOperation
@@ -990,7 +991,7 @@ validDetailsParams =
     , ("section", Just "profile")
     , ("venueRole", Just "manager")
     , ("employmentBasis", Just "")
-    , ("payRateSelection", Just "award:level-1")
+    , ("payRateSelection", Just "award:33333333-3333-3333-3333-333333333333")
     , ("isActive", Just "on")
     , ("rosterGroupIds", Just "11111111-1111-1111-1111-111111111111")
     , ("rosterGroupIds", Just "22222222-2222-2222-2222-222222222222")
@@ -1024,6 +1025,9 @@ firstRosterGroupId = fixtureMemberId "11111111-1111-1111-1111-111111111111"
 secondRosterGroupId :: UUID.UUID
 secondRosterGroupId = fixtureMemberId "22222222-2222-2222-2222-222222222222"
 
+fixtureStaffPayRateSelection :: StaffPayRateSelection
+fixtureStaffPayRateSelection = StaffPayRateAward (Id (fixtureMemberId "33333333-3333-3333-3333-333333333333") :: Id AwardLevel)
+
 assertDetailsSubmission :: Text -> Either [SurfaceRequestFieldError] StaffProfileSurfaceSubmission -> Expectation
 assertDetailsSubmission family = \case
     Left errors -> expectationFailure (cs (family <> " details parse failed: " <> tshow errors))
@@ -1040,7 +1044,7 @@ assertDetailsSubmission family = \case
         submission.submittedProfileSection `shouldBe` StaffProfileDetailsSection
         submission.submittedVenueRole `shouldBe` Just Manager
         submission.submittedEmploymentBasis `shouldBe` Nothing
-        submission.submittedPayRateSelection `shouldBe` Just "award:level-1"
+        submission.submittedPayRateSelection `shouldBe` Just fixtureStaffPayRateSelection
         submission.submittedRosterGroupIds `shouldBe` Just [firstRosterGroupId, secondRosterGroupId]
 
 assertPreferencesSubmission :: Text -> Either [SurfaceRequestFieldError] StaffProfileSurfaceSubmission -> Expectation

@@ -75,9 +75,10 @@ import Data.Time (Day, defaultTimeLocale, formatTime, parseTimeM)
 import Data.Typeable (Proxy (..), Typeable, tyConName, typeRep, typeRepTyCon)
 import qualified Data.UUID as UUID
 import qualified Data.Vector as Vector
-import GHC.TypeLits (ErrorMessage (..), KnownSymbol, Symbol, TypeError,
-                     symbolVal)
-import IHP.Prelude hiding (TypeError)
+import Application.Helper.FrontendContract.TypeError (BepisTypeError)
+import Application.Helper.NominalText (NominalText (..))
+import GHC.TypeLits (ErrorMessage (..), KnownSymbol, Symbol, symbolVal)
+import IHP.Prelude
 
 -- | Canonical recursive Haskell source type selected by a declared global wire.
 -- Outer field presence is represented separately by 'CarrierFieldValues', so a
@@ -89,6 +90,7 @@ type family WireSourceType (wire :: WireType) :: Type where
     WireSourceType 'WireUUID = UUID.UUID
     WireSourceType 'WireDay = Day
     WireSourceType ('WireClosed value) = value
+    WireSourceType ('WireDomain value) = value
     WireSourceType 'WireUnknown = Aeson.Value
     WireSourceType ('WireList inner) = [WireSourceType inner]
     WireSourceType ('WireOptional inner) = Maybe (WireSourceType inner)
@@ -185,6 +187,7 @@ haskellWireSource = \case
     Contract.WireUuidIR -> HaskellUuidSource
     Contract.WireDayIR -> HaskellDaySource
     Contract.WireClosedIR _ sourceModule sourceType -> HaskellClosedSource sourceModule sourceType
+    Contract.WireDomainIR sourceModule sourceType -> HaskellClosedSource sourceModule sourceType
     Contract.WireListIR inner -> HaskellListSource (haskellWireSource inner)
     Contract.WireMapIR key value -> HaskellMapSource (haskellWireSource key) (haskellWireSource value)
     Contract.WireOptionalIR inner -> HaskellOptionalSource (haskellWireSource inner)
@@ -222,7 +225,7 @@ type family LookupSchema (contracts :: [FrontendContractSpec]) (marker :: Type) 
 type family RequireSchema (marker :: Type) (schema :: Maybe SchemaPrimitive) :: SchemaPrimitive where
     RequireSchema marker ('Just schema) = schema
     RequireSchema marker 'Nothing =
-        TypeError
+        BepisTypeError "BEPIS-FC-016"
             ( 'Text "Registered FrontendContract does not declare schema marker "
                 ':<>: 'ShowType marker
             )
@@ -232,7 +235,7 @@ type SchemaIn contracts marker = RequireSchema marker (LookupSchema contracts ma
 type family RecordFieldSpecs (schema :: SchemaPrimitive) :: [FieldSpec] where
     RecordFieldSpecs ('Record marker fields) = fields
     RecordFieldSpecs schema =
-        TypeError
+        BepisTypeError "BEPIS-FC-017"
             ( 'Text "FrontendContract carrier expected a Record schema, received "
                 ':<>: 'ShowType schema
             )
@@ -241,7 +244,7 @@ type family TaggedCaseSpecs (schema :: SchemaPrimitive) :: [UnionCaseSpec] where
     TaggedCaseSpecs ('TaggedUnion marker cases) = cases
     TaggedCaseSpecs ('TaggedUnionWithTag marker discriminator cases) = cases
     TaggedCaseSpecs schema =
-        TypeError
+        BepisTypeError "BEPIS-FC-018"
             ( 'Text "FrontendContract carrier expected a TaggedUnion schema, received "
                 ':<>: 'ShowType schema
             )
@@ -254,7 +257,7 @@ type family LookupUnionCase (caseMarker :: Type) (cases :: [UnionCaseSpec]) :: M
 type family RequireUnionCase (schemaMarker :: Type) (caseMarker :: Type) (fields :: Maybe [FieldSpec]) :: [FieldSpec] where
     RequireUnionCase schemaMarker caseMarker ('Just fields) = fields
     RequireUnionCase schemaMarker caseMarker 'Nothing =
-        TypeError
+        BepisTypeError "BEPIS-FC-019"
             ( 'Text "FrontendContract schema "
                 ':<>: 'ShowType schemaMarker
                 ':<>: 'Text " does not declare union case marker "
@@ -277,7 +280,7 @@ type family LookupEvent (contracts :: [FrontendContractSpec]) (marker :: Type) :
 type family RequireEvent (marker :: Type) (fields :: Maybe [FieldSpec]) :: [FieldSpec] where
     RequireEvent marker ('Just fields) = fields
     RequireEvent marker 'Nothing =
-        TypeError
+        BepisTypeError "BEPIS-FC-020"
             ( 'Text "Registered FrontendContract does not declare event marker "
                 ':<>: 'ShowType marker
             )
@@ -444,6 +447,10 @@ instance KnownClosedScalar value => KnownWireCodec ('WireClosed value) where
             (fail ("FrontendContract closed scalar has invalid literal: " <> cs literal))
             pure
             (parseClosedScalarLiteral @value literal)
+
+instance NominalText value => KnownWireCodec ('WireDomain value) where
+    carrierWireJson = Aeson.String . renderNominalText
+    parseCarrierWire = Aeson.withText "FrontendContract WireDomain" (either (fail . cs) pure . parseNominalText)
 
 instance KnownWireCodec 'WireUnknown where
     carrierWireJson = id

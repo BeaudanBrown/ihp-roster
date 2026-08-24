@@ -19,12 +19,13 @@ module Application.Helper.FrontendContract.Surface.Diagnostics
 import Application.Helper.FrontendContract.Surface.DSL (FieldSpec (..),
                                                         SurfaceSpec (..),
                                                         WireType (..))
+import Application.Helper.FrontendContract.TypeError (BepisTypeError)
 import qualified Data.Aeson as Aeson
 import Data.Kind (Constraint, Type)
 import Data.Text (Text)
 import Data.Time (Day)
 import qualified Data.UUID as UUID
-import GHC.TypeLits (ErrorMessage (..), Symbol, TypeError)
+import GHC.TypeLits (ErrorMessage (..), Symbol)
 import IHP.Prelude
 
 -- | Construction-only presence tags. They let the declaration-directed field
@@ -55,7 +56,7 @@ type family SurfaceFieldsTail (fields :: [FieldSpec]) :: [FieldSpec] where
 -- missing-field error instead of a generic promoted-list unification failure.
 type family AssertSurfaceFieldsEnd (fields :: [FieldSpec]) :: Constraint where
     AssertSurfaceFieldsEnd '[] = ()
-    AssertSurfaceFieldsEnd (field ': rest) = TypeError
+    AssertSurfaceFieldsEnd (field ': rest) = BepisTypeError "BEPIS-FC-001"
         ( 'Text "FrontendSurface field list is incomplete"
             ':$$: 'Text "Missing next field: " ':<>: RenderSurfaceField field
             ':$$: 'Text "Expected remaining fields: " ':<>: RenderSurfaceFields (field ': rest)
@@ -72,7 +73,7 @@ type family AssertSurfaceFieldHead
     AssertSurfaceFieldHead 'SurfaceRequired marker wire (('Field marker wire) ': rest) = ()
     AssertSurfaceFieldHead 'SurfaceOptional marker wire (('OptionalField marker wire) ': rest) = ()
     AssertSurfaceFieldHead 'SurfaceNullable marker wire (('NullableField marker wire) ': rest) = ()
-    AssertSurfaceFieldHead presence marker wire '[] = TypeError
+    AssertSurfaceFieldHead presence marker wire '[] = BepisTypeError "BEPIS-FC-002"
         ( 'Text "FrontendSurface field list has an extra field"
             ':$$: 'Text "Received field: "
                 ':<>: 'ShowType marker
@@ -93,7 +94,7 @@ type family AssertSurfaceFieldHead
         SurfaceFieldPresenceMismatch 'SurfaceNullable marker wire ('Field marker wire) rest
     AssertSurfaceFieldHead 'SurfaceNullable marker wire (('OptionalField marker wire) ': rest) =
         SurfaceFieldPresenceMismatch 'SurfaceNullable marker wire ('OptionalField marker wire) rest
-    AssertSurfaceFieldHead presence marker wire (field ': rest) = TypeError
+    AssertSurfaceFieldHead presence marker wire (field ': rest) = BepisTypeError "BEPIS-FC-003"
         ( 'Text "FrontendSurface field order mismatch"
             ':$$: 'Text "Expected next field: " ':<>: RenderSurfaceField field
             ':$$: 'Text "Received field: " ':<>: RenderProvidedSurfaceField presence marker wire
@@ -106,7 +107,7 @@ type family SurfaceFieldPresenceMismatch
     (wire :: WireType)
     (expected :: FieldSpec)
     (rest :: [FieldSpec]) :: Constraint where
-    SurfaceFieldPresenceMismatch presence marker wire expected rest = TypeError
+    SurfaceFieldPresenceMismatch presence marker wire expected rest = BepisTypeError "BEPIS-FC-004"
         ( 'Text "FrontendSurface field presence mismatch"
             ':$$: 'Text "Expected next field: " ':<>: RenderSurfaceField expected
             ':$$: 'Text "Received field: " ':<>: RenderProvidedSurfaceField presence marker wire
@@ -141,6 +142,7 @@ type family CheckSurfaceWireValue
     CheckSurfaceWireValue presence marker declaredWire 'WireUUID UUID.UUID providedValue = ()
     CheckSurfaceWireValue presence marker declaredWire 'WireDay Day providedValue = ()
     CheckSurfaceWireValue presence marker declaredWire ('WireClosed value) value providedValue = ()
+    CheckSurfaceWireValue presence marker declaredWire ('WireDomain value) value providedValue = ()
     CheckSurfaceWireValue presence marker declaredWire ('WireList inner) [value] providedValue =
         CheckSurfaceWireValue presence marker declaredWire inner value providedValue
     CheckSurfaceWireValue presence marker declaredWire ('WireOptional inner) (Maybe value) providedValue =
@@ -148,7 +150,7 @@ type family CheckSurfaceWireValue
     CheckSurfaceWireValue presence marker declaredWire ('WireNullable inner) (Maybe value) providedValue =
         CheckSurfaceWireValue presence marker declaredWire inner value providedValue
     CheckSurfaceWireValue presence marker declaredWire ('WireRef dto) Aeson.Value providedValue = ()
-    CheckSurfaceWireValue presence marker declaredWire remainingWire remainingValue providedValue = TypeError
+    CheckSurfaceWireValue presence marker declaredWire remainingWire remainingValue providedValue = BepisTypeError "BEPIS-FC-005"
         ( 'Text "FrontendSurface field wire mismatch"
             ':$$: 'Text "Declared field: " ':<>: RenderProvidedSurfaceField presence marker declaredWire
             ':$$: 'Text "Received Haskell value: " ':<>: RenderSurfaceHaskellType providedValue
@@ -161,7 +163,7 @@ type family SurfaceOwnershipError
     (spec :: SurfaceSpec)
     (declarationKind :: Symbol)
     (marker :: Type) :: result where
-    SurfaceOwnershipError ('Surface owner primitives) declarationKind marker = TypeError
+    SurfaceOwnershipError ('Surface owner primitives) declarationKind marker = BepisTypeError "BEPIS-FC-006"
         ( 'Text "FrontendSurface "
             ':<>: 'ShowType owner
             ':<>: 'Text " does not declare "
@@ -188,7 +190,7 @@ type family RequireSurfaceFieldFrom
     RequireSurfaceFieldFrom owner marker declared (('NullableField marker wire) ': rest) = ()
     RequireSurfaceFieldFrom owner marker declared (field ': rest) =
         RequireSurfaceFieldFrom owner marker declared rest
-    RequireSurfaceFieldFrom owner marker declared '[] = TypeError
+    RequireSurfaceFieldFrom owner marker declared '[] = BepisTypeError "BEPIS-FC-007"
         ( 'Text "FrontendSurface declaration "
             ':<>: 'ShowType owner
             ':<>: 'Text " does not declare field marker "
@@ -238,6 +240,8 @@ type family RenderSurfaceWire (wire :: WireType) :: ErrorMessage where
     RenderSurfaceWire 'WireDay = 'Text "WireDay"
     RenderSurfaceWire ('WireClosed value) =
         'Text "WireClosed " ':<>: 'ShowType value
+    RenderSurfaceWire ('WireDomain value) =
+        'Text "WireDomain " ':<>: 'ShowType value
     RenderSurfaceWire ('WireList inner) =
         'Text "WireList (" ':<>: RenderSurfaceWire inner ':<>: 'Text ")"
     RenderSurfaceWire ('WireOptional inner) =

@@ -76,6 +76,7 @@ data WireType
     | WireUUID
     | WireDay
     | WireClosed Type
+    | WireDomain Type
     | WireUnknown
     | WireList WireType
     | WireOptional WireType

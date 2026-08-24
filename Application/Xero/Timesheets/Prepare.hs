@@ -20,6 +20,7 @@ import Application.Xero.Admin.PayItems
 import Application.Xero.Admin.ReadModel
 import Application.Xero.Admin.ReferenceData
 import Application.Xero.Connection
+import Application.Xero.EmployeeId (XeroEmployeeId, xeroEmployeeIdText)
 import Application.Xero.ReferenceDemand (fetchXeroMissingReferenceDemand)
 import Application.Xero.ReferenceTrust.Presentation (XeroPreparationReferencePresentation (..),
                                                      xeroPreparationReferencePresentation)
@@ -43,7 +44,7 @@ import Generated.Types
 import IHP.ControllerPrelude
 
 data XeroPreparationStaffDecision
-    = SelectXeroEmployee !Text
+    = SelectXeroEmployee !XeroEmployeeId
     | MarkStaffNotPaidThroughXero
     deriving (Eq, Show)
 
@@ -287,11 +288,12 @@ applyXeroPreparationStaffDecision runId staffId decision = do
                             reloadAfterLocalDecision run remoteTimesheetsFromCurrentRun
                         SelectXeroEmployee employeeId -> do
                             pendingSuggestion <- fetchPendingStaffAutoMatch run staff
-                            let decisionKind =
+                            let employeeIdText = xeroEmployeeIdText employeeId
+                                decisionKind =
                                     case pendingSuggestion >>= (.xeroEmployeeId) of
-                                        Just suggestedEmployeeId | suggestedEmployeeId == employeeId -> StaffAutoMatch
+                                        Just suggestedEmployeeId | suggestedEmployeeId == employeeIdText -> StaffAutoMatch
                                         _ -> StaffManualMapping
-                            applyEmployeeMappingDecision run connection staff decisionKind employeeId
+                            applyEmployeeMappingDecision run connection staff decisionKind employeeIdText
     where
         remoteTimesheetsFromCurrentRun updatedRun = remoteTimesheetsFromRun updatedRun
 
