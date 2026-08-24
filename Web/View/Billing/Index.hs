@@ -243,12 +243,12 @@ renderOwnerSubscriptionStatus maybeSubscription =
             |]
             | venueSubscriptionIsLive maybeSubscription -> [hsx|
                 <section
-                    class="alert alert-success mb-0 w-100"
+                    class="alert alert-success mb-0 w-100 text-center"
                     role="status"
                     aria-label="Subscription status"
                     data-billing-subscription-status="active"
                 >
-                    <strong>Subscription active</strong>
+                    <strong>Subscription Active :-)</strong>
                 </section>
             |]
             | otherwise -> renderInactiveSubscriptionStatus
@@ -262,7 +262,7 @@ renderInactiveSubscriptionStatus = [hsx|
         aria-label="Subscription status"
         data-billing-subscription-status="inactive"
     >
-        <strong>Subscription inactive :-(</strong>
+        <strong>Subscription Inactive :-(</strong>
     </section>
 |]
 

@@ -95,7 +95,7 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "billing-status-fragment"
                 response `responseBodyShouldContain` "billing:"
                 response `responseBodyShouldContain` "$100/month"
-                response `responseBodyShouldContain` "Subscription inactive"
+                response `responseBodyShouldContain` "Subscription Inactive :-("
                 response `responseBodyShouldContain` "Subscribe"
                 response `responseBodyShouldContain` "hx-post=\"/CreateBillingCheckoutSession\""
                 response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
@@ -353,16 +353,16 @@ tests = aroundAll withDatabaseTestContext do
 
         it "renders one privacy-safe inactive subscription signal for every non-active state" $ withContext do
             forM_
-                [ (Nothing, False, "Subscription inactive", "inactive", "Subscribe")
-                , (Just "active", False, "Subscription active", "active", "Manage Billing")
+                [ (Nothing, False, "Subscription Inactive :-(", "inactive", "Subscribe")
+                , (Just "active", False, "Subscription Active :-)", "active", "Manage Billing")
                 , (Just "active", True, "Cancellation scheduled", "cancellation-scheduled", "Manage Cancellation")
-                , (Just "past_due", False, "Subscription inactive", "inactive", "Manage subscription")
-                , (Just "unpaid", True, "Subscription inactive", "inactive", "Manage subscription")
-                , (Just "incomplete", False, "Subscription inactive", "inactive", "Manage subscription")
-                , (Just "trialing", False, "Subscription inactive", "inactive", "Manage subscription")
-                , (Just "paused", False, "Subscription inactive", "inactive", "Manage subscription")
-                , (Just "canceled", False, "Subscription inactive", "inactive", "Subscribe")
-                , (Just "incomplete_expired", False, "Subscription inactive", "inactive", "Subscribe")
+                , (Just "past_due", False, "Subscription Inactive :-(", "inactive", "Manage subscription")
+                , (Just "unpaid", True, "Subscription Inactive :-(", "inactive", "Manage subscription")
+                , (Just "incomplete", False, "Subscription Inactive :-(", "inactive", "Manage subscription")
+                , (Just "trialing", False, "Subscription Inactive :-(", "inactive", "Manage subscription")
+                , (Just "paused", False, "Subscription Inactive :-(", "inactive", "Manage subscription")
+                , (Just "canceled", False, "Subscription Inactive :-(", "inactive", "Subscribe")
+                , (Just "incomplete_expired", False, "Subscription Inactive :-(", "inactive", "Subscribe")
                 ]
                 \(maybeStatus, cancelAtPeriodEnd, stateLabel, stateValue, actionLabel) -> withCleanDb do
                     venue <- createVenueWithConfig ("Billing State " <> stateLabel <> " Venue")
@@ -395,7 +395,7 @@ tests = aroundAll withDatabaseTestContext do
                     response `responseBodyShouldContain` ("data-billing-subscription-status=\"" <> stateValue <> "\"")
                     when (stateValue == "inactive") do
                         response `responseBodyShouldContain` "alert alert-warning mb-0 w-100 text-center"
-                        response `responseBodyShouldContain` "Subscription inactive :-("
+                        response `responseBodyShouldContain` "Subscription Inactive :-("
                     response `responseBodyShouldContain` actionLabel
                     response `responseBodyShouldNotContain` "<span class=\"badge text-bg-success\">Active</span>"
                     response `responseBodyShouldContain` "$100/month"
