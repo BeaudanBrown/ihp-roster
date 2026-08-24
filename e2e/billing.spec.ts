@@ -293,7 +293,7 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         await expect(page).toHaveURL(/(EditProfile|RosterWeeks|ShowRosterWindow)/, { timeout: E2E_TIMEOUT.navigation });
         await gotoWhenReady(page, '/Billing', '[data-billing-owner-view="true"]');
         const ownerBillingView = page.locator('[data-billing-owner-view="true"]');
-        await expect(ownerBillingView.getByText('Subscription inactive', { exact: true })).toBeVisible();
+        await expect(ownerBillingView.getByText('Subscription inactive :-(', { exact: true })).toBeVisible();
         await expect(ownerBillingView.locator('[data-billing-subscription-status="inactive"]')).toBeVisible();
         await expect(ownerBillingView.locator('.badge')).toHaveCount(0);
         await expect(page.locator('.app-page-description')).toHaveText('If you like Bepis, please support its development by subscribing.');
@@ -350,7 +350,7 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         await expect(page.getByText('Subscription needs attention', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
 
         await gotoWhenReady(page, '/Billing', '[data-billing-owner-view="true"]');
-        await expect(ownerBillingView.getByText('Subscription inactive', { exact: true })).toBeVisible();
+        await expect(ownerBillingView.getByText('Subscription inactive :-(', { exact: true })).toBeVisible();
         const retryCheckoutResponse = await page.request.post('/CreateBillingCheckoutSession', { maxRedirects: 0 });
         expect(retryCheckoutResponse.status()).toBe(302);
         expect(retryCheckoutResponse.headers().location).toBe('https://checkout.stripe.com/c/pay/cs_test_e2e-retry-sanitized');
@@ -445,15 +445,15 @@ test.describe('Billing through the strict local Stripe boundary', () => {
         await gotoWhenReady(page, '/Billing', '[data-billing-owner-view="true"]');
         await deliverSignedWebhook(page, invoicePaymentFailedEvent('evt_e2e-invoice_payment_failed'));
         await deliverSignedWebhook(page, subscriptionEvent('evt_e2e-subscription_past_due', 'customer.subscription.updated', 'past_due'));
-        await expect(ownerBillingView.getByText('Subscription inactive', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
+        await expect(ownerBillingView.getByText('Subscription inactive :-(', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
         await deliverSignedWebhook(page, subscriptionEvent('evt_e2e-subscription_cancel_pending', 'customer.subscription.updated', 'active', true));
         const scheduledCancellationStatus = ownerBillingView.locator('[data-billing-subscription-status="cancellation-scheduled"]');
         await expect(scheduledCancellationStatus.getByText('Cancellation scheduled.', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
         await expect(scheduledCancellationStatus.getByText(/This subscription remains active until .* and will not renew\./)).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
         await deliverSignedWebhook(page, subscriptionEvent('evt_e2e-subscription_deleted', 'customer.subscription.deleted', 'canceled'));
-        await expect(ownerBillingView.getByText('Subscription inactive', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
+        await expect(ownerBillingView.getByText('Subscription inactive :-(', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
         await deliverSignedWebhook(page, subscriptionEvent('evt_e2e-subscription_expired', 'customer.subscription.updated', 'incomplete_expired'));
-        await expect(ownerBillingView.getByText('Subscription inactive', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
+        await expect(ownerBillingView.getByText('Subscription inactive :-(', { exact: true })).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
 
         const finalMockStatusResponse = await request.get(`${mockBaseUrl}/__status`);
         expect(await finalMockStatusResponse.json()).toMatchObject({

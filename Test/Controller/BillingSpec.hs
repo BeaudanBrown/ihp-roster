@@ -393,6 +393,9 @@ tests = aroundAll withDatabaseTestContext do
                     response `responseStatusShouldBe` status200
                     response `responseBodyShouldContain` stateLabel
                     response `responseBodyShouldContain` ("data-billing-subscription-status=\"" <> stateValue <> "\"")
+                    when (stateValue == "inactive") do
+                        response `responseBodyShouldContain` "alert alert-warning mb-0 w-100 text-center"
+                        response `responseBodyShouldContain` "Subscription inactive :-("
                     response `responseBodyShouldContain` actionLabel
                     response `responseBodyShouldNotContain` "<span class=\"badge text-bg-success\">Active</span>"
                     response `responseBodyShouldContain` "$100/month"

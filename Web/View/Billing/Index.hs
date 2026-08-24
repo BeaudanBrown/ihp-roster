@@ -257,12 +257,12 @@ renderOwnerSubscriptionStatus maybeSubscription =
 renderInactiveSubscriptionStatus :: Html
 renderInactiveSubscriptionStatus = [hsx|
     <section
-        class="alert alert-warning mb-0 w-100"
+        class="alert alert-warning mb-0 w-100 text-center"
         role="status"
         aria-label="Subscription status"
         data-billing-subscription-status="inactive"
     >
-        <strong>Subscription inactive</strong>
+        <strong>Subscription inactive :-(</strong>
     </section>
 |]
 
