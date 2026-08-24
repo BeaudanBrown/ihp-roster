@@ -44,7 +44,26 @@ tests = aroundAll withDatabaseTestContext do
                 sourceDaysAfter `shouldBe` sourceDaysBefore
                 sourceSlotsAfter `shouldBe` sourceSlotsBefore
 
-        it "makes every assignment Open without consulting durable Staff eligibility" $ withContext do
+        it "captures a complete all-Published source without carrying publication into the snapshot" $ withContext do
+            withCleanDb do
+                fixture <- captureFixture "Published capture"
+                publishedDays <- forM fixture.days (\day -> day |> set #publicationState Published |> updateRecord)
+                _ <- createCaptureSlot (fixture.days !! 6) fixture.shiftType OpenAssignment 0
+                let request = captureRequest fixture "Published standard" KeepValidStaffAssignments Map.empty
+
+                Right preview <- previewRosterTemplateCapture fixture.actor request
+                Right snapshot <- confirmRosterTemplateCapture fixture.actor request preview.capturePreviewSourceRevision preview.capturePreviewCalendarRevision False
+                retainedDays <- query @RosterDay
+                    |> filterWhereIn (#id, map (.id) fixture.days)
+                    |> orderByAsc #operationalDate
+                    |> fetch
+
+                map (.publicationState) retainedDays `shouldBe` replicate 7 Published
+                retainedDays `shouldBe` publishedDays
+                map (.weekdayIndex) snapshot.snapshotDays `shouldBe` map (Just . weekdayIndexForDay . (.operationalDate)) retainedDays
+                map (.assignmentState) snapshot.snapshotShifts `shouldBe` ["open"]
+
+        it "captures an all-Draft source and makes every assignment Open without consulting durable Staff eligibility" $ withContext do
             withCleanDb do
                 fixture <- captureFixture "Open capture"
                 sourceSlot <- createCaptureSlot (fixture.days !! 1) fixture.shiftType (StaffAssignment fixture.staff.id) 0

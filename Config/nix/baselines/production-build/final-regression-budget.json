@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "issue": 374,
-  "authority": "Stable production app-library and inventory regression ceilings measured after the date-native roster compatibility retirement, shared email, durable live-listener cutovers, and nominal frontend wire domains; measured memory is opt-in and builder-specific",
+  "issue": 403,
+  "authority": "Stable production app-library and inventory regression ceilings measured after the date-native roster and Week-template snapshot retirements, shared email, durable live-listener cutovers, and nominal frontend wire domains; measured memory is opt-in and builder-specific",
   "measurement_profile": "Config/nix/baselines/production-build/epic-364-post-staging-rebase.json",
   "app_library": {
     "self_size_bytes_max": 1073741824,
-    "module_count_max": 525,
+    "module_count_max": 518,
     "default_interface_bytes_max": 16777216,
     "interface_exceptions": [
       {
@@ -34,11 +34,6 @@
         "reason": "GHC 9.10 retains typed Roster staff-panel surface evidence required by runtime rendering"
       },
       {
-        "path": "Application/Helper/FrontendContract/Surface/Roster/TemplateApplication.hi",
-        "bytes_max": 38797312,
-        "reason": "GHC 9.10 retains typed dated Roster template-application and roster-group staff dependency evidence required by runtime rendering; epic #383 measured 37,756,523 bytes after the durable/date-native staging reconciliation"
-      },
-      {
         "path": "Application/Helper/FrontendContract/Surface/Roster/Resource.hi",
         "bytes_max": 33554432,
         "reason": "GHC 9.10 retains the typed dated Roster resource bridge required by runtime parsing; #395 measured 29,698,512 bytes after the staging/date-native reconciliation"
@@ -59,18 +54,13 @@
         "reason": "GHC 9.10 retains typed DOM identifiers shared across Roster runtime renderers"
       },
       {
-        "path": "Web/RosterTemplates/Mutations.hi",
-        "bytes_max": 20971520,
-        "reason": "GHC 9.10 retains typed mutation result surfaces used by runtime controllers"
-      },
-      {
         "path": "Web/RosterWeeks/Mutations.hi",
         "bytes_max": 18874368,
         "reason": "GHC 9.10 retains typed mutation result surfaces used by runtime controllers"
       }
     ],
     "required_artifacts": {
-      ".hi": { "count": 525, "bytes_max": 629145600 },
+      ".hi": { "count": 518, "bytes_max": 629145600 },
       ".a": { "count": 1 },
       ".conf": { "count": 1 },
       "[no extension]": { "count": 1 }
@@ -79,7 +69,7 @@
     "allowed_artifacts": [".hi", ".a", ".conf", "[no extension]"]
   },
   "production_inventory": {
-    "module_rows_max": 526,
+    "module_rows_max": 519,
     "dependency_packages_max": 42,
     "executable_rows_max": 10,
     "module_inventory": "../../production-module-inventory.tsv",

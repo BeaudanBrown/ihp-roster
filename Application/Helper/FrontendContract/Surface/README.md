@@ -93,13 +93,13 @@ data ExampleSurfaceName
 data ExampleScope
 data ExampleFragment
 data VenueId
-data WeekOffset
+data AnchorDate
 
 type ExampleSurface =
     Surface ExampleSurfaceName
         '[ Scope ExampleScope
             '[ Field VenueId 'WireUUID
-             , Field WeekOffset 'WireInt
+             , Field AnchorDate 'WireDay
              ]
          , Fragment ExampleFragment '[] '[ 'Eager ]
          ]

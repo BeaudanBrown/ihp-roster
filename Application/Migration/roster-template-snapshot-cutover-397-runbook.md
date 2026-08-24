@@ -23,16 +23,26 @@ Deployment requires the operator to record approval against GitHub issue #397 af
      > roster-template-397-data.sql
    ```
 
-4. Confirm every legacy template table is empty. Any non-zero count is a hard stop; do not delete rows or bypass the migration preflight.
-5. Record representative Roster and Timesheet row counts and immutable identifiers for post-migration comparison.
+4. Confirm every legacy template table is empty with the same precondition enforced transactionally by the migration. Any non-zero count is a hard stop; do not delete rows or bypass the migration preflight.
+
+   ```sql
+   SELECT 'roster_templates' AS relation, COUNT(*) FROM roster_templates
+   UNION ALL SELECT 'roster_template_designs', COUNT(*) FROM roster_template_designs
+   UNION ALL SELECT 'roster_template_days', COUNT(*) FROM roster_template_days
+   UNION ALL SELECT 'roster_template_columns', COUNT(*) FROM roster_template_columns
+   UNION ALL SELECT 'roster_template_shifts', COUNT(*) FROM roster_template_shifts
+   ORDER BY relation;
+   ```
+
+5. Record representative Roster and Timesheet row counts and immutable identifiers for post-migration comparison. Store the query text and result beside the approval record so the same bounded queries can be repeated after migration; do not retain customer data in the issue.
 
 ## Apply and verify
 
 1. Run the normal IHP migration runner. The migration is transactional and aborts before destructive DDL if any legacy template row exists.
 2. Confirm `roster_template_designs` is absent.
 3. Confirm `roster_template_days`, `roster_template_columns`, and `roster_template_shifts` each contain `roster_template_id` and reference `roster_templates`.
-4. Confirm the recorded Roster and Timesheet counts and representative identifiers are unchanged.
-5. Start the application and verify schema parsing/type generation and a scoped template-library read.
+4. Repeat the recorded Roster and Timesheet queries. Counts and representative immutable identifiers must exactly match the preflight evidence.
+5. Run schema parsing and generated-type freshness checks, start the application against the migrated schema, and perform an authorized roster-group-scoped template-library read. Record only pass/fail, application revision, and the scoped request identity; do not copy customer rows into the approval record.
 
 ## Failure and recovery
 

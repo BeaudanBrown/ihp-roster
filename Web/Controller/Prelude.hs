@@ -9,8 +9,6 @@ module Web.Controller.Prelude
 , ensureIsUser
 , redirectTo
 , redirectToPath
-, redirectToPathSeeOther
-, redirectToSeeOther
 , redirectToUrl
 , render
 , renderJson
@@ -90,9 +88,3 @@ redirectToPath path = bepisRedirectResponse (IHP.redirectToPath path)
 
 redirectToUrl :: Text -> IO ()
 redirectToUrl url = bepisRedirectResponse (IHP.redirectToUrl url)
-
-redirectToSeeOther :: (?request :: Request, HasPath action) => action -> IO ()
-redirectToSeeOther action = bepisRedirectResponse (IHP.redirectToSeeOther action)
-
-redirectToPathSeeOther :: (?request :: Request) => Text -> IO ()
-redirectToPathSeeOther path = bepisRedirectResponse (IHP.redirectToPathSeeOther path)

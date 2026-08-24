@@ -99,7 +99,6 @@ data PreparedApplication = PreparedApplication
     , preparedTargetWindowStart :: !Day
     , preparedTargetWindowEnd   :: !Day
     , preparedTargetDays        :: ![RosterDay]
-    , preparedFirstTargetDay    :: !RosterDay
     , preparedShiftPlans        :: ![PreparedShift]
     , preparedExistingSlots     :: ![RosterSlot]
     , preparedTargetLanes       :: ![RosterLane]

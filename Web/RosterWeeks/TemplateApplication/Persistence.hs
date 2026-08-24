@@ -68,15 +68,13 @@ persistCleanedTemplateSnapshot actor prepared = case prepared.preparedCleanedTem
 
 applyDayStates :: (?modelContext :: ModelContext) => PreparedApplication -> IO ()
 applyDayStates prepared = do
-    let templateDayByIndex = Map.fromList
-            [ (fromMaybe day.dayIndex day.weekdayIndex, day)
+    let templateDayByWeekday = Map.fromList
+            [ (fromMaybe (error "validated Week snapshot lost weekday identity") day.weekdayIndex, day)
             | day <- prepared.preparedSaved.snapshotDays
             ]
     forM_ prepared.preparedTargetDays \targetDay -> do
-        let templateIndex = case prepared.preparedSaved.snapshotTemplate.scale of
-                Day  -> 0
-                Week -> weekdayIndexForDay targetDay.operationalDate
-        case Map.lookup templateIndex templateDayByIndex of
+        let targetWeekday = weekdayIndexForDay targetDay.operationalDate
+        case Map.lookup targetWeekday templateDayByWeekday of
             Nothing -> pure ()
             Just templateDay ->
                 targetDay
@@ -96,24 +94,15 @@ ensureTargetLanes prepared = do
         |> filterWhere (#deletedAt, Nothing)
         |> orderByAsc #sortOrder
         |> fetch
-    case prepared.preparedSaved.snapshotTemplate.scale of
-        Week -> do
-            now <- getCurrentTime
-            forM_ existing \lane ->
-                lane
-                    |> set #deletedAt (Just now)
-                    |> set #deleteReason (Just "roster_template_applied")
-                    |> updateRecord
-                    |> void
-            concat <$> forM prepared.preparedTargetDays (\targetDay ->
-                forM prepared.preparedSaved.snapshotColumns (createLane targetDay))
-        Day -> do
-            let targetDay = prepared.preparedFirstTargetDay
-            let existingNames = Map.fromList [(Text.toCaseFold (Text.strip lane.name), lane) | lane <- existing]
-            let missing = filter (\column -> Map.notMember (Text.toCaseFold (Text.strip column.name)) existingNames) prepared.preparedSaved.snapshotColumns
-            created <- forM (zip missing [nextSortOrder existing ..]) \(column, sortOrder) ->
-                createLaneAtSort targetDay column sortOrder
-            pure (existing <> created)
+    now <- getCurrentTime
+    forM_ existing \lane ->
+        lane
+            |> set #deletedAt (Just now)
+            |> set #deleteReason (Just "roster_template_applied")
+            |> updateRecord
+            |> void
+    concat <$> forM prepared.preparedTargetDays (\targetDay ->
+        forM prepared.preparedSaved.snapshotColumns (createLane targetDay))
 
 createLane :: (?modelContext :: ModelContext) => RosterDay -> RosterTemplateColumn -> IO RosterLane
 createLane rosterDay column = createLaneAtSort rosterDay column column.sortOrder
@@ -125,7 +114,3 @@ createLaneAtSort rosterDay column sortOrder =
         |> set #name column.name
         |> set #sortOrder sortOrder
         |> createRecord
-
-nextSortOrder :: [RosterLane] -> Int
-nextSortOrder []    = 0
-nextSortOrder lanes = maximum (map (.sortOrder) lanes) + 1

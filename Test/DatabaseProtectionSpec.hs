@@ -539,7 +539,18 @@ tests = aroundAll withDatabaseTestContext do
                             runInTransaction runner (HasqlSession.script legacyFixture)
                             runInTransaction runner (HasqlSession.script templateMigration)
                             runInTransaction runner (HasqlSession.script sealingMigration)
-                            runInTransaction runner (HasqlSession.script snapshotMigration)
+                    sqlExecDiscardResult "SAVEPOINT nonempty_legacy_template" ()
+                    sqlExecDiscardResult
+                        "INSERT INTO roster_templates (roster_group_id, name, scale) VALUES ('10000000-0000-0000-0000-000000000010', 'Must block cutover', 'week')"
+                        ()
+                    blockedCutover <- case transactionRunner ?modelContext of
+                        Nothing -> error "Roster template migration acceptance requires a transaction runner"
+                        Just runner -> try (runInTransaction runner (HasqlSession.script snapshotMigration)) :: IO (Either SomeException ())
+                    sqlExecDiscardResult "ROLLBACK TO SAVEPOINT nonempty_legacy_template" ()
+                    blockedCutover `shouldSatisfy` either (Text.isInfixOf "requires all legacy template tables to be empty" . show) (const False)
+                    case transactionRunner ?modelContext of
+                        Nothing -> error "Roster template migration acceptance requires a transaction runner"
+                        Just runner -> runInTransaction runner (HasqlSession.script snapshotMigration)
                     retainedRosterRows :: [Only Text] <- sqlQuery
                         "SELECT marker FROM roster_template_migration_acceptance.roster_weeks ORDER BY marker"
                         ()
@@ -552,14 +563,18 @@ tests = aroundAll withDatabaseTestContext do
                     removedDesign :: Maybe Text <- sqlQueryScalar
                         "SELECT to_regclass('roster_template_migration_acceptance.roster_template_designs')::text"
                         ()
-                    directForeignKeys :: [Only Text] <- sqlQuery
-                        "SELECT column_name::text FROM information_schema.columns WHERE table_schema = 'roster_template_migration_acceptance' AND table_name IN ('roster_template_days', 'roster_template_columns', 'roster_template_shifts') AND column_name = 'roster_template_id' ORDER BY table_name"
+                    directForeignKeys :: [(Text, Text)] <- sqlQuery
+                        "SELECT tc.table_name::text, ccu.table_name::text FROM information_schema.table_constraints tc JOIN information_schema.key_column_usage kcu ON kcu.constraint_schema = tc.constraint_schema AND kcu.constraint_name = tc.constraint_name JOIN information_schema.constraint_column_usage ccu ON ccu.constraint_schema = tc.constraint_schema AND ccu.constraint_name = tc.constraint_name WHERE tc.constraint_schema = 'roster_template_migration_acceptance' AND tc.constraint_type = 'FOREIGN KEY' AND tc.table_name IN ('roster_template_days', 'roster_template_columns', 'roster_template_shifts') AND kcu.column_name = 'roster_template_id' ORDER BY tc.table_name"
                         ()
                     map fromOnly retainedRosterRows `shouldBe` ["legacy-draft-week", "legacy-live-week"]
                     map fromOnly retainedTimesheetRows `shouldBe` ["legacy-timesheet"]
                     directTables `shouldSatisfy` all (isJust . fromOnly)
                     removedDesign `shouldBe` Nothing
-                    map fromOnly directForeignKeys `shouldBe` replicate 3 "roster_template_id"
+                    directForeignKeys `shouldBe`
+                        [ ("roster_template_columns", "roster_templates")
+                        , ("roster_template_days", "roster_templates")
+                        , ("roster_template_shifts", "roster_templates")
+                        ]
                     sqlExecDiscardResult "SET search_path TO public" ()
                     sqlExecDiscardResult "DROP SCHEMA roster_template_migration_acceptance CASCADE" ()
 

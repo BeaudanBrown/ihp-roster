@@ -222,7 +222,6 @@ prepareStructurallyValidContent request saved targetGroup = do
                                     , preparedTargetWindowStart = request.applicationTargetWindowStart
                                     , preparedTargetWindowEnd = request.applicationTargetWindowEnd
                                     , preparedTargetDays = targetDays
-                                    , preparedFirstTargetDay = fromMaybe (error "validated seven-day target missing") (listToMaybe targetDays)
                                     , preparedShiftPlans = plans
                                     , preparedExistingSlots = existingSlots
                                     , preparedTargetLanes = targetLanes

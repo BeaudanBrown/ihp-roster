@@ -52,8 +52,8 @@ artifacts), production module, direct-package, and executable inventories, and
 a 600 MiB aggregate installed `.hi` limit.
 `production-build-budget-check` applies them to an explicit profile, or to the
 current realized app-lib after `production-package-smoke`. The default interface
-ceiling is 16 MiB. Twelve exact, reason-bearing Roster paths have explicit
-per-file exception ceilings because GHC 9.10 serializes canonical promoted/runtime surface
+ceiling is 16 MiB. Exact, reason-bearing Roster paths have explicit per-file
+exception ceilings because GHC 9.10 serializes canonical promoted/runtime surface
 authority into those interfaces; new paths do not inherit an exception.
 
 Machine memory is deliberately evidence, not a blocking budget: process RSS is

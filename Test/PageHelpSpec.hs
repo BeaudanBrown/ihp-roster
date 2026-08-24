@@ -36,7 +36,9 @@ tests = do
             rendered `shouldSatisfy` any (Text.isInfixOf "Option, or Alt")
             rendered `shouldSatisfy` any (Text.isInfixOf "Publish when the roster is ready")
             rendered `shouldSatisfy` any (Text.isInfixOf "hide the Staff/Settings panel temporarily")
-            rendered `shouldSatisfy` all (not . Text.isInfixOf "Templates side-panel tab")
+            rendered `shouldSatisfy` any (Text.isInfixOf "shared Week snapshot")
+            rendered `shouldSatisfy` any (Text.isInfixOf "not Draft or Published status")
+            rendered `shouldSatisfy` any (Text.isInfixOf "leaves every day Draft")
             rendered `shouldSatisfy` any (Text.isInfixOf "press Escape")
             rendered `shouldSatisfy` any (Text.isInfixOf "panel stays stacked below the roster")
             rendered `shouldSatisfy` any (Text.isInfixOf "Part-time shifts")
@@ -48,6 +50,7 @@ tests = do
             rendered `shouldSatisfy` all (not . Text.isInfixOf "drag")
             rendered `shouldSatisfy` all (not . Text.isInfixOf "Publish when the roster is ready")
             rendered `shouldSatisfy` all (not . Text.isInfixOf "Staff/Settings panel")
+            rendered `shouldSatisfy` all (not . Text.isInfixOf "shared Week snapshot")
             rendered `shouldSatisfy` any (Text.isInfixOf "future roster")
 
     describe "timesheet help copy" do

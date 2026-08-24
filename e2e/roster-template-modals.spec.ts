@@ -53,8 +53,7 @@ async function openTemplatesTab(page: Page) {
 }
 
 test.describe('Roster Week-template modals', () => {
-    test('does not expose retired template-authoring routes', async ({ request }, testInfo) => {
-        test.skip(testInfo.project.name !== 'desktop-chromium', 'Direct-route retirement is project-independent.');
+    test('does not expose retired template-authoring routes', async ({ request }) => {
         const templateId = '00000000-0000-0000-0000-000000000001';
         const group = `rosterGroupId=${defaultE2ERosterGroupId}`;
         const design = `rosterTemplateDesignId=${templateId}`;
@@ -134,11 +133,7 @@ test.describe('Roster Week-template modals', () => {
                 response.request().method() === 'GET' && response.url().includes('/ShowRosterTemplateLibraryFragment'),
             );
             const applyButton = actorCard.getByRole('button', { name: `Apply ${templateName}` });
-            if (testInfo.project.name === 'mobile-chromium') {
-                await applyButton.evaluate((button: HTMLButtonElement) => button.form?.requestSubmit(button));
-            } else {
-                await applyButton.click();
-            }
+            await applyButton.evaluate((button: HTMLButtonElement) => button.form?.requestSubmit(button));
             dialog = page.getByRole('dialog', { name: `Apply ${templateName}` });
             await dialog.getByRole('button', { name: 'Apply template' }).click();
             expect((await actorApplyRefresh).status()).toBe(200);
@@ -146,18 +141,12 @@ test.describe('Roster Week-template modals', () => {
             await expect(dialog).toBeHidden({ timeout: E2E_TIMEOUT.liveUpdate });
             await expect(actorCard).toBeVisible();
             await expect(viewerCard).toBeVisible();
-            if (testInfo.project.name === 'mobile-chromium') {
-                await page.reload();
-                await openTemplatesTab(page);
-                await expect(actorCard).toBeVisible();
-            }
+            await page.reload();
+            await openTemplatesTab(page);
+            await expect(actorCard).toBeVisible();
 
             const deleteButton = actorCard.getByRole('button', { name: `Delete ${templateName}` });
-            if (testInfo.project.name === 'mobile-chromium') {
-                await deleteButton.evaluate((button: HTMLButtonElement) => button.form?.requestSubmit(button));
-            } else {
-                await deleteButton.click();
-            }
+            await deleteButton.evaluate((button: HTMLButtonElement) => button.form?.requestSubmit(button));
             dialog = page.getByRole('dialog', { name: `Delete ${templateName}` });
             await expect(dialog).toBeVisible();
             const preDisconnectEventSequence = testInfo.project.name === 'desktop-chromium'
@@ -198,8 +187,7 @@ test.describe('Roster Week-template modals', () => {
         }
     });
 
-    test('opens Apply and completes Delete on canonical mobile without losing context', async ({ page }, testInfo) => {
-        test.skip(testInfo.project.name === 'desktop-chromium', 'Desktop completion is covered by the full workflow test.');
+    test('opens Apply and completes Delete across canonical viewports without losing context', async ({ page }) => {
         const templateName = uniqueE2EValue('Mobile modal');
         await ensureCompleteDraftWindow(page);
         const initialUrl = page.url();
@@ -278,6 +266,8 @@ test.describe('Roster Week-template modals', () => {
 
         try {
             runSql(`
+                DELETE FROM roster_templates
+                WHERE name = '${templateName.replaceAll("'", "''")}';
                 BEGIN;
                 SET CONSTRAINTS roster_templates_complete_content_fk DEFERRED;
                 INSERT INTO roster_templates (id, roster_group_id, name, scale, completion_id, created_by_user_id)
@@ -333,8 +323,7 @@ test.describe('Roster Week-template modals', () => {
         }
     });
 
-    test('saves, applies, and deletes while retaining the viewed Templates tab', async ({ page }, testInfo) => {
-        test.skip(testInfo.project.name !== 'desktop-chromium', 'The durable mutation path runs once; modal rendering is covered on every canonical viewport.');
+    test('saves, applies, and deletes while retaining the viewed Templates tab', async ({ page }) => {
         const templateName = uniqueE2EValue('Modal week');
         await ensureRosterLayout(page, 'day_columns');
         await ensureCompleteDraftWindow(page);
@@ -370,7 +359,8 @@ test.describe('Roster Week-template modals', () => {
             await expect(card).toContainText(/\d+ shift\(s\)/);
             await expect(card).not.toContainText('Week snapshot');
 
-            await card.getByRole('button', { name: `Apply ${templateName}` }).click();
+            const applyButton = card.getByRole('button', { name: `Apply ${templateName}` });
+            await applyButton.evaluate((button: HTMLButtonElement) => button.form?.requestSubmit(button));
             dialog = page.getByRole('dialog', { name: `Apply ${templateName}` });
             await expect(dialog).toContainText('entire viewed window’s operational structure');
             await expect(dialog).toContainText('Publication remains Draft');
@@ -384,8 +374,12 @@ test.describe('Roster Week-template modals', () => {
             await expect(dialog).toBeHidden();
             await expect(templatesTab).toHaveAttribute('aria-selected', 'true');
             await expect(page.locator('.roster-grid-frame')).toHaveAttribute('data-roster-layout', 'day_columns');
+            await page.reload();
+            await openTemplatesTab(page);
+            await expect(card).toBeVisible();
 
-            await card.getByRole('button', { name: `Delete ${templateName}` }).click();
+            const deleteButton = card.getByRole('button', { name: `Delete ${templateName}` });
+            await deleteButton.evaluate((button: HTMLButtonElement) => button.form?.requestSubmit(button));
             dialog = page.getByRole('dialog', { name: `Delete ${templateName}` });
             await expect(dialog).toContainText('Existing rosters are unaffected');
             const deleteResponsePromise = page.waitForResponse((response) =>
