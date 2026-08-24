@@ -26,9 +26,11 @@ Start with `AGENTS.md`; before editing a subsystem, read its nearest local
 Run commands through the project environment:
 
 ```bash
-# Fast and complete gates
+# Additive feedback, repository authority, and combined verification
 bash ./bin/in-env verify-fast
+bash ./bin/in-env verify-tooling
 bash ./bin/in-env verify-full
+bash ./bin/in-env verify-all
 
 # Focused gates
 bash ./bin/in-env typecheck
@@ -54,15 +56,20 @@ bash ./bin/in-env regen-types
 bash ./bin/in-env production-build-profile --cores 12
 ```
 
-`verify-fast` provides additive feedback. `verify-full` is the complete local
-gate. CI protects typecheck plus complete Hspec. Local subsystem docs list
-narrower commands and test-selection rules.
+`verify-fast` is additive feedback. `verify-tooling` runs synthetic checker and
+harness self-tests; `verify-full` is the unconditional serial repository-authority
+gate; `verify-all` runs both tiers serially. `verify-full` orders cheap authority
+(freshness, manifest, HTTP, typed, wage/date, documentation), core Haskell
+(typecheck, complete Hspec, Weeder), generated/frontend checks, architecture,
+production inspection/billing/deployment, then complete eight-shard Playwright.
+Local subsystem docs list narrower commands and test-selection rules.
 
 `frontend-check` runs contract drift, strict TypeScript validation including
-unused-code checks, frontend unit/DOM tests, and generated JS drift. The full
-verification gate additionally runs the zero-bypass typed-authority gate,
-curated FrontendContract GHC warnings and Weeder reachability, CSS stale-selector
-ownership, architecture freshness, and documentation drift. `dev-start` and
+unused-code checks, frontend unit/DOM tests, and generated JS drift. `verify-full`
+generates frontend contracts once through its isolated tooling package; later
+architecture checks consume that current output. Fingerprinted per-worktree
+verification caches retain successful compilation dependencies but never omit a
+validation subject. `dev-start` and
 `just dev` first use content fingerprints to generate only stale frontend
 contracts, Haskell Surface adapters, and JavaScript, then run the coordinated
 frontend-generated watcher plus the frontend asset watcher. IHP's `RunDevServer`
