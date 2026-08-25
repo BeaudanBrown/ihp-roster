@@ -16,6 +16,7 @@ module Web.Controller.Prelude
 , respondHtml
 , respondFragmentHtml
 , parseIsoDayRouteParam
+, respondAndStop
 )
 where
 
@@ -23,6 +24,7 @@ import Application.Bepis.Prelude
 import Application.Bepis.Response (bepisFileResponse, bepisHtmlResponse,
                                    bepisHtmxFragmentResponse, bepisJsonResponse,
                                    bepisRedirectResponse)
+import Application.Error.Boundary (respondAndStop)
 import Application.Helper.Conflict
 import Application.Helper.Controller
 import Application.Helper.Telemetry
@@ -48,9 +50,8 @@ parseIsoDayRouteParam :: (?request :: Request) => Text -> IO Day
 parseIsoDayRouteParam value =
     case parseTimeM True defaultTimeLocale "%F" (cs value) of
         Just day -> pure day
-        Nothing -> do
-            respondAndExit (Wai.responseLBS status400 [("Content-Type", "text/plain")] "Invalid ISO date parameter.")
-            error "unreachable"
+        Nothing ->
+            respondAndStop (Wai.responseLBS status400 [("Content-Type", "text/plain")] "Invalid ISO date parameter.")
 
 ensureIsUser :: forall user. (?context :: ControllerContext, ?request :: Request, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => IO ()
 ensureIsUser = do

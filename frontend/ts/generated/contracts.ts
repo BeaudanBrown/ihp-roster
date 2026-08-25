@@ -309,6 +309,31 @@ export function isFrontendSurfaceInteractionSurfaceName(value: unknown): value i
     return typeof value === "string" && ["roster", "roster-day-timeline"].includes(value);
 }
 
+export type AppErrorCode = "application.error.foundation.foundation/unexpected-synchronous-error";
+export function isAppErrorCode(value: unknown): value is AppErrorCode {
+    return typeof value === "string" && ["application.error.foundation.foundation/unexpected-synchronous-error"].includes(value);
+}
+
+export type AppErrorSeverity = "blocking" | "critical";
+export function isAppErrorSeverity(value: unknown): value is AppErrorSeverity {
+    return typeof value === "string" && ["blocking", "critical"].includes(value);
+}
+
+export type AppErrorRecovery = "user-fix-required" | "user-action-required" | "retryable" | "terminal";
+export function isAppErrorRecovery(value: unknown): value is AppErrorRecovery {
+    return typeof value === "string" && ["user-fix-required", "user-action-required", "retryable", "terminal"].includes(value);
+}
+
+export type AppErrorWire = { code: AppErrorCode; severity: AppErrorSeverity; recovery: AppErrorRecovery; safeMessage: string };
+export function isAppErrorWire(value: unknown): value is AppErrorWire {
+    return isRecord(value) && hasExactKeys(value, ["code", "severity", "recovery", "safeMessage"]) && isAppErrorCode(value["code"]) && isAppErrorSeverity(value["severity"]) && isAppErrorRecovery(value["recovery"]) && typeof value["safeMessage"] === "string";
+}
+
+export function parseAppErrorWire(value: unknown): AppErrorWire {
+    if (isAppErrorWire(value)) return value;
+    throw new Error("Invalid AppErrorWire");
+}
+
 export const pageReadyEvent = "bepis:page-ready" as const;
 
 export type LiveFragmentsRefreshEventDetail = { scope: SurfaceScope; scopeKey: string; fragments: ReadonlyArray<SurfaceFragmentKey> };

@@ -10,6 +10,7 @@ import Application.Helper.FrontendContract.App
 import Application.Helper.FrontendContract.AppShell
 import Application.Helper.FrontendContract.ClosedScalars
 import Application.Helper.FrontendContract.DSL
+import Application.Helper.FrontendContract.Error
 import Application.Helper.FrontendContract.FeedbackDiagnostics
 import Application.Helper.FrontendContract.HorizontalScroll
 import Application.Helper.FrontendContract.Interaction
@@ -30,6 +31,7 @@ import Application.Helper.FrontendContract.XeroCandidateFilter
 -- roots are appended from the registered surface contract registry.
 type RegisteredFrontendContracts =
     '[ AppContract
+     , AppErrorContract
      , ClosedScalarContract
      , OverlayContract
      , AppShellContract

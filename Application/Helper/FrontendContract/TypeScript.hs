@@ -18,7 +18,7 @@ renderFrontendContractTypeScript contract = do
     checked <- case checkedFrontendContractIR contract of
         Right value -> Right value
         Left diagnostics -> Left (Text.intercalate "\n" (fmap (.diagnosticMessage) diagnostics))
-    pure (Text.unlines (header checked <> renderDerivedSurfaceWireTypes checked.contractSurfaces <> concatMap renderGlobal checked.contractGlobals <> concatMap renderSurface checked.contractSurfaces <> renderFrontendSurfaceRuntime checked.contractSurfaces))
+    pure (Text.unlines (header checked <> renderDerivedSurfaceWireTypes checked.contractSurfaces <> renderAppErrorContract checked <> concatMap renderGlobal checked.contractGlobals <> concatMap renderSurface checked.contractSurfaces <> renderFrontendSurfaceRuntime checked.contractSurfaces))
 
 data WirePrimitiveTypeScript = WirePrimitiveTypeScript
     { primitiveWire      :: !WireIR
@@ -309,7 +309,39 @@ renderGlobalPrimitive = \case
     GlobalDomTokenIR marker token -> ["export const " <> constName marker <> "DomToken = " <> quote token <> " as const;", ""]
     GlobalConstantIR marker value -> ["export const " <> constName marker <> " = " <> quote value <> " as const;", ""]
     GlobalProjectionIR _ -> []
+    GlobalErrorCodesIR _ -> []
     GlobalAppShellActionIR _ -> []
+
+renderAppErrorContract :: FrontendContractIR -> [Text]
+renderAppErrorContract contract
+    | null codes = []
+    | otherwise =
+        [ "export type AppErrorCode = " <> renderStringUnion codes <> ";"
+        ]
+            <> renderGuard "AppErrorCode" (isEnumExpression codes)
+            <> [ "export type AppErrorSeverity = \"blocking\" | \"critical\";"
+               ]
+            <> renderGuard "AppErrorSeverity" (isEnumExpression ["blocking", "critical"])
+            <> [ "export type AppErrorRecovery = \"user-fix-required\" | \"user-action-required\" | \"retryable\" | \"terminal\";"
+               ]
+            <> renderGuard "AppErrorRecovery" (isEnumExpression ["user-fix-required", "user-action-required", "retryable", "terminal"])
+            <> [ "export type AppErrorWire = { code: AppErrorCode; severity: AppErrorSeverity; recovery: AppErrorRecovery; safeMessage: string };"
+               ]
+            <> renderInboundCodec "AppErrorWire" appErrorWireGuard
+  where
+    codes =
+        [ code.errorCodeValue
+        | global <- contract.contractGlobals
+        , GlobalErrorCodesIR registeredCodes <- global.globalPrimitives
+        , code <- registeredCodes
+        ]
+    appErrorWireGuard =
+        "isRecord(value)"
+            <> " && hasExactKeys(value, [\"code\", \"severity\", \"recovery\", \"safeMessage\"])"
+            <> " && isAppErrorCode(value[\"code\"])"
+            <> " && isAppErrorSeverity(value[\"severity\"])"
+            <> " && isAppErrorRecovery(value[\"recovery\"])"
+            <> " && typeof value[\"safeMessage\"] === \"string\""
 
 renderGlobalProjection :: [GlobalPrimitiveIR] -> GlobalProjectionIR -> [Text]
 renderGlobalProjection primitives = \case

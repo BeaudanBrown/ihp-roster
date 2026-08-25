@@ -20,6 +20,8 @@ architecture facts, and TypeScript generation consume that same model.
 - `Surface/README.md` is the authoring and extension guide.
 
 Global roots own app-wide browser capabilities and transport/DOM vocabulary.
+Registered `ErrorCodes` derive the closed operation-failure code union and
+`AppErrorWire`; retry policy and technical/domain context remain server-only.
 Surface roots own feature scopes, resources, fragments, actions, intents,
 mount-only state, and interaction metadata. Keep feature meaning in its focused
 root; do not create aggregate registries or duplicate Surface metadata globally.

@@ -24,6 +24,15 @@ Application/Billing/Webhook.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Enqueue.hs	production	runtime	Main	Reachable from Main
 Application/EmailDelivery/Persistence.hs	production	runtime	Main	Reachable from Main
+Application/Error.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/Error/Boundary.hs	production	runtime	Main	Reachable from Main
+Application/Error/Domain.hs	production	runtime	Main	Reachable from Main
+Application/Error/Foundation.hs	production	runtime	Main	Reachable from Main
+Application/Error/Telemetry.hs	production	runtime	Main	Reachable from Main
+Application/Error/Transaction.hs	development	unreachable	-	Not reachable from an explicit production executable root
+Application/Error/Types.hs	production	runtime	Main	Reachable from Main
+Application/Error/Types/Internal.hs	production	runtime	Main	Reachable from Main
+Application/Error/Wire.hs	production	runtime	Main	Reachable from Main
 Application/Feedback/Email.hs	production	runtime	Main	Reachable from Main
 Application/Feedback/Notification.hs	production	runtime	Main	Reachable from Main
 Application/Fixture.hs	development	fixture	-	Seed, profile, or test fixture outside deployed runtime closure
@@ -76,6 +85,7 @@ Application/Helper/FrontendContract/ClosedScalars.hs	production	runtime	Main	Rea
 Application/Helper/FrontendContract/Contracts.hs	development	build-tooling	-	Generator or architecture tooling outside deployed runtime closure
 Application/Helper/FrontendContract/Core.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/DSL.hs	production	runtime	Main	Reachable from Main
+Application/Helper/FrontendContract/Error.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/FeedbackDiagnostics.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/FeedbackDiagnostics/Runtime.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/HorizontalScroll.hs	production	runtime	Main	Reachable from Main

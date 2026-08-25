@@ -193,6 +193,11 @@ run_compile_failure_checks() {
 }
 
 expect_compile_failure \
+    "Test/CompileFail/ApplicationErrorIncompleteProjection.hs" \
+    "Pattern match(es) are non-exhaustive" \
+    "NewlyAddedFailure"
+
+expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceRawMountedTarget.hs" \
     "IsString (SurfaceFields" \
     "raw-target-id"

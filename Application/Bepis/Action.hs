@@ -13,11 +13,15 @@ import Application.Bepis.Fact (BepisActionFact (..), BepisFact (..),
                                bepisOperationKindText, bepisResponseKindText,
                                emitBepisFact, summarizeBepisFacts,
                                withBepisFactContext)
+import Application.Error.Boundary (appErrorRequestKind,
+                                   respondWithAppErrorAndStop,
+                                   withSynchronousAppErrorFallback)
 import Application.Helper.Telemetry (addTelemetryAttributes,
                                      withTelemetrySpanAttributes)
 import Data.Data (Data, showConstr, toConstr)
 import GHC.Generics (Generic)
 import IHP.Prelude
+import Network.Wai (Request)
 import OpenTelemetry.Attributes (toAttribute)
 
 -- | Backwards-compatible name for the final Bepis operation kind.
@@ -31,7 +35,7 @@ data BepisActionInfo = BepisActionInfo
     }
     deriving (Eq, Show, Generic)
 
-runBepis :: Data action => action -> BepisOperationKind -> IO a -> IO a
+runBepis :: (Data action, ?request :: Request) => action -> BepisOperationKind -> IO a -> IO a
 runBepis action operationKind =
     bepisActionSpan BepisActionInfo
         { actionName = bepisActionName action
@@ -40,8 +44,14 @@ runBepis action operationKind =
         , sourceNote = Nothing
         }
 
-bepisActionSpan :: BepisActionInfo -> IO a -> IO a
-bepisActionSpan info action = do
+bepisActionSpan :: (?request :: Request) => BepisActionInfo -> IO a -> IO a
+bepisActionSpan info action =
+    withSynchronousAppErrorFallback
+        (runBepisActionSpan info action)
+        (respondWithAppErrorAndStop (appErrorRequestKind ?request))
+
+runBepisActionSpan :: BepisActionInfo -> IO a -> IO a
+runBepisActionSpan info action = do
     let attributes =
             [ ("bepis.action", toAttribute (actionName info))
             , ("bepis.action.kind", toAttribute (bepisActionKindText info.actionKind))

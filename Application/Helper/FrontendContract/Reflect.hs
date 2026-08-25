@@ -13,6 +13,7 @@ module Application.Helper.FrontendContract.Reflect
     , reflectFrontendContracts
     ) where
 
+import Application.Error.Domain (DomainError, domainErrorCodes)
 import Application.Helper.FrontendContract.ClosedScalar (KnownClosedScalar,
                                                          closedScalarLiterals,
                                                          closedScalarSourceModule)
@@ -24,7 +25,8 @@ import Application.Helper.FrontendContract.Naming (deriveDomAttributeName,
                                                    deriveJsonFieldName,
                                                    nameToKebab)
 import qualified Application.Helper.FrontendContract.Naming as Naming
-import Data.Typeable (tyConName, typeRep, typeRepTyCon)
+import Data.Kind (Type)
+import Data.Typeable (tyConModule, tyConName, typeRep, typeRepTyCon)
 import IHP.Prelude
 
 reflectFrontendContracts :: forall contracts. ReflectFrontendContractRegistry contracts => FrontendContractIR
@@ -115,6 +117,24 @@ instance (Typeable marker, KnownSymbol value) => ReflectGlobalPrimitive ('Consta
 
 instance ReflectGlobalPrimitive ('Project 'InteractionDomProjection) where
     reflectGlobalPrimitive = GlobalProjectionIR InteractionDomProjectionIR
+
+instance ReflectDomainErrorList errors => ReflectGlobalPrimitive ('ErrorCodes errors) where
+    reflectGlobalPrimitive = GlobalErrorCodesIR (reflectDomainErrorList @errors)
+
+class ReflectDomainErrorList (errors :: [Type]) where
+    reflectDomainErrorList :: [ErrorCodeIR]
+
+instance ReflectDomainErrorList '[] where
+    reflectDomainErrorList = []
+
+instance (DomainError domainError, ReflectDomainErrorList rest) => ReflectDomainErrorList (domainError ': rest) where
+    reflectDomainErrorList =
+        [ ErrorCodeIR
+            { errorCodeMarker = qualifiedTypeMarker @domainError
+            , errorCodeValue = code
+            }
+        | code <- domainErrorCodes @domainError
+        ] <> reflectDomainErrorList @rest
 
 instance (Typeable marker, ReflectFieldList fields, ReflectAppShellActionOptionList options) => ReflectGlobalPrimitive ('AppShellAction marker fields options) where
     reflectGlobalPrimitive = GlobalAppShellActionIR AppShellActionIR
@@ -302,3 +322,8 @@ typeName = typeMarker @marker
 
 typeMarker :: forall marker. Typeable marker => Text
 typeMarker = cs (tyConName (typeRepTyCon (typeRep (Proxy @marker))))
+
+qualifiedTypeMarker :: forall marker. Typeable marker => Text
+qualifiedTypeMarker =
+    let tyCon = typeRepTyCon (typeRep (Proxy @marker))
+     in cs (tyConModule tyCon <> "." <> tyConName tyCon)
