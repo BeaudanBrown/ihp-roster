@@ -262,6 +262,8 @@ preparationReadinessView run readiness =
                             , timesheetIssueMessage = "The selected Xero pay run is posted. Draft timesheet creation is blocked."
                             , timesheetIssueHint = Nothing
                             , timesheetIssueTimesheetEntryId = Nothing
+                            , timesheetIssueExpectedActiveCalculationId = Nothing
+                            , timesheetIssueExpectedApprovalTimestamp = Nothing
                             }
                             : baseView.timesheetReadinessBlockers
                     }

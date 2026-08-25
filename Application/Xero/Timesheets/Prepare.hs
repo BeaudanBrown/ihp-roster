@@ -43,6 +43,7 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.List as List
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Generated.Types
@@ -188,7 +189,25 @@ loadPreparationView ::
     XeroTimesheetReadiness ->
     IO (XeroPreparationResult XeroTimesheetPreparationView)
 loadPreparationView run connection decisions readiness = do
-    let readinessView = preparationReadinessView run readiness
+    let baseReadinessView = preparationReadinessView run readiness
+        issueEntryIds =
+            mapMaybe (.timesheetIssueTimesheetEntryId)
+                (baseReadinessView.timesheetReadinessBlockers <> baseReadinessView.timesheetReadinessWarnings)
+                |> List.nub
+    issueEntries <- if null issueEntryIds
+        then pure []
+        else query @TimesheetEntry |> filterWhereIn (#id, map Id issueEntryIds) |> fetch
+    let issueEntryById = Map.fromList [(unpackId entry.id, entry) | entry <- issueEntries]
+        enrichIssue issue = case issue.timesheetIssueTimesheetEntryId >>= (`Map.lookup` issueEntryById) of
+            Nothing -> issue
+            Just entry -> issue
+                { timesheetIssueExpectedActiveCalculationId = unpackId <$> entry.activePayCalculationId
+                , timesheetIssueExpectedApprovalTimestamp = entry.approvedAt
+                }
+        readinessView = baseReadinessView
+            { timesheetReadinessBlockers = map enrichIssue baseReadinessView.timesheetReadinessBlockers
+            , timesheetReadinessWarnings = map enrichIssue baseReadinessView.timesheetReadinessWarnings
+            }
     staffRows <- fetchCurrentVenueXeroStaffMappingRows (Just connection)
     periodOptions <- fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection)
     xeroEmployees <- fetchCurrentVenueXeroEmployees (Just connection)

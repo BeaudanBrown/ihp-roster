@@ -343,6 +343,8 @@ Application/StaffDocuments/Rsa.hs	production	runtime	Main	Reachable from Main
 Application/StaffDocuments/Rsa/Email.hs	production	runtime	Main	Reachable from Main
 Application/StaffDocuments/RsaExtraction.hs	production	runtime	Main	Reachable from Main
 Application/Support/LiveUpdates.hs	production	runtime	Main	Reachable from Main
+Application/TimesheetApproval.hs	production	runtime	Main	Reachable from Main
+Application/TimesheetApproval/Error.hs	production	runtime	Main	Reachable from Main
 Application/UnavailabilityBlackout/Mutations.hs	production	runtime	Main	Reachable from Main
 Application/VenueInvitation/Mutations.hs	production	runtime	Main	Reachable from Main
 Application/VenueOnboardingInvitation/Mutations.hs	production	runtime	Main	Reachable from Main

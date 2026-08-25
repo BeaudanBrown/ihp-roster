@@ -316,6 +316,10 @@ instance Controller AdminController where
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (refreshXeroTimesheetPreparationAction xeroTimesheetPreparationRunId)
 
+    action currentAction@RefreshXeroProblemTimesheetApprovalAction { xeroTimesheetPreparationRunId, timesheetEntryId } = runBepis currentAction BepisMutationAction do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero (refreshXeroProblemTimesheetApprovalAction xeroTimesheetPreparationRunId timesheetEntryId)
+
     action currentAction@ShowXeroTimesheetPreparationStaffMappingsFragmentAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisFragmentAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (showXeroTimesheetPreparationStaffMappingsFragmentAction xeroTimesheetPreparationRunId)

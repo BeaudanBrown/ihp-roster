@@ -9,23 +9,24 @@ module Web.Timesheets.Mutations
     , updateTimesheetEntryMutation
     ) where
 
+import Application.Error.Domain (projectDomainError)
+import Application.Error.Types (appErrorSafeMessage)
+import Application.Helper.Audit (currentRequestAuditPayload)
 import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWindowScopes)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource
-import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
-                               lockPayVersionsForApproval,
-                               payVersionManifestForEntry)
+import Application.Helper.Htmx (requestAuditSourceChannel)
 import Application.Helper.Staff (isLinkedActiveStaff)
 import Application.Helper.SurfaceResource
-import Application.Helper.TimesheetPayLedger (persistApprovedTimesheetPayCalculation)
 import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.PayAssignment (ShiftPayAssignment (..),
                                   StaffPayAssignment (..),
                                   shiftAssignmentAllowsTimesheets,
                                   staffAssignmentAllowsTimesheets)
 import Application.RosterPublication.Mutations (withRosterCalendarLockInCurrentTransaction)
+import Application.TimesheetApproval (ApprovalEngineMode (InitialApproval),
+                                      approvalEngineEntry,
+                                      runApprovalEngineInCurrentTransaction)
 import Application.VenueTime.Model
-import Application.WageSourceEnforcement (enforceFinalWageEntries,
-                                          renderWageEntryFailures)
 import Control.Exception (IOException, try)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -262,61 +263,11 @@ approveTimesheetEntryMutation scope timesheetEntry = do
     pure (either (Left . tshow) Right approval)
 
 approveTimesheetEntryInCurrentTransaction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetEntry -> IO TimesheetEntry
-approveTimesheetEntryInCurrentTransaction timesheetEntry = do
-    now <- getCurrentTime
-    -- QueryBuilder has no row-lock combinator; keep this narrow FOR UPDATE
-    -- seam here so concurrent approvals cannot create duplicate ledgers.
-    lockedEntryIds :: [Only UUID] <- sqlQuery
-        "SELECT id FROM timesheet_entries WHERE id = ? FOR UPDATE"
-        (Only (unpackId timesheetEntry.id))
-    lockedEntryId <- maybe (ioError (userError "timesheet entry disappeared during approval")) (\(Only entryId) -> pure entryId) (listToMaybe lockedEntryIds)
-    lockedEntry <- fetch (Id lockedEntryId :: Id TimesheetEntry)
-    case (lockedEntry.isApproved, lockedEntry.activePayCalculationId) of
-        (True, Just _) -> pure lockedEntry
-        _ -> do
-            (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval currentUser.id lockedEntry
-            lockPayVersionsForApproval currentUser.id now staffPayVersion shiftTypePayVersion
-            let approvalEntry =
-                    lockedEntry
-                        |> set #isApproved True
-                        |> set #staffPayVersionId (Just (unpackId (get #id staffPayVersion)))
-                        |> set #shiftTypePayVersionId (Just (unpackId (get #id shiftTypePayVersion)))
-                        |> set #approvedAt (Just now)
-                        |> set #approvedByUserId (Just (unpackId (get #id currentUser)))
-                        |> set #updatedAt now
-            sourceEnforcement <- enforceFinalWageEntries [approvalEntry |> set #isApproved False]
-            case sourceEnforcement of
-                Left failures -> ioError (userError (Text.unpack (renderWageEntryFailures "Approval blocked: " failures)))
-                Right _       -> pure ()
-            persistedCalculation <- persistApprovedTimesheetPayCalculation approvalEntry
-            calculation <- case persistedCalculation of
-                Left reason  -> ioError (userError (Text.unpack reason))
-                Right result -> pure result
-            activeEntry <- approvalEntry
-                |> set #activePayCalculationId (Just calculation.id)
-                |> updateRecord
-            void $
-                recordCurrentUserTimesheetEntryVersion
-                    (EntryVersionActionEnumApproved)
-                    activeEntry
-                    (Aeson.object
-                        [ "previous" Aeson..= timesheetEntrySnapshot lockedEntry
-                        ]
-                    )
-            void $ recordCurrentUserAuditEvent
-                TimesheetApprovedAudit
-                "timesheet_entries"
-                (unpackId (get #id lockedEntry))
-                (Aeson.object
-                    [ "staffId" Aeson..= lockedEntry.staffId
-                    , "startsAt" Aeson..= lockedEntry.startsAt
-                    , "timezone" Aeson..= lockedEntry.timezone
-                    , "wasApproved" Aeson..= lockedEntry.isApproved
-                    , "payConfigVersionManifest" Aeson..= payVersionManifestForEntry activeEntry
-                    , "approvedAt" Aeson..= now
-                    ]
-                )
-            pure activeEntry
+approveTimesheetEntryInCurrentTransaction timesheetEntry =
+    runApprovalEngineInCurrentTransaction currentUser.id InitialApproval currentRequestAuditPayload requestAuditSourceChannel timesheetEntry >>= \case
+        Left approvalError ->
+            ioError (userError (Text.unpack (appErrorSafeMessage (projectDomainError approvalError))))
+        Right approvalResult -> pure approvalResult.approvalEngineEntry
 
 unapproveTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetWeekScopeValue -> TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
 unapproveTimesheetEntryMutation scope timesheetEntry =

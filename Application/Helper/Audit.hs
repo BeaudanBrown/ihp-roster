@@ -1,6 +1,7 @@
 module Application.Helper.Audit
     ( module Application.Helper.Audit.Vocabulary
     , attachImpersonationAuditRequestContext
+    , currentRequestAuditPayload
     , recordAuditEvent
     , recordAuditEventWithFactKind
     , recordCurrentUserAuditEvent

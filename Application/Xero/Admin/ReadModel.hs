@@ -421,6 +421,8 @@ xeroTimesheetReadinessView readiness =
                 , timesheetIssueMessage = issue.xeroBlockerMessage
                 , timesheetIssueHint = issue.xeroBlockerActionHint
                 , timesheetIssueTimesheetEntryId = issue.xeroBlockerTimesheetEntryId
+                , timesheetIssueExpectedActiveCalculationId = Nothing
+                , timesheetIssueExpectedApprovalTimestamp = Nothing
                 }
 
 xeroTimesheetPreviewRowsFromJson :: [XeroEmployee] -> [XeroEarningsRate] -> Aeson.Value -> [XeroTimesheetPreviewRowView]

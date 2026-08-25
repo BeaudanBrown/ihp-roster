@@ -1,6 +1,8 @@
 module Test.XeroTimesheetReservationSpec where
 
 import Application.Helper.Xero.Types (XeroTimesheetRef (..))
+import Application.TimesheetApproval (ExpectedApprovalIdentity (..),
+                                      refreshProblemApproval)
 import Application.Xero.Timesheets.ProviderWrite (XeroTimesheetWriteOperation (..),
                                                   xeroTimesheetWriteIdempotencyKey)
 import Application.Xero.Timesheets.Reconciliation (XeroTimesheetReconciliationDecision (..))
@@ -187,6 +189,22 @@ tests =
 
                     outcome `shouldBe` XeroTimesheetReservationInvalid "Xero submission requires at least one timesheet reservation."
                     query @XeroSubmissionRun |> fetchCount >>= (`shouldBe` 0)
+
+            it "rejects a reservation when approval identity changes before sorted source-row locking" $ withContext do
+                withCleanDb do
+                    fixture <- reservationFixture
+                    entry <- maybe (expectationFailure "expected source entry" >> fail "missing entry") pure (listToMaybe fixture.entries)
+                    expected <- ExpectedApprovalIdentity
+                        <$> maybe (expectationFailure "expected calculation" >> fail "missing calculation") (pure . unpackId) entry.activePayCalculationId
+                        <*> maybe (expectationFailure "expected approval time" >> fail "missing approval time") pure entry.approvedAt
+                    let plannedReservation = submissionReservation fixture fixture.entries
+                    refreshProblemApproval fixture.owner.id fixture.venue.id entry.id expected >>= (`shouldSatisfy` either (const False) (const True))
+
+                    outcome <- reserveXeroTimesheetSubmissionRun (submissionRunTemplate fixture) [plannedReservation] []
+
+                    outcome `shouldBe` XeroTimesheetReservationInvalid "A Timesheet approval changed before Xero submission reservation. Refresh preparation and review it again."
+                    query @XeroSubmissionRun |> fetchCount >>= (`shouldBe` 0)
+                    query @XeroTimesheetSubmission |> fetchCount >>= (`shouldBe` 0)
 
             it "serializes concurrent reservation attempts to one active row" $ withContext do
                 withCleanDb do

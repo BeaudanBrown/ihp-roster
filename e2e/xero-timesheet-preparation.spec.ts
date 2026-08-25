@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { dialogMountDomAttr } from '../frontend/ts/generated/contracts';
 import { E2E_TIMEOUT } from './timeouts';
-import { gotoWhenReady, loginAsPrivilegedUserWithSeededPasskeySession, runSql, webauthnBaseURL } from './test-helpers';
+import { gotoWhenReady, loginAsPrivilegedUserWithSeededPasskeySession, querySql, runSql, webauthnBaseURL } from './test-helpers';
 
 test.use({ baseURL: webauthnBaseURL });
 
@@ -14,6 +14,29 @@ function resetXeroTimesheetPreparationFixture() {
         DELETE FROM app_jobs
         WHERE job_kind = 'xero_reference_sync'
           AND related_id = '${xeroConnectionId}';
+
+        UPDATE timesheet_entries AS entry
+        SET is_approved = TRUE,
+            active_pay_calculation_id = calculation.id,
+            staff_pay_version_id = calculation.staff_pay_version_id,
+            shift_type_pay_version_id = calculation.shift_type_pay_version_id,
+            approved_at = calculation.approved_at,
+            approved_by_user_id = calculation.approved_by_user_id,
+            updated_at = NOW()
+        FROM timesheet_pay_calculations AS calculation
+        WHERE entry.id = calculation.timesheet_entry_id
+          AND entry.id IN (
+              'a1000000-0000-0000-0000-000000000091',
+              'a1000000-0000-0000-0000-000000000092',
+              'a1000000-0000-0000-0000-000000000093',
+              'a1000000-0000-0000-0000-000000000094'
+          )
+          AND calculation.id IN (
+              'a2000000-0000-0000-0000-000000000091',
+              'a2000000-0000-0000-0000-000000000092',
+              'a2000000-0000-0000-0000-000000000093',
+              'a2000000-0000-0000-0000-000000000094'
+          );
 
         UPDATE venue_memberships
         SET
@@ -289,6 +312,79 @@ test.describe('Xero timesheet preparation', () => {
             return candidate.type === 'unsubscribe'
                 && candidate.subscription?.fragments?.some((fragment) => fragment.kind === 'admin-xero-timesheet-preparation-wait') === true;
         }), { timeout: E2E_TIMEOUT.assertion }).toBe(true);
+    });
+
+    test('lets an owner confirm one problem approval refresh and rolls back while mappings remain incomplete', async ({ page }) => {
+        runSql(`
+            UPDATE timesheet_entries
+            SET is_approved = FALSE,
+                active_pay_calculation_id = NULL,
+                staff_pay_version_id = NULL,
+                shift_type_pay_version_id = NULL,
+                approved_at = NULL,
+                approved_by_user_id = NULL,
+                updated_at = NOW()
+            WHERE venue_id = '${alphaVenueId}'
+              AND id <> 'a1000000-0000-0000-0000-000000000091';
+
+            UPDATE xero_staff_mappings
+            SET mapping_status = 'verified',
+                xero_employee_id = 'e2e-refresh-employee',
+                xero_employee_name = 'E2E Approval Refresh',
+                reference_refreshed_at = NOW(),
+                updated_at = NOW()
+            WHERE xero_connection_id = '${xeroConnectionId}'
+              AND staff_id = 'a1000000-0000-0000-0000-000000000031';
+
+            INSERT INTO xero_employees (
+                id, venue_id, xero_connection_id, xero_employee_id,
+                display_name, status, raw_payload, synced_at
+            ) VALUES (
+                'b1000000-0000-0000-0000-000000000401',
+                '${alphaVenueId}',
+                '${xeroConnectionId}',
+                'e2e-refresh-employee',
+                'E2E Approval Refresh',
+                'ACTIVE',
+                '{"EmployeeID":"e2e-refresh-employee","PayrollCalendarID":"e2e-timesheet-calendar"}'::jsonb,
+                NOW()
+            )
+            ON CONFLICT (xero_connection_id, xero_employee_id) DO UPDATE SET
+                display_name = EXCLUDED.display_name,
+                status = EXCLUDED.status,
+                raw_payload = EXCLUDED.raw_payload,
+                synced_at = EXCLUDED.synced_at,
+                provider_available = TRUE,
+                provider_unavailable_at = NULL,
+                updated_at = NOW();
+        `);
+        const originalCalculationId = querySql(`SELECT active_pay_calculation_id FROM timesheet_entries WHERE id = 'a1000000-0000-0000-0000-000000000091';`);
+        const originalLedgerCount = querySql(`SELECT COUNT(*) FROM timesheet_pay_calculations WHERE timesheet_entry_id = 'a1000000-0000-0000-0000-000000000091';`);
+
+        await loginAsPrivilegedUserWithSeededPasskeySession(page);
+        await openXeroPage(page);
+        await page.locator('[data-xero-timesheet-preparation-form="true"]').getByRole('button', { name: 'Upload timesheets' }).click();
+        const periodDialog = page.locator('[data-xero-timesheet-preparation-dialog="true"]');
+        await expect(periodDialog).toBeVisible({ timeout: E2E_TIMEOUT.action });
+        await page.getByRole('button', { name: 'Continue' }).click();
+
+        await expect(page.getByRole('heading', { name: 'Xero submission blocked' })).toBeVisible({ timeout: E2E_TIMEOUT.action });
+        const refreshButton = page.getByRole('button', { name: 'Refresh approval' });
+        await expect(refreshButton).toBeVisible();
+        page.once('dialog', async dialog => {
+            expect(dialog.message()).toBe('Refresh this problem Timesheet approval using current pay facts and Xero mappings?');
+            await dialog.accept();
+        });
+        const refreshResponsePromise = page.waitForResponse(response =>
+            response.request().method() === 'POST' && response.url().includes('/RefreshXeroProblemTimesheetApproval')
+        );
+        await refreshButton.click();
+        const refreshResponse = await refreshResponsePromise;
+        expect(refreshResponse.status()).toBe(422);
+        expect(await refreshResponse.text()).toContain('This Timesheet approval is still blocked by current pay facts or Xero mappings.');
+        await expect(page.getByRole('button', { name: 'Refresh approval' })).toBeVisible();
+        expect(querySql(`SELECT active_pay_calculation_id FROM timesheet_entries WHERE id = 'a1000000-0000-0000-0000-000000000091';`)).toBe(originalCalculationId);
+        expect(querySql(`SELECT COUNT(*) FROM timesheet_pay_calculations WHERE timesheet_entry_id = 'a1000000-0000-0000-0000-000000000091';`)).toBe(originalLedgerCount);
     });
 
     test('opens the guided preparation modal from a selected Xero pay period', async ({ page }) => {

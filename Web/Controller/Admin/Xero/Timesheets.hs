@@ -4,6 +4,7 @@ module Web.Controller.Admin.Xero.Timesheets
     , confirmXeroTimesheetPreparationSubmissionAction
     , continueXeroTimesheetPreparationStaffStepAction
     , openXeroTimesheetPreparationAction
+    , refreshXeroProblemTimesheetApprovalAction
     , refreshXeroTimesheetPreparationAction
     , runXeroTimesheetPreparationAction
     , runXeroTimesheetPreparationSubmissionAction
@@ -17,13 +18,17 @@ module Web.Controller.Admin.Xero.Timesheets
 import Application.Error.Boundary (appErrorRequestKind, runAppResultBoundary,
                                    withSynchronousAppErrorFallback)
 import Application.Error.Domain (projectDomainError)
+import Application.Helper.Audit (currentRequestAuditPayload)
 import Application.Helper.FrontendContract.AppShell (AccountCodeField,
                                                      ApplyXeroTimesheetPreparationStaffDecisionOverlay,
                                                      ApproveXeroTimesheetPreparationPayItemsOverlay,
                                                      ConfirmXeroTimesheetPreparationSubmissionOverlay,
                                                      ContinueXeroTimesheetPreparationStaffOverlay,
+                                                     ExpectedActiveCalculationIdField,
+                                                     ExpectedApprovalTimestampField,
                                                      OpenXeroTimesheetPreparationOverlay,
                                                      PeriodKeyField,
+                                                     RefreshXeroProblemTimesheetApprovalOverlay,
                                                      RefreshXeroTimesheetPreparationOverlay,
                                                      RunXeroTimesheetPreparationOverlay,
                                                      RunXeroTimesheetPreparationSubmissionOverlay,
@@ -37,6 +42,7 @@ import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
 import Application.Helper.FrontendContract.Surface.Request (surfaceRequestFieldErrorsMessage)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
+import Application.Helper.Htmx (requestAuditSourceChannel)
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
                                 renderToastOverlayHostOob)
@@ -44,6 +50,9 @@ import Application.Helper.XeroAdminTypes (XeroTimesheetIssueView (..),
                                           XeroTimesheetPreparationState (XeroPreparationSubmitted),
                                           XeroTimesheetPreparationView (..),
                                           XeroTimesheetReadinessView (..))
+import Application.TimesheetApproval (ExpectedApprovalIdentity (..),
+                                      TimesheetApprovalError (ApprovalControlStale),
+                                      refreshProblemApprovalWithAudit)
 import Application.Xero.Admin.ReadModel
 import Application.Xero.EmployeeId (XeroEmployeeSelection (..))
 import Application.Xero.ReferenceDemand (fetchXeroMissingReferenceDemand)
@@ -57,6 +66,7 @@ import Application.Xero.Timesheets.Prepare (XeroPreparationResult,
                                             XeroPreparationStaffDecision (..),
                                             loadXeroTimesheetPreparationView)
 import qualified Data.Text as Text
+import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Web.Admin.Xero.Mutations (applyXeroTimesheetPreparationStaffDecisionMutation,
                                  approveXeroTimesheetPreparationPayItemsMutation,
                                  approveXeroTimesheetPreparationStaffStepMutation,
@@ -154,6 +164,56 @@ refreshXeroTimesheetPreparationAction runId =
         Right _ -> do
             result <- resolvePreparationMutation (refreshXeroTimesheetPreparationMutation runId)
             respondWithPreparationDialog result
+
+refreshXeroProblemTimesheetApprovalAction ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Id XeroTimesheetPreparationRun ->
+    Id TimesheetEntry ->
+    IO ()
+refreshXeroProblemTimesheetApprovalAction runId entryId =
+    case parseAppShellActionParams @RefreshXeroProblemTimesheetApprovalOverlay of
+        Left _ -> rejectStaleControl
+        Right fields -> case parseExpectedApprovalIdentity fields of
+            Nothing -> rejectStaleControl
+            Just expected ->
+                resolvePreparationResult (loadXeroTimesheetPreparationView runId) >>= \case
+                    Left loadMessage -> respondWithPreparationDialog (Left loadMessage)
+                    Right view
+                        | refreshControlIsCurrent view entryId expected ->
+                            runAppResultBoundary
+                                (appErrorRequestKind ?request)
+                                (refreshProblemApprovalWithAudit currentUser.id currentVenueId entryId expected currentRequestAuditPayload requestAuditSourceChannel)
+                                (const (resolvePreparationResult (loadXeroTimesheetPreparationView runId) >>= respondWithPreparationDialog))
+                        | otherwise -> rejectStaleControl
+  where
+    rejectStaleControl =
+        runAppResultBoundary
+            (appErrorRequestKind ?request)
+            (pure (Left (projectDomainError ApprovalControlStale)))
+            (const (pure ()))
+
+    parseExpectedApprovalIdentity fields = do
+        approvedAt <- parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" (Text.unpack (surfaceFieldValue @ExpectedApprovalTimestampField fields))
+        pure ExpectedApprovalIdentity
+            { expectedActiveCalculationId = surfaceFieldValue @ExpectedActiveCalculationIdField fields
+            , expectedApprovedAt = approvedAt
+            }
+
+    refreshControlIsCurrent view candidateEntryId expected =
+        any (issueMatches candidateEntryId expected) view.preparationReadiness.timesheetReadinessBlockers
+
+    issueMatches candidateEntryId expected issue =
+        issue.timesheetIssueCode `elem` refreshableApprovalBlockerCodes
+            && issue.timesheetIssueTimesheetEntryId == Just (unpackId candidateEntryId)
+            && issue.timesheetIssueExpectedActiveCalculationId == Just expected.expectedActiveCalculationId
+            && issue.timesheetIssueExpectedApprovalTimestamp == Just expected.expectedApprovedAt
+
+    refreshableApprovalBlockerCodes =
+        [ "wage_publication_failed"
+        , "wage_source_policy"
+        , "earnings_mapping_not_verified"
+        , "managed_pay_item_not_ready"
+        ]
 
 showXeroTimesheetPreparationStaffMappingsFragmentAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -339,16 +399,10 @@ respondWithPreparationPeriodSelection ::
 respondWithPreparationPeriodSelection result =
     case result of
         Right view
-            | Just _ <- find ((== "wage_publication_failed") . (.timesheetIssueCode)) view.preparationReadiness.timesheetReadinessBlockers
+            | Just blocker <- find ((== "wage_publication_failed") . (.timesheetIssueCode)) view.preparationReadiness.timesheetReadinessBlockers
             , isHtmxRequest ->
-                respondHtml $
-                    renderXeroTimesheetPreparationPeriodSelectionDialog view
-                        <> renderToastOverlayHostOob ToastBottomCenter [xeroErrorToast sealedXeroMappingToastMessage]
+                respondHtml (renderXeroTimesheetPreparationBlockingDialog view blocker.timesheetIssueMessage)
         _ -> respondWithPreparationDialog result
-
-sealedXeroMappingToastMessage :: Text
-sealedXeroMappingToastMessage =
-    "This pay period includes approved timesheets that were approved before Xero pay mappings were ready. Unapprove and reapprove those timesheets, then try again."
 
 respondWithPreparationDialog ::
     (?context :: ControllerContext, ?request :: Request) =>

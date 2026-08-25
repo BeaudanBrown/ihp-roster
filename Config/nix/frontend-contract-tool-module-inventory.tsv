@@ -97,6 +97,7 @@ Application/Script/GenerateBepisArchitectureContracts.hs	tooling-only	Applicatio
 Application/Script/GenerateFrontendContracts.hs	tooling-only	Application.Script.GenerateFrontendContracts	TypeScript contract generator executable root
 Application/Script/GenerateFrontendSurfaceAdapters.hs	tooling-only	Application.Script.GenerateFrontendSurfaceAdapters	Haskell Surface adapter generator executable root
 Application/Script/Prelude.hs	shared-authority	Application.Script.GenerateBepisArchitectureContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
+Application/TimesheetApproval/Error.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/VenueRole.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/VenueTime.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/VenueTime/Model.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling

@@ -17,7 +17,10 @@ module Web.View.Admin.Xero.TimesheetPreparation
 import Application.Helper.FrontendContract.AppShell (AccountCodeField,
                                                      ApproveXeroTimesheetPreparationPayItemsOverlay,
                                                      ContinueXeroTimesheetPreparationStaffOverlay,
+                                                     ExpectedActiveCalculationIdField,
+                                                     ExpectedApprovalTimestampField,
                                                      PeriodKeyField,
+                                                     RefreshXeroProblemTimesheetApprovalOverlay,
                                                      RefreshXeroTimesheetPreparationOverlay,
                                                      RunXeroTimesheetPreparationOverlay,
                                                      RunXeroTimesheetPreparationSubmissionOverlay,
@@ -27,6 +30,7 @@ import Application.Helper.FrontendContract.AppShell.Request (AppShellActionField
                                                              appShellActionFor,
                                                              noAppShellActionFields)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             AppShellFieldValue (..),
                                                              appShellActionByMarker,
                                                              renderAppShellActionForm)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
@@ -42,6 +46,7 @@ import Control.Monad (guard)
 import qualified Data.List as List
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminXeroTimesheetPreparationWaitSurfaceImpl)
 import Web.View.Admin.Xero.TimesheetPreparation.Review
@@ -480,14 +485,15 @@ renderPreparationBlockingIssues :: XeroTimesheetPreparationView -> Text -> Html
 renderPreparationBlockingIssues view fallbackMessage =
     case preparationBlockingIssues view of
         [] -> [hsx|<div class="alert alert-danger mb-0">{fallbackMessage}</div>|]
-        issues -> forEach issues renderPreparationBlockingIssue
+        issues -> forEach issues (renderPreparationBlockingIssue view)
 
-renderPreparationBlockingIssue :: XeroTimesheetIssueView -> Html
-renderPreparationBlockingIssue issue = [hsx|
+renderPreparationBlockingIssue :: XeroTimesheetPreparationView -> XeroTimesheetIssueView -> Html
+renderPreparationBlockingIssue view issue = [hsx|
     <div class="alert alert-danger mb-0">
         {renderPreparationBlockingIssueIdentity issue.timesheetIssueTimesheetEntryId}
         <div>{issue.timesheetIssueMessage}</div>
         {renderPreparationBlockingIssueHint issue.timesheetIssueHint}
+        {renderProblemApprovalRefresh view issue}
     </div>
 |]
 
@@ -495,6 +501,38 @@ renderPreparationBlockingIssueIdentity :: Maybe UUID -> Html
 renderPreparationBlockingIssueIdentity = \case
     Nothing -> mempty
     Just entryId -> [hsx|<div class="small fw-semibold">Timesheet {tshow entryId}</div>|]
+
+renderProblemApprovalRefresh :: XeroTimesheetPreparationView -> XeroTimesheetIssueView -> Html
+renderProblemApprovalRefresh view issue
+    | issue.timesheetIssueCode `notElem` refreshableApprovalBlockerCodes = mempty
+    | otherwise = case (issue.timesheetIssueTimesheetEntryId, issue.timesheetIssueExpectedActiveCalculationId, issue.timesheetIssueExpectedApprovalTimestamp) of
+        (Just entryId, Just calculationId, Just approvedAt) ->
+            let fields =
+                    appShellActionFields @RefreshXeroProblemTimesheetApprovalOverlay
+                        (surfaceField @ExpectedActiveCalculationIdField calculationId)
+                        ( surfaceField @ExpectedApprovalTimestampField (Text.pack (formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" approvedAt))
+                            &: noSurfaceFields
+                        )
+                route =
+                    (xeroPreparationAppShellActionRoute (pathTo (RefreshXeroProblemTimesheetApprovalAction view.preparationRun.id (Id entryId))))
+                        { appShellActionRouteFields =
+                            [ AppShellFieldValue (surfaceFieldNameFrom @ExpectedActiveCalculationIdField fields, tshow calculationId)
+                            , AppShellFieldValue (surfaceFieldNameFrom @ExpectedApprovalTimestampField fields, Text.pack (formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ" approvedAt))
+                            ]
+                        , appShellActionRouteExtraAttrs = [("class", "mt-2")]
+                        }
+             in renderAppShellActionForm
+                    (appShellActionFor fields)
+                    route
+                    [hsx|<button type="submit" class="btn btn-sm btn-outline-danger">Refresh approval</button>|]
+        _ -> mempty
+  where
+    refreshableApprovalBlockerCodes =
+        [ "wage_publication_failed"
+        , "wage_source_policy"
+        , "earnings_mapping_not_verified"
+        , "managed_pay_item_not_ready"
+        ]
 
 renderPreparationBlockingIssueHint :: Maybe Text -> Html
 renderPreparationBlockingIssueHint = \case
@@ -505,7 +543,7 @@ renderManagedPayItemBlockers :: XeroTimesheetPreparationView -> Html
 renderManagedPayItemBlockers view =
     view.preparationReadiness.timesheetReadinessBlockers
         |> filter ((== "managed_pay_item_not_ready") . (.timesheetIssueCode))
-        |> map renderPreparationBlockingIssue
+        |> map (renderPreparationBlockingIssue view)
         |> mconcat
 
 renderAccountCodeOption :: Text -> XeroPayItemAccountCodeOption -> Html

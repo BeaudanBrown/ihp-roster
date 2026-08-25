@@ -202,6 +202,19 @@ The exact paging, lease, retry, and trust implementation is authoritative in
   reapproval creates independently routed components. Submission source links
   retain immutable audit snapshots but do not lock Timesheet entries; corrected entries reset approval and
   enter Xero only after reapproval and a fresh preparation.
+- Entry-specific approval blockers expose one owner/super-admin `Refresh approval`
+  recovery in a real selected venue. The confirmed action carries the expected
+  active calculation and approval timestamp, waits at most five seconds for the
+  Timesheet row lock, rejects stale controls and active provider writes, and
+  transactionally recalculates against current pay facts and Xero mappings. A
+  successful refresh retains the prior sealed ledger, updates approval actor/time,
+  and records `TimesheetApprovedAudit` with prior/new calculation IDs and source
+  `xero_preparation_refresh`; incomplete replacements roll back completely. A
+  concurrent duplicate control that waits and then observes that first complete,
+  audited refresh returns the same healthy approval as an idempotent no-op; every
+  other expected-identity mismatch is stale.
+  Reservation takes sorted Timesheet row locks and revalidates approval identity
+  before becoming the sole creator of provider-write reservations.
 - An effective staff-level imported Xero rate maps that staff member's imported
   components to the one approval-pinned Xero earnings rate; an explicit shift
   override still follows the shared pay-assignment precedence. Imported-rate

@@ -18,12 +18,14 @@ import Application.Xero.WorkflowState (xeroSubmissionIsInProgress,
                                        xeroSubmissionIsSuperseded,
                                        xeroSubmissionRunStatusFromStatuses)
 import qualified Control.Exception as Exception
-import Control.Monad (void)
+import Control.Monad (forM, guard, void)
 import qualified Data.Aeson as Aeson
 import qualified Data.List as List
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Data.Time.Clock (NominalDiffTime, diffUTCTime)
+import Data.Traversable (traverse)
 import qualified Data.UUID.V4 as UUIDv4
 import qualified Database.PostgreSQL.Simple as PG
 import Generated.Types
@@ -76,13 +78,50 @@ reserveXeroTimesheetSubmissionRun runTemplate reservations remoteTimesheets =
         Nothing -> do
             result :: Either HasqlSessionError XeroTimesheetReservationOutcome <-
                 Exception.try $ withTransaction do
-                    mapM_ lockReservation (List.sortOn reservationLockKey reservations)
-                    reserveInCurrentTransaction runTemplate reservations remoteTimesheets
+                    lockReservationSourceEntries reservations >>= \case
+                        Left message -> pure (XeroTimesheetReservationInvalid message)
+                        Right lockedReservations -> do
+                            mapM_ lockReservation (List.sortOn reservationLockKey lockedReservations)
+                            reserveInCurrentTransaction runTemplate lockedReservations remoteTimesheets
             case result of
                 Right outcome -> pure outcome
                 Left sessionError
                     | isUniqueViolation sessionError -> recoverExpectedUniqueRace sessionError reservations
                     | otherwise -> Exception.throwIO sessionError
+
+lockReservationSourceEntries ::
+    (?modelContext :: ModelContext) =>
+    [XeroTimesheetReservation] ->
+    IO (Either Text [XeroTimesheetReservation])
+lockReservationSourceEntries reservations = do
+    let expectedEntries = concatMap (.reservationSourceEntries) reservations
+        entryIds = List.sort (List.nub (map (unpackId . (.id)) expectedEntries))
+    lockedIds <- fmap concat $ forM entryIds \entryId ->
+        sqlQuery
+            "SELECT id FROM timesheet_entries WHERE id = ? FOR UPDATE"
+            (PG.Only entryId)
+    lockedEntries <- if null lockedIds
+        then pure []
+        else query @TimesheetEntry
+            |> filterWhereIn (#id, [Id entryId | PG.Only entryId <- lockedIds])
+            |> fetch
+    let lockedById = Map.fromList [(unpackId entry.id, entry) | entry <- lockedEntries]
+        identityMatches expected current =
+            current.isApproved
+                && current.activePayCalculationId == expected.activePayCalculationId
+                && current.approvedAt == expected.approvedAt
+                && current.staffPayVersionId == expected.staffPayVersionId
+                && current.shiftTypePayVersionId == expected.shiftTypePayVersionId
+        replaceExpected expected = do
+            current <- Map.lookup (unpackId expected.id) lockedById
+            guard (identityMatches expected current)
+            pure current
+        replaceReservation reservation = do
+            lockedSources <- traverse replaceExpected reservation.reservationSourceEntries
+            pure reservation { reservationSourceEntries = lockedSources }
+    pure case traverse replaceReservation reservations of
+        Nothing -> Left "A Timesheet approval changed before Xero submission reservation. Refresh preparation and review it again."
+        Just lockedReservations -> Right lockedReservations
 
 validateReservations :: XeroSubmissionRun -> [XeroTimesheetReservation] -> Maybe Text
 validateReservations runTemplate reservations

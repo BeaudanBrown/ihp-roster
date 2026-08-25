@@ -309,9 +309,9 @@ export function isFrontendSurfaceInteractionSurfaceName(value: unknown): value i
     return typeof value === "string" && ["roster", "roster-day-timeline"].includes(value);
 }
 
-export type AppErrorCode = "application.error.foundation.foundation/unexpected-synchronous-error" | "application.xero.timesheets.error.xero-preparation/xero-preparation-state-unavailable";
+export type AppErrorCode = "application.error.foundation.foundation/unexpected-synchronous-error" | "application.timesheet-approval.error.timesheet-approval/approval-still-blocked" | "application.timesheet-approval.error.timesheet-approval/approval-control-stale" | "application.timesheet-approval.error.timesheet-approval/approval-provider-write-active" | "application.timesheet-approval.error.timesheet-approval/approval-refresh-lock-timed-out" | "application.timesheet-approval.error.timesheet-approval/approval-entry-unavailable" | "application.xero.timesheets.error.xero-preparation/xero-preparation-state-unavailable";
 export function isAppErrorCode(value: unknown): value is AppErrorCode {
-    return typeof value === "string" && ["application.error.foundation.foundation/unexpected-synchronous-error", "application.xero.timesheets.error.xero-preparation/xero-preparation-state-unavailable"].includes(value);
+    return typeof value === "string" && ["application.error.foundation.foundation/unexpected-synchronous-error", "application.timesheet-approval.error.timesheet-approval/approval-still-blocked", "application.timesheet-approval.error.timesheet-approval/approval-control-stale", "application.timesheet-approval.error.timesheet-approval/approval-provider-write-active", "application.timesheet-approval.error.timesheet-approval/approval-refresh-lock-timed-out", "application.timesheet-approval.error.timesheet-approval/approval-entry-unavailable", "application.xero.timesheets.error.xero-preparation/xero-preparation-state-unavailable"].includes(value);
 }
 
 export type AppErrorSeverity = "blocking" | "critical";

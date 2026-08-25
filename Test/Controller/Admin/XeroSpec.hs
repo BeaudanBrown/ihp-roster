@@ -37,6 +37,7 @@ import qualified Data.Text as Text
 import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.Clock (NominalDiffTime, addUTCTime, diffUTCTime,
                         getCurrentTime)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
@@ -1615,7 +1616,6 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 refreshedRun <- fetch run.id
                 refreshedRun.status `shouldBe` ReadyForPreview
                 refreshedRun.selectedPeriodKey `shouldBe` Just (fixturePeriodKey fixture)
-
         it "keeps staff rows visible while manual changes auto-save and Continue approves suggestions" $ withContext do
             withCleanDb do
                 fixture <-
