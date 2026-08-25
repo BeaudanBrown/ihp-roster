@@ -1,13 +1,26 @@
 module Test.XeroTimesheetReadinessSpec where
 
 import Application.Fixture.PayrollFixtures (createAndApproveEntry)
+import Application.Helper.TimesheetPayLedger (ApprovedPayLedgerError (..))
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
-import Application.Helper.XeroTimesheetReadiness
-import Application.Xero.Admin.ReadModel (xeroPeriodOverlapsDefaultWindow)
-import Application.Xero.Timesheets.Buckets (fetchPeriodXeroLocalEarningsBuckets)
+import Application.Helper.XeroTimesheetReadiness hiding
+                                                 (validateXeroTimesheetReadiness)
+import qualified Application.Helper.XeroTimesheetReadiness as Readiness
+import Application.Xero.Admin.ReadModel (xeroPeriodOverlapsDefaultWindow,
+                                         xeroTimesheetReadinessView)
+import Application.Xero.Timesheets.Buckets (XeroAvailableBuckets (..),
+                                            XeroBucketError (..),
+                                            XeroBucketOutcome (..),
+                                            XeroBucketProblem (..),
+                                            bucketErrorCode,
+                                            bucketErrorSafeMessage,
+                                            fetchPeriodXeroLocalEarningsBuckets)
+import Application.Xero.Timesheets.Prepare.Helpers (SelectedPreparationPeriodError (..),
+                                                    selectedPreparationPeriod)
 import qualified Application.Xero.Timesheets.Preview as Preview
+import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
@@ -17,6 +30,19 @@ import IHP.ControllerPrelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
+
+validateXeroTimesheetReadiness :: (?modelContext :: ModelContext) => XeroTimesheetReadinessRequest -> IO XeroTimesheetReadiness
+validateXeroTimesheetReadiness request =
+    Readiness.validateXeroTimesheetReadiness request >>= expectAppResult
+
+expectAppResult :: Show error => Either error value -> IO value
+expectAppResult = either (\err -> expectationFailure (cs (show err)) >> fail "expected successful application result") pure
+
+expectBucketsAvailable :: Either error XeroBucketOutcome -> IO [XeroLocalEarningsBucket]
+expectBucketsAvailable = \case
+    Left _ -> expectationFailure "expected bucket operation success" >> fail "bucket operation failed"
+    Right (XeroBucketsBlocked _) -> expectationFailure "expected available buckets" >> fail "buckets blocked"
+    Right (XeroBucketsAvailable available) -> pure available.xeroAvailableBucketValues
 
 tests :: Spec
 tests = do
@@ -38,6 +64,28 @@ tests = do
             xeroPeriodOverlapsDefaultWindow today (addDays 7 today) (addDays 13 today) `shouldBe` True
             xeroPeriodOverlapsDefaultWindow today (addDays (-15) today) (addDays (-8) today) `shouldBe` False
             xeroPeriodOverlapsDefaultWindow today (addDays 8 today) (addDays 14 today) `shouldBe` False
+
+    describe "Xero bucket error causes" do
+        it "keeps every nested cause focused and safely renderable" do
+            let causes =
+                    [ XeroBucketPayLedgerError ApprovedPayLedgerCalculationNotSealed
+                    , XeroBucketMissingSealedCalculation
+                    , XeroBucketMissingStaff
+                    , XeroBucketMissingOperationalWindowFacts
+                    , XeroBucketKeyDerivationFailed "private derivation detail"
+                    , XeroBucketMissingSealedEarningsMapping
+                    , XeroBucketIncompleteSealedEarningsMapping
+                    ]
+            map bucketErrorCode causes `shouldBe`
+                [ "approved_pay_ledger_invalid"
+                , "approved_pay_ledger_missing"
+                , "approved_entry_staff_missing"
+                , "approved_operational_facts_missing"
+                , "approved_bucket_key_invalid"
+                , "approved_xero_mapping_missing"
+                , "approved_xero_mapping_incomplete"
+                ]
+            map bucketErrorSafeMessage causes `shouldSatisfy` all (not . Text.isInfixOf "private derivation detail")
 
     describe "Xero timesheet API parsing" do
         it "parses Timesheets envelopes with Microsoft JSON dates and line units" do
@@ -131,6 +179,55 @@ tests = do
 
     aroundAll withDatabaseTestContext do
       describe "Xero draft-timesheet readiness" do
+        it "rejects incomplete persisted preparation periods without a partial constructor" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Incomplete Xero period venue"
+                owner <- createUserRecord "incomplete-xero-period@example.com" "staff" True
+                let run = newRecord @XeroTimesheetPreparationRun
+                        |> set #venueId (unpackId venue.id)
+                        |> set #createdByUserId (unpackId owner.id)
+                        |> set #selectedPeriodKey (Just "calendar:2026-04-27:2026-05-03")
+                selectedPreparationPeriod run `shouldBe` Left PreparationPeriodIncomplete
+                let invertedRun =
+                        run
+                            |> set #selectedPayrollCalendarId (Just "calendar")
+                            |> set #selectedPeriodKey (Just "calendar:2026-05-03:2026-04-27")
+                            |> set #payPeriodStart (Just (fromGregorian 2026 5 3))
+                            |> set #payPeriodEnd (Just (fromGregorian 2026 4 27))
+                selectedPreparationPeriod invertedRun `shouldBe` Left PreparationPeriodInvalid
+
+        it "collects every affected entry when approved ledgers are unsealed" $ withContext do
+            withCleanDb do
+                let periodStart = fromGregorian 2026 4 27
+                    periodEnd = fromGregorian 2026 5 3
+                fixture <- createReadyMappedFixture "weekly" periodStart periodEnd
+                secondEntry <- createApprovedTimesheetEntryRecord fixture.venue fixture.staff fixture.owner (addDays 1 periodStart)
+                entries <- query @TimesheetEntry |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetch
+                calculations <- query @TimesheetPayCalculation
+                    |> filterWhereIn (#id, mapMaybe (.activePayCalculationId) entries)
+                    |> fetch
+                Exception.bracket_
+                    (sqlExecDiscardResult "ALTER TABLE timesheet_pay_calculations DISABLE TRIGGER enforce_timesheet_pay_calculations_immutable" ())
+                    (sqlExecDiscardResult "ALTER TABLE timesheet_pay_calculations ENABLE TRIGGER enforce_timesheet_pay_calculations_immutable" ())
+                    (forM_ calculations \calculation -> calculation |> set #sealedAt Nothing |> updateRecord >>= const (pure ()))
+
+                outcome <- fetchPeriodXeroLocalEarningsBuckets fixture.venue.id periodStart periodEnd [] >>= expectAppResult
+
+                case outcome of
+                    XeroBucketsAvailable _ -> expectationFailure "unsealed ledgers must block bucket preparation"
+                    XeroBucketsBlocked problems -> do
+                        map (.xeroBucketProblemEntryId) problems `shouldMatchList` map (unpackId . (.id)) entries
+                        map (.xeroBucketProblemCause) problems
+                            `shouldMatchList` replicate 2 (XeroBucketPayLedgerError ApprovedPayLedgerCalculationNotSealed)
+                        map (.xeroBucketProblemEntryId) problems `shouldSatisfy` elem (unpackId secondEntry.id)
+                readiness <- validateXeroTimesheetReadiness fixture.request
+                let issueEntries =
+                        xeroTimesheetReadinessView readiness
+                            |> (.timesheetReadinessBlockers)
+                            |> filter ((== "wage_publication_failed") . (.timesheetIssueCode))
+                            |> map (.timesheetIssueTimesheetEntryId)
+                issueEntries `shouldMatchList` map (Just . unpackId . (.id)) entries
+
         it "accepts a verified mapping added after approval for late binding" $ withContext do
             withCleanDb do
                 fixture <- createReadinessFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
@@ -273,10 +370,7 @@ tests = do
                 zipWith (\staffVersion shiftVersion -> shiftVersion.overrideAwardLevelId <|> staffVersion.defaultAwardLevelId) pinnedStaffVersions pinnedShiftVersions
                     `shouldSatisfy` all (== Just (unpackId awardLevelId))
 
-                bucketResult <- fetchPeriodXeroLocalEarningsBuckets fixture.venue.id periodStart periodEnd []
-                buckets <- case bucketResult of
-                    Left message -> expectationFailure (cs message) >> error "unreachable"
-                    Right values  -> pure values
+                buckets <- fetchPeriodXeroLocalEarningsBuckets fixture.venue.id periodStart periodEnd [] >>= expectBucketsAvailable
 
                 map (.localBucketKey) buckets `shouldSatisfy` (not . null)
                 map (.localBucketKey) buckets `shouldSatisfy` all (Text.isInfixOf (":effective:" <> tshow sealedRateBoundary <> ":"))
@@ -304,10 +398,7 @@ tests = do
                         |> updateRecord
                         >>= const (pure ())
 
-                bucketResult <- fetchPeriodXeroLocalEarningsBuckets fixture.venue.id periodStart periodEnd []
-                buckets <- case bucketResult of
-                    Left message -> expectationFailure (cs message) >> error "unreachable"
-                    Right values  -> pure values
+                buckets <- fetchPeriodXeroLocalEarningsBuckets fixture.venue.id periodStart periodEnd [] >>= expectBucketsAvailable
 
                 map (.localBucketKey) buckets `shouldSatisfy` any (Text.isInfixOf ":penalty:saturday_penalty:")
 
@@ -380,6 +471,27 @@ tests = do
                 readinessBlockerCodes readiness `shouldNotSatisfy` elem "entry_not_approved"
                 filter (== "entry_not_approved") (map (.xeroBlockerCode) readiness.xeroReadinessWarnings) `shouldBe` ["entry_not_approved"]
                 readiness.xeroTimesheetReady `shouldBe` True
+
+        it "preserves affected entry identity for every missing earnings mapping blocker" $ withContext do
+            withCleanDb do
+                let periodStart = fromGregorian 2026 4 27
+                fixture <- createReadyMappedFixture "weekly" periodStart (fromGregorian 2026 5 3)
+                secondEntry <- createApprovedTimesheetEntryRecord fixture.venue fixture.staff fixture.owner (addDays 1 periodStart)
+                mappings <- query @XeroEarningsRateMapping |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
+                forM_ mappings \mapping -> mapping |> set #mappingStatus XeroEarningsRateMappingStatusEnumStale |> updateRecord >>= const (pure ())
+                requirements <- query @XeroPayItemRequirementRecord |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
+                forM_ requirements \requirement -> requirement |> set #requirementStatus Ignored |> updateRecord >>= const (pure ())
+
+                readiness <- validateXeroTimesheetReadiness fixture.request
+
+                entries <- query @TimesheetEntry |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetch
+                let mappingBlockers = filter ((== "earnings_mapping_not_verified") . (.xeroBlockerCode)) readiness.xeroReadinessBlockers
+                    affectedEntryIds = mapMaybe (.xeroBlockerTimesheetEntryId) mappingBlockers
+                    expectedEntryIds = map (unpackId . (.id)) entries
+                mappingBlockers `shouldSatisfy` (not . null)
+                affectedEntryIds `shouldSatisfy` all (`elem` expectedEntryIds)
+                expectedEntryIds `shouldSatisfy` all (`elem` affectedEntryIds)
+                affectedEntryIds `shouldSatisfy` elem (unpackId secondEntry.id)
 
         it "accepts matched managed pay item requirements as earnings-rate mappings" $ withContext do
             withCleanDb do

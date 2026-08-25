@@ -10,6 +10,9 @@ module Application.Helper.XeroTimesheetReadiness
     , xeroReadinessSeverityText
     ) where
 
+import Application.Error.Boundary (withSynchronousAppErrorFallback)
+import Application.Error.Domain (projectDomainError)
+import Application.Error.Types (AppResult)
 import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculations)
 import Application.Helper.VenueScopedQueries
 import Application.Helper.Xero
@@ -23,13 +26,13 @@ import Application.WageSourceEnforcement (WageEntryFailure (..),
                                           renderWageEntryFailure)
 import Application.Xero.ReferenceTrust (xeroReferenceSnapshotMaxAge)
 import Application.Xero.Timesheets.Buckets
+import Application.Xero.Timesheets.Error (XeroPreparationError (..))
 import Application.Xero.WorkflowState (xeroAccountCodeSelectionIsVerified,
                                        xeroPayItemRequirementIsIgnored,
                                        xeroPayItemRequirementIsProposed,
                                        xeroPayItemRequirementIsUsable)
 import Control.Monad (guard)
 import qualified Data.Aeson.Types as AesonTypes
-import Data.Either (fromRight)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
@@ -88,76 +91,85 @@ data XeroTimesheetReadinessRequest = XeroTimesheetReadinessRequest
 validateXeroTimesheetReadiness ::
     (?modelContext :: ModelContext) =>
     XeroTimesheetReadinessRequest ->
-    IO XeroTimesheetReadiness
-validateXeroTimesheetReadiness request = do
-    maybeConnection <- fetchActiveXeroConnection request.readinessVenueId
-    now <- getCurrentTime
-    periodEntries <- fetchPeriodTimesheetEntries request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd
-    notPaidStaffIds <- maybe (pure []) fetchNotPaidStaffMappingIds maybeConnection
-    let baseSkippedStaffIds = List.nub (request.readinessSkippedStaffIds <> notPaidStaffIds)
-    let entriesBeforeCalendarFilter = filter (not . staffIsSkipped baseSkippedStaffIds . (.staffId)) periodEntries
-    let approvedEntriesBeforeCalendarFilter = approvedSubmittableEntries entriesBeforeCalendarFilter
-    let candidateStaffIds = List.nub (map (.staffId) approvedEntriesBeforeCalendarFilter)
-    staffMappings <- maybe (pure []) (fetchVerifiedStaffMappings candidateStaffIds) maybeConnection
-    mappedXeroEmployees <- maybe (pure []) (fetchMappedXeroEmployees staffMappings) maybeConnection
-    let calendarSkippedStaffIds = employeePayrollCalendarSkippedStaffIds request approvedEntriesBeforeCalendarFilter staffMappings mappedXeroEmployees
-    let effectiveSkippedStaffIds = List.nub (baseSkippedStaffIds <> calendarSkippedStaffIds)
-    let calendarEligibleEntries = filter (not . staffIsSkipped effectiveSkippedStaffIds . (.staffId)) periodEntries
-    previousConnectionEntryIds <-
-        maybe
-            (pure [])
-            (\connection -> fetchPreviousConnectionImportedEntryIds connection (approvedSubmittableEntries calendarEligibleEntries))
-            maybeConnection
-    let entries = filter (not . (`elem` previousConnectionEntryIds) . unpackId . (.id)) calendarEligibleEntries
-    let approvedEntries = approvedSubmittableEntries entries
-    let includedStaffIds = List.nub (map (.staffId) approvedEntries)
-    wageSourceResult <- enforceFinalWageEntries approvedEntries
-    bucketResult <- fetchPeriodXeroLocalEarningsBucketsExcludingEntries request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd effectiveSkippedStaffIds previousConnectionEntryIds
-    let buckets = fromRight [] bucketResult
-    earningsMappings <- maybe (pure []) (fetchVerifiedEarningsMappings buckets) maybeConnection
-    allPayItemRequirements <- maybe (pure []) fetchPayItemRequirements maybeConnection
-    let bucketKeys = map (.localBucketKey) buckets
-        payItemRequirements = filter (\requirement -> requirement.requirementKey `elem` bucketKeys) allPayItemRequirements
-    maybeCalendar <- fetchRequestPayrollCalendar request maybeConnection
-    maybeAccountCodeSelection <- maybe (pure Nothing) fetchVerifiedPayItemAccountCodeSelection maybeConnection
+    IO (AppResult XeroTimesheetReadiness)
+validateXeroTimesheetReadiness request =
+    withSynchronousAppErrorFallback
+        validate
+        (const (pure (Left (projectDomainError XeroPreparationStateUnavailable))))
+  where
+    validate = do
+        maybeConnection <- fetchActiveXeroConnection request.readinessVenueId
+        now <- getCurrentTime
+        periodEntries <- fetchPeriodTimesheetEntries request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd
+        notPaidStaffIds <- maybe (pure []) fetchNotPaidStaffMappingIds maybeConnection
+        let baseSkippedStaffIds = List.nub (request.readinessSkippedStaffIds <> notPaidStaffIds)
+            entriesBeforeCalendarFilter = filter (not . staffIsSkipped baseSkippedStaffIds . (.staffId)) periodEntries
+            approvedEntriesBeforeCalendarFilter = approvedSubmittableEntries entriesBeforeCalendarFilter
+            candidateStaffIds = List.nub (map (.staffId) approvedEntriesBeforeCalendarFilter)
+        staffMappings <- maybe (pure []) (fetchVerifiedStaffMappings candidateStaffIds) maybeConnection
+        mappedXeroEmployees <- maybe (pure []) (fetchMappedXeroEmployees staffMappings) maybeConnection
+        let calendarSkippedStaffIds = employeePayrollCalendarSkippedStaffIds request approvedEntriesBeforeCalendarFilter staffMappings mappedXeroEmployees
+            effectiveSkippedStaffIds = List.nub (baseSkippedStaffIds <> calendarSkippedStaffIds)
+            calendarEligibleEntries = filter (not . staffIsSkipped effectiveSkippedStaffIds . (.staffId)) periodEntries
+        previousConnectionEntryIds <-
+            maybe
+                (pure [])
+                (\connection -> fetchPreviousConnectionImportedEntryIds connection (approvedSubmittableEntries calendarEligibleEntries))
+                maybeConnection
+        let entries = filter (not . (`elem` previousConnectionEntryIds) . unpackId . (.id)) calendarEligibleEntries
+            approvedEntries = approvedSubmittableEntries entries
+            includedStaffIds = List.nub (map (.staffId) approvedEntries)
+        wageSourceResult <- enforceFinalWageEntries approvedEntries
+        fetchPeriodXeroLocalEarningsBucketsExcludingEntries request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd effectiveSkippedStaffIds previousConnectionEntryIds >>= \case
+            Left appError -> pure (Left appError)
+            Right bucketOutcome -> do
+                let (bucketProblems, buckets, bucketEntryIdsByKey) = case bucketOutcome of
+                        XeroBucketsAvailable available -> ([], available.xeroAvailableBucketValues, available.xeroAvailableBucketEntryIdsByKey)
+                        XeroBucketsBlocked problems -> (problems, [], Map.empty)
+                earningsMappings <- maybe (pure []) (fetchVerifiedEarningsMappings buckets) maybeConnection
+                allPayItemRequirements <- maybe (pure []) fetchPayItemRequirements maybeConnection
+                let bucketKeys = map (.localBucketKey) buckets
+                    payItemRequirements = filter (\requirement -> requirement.requirementKey `elem` bucketKeys) allPayItemRequirements
+                maybeCalendar <- fetchRequestPayrollCalendar request maybeConnection
+                maybeAccountCodeSelection <- maybe (pure Nothing) fetchVerifiedPayItemAccountCodeSelection maybeConnection
+                let blockers =
+                        concat
+                            [ connectionBlockers maybeConnection
+                            , referenceSyncBlockers now maybeConnection
+                            , calendarBlockers request maybeCalendar
+                            , entryBlockers entries
+                            , wageSourceBlockers wageSourceResult
+                            , publicationBucketBlockers bucketProblems
+                            , earningsMappingBlockers bucketEntryIdsByKey buckets earningsMappings payItemRequirements
+                            , payItemRequirementBlockers bucketEntryIdsByKey earningsMappings payItemRequirements maybeAccountCodeSelection
+                            , duplicateBlockers request entries staffMappings request.readinessRemoteTimesheets
+                            ]
+                    warnings =
+                        concat
+                            [ entryWarnings entries
+                            , previousConnectionImportedEntryWarnings previousConnectionEntryIds
+                            , staffMappingWarnings entries staffMappings
+                            , duplicateWarnings request entries staffMappings request.readinessRemoteTimesheets
+                            ]
+                pure $ Right XeroTimesheetReadiness
+                    { xeroTimesheetReady = null blockers
+                    , xeroReadinessPeriodStart = request.readinessPeriodStart
+                    , xeroReadinessPeriodEnd = request.readinessPeriodEnd
+                    , xeroReadinessBlockers = blockers
+                    , xeroReadinessWarnings = warnings
+                    , xeroReadinessStaffCount = length includedStaffIds
+                    , xeroReadinessEntryCount = length approvedEntries
+                    , xeroReadinessPayBucketCount = length buckets
+                    }
 
-    let blockers =
-            concat
-                [ connectionBlockers maybeConnection
-                , referenceSyncBlockers now maybeConnection
-                , calendarBlockers request maybeCalendar
-                , entryBlockers entries
-                , wageSourceBlockers wageSourceResult
-                , publicationBucketBlockers bucketResult
-                , earningsMappingBlockers buckets earningsMappings payItemRequirements
-                , payItemRequirementBlockers earningsMappings payItemRequirements maybeAccountCodeSelection
-                , duplicateBlockers request entries staffMappings request.readinessRemoteTimesheets
-                ]
-    let warnings =
-            concat
-                [ entryWarnings entries
-                , previousConnectionImportedEntryWarnings previousConnectionEntryIds
-                , staffMappingWarnings entries staffMappings
-                , duplicateWarnings request entries staffMappings request.readinessRemoteTimesheets
-                ]
-    pure XeroTimesheetReadiness
-        { xeroTimesheetReady = null blockers
-        , xeroReadinessPeriodStart = request.readinessPeriodStart
-        , xeroReadinessPeriodEnd = request.readinessPeriodEnd
-        , xeroReadinessBlockers = blockers
-        , xeroReadinessWarnings = warnings
-        , xeroReadinessStaffCount = length includedStaffIds
-        , xeroReadinessEntryCount = length approvedEntries
-        , xeroReadinessPayBucketCount = length buckets
-        }
-
-publicationBucketBlockers :: Either Text buckets -> [XeroReadinessBlocker]
-publicationBucketBlockers (Right _) = []
-publicationBucketBlockers (Left message) =
-    [ (blockerWith "wage_publication_failed" ("Approved wage components could not be published: " <> message))
-        { xeroBlockerActionHint = Just "Correct the approved pay ledger before preparing payroll."
-        }
-    ]
+publicationBucketBlockers :: [XeroBucketProblem] -> [XeroReadinessBlocker]
+publicationBucketBlockers = map blockerForProblem
+  where
+    blockerForProblem problem =
+        (blockerWith "wage_publication_failed" (bucketErrorSafeMessage problem.xeroBucketProblemCause))
+            { xeroBlockerTimesheetEntryId = Just problem.xeroBucketProblemEntryId
+            , xeroBlockerActionHint = Just "Correct and reapprove this timesheet before preparing payroll."
+            }
 
 wageSourceBlockers :: Either [WageEntryFailure] calculations -> [XeroReadinessBlocker]
 wageSourceBlockers (Right _) = []
@@ -434,20 +446,19 @@ staffMappingWarnings entries mappings =
         missingVerifiedMapping staffId =
             not (any (\mapping -> mapping.staffId == staffId && isJust mapping.xeroEmployeeId) mappings)
 
-earningsMappingBlockers :: [XeroLocalEarningsBucket] -> [XeroEarningsRateMapping] -> [XeroPayItemRequirementRecord] -> [XeroReadinessBlocker]
-earningsMappingBlockers buckets mappings requirements =
+earningsMappingBlockers :: Map.Map Text [UUID] -> [XeroLocalEarningsBucket] -> [XeroEarningsRateMapping] -> [XeroPayItemRequirementRecord] -> [XeroReadinessBlocker]
+earningsMappingBlockers bucketEntryIdsByKey buckets mappings requirements =
     buckets
-        |> mapMaybe \bucket ->
+        |> concatMap \bucket ->
             if Text.isPrefixOf "xero:imported-pay-item:" bucket.localBucketKey || bucketHasMapping bucket || bucketHasReadyRequirement bucket
-                then Nothing
-                else
-                    Just
-                        ( blockerWith
-                            "earnings_mapping_not_verified"
-                            "Every pay bucket must have a managed Xero pay item matched or created, or be imported from Xero in admin settings."
-                        )
-                            { xeroBlockerLocalBucketKey = Just bucket.localBucketKey
-                            }
+                then []
+                else blockersForBucketEntries bucketEntryIdsByKey bucket.localBucketKey
+                    ( blockerWith
+                        "earnings_mapping_not_verified"
+                        "Every pay bucket must have a managed Xero pay item matched or created, or be imported from Xero in admin settings."
+                    )
+                        { xeroBlockerLocalBucketKey = Just bucket.localBucketKey
+                        }
     where
         bucketHasMapping bucket =
             any (\mapping -> mapping.localBucketKey == bucket.localBucketKey && isJust mapping.xeroEarningsRateId) mappings
@@ -459,8 +470,8 @@ earningsMappingBlockers buckets mappings requirements =
                 )
                 requirements
 
-payItemRequirementBlockers :: [XeroEarningsRateMapping] -> [XeroPayItemRequirementRecord] -> Maybe XeroPayItemAccountCodeSelection -> [XeroReadinessBlocker]
-payItemRequirementBlockers earningsMappings requirements maybeAccountCodeSelection =
+payItemRequirementBlockers :: Map.Map Text [UUID] -> [XeroEarningsRateMapping] -> [XeroPayItemRequirementRecord] -> Maybe XeroPayItemAccountCodeSelection -> [XeroReadinessBlocker]
+payItemRequirementBlockers bucketEntryIdsByKey earningsMappings requirements maybeAccountCodeSelection =
     accountCodeBlockers <> requirementBlockers
     where
         activeRequirements = filter (\record -> not (xeroPayItemRequirementIsIgnored record.requirementStatus) && not (requirementHasImportedMapping record)) requirements
@@ -473,22 +484,27 @@ payItemRequirementBlockers earningsMappings requirements maybeAccountCodeSelecti
             ]
         requirementBlockers =
             activeRequirements
-                |> mapMaybe \record ->
+                |> concatMap \record ->
                     if xeroPayItemRequirementIsUsable record.requirementStatus
-                        then Nothing
-                        else
-                            Just
-                                ( blockerWith
-                                    "managed_pay_item_not_ready"
-                                    "Managed Xero pay item requirements must be matched or created before timesheet readiness."
-                                )
-                                    { xeroBlockerLocalBucketKey = Just record.requirementKey
-                                    , xeroBlockerXeroObjectId = record.xeroEarningsRateId
-                                    }
+                        then []
+                        else blockersForBucketEntries bucketEntryIdsByKey record.requirementKey
+                            ( blockerWith
+                                "managed_pay_item_not_ready"
+                                "Managed Xero pay item requirements must be matched or created before timesheet readiness."
+                            )
+                                { xeroBlockerLocalBucketKey = Just record.requirementKey
+                                , xeroBlockerXeroObjectId = record.xeroEarningsRateId
+                                }
         requirementHasImportedMapping record =
             any
                 (\mapping -> mapping.localBucketKey == record.requirementKey && isJust mapping.xeroEarningsRateId)
                 earningsMappings
+
+blockersForBucketEntries :: Map.Map Text [UUID] -> Text -> XeroReadinessBlocker -> [XeroReadinessBlocker]
+blockersForBucketEntries entryIdsByKey bucketKey baseBlocker =
+    case Map.findWithDefault [] bucketKey entryIdsByKey of
+        [] -> [baseBlocker]
+        entryIds -> map (\entryId -> baseBlocker { xeroBlockerTimesheetEntryId = Just entryId }) entryIds
 
 duplicateBlockers :: XeroTimesheetReadinessRequest -> [TimesheetEntry] -> [XeroStaffMapping] -> [XeroTimesheetRef] -> [XeroReadinessBlocker]
 duplicateBlockers request entries mappings remoteTimesheets =

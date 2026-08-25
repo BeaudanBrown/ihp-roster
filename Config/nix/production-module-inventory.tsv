@@ -386,6 +386,7 @@ Application/Xero/ReferenceTrust/Service.hs	production	runtime	Main	Reachable fro
 Application/Xero/Timesheets/BucketKey.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Timesheets/Buckets.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Timesheets/Diagnostic.hs	production	runtime	Main	Reachable from Main
+Application/Xero/Timesheets/Error.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Timesheets/LateBindings.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Timesheets/Prepare.hs	production	runtime	Main	Reachable from Main
 Application/Xero/Timesheets/Prepare/Helpers.hs	production	runtime	Main	Reachable from Main

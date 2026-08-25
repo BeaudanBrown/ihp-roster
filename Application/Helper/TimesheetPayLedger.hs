@@ -1,7 +1,10 @@
 module Application.Helper.TimesheetPayLedger
-    ( backfillApprovedTimesheetPayCalculations
+    ( ApprovedPayLedgerError (..)
+    , backfillApprovedTimesheetPayCalculations
     , loadApprovedTimesheetPayCalculation
+    , loadApprovedTimesheetPayCalculationResults
     , loadApprovedTimesheetPayCalculations
+    , renderApprovedPayLedgerError
     , persistApprovedTimesheetPayCalculation
     , persistDevSeedApprovedTimesheetPayCalculation
     , roundWageLedgerRational
@@ -32,23 +35,53 @@ import IHP.ControllerPrelude
 import IHP.ModelSupport (ModelContext, sqlQuery, unpackId)
 import IHP.Prelude
 
--- | Reconstructs the exact sealed facts without consulting mutable pay sources.
+data ApprovedPayLedgerError
+    = ApprovedPayLedgerResultNotLoaded
+    | ApprovedPayLedgerActiveCalculationMissing
+    | ApprovedPayLedgerCalculationBelongsToDifferentEntry
+    | ApprovedPayLedgerCalculationNotSealed
+    | ApprovedPayLedgerUnknownPaidTimeKind !Text
+    | ApprovedPayLedgerUnknownEarningsUnit !Text
+    | ApprovedPayLedgerUnknownCalculationSource !Text
+    | ApprovedPayLedgerUnknownSourceCondition !Text
+    deriving (Eq, Show)
+
+renderApprovedPayLedgerError :: ApprovedPayLedgerError -> Text
+renderApprovedPayLedgerError = \case
+    ApprovedPayLedgerResultNotLoaded -> "Approved pay calculation result was not loaded."
+    ApprovedPayLedgerActiveCalculationMissing -> "Active pay calculation does not exist."
+    ApprovedPayLedgerCalculationBelongsToDifferentEntry -> "Active pay calculation belongs to a different timesheet entry."
+    ApprovedPayLedgerCalculationNotSealed -> "Active pay calculation is not sealed."
+    ApprovedPayLedgerUnknownPaidTimeKind value -> "Unknown persisted paid-time kind: " <> value
+    ApprovedPayLedgerUnknownEarningsUnit value -> "Unknown persisted earnings unit: " <> value
+    ApprovedPayLedgerUnknownCalculationSource value -> "Unknown persisted calculation source: " <> value
+    ApprovedPayLedgerUnknownSourceCondition value -> "Unknown persisted source condition: " <> value
+
+-- | Compatibility renderer for callers not yet migrated to typed outcomes.
 loadApprovedTimesheetPayCalculation ::
     (?modelContext :: ModelContext) =>
     TimesheetEntry ->
     IO (Either Text (Maybe WageCalculation))
 loadApprovedTimesheetPayCalculation entry = do
-    results <- loadApprovedTimesheetPayCalculations [entry]
-    pure $ fromMaybe (Left "Approved pay calculation result was not loaded.") (Map.lookup (unpackId entry.id) results)
+    results <- loadApprovedTimesheetPayCalculationResults [entry]
+    pure $ Bifunctor.first renderApprovedPayLedgerError $
+        fromMaybe (Left ApprovedPayLedgerResultNotLoaded) (Map.lookup (unpackId entry.id) results)
 
--- | Bulk approved-ledger read. The three persisted ledger relations are each
--- queried at most once, regardless of entry count; reconstruction and error
--- selection are deterministic in entry/ordinal order.
 loadApprovedTimesheetPayCalculations ::
     (?modelContext :: ModelContext) =>
     [TimesheetEntry] ->
     IO (Map.Map UUID (Either Text (Maybe WageCalculation)))
-loadApprovedTimesheetPayCalculations entries
+loadApprovedTimesheetPayCalculations entries =
+    fmap (fmap (Bifunctor.first renderApprovedPayLedgerError)) (loadApprovedTimesheetPayCalculationResults entries)
+
+-- | Bulk approved-ledger read. The three persisted ledger relations are each
+-- queried at most once, regardless of entry count; reconstruction and error
+-- selection are deterministic in entry/ordinal order.
+loadApprovedTimesheetPayCalculationResults ::
+    (?modelContext :: ModelContext) =>
+    [TimesheetEntry] ->
+    IO (Map.Map UUID (Either ApprovedPayLedgerError (Maybe WageCalculation)))
+loadApprovedTimesheetPayCalculationResults entries
     | null calculationIds = pure resultWithoutRows
     | otherwise = do
         calculations <- query @TimesheetPayCalculation
@@ -75,11 +108,11 @@ loadApprovedTimesheetPayCalculations entries
         case fmap unpackId entry.activePayCalculationId of
             Nothing -> Right Nothing
             Just calculationId -> do
-                calculation <- maybe (Left "Active pay calculation does not exist.") Right (Map.lookup calculationId calculationById)
+                calculation <- maybe (Left ApprovedPayLedgerActiveCalculationMissing) Right (Map.lookup calculationId calculationById)
                 if calculation.timesheetEntryId /= unpackId entry.id
-                    then Left "Active pay calculation belongs to a different timesheet entry."
+                    then Left ApprovedPayLedgerCalculationBelongsToDifferentEntry
                     else if isNothing calculation.sealedAt
-                        then Left "Active pay calculation is not sealed."
+                        then Left ApprovedPayLedgerCalculationNotSealed
                         else
                             Just
                                 <$> wageCalculationFromRows
@@ -92,7 +125,7 @@ loadApprovedTimesheetPayCalculations entries
         Map.fromListWith (<>)
             . map (\row -> (rowCalculationId row, [row]))
 
-wageCalculationFromRows :: TimesheetEntry -> TimesheetPayCalculation -> [TimesheetPayTimeSegment] -> [TimesheetPayEarningsComponent] -> Either Text WageCalculation
+wageCalculationFromRows :: TimesheetEntry -> TimesheetPayCalculation -> [TimesheetPayTimeSegment] -> [TimesheetPayEarningsComponent] -> Either ApprovedPayLedgerError WageCalculation
 wageCalculationFromRows entry calculation segmentRows componentRows = do
     segments <- traverse paidSegmentFromRow segmentRows
     components <- traverse componentFromRow componentRows
@@ -105,13 +138,13 @@ wageCalculationFromRows entry calculation segmentRows componentRows = do
         , earningsComponents = components
         }
 
-paidSegmentFromRow :: TimesheetPayTimeSegment -> Either Text PaidTimeSegment
+paidSegmentFromRow :: TimesheetPayTimeSegment -> Either ApprovedPayLedgerError PaidTimeSegment
 paidSegmentFromRow row = do
     kind <- case row.paidTimeKind of
         "worked" -> Right Worked
         "casual_minimum_engagement_top_up" -> Right CasualMinimumEngagementTopUp
         "public_holiday_minimum_top_up" -> Right PublicHolidayMinimumTopUp
-        value -> Left ("Unknown persisted paid-time kind: " <> value)
+        value -> Left (ApprovedPayLedgerUnknownPaidTimeKind value)
     condition <- parseSourceCondition row.sourceCondition
     pure PaidTimeSegment
         { paidTimeKind = kind
@@ -121,17 +154,17 @@ paidSegmentFromRow row = do
         , paidTimeSourceCondition = condition
         }
 
-componentFromRow :: TimesheetPayEarningsComponent -> Either Text EarningsComponent
+componentFromRow :: TimesheetPayEarningsComponent -> Either ApprovedPayLedgerError EarningsComponent
 componentFromRow row = do
     unit <- case row.unitType of
         "hours"           -> Right Hours
         "commenced_hours" -> Right CommencedHours
-        value             -> Left ("Unknown persisted earnings unit: " <> value)
+        value             -> Left (ApprovedPayLedgerUnknownEarningsUnit value)
     condition <- parseSourceCondition row.sourceCondition
     source <- case row.calculationSource of
         "hospitality_award" -> Right HospitalityAward
         "external_imported_pay_item" -> Right ExternalImportedPayItem
-        value -> Left ("Unknown persisted calculation source: " <> value)
+        value -> Left (ApprovedPayLedgerUnknownCalculationSource value)
     pure EarningsComponent
         { quantity = toRational row.quantity
         , unitType = unit
@@ -147,7 +180,7 @@ componentFromRow row = do
         , sourceRateIdentity = RateSourceIdentity <$> row.sourceRateIdentity
         }
 
-parseSourceCondition :: Text -> Either Text SourceCondition
+parseSourceCondition :: Text -> Either ApprovedPayLedgerError SourceCondition
 parseSourceCondition = \case
     "ordinary" -> Right OrdinaryCondition
     "saturday" -> Right SaturdayCondition
@@ -158,7 +191,7 @@ parseSourceCondition = \case
     "missed_meal_break_addition" -> Right MissedMealBreakAdditionCondition
     value -> case Text.stripPrefix "external_imported_pay_item:" value of
         Just itemId | not (Text.null itemId) -> Right (ImportedFlatRateCondition itemId)
-        _ -> Left ("Unknown persisted source condition: " <> value)
+        _ -> Left (ApprovedPayLedgerUnknownSourceCondition value)
 
 persistApprovedTimesheetPayCalculation ::
     (?modelContext :: ModelContext) =>

@@ -1,15 +1,20 @@
 module Application.Xero.Timesheets.Prepare
-    ( XeroPreparationStaffDecision (..)
+    ( XeroPreparationResult
+    , PayItemRequirementsBlocker (..)
+    , PayItemRequirementsState (..)
+    , XeroPreparationStaffDecision (..)
     , applyXeroPreparationStaffDecision
     , approveXeroPreparationPayItemDecisions
     , approveXeroPreparationStaffStep
     , loadXeroTimesheetPreparationView
+    , fetchPreparationPayItemRequirements
     , refreshXeroTimesheetPreparation
     , selectXeroTimesheetPreparationPeriod
     , startXeroTimesheetPreparation
     , submitXeroTimesheetPreparation
     ) where
 
+import Application.Error.Types (AppResult)
 import Application.Helper.Audit (recordCurrentUserAuditEvent)
 import Application.Helper.ControllerContext (currentVenueId)
 import Application.Helper.Staff (isLinkedActiveStaff)
@@ -43,6 +48,24 @@ import Data.Time.Calendar (Day)
 import Generated.Types
 import IHP.ControllerPrelude
 
+type XeroPreparationResult value = AppResult (Either Text value)
+
+preparationFailure :: Text -> XeroPreparationResult value
+preparationFailure = Right . Left
+
+preparationSuccess :: value -> XeroPreparationResult value
+preparationSuccess = Right . Right
+
+data PayItemRequirementsBlocker
+    = PayItemRequirementsPeriodBlocked !SelectedPreparationPeriodError
+    | PayItemRequirementsBucketsBlocked ![XeroBucketProblem]
+    | PayItemRequirementsNoApprovedBuckets
+    deriving (Eq, Show)
+
+data PayItemRequirementsState
+    = PayItemRequirementsAvailable ![XeroPayItemRequirement]
+    | PayItemRequirementsBlocked !PayItemRequirementsBlocker
+
 data XeroPreparationStaffDecision
     = SelectXeroEmployee !XeroEmployeeId
     | MarkStaffNotPaidThroughXero
@@ -50,14 +73,14 @@ data XeroPreparationStaffDecision
 
 startXeroTimesheetPreparation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    IO (Either Text XeroTimesheetPreparationView)
+    IO (XeroPreparationResult XeroTimesheetPreparationView)
 startXeroTimesheetPreparation = do
     maybeConnection <- fetchCurrentVenueXeroConnection
     case maybeConnection of
-        Nothing -> pure (Left "Connect Xero before preparing draft timesheets.")
+        Nothing -> pure (preparationFailure "Connect Xero before preparing draft timesheets.")
         Just connection ->
             refreshCurrentVenueXeroReferenceDataForPreparation connection >>= \case
-                Left message -> pure (Left message)
+                Left message -> pure (preparationFailure message)
                 Right refreshedConnection -> do
                     now <- getCurrentTime
                     run <-
@@ -70,9 +93,7 @@ startXeroTimesheetPreparation = do
                             |> set #eventsJson (preparationInitialEventsJson now "staff-first")
                             |> set #startedAt now
                             |> createRecord
-                    ensurePreparationDecisionProposals run
-                    _ <- refreshPreparationRunStatus run []
-                    loadXeroTimesheetPreparationView run.id
+                    finalizePreparationRun run []
 
 refreshCurrentVenueXeroReferenceDataForPreparation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -90,17 +111,14 @@ refreshCurrentVenueXeroReferenceDataForPreparation connection = do
 refreshXeroTimesheetPreparation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id XeroTimesheetPreparationRun ->
-    IO (Either Text XeroTimesheetPreparationView)
+    IO (XeroPreparationResult XeroTimesheetPreparationView)
 refreshXeroTimesheetPreparation runId = do
     fetchPreparationRunForCurrentVenue runId >>= \case
-        Nothing -> pure (Left "Xero preparation run was not found for this venue.")
+        Nothing -> pure (preparationFailure "Xero preparation run was not found for this venue.")
         Just run -> do
             connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
             if not (preparationRunHasPeriod run)
-                then do
-                    ensurePreparationDecisionProposals run
-                    _ <- refreshPreparationRunStatus run []
-                    loadXeroTimesheetPreparationView runId
+                then finalizePreparationRun run []
                 else if connection.connectionStatus /= "active"
                 then do
                     _ <-
@@ -132,29 +150,58 @@ refreshXeroTimesheetPreparation runId = do
                                             loadXeroTimesheetPreparationView runId
                                         Right payRuns -> do
                                             refreshedRun <- persistRemotePreparationState refreshedConnection run payRuns []
-                                            ensurePreparationDecisionProposals refreshedRun
-                                            _ <- refreshPreparationRunStatus refreshedRun []
-                                            loadXeroTimesheetPreparationView runId
+                                            finalizePreparationRun refreshedRun []
+
+finalizePreparationRun ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroTimesheetPreparationRun ->
+    [XeroTimesheetRef] ->
+    IO (XeroPreparationResult XeroTimesheetPreparationView)
+finalizePreparationRun run remoteTimesheets =
+    ensurePreparationDecisionProposals run >>= \case
+        Left appError -> pure (Left appError)
+        Right () ->
+            refreshPreparationRunStatus run remoteTimesheets >>= \case
+                Left appError -> pure (Left appError)
+                Right _       -> loadXeroTimesheetPreparationView run.id
 
 loadXeroTimesheetPreparationView ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id XeroTimesheetPreparationRun ->
-    IO (Either Text XeroTimesheetPreparationView)
+    IO (XeroPreparationResult XeroTimesheetPreparationView)
 loadXeroTimesheetPreparationView runId = do
     fetchPreparationRunForCurrentVenue runId >>= \case
-        Nothing -> pure (Left "Xero preparation run was not found for this venue.")
+        Nothing -> pure (preparationFailure "Xero preparation run was not found for this venue.")
         Just run -> do
             connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
             decisions <- fetchPreparationDecisions run
             let remoteTimesheets = remoteTimesheetsFromRun run
-            readiness <- preparationReadinessForRun run remoteTimesheets
-            let readinessView = preparationReadinessView run readiness
-            staffRows <- fetchCurrentVenueXeroStaffMappingRows (Just connection)
-            periodOptions <- fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection)
-            xeroEmployees <- fetchCurrentVenueXeroEmployees (Just connection)
-            xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
-            payItemRequirementsResult <- fetchPreparationPayItemRequirements run connection xeroEarningsRates
-            let payItemRequirements = either (const []) (\values -> values) payItemRequirementsResult
+            preparationReadinessForRun run remoteTimesheets >>= \case
+                Left appError -> pure (Left appError)
+                Right readiness -> loadPreparationView run connection decisions readiness
+
+loadPreparationView ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroTimesheetPreparationRun ->
+    XeroConnection ->
+    [XeroTimesheetPreparationDecision] ->
+    XeroTimesheetReadiness ->
+    IO (XeroPreparationResult XeroTimesheetPreparationView)
+loadPreparationView run connection decisions readiness = do
+    let readinessView = preparationReadinessView run readiness
+    staffRows <- fetchCurrentVenueXeroStaffMappingRows (Just connection)
+    periodOptions <- fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection)
+    xeroEmployees <- fetchCurrentVenueXeroEmployees (Just connection)
+    xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
+    fetchPreparationPayItemRequirements run connection xeroEarningsRates >>= \case
+        Left appError -> pure (Left appError)
+        Right payItemRequirementsState -> do
+            let payItemRequirements = case payItemRequirementsState of
+                    PayItemRequirementsAvailable values -> values
+                    PayItemRequirementsBlocked _        -> []
+                requirementsBlocked = case payItemRequirementsState of
+                    PayItemRequirementsAvailable _ -> False
+                    PayItemRequirementsBlocked _   -> True
             payrollCalendars <- fetchCurrentVenueXeroPayrollCalendars (Just connection)
             accountCodeOptions <- fetchCurrentVenueXeroPayItemAccountCodeOptions (Just connection)
             accountCodeSelection <- fetchCurrentVenueXeroPayItemAccountCodeSelection (Just connection)
@@ -162,11 +209,7 @@ loadXeroTimesheetPreparationView runId = do
                 case run.xeroSubmissionRunId of
                     Nothing -> pure Nothing
                     Just submissionRunId -> Just <$> fetch (Id submissionRunId :: Id XeroSubmissionRun)
-            let submissionPreviewRows =
-                    maybe
-                        []
-                        (xeroTimesheetPreviewRowsFromJson xeroEmployees xeroEarningsRates . (.previewPayloadJson))
-                        maybeSubmissionRun
+            let submissionPreviewRows = maybe [] (xeroTimesheetPreviewRowsFromJson xeroEmployees xeroEarningsRates . (.previewPayloadJson)) maybeSubmissionRun
                 staffDecisionRows = map (preparationStaffRow decisions) staffRows
                 payItemRows = map (preparationPayItemRow decisions) (filter activePayItemRequirement payItemRequirements)
                 pendingDecisionCount = length (filter pendingManualPreparationDecision decisions)
@@ -175,9 +218,9 @@ loadXeroTimesheetPreparationView runId = do
                 proposedPayItemCount = length (filter ((== XeroPayItemRequirementStatusEnumProposed) . (.payItemRequirementStatus) . (.preparationPayItemRequirement)) payItemRows)
                 pendingPayItemDecisionCount = length (filter pendingPayItemCreateDecision decisions)
                 staffStepApproved = any staffStepApprovalApplied decisions
-                hasSelectedPeriod = preparationRunHasPeriod run
                 canSubmit =
-                    hasSelectedPeriod
+                    preparationRunHasPeriod run
+                        && not requirementsBlocked
                         && connection.connectionStatus == "active"
                         && not postedBlocked
                         && pendingDecisionCount == 0
@@ -185,44 +228,42 @@ loadXeroTimesheetPreparationView runId = do
                         && manualStaffDecisionCount == 0
                         && readinessAllowsAutomaticPayItemSubmit readiness
                         && (proposedPayItemCount == 0 || not (null accountCodeOptions))
-            pure $
-                Right
-                    XeroTimesheetPreparationView
-                        { preparationRun = run
-                        , preparationState = xeroPreparationStateFromStatus run.status
-                        , preparationConnection = connection
-                        , preparationPeriodOption = periodOptionFromPreparationRun run
-                        , preparationPeriodOptions = periodOptions
-                        , preparationReadiness = readinessView
-                        , preparationPayrollCalendars = payrollCalendars
-                        , preparationStaffRows = staffDecisionRows
-                        , preparationEmployees = xeroEmployees
-                        , preparationPayItemRows = payItemRows
-                        , preparationPayItemAccountCodeOptions = accountCodeOptions
-                        , preparationPayItemAccountCodeSelection = accountCodeSelection
-                        , preparationPendingDecisionCount = pendingDecisionCount
-                        , preparationManualStaffDecisionCount = manualStaffDecisionCount
-                        , preparationStaffStepApproved = staffStepApproved
-                        , preparationPostedPayRunBlocked = postedBlocked
-                        , preparationCanSubmit = canSubmit
-                        , preparationPreviewRows = submissionPreviewRows
-                        , preparationSubmissionRun = maybeSubmissionRun
-                        }
+            pure $ preparationSuccess XeroTimesheetPreparationView
+                { preparationRun = run
+                , preparationState = xeroPreparationStateFromStatus run.status
+                , preparationConnection = connection
+                , preparationPeriodOption = periodOptionFromPreparationRun run
+                , preparationPeriodOptions = periodOptions
+                , preparationReadiness = readinessView
+                , preparationPayrollCalendars = payrollCalendars
+                , preparationStaffRows = staffDecisionRows
+                , preparationEmployees = xeroEmployees
+                , preparationPayItemRows = payItemRows
+                , preparationPayItemAccountCodeOptions = accountCodeOptions
+                , preparationPayItemAccountCodeSelection = accountCodeSelection
+                , preparationPendingDecisionCount = pendingDecisionCount
+                , preparationManualStaffDecisionCount = manualStaffDecisionCount
+                , preparationStaffStepApproved = staffStepApproved
+                , preparationPostedPayRunBlocked = postedBlocked
+                , preparationCanSubmit = canSubmit
+                , preparationPreviewRows = submissionPreviewRows
+                , preparationSubmissionRun = maybeSubmissionRun
+                }
 
 approveXeroPreparationStaffStep ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id XeroTimesheetPreparationRun ->
-    IO (Either Text XeroTimesheetPreparationView)
+    IO (XeroPreparationResult XeroTimesheetPreparationView)
 approveXeroPreparationStaffStep runId = do
     fetchPreparationRunForCurrentVenue runId >>= \case
-        Nothing -> pure (Left "Xero preparation run was not found for this venue.")
+        Nothing -> pure (preparationFailure "Xero preparation run was not found for this venue.")
         Just run -> do
             connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
             decisions <- fetchPreparationDecisions run
             let pendingAutoMatches = filter isPendingStaffAutoMatch decisions
             autoMatchResults <- mapM (applyPendingAutoMatchDecision run connection) pendingAutoMatches
             case lefts autoMatchResults of
-                message : _ -> pure (Left message)
+                message : _ -> pure (preparationFailure message)
                 [] -> do
                     refreshedStaffRows <- fetchCurrentVenueXeroStaffMappingRows (Just connection)
                     let unmatchedRows = filter staffNeedsXeroDecision refreshedStaffRows
@@ -231,7 +272,7 @@ approveXeroPreparationStaffStep runId = do
                         filter staffNeedsXeroDecision
                             <$> fetchCurrentVenueXeroStaffMappingRows (Just connection)
                     if not (null remainingUnresolvedRows)
-                        then pure (Left "Resolve staff matches before continuing.")
+                        then pure (preparationFailure "Resolve staff matches before continuing.")
                         else do
                             _ <- applyPreparationDecision run Nothing StaffStepApproved Nothing Nothing Nothing
                             reloadAfterLocalDecision run remoteTimesheetsFromRun
@@ -266,10 +307,10 @@ applyXeroPreparationStaffDecision ::
     Id XeroTimesheetPreparationRun ->
     Id Staff ->
     XeroPreparationStaffDecision ->
-    IO (Either Text XeroTimesheetPreparationView)
+    IO (XeroPreparationResult XeroTimesheetPreparationView)
 applyXeroPreparationStaffDecision runId staffId decision = do
     fetchPreparationRunForCurrentVenue runId >>= \case
-        Nothing -> pure (Left "Xero preparation run was not found for this venue.")
+        Nothing -> pure (preparationFailure "Xero preparation run was not found for this venue.")
         Just run -> do
             connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
             maybeStaff <-
@@ -278,8 +319,8 @@ applyXeroPreparationStaffDecision runId staffId decision = do
                     |> filterWhere (#venueId, unpackId currentVenueId)
                     |> fetchOneOrNothing
             case maybeStaff of
-                Nothing -> pure (Left "Choose a linked active staff member from the current venue.")
-                Just staff | not (isLinkedActiveStaff staff) -> pure (Left "Choose a linked active staff member from the current venue.")
+                Nothing -> pure (preparationFailure "Choose a linked active staff member from the current venue.")
+                Just staff | not (isLinkedActiveStaff staff) -> pure (preparationFailure "Choose a linked active staff member from the current venue.")
                 Just staff ->
                     case decision of
                         MarkStaffNotPaidThroughXero -> do
@@ -302,14 +343,15 @@ ensurePreparationPayItemsReady ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroTimesheetPreparationRun ->
     Maybe Text ->
-    IO (Either Text ())
+    IO (AppResult (Either Text ()))
 ensurePreparationPayItemsReady run maybeAccountCode = do
     connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
     xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
     requirementsResult <- fetchPreparationPayItemRequirements run connection xeroEarningsRates
     case requirementsResult of
-        Left message -> pure (Left (preparationPayItemRequirementsError message))
-        Right requirements -> ensureRequirementsReady connection requirements
+        Left appError -> pure (Left appError)
+        Right (PayItemRequirementsBlocked blocker) -> pure (preparationFailure (preparationPayItemRequirementsError blocker))
+        Right (PayItemRequirementsAvailable requirements) -> Right <$> ensureRequirementsReady connection requirements
   where
     ensureRequirementsReady connection requirements = do
         accountCodeOptions <- fetchCurrentVenueXeroPayItemAccountCodeOptions (Just connection)
@@ -348,15 +390,17 @@ selectXeroTimesheetPreparationPeriod ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id XeroTimesheetPreparationRun ->
     Text ->
-    IO (Either Text XeroTimesheetPreparationView)
+    IO (XeroPreparationResult XeroTimesheetPreparationView)
 selectXeroTimesheetPreparationPeriod runId selectedPeriodKey =
     fetchPreparationRunForCurrentVenue runId >>= \case
-        Nothing -> pure (Left "Xero preparation run was not found for this venue.")
+        Nothing -> pure (preparationFailure "Xero preparation run was not found for this venue.")
         Just run -> do
             connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
             options <- fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection)
             case List.find (\option -> option.periodOptionKey == Text.strip selectedPeriodKey) options of
-                Nothing -> pure (Left "Choose a Xero pay period before preparing draft timesheets.")
+                Nothing -> pure (preparationFailure "Choose a Xero pay period before preparing draft timesheets.")
+                Just option | option.periodOptionBlocked ->
+                    pure (preparationFailure (fromMaybe "This Xero pay period cannot be prepared." option.periodOptionBlockReason))
                 Just option -> do
                     updatedRun <-
                         run
@@ -378,76 +422,85 @@ approveXeroPreparationPayItemDecisions ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id XeroTimesheetPreparationRun ->
     Maybe Text ->
-    IO (Either Text XeroTimesheetPreparationView)
+    IO (XeroPreparationResult XeroTimesheetPreparationView)
 approveXeroPreparationPayItemDecisions runId maybeAccountCode = do
     let accountCode = Text.strip (fromMaybe "" maybeAccountCode)
     if Text.null accountCode
-        then pure (Left "Choose a Xero account code before continuing.")
+        then pure (preparationFailure "Choose a Xero account code before continuing.")
         else saveXeroPreparationAccountCode runId accountCode
 
 saveXeroPreparationAccountCode ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id XeroTimesheetPreparationRun ->
     Text ->
-    IO (Either Text XeroTimesheetPreparationView)
+    IO (XeroPreparationResult XeroTimesheetPreparationView)
 saveXeroPreparationAccountCode runId accountCode =
     fetchPreparationRunForCurrentVenue runId >>= \case
-        Nothing -> pure (Left "Xero preparation run was not found for this venue.")
+        Nothing -> pure (preparationFailure "Xero preparation run was not found for this venue.")
         Just run -> do
             connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
             accountCodeOptions <- fetchCurrentVenueXeroPayItemAccountCodeOptions (Just connection)
             case Text.strip accountCode of
-                "" -> pure (Left "Choose a Xero account code.")
+                "" -> pure (preparationFailure "Choose a Xero account code.")
                 selectedAccountCode
                     | selectedAccountCode `notElem` xeroPayItemAccountCodeOptionValues accountCodeOptions ->
-                        pure (Left "Choose a synced Xero account code from the dropdown.")
-                    | otherwise -> do
-                        persistPreparationAccountCodeSelection connection accountCodeOptions selectedAccountCode
-                        proposedRequirements <- ensurePreparationPayItemDecisionProposals run
-                        markPayItemCreateDecisionsApplied run proposedRequirements
-                        reloadAfterLocalDecision run remoteTimesheetsFromRun
+                        pure (preparationFailure "Choose a synced Xero account code from the dropdown.")
+                    | otherwise ->
+                        ensurePreparationPayItemDecisionProposals run >>= \case
+                            Left appError -> pure (Left appError)
+                            Right (PayItemRequirementsBlocked blocker) -> pure (preparationFailure (preparationPayItemRequirementsError blocker))
+                            Right (PayItemRequirementsAvailable proposedRequirements) -> do
+                                persistPreparationAccountCodeSelection connection accountCodeOptions selectedAccountCode
+                                markPayItemCreateDecisionsApplied run proposedRequirements
+                                reloadAfterLocalDecision run remoteTimesheetsFromRun
 
 submitXeroTimesheetPreparation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id XeroTimesheetPreparationRun ->
     Maybe Text ->
-    IO (Either Text XeroTimesheetPreparationView)
+    IO (XeroPreparationResult XeroTimesheetPreparationView)
 submitXeroTimesheetPreparation runId maybeAccountCode =
     loadXeroTimesheetPreparationView runId >>= \case
-        Left message -> pure (Left message)
-        Right view
+        Left appError -> pure (Left appError)
+        Right (Left message) -> pure (preparationFailure message)
+        Right (Right view)
             | not view.preparationCanSubmit ->
-                pure (Left "Resolve Xero preparation blockers before submitting draft timesheets.")
+                pure (preparationFailure "Resolve Xero preparation blockers before submitting draft timesheets.")
             | otherwise ->
                 ensurePreparationPayItemsReady view.preparationRun maybeAccountCode >>= \case
-                    Left message -> pure (Left message)
-                    Right () -> do
+                    Left appError -> pure (Left appError)
+                    Right (Left message) -> pure (preparationFailure message)
+                    Right (Right ()) -> do
                         refreshedRun <- fetch view.preparationRun.id
                         let remoteTimesheets = remoteTimesheetsFromRun refreshedRun
-                            readinessRequest = preparationReadinessRequest refreshedRun remoteTimesheets
-                        readiness <- validateXeroTimesheetReadiness readinessRequest
-                        if not readiness.xeroTimesheetReady
-                            then pure (Left (readinessErrorSummary readiness))
-                            else
-                                submitXeroDraftTimesheetsForPreparation currentUser.id refreshedRun.id readinessRequest >>= \case
-                                    Left message -> pure (Left message)
-                                    Right (XeroTimesheetReviewedStateChanged snapshot) ->
-                                        pure (Left (reconciliationStateChangedMessage snapshot))
-                                    Right (XeroTimesheetReviewedSubmissionCompleted submissionRun)
-                                        | submissionRun.status == XeroSubmissionRunStatusEnumBlocked ->
-                                            pure (Left (fromMaybe "Xero submission is blocked." submissionRun.errorSummary))
-                                        | otherwise -> do
-                                            completedAt <- getCurrentTime
-                                            _ <-
-                                                refreshedRun
-                                                    |> set #status (if submissionRun.status == XeroSubmissionRunStatusEnumSubmitted then XeroTimesheetPreparationRunStatusEnumSubmitted else XeroTimesheetPreparationRunStatusEnumFailed)
-                                                    |> set #xeroSubmissionRunId (Just (unpackId submissionRun.id))
-                                                    |> set #previewPayloadJson submissionRun.previewPayloadJson
-                                                    |> set #readinessSnapshotJson submissionRun.readinessSnapshotJson
-                                                    |> set #errorSummary submissionRun.errorSummary
-                                                    |> set #completedAt (Just completedAt)
-                                                    |> updateRecord
-                                            loadXeroTimesheetPreparationView runId
+                        case preparationReadinessRequest refreshedRun remoteTimesheets of
+                            Left _ -> pure (preparationFailure "Choose a complete Xero pay period before submitting draft timesheets.")
+                            Right readinessRequest ->
+                                validateXeroTimesheetReadiness readinessRequest >>= \case
+                                    Left appError -> pure (Left appError)
+                                    Right readiness
+                                        | not readiness.xeroTimesheetReady -> pure (preparationFailure (readinessErrorSummary readiness))
+                                        | otherwise ->
+                                            submitXeroDraftTimesheetsForPreparation currentUser.id refreshedRun.id readinessRequest >>= \case
+                                                Left appError -> pure (Left appError)
+                                                Right (Left message) -> pure (preparationFailure message)
+                                                Right (Right (XeroTimesheetReviewedStateChanged snapshot)) ->
+                                                    pure (preparationFailure (reconciliationStateChangedMessage snapshot))
+                                                Right (Right (XeroTimesheetReviewedSubmissionCompleted submissionRun))
+                                                    | submissionRun.status == XeroSubmissionRunStatusEnumBlocked ->
+                                                        pure (preparationFailure (fromMaybe "Xero submission is blocked." submissionRun.errorSummary))
+                                                    | otherwise -> do
+                                                        completedAt <- getCurrentTime
+                                                        _ <-
+                                                            refreshedRun
+                                                                |> set #status (if submissionRun.status == XeroSubmissionRunStatusEnumSubmitted then XeroTimesheetPreparationRunStatusEnumSubmitted else XeroTimesheetPreparationRunStatusEnumFailed)
+                                                                |> set #xeroSubmissionRunId (Just (unpackId submissionRun.id))
+                                                                |> set #previewPayloadJson submissionRun.previewPayloadJson
+                                                                |> set #readinessSnapshotJson submissionRun.readinessSnapshotJson
+                                                                |> set #errorSummary submissionRun.errorSummary
+                                                                |> set #completedAt (Just completedAt)
+                                                                |> updateRecord
+                                                        loadXeroTimesheetPreparationView runId
 
 reconciliationStateChangedMessage :: Aeson.Value -> Text
 reconciliationStateChangedMessage snapshot =
@@ -471,22 +524,47 @@ fetchPreparationPayItemRequirements ::
     XeroTimesheetPreparationRun ->
     XeroConnection ->
     [XeroEarningsRate] ->
-    IO (Either Text [XeroPayItemRequirement])
-fetchPreparationPayItemRequirements run connection xeroEarningsRates = do
-    requirements <- fetchCurrentVenueXeroPayItemRequirements (Just connection) xeroEarningsRates
-    case (run.payPeriodStart, run.payPeriodEnd) of
-        (Just periodStart, Just periodEnd) -> do
-            skippedStaffIds <- fetchPreparationNotPaidStaffIds connection
-            bucketResult <- fetchPeriodXeroLocalEarningsBuckets (Id run.venueId) periodStart periodEnd skippedStaffIds
-            pure do
-                buckets <- bucketResult
-                let bucketKeys = map (.localBucketKey) buckets
-                pure (filter (\requirement -> requirement.payItemRequirementKey `elem` bucketKeys) requirements)
-        _ -> pure (Right [])
+    IO (AppResult PayItemRequirementsState)
+fetchPreparationPayItemRequirements run connection xeroEarningsRates =
+    case selectedPreparationPeriod run of
+        Left periodError -> pure (Right (PayItemRequirementsBlocked (PayItemRequirementsPeriodBlocked periodError)))
+        Right period -> do
+            periodOptions <- fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection)
+            if not (any (matchesSelectedPeriod period) periodOptions)
+                then pure (Right (PayItemRequirementsBlocked (PayItemRequirementsPeriodBlocked PreparationPeriodNotAvailable)))
+                else fetchForPeriod period
+  where
+    fetchForPeriod period = do
+        skippedStaffIds <- fetchPreparationNotPaidStaffIds connection
+        fetchPeriodXeroLocalEarningsBuckets
+                (Id run.venueId)
+                period.selectedPreparationPeriodStart
+                period.selectedPreparationPeriodEnd
+                skippedStaffIds >>= \case
+                    Left appError -> pure (Left appError)
+                    Right (XeroBucketsBlocked problems) ->
+                        pure (Right (PayItemRequirementsBlocked (PayItemRequirementsBucketsBlocked problems)))
+                    Right (XeroBucketsAvailable availableBuckets)
+                        | null availableBuckets.xeroAvailableBucketValues ->
+                            pure (Right (PayItemRequirementsBlocked PayItemRequirementsNoApprovedBuckets))
+                    Right (XeroBucketsAvailable availableBuckets) -> do
+                        let buckets = availableBuckets.xeroAvailableBucketValues
+                        requirements <- fetchCurrentVenueXeroPayItemRequirements (Just connection) xeroEarningsRates
+                        let bucketKeys = map (.localBucketKey) buckets
+                        pure $ Right $ PayItemRequirementsAvailable
+                            (filter (\requirement -> requirement.payItemRequirementKey `elem` bucketKeys) requirements)
+    matchesSelectedPeriod period option =
+        not option.periodOptionBlocked
+            && option.periodOptionKey == period.selectedPreparationPeriodKey
+            && option.periodOptionPayrollCalendarId == period.selectedPreparationCalendarId
+            && option.periodOptionStart == period.selectedPreparationPeriodStart
+            && option.periodOptionEnd == period.selectedPreparationPeriodEnd
 
-preparationPayItemRequirementsError :: Text -> Text
-preparationPayItemRequirementsError message =
-    "Cannot derive managed pay items from approved wage facts: " <> message
+preparationPayItemRequirementsError :: PayItemRequirementsBlocker -> Text
+preparationPayItemRequirementsError = \case
+    PayItemRequirementsPeriodBlocked _ -> "Choose a complete Xero pay period before preparing managed pay items."
+    PayItemRequirementsBucketsBlocked _ -> "Cannot derive managed pay items until the approved pay-ledger blockers are corrected."
+    PayItemRequirementsNoApprovedBuckets -> "There are no approved pay buckets in the selected Xero period."
 
 fetchPreparationNotPaidStaffIds ::
     (?modelContext :: ModelContext) =>
@@ -503,46 +581,51 @@ fetchPreparationNotPaidStaffIds connection = do
 ensurePreparationDecisionProposals ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroTimesheetPreparationRun ->
-    IO ()
-ensurePreparationDecisionProposals run = do
-    connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
-    staffRows <- fetchCurrentVenueXeroStaffMappingRows (Just connection)
-    forM_ staffRows \row ->
-        case row.mappingRowSuggestedEmployee of
-            Just employee | staffNeedsXeroDecision row ->
-                void $
-                    ensurePendingPreparationDecision
-                        run
-                        (Just row.mappingRowStaff)
-                        StaffAutoMatch
-                        (Just employee.xeroEmployeeId)
-                        (Just employee.displayName)
-                        Nothing
-                        (Aeson.object ["suggestedEmployeeId" Aeson..= employee.xeroEmployeeId, "suggestedEmployeeName" Aeson..= employee.displayName])
-            _ -> pure ()
-    void (ensurePreparationPayItemDecisionProposals run)
+    IO (AppResult ())
+ensurePreparationDecisionProposals run =
+    ensurePreparationPayItemDecisionProposals run >>= \case
+        Left appError -> pure (Left appError)
+        Right _ -> do
+            connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
+            staffRows <- fetchCurrentVenueXeroStaffMappingRows (Just connection)
+            forM_ staffRows \row ->
+                case row.mappingRowSuggestedEmployee of
+                    Just employee | staffNeedsXeroDecision row ->
+                        void $
+                            ensurePendingPreparationDecision
+                                run
+                                (Just row.mappingRowStaff)
+                                StaffAutoMatch
+                                (Just employee.xeroEmployeeId)
+                                (Just employee.displayName)
+                                Nothing
+                                (Aeson.object ["suggestedEmployeeId" Aeson..= employee.xeroEmployeeId, "suggestedEmployeeName" Aeson..= employee.displayName])
+                    _ -> pure ()
+            pure (Right ())
 
 ensurePreparationPayItemDecisionProposals ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroTimesheetPreparationRun ->
-    IO [XeroPayItemRequirement]
+    IO (AppResult PayItemRequirementsState)
 ensurePreparationPayItemDecisionProposals run = do
     connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
     xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
-    requirementsResult <- fetchPreparationPayItemRequirements run connection xeroEarningsRates
-    let requirements = either (const []) (\values -> values) requirementsResult
-        proposedRequirements = filter (\requirement -> xeroPayItemRequirementIsProposed requirement.payItemRequirementStatus && requirement.payItemRequirementIsActive) requirements
-    forM_ proposedRequirements \requirement ->
-        void $
-            ensurePendingPreparationDecision
-                run
-                Nothing
-                PayItemCreate
-                Nothing
-                Nothing
-                (Just requirement.payItemRequirementKey)
-                (Aeson.object ["requirementName" Aeson..= requirement.payItemRequirementName])
-    pure proposedRequirements
+    fetchPreparationPayItemRequirements run connection xeroEarningsRates >>= \case
+        Left appError -> pure (Left appError)
+        Right blocked@(PayItemRequirementsBlocked _) -> pure (Right blocked)
+        Right (PayItemRequirementsAvailable requirements) -> do
+            let proposedRequirements = filter (\requirement -> xeroPayItemRequirementIsProposed requirement.payItemRequirementStatus && requirement.payItemRequirementIsActive) requirements
+            forM_ proposedRequirements \requirement ->
+                void $
+                    ensurePendingPreparationDecision
+                        run
+                        Nothing
+                        PayItemCreate
+                        Nothing
+                        Nothing
+                        (Just requirement.payItemRequirementKey)
+                        (Aeson.object ["requirementName" Aeson..= requirement.payItemRequirementName])
+            pure (Right (PayItemRequirementsAvailable proposedRequirements))
 
 ensurePendingPreparationDecision ::
     (?modelContext :: ModelContext) =>
@@ -614,10 +697,10 @@ applyEmployeeMappingDecision ::
     Staff ->
     XeroTimesheetPreparationDecisionKindEnum ->
     Text ->
-    IO (Either Text XeroTimesheetPreparationView)
+    IO (XeroPreparationResult XeroTimesheetPreparationView)
 applyEmployeeMappingDecision run connection staff decisionKind employeeId = do
     applyEmployeeMappingDecisionWithoutReload run connection staff decisionKind employeeId >>= \case
-        Left message -> pure (Left message)
+        Left message -> pure (preparationFailure message)
         Right () -> reloadAfterLocalDecision run remoteTimesheetsFromRun
 
 applyEmployeeMappingDecisionWithoutReload ::
@@ -726,11 +809,12 @@ reloadAfterLocalDecision ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroTimesheetPreparationRun ->
     (XeroTimesheetPreparationRun -> [XeroTimesheetRef]) ->
-    IO (Either Text XeroTimesheetPreparationView)
+    IO (XeroPreparationResult XeroTimesheetPreparationView)
 reloadAfterLocalDecision run remoteTimesheetReader = do
     latestRun <- fetch run.id
-    _ <- refreshPreparationRunStatus latestRun (remoteTimesheetReader latestRun)
-    loadXeroTimesheetPreparationView latestRun.id
+    refreshPreparationRunStatus latestRun (remoteTimesheetReader latestRun) >>= \case
+        Left appError -> pure (Left appError)
+        Right _       -> loadXeroTimesheetPreparationView latestRun.id
 
 persistPreparationAccountCodeSelection ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

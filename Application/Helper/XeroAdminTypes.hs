@@ -90,10 +90,11 @@ data XeroPayItemRequirement = XeroPayItemRequirement
     }
 
 data XeroTimesheetIssueView = XeroTimesheetIssueView
-    { timesheetIssueCode     :: Text
-    , timesheetIssueSeverity :: Text
-    , timesheetIssueMessage  :: Text
-    , timesheetIssueHint     :: Maybe Text
+    { timesheetIssueCode             :: Text
+    , timesheetIssueSeverity         :: Text
+    , timesheetIssueMessage          :: Text
+    , timesheetIssueHint             :: Maybe Text
+    , timesheetIssueTimesheetEntryId :: Maybe UUID
     }
     deriving (Eq, Show)
 

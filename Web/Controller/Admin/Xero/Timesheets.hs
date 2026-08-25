@@ -14,6 +14,9 @@ module Web.Controller.Admin.Xero.Timesheets
     , submitXeroTimesheetPreparationAction
     ) where
 
+import Application.Error.Boundary (appErrorRequestKind, runAppResultBoundary,
+                                   withSynchronousAppErrorFallback)
+import Application.Error.Domain (projectDomainError)
 import Application.Helper.FrontendContract.AppShell (AccountCodeField,
                                                      ApplyXeroTimesheetPreparationStaffDecisionOverlay,
                                                      ApproveXeroTimesheetPreparationPayItemsOverlay,
@@ -49,7 +52,9 @@ import Application.Xero.ReferenceTrust.Presentation (XeroPreparationReferencePre
 import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..),
                                                   fetchXeroReferenceTrustState)
 import Application.Xero.ReferenceTrust.Service
-import Application.Xero.Timesheets.Prepare (XeroPreparationStaffDecision (..),
+import Application.Xero.Timesheets.Error (XeroPreparationError (..))
+import Application.Xero.Timesheets.Prepare (XeroPreparationResult,
+                                            XeroPreparationStaffDecision (..),
                                             loadXeroTimesheetPreparationView)
 import qualified Data.Text as Text
 import Web.Admin.Xero.Mutations (applyXeroTimesheetPreparationStaffDecisionMutation,
@@ -112,7 +117,7 @@ respondToPreparationReferenceState = \case
     Right trustState ->
         case xeroPreparationReferencePresentation trustState.trustDecision of
             XeroPreparationReferenceReady -> do
-                result <- liveMutationValue <$> runXeroTimesheetPreparationMutation
+                result <- resolvePreparationMutation runXeroTimesheetPreparationMutation
                 respondWithPreparationDialog result
             XeroPreparationReferenceWaiting _ -> respondWithPreparationReferenceWait trustState
             XeroPreparationReferenceBlocked message -> respondWithPreparationErrorToast message
@@ -147,7 +152,7 @@ refreshXeroTimesheetPreparationAction runId =
     case parseAppShellActionParams @RefreshXeroTimesheetPreparationOverlay of
         Left errors -> respondWithPreparationDialog (Left (surfaceRequestFieldErrorsMessage errors))
         Right _ -> do
-            result <- liveMutationValue <$> refreshXeroTimesheetPreparationMutation runId
+            result <- resolvePreparationMutation (refreshXeroTimesheetPreparationMutation runId)
             respondWithPreparationDialog result
 
 showXeroTimesheetPreparationStaffMappingsFragmentAction ::
@@ -155,7 +160,7 @@ showXeroTimesheetPreparationStaffMappingsFragmentAction ::
     Id XeroTimesheetPreparationRun ->
     IO ()
 showXeroTimesheetPreparationStaffMappingsFragmentAction runId = do
-    result <- loadXeroTimesheetPreparationView runId
+    result <- resolvePreparationResult (loadXeroTimesheetPreparationView runId)
     respondHtml $
         case (AdminAction.parseShowXeroTimesheetPreparationStaffMappingsActionParams, result) of
             (Left errors, _) -> [hsx|<section id="xero-preparation-staff-mappings"><div class="alert alert-danger mb-0">{surfaceRequestFieldErrorsMessage errors}</div></section>|]
@@ -178,7 +183,7 @@ applyXeroTimesheetPreparationStaffDecisionAction runId =
                 Left message -> respondWithPreparationDialog (Left message)
                 Right decision -> do
                     let staffId = Id (surfaceFieldValue @StaffIdField fields)
-                    result <- liveMutationValue <$> applyXeroTimesheetPreparationStaffDecisionMutation runId staffId decision
+                    result <- resolvePreparationMutation (applyXeroTimesheetPreparationStaffDecisionMutation runId staffId decision)
                     respondWithPreparationStaffSelectionDialog runId result
 
 continueXeroTimesheetPreparationStaffStepAction ::
@@ -189,7 +194,7 @@ continueXeroTimesheetPreparationStaffStepAction runId =
     case parseAppShellActionParams @ContinueXeroTimesheetPreparationStaffOverlay of
         Left errors -> respondWithPreparationDialog (Left (surfaceRequestFieldErrorsMessage errors))
         Right _ -> do
-            result <- liveMutationValue <$> approveXeroTimesheetPreparationStaffStepMutation runId
+            result <- resolvePreparationMutation (approveXeroTimesheetPreparationStaffStepMutation runId)
             respondWithPreparationDialog result
 
 selectXeroTimesheetPreparationPeriodAction ::
@@ -201,7 +206,7 @@ selectXeroTimesheetPreparationPeriodAction runId =
         Left errors -> respondWithPreparationDialog (Left (surfaceRequestFieldErrorsMessage errors))
         Right fields -> do
             let selectedPeriodKey = Text.strip (surfaceFieldValue @PeriodKeyField fields)
-            result <- liveMutationValue <$> selectXeroTimesheetPreparationPeriodMutation runId selectedPeriodKey
+            result <- resolvePreparationMutation (selectXeroTimesheetPreparationPeriodMutation runId selectedPeriodKey)
             respondWithPreparationPeriodSelection result
 
 approveXeroTimesheetPreparationPayItemsAction ::
@@ -213,7 +218,7 @@ approveXeroTimesheetPreparationPayItemsAction runId =
         Left errors -> respondWithPreparationDialog (Left (surfaceRequestFieldErrorsMessage errors))
         Right fields -> do
             let maybeAccountCode = Text.strip <$> surfaceFieldValue @AccountCodeField fields
-            result <- liveMutationValue <$> approveXeroTimesheetPreparationPayItemsMutation runId maybeAccountCode
+            result <- resolvePreparationMutation (approveXeroTimesheetPreparationPayItemsMutation runId maybeAccountCode)
             respondWithPreparationDialog result
 
 showXeroTimesheetPreparationSummaryAction ::
@@ -221,7 +226,7 @@ showXeroTimesheetPreparationSummaryAction ::
     Id XeroTimesheetPreparationRun ->
     IO ()
 showXeroTimesheetPreparationSummaryAction runId = do
-    result <- loadXeroTimesheetPreparationView runId
+    result <- resolvePreparationResult (loadXeroTimesheetPreparationView runId)
     if isHtmxRequest
         then respondHtml (either (\message -> [hsx|<div class="alert alert-danger mb-0">{message}</div>|]) renderXeroTimesheetPreparationPeriodSelectionDialog result)
         else redirectTo XeroAction
@@ -234,7 +239,7 @@ confirmXeroTimesheetPreparationSubmissionAction runId =
     case parseAppShellActionParams @ConfirmXeroTimesheetPreparationSubmissionOverlay of
         Left errors -> respondWithPreparationErrorToast (surfaceRequestFieldErrorsMessage errors)
         Right _ ->
-            loadXeroTimesheetPreparationView runId >>= respondWithPreparationDialog
+            resolvePreparationResult (loadXeroTimesheetPreparationView runId) >>= respondWithPreparationDialog
 
 runXeroTimesheetPreparationSubmissionAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -261,7 +266,7 @@ submitXeroTimesheetPreparation ::
     Maybe Text ->
     IO ()
 submitXeroTimesheetPreparation runId maybeAccountCode = do
-    result <- liveMutationValue <$> submitXeroTimesheetPreparationMutation runId maybeAccountCode
+    result <- resolvePreparationMutation (submitXeroTimesheetPreparationMutation runId maybeAccountCode)
     case result of
         Right view | view.preparationState == XeroPreparationSubmitted ->
             if isHtmxRequest
@@ -282,7 +287,7 @@ respondWithPreparationStaffSelectionDialog runId result =
         then case result of
             Right view -> respondHtml (renderXeroTimesheetPreparationStaffSelectionDialog view)
             Left message ->
-                loadXeroTimesheetPreparationView runId >>= \case
+                resolvePreparationResult (loadXeroTimesheetPreparationView runId) >>= \case
                     Left loadMessage -> respondWithPreparationErrorToast loadMessage
                     Right view -> respondHtml (renderXeroTimesheetPreparationStaffSelectionErrorDialog message view)
         else case result of
@@ -295,7 +300,7 @@ respondWithPreparationBlockingDialog ::
     Text ->
     IO ()
 respondWithPreparationBlockingDialog runId message =
-    loadXeroTimesheetPreparationView runId >>= \case
+    resolvePreparationResult (loadXeroTimesheetPreparationView runId) >>= \case
         Left loadMessage -> respondWithPreparationErrorToast loadMessage
         Right view ->
             if isHtmxRequest
@@ -303,6 +308,23 @@ respondWithPreparationBlockingDialog runId message =
                 else do
                     setErrorMessage message
                     redirectTo XeroAction
+
+resolvePreparationResult ::
+    (?request :: Request) =>
+    IO (XeroPreparationResult value) ->
+    IO (Either Text value)
+resolvePreparationResult operation =
+    runAppResultBoundary
+        (appErrorRequestKind ?request)
+        (withSynchronousAppErrorFallback operation (const (pure (Left (projectDomainError XeroPreparationStateUnavailable)))))
+        pure
+
+resolvePreparationMutation ::
+    (?request :: Request) =>
+    IO (LiveMutationResult (XeroPreparationResult value)) ->
+    IO (Either Text value)
+resolvePreparationMutation mutation =
+    resolvePreparationResult (liveMutationValue <$> mutation)
 
 parseStaffDecision :: AppShellActionFields ApplyXeroTimesheetPreparationStaffDecisionOverlay -> Either Text XeroPreparationStaffDecision
 parseStaffDecision fields =

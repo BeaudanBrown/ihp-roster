@@ -218,6 +218,7 @@ renderXeroTimesheetPreparationPayItemsStep view =
             <div class="d-flex flex-column gap-3" data-xero-timesheet-preparation-dialog="true">
                 {renderStepNotice "Xero account" "Choose the account for new Xero pay items."}
                 {renderExclusionWarnings view}
+                {renderManagedPayItemBlockers view}
                 {renderAccountCodeSelection view}
                 {renderXeroPreparationOverlayForm fields (pathTo (ApproveXeroTimesheetPreparationPayItemsAction view.preparationRun.id)) [("id", "xero-preparation-pay-items-form")] mempty}
             </div>
@@ -253,7 +254,9 @@ renderXeroTimesheetPreparationBlockingDialog view message =
     renderDialogOverlay DialogOverlayConfig
         { dialogOverlayTitle = "Xero submission blocked"
         , dialogOverlayBody = [hsx|
-            <div class="alert alert-danger mb-0">{message}</div>
+            <div class="d-flex flex-column gap-2">
+                {renderPreparationBlockingIssues view message}
+            </div>
             {renderXeroPreparationOverlayForm (noAppShellActionFields @RefreshXeroTimesheetPreparationOverlay) (pathTo (ShowXeroTimesheetPreparationSummaryAction view.preparationRun.id)) [("id", "xero-preparation-back-form")] mempty}
         |]
         , dialogOverlayStartButtons = []
@@ -465,12 +468,45 @@ renderExclusionWarnings view =
 
 preparationBlockingMessage :: XeroTimesheetPreparationView -> Maybe Text
 preparationBlockingMessage view =
-    ((.timesheetIssueMessage) <$> listToMaybe actionableBlockers)
+    ((.timesheetIssueMessage) <$> listToMaybe (preparationBlockingIssues view))
         <|> (if view.preparationPostedPayRunBlocked then view.preparationRun.errorSummary else Nothing)
-  where
-    actionableBlockers =
-        view.preparationReadiness.timesheetReadinessBlockers
-            |> filter \blocker -> blocker.timesheetIssueCode `notElem` ["managed_pay_item_not_ready", "missing_pay_item_account_code"]
+
+preparationBlockingIssues :: XeroTimesheetPreparationView -> [XeroTimesheetIssueView]
+preparationBlockingIssues view =
+    view.preparationReadiness.timesheetReadinessBlockers
+        |> filter \blocker -> blocker.timesheetIssueCode `notElem` ["managed_pay_item_not_ready", "missing_pay_item_account_code"]
+
+renderPreparationBlockingIssues :: XeroTimesheetPreparationView -> Text -> Html
+renderPreparationBlockingIssues view fallbackMessage =
+    case preparationBlockingIssues view of
+        [] -> [hsx|<div class="alert alert-danger mb-0">{fallbackMessage}</div>|]
+        issues -> forEach issues renderPreparationBlockingIssue
+
+renderPreparationBlockingIssue :: XeroTimesheetIssueView -> Html
+renderPreparationBlockingIssue issue = [hsx|
+    <div class="alert alert-danger mb-0">
+        {renderPreparationBlockingIssueIdentity issue.timesheetIssueTimesheetEntryId}
+        <div>{issue.timesheetIssueMessage}</div>
+        {renderPreparationBlockingIssueHint issue.timesheetIssueHint}
+    </div>
+|]
+
+renderPreparationBlockingIssueIdentity :: Maybe UUID -> Html
+renderPreparationBlockingIssueIdentity = \case
+    Nothing -> mempty
+    Just entryId -> [hsx|<div class="small fw-semibold">Timesheet {tshow entryId}</div>|]
+
+renderPreparationBlockingIssueHint :: Maybe Text -> Html
+renderPreparationBlockingIssueHint = \case
+    Nothing -> mempty
+    Just hint -> [hsx|<div class="small mt-1">{hint}</div>|]
+
+renderManagedPayItemBlockers :: XeroTimesheetPreparationView -> Html
+renderManagedPayItemBlockers view =
+    view.preparationReadiness.timesheetReadinessBlockers
+        |> filter ((== "managed_pay_item_not_ready") . (.timesheetIssueCode))
+        |> map renderPreparationBlockingIssue
+        |> mconcat
 
 renderAccountCodeOption :: Text -> XeroPayItemAccountCodeOption -> Html
 renderAccountCodeOption currentSelection option = [hsx|

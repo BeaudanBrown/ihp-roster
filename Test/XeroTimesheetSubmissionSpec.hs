@@ -1,9 +1,14 @@
 module Test.XeroTimesheetSubmissionSpec where
 
+import Application.Error.Types (AppResult)
 import Application.Helper.Xero
+import Application.Helper.XeroTimesheetReadiness (XeroTimesheetReadinessRequest)
 import Application.Xero.Timesheets.ProviderWrite
 import Application.Xero.Timesheets.ReconciliationReview
-import Application.Xero.Timesheets.Submission
+import Application.Xero.Timesheets.Submission hiding (reviewXeroDraftTimesheets,
+                                               submitReviewedXeroDraftTimesheetsForPreparation,
+                                               submitXeroDraftTimesheets)
+import qualified Application.Xero.Timesheets.Submission as Submission
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
@@ -27,6 +32,19 @@ import Test.XeroTimesheetPreviewSpec (EntrySpec (..), PreviewFixture (..),
                                       createPreviewFixture,
                                       createPreviewFixtureAtPeriod,
                                       fixtureStaffA, fixtureStaffB)
+
+reviewXeroDraftTimesheets :: (?modelContext :: ModelContext) => XeroTimesheetReadinessRequest -> IO (Either Text Aeson.Value)
+reviewXeroDraftTimesheets request = Submission.reviewXeroDraftTimesheets request >>= expectSubmissionResult
+
+submitXeroDraftTimesheets :: (?modelContext :: ModelContext) => Id User -> XeroTimesheetReadinessRequest -> IO (Either Text XeroSubmissionRun)
+submitXeroDraftTimesheets userId request = Submission.submitXeroDraftTimesheets userId request >>= expectSubmissionResult
+
+submitReviewedXeroDraftTimesheetsForPreparation :: (?modelContext :: ModelContext) => Id User -> Id XeroTimesheetPreparationRun -> Aeson.Value -> XeroTimesheetReadinessRequest -> IO (Either Text XeroTimesheetReviewedSubmissionOutcome)
+submitReviewedXeroDraftTimesheetsForPreparation userId runId snapshot request =
+    Submission.submitReviewedXeroDraftTimesheetsForPreparation userId runId snapshot request >>= expectSubmissionResult
+
+expectSubmissionResult :: AppResult value -> IO value
+expectSubmissionResult = either (\appError -> expectationFailure (cs (show appError)) >> fail "unexpected submission infrastructure error") pure
 
 tests :: Spec
 tests =

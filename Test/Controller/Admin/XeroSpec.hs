@@ -23,6 +23,7 @@ import Application.Xero.Keepalive (XeroKeepaliveSweepSummary (..),
 import Application.Xero.ReferenceSyncJob
 import Application.Xero.ReferenceSyncRequest
 import Config
+import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as AesonKeyMap
@@ -2259,6 +2260,48 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         |> fetchOneOrNothing
                 accountSelectionAfter `shouldBe` accountSelectionBefore
                 query @XeroTimesheetPreparationDecision |> fetchCount `shouldReturn` 0
+
+        it "performs no pay-item decision or account-code writes when ledger requirements are blocked" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                run <- createPreparationRunForFixture fixture NeedsApproval
+                _ <- ensureXeroAccountRecord fixture.connection "477" "Payroll expense"
+                calculation <- query @TimesheetPayCalculation |> fetchOne
+                Exception.bracket_
+                    (sqlExecDiscardResult "ALTER TABLE timesheet_pay_calculations DISABLE TRIGGER enforce_timesheet_pay_calculations_immutable" ())
+                    (sqlExecDiscardResult "ALTER TABLE timesheet_pay_calculations ENABLE TRIGGER enforce_timesheet_pay_calculations_immutable" ())
+                    (calculation |> set #sealedAt Nothing |> updateRecord >>= const (pure ()))
+                selectionBefore <- query @XeroPayItemAccountCodeSelection |> fetchOne
+                decisionCountBefore <- query @XeroTimesheetPreparationDecision |> fetchCount
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (ApproveXeroTimesheetPreparationPayItemsAction run.id) [("accountCode", "477")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "approved pay-ledger blockers"
+                selectionAfter <- fetch selectionBefore.id
+                selectionAfter.updatedAt `shouldBe` selectionBefore.updatedAt
+                query @XeroTimesheetPreparationDecision |> fetchCount `shouldReturn` decisionCountBefore
+
+        it "performs no pay-item writes for an invalid complete selected period" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                run <- createPreparationRunForFixture fixture NeedsApproval
+                _ <- ensureXeroAccountRecord fixture.connection "477" "Payroll expense"
+                invalidRun <- run |> set #selectedPeriodKey (Just "calendar-preview:malformed-period") |> updateRecord
+                selectionBefore <- query @XeroPayItemAccountCodeSelection |> fetchOne
+                decisionCountBefore <- query @XeroTimesheetPreparationDecision |> fetchCount
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (ApproveXeroTimesheetPreparationPayItemsAction invalidRun.id) [("accountCode", "477")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "complete Xero pay period"
+                selectionAfter <- fetch selectionBefore.id
+                selectionAfter.updatedAt `shouldBe` selectionBefore.updatedAt
+                query @XeroTimesheetPreparationDecision |> fetchCount `shouldReturn` decisionCountBefore
 
         it "saves untouched unmatched staff as not paid through Xero on Continue" $ withContext do
             withCleanDb do

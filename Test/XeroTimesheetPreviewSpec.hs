@@ -7,7 +7,9 @@ import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculatio
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
-import Application.Helper.XeroTimesheetReadiness
+import Application.Helper.XeroTimesheetReadiness hiding
+                                                 (validateXeroTimesheetReadiness)
+import qualified Application.Helper.XeroTimesheetReadiness as Readiness
 import Application.WageEngine (EarningsComponent (..), WageCalculation (..))
 import Application.Xero.Timesheets.Preview
 import Control.Exception (SomeException, try)
@@ -25,6 +27,10 @@ import IHP.ControllerPrelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
+
+validateXeroTimesheetReadiness :: (?modelContext :: ModelContext) => XeroTimesheetReadinessRequest -> IO XeroTimesheetReadiness
+validateXeroTimesheetReadiness request =
+    Readiness.validateXeroTimesheetReadiness request >>= either (\err -> expectationFailure (cs (show err)) >> fail "expected readiness") pure
 
 tests :: Spec
 tests =

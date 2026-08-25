@@ -404,13 +404,23 @@ xeroTimesheetReadinessView readiness =
     where
         deduplicateReadinessIssues =
             List.nubBy \left right ->
-                left.xeroBlockerCode == right.xeroBlockerCode
+                ( left.xeroBlockerCode
+                , left.xeroBlockerTimesheetEntryId
+                , left.xeroBlockerLocalBucketKey
+                , left.xeroBlockerXeroObjectId
+                )
+                    == ( right.xeroBlockerCode
+                       , right.xeroBlockerTimesheetEntryId
+                       , right.xeroBlockerLocalBucketKey
+                       , right.xeroBlockerXeroObjectId
+                       )
         issueView issue =
             XeroTimesheetIssueView
                 { timesheetIssueCode = issue.xeroBlockerCode
                 , timesheetIssueSeverity = xeroReadinessSeverityText issue.xeroBlockerSeverity
                 , timesheetIssueMessage = issue.xeroBlockerMessage
                 , timesheetIssueHint = issue.xeroBlockerActionHint
+                , timesheetIssueTimesheetEntryId = issue.xeroBlockerTimesheetEntryId
                 }
 
 xeroTimesheetPreviewRowsFromJson :: [XeroEmployee] -> [XeroEarningsRate] -> Aeson.Value -> [XeroTimesheetPreviewRowView]
