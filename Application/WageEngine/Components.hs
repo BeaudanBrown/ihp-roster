@@ -21,13 +21,16 @@ import Application.WageEngine.RateBook (AwardClassification,
                                         TimeAdditionKind (..),
                                         ValidatedRateBook,
                                         ValidatedRateKey (AwardAddition, ClassificationRate),
+                                        ValidatedRateLookupError (ValidatedRateMissing),
                                         lookupValidatedRateWithSource)
 import Application.WageEngine.Types
+import qualified Data.Bifunctor as Bifunctor
 import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
 import qualified Data.Set as Set
 import Data.Time.Calendar (Day)
 import Data.Time.Clock (diffUTCTime)
+import Data.Traversable (traverse)
 import IHP.Prelude
 
 paidSegment :: SourceCondition -> AwardSegment -> PaidTimeSegment
@@ -61,23 +64,24 @@ importedHourlyComponent importedPayItem condition interval =
         ExternalImportedPayItem
         Nothing
 
-missedMealBreakAdditionComponent :: ValidatedRateBook -> AwardClassification -> ResolvedInterval -> EarningsComponent
-missedMealBreakAdditionComponent rateBook classification delayedInterval =
-    hourlyComponent
-        (toRational (resolvedIntervalElapsedSeconds delayedInterval) / 3600)
-        (ordinaryRate / 2)
-        MissedMealBreakAdditionCondition
-        HospitalityAward
-        (Just ordinaryRateIdentity)
-  where
-    (ordinaryRate, ordinaryRateIdentity) =
+missedMealBreakAdditionComponent :: ValidatedRateBook -> AwardClassification -> ResolvedInterval -> Either WageCalculationError EarningsComponent
+missedMealBreakAdditionComponent rateBook classification delayedInterval = do
+    (ordinaryRate, ordinaryRateIdentity) <-
         lookupValidatedRateWithSource
             (ClassificationRate classification PermanentPartTime OrdinaryRate)
             rateBook
+            |> Bifunctor.first (\(ValidatedRateMissing key) -> MissingValidatedRate key)
+    pure $
+        hourlyComponent
+            (toRational (resolvedIntervalElapsedSeconds delayedInterval) / 3600)
+            (ordinaryRate / 2)
+            MissedMealBreakAdditionCondition
+            HospitalityAward
+            (Just ordinaryRateIdentity)
 
-commencedHourAdditionComponents :: ValidatedRateBook -> Set.Set Day -> [AwardSegment] -> [EarningsComponent]
+commencedHourAdditionComponents :: ValidatedRateBook -> Set.Set Day -> [AwardSegment] -> Either WageCalculationError [EarningsComponent]
 commencedHourAdditionComponents rateBook statewidePublicHolidayDates intervals =
-    map componentFor (Map.toAscList qualifyingDurations)
+    traverse componentFor (Map.toAscList qualifyingDurations)
   where
     qualifyingDurations =
         Map.fromListWith (+)
@@ -101,23 +105,25 @@ commencedHourAdditionComponents rateBook statewidePublicHolidayDates intervals =
             EarlyMorningWindow -> Just EarlyMorningAddition
             OrdinaryWindow     -> Nothing
 
-    componentFor (CommencedAdditionKey _ additionKind, durationHours) =
-        let (rate, sourceIdentity) = lookupValidatedRateWithSource (AwardAddition additionKind) rateBook
-            units = fromInteger (ceiling durationHours :: Integer)
-         in EarningsComponent
-                { quantity = units
-                , unitType = CommencedHours
-                , ratePerUnit = rate
-                , amount = units * toRational rate
-                , publishedComponentDate = Nothing
-                , publishedRateBoundaryDate = Nothing
-                , publishedXeroLocalBucketKey = Nothing
-                , publishedXeroEarningsRateId = Nothing
-                , publishedXeroMappingLegacyFallback = False
-                , sourceCondition = additionCondition additionKind
-                , calculationSource = HospitalityAward
-                , sourceRateIdentity = Just sourceIdentity
-                }
+    componentFor (CommencedAdditionKey _ additionKind, durationHours) = do
+        (rate, sourceIdentity) <-
+            lookupValidatedRateWithSource (AwardAddition additionKind) rateBook
+                |> Bifunctor.first (\(ValidatedRateMissing key) -> MissingValidatedRate key)
+        let units = fromInteger (ceiling durationHours :: Integer)
+        pure EarningsComponent
+            { quantity = units
+            , unitType = CommencedHours
+            , ratePerUnit = rate
+            , amount = units * toRational rate
+            , publishedComponentDate = Nothing
+            , publishedRateBoundaryDate = Nothing
+            , publishedXeroLocalBucketKey = Nothing
+            , publishedXeroEarningsRateId = Nothing
+            , publishedXeroMappingLegacyFallback = False
+            , sourceCondition = additionCondition additionKind
+            , calculationSource = HospitalityAward
+            , sourceRateIdentity = Just sourceIdentity
+            }
 
 data CommencedAdditionKey = CommencedAdditionKey
     { commencedAdditionDate :: !Day

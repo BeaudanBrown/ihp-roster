@@ -121,9 +121,9 @@ pureTests =
                 changedStartBook = loadedRateBookOrFail (contexts Map.! changedStartEntryId)
                 ordinaryLevel1 = ClassificationRate HospitalityLevel1 PermanentPartTime OrdinaryRate
 
-            lookupValidatedRate ordinaryLevel1 beforeBook `shouldBe` Just 100
-            lookupValidatedRate ordinaryLevel1 afterBook `shouldBe` Just 110
-            lookupValidatedRate ordinaryLevel1 changedStartBook `shouldBe` Just 110
+            lookupValidatedRate ordinaryLevel1 beforeBook `shouldBe` Right 100
+            lookupValidatedRate ordinaryLevel1 afterBook `shouldBe` Right 110
+            lookupValidatedRate ordinaryLevel1 changedStartBook `shouldBe` Right 110
             validatedRateBookEffectivePeriod beforeBook `shouldBe` oldCandidate.candidateEffectivePeriod
             validatedRateBookEffectivePeriod afterBook `shouldBe` newPeriod
 

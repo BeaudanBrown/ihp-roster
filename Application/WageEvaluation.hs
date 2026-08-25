@@ -208,6 +208,8 @@ renderWageEvaluationError = \case
     WageSubjectRequiresImmutablePayVersions _ -> "Immutable staff and shift pay versions are required."
     WageSubjectAdapterFailed err -> "Cannot load wage context: " <> tshow err
     WageSubjectSegmentationFailed _ err -> "Cannot segment authoritative shift boundaries: " <> tshow err
+    WageSubjectCalculationFailed _ (MissingValidatedRate key) ->
+        "Cannot calculate pay because the validated wage rate is unavailable: " <> tshow key <> "."
     WageSubjectCalculationFailed _ err -> "Cannot calculate pay: " <> tshow err
     WageSubjectBoundariesFailed _ message -> message
     WageSubjectSourcesBlocked _ diagnostics -> "Wage sources are not ready: " <> tshow diagnostics

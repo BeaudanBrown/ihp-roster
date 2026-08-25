@@ -22,6 +22,7 @@ module Application.WageEngine
     , ValidatedRateBook
     , AwardRateContext (..)
     , RateBookError (..)
+    , ValidatedRateLookupError (..)
     , mkValidatedRateBook
     , validatedRateBookVersion
     , validatedRateBookEffectivePeriod

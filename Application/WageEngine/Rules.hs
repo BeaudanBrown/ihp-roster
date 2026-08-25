@@ -21,9 +21,11 @@ import Application.WageEngine.RateBook (AwardRateContext (awardRateBook, awardRa
                                         BaseRateKind (..), EmploymentBasis (..),
                                         ResolvedAwardLevel (resolvedAwardClassification),
                                         ValidatedRateKey (ClassificationRate),
+                                        ValidatedRateLookupError (ValidatedRateMissing),
                                         lookupValidatedRateWithSource,
                                         validatedRateBookVersion)
 import Application.WageEngine.Types
+import qualified Data.Bifunctor as Bifunctor
 import qualified Data.List as List
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -62,23 +64,23 @@ calculateTimesheetPay calculationInput = do
                         (minimumPaymentRequiredSeconds basis minimumPayment - paidIntervalElapsedSeconds intervals)
                 )
                 selectedMinimum
-        let intervalResults = map (calculateAwardInterval Worked awardRateContext basis) intervals
-            minimumResults =
-                case selectedMinimum of
-                    Nothing -> []
-                    Just CasualMinimumPayment ->
-                        map (calculateAwardInterval CasualMinimumEngagementTopUp awardRateContext basis) minimumIntervals
-                    Just PublicHolidayMinimumPayment ->
-                        map (calculatePublicHolidayMinimumInterval awardRateContext basis) minimumIntervals
-            additionComponents =
-                commencedHourAdditionComponents
-                    awardRateContext.awardRateBook
-                    calculationInput.calculationStatewidePublicHolidayDates
-                    intervals
-            missedMealBreakComponents =
-                maybe []
-                    (pure . missedMealBreakAdditionComponent awardRateContext.awardRateBook awardRateContext.awardRateLevel.resolvedAwardClassification)
-                    missedInterval
+        intervalResults <- traverse (calculateAwardInterval Worked awardRateContext basis) intervals
+        minimumResults <-
+            case selectedMinimum of
+                Nothing -> Right []
+                Just CasualMinimumPayment ->
+                    traverse (calculateAwardInterval CasualMinimumEngagementTopUp awardRateContext basis) minimumIntervals
+                Just PublicHolidayMinimumPayment ->
+                    traverse (calculatePublicHolidayMinimumInterval awardRateContext basis) minimumIntervals
+        additionComponents <-
+            commencedHourAdditionComponents
+                awardRateContext.awardRateBook
+                calculationInput.calculationStatewidePublicHolidayDates
+                intervals
+        missedMealBreakComponents <-
+            traverse
+                (missedMealBreakAdditionComponent awardRateContext.awardRateBook awardRateContext.awardRateLevel.resolvedAwardClassification)
+                missedInterval
         pure
             WageCalculation
                 { calculatedEntryId = calculationInput.calculationEntryId
@@ -86,7 +88,7 @@ calculateTimesheetPay calculationInput = do
                 , calculationRateBookVersion = Just (validatedRateBookVersion awardRateContext.awardRateBook)
                 , publishedOperationalDate = Nothing
                 , paidTimeSegments = map fst intervalResults <> map fst minimumResults
-                , earningsComponents = map snd intervalResults <> map snd minimumResults <> additionComponents <> missedMealBreakComponents
+                , earningsComponents = map snd intervalResults <> map snd minimumResults <> additionComponents <> maybeToList missedMealBreakComponents
                 }
 
     calculateImportedPay importedPayItem intervals = do
@@ -122,11 +124,12 @@ calculateTimesheetPay calculationInput = do
             basis
             (PublicHolidayRate, PublicHolidayCondition)
 
-    calculateAwardIntervalForCondition paidKind awardRateContext basis (rateKind, condition) interval =
-        let
-            key = ClassificationRate awardRateContext.awardRateLevel.resolvedAwardClassification basis rateKind
-            validatedRate = lookupValidatedRateWithSource key awardRateContext.awardRateBook
-         in
+    calculateAwardIntervalForCondition paidKind awardRateContext basis (rateKind, condition) interval = do
+        let key = ClassificationRate awardRateContext.awardRateLevel.resolvedAwardClassification basis rateKind
+        validatedRate <-
+            lookupValidatedRateWithSource key awardRateContext.awardRateBook
+                |> Bifunctor.first (\(ValidatedRateMissing missingKey) -> MissingValidatedRate missingKey)
+        pure
             ( paidSegmentWithKind paidKind condition interval
             , awardHourlyComponent validatedRate condition interval
             )

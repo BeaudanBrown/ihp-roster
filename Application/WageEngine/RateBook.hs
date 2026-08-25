@@ -22,12 +22,14 @@ module Application.WageEngine.RateBook
     , ValidatedRateBook
     , AwardRateContext (..)
     , RateBookError (..)
+    , ValidatedRateLookupError (..)
     , mkValidatedRateBook
     , validatedRateBookVersion
     , validatedRateBookEffectivePeriod
     , validatedRateCount
     , lookupValidatedRate
     , lookupValidatedRateWithSource
+    , removeValidatedRateForTest
     )
 where
 
@@ -206,6 +208,10 @@ data AwardRateContext = AwardRateContext
     }
     deriving (Eq, Show)
 
+data ValidatedRateLookupError
+    = ValidatedRateMissing !ValidatedRateKey
+    deriving (Eq, Show)
+
 data RateBookError
     = MissingRequiredRate !ValidatedRateKey
     | ConflictingRequiredRate !ValidatedRateKey
@@ -312,12 +318,18 @@ validatedRateBookEffectivePeriod = (.rateBookEffectivePeriod)
 validatedRateCount :: ValidatedRateBook -> Int
 validatedRateCount = Map.size . (.rateBookRates)
 
-lookupValidatedRate :: ValidatedRateKey -> ValidatedRateBook -> Maybe Scientific
-lookupValidatedRate key rateBook = (.validatedRatePerUnit) <$> Map.lookup key rateBook.rateBookRates
+lookupValidatedRate :: ValidatedRateKey -> ValidatedRateBook -> Either ValidatedRateLookupError Scientific
+lookupValidatedRate key rateBook = fst <$> lookupValidatedRateWithSource key rateBook
 
-lookupValidatedRateWithSource :: ValidatedRateKey -> ValidatedRateBook -> (Scientific, RateSourceIdentity)
+lookupValidatedRateWithSource :: ValidatedRateKey -> ValidatedRateBook -> Either ValidatedRateLookupError (Scientific, RateSourceIdentity)
 lookupValidatedRateWithSource key rateBook =
     case Map.lookup key rateBook.rateBookRates of
-        Nothing -> error ("ValidatedRateBook invariant broken: missing " <> show key)
+        Nothing -> Left (ValidatedRateMissing key)
         Just validatedRate ->
-            (validatedRate.validatedRatePerUnit, validatedRate.validatedRateSourceIdentity)
+            Right (validatedRate.validatedRatePerUnit, validatedRate.validatedRateSourceIdentity)
+
+-- | Deliberately unavailable through the public WageEngine facade. This narrow
+-- test seam proves total evaluation if an otherwise opaque book is corrupted.
+removeValidatedRateForTest :: ValidatedRateKey -> ValidatedRateBook -> ValidatedRateBook
+removeValidatedRateForTest key rateBook =
+    rateBook { rateBookRates = Map.delete key rateBook.rateBookRates }

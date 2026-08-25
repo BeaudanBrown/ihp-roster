@@ -35,7 +35,8 @@ where
 
 import Application.VenueTime (AwardSegment, ResolvedInterval, VenueTimeError)
 import Application.WageEngine.RateBook (AwardRateContext, EmploymentBasis,
-                                        RateBookVersion, RateSourceIdentity)
+                                        RateBookVersion, RateSourceIdentity,
+                                        ValidatedRateKey)
 import Data.Scientific (Scientific)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -260,6 +261,7 @@ data WageCalculationError
     = InvalidShiftSegments !ShiftSegmentError
     | AuthoritativeSegmentationFailure !VenueTimeError
     | UnsupportedCalculationInput !UnsupportedInput
+    | MissingValidatedRate !ValidatedRateKey
     deriving (Eq, Show)
 
 selectedImportedPayItem :: ImportedOverrideContext -> Maybe ImportedPayItem

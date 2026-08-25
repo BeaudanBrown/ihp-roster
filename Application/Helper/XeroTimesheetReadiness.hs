@@ -8,6 +8,7 @@ module Application.Helper.XeroTimesheetReadiness
     , readinessBlockerCodes
     , validateXeroTimesheetReadiness
     , xeroReadinessSeverityText
+    , xeroWageFailureBlockers
     ) where
 
 import Application.Error.Boundary (withSynchronousAppErrorFallback)
@@ -138,7 +139,7 @@ validateXeroTimesheetReadiness request =
                             , referenceSyncBlockers now maybeConnection
                             , calendarBlockers request maybeCalendar
                             , entryBlockers entries
-                            , wageSourceBlockers wageSourceResult
+                            , xeroWageFailureBlockers wageSourceResult
                             , publicationBucketBlockers bucketProblems
                             , earningsMappingBlockers bucketEntryIdsByKey buckets earningsMappings payItemRequirements
                             , payItemRequirementBlockers bucketEntryIdsByKey earningsMappings payItemRequirements maybeAccountCodeSelection
@@ -171,9 +172,9 @@ publicationBucketBlockers = map blockerForProblem
             , xeroBlockerActionHint = Just "Correct and reapprove this timesheet before preparing payroll."
             }
 
-wageSourceBlockers :: Either [WageEntryFailure] calculations -> [XeroReadinessBlocker]
-wageSourceBlockers (Right _) = []
-wageSourceBlockers (Left failures) = map blocker failures
+xeroWageFailureBlockers :: Either [WageEntryFailure] calculations -> [XeroReadinessBlocker]
+xeroWageFailureBlockers (Right _) = []
+xeroWageFailureBlockers (Left failures) = map blocker failures
   where
     blocker failure =
         XeroReadinessBlockerDetail
