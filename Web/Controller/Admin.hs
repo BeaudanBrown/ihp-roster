@@ -434,53 +434,29 @@ instance Controller AdminController where
                     _ -> setErrorMessage "Choose different start and end times on 15-minute increments."
         respondToVenueSettingsMutation
 
-    action currentAction@PreviewRosterWindowStartDayAction = runBepis currentAction BepisMutationAction do
-        ensureVenueWritable
-        venueConfig <- fetchVenueConfig
-        case AdminAction.parsePreviewRosterWindowStartDayActionParams of
-            Left errors -> reportSurfaceRequestErrors errors >> respondToRosterWindowStartDayMutation
-            Right fields -> do
-                requestedStartDay <- validateRosterWeekStartsOn (surfaceFieldValue @Surface.RosterWeekStartsOn fields)
-                case requestedStartDay of
-                    Nothing -> respondToRosterWindowStartDayMutation
-                    Just startDay -> do
-                        previewRosterWindowStartDayMutation
-                            (venueConfig |> set #rosterCalendarRevision (surfaceFieldValue @Surface.RosterCalendarRevision fields))
-                            startDay
-                            >>= \case
-                                Left message -> setErrorMessage message >> respondToRosterWindowStartDayMutation
-                                Right impact ->
-                                    if isHtmxRequest
-                                        then respondHtml (renderRosterWindowStartDayImpactFragment venueConfig impact)
-                                        else do
-                                            awardLevels <- fetchActiveAwardLevels
-                                            awardLevelBaseRates <- fetchCurrentAwardLevelBaseRates
-                                            respondHtml (renderVenueSettingsSectionFragmentWithImpact Nothing venueConfig awardLevels awardLevelBaseRates (Just impact))
-
     action currentAction@UpdateRosterWeekStartsOnAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         venueConfig <- fetchVenueConfig
         case AdminAction.parseUpdateRosterWeekStartsOnActionParams of
             Left errors -> reportSurfaceRequestErrors errors
             Right fields -> do
-                let impact = RosterWindowStartDayImpact
-                        { currentRosterWindowStartDay = surfaceFieldValue @Surface.CurrentRosterWindowStartDay fields
-                        , proposedRosterWindowStartDay = surfaceFieldValue @Surface.RosterWeekStartsOn fields
-                        , rosterCalendarRevision = surfaceFieldValue @Surface.RosterCalendarRevision fields
-                        , mixedPublishedWindowCount = surfaceFieldValue @Surface.MixedPublishedWindowCount fields
-                        , affectedPublishedDayCount = surfaceFieldValue @Surface.AffectedPublishedDayCount fields
-                        , affectedShiftCount = surfaceFieldValue @Surface.AffectedShiftCount fields
-                        }
-                confirmRosterWindowStartDayMutation venueConfig impact >>= \case
-                    Left message -> setErrorMessage message
-                    Right mutationResult -> do
-                        when isHtmxRequest do
-                            today <- utctDay <$> getCurrentTime
-                            setActorLiveResourcesRefresh
-                                (adminExportsLiveScope (unpackId currentVenueId))
-                                mutationResult.liveMutationTouchedResources
-                                [AdminSurface.adminExportsFragmentForWindow today]
-                        setSuccessMessage ("Roster window will start on " <> weekdayIndexLabel impact.proposedRosterWindowStartDay <> ".")
+                requestedStartDay <- validateRosterWeekStartsOn (surfaceFieldValue @Surface.RosterWeekStartsOn fields)
+                case requestedStartDay of
+                    Nothing -> pure ()
+                    Just startDay ->
+                        updateRosterWindowStartDayMutation
+                            (venueConfig |> set #rosterCalendarRevision (surfaceFieldValue @Surface.RosterCalendarRevision fields))
+                            startDay
+                            >>= \case
+                                Left message -> setErrorMessage message
+                                Right mutationResult -> do
+                                    when isHtmxRequest do
+                                        today <- utctDay <$> getCurrentTime
+                                        setActorLiveResourcesRefresh
+                                            (adminExportsLiveScope (unpackId currentVenueId))
+                                            mutationResult.liveMutationTouchedResources
+                                            [AdminSurface.adminExportsFragmentForWindow today]
+                                    setSuccessMessage ("Roster window will start on " <> weekdayIndexLabel startDay <> ".")
         respondToRosterWindowStartDayMutation
 
     action currentAction@ShowAdminVenueSettingsFragmentAction = runBepis currentAction BepisFragmentAction $

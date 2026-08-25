@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { E2E_TIMEOUT, gotoWhenReady, openAdminWithSeededPasskeySession, querySql, runSql } from './test-helpers';
 
 const venueId = 'a1000000-0000-0000-0000-000000000001';
@@ -24,13 +24,6 @@ function seedRegroupingFixture() {
     `);
 }
 
-async function submitConfirmation(confirmation: Locator) {
-    await confirmation.evaluate((form) => {
-        if (!(form instanceof HTMLFormElement)) throw new Error('Expected the roster window start-day confirmation form');
-        form.requestSubmit();
-    });
-}
-
 function fixturePublicationStates() {
     return querySql(`
         SELECT string_agg(publication_state::text, ',' ORDER BY operational_date)
@@ -43,7 +36,7 @@ function fixturePublicationStates() {
 test.describe('Roster window start day setting', () => {
     test.describe.configure({ retries: 0, timeout: E2E_TIMEOUT.slowTest });
 
-    test('previews regrouping, confirms Draft normalization, and never restores publication', async ({ page }) => {
+    test('immediately normalizes Draft days and never restores publication', async ({ page }) => {
         const originalPublishedIds: string[] = querySql(`SELECT id FROM roster_days WHERE venue_id = '${venueId}' AND publication_state = 'published'`).split('\n').filter(Boolean);
         const [originalStartDay, originalRevision] = querySql(`SELECT roster_week_starts_on || '|' || roster_calendar_revision FROM venue_config WHERE venue_id = '${venueId}'`).split('|');
 
@@ -55,17 +48,8 @@ test.describe('Roster window start day setting', () => {
             await page.getByRole('button', { name: 'Venue Settings' }).click();
 
             const setting = page.locator('.admin-setting-row', { hasText: 'Roster window start day' });
-            await setting.locator('select[name="rosterWeekStartsOn"]').selectOption('2');
-            await setting.getByRole('button', { name: 'Preview impact' }).click();
-
-            const confirmation = page.locator('.admin-setting-row', { hasText: 'Confirm roster window start day' });
-            await expect(confirmation).toBeVisible();
-            await expect(confirmation).toContainText('Tuesday');
-            await expect(confirmation).toContainText('Mixed Published windows');
-            expect(fixturePublicationStates()).toBe('published,published,published,published,published,published,published,published');
-
             const firstUpdateResponse = page.waitForResponse((response) => response.url().includes('/UpdateRosterWeekStartsOn'));
-            await submitConfirmation(confirmation);
+            await setting.locator('select[name="rosterWeekStartsOn"]').selectOption('2');
             expect((await firstUpdateResponse).ok()).toBe(true);
             await expect(page.locator('.admin-setting-row', { hasText: 'Roster window start day' })).toBeVisible();
             expect(querySql(`SELECT roster_week_starts_on FROM venue_config WHERE venue_id = '${venueId}'`)).toBe('2');
@@ -90,13 +74,8 @@ test.describe('Roster window start day setting', () => {
             await page.getByRole('button', { name: 'Venue Settings' }).click();
             await page.setViewportSize({ width: 390, height: 844 });
             const restoredSetting = page.locator('.admin-setting-row', { hasText: 'Roster window start day' });
-            await restoredSetting.locator('select[name="rosterWeekStartsOn"]').selectOption('1');
-            await restoredSetting.getByRole('button', { name: 'Preview impact' }).click();
-            const mobileConfirmation = page.locator('.admin-setting-row', { hasText: 'Confirm roster window start day' });
-            await expect(mobileConfirmation).toBeVisible();
-            await expect(mobileConfirmation.getByRole('button', { name: 'Confirm change' })).toBeVisible();
             const reverseUpdateResponse = page.waitForResponse((response) => response.url().includes('/UpdateRosterWeekStartsOn'));
-            await submitConfirmation(mobileConfirmation);
+            await restoredSetting.locator('select[name="rosterWeekStartsOn"]').selectOption('1');
             expect((await reverseUpdateResponse).ok()).toBe(true);
 
             const reversedStates = fixturePublicationStates().split(',');

@@ -160,7 +160,6 @@ data AdminController
     | UpdateMinutePrecisionShiftTimesEnabledAction
     | UpdateUnavailableStaffWarningThresholdAction
     | UpdateRosterTimePickerWindowAction
-    | PreviewRosterWindowStartDayAction
     | UpdateRosterWeekStartsOnAction
     | ShowAdminVenueSettingsFragmentAction
     | ShowadminInvitesLiveFragmentAction

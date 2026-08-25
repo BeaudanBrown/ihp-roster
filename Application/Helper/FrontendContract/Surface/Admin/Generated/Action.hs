@@ -17,7 +17,6 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Action
     , MoveRosterGroupUpActionOperation
     , MoveShiftTypeDownActionOperation
     , MoveShiftTypeUpActionOperation
-    , PreviewRosterWindowStartDayActionOperation
     , RenewVenueInvitationActionOperation
     , RevokeVenueInvitationActionOperation
     , ShowXeroTimesheetPreparationStaffMappingsActionOperation
@@ -60,7 +59,6 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Action
     , parseMoveRosterGroupUpActionParams
     , parseMoveShiftTypeDownActionParams
     , parseMoveShiftTypeUpActionParams
-    , parsePreviewRosterWindowStartDayActionParams
     , parseRenewVenueInvitationActionParams
     , parseShowXeroTimesheetPreparationStaffMappingsActionParams
     , parseToggleInactiveRosterGroupsActionParams
@@ -73,8 +71,6 @@ module Application.Helper.FrontendContract.Surface.Admin.Generated.Action
     , parseUpdateRosterWeekStartsOnActionParams
     , parseUpdateShiftTypeActionParams
     , parseUpdateUnavailableStaffWarningThresholdActionParams
-    , previewRosterWindowStartDayAction
-    , previewRosterWindowStartDayActionFields
     , renewVenueInvitationAction
     , renewVenueInvitationActionFields
     , revokeVenueInvitationAction
@@ -489,41 +485,6 @@ parseMoveShiftTypeUpActionParams =
     parseActionParams
         @MoveShiftTypeUpActionOperation
 
-data PreviewRosterWindowStartDayActionOperation
-
-type instance ActionSurface PreviewRosterWindowStartDayActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.AdminVenueSettingsAdapterFamily)
-type instance ActionMarker PreviewRosterWindowStartDayActionOperation = Types2.PreviewRosterWindowStartDay
-type instance ActionFieldSpecs PreviewRosterWindowStartDayActionOperation =
-    '[ 'Field Types2.RosterWeekStartsOn 'WireInt
-     , 'Field Types2.RosterCalendarRevision 'WireInt
-     ]
-
-previewRosterWindowStartDayActionFields ::
-    Int ->
-    Int ->
-    ActionFields PreviewRosterWindowStartDayActionOperation
-previewRosterWindowStartDayActionFields rosterWeekStartsOn rosterCalendarRevision =
-    actionFields
-        (surfaceField @Types2.RosterWeekStartsOn rosterWeekStartsOn)
-        ( surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision
-            &: noSurfaceFields
-        )
-
-previewRosterWindowStartDayActionEvidence :: ActionEvidence PreviewRosterWindowStartDayActionOperation
-previewRosterWindowStartDayActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "PreviewRosterWindowStartDay" "preview-roster-window-start-day" [SurfaceIR.FieldIR "RosterWeekStartsOn" "rosterWeekStartsOn" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-roster-window-start-day-setting" ["admin-roster-window-start-day-setting"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
-
-previewRosterWindowStartDayAction :: ActionFields PreviewRosterWindowStartDayActionOperation -> FrontendSurfaceAction
-previewRosterWindowStartDayAction =
-    frontendSurfaceActionFromEvidence previewRosterWindowStartDayActionEvidence
-
-parsePreviewRosterWindowStartDayActionParams ::
-    (?request :: Request) =>
-    Either [SurfaceRequestFieldError] (ActionFields PreviewRosterWindowStartDayActionOperation)
-parsePreviewRosterWindowStartDayActionParams =
-    parseActionParams
-        @PreviewRosterWindowStartDayActionOperation
-
 data RenewVenueInvitationActionOperation
 
 type instance ActionSurface RenewVenueInvitationActionOperation = AdapterSurfaceMarker (AdapterFamilySurface Types3.AdminInvitesAdapterFamily)
@@ -877,34 +838,22 @@ type instance ActionMarker UpdateRosterWeekStartsOnActionOperation = Types2.Upda
 type instance ActionFieldSpecs UpdateRosterWeekStartsOnActionOperation =
     '[ 'Field Types2.RosterWeekStartsOn 'WireInt
      , 'Field Types2.RosterCalendarRevision 'WireInt
-     , 'Field Types2.CurrentRosterWindowStartDay 'WireInt
-     , 'Field Types2.MixedPublishedWindowCount 'WireInt
-     , 'Field Types2.AffectedPublishedDayCount 'WireInt
-     , 'Field Types2.AffectedShiftCount 'WireInt
      ]
 
 updateRosterWeekStartsOnActionFields ::
     Int ->
     Int ->
-    Int ->
-    Int ->
-    Int ->
-    Int ->
     ActionFields UpdateRosterWeekStartsOnActionOperation
-updateRosterWeekStartsOnActionFields rosterWeekStartsOn rosterCalendarRevision currentRosterWindowStartDay mixedPublishedWindowCount affectedPublishedDayCount affectedShiftCount =
+updateRosterWeekStartsOnActionFields rosterWeekStartsOn rosterCalendarRevision =
     actionFields
         (surfaceField @Types2.RosterWeekStartsOn rosterWeekStartsOn)
         ( surfaceField @Types2.RosterCalendarRevision rosterCalendarRevision
-            &: surfaceField @Types2.CurrentRosterWindowStartDay currentRosterWindowStartDay
-            &: surfaceField @Types2.MixedPublishedWindowCount mixedPublishedWindowCount
-            &: surfaceField @Types2.AffectedPublishedDayCount affectedPublishedDayCount
-            &: surfaceField @Types2.AffectedShiftCount affectedShiftCount
             &: noSurfaceFields
         )
 
 updateRosterWeekStartsOnActionEvidence :: ActionEvidence UpdateRosterWeekStartsOnActionOperation
 updateRosterWeekStartsOnActionEvidence =
-    actionEvidence (SurfaceIR.HtmxActionIR "UpdateRosterWeekStartsOn" "update-roster-week-starts-on" [SurfaceIR.FieldIR "RosterWeekStartsOn" "rosterWeekStartsOn" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "CurrentRosterWindowStartDay" "currentRosterWindowStartDay" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "MixedPublishedWindowCount" "mixedPublishedWindowCount" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "AffectedPublishedDayCount" "affectedPublishedDayCount" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "AffectedShiftCount" "affectedShiftCount" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-roster-window-start-day-setting" ["admin-roster-window-start-day-setting"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR)])
+    actionEvidence (SurfaceIR.HtmxActionIR "UpdateRosterWeekStartsOn" "update-roster-week-starts-on" [SurfaceIR.FieldIR "RosterWeekStartsOn" "rosterWeekStartsOn" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField, SurfaceIR.FieldIR "RosterCalendarRevision" "rosterCalendarRevision" (SurfaceIR.WireIntIR) SurfaceIR.RequiredField] [SurfaceIR.HtmxOption (SurfaceIR.HtmxActionMethodIR SurfaceIR.HtmxPostIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTargetIR (SurfaceIR.HtmxTypedSyntaxIR "#admin-roster-window-start-day-setting" ["admin-roster-window-start-day-setting"])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionSwapIR (SurfaceIR.HtmxTypedSyntaxIR "outerHTML" [])), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionPushUrlIR SurfaceIR.HtmxPushUrlFalseIR), SurfaceIR.HtmxOption (SurfaceIR.HtmxActionTriggerIR (SurfaceIR.HtmxTypedSyntaxIR "change" []))])
 
 updateRosterWeekStartsOnAction :: ActionFields UpdateRosterWeekStartsOnActionOperation -> FrontendSurfaceAction
 updateRosterWeekStartsOnAction =

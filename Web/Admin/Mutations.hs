@@ -1,8 +1,6 @@
 module Web.Admin.Mutations
     ( AdminShiftTypeMutationResult (..)
-    , RosterWindowStartDayImpact (..)
     , adminVenueSettingsTouchedResources
-    , confirmRosterWindowStartDayMutation
     , createRosterGroupMutation
     , createShiftTypeMutation
     , createVenueInvitationMutation
@@ -10,7 +8,6 @@ module Web.Admin.Mutations
     , issueStaffPasskeySetupLinkMutation
     , moveRosterGroupMutation
     , moveShiftTypeMutation
-    , previewRosterWindowStartDayMutation
     , revokeVenueInvitationMutation
     , renewVenueInvitationMutation
     , rosterEndTimesTouchedResources
@@ -25,6 +22,7 @@ module Web.Admin.Mutations
     , shiftTypePayResources
     , shiftTypeXeroPayItemScopeChanged
     , updateRosterGroupMutation
+    , updateRosterWindowStartDayMutation
     , updateShiftTypeMutation
     ) where
 

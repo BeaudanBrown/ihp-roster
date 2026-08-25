@@ -49,7 +49,6 @@ module Application.Helper.FrontendContract.Surface.Admin
     , UpdateMinutePrecisionShiftTimesEnabled
     , UpdateUnavailableStaffWarningThreshold
     , UpdateRosterTimePickerWindow
-    , PreviewRosterWindowStartDay
     , UpdateRosterWeekStartsOn
     , CreateVenueInvitation
     , RevokeVenueInvitation
@@ -70,10 +69,6 @@ module Application.Helper.FrontendContract.Surface.Admin
     , TimePickerEnd
     , RosterWeekStartsOn
     , RosterCalendarRevision
-    , CurrentRosterWindowStartDay
-    , MixedPublishedWindowCount
-    , AffectedPublishedDayCount
-    , AffectedShiftCount
     , UnavailableStaffWarningThreshold
     , Email
     , RangeStart
@@ -91,9 +86,9 @@ module Application.Helper.FrontendContract.Surface.Admin
     ) where
 
 import Application.Helper.Export.Types (ExportJobType)
-import Application.PayRateSelection (ShiftTypePayRateSelection)
 import Application.Helper.FrontendContract.Surface.DSL
 import Application.Helper.ShiftTypeColours (ShiftTypeColourKeyEnum)
+import Application.PayRateSelection (ShiftTypePayRateSelection)
 
 data AdminPageScope
 data AdminXeroPageScope
@@ -138,7 +133,6 @@ data UpdateDefaultStaffPayRate
 data UpdateMinutePrecisionShiftTimesEnabled
 data UpdateUnavailableStaffWarningThreshold
 data UpdateRosterTimePickerWindow
-data PreviewRosterWindowStartDay
 data UpdateRosterWeekStartsOn
 data CreateVenueInvitation
 data RevokeVenueInvitation
@@ -159,10 +153,6 @@ data TimePickerStart
 data TimePickerEnd
 data RosterWeekStartsOn
 data RosterCalendarRevision
-data CurrentRosterWindowStartDay
-data MixedPublishedWindowCount
-data AffectedPublishedDayCount
-data AffectedShiftCount
 data UnavailableStaffWarningThreshold
 data Email
 data RangeStart
@@ -271,27 +261,15 @@ type AdminVenueSettingsSurface =
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              , 'CustomHtmx ChangeAutosaveCustomHtmx "venue setting inputs submit on change"
              ]
-         , Action PreviewRosterWindowStartDay
-            '[ Field RosterWeekStartsOn 'WireInt
-             , Field RosterCalendarRevision 'WireInt
-             ]
-            '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget ('HtmxId AdminRosterWindowStartDaySetting)
-             , 'HtmxSwap 'HtmxOuterHTML
-             , 'HtmxPushUrl 'HtmxPushUrlFalse
-             ]
          , Action UpdateRosterWeekStartsOn
             '[ Field RosterWeekStartsOn 'WireInt
              , Field RosterCalendarRevision 'WireInt
-             , Field CurrentRosterWindowStartDay 'WireInt
-             , Field MixedPublishedWindowCount 'WireInt
-             , Field AffectedPublishedDayCount 'WireInt
-             , Field AffectedShiftCount 'WireInt
              ]
             '[ 'HtmxMethod 'HtmxPost
              , 'HtmxTarget ('HtmxId AdminRosterWindowStartDaySetting)
              , 'HtmxSwap 'HtmxOuterHTML
              , 'HtmxPushUrl 'HtmxPushUrlFalse
+             , 'HtmxTrigger 'HtmxChange
              ]
          ]
 
