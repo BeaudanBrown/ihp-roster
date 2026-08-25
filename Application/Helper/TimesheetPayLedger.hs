@@ -3,6 +3,7 @@ module Application.Helper.TimesheetPayLedger
     , loadApprovedTimesheetPayCalculation
     , loadApprovedTimesheetPayCalculations
     , persistApprovedTimesheetPayCalculation
+    , persistDevSeedApprovedTimesheetPayCalculation
     , roundWageLedgerRational
     ) where
 
@@ -163,7 +164,25 @@ persistApprovedTimesheetPayCalculation ::
     (?modelContext :: ModelContext) =>
     TimesheetEntry ->
     IO (Either Text TimesheetPayCalculation)
-persistApprovedTimesheetPayCalculation entry = do
+persistApprovedTimesheetPayCalculation =
+    persistApprovedTimesheetPayCalculationWith True
+
+-- | Development fixtures are synthetic approvals created before a retained
+-- Xero tenant is restored. Keep their Xero facts explicitly eligible for the
+-- legacy lookup path instead of sealing IDs from the throwaway seed tenant.
+persistDevSeedApprovedTimesheetPayCalculation ::
+    (?modelContext :: ModelContext) =>
+    TimesheetEntry ->
+    IO (Either Text TimesheetPayCalculation)
+persistDevSeedApprovedTimesheetPayCalculation =
+    persistApprovedTimesheetPayCalculationWith False
+
+persistApprovedTimesheetPayCalculationWith ::
+    (?modelContext :: ModelContext) =>
+    Bool ->
+    TimesheetEntry ->
+    IO (Either Text TimesheetPayCalculation)
+persistApprovedTimesheetPayCalculationWith sealXeroMapping entry = do
     case timesheetWageSubject entry of
         Left err -> pure (Left ("Cannot freeze approved pay calculation: " <> renderWageEvaluationError err))
         Right subject -> do
@@ -171,7 +190,9 @@ persistApprovedTimesheetPayCalculation entry = do
             case Map.lookup (TimesheetSubject (unpackId entry.id)) results of
                 Nothing -> pure (Left "Cannot freeze approved pay calculation: result was not loaded.")
                 Just (Left err) -> pure (Left ("Cannot freeze approved pay calculation: " <> renderWageEvaluationError err))
-                Just (Right calculation) -> Right <$> persist entry calculation
+                Just (Right calculation) -> do
+                    rateBoundaryFacts <- loadRateBoundaryFacts [calculation]
+                    Right <$> persistWithRateBoundaryFacts sealXeroMapping rateBoundaryFacts entry calculation
 
 data PayLedgerBackfillException = PayLedgerBackfillException [(UUID, Text)]
     deriving (Show)

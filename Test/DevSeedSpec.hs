@@ -441,6 +441,10 @@ tests = aroundAll withDatabaseTestContext do
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
                         |> filterWhereIn (#lastName, ["Both", "Front", "Garrison", "Green", "Grey", "Lebron", "Martin"])
                         |> fetch
+                activePayComponents <-
+                    query @TimesheetPayEarningsComponent
+                        |> filterWhereIn (#timesheetPayCalculationId, mapMaybe (fmap unpackId . (.activePayCalculationId)) timesheetEntries)
+                        |> fetch
 
                 let totalTimesheetCount = length timesheetEntries
                 let entriesWithBreaks = length (filter testHadBreak timesheetEntries)
@@ -468,6 +472,7 @@ tests = aroundAll withDatabaseTestContext do
                 map (.staffPayVersionId) approvedTimesheets `shouldSatisfy` all isJust
                 map (.shiftTypePayVersionId) approvedTimesheets `shouldSatisfy` all isJust
                 map (.activePayCalculationId) approvedTimesheets `shouldSatisfy` all isJust
+                activePayComponents `shouldSatisfy` all (.xeroMappingLegacyFallback)
                 length approvedTimesheets `shouldSatisfy` (>= seededScenario.approvedTimesheets)
                 pendingTimesheetCount `shouldBe` seededScenario.pendingTimesheets
                 totalTimesheetCount `shouldBe` (length approvedTimesheets + seededScenario.pendingTimesheets)

@@ -37,9 +37,12 @@ import Application.Helper.FrontendContract.Surface.Values (surfaceFieldValue)
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
                                 renderToastOverlayHostOob)
-import Application.Helper.XeroAdminTypes (XeroTimesheetPreparationState (XeroPreparationSubmitted),
-                                          XeroTimesheetPreparationView (..))
+import Application.Helper.XeroAdminTypes (XeroTimesheetIssueView (..),
+                                          XeroTimesheetPreparationState (XeroPreparationSubmitted),
+                                          XeroTimesheetPreparationView (..),
+                                          XeroTimesheetReadinessView (..))
 import Application.Xero.Admin.ReadModel
+import Application.Xero.EmployeeId (XeroEmployeeSelection (..))
 import Application.Xero.ReferenceDemand (fetchXeroMissingReferenceDemand)
 import Application.Xero.ReferenceTrust.Presentation (XeroPreparationReferencePresentation (..),
                                                      xeroPreparationReferencePresentation)
@@ -48,7 +51,6 @@ import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..),
 import Application.Xero.ReferenceTrust.Service
 import Application.Xero.Timesheets.Prepare (XeroPreparationStaffDecision (..),
                                             loadXeroTimesheetPreparationView)
-import Application.Xero.EmployeeId (XeroEmployeeSelection (..))
 import qualified Data.Text as Text
 import Web.Admin.Xero.Mutations (applyXeroTimesheetPreparationStaffDecisionMutation,
                                  approveXeroTimesheetPreparationPayItemsMutation,
@@ -200,7 +202,7 @@ selectXeroTimesheetPreparationPeriodAction runId =
         Right fields -> do
             let selectedPeriodKey = Text.strip (surfaceFieldValue @PeriodKeyField fields)
             result <- liveMutationValue <$> selectXeroTimesheetPreparationPeriodMutation runId selectedPeriodKey
-            respondWithPreparationDialog result
+            respondWithPreparationPeriodSelection result
 
 approveXeroTimesheetPreparationPayItemsAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -305,8 +307,26 @@ respondWithPreparationBlockingDialog runId message =
 parseStaffDecision :: AppShellActionFields ApplyXeroTimesheetPreparationStaffDecisionOverlay -> Either Text XeroPreparationStaffDecision
 parseStaffDecision fields =
     case surfaceFieldValue @XeroEmployeeSelectionField fields of
-        XeroEmployeeNotApplicable -> Right MarkStaffNotPaidThroughXero
+        XeroEmployeeNotApplicable       -> Right MarkStaffNotPaidThroughXero
         XeroEmployeeSelected employeeId -> Right (SelectXeroEmployee employeeId)
+
+respondWithPreparationPeriodSelection ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    Either Text XeroTimesheetPreparationView ->
+    IO ()
+respondWithPreparationPeriodSelection result =
+    case result of
+        Right view
+            | Just _ <- find ((== "wage_publication_failed") . (.timesheetIssueCode)) view.preparationReadiness.timesheetReadinessBlockers
+            , isHtmxRequest ->
+                respondHtml $
+                    renderXeroTimesheetPreparationPeriodSelectionDialog view
+                        <> renderToastOverlayHostOob ToastBottomCenter [xeroErrorToast sealedXeroMappingToastMessage]
+        _ -> respondWithPreparationDialog result
+
+sealedXeroMappingToastMessage :: Text
+sealedXeroMappingToastMessage =
+    "This pay period includes approved timesheets that were approved before Xero pay mappings were ready. Unapprove and reapprove those timesheets, then try again."
 
 respondWithPreparationDialog ::
     (?context :: ControllerContext, ?request :: Request) =>

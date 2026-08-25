@@ -13,7 +13,7 @@ import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                ensureShiftTypePayVersionForShiftType,
                                lockPayVersionsForApproval)
 import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey)
-import Application.Helper.TimesheetPayLedger (persistApprovedTimesheetPayCalculation)
+import Application.Helper.TimesheetPayLedger (persistDevSeedApprovedTimesheetPayCalculation)
 import Application.PayAssignment (StaffPayAssignment (..),
                                   staffAssignmentAllowsTimesheets)
 import Application.VenueTime (melbourneTimeZoneName)
@@ -333,14 +333,14 @@ approveSeededTimesheetEntryWithVersions admin approvedAt staffPayVersion shiftTy
                 |> set #shiftTypePayVersionId (Just (unpackId shiftTypePayVersion.id))
                 |> set #approvedAt (Just approvedAt)
                 |> set #approvedByUserId (Just (unpackId admin.id))
-    persisted <- persistApprovedTimesheetPayCalculation approvalEntry
+    persisted <- persistDevSeedApprovedTimesheetPayCalculation approvalEntry
     calculation <- either (fail . cs) pure persisted
     approvalEntry
         |> set #activePayCalculationId (Just calculation.id)
         |> updateRecord
 
 seededCaseShiftType :: SeededTimesheetShiftType -> ShiftType -> ShiftType -> ShiftType
-seededCaseShiftType SeededFloorShift floorShift _ = floorShift
+seededCaseShiftType SeededFloorShift floorShift _     = floorShift
 seededCaseShiftType SeededKitchenShift _ kitchenShift = kitchenShift
 
 seededBreakBoundaries :: SeededTimesheetBreak -> (Bool, Maybe TimeOfDay, Maybe TimeOfDay)
