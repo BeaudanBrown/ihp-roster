@@ -61,6 +61,7 @@ where
 import Application.Helper.Xero.Types
 import Control.Applicative ((<|>))
 import qualified Control.Exception as Exception
+import qualified Control.Exception.Safe as SafeException
 import Control.Monad (guard)
 import "crypton" Crypto.Cipher.AES (AES256)
 import "crypton" Crypto.Cipher.Types (IV, cipherInit, ctrCombine, makeIV)
@@ -788,9 +789,10 @@ decodeXeroEmptyResponse label response = do
         else pure (Right ())
 
 handleXeroHttpExceptions :: IO (Either XeroClientError value) -> IO (Either XeroClientError value)
-handleXeroHttpExceptions action = do
-    result <- Exception.try action
-    pure case result of
-        Left (err :: Exception.SomeException) -> Left (XeroHttpError (cs (show err)))
-        Right value -> value
+handleXeroHttpExceptions action =
+    Exception.try action >>= \case
+        Left exception
+            | SafeException.isAsyncException exception -> Exception.throwIO (exception :: Exception.SomeException)
+            | otherwise -> pure (Left (XeroHttpError "Xero request failed before receiving a response."))
+        Right value -> pure value
 

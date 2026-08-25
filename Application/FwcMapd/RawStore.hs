@@ -3,6 +3,7 @@ module Application.FwcMapd.RawStore where
 import Application.FwcMapd.Client
 import Application.FwcMapd.Config
 import Application.FwcMapd.Curation
+import Application.FwcMapd.Error
 import Application.FwcMapd.Payload
 import Application.FwcMapd.Projection
 import Application.FwcMapd.Validation
@@ -53,7 +54,7 @@ storeCuratedMapdAwardData ::
 storeCuratedMapdAwardData fetchedAwards = do
     validatedAwards <-
         forM fetchedAwards \candidate ->
-            either (Exception.throwIO . userError . cs) pure (validateMapdSnapshot candidate)
+            either (const (Exception.throwIO MapdSnapshotInvalid)) pure (validateMapdSnapshot candidate)
     storeValidatedMapdSnapshots validatedAwards
 
 storeValidatedMapdSnapshots ::

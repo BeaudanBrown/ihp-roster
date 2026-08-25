@@ -1,5 +1,6 @@
 module Application.FwcMapd.Payload where
 
+import Application.FwcMapd.Error
 import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
@@ -225,8 +226,8 @@ textFromJsonValue = \case
     Aeson.Object value -> pure (cs (show value))
 
 decodePayloads :: Aeson.FromJSON a => Text -> [Aeson.Value] -> IO [(a, Aeson.Value)]
-decodePayloads label rawValues =
+decodePayloads _label rawValues =
     forM rawValues \rawValue ->
         case Aeson.parseEither Aeson.parseJSON rawValue of
-            Left errorMessage -> Exception.throwIO (userError ("FWC MAPD " <> cs label <> " decode failed: " <> errorMessage))
+            Left _        -> Exception.throwIO MapdResponseMalformed
             Right payload -> pure (payload, rawValue)

@@ -7,6 +7,7 @@ module Test.ApplicationErrorSpec
     ( tests
     ) where
 
+import Application.Async.Error (AppJobError (..))
 import Application.Bepis.Action (BepisOperationKind (..), runBepis)
 import Application.Error.Boundary
 import Application.Error.Domain
@@ -76,6 +77,35 @@ tests = describe "typed application errors" do
                 ]
         appErrorCode (projectDomainError MissingPayItem)
             `shouldBe` "test.application-error-spec.payroll-preparation/missing-pay-item"
+
+    it "classifies AppJob retryable and terminal outcomes without provider payloads" do
+        let retryableErrors =
+                [ JobRateLimited
+                , JobMalformedResponse
+                , JobTransportUnavailable
+                , JobDatabaseUnavailable
+                , JobUnexpectedSynchronousFailure
+                ]
+        let terminalErrors =
+                [ JobValidationRejected
+                , JobRemoteConflict
+                , JobConfigurationUnavailable
+                , JobCryptoUnavailable
+                , JobMalformedPersistedPayload
+                , JobUnsupportedPayloadSchemaVersion
+                , JobInvalidProvenance
+                , JobUnknownKind
+                ]
+        map (appErrorRetryDirective . projectDomainError) retryableErrors
+            `shouldBe` replicate (length retryableErrors) RetryUsingBoundaryPolicy
+        map (appErrorRetryDirective . projectDomainError) terminalErrors
+            `shouldBe` replicate (length terminalErrors) DoNotRetry
+        map (appErrorRecovery . projectDomainError) retryableErrors
+            `shouldBe` replicate (length retryableErrors) Retryable
+        map (appErrorRecovery . projectDomainError) terminalErrors
+            `shouldBe` replicate (length terminalErrors) Terminal
+        appErrorRecovery (projectDomainError JobAuthenticationRequired) `shouldBe` UserActionRequired
+        appErrorRetryDirective (projectDomainError JobAuthenticationRequired) `shouldBe` DoNotRetry
 
     it "projects every closed constructor to safe severity, recovery, and retry policy" do
         let projected = map (projectDomainError @PayrollPreparationError) [minBound .. maxBound]

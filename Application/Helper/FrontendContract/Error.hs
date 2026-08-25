@@ -5,6 +5,7 @@ module Application.Helper.FrontendContract.Error
     , AppErrorRegistry
     ) where
 
+import Application.Async.Error (AppJobError)
 import Application.Error.Foundation (FoundationError)
 import Application.Helper.FrontendContract.DSL
 import Application.TimesheetApproval.Error (TimesheetApprovalError)
@@ -16,5 +17,5 @@ data AppErrorRegistry
 
 type AppErrorContract =
     Global AppErrorRegistry
-        '[ ErrorCodes '[FoundationError, TimesheetApprovalError, XeroPreparationError]
+        '[ ErrorCodes '[AppJobError, FoundationError, TimesheetApprovalError, XeroPreparationError]
          ]

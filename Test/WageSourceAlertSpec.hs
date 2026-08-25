@@ -30,6 +30,24 @@ import Test.Support
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Wage-source health alerts" do
+        it "rejects a health-check payload bound to the wrong source job kind" $ withContext do
+            withCleanDb do
+                now <- getCurrentTime
+                sourceJob <- newRecord @AppJob |> set #jobKind "unrelated_job" |> createRecord
+                healthCheck <-
+                    newRecord @AppJob
+                        |> set #jobKind wageSourceHealthCheckJobKind
+                        |> set #payloadSchemaVersion 1
+                        |> set #payload (Aeson.object ["source" Aeson..= ("fwc_mapd" :: Text), "trigger" Aeson..= ("scheduled_freshness_check" :: Text), "sourceJobId" Aeson..= unpackId sourceJob.id, "enqueuedAt" Aeson..= now, "anchorSuccessAt" Aeson..= (Nothing :: Maybe UTCTime)])
+                        |> set #relatedTable (Just "app_jobs")
+                        |> set #relatedId (Just (unpackId sourceJob.id))
+                        |> createRecord
+
+                result <- Exception.try (performWageSourceHealthCheckJobAt now healthCheck) :: IO (Either Exception.SomeException ())
+                case result of
+                    Right () -> expectationFailure "Expected invalid wage-source health-check provenance"
+                    Left exception -> tshow exception `shouldBe` "application.async.error.app-job/job-invalid-provenance: The stored job provenance is invalid."
+
         it "waits for the final refresh attempt and records manual/timer class without raw errors" $ withContext do
             withCleanDb do
                 manualUser <- createUserRecord "source-manual@example.com" "staff" True
@@ -233,6 +251,8 @@ createHealthCheck source trigger sourceJob enqueuedAt anchorSuccessAt =
     newRecord @AppJob
         |> set #jobKind wageSourceHealthCheckJobKind
         |> set #payloadSchemaVersion 1
+        |> set #relatedTable (Just "app_jobs")
+        |> set #relatedId (Just (unpackId sourceJob.id))
         |> set #payload
             ( Aeson.object
                 [ "source" Aeson..= wageSourceText source

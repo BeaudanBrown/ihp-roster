@@ -11,12 +11,14 @@ module Application.FwcMapd.Sync
 
 import Application.FwcMapd.Config
 import Application.FwcMapd.Curation
+import Application.FwcMapd.Error
 import Application.FwcMapd.Payload
 import Application.FwcMapd.Projection
 import Application.FwcMapd.RawStore
 import Application.FwcMapd.Validation
 import Application.WageSourceNotifications (emitLatestAwardDriftNotifications)
 import qualified Control.Exception as Exception
+import qualified Control.Exception.Safe as SafeException
 import Control.Monad (void)
 import Generated.Types
 import IHP.ControllerPrelude
@@ -43,11 +45,15 @@ runMapdSyncWith requestedAwardFixedIds syncAction = do
             |> set #syncedAwardFixedIds ([] :: [Int])
             |> set #startedAt startedAt
             |> createRecord
-    syncResult <- Exception.try syncAction :: (?modelContext :: ModelContext) => IO (Either Exception.SomeException MapdSyncSummary)
+    syncResult <- trySynchronousMapdAction syncAction
     finishedAt <- getCurrentTime
     case syncResult of
         Left syncError -> do
-            let errorMessage = cs (Exception.displayException syncError)
+            let errorMessage =
+                    maybe
+                        "FWC MAPD synchronization failed."
+                        mapdSyncErrorSafeMessage
+                        (Exception.fromException syncError)
             void
                 ( syncRun
                     |> set #status ("failed" :: Text)
@@ -71,4 +77,12 @@ runMapdSyncWith requestedAwardFixedIds syncAction = do
                 )
             void emitLatestAwardDriftNotifications
             pure summary
+
+trySynchronousMapdAction :: IO value -> IO (Either Exception.SomeException value)
+trySynchronousMapdAction action =
+    Exception.try action >>= \case
+        Left exception
+            | SafeException.isAsyncException exception -> Exception.throwIO (exception :: Exception.SomeException)
+            | otherwise -> pure (Left exception)
+        Right value -> pure (Right value)
 

@@ -6,6 +6,7 @@ module Application.Xero.Connection
     , forceRefreshXeroConnectionAccess
     , refreshXeroConnectionAccess
     , refreshXeroConnectionAccessWithoutBroadcast
+    , durableXeroClientErrorText
     , xeroClientErrorText
     ) where
 

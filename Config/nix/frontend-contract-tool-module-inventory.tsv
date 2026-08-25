@@ -1,5 +1,6 @@
 path	category	owner	reason
 Application/Architecture/Contracts.hs	tooling-only	Application.Script.GenerateBepisArchitectureContracts	Composes architecture-only JSON and has no runtime consumer
+Application/Async/Error.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Bepis/Action.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Bepis/Architecture.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Bepis/Controller.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling

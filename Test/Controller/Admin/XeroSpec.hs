@@ -1388,7 +1388,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 EnqueuedAppJob retryJob <- enqueueXeroReferenceSyncJob (Just fixture.owner.id) fixture.connection
                 _ <- retryJob
                     |> set #runAt (addUTCTime 3600 now)
-                    |> set #payload (Aeson.object ["requestedAt" Aeson..= now, "retryNumber" Aeson..= (1 :: Int)])
+                    |> set #payload (Aeson.object ["xeroConnectionId" Aeson..= tshow fixture.connection.id, "tenantId" Aeson..= fixture.connection.tenantId, "requestedAt" Aeson..= now, "retryNumber" Aeson..= (1 :: Int)])
                     |> updateRecord
 
                 response <- withXeroConfigForTest (Left "Xero must not be called while using a fresh snapshot") do

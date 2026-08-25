@@ -4,6 +4,7 @@ module Application.Xero.ReferenceSyncRequest
     , withQueuedXeroReferenceSyncRequestsForTest
     ) where
 
+import Application.Async.Boundary (trySynchronousAppJobAction)
 import Application.Async.Queue
 import Application.Xero.Admin.ReferenceData (XeroReferenceDataSyncResult (..))
 import Application.Xero.ReferenceSyncJob
@@ -42,7 +43,7 @@ runXeroReferenceDataSyncRequest maybeActorUserId connection
                 pure (Left "Xero payroll reference data is already syncing in the background.")
             EnqueuedAppJob appJob -> do
                 runInline <- IORef.readIORef inlineXeroReferenceSyncRequestsForTestRef
-                attempt <- Exception.try (if runInline then performXeroReferenceSyncJob appJob else pure ())
+                attempt <- trySynchronousAppJobAction (if runInline then performXeroReferenceSyncJob appJob else pure ())
                 case attempt of
                     Left (_ :: Exception.SomeException) -> do
                         let safeMessage = "Xero reference sync failed before completion."

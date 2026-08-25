@@ -6,6 +6,8 @@ module Application.WageSourceAlert.Job
     , wageSourceHealthCheckJobKind
     ) where
 
+import Application.Async.Boundary (throwAppJobError)
+import Application.Async.Error (AppJobError (..))
 import Application.Async.Queue
 import Application.EmailDelivery
 import Application.PublicHolidays.Policy (targetPublicHolidayYears)
@@ -127,10 +129,10 @@ performWageSourceHealthCheckJob ::
     IO ()
 performWageSourceHealthCheckJob appJob
     | appJob.payloadSchemaVersion /= 1 =
-        fail ("Unsupported wage-source health-check payload schema version: " <> cs (tshow appJob.payloadSchemaVersion))
+        throwAppJobError JobUnsupportedPayloadSchemaVersion
     | otherwise =
         case Aeson.fromJSON appJob.payload of
-            Aeson.Error parseError -> fail ("Invalid wage-source health-check payload: " <> parseError)
+            Aeson.Error _ -> throwAppJobError JobMalformedPersistedPayload
             Aeson.Success payload -> do
                 now <- getCurrentTime
                 performHealthCheck appJob payload now
@@ -142,10 +144,10 @@ performWageSourceHealthCheckJobAt ::
     IO ()
 performWageSourceHealthCheckJobAt now appJob
     | appJob.payloadSchemaVersion /= 1 =
-        fail ("Unsupported wage-source health-check payload schema version: " <> cs (tshow appJob.payloadSchemaVersion))
+        throwAppJobError JobUnsupportedPayloadSchemaVersion
     | otherwise =
         case Aeson.fromJSON appJob.payload of
-            Aeson.Error parseError -> fail ("Invalid wage-source health-check payload: " <> parseError)
+            Aeson.Error _ -> throwAppJobError JobMalformedPersistedPayload
             Aeson.Success payload -> performHealthCheck appJob payload now
 
 performHealthCheck ::
@@ -155,6 +157,15 @@ performHealthCheck ::
     UTCTime ->
     IO ()
 performHealthCheck appJob payload now = do
+    unless
+        ( appJob.relatedTable == Just "app_jobs"
+            && appJob.relatedId == Just payload.payloadSourceJobId
+        )
+        (throwAppJobError JobInvalidProvenance)
+    sourceJob <-
+        fetchOneOrNothing (Id payload.payloadSourceJobId :: Id AppJob)
+            >>= maybe (throwAppJobError JobInvalidProvenance) pure
+    unless (sourceForRefreshJobKind sourceJob.jobKind == Just payload.payloadSource) (throwAppJobError JobInvalidProvenance)
     let localToday = (resolvedInstantLocalTime (resolvedInstantFromUTC now)).localDay
     let targetYears = Set.fromList (targetPublicHolidayYears localToday)
     activeVenues <-
@@ -165,7 +176,6 @@ performHealthCheck appJob payload now = do
             |> fetch
     let activeVenueIds = map (unpackId . (.id)) activeVenues
     facts <- loadWageSourceFactsFor activeVenueIds targetYears
-    sourceJob <- fetch (Id payload.payloadSourceJobId :: Id AppJob)
     if scheduledCheckIsSuperseded now targetYears facts payload
         then completeHealthCheck appJob payload [] AnnualNotDue 0 "superseded"
         else do

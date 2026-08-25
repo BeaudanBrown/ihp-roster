@@ -41,9 +41,10 @@ records fail validation; provider absence never changes the supported matrix.
 ## Publication
 
 A validated candidate's raw rows and Award-level projection publish in one database
-transaction. Validation runs before that transaction. A failed candidate records an
-actionable failed `fwc_mapd_sync_runs` row, does not inactivate an Award level, and
-leaves the last complete projection active. Projection rows retain provenance to the
+transaction. Validation runs before that transaction. A failed candidate records a
+bounded classified failure in `fwc_mapd_sync_runs`, does not inactivate an Award level,
+and leaves the last complete projection active. Raw provider and validation diagnostics
+never enter durable job or sync-run state. Projection rows retain provenance to the
 validated immediate-scope source records.
 
 ## Operational refresh policy

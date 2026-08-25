@@ -13,6 +13,8 @@ module Application.Billing.Reconciliation
     )
 where
 
+import Application.Async.Boundary (throwAppJobError, trySynchronousAppJobAction)
+import Application.Async.Error (AppJobError (..))
 import Application.Async.Queue
 import Application.Billing.Persistence (lockVenueForBilling)
 import Application.Billing.Stripe
@@ -456,6 +458,17 @@ data BillingReconciliationTarget
     = ReconcileCheckoutAttempt !(Id BillingCheckoutAttempt)
     | ReconcileSubscription !(Id VenueSubscription)
 
+data PersistedBillingReconciliationTarget = PersistedBillingReconciliationTarget
+    { payloadTarget        :: !Text
+    , payloadLocalRecordId :: !UUID
+    }
+
+instance Aeson.FromJSON PersistedBillingReconciliationTarget where
+    parseJSON = Aeson.withObject "PersistedBillingReconciliationTarget" \object ->
+        PersistedBillingReconciliationTarget
+            <$> object Aeson..: "target"
+            <*> object Aeson..: "localRecordId"
+
 nonTerminalSubscriptionStatuses :: [Text]
 nonTerminalSubscriptionStatuses =
     [ "incomplete"
@@ -576,7 +589,7 @@ performBillingReconciliationJob
     -> IO ()
 performBillingReconciliationJob appJob = do
     attempted <-
-        Exception.try
+        trySynchronousAppJobAction
             ( runBillingReconciliationJob appJob >>= \case
                 Left failure -> pure (Left failure)
                 Right outcome -> do
@@ -585,10 +598,22 @@ performBillingReconciliationJob appJob = do
             )
             :: IO (Either Exception.SomeException (Either BillingReconciliationFailure ()))
     case attempted of
-        Left _ -> fail "billing_reconciliation_unexpected: Billing reconciliation failed unexpectedly."
-        Right (Left failure) ->
-            fail (cs (failure.reconciliationFailureCode <> ": " <> failure.reconciliationFailureSummary))
+        Left _ -> throwAppJobError JobUnexpectedSynchronousFailure
+        Right (Left failure) -> throwAppJobError (billingReconciliationJobError failure)
         Right (Right ()) -> pure ()
+
+billingReconciliationJobError :: BillingReconciliationFailure -> AppJobError
+billingReconciliationJobError failure
+    | code == "job_schema_invalid" = JobUnsupportedPayloadSchemaVersion
+    | code == "job_payload_invalid" = JobMalformedPersistedPayload
+    | code == "job_target_invalid" || code == "job_payload_mismatch" || "job_" `Text.isPrefixOf` code = JobInvalidProvenance
+    | code == "stripe_config_unavailable" = JobConfigurationUnavailable
+    | "retrieve_failed" `Text.isSuffixOf` code = JobTransportUnavailable
+    | "mismatch" `Text.isInfixOf` code || "changed" `Text.isInfixOf` code || "advanced" `Text.isInfixOf` code || "already_associated" `Text.isInfixOf` code = JobRemoteConflict
+    | "invalid" `Text.isInfixOf` code = JobValidationRejected
+    | otherwise = JobValidationRejected
+  where
+    code = failure.reconciliationFailureCode
 
 runBillingReconciliationJob
     :: (?modelContext :: ModelContext)
@@ -598,6 +623,13 @@ runBillingReconciliationJob appJob
     | appJob.payloadSchemaVersion /= 1 =
         pure (Left (reconciliationFailure "job_schema_invalid" "The billing reconciliation job schema is unsupported."))
     | otherwise =
+        case Aeson.fromJSON appJob.payload :: Aeson.Result PersistedBillingReconciliationTarget of
+            Aeson.Error _ -> pure (Left (reconciliationFailure "job_payload_invalid" "The billing reconciliation job payload is invalid."))
+            Aeson.Success payload
+                | not (billingPayloadMatchesJob payload appJob) -> pure (Left (reconciliationFailure "job_payload_mismatch" "The billing reconciliation job payload does not match its target."))
+                | otherwise -> runTarget
+  where
+    runTarget =
         case (appJob.relatedTable, appJob.relatedId, appJob.venueId) of
             (Just "billing_checkout_attempts", Just relatedUuid, Just venueUuid) ->
                 fetchOneOrNothing (Id relatedUuid :: Id BillingCheckoutAttempt) >>= \case
@@ -612,6 +644,13 @@ runBillingReconciliationJob appJob
                         | subscription.venueId /= venueUuid -> pure (Left (reconciliationFailure "job_venue_mismatch" "The reconciliation job does not match the Subscription venue."))
                         | otherwise -> withCurrentStripeConfig \client config -> reconcileKnownSubscription client config subscription
             _ -> pure (Left (reconciliationFailure "job_target_invalid" "The billing reconciliation job target is invalid."))
+
+billingPayloadMatchesJob :: PersistedBillingReconciliationTarget -> AppJob -> Bool
+billingPayloadMatchesJob payload appJob =
+    case (payload.payloadTarget, appJob.relatedTable, appJob.relatedId) of
+        ("checkout_attempt", Just "billing_checkout_attempts", Just relatedId) -> payload.payloadLocalRecordId == relatedId
+        ("subscription", Just "venue_subscriptions", Just relatedId) -> payload.payloadLocalRecordId == relatedId
+        _ -> False
 
 withCurrentStripeConfig
     :: (StripeClient -> StripeConfig -> IO (Either BillingReconciliationFailure value))

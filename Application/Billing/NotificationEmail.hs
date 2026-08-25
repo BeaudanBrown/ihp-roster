@@ -1,6 +1,7 @@
 module Application.Billing.NotificationEmail
     ( BillingMailProjection (..)
     , billingNotificationMailKind
+    , billingNotificationReferenceTable
     , isBillingNotificationMailKind
     , loadBillingNotificationMail
     ) where
@@ -24,6 +25,13 @@ data BillingMailProjection
 billingNotificationMailKind :: BillingNotificationKind -> Text
 billingNotificationMailKind kind =
     "billing_" <> billingNotificationKindText kind <> "_v1"
+
+billingNotificationReferenceTable :: Text -> Maybe Text
+billingNotificationReferenceTable mailKind =
+    case billingNotificationKindFromMailKind mailKind of
+        Just BillingOperationalRetriesExhausted -> Just "app_jobs"
+        Just _                                  -> Just "billing_events"
+        Nothing                                 -> Nothing
 
 isBillingNotificationMailKind :: Text -> Bool
 isBillingNotificationMailKind candidate =

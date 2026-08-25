@@ -345,13 +345,13 @@ executeXeroTimesheetWrite allowedRecoveries xeroClient accessToken connection su
         Left err ->
             case xeroTimesheetWriteFailureAction operation err of
                 FailUncertainXeroTimesheetWrite -> markSubmissionFailed submission now (uncertainSubmissionError err)
-                FailXeroTimesheetWrite -> markSubmissionFailed submission now (xeroClientErrorText err)
+                FailXeroTimesheetWrite -> markSubmissionFailed submission now (durableXeroClientErrorText err)
                 recoveryAction@RefetchAfterMissingUpdate
                     | recoveryAction `elem` allowedRecoveries -> recover recoveryAction err now
-                    | otherwise -> markSubmissionFailed submission now (xeroClientErrorText err)
+                    | otherwise -> markSubmissionFailed submission now (durableXeroClientErrorText err)
                 recoveryAction@RefetchAfterCreateConflict
                     | recoveryAction `elem` allowedRecoveries -> recover recoveryAction err now
-                    | otherwise -> markSubmissionFailed submission now (xeroClientErrorText err)
+                    | otherwise -> markSubmissionFailed submission now (durableXeroClientErrorText err)
   where
     recover recoveryAction err now =
         recoverAfterProviderResponse
@@ -404,7 +404,7 @@ recoverAfterProviderResponse remainingRecoveries xeroClient accessToken connecti
                 markSubmissionFailed
                     submission
                     now
-                    (xeroClientErrorText writeError <> " Reconciliation fetch failed: " <> xeroClientErrorText fetchError)
+                    (durableXeroClientErrorText writeError <> " Reconciliation fetch failed: " <> durableXeroClientErrorText fetchError)
             Right remoteTimesheets ->
                 recoverFromReconciliation
                     remainingRecoveries
@@ -447,7 +447,7 @@ recoverFromReconciliation remainingRecoveries xeroClient accessToken connection 
         transitioned <- transitionSubmissionOperationAfterAttempt submission now writeError nextOperation
         executeXeroTimesheetWrite remainingRecoveries xeroClient accessToken connection transitioned nextOperation
     block blockedDecision = markSubmissionBlockedAfterAttempt submission writeError (reconciliationBlockedMessage blockedDecision)
-    failOriginal = markSubmissionFailed submission now (xeroClientErrorText writeError)
+    failOriginal = markSubmissionFailed submission now (durableXeroClientErrorText writeError)
 
 reconcileSubmissionRemoteState :: XeroTimesheetSubmission -> [XeroTimesheetRef] -> XeroTimesheetReconciliationDecision
 reconcileSubmissionRemoteState submission remoteTimesheets =
@@ -474,9 +474,9 @@ transitionSubmissionOperationAfterAttempt submission now writeError operation =
             |> set #status XeroTimesheetSubmissionStatusEnumPending
             |> set #idempotencyKey (operationIdempotencyKey submission nextOperationSequence operation)
             |> set #requestPayloadJson (xeroTimesheetRequestForOperation operation submission.requestPayloadJson)
-            |> set #responsePayloadJson (Aeson.object ["error" Aeson..= xeroClientErrorText writeError])
+            |> set #responsePayloadJson (Aeson.object ["error" Aeson..= durableXeroClientErrorText writeError])
             |> set #attemptCount nextOperationSequence
-            |> set #lastError (Just (xeroClientErrorText writeError))
+            |> set #lastError (Just (durableXeroClientErrorText writeError))
             |> set #submittedAt (Just now)
             |> updateRecord
 
@@ -510,7 +510,7 @@ markSubmissionSubmitted submission now refs = do
 uncertainSubmissionError :: XeroClientError -> Text
 uncertainSubmissionError err =
     "Bepis could not confirm whether Xero received this timesheet. Check Xero, then start a fresh preparation to retry. Provider error: "
-        <> xeroClientErrorText err
+        <> durableXeroClientErrorText err
 
 markSubmissionFailed :: (?modelContext :: ModelContext) => XeroTimesheetSubmission -> UTCTime -> Text -> IO XeroTimesheetSubmission
 markSubmissionFailed submission now message =
@@ -526,7 +526,7 @@ markSubmissionBlockedAfterAttempt :: (?modelContext :: ModelContext) => XeroTime
 markSubmissionBlockedAfterAttempt submission writeError message =
     submission
         |> set #status XeroTimesheetSubmissionStatusEnumBlocked
-        |> set #responsePayloadJson (Aeson.object ["error" Aeson..= message, "providerError" Aeson..= xeroClientErrorText writeError])
+        |> set #responsePayloadJson (Aeson.object ["error" Aeson..= message, "providerError" Aeson..= durableXeroClientErrorText writeError])
         |> set #attemptCount (submission.attemptCount + 1)
         |> set #lastError (Just message)
         |> updateRecord
@@ -564,7 +564,7 @@ blockedReadinessSummary readiness =
 fetchRemoteTimesheetsForDuplicateCheck :: XeroClient -> Text -> Text -> Maybe Text -> Day -> Day -> IO (Either Text [XeroTimesheetRef])
 fetchRemoteTimesheetsForDuplicateCheck xeroClient accessToken tenantId maybeCalendarId periodStart periodEnd =
     fetchRemoteTimesheetsForDuplicateCheckResult xeroClient accessToken tenantId maybeCalendarId periodStart periodEnd
-        |> fmap (Bifunctor.first (("Xero duplicate check failed: " <>) . xeroClientErrorText))
+        |> fmap (Bifunctor.first (("Xero duplicate check failed: " <>) . durableXeroClientErrorText))
 
 fetchRemoteTimesheetsForDuplicateCheckResult :: XeroClient -> Text -> Text -> Maybe Text -> Day -> Day -> IO (Either XeroClientError [XeroTimesheetRef])
 fetchRemoteTimesheetsForDuplicateCheckResult xeroClient accessToken tenantId maybeCalendarId periodStart periodEnd =

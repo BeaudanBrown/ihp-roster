@@ -1,10 +1,12 @@
 {-# LANGUAGE PackageImports #-}
 
 module Application.AccountSecurityEmail.TokenCipher
-    ( decryptAccountSecurityDeliveryToken
+    ( AccountSecurityTokenCipherError (..)
+    , decryptAccountSecurityDeliveryToken
     , encryptAccountSecurityDeliveryToken
     ) where
 
+import qualified Control.Exception as Exception
 import qualified "crypton" Crypto.Cipher.AES as AES
 import qualified "crypton" Crypto.Cipher.Types as Cipher
 import qualified "crypton" Crypto.Error as Crypto
@@ -19,6 +21,13 @@ import qualified Data.Text.Encoding as TextEncoding
 import IHP.Prelude
 import qualified System.Directory as Directory
 import System.Environment (lookupEnv)
+
+data AccountSecurityTokenCipherError
+    = AccountSecurityTokenCipherConfigurationUnavailable
+    | AccountSecurityTokenCipherOperationFailed
+    deriving (Eq, Show)
+
+instance Exception.Exception AccountSecurityTokenCipherError
 
 cipherVersion :: Text
 cipherVersion = "v1"
@@ -95,19 +104,19 @@ derivedKey keyMaterial =
 loadAccountSecurityKeyMaterial :: IO ByteString
 loadAccountSecurityKeyMaterial = do
     lookupEnv "IHP_SESSION_SECRET_FILE" >>= \case
-        Just path -> ByteString.readFile path
+        Just path -> readKeyFile path
         Nothing ->
             lookupEnv "IHP_SESSION_SECRET" >>= \case
                 Just value ->
                     case Base64.decode (TextEncoding.encodeUtf8 (cs value)) of
-                        Left _ -> ioError (userError "IHP session secret is not valid base64")
+                        Left _ -> Exception.throwIO AccountSecurityTokenCipherConfigurationUnavailable
                         Right keyMaterial -> pure keyMaterial
                 Nothing -> do
                     let developmentPath = "Config/client_session_key.aes"
                     exists <- Directory.doesFileExist developmentPath
                     if exists
-                        then ByteString.readFile developmentPath
-                        else ioError (userError "Account-security token encryption key is unavailable")
+                        then readKeyFile developmentPath
+                        else Exception.throwIO AccountSecurityTokenCipherConfigurationUnavailable
 
 decodeBase64 :: Text -> Either Text ByteString
 decodeBase64 encoded =
@@ -118,10 +127,16 @@ decodeBase64 encoded =
 encodeBase64 :: ByteString -> Text
 encodeBase64 = TextEncoding.decodeUtf8 . Base64.encode
 
+readKeyFile :: FilePath -> IO ByteString
+readKeyFile path =
+    Exception.try (ByteString.readFile path) >>= \case
+        Left (_ :: Exception.IOException) -> Exception.throwIO AccountSecurityTokenCipherConfigurationUnavailable
+        Right keyMaterial -> pure keyMaterial
+
 cryptoOrFail :: Text -> Crypto.CryptoFailable value -> IO value
-cryptoOrFail message = \case
+cryptoOrFail _ = \case
     Crypto.CryptoPassed value -> pure value
-    Crypto.CryptoFailed _     -> ioError (userError (cs message))
+    Crypto.CryptoFailed _     -> Exception.throwIO AccountSecurityTokenCipherOperationFailed
 
 cryptoToEither :: Text -> Crypto.CryptoFailable value -> Either Text value
 cryptoToEither message = \case

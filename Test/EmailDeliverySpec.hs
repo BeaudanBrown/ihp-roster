@@ -1,6 +1,9 @@
 module Test.EmailDeliverySpec where
 
 import Application.Async.Queue (appJobMaxAttempts)
+import Application.Billing.NotificationEmail (billingNotificationMailKind,
+                                              billingNotificationReferenceTable)
+import Application.Billing.NotificationKind (BillingNotificationKind (BillingOperationalRetriesExhausted, BillingPaymentTrouble))
 import Application.EmailDelivery
 import Application.Feedback.Notification (enqueueFeedbackNotificationJobs)
 import Config
@@ -24,6 +27,10 @@ import Test.Support
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "Email delivery pipeline" do
+        it "binds billing lifecycle and operational mail kinds to distinct reference tables" $ withContext do
+            billingNotificationReferenceTable (billingNotificationMailKind BillingPaymentTrouble) `shouldBe` Just "billing_events"
+            billingNotificationReferenceTable (billingNotificationMailKind BillingOperationalRetriesExhausted) `shouldBe` Just "app_jobs"
+
         it "delivers snapshotted feedback mail after the recipient is deactivated" $ withContext do
             withCleanDb do
                 (_, _, recipient, appJob) <- createQueuedFeedback "delivery-snapshot@example.com"
@@ -79,6 +86,19 @@ tests = aroundAll withDatabaseTestContext do
                 payloadResultText "deliveryStatus" completed `shouldBe` Just "delivery_skipped"
                 payloadResultText "reason" completed `shouldBe` Just "domain_reference_missing"
 
+        it "rejects email payload provenance that differs from its durable envelope" $ withContext do
+            withCleanDb do
+                (_, _, _, queuedJob) <- createQueuedFeedback "delivery-invalid-provenance@example.com"
+                invalidJob <- queuedJob |> set #relatedId Nothing |> updateRecord
+
+                result <- withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    try (performEmailDeliveryJobWith (enabledRuntime (expectationFailure "invalid provenance must not send")) invalidJob) :: IO (Either SomeException ())
+
+                case result of
+                    Right () -> expectationFailure "Expected invalid email delivery provenance"
+                    Left exception -> tshow exception `shouldBe` "application.async.error.app-job/job-invalid-provenance: The stored job provenance is invalid."
+
         it "rethrows transport failure for the ten-attempt AppJob retry lifecycle" $ withContext do
             withCleanDb do
                 (_, _, _, appJob) <- createQueuedFeedback "delivery-retry@example.com"
@@ -91,7 +111,11 @@ tests = aroundAll withDatabaseTestContext do
                             appJob
                         ) :: IO (Either SomeException ())
 
-                result `shouldSatisfy` isLeft
+                case result of
+                    Right () -> expectationFailure "Expected SMTP transport failure"
+                    Left exception -> do
+                        tshow exception `shouldBe` "application.async.error.app-job/job-transport-unavailable: The provider could not be reached."
+                        tshow exception `shouldSatisfy` (not . Text.isInfixOf "simulated smtp outage")
                 appJobMaxAttempts `shouldBe` 10
                 unchanged <- fetch appJob.id
                 unchanged.status `shouldNotBe` JobStatusSucceeded

@@ -39,7 +39,7 @@ import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroTimesheetReadiness
 import Application.Xero.Admin.ReadModel
-import Application.Xero.Connection (xeroClientErrorText)
+import Application.Xero.Connection (durableXeroClientErrorText)
 import Application.Xero.Timesheets.Preview (xeroReadinessSnapshotJson)
 import Application.Xero.WorkflowState
 import qualified Data.Aeson as Aeson
@@ -139,7 +139,7 @@ fetchXeroPayRunsForPreparation xeroClient accessToken tenantId run =
                         , xeroPayRunPage = Just page
                         }
             fetchPayRuns xeroClient accessToken tenantId query >>= \case
-                Left err -> pure (Left ("Xero pay-run check failed: " <> xeroClientErrorText err))
+                Left err -> pure (Left ("Xero pay-run check failed: " <> durableXeroClientErrorText err))
                 Right refs ->
                     let nextAcc = acc <> refs
                         selectedFound = isJust (findSelectedPayRun run refs)

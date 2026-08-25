@@ -460,9 +460,11 @@ tests =
                             submission <- onlySubmissionForRun run
                             submission.status `shouldBe` XeroTimesheetSubmissionStatusEnumFailed
                             submission.attemptCount `shouldBe` 1
-                            submission.lastError `shouldSatisfy` maybe False ("ValidationException" `isInfixOf`)
-                            submission.lastError `shouldSatisfy` maybe False ("Timesheet invalid" `isInfixOf`)
-                            submission.responsePayloadJson `shouldSatisfy` jsonValueContainsText "ValidationException"
+                            submission.lastError `shouldBe` Just "provider rejected the request."
+                            submission.lastError `shouldSatisfy` maybe True (not . ("ValidationException" `isInfixOf`))
+                            submission.lastError `shouldSatisfy` maybe True (not . ("Timesheet invalid" `isInfixOf`))
+                            submission.responsePayloadJson `shouldSatisfy` jsonValueContainsText "provider rejected the request."
+                            submission.responsePayloadJson `shouldSatisfy` (not . jsonValueContainsText "ValidationException")
 
             it "persists transport failures without losing the request payload or idempotency key" $ withContext do
                 withCleanDb do
@@ -484,7 +486,7 @@ tests =
                             submission.attemptCount `shouldBe` 1
                             submission.idempotencyKey `shouldSatisfy` (not . null)
                             submission.requestPayloadJson `shouldSatisfy` isSingletonArrayValue
-                            submission.lastError `shouldSatisfy` maybe False ("failed with status 500" `isInfixOf`)
+                            submission.lastError `shouldBe` Just "provider request returned status 500."
 
             it "marks a multi-employee run partially_failed when one strict create call fails" $ withContext do
                 withCleanDb do
@@ -508,7 +510,7 @@ tests =
                             run.status `shouldBe` PartiallyFailed
                             submissions <- submissionsForRun run
                             sort (map (.status) submissions) `shouldBe` [XeroTimesheetSubmissionStatusEnumSubmitted, XeroTimesheetSubmissionStatusEnumFailed]
-                            run.errorSummary `shouldSatisfy` maybe False ("ValidationException" `isInfixOf`)
+                            run.errorSummary `shouldBe` Just "provider rejected the request."
 
 submitWithStrictResponses ::
     (?modelContext :: ModelContext) =>

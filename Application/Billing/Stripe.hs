@@ -47,6 +47,7 @@ module Application.Billing.Stripe
 where
 
 import qualified Control.Exception as Exception
+import qualified Control.Exception.Safe as SafeException
 import qualified "crypton" Crypto.Hash as Hash
 import "crypton" Crypto.MAC.HMAC (HMAC, hmac)
 import qualified Data.Aeson as Aeson
@@ -703,7 +704,7 @@ validateStripePortalRedirectUrl =
 
 validateStripeHostedRedirectUrl :: Text -> ByteString -> Text -> IO (Either Text Text)
 validateStripeHostedRedirectUrl surfaceName expectedHost url = do
-    Exception.try (parseRequest (cs url)) >>= \case
+    tryStripeSynchronous (parseRequest (cs url)) >>= \case
         Left (_ :: Exception.SomeException) -> pure (Left invalidUrlMessage)
         Right request
             | Http.secure request && Http.port request == 443 && Http.host request == expectedHost -> pure (Right url)
@@ -768,7 +769,7 @@ resolveStripeTransportRequest stripeRequest = do
 
 isLoopbackHttpBaseUrl :: Text -> IO Bool
 isLoopbackHttpBaseUrl baseUrl =
-    Exception.try (parseRequest (cs baseUrl)) >>= \case
+    tryStripeSynchronous (parseRequest (cs baseUrl)) >>= \case
         Left (_ :: Exception.SomeException) -> pure False
         Right request ->
             pure $
@@ -799,8 +800,17 @@ applyRequestHeaders headers request =
 
 handleStripeHttpExceptions :: IO (Either StripeClientError value) -> IO (Either StripeClientError value)
 handleStripeHttpExceptions action =
-    action `Exception.catch` \(_ :: Exception.SomeException) ->
-        pure (Left (StripeHttpError "Stripe request failed before receiving a response"))
+    tryStripeSynchronous action >>= \case
+        Left _ -> pure (Left (StripeHttpError "Stripe request failed before receiving a response"))
+        Right value -> pure value
+
+tryStripeSynchronous :: IO value -> IO (Either Exception.SomeException value)
+tryStripeSynchronous action =
+    Exception.try action >>= \case
+        Left exception
+            | SafeException.isAsyncException exception -> Exception.throwIO (exception :: Exception.SomeException)
+            | otherwise -> pure (Left exception)
+        Right value -> pure (Right value)
 
 decodeStripeRawResponse :: Text -> Response LByteString.ByteString -> IO (Either StripeClientError LByteString.ByteString)
 decodeStripeRawResponse label response = do

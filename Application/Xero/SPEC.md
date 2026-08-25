@@ -48,7 +48,10 @@ issue and, when cross-system design remains unresolved, a new workstream.
   handling honors valid `Retry-After`, while transient
   failures use Xero-specific jittered continuations for at most 24 hours without
   changing unrelated job retry policy. Progress and errors contain phase/page
-  facts only, never tokens or raw provider payloads.
+  facts only, never tokens or raw provider payloads. Final keepalive/reference
+  failures use the shared private safe AppJob exception and unmodified IHP retry
+  behavior; only the established Xero `Retry-After` contract creates an explicit
+  delayed continuation.
 - Successful OAuth connection or same-tenant repair transactionally enqueues
   one coalescing reference-sync job and redirects directly to the Xero shell;
   reference refresh never depends on a browser page-load trigger. The daily

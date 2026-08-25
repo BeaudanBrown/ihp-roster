@@ -5,6 +5,8 @@ Application/AccountSecurityEmail/Mutations.hs	production	runtime	Main	Reachable 
 Application/AccountSecurityEmail/TokenCipher.hs	production	runtime	Main	Reachable from Main
 Application/AccountSecurityEmail/Types.hs	production	runtime	Main	Reachable from Main
 Application/Architecture/Contracts.hs	development	build-tooling	-	Generator or architecture tooling outside deployed runtime closure
+Application/Async/Boundary.hs	production	runtime	Main	Reachable from Main
+Application/Async/Error.hs	production	runtime	Main	Reachable from Main
 Application/Async/Queue.hs	production	runtime	Main	Reachable from Main
 Application/Async/Registry.hs	production	runtime	Main	Reachable from Main
 Application/Bepis/Action.hs	production	runtime	Main	Reachable from Main
@@ -49,6 +51,7 @@ Application/Fixture/WageSourceFixtures.hs	development	fixture	-	Seed, profile, o
 Application/FwcMapd/Client.hs	production	runtime	Main	Reachable from Main
 Application/FwcMapd/Config.hs	production	runtime	Main	Reachable from Main
 Application/FwcMapd/Curation.hs	production	runtime	Main	Reachable from Main
+Application/FwcMapd/Error.hs	production	runtime	Main	Reachable from Main
 Application/FwcMapd/Job.hs	production	runtime	Main	Reachable from Main
 Application/FwcMapd/Payload.hs	production	runtime	Main	Reachable from Main
 Application/FwcMapd/Projection.hs	production	runtime	Main	Reachable from Main

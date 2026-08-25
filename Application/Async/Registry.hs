@@ -2,6 +2,8 @@ module Application.Async.Registry
     ( dispatchAppJob
     ) where
 
+import Application.Async.Boundary (runAppJobBoundary, throwAppJobError)
+import Application.Async.Error (AppJobError (JobUnknownKind))
 import Application.Billing.Notifications
 import Application.Billing.Reconciliation
 import Application.EmailDelivery
@@ -10,10 +12,9 @@ import Application.PublicHolidays.Job
 import Application.WageSourceAlert.Job
 import Application.Xero.Keepalive
 import Application.Xero.ReferenceSyncJob
-import qualified Control.Exception as Exception
+import qualified Control.Exception.Safe as Exception
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
-import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig (FrameworkConfig)
@@ -24,11 +25,12 @@ dispatchAppJob ::
     AppJob ->
     IO ()
 dispatchAppJob appJob =
-    dispatchAppJobByKind appJob
-        `Exception.onException` do
-            when (isBillingOperationalJob appJob) (void (enqueueBillingSupportNotificationAfterFinalAttempt appJob))
-            when (isWageSourceRefreshJob appJob) (void (handleWageSourceRefreshFailureAfterFinalAttempt appJob))
-            handleEmailDeliveryFailureAfterFinalAttempt appJob
+    runAppJobBoundary $
+        dispatchAppJobByKind appJob
+            `Exception.onException` do
+                when (isBillingOperationalJob appJob) (void (enqueueBillingSupportNotificationAfterFinalAttempt appJob))
+                when (isWageSourceRefreshJob appJob) (void (handleWageSourceRefreshFailureAfterFinalAttempt appJob))
+                handleEmailDeliveryFailureAfterFinalAttempt appJob
 
 dispatchAppJobByKind ::
     (?modelContext :: ModelContext, ?context :: FrameworkConfig) =>
@@ -44,7 +46,7 @@ dispatchAppJobByKind appJob =
         kind | kind == xeroConnectionKeepaliveJobKind -> performXeroConnectionKeepaliveJob appJob
         kind | kind == xeroReferenceSyncJobKind -> performXeroReferenceSyncJob appJob
         kind | kind == billingReconciliationJobKind -> performBillingReconciliationJob appJob
-        _ -> fail ("Unknown app job kind: " <> Text.unpack appJob.jobKind)
+        _ -> throwAppJobError JobUnknownKind
 
 isWageSourceRefreshJob :: AppJob -> Bool
 isWageSourceRefreshJob appJob =

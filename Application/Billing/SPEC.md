@@ -108,8 +108,9 @@ changes venue writability. Association conflicts fail closed.
 All return, founder, and sweep entry points enqueue the same
 `billing_reconciliation` AppJob behavior. Active jobs deduplicate by local
 target. The daily sweep covers known non-terminal subscriptions only. Ordering
-cursors never move backwards; failures and final support alerts contain fixed
-bounded diagnostics.
+cursors never move backwards; failures cross the final job boundary only through
+the private safe `AppError` projection, and final support alerts contain fixed
+bounded diagnostics. IHP remains authoritative for retry count and backoff.
 
 ## Notifications
 

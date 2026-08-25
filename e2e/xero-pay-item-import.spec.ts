@@ -133,7 +133,7 @@ function seedWaitingReferenceSync() {
             0,
             NOW() + INTERVAL '1 hour',
             'xero_reference_sync',
-            jsonb_build_object('requestedAt', NOW(), 'retryNumber', 0),
+            jsonb_build_object('xeroConnectionId', '${xeroConnectionId}', 'tenantId', 'e2e-pay-item-import-tenant', 'requestedAt', NOW(), 'retryNumber', 0),
             1,
             '${alphaVenueId}',
             'xero_connections',

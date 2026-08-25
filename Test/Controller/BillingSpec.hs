@@ -173,7 +173,7 @@ tests = aroundAll withDatabaseTestContext do
                     Left exception -> pure exception
                     Right () -> expectationFailure "expected the raw provider failure to fail the reconciliation job" >> error "unreachable"
                 let jobExceptionText = cs (Exception.displayException jobException)
-                jobExceptionText `shouldSatisfy` Text.isInfixOf "checkout_session_retrieve_failed"
+                jobExceptionText `shouldSatisfy` Text.isInfixOf "application.async.error.app-job/job-transport-unavailable"
                 forM_ sensitiveValues \sensitiveValue ->
                     jobExceptionText `shouldSatisfy` not . Text.isInfixOf sensitiveValue
 

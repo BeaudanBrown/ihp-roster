@@ -13,7 +13,7 @@ import Application.Helper.XeroAdminTypes (XeroPayItemAccountCodeOption (..),
                                           xeroPayItemAccountCodeOptionValues)
 import Application.Helper.XeroPayItems (xeroManagedPayItemNamePrefix)
 import Application.Xero.Admin.ReferenceData
-import Application.Xero.Connection (xeroClientErrorText)
+import Application.Xero.Connection (durableXeroClientErrorText)
 import Application.Xero.WorkflowState (xeroAccountCodeSelectionIsVerified)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -67,7 +67,7 @@ createProposedXeroPayItems xeroClient connection accessToken now accountCode req
     let batchKey = xeroPayItemIdempotencyBatchKey now
     initialFetchResult <- fetchEarningsRates xeroClient accessToken connection.tenantId
     case initialFetchResult of
-        Left err -> pure (Left ("Xero pay item preflight pull failed before creating pay items: " <> xeroClientErrorText err))
+        Left err -> pure (Left ("Xero pay item preflight pull failed before creating pay items: " <> durableXeroClientErrorText err))
         Right initialRates -> do
             upsertFetchedXeroEarningsRates connection now initialRates
             let initiallyVerifiedPairs = Maybe.mapMaybe (verifiedRequirementRate initialRates) requirements
@@ -81,7 +81,7 @@ createProposedXeroPayItems xeroClient connection accessToken now accountCode req
         verifySubmittedCreates submittedCount submissionFailures = do
             fetchResult <- fetchEarningsRates xeroClient accessToken connection.tenantId
             case fetchResult of
-                Left err -> pure (Left ("Xero pay item verification failed after submitting " <> tshow submittedCount <> " pay items and receiving " <> tshow (length submissionFailures) <> " create errors: " <> xeroClientErrorText err))
+                Left err -> pure (Left ("Xero pay item verification failed after submitting " <> tshow submittedCount <> " pay items and receiving " <> tshow (length submissionFailures) <> " create errors: " <> durableXeroClientErrorText err))
                 Right fetchedRates -> do
                     upsertFetchedXeroEarningsRates connection now fetchedRates
                     let verifiedPairs = Maybe.mapMaybe (verifiedRequirementRate fetchedRates) requirements
@@ -168,7 +168,7 @@ xeroPayItemSubmissionFailure requirement idempotencyKey err =
         , failureIdempotencyKey = idempotencyKey
         , failureRateType = requirement.payItemRequirementRateType
         , failureRatePerUnit = requirement.payItemRequirementRatePerUnit
-        , failureError = xeroClientErrorText err
+        , failureError = durableXeroClientErrorText err
         }
 
 verifiedRequirementRate :: [XeroEarningsRateRef] -> XeroPayItemRequirement -> Maybe (XeroPayItemRequirement, XeroEarningsRateRef)

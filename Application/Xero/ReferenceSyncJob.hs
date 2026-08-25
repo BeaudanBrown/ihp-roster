@@ -14,6 +14,8 @@ module Application.Xero.ReferenceSyncJob
     , xeroReferenceSyncLeaseSeconds
     ) where
 
+import Application.Async.Boundary (throwAppJobError)
+import Application.Async.Error (AppJobError (..))
 import Application.Async.Queue
 import Application.Helper.FrontendContract.Surface.Admin.Resource (xeroReferenceSyncStateResource)
 import Application.Helper.SurfaceResource
@@ -55,8 +57,10 @@ data XeroReferenceSyncRuntime = XeroReferenceSyncRuntime
     }
 
 data XeroReferenceSyncJobPayload = XeroReferenceSyncJobPayload
-    { requestedAt :: !UTCTime
-    , retryNumber :: !Int
+    { payloadConnectionId :: !Text
+    , payloadTenantId     :: !Text
+    , requestedAt         :: !UTCTime
+    , retryNumber         :: !Int
     }
 
 data XeroReferenceSnapshot = XeroReferenceSnapshot
@@ -124,17 +128,21 @@ performXeroReferenceSyncJobWith ::
     XeroReferenceDataSource ->
     AppJob ->
     IO ()
-performXeroReferenceSyncJobWith runtime source appJob =
-    case appJob.relatedId of
-        Nothing -> fail "Xero reference sync job is missing its related connection id."
+performXeroReferenceSyncJobWith runtime source appJob
+    | appJob.payloadSchemaVersion /= 1 = throwAppJobError JobUnsupportedPayloadSchemaVersion
+    | appJob.relatedTable /= Just "xero_connections" = throwAppJobError JobInvalidProvenance
+    | otherwise = case appJob.relatedId of
+        Nothing -> throwAppJobError JobInvalidProvenance
         Just connectionUuid -> do
+            payload <- either (const (throwAppJobError JobMalformedPersistedPayload)) pure (parseReferenceSyncJobPayload appJob.payload)
+            unless (payload.payloadConnectionId == tshow (Id connectionUuid :: Id XeroConnection)) (throwAppJobError JobInvalidProvenance)
             maybeConnection <- fetchOneOrNothing (Id connectionUuid :: Id XeroConnection)
             case maybeConnection of
                 Nothing -> completeSkippedReferenceSyncJob runtime appJob "missing_connection"
                 Just connection
+                    | payload.payloadTenantId /= connection.tenantId -> throwAppJobError JobInvalidProvenance
                     | connection.connectionStatus /= "active" -> completeSkippedReferenceSyncJob runtime appJob "inactive_connection"
                     | otherwise -> do
-                        payload <- either (fail . cs) pure (parseReferenceSyncJobPayload appJob.payload)
                         now <- runtime.currentReferenceSyncTime
                         acquired <- acquireXeroReferenceSyncLease now appJob connection.tenantId
                         if not acquired
@@ -273,7 +281,20 @@ handleReferenceSyncFailure runtime appJob payload connection maybeSyncRun failur
     jitterSeconds <- runtime.referenceSyncJitterSeconds
     case xeroReferenceSyncRetryDecision payload.requestedAt now payload.retryNumber jitterSeconds failure.cause of
         RetryXeroReferenceSyncAt retryAt -> scheduleReferenceSyncRetry runtime appJob connection payload retryAt failure.phaseName message
-        FailXeroReferenceSync -> fail (cs message)
+        FailXeroReferenceSync -> throwAppJobError (xeroReferenceJobError failure.cause)
+
+xeroReferenceJobError :: XeroClientError -> AppJobError
+xeroReferenceJobError = \case
+    XeroHttpResponseError { statusCode }
+        | statusCode == 401 || statusCode == 403 -> JobAuthenticationRequired
+        | statusCode == 409 -> JobRemoteConflict
+        | statusCode == 429 -> JobRateLimited
+        | statusCode == 400 || statusCode == 422 -> JobValidationRejected
+        | otherwise -> JobTransportUnavailable
+    XeroHttpError _ -> JobTransportUnavailable
+    XeroSemanticError _ -> JobValidationRejected
+    XeroDecodeError _ -> JobMalformedResponse
+    XeroNoTenantsError -> JobAuthenticationRequired
 
 durableXeroReferenceSyncFailureMessage :: XeroReferencePhaseFailure -> Text
 durableXeroReferenceSyncFailureMessage failure =
@@ -455,7 +476,9 @@ parseReferenceSyncJobPayload value =
     where
         parser = Aeson.withObject "XeroReferenceSyncJobPayload" \object ->
             XeroReferenceSyncJobPayload
-                <$> object Aeson..: "requestedAt"
+                <$> object Aeson..: "xeroConnectionId"
+                <*> object Aeson..: "tenantId"
+                <*> object Aeson..: "requestedAt"
                 <*> object Aeson..: "retryNumber"
 
 acquireXeroReferenceSyncLease ::

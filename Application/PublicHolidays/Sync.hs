@@ -1,6 +1,7 @@
 module Application.PublicHolidays.Sync
     ( DataVicHolidayRecord (..)
     , PublicHolidayImport (..)
+    , PublicHolidaySyncError (..)
     , PublicHolidaySyncSummary (..)
     , dataVicImportantDatesResourceId
     , decodeDataVicPublicHolidayResponse
@@ -43,6 +44,14 @@ data DataVicHolidayRecord = DataVicHolidayRecord
     , source        :: !(Maybe Text)
     }
     deriving (Eq, Show)
+
+data PublicHolidaySyncError
+    = PublicHolidayProviderUnavailable
+    | PublicHolidayResponseMalformed
+    | PublicHolidayImportInvalid
+    deriving (Eq, Show)
+
+instance Exception.Exception PublicHolidaySyncError
 
 data PublicHolidayImport = PublicHolidayImport
     { jurisdiction :: !Text
@@ -134,10 +143,10 @@ fetchDataVicPublicHolidayRecords = do
     response <- httpLBS requestWithQuery
     let statusCode = getResponseStatusCode response
     when (statusCode < 200 || statusCode >= 300) do
-        Exception.throwIO (userError ("DataVic public holiday request failed with status " <> cs (tshow statusCode)))
+        Exception.throwIO PublicHolidayProviderUnavailable
     case decodeDataVicPublicHolidayResponse (getResponseBody response) of
-        Left err ->
-            Exception.throwIO (userError ("DataVic public holiday response decode failed: " <> err))
+        Left _ ->
+            Exception.throwIO PublicHolidayResponseMalformed
         Right records -> pure records
 
 decodeDataVicPublicHolidayResponse :: LByteString.ByteString -> Either String [DataVicHolidayRecord]
@@ -164,7 +173,7 @@ importDataVicPublicHolidayRecordsForYears years records = do
             Right holidayImport -> pure (Right holidayImport)
     let invalidReasons = [reason | Left reason <- parsedImports]
     unless (null invalidReasons) do
-        Exception.throwIO (userError (cs ("DataVic public holiday import contains invalid records: " <> Text.intercalate "; " invalidReasons)))
+        Exception.throwIO PublicHolidayImportInvalid
 
     let validImports = [holidayImport | Right holidayImport <- parsedImports]
     let targetImports = filter (\holidayImport -> dayYear holidayImport.holidayDate `elem` targetYears) validImports

@@ -1,14 +1,23 @@
 module Test.AsyncQueueSpec where
 
+import Application.Async.Boundary (runAppJobBoundary)
 import Application.Async.Queue
 import Application.Async.Registry (dispatchAppJob)
+import Application.EmailDelivery (emailDeliveryJobKind)
+import Application.Job.App ()
+import Application.WageSourceAlert.Job (wageSourceHealthCheckJobKind)
+import Application.Xero.Keepalive (xeroConnectionKeepaliveJobKind)
+import Application.Xero.ReferenceSyncJob (xeroReferenceSyncJobKind)
 import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar)
-import Control.Exception (SomeException, try)
+import Control.Exception (AsyncException (ThreadKilled), SomeException)
+import qualified Control.Exception as BaseException
 import qualified Data.Aeson as Aeson
+import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig (withFrameworkConfig)
+import qualified IHP.Job.Queue as JobQueue
 import IHP.Job.Types
 import IHP.Prelude
 import IHP.Test.Mocking
@@ -62,6 +71,80 @@ tests = aroundAll withDatabaseTestContext do
                     ]
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
+        it "projects an unknown job kind to the one safe IHP boundary exception" $ withContext do
+            withCleanDb do
+                let unsupportedKind = "secret-provider-job-kind"
+                appJob <-
+                    newRecord @AppJob
+                        |> set #jobKind unsupportedKind
+                        |> set #status JobStatusRunning
+                        |> set #attemptsCount 1
+                        |> createRecord
+
+                result <- withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    attempted <- BaseException.try (dispatchAppJob appJob) :: IO (Either SomeException ())
+                    forM_ (lefts [attempted]) (JobQueue.jobDidFail ?modelContext.hasqlPool appJob)
+                    pure attempted
+
+                case result of
+                    Right () -> expectationFailure "Expected unknown job dispatch to fail"
+                    Left exception -> do
+                        let persistedMessage = tshow exception
+                        persistedMessage `shouldBe` "application.async.error.app-job/job-unknown-kind: The stored job kind is unsupported."
+                        persistedMessage `shouldSatisfy` (not . Text.isInfixOf unsupportedKind)
+                persistedJob <- fetch appJob.id
+                persistedJob.status `shouldBe` JobStatusRetry
+                persistedJob.lastError `shouldBe` Just "application.async.error.app-job/job-unknown-kind: The stored job kind is unsupported."
+                persistedJob.runAt `shouldSatisfy` (> appJob.runAt)
+
+        it "classifies malformed, unsupported, and invalid-provenance jobs before IHP persistence" $ withContext do
+            withCleanDb do
+                let cases =
+                        [ ( newRecord @AppJob
+                                |> set #jobKind emailDeliveryJobKind
+                                |> set #payloadSchemaVersion 99
+                          , "application.async.error.app-job/job-unsupported-payload-schema-version: The stored job payload version is unsupported."
+                          )
+                        , ( newRecord @AppJob
+                                |> set #jobKind wageSourceHealthCheckJobKind
+                                |> set #payloadSchemaVersion 1
+                                |> set #payload (Aeson.object ["source" Aeson..= ("secret-unknown-source" :: Text)])
+                          , "application.async.error.app-job/job-malformed-persisted-payload: The stored job payload is invalid."
+                          )
+                        , ( newRecord @AppJob
+                                |> set #jobKind xeroConnectionKeepaliveJobKind
+                                |> set #payloadSchemaVersion 1
+                          , "application.async.error.app-job/job-invalid-provenance: The stored job provenance is invalid."
+                          )
+                        ]
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    forM_ cases \(appJob, expectedMessage) -> do
+                        result <- BaseException.try (dispatchAppJob appJob) :: IO (Either SomeException ())
+                        case result of
+                            Right () -> expectationFailure "Expected invalid persisted job to fail"
+                            Left exception -> tshow exception `shouldBe` expectedMessage
+
+        it "sanitizes unexpected synchronous exceptions and leaves asynchronous cancellation native" $ withContext do
+            syncResult <- BaseException.try (runAppJobBoundary (BaseException.throwIO (userError "secret raw exception"))) :: IO (Either SomeException ())
+            case syncResult of
+                Right () -> expectationFailure "Expected synchronous failure"
+                Left exception -> do
+                    let persistedMessage = tshow exception
+                    persistedMessage `shouldBe` "application.async.error.app-job/job-unexpected-synchronous-failure: The job could not be completed."
+                    persistedMessage `shouldSatisfy` (not . Text.isInfixOf "secret raw exception")
+
+            asyncResult <- BaseException.try (runAppJobBoundary (BaseException.throwIO ThreadKilled)) :: IO (Either AsyncException ())
+            asyncResult `shouldBe` Left ThreadKilled
+
+        it "keeps IHP retry counts and default backoff authoritative per job kind" $ withContext do
+            let ordinaryJob = newRecord @AppJob |> set #jobKind emailDeliveryJobKind
+            let xeroReferenceJob = newRecord @AppJob |> set #jobKind xeroReferenceSyncJobKind
+            appJobMaxAttemptsFor ordinaryJob `shouldBe` 10
+            appJobMaxAttemptsFor xeroReferenceJob `shouldBe` 1
+            JobQueue.backoffDelay (backoffStrategy @AppJob) 3 `shouldBe` 30
+
         it "does not deduplicate jobs without a dedupe key" $ withContext do
             withCleanDb do
                 results <- mapM (const (enqueueAppJob (testJobRequest Nothing))) [1 .. 3 :: Int]
@@ -80,6 +163,11 @@ tests = aroundAll withDatabaseTestContext do
                 jobCount <- query @AppJob |> filterWhere (#dedupeKey, Just "queue-completed") |> fetchCount
                 jobCount `shouldBe` 2
 
+appJobMaxAttemptsFor :: AppJob -> Int
+appJobMaxAttemptsFor appJob =
+    let ?job = appJob
+     in maxAttempts @AppJob
+
 testJobRequest :: Maybe Text -> AppJobRequest
 testJobRequest dedupeKey =
     AppJobRequest
@@ -97,5 +185,5 @@ testJobRequest dedupeKey =
 runConcurrentActions :: Int -> IO a -> IO [Either SomeException a]
 runConcurrentActions count action = do
     vars <- mapM (const newEmptyMVar) [1 .. count]
-    _ <- mapM (\var -> forkIO (try action >>= putMVar var)) vars
+    _ <- mapM (\var -> forkIO (BaseException.try action >>= putMVar var)) vars
     mapM takeMVar vars

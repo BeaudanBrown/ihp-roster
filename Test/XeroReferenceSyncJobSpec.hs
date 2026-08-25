@@ -14,6 +14,7 @@ import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import Data.Either (isLeft)
 import Data.IORef
+import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime (..), addUTCTime, diffUTCTime, getCurrentTime,
                         secondsToDiffTime)
@@ -101,6 +102,23 @@ tests = aroundAll withDatabaseTestContext do
                 query @AppJob |> fetchCount >>= (`shouldBe` 1)
                 [syncRun] <- query @XeroSyncRun |> fetch
                 syncRun.syncStatus `shouldBe` Succeeded
+
+        it "rejects reference-sync payload provenance that differs from its durable connection" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Invalid Reference Payload Venue"
+                owner <- createUserRecord "xero-invalid-reference-payload@example.com" "staff" True
+                connection <- createReferenceSyncConnection venue owner "tenant-reference-valid"
+                EnqueuedAppJob queuedJob <- enqueueXeroReferenceSyncJob Nothing connection
+                requestedAt <- getCurrentTime
+                invalidJob <-
+                    queuedJob
+                        |> set #payload (Aeson.object ["xeroConnectionId" Aeson..= tshow connection.id, "tenantId" Aeson..= ("tenant-other" :: Text), "requestedAt" Aeson..= requestedAt, "retryNumber" Aeson..= (0 :: Int)])
+                        |> updateRecord
+
+                result <- Exception.try (performXeroReferenceSyncJobWith (testRuntime requestedAt) (emptyReferenceSource connection) invalidJob) :: IO (Either Exception.SomeException ())
+                case result of
+                    Right () -> expectationFailure "Expected invalid Xero reference-sync provenance"
+                    Left exception -> tshow exception `shouldBe` "application.async.error.app-job/job-invalid-provenance: The stored job provenance is invalid."
 
         it "leases one bulk scan per tenant while allowing different tenants" $ withContext do
             withCleanDb do
@@ -399,7 +417,11 @@ tests = aroundAll withDatabaseTestContext do
 
                 result <- Exception.try (performXeroReferenceSyncJobWith (recordingRuntime now publications) source persistedJob) :: IO (Either Exception.SomeException ())
 
-                result `shouldSatisfy` isLeft
+                case result of
+                    Right () -> expectationFailure "Expected exhausted Xero reference sync to fail"
+                    Left exception -> do
+                        tshow exception `shouldBe` "application.async.error.app-job/job-transport-unavailable: The provider could not be reached."
+                        tshow exception `shouldSatisfy` (not . Text.isInfixOf "Xero employees request failed")
                 publishedTransitions <- readIORef publications
                 publishedTransitions `shouldSatisfy` ("xero.reference_sync.failed" `elem`)
                 publishedTransitions `shouldSatisfy` (not . ("xero.reference_sync.retry_wait" `elem`))

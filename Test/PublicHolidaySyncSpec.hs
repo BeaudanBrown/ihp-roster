@@ -8,6 +8,7 @@ import Application.WageSourceAlert.Job (wageSourceHealthCheckJobKind)
 import Application.WageSourcePolicy (dataVicMaximumAge)
 import Config
 import qualified Control.Exception as Exception
+import qualified Data.Aeson as Aeson
 import Data.Either (isLeft)
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (addUTCTime)
@@ -60,13 +61,16 @@ pureTests = do
                 `shouldSatisfy` \dates -> all (`elem` dates) ["3/11/2026", "25/12/2026", "28/12/2026"]
             map (.publisher) records `shouldSatisfy` all (== Just "Business Victoria")
 
+validPublicHolidayJobPayload :: Aeson.Value
+validPublicHolidayJobPayload = Aeson.object ["jurisdiction" Aeson..= ("VIC" :: Text)]
+
 databaseTests :: Spec
 databaseTests = do
     aroundAll withDatabaseTestContext do
         describe "DataVic public holiday import" do
             it "durably publishes the support public-holiday resource without a local browser hub" $ withContext do
                 withCleanDb do
-                    appJob <- newRecord @AppJob |> set #jobKind publicHolidayRefreshJobKind |> createRecord
+                    appJob <- newRecord @AppJob |> set #jobKind publicHolidayRefreshJobKind |> set #relatedTable (Just "public_holidays") |> set #payload validPublicHolidayJobPayload |> createRecord
                     let summary = PublicHolidaySyncSummary [] 0 0 0 0 0 0 0
                     performPublicHolidayRefreshJobWith (pure summary) appJob
                     [durableEvent] <- query @LiveInvalidationEvent |> filterWhere (#source, "support.public_holidays.refresh" :: Text) |> fetch
@@ -74,6 +78,27 @@ databaseTests = do
                     [freshnessCheck] <- query @AppJob |> filterWhere (#jobKind, wageSourceHealthCheckJobKind) |> fetch
                     freshnessCheck.relatedId `shouldBe` Just (unpackId appJob.id)
                     freshnessCheck.runAt `shouldSatisfy` (> addUTCTime dataVicMaximumAge appJob.createdAt)
+
+            it "rejects malformed and wrong-jurisdiction persisted refresh payloads" $ withContext do
+                withCleanDb do
+                    let cases =
+                            [ (Aeson.String "not-an-object", "application.async.error.app-job/job-malformed-persisted-payload: The stored job payload is invalid.")
+                            , (Aeson.object ["jurisdiction" Aeson..= ("NSW" :: Text)], "application.async.error.app-job/job-invalid-provenance: The stored job provenance is invalid.")
+                            ]
+                    forM_ cases \(payload, expectedMessage) -> do
+                        appJob <- newRecord @AppJob |> set #jobKind publicHolidayRefreshJobKind |> set #relatedTable (Just "public_holidays") |> set #payload payload |> createRecord
+                        result <- Exception.try (performPublicHolidayRefreshJobWith (expectationFailure "invalid payload must fail before DataVic sync" >> pure (PublicHolidaySyncSummary [] 0 0 0 0 0 0 0)) appJob) :: IO (Either Exception.SomeException ())
+                        case result of
+                            Right () -> expectationFailure "Expected invalid DataVic refresh payload failure"
+                            Left exception -> tshow exception `shouldBe` expectedMessage
+
+            it "projects malformed provider responses to the safe job boundary" $ withContext do
+                withCleanDb do
+                    appJob <- newRecord @AppJob |> set #jobKind publicHolidayRefreshJobKind |> set #relatedTable (Just "public_holidays") |> set #payload validPublicHolidayJobPayload |> createRecord
+                    result <- Exception.try (performPublicHolidayRefreshJobWith (Exception.throwIO PublicHolidayResponseMalformed) appJob) :: IO (Either Exception.SomeException ())
+                    case result of
+                        Right () -> expectationFailure "Expected malformed DataVic response failure"
+                        Left exception -> tshow exception `shouldBe` "application.async.error.app-job/job-malformed-response: The provider returned a response Bepis could not safely read."
 
             it "projects the dated statewide fixture, including its additional public holiday, into the 2026 cache" $ withContext do
                 withCleanDb do
