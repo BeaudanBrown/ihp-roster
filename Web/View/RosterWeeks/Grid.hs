@@ -58,7 +58,10 @@ import Application.Helper.Url (appendQueryParams)
 import Application.Helper.UserPreferences (rosterLayoutModeIsDayColumns,
                                            rosterLayoutModeValue)
 import Application.Helper.View (staffDisplayName)
-import Application.VenueTime.Model (rosterSlotStartTime)
+import Application.VenueTime.Model (BoundaryModelError (BoundaryShiftShapeInvalid),
+                                    RosterShiftIntegrityError (RosterShiftTimingInvalid),
+                                    ValidatedRosterShiftTiming,
+                                    rosterShiftTimingStartTime)
 import Data.Coerce (coerce)
 import Data.List (sortOn)
 import qualified Data.Map.Strict as Map
@@ -81,6 +84,7 @@ import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         rosterMountedFragmentPlanFromRenderData,
                                         rosterSurfaceImpl)
 import Web.RosterWeeks.Paths (rosterDayMutationUrl)
+import Web.RosterWeeks.Rows (rosterSlotHasVisibleData)
 import Web.RosterWeeks.Types
 import Web.RosterWeeks.WageFilter (rosterWageFilterConfigAttrs)
 import Web.View.Prelude
@@ -674,7 +678,8 @@ renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIs
         lastRowIndex = lastRowIndexForRows dayRows
         date = rosterDay.operationalDate
         dayIndex = rosterDayIndex dayWeekStartDate rosterDay
-        compactSlots = if rosterDay.isClosed then [] else compactDayColumnSlots dayModel.daySlotNames daySlots
+        timingOutcome slot = Map.findWithDefault (Left (RosterShiftTimingInvalid BoundaryShiftShapeInvalid)) (unpackId slot.id) dayModel.dayRenderIndexes.rosterTimingBySlotId
+        compactSlots = if rosterDay.isClosed then [] else compactDayColumnSlots dayModel.daySlotNames [(slot, timingOutcome slot) | slot <- daySlots]
         maybeCreateTarget = if rosterDay.isClosed then Nothing else firstAvailableDayColumnTarget dayModel.daySlotNames rosterDay dayModel.dayCalendarRevision daySlots
         dayDropzoneKey = "day:" <> tshow rosterDay.id
         columnHtml = [hsx|
@@ -705,9 +710,9 @@ renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIs
             then SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDayColumnDropzoneRef dayDropzoneKey columnHtml
             else columnHtml
 
-compactDayColumnSlots :: [RosterWindowLane] -> [RosterSlot] -> [RosterSlot]
-compactDayColumnSlots slotNames daySlots =
-    sortOn slotOrder (filter rosterSlotHasVisibleData daySlots)
+compactDayColumnSlots :: [RosterWindowLane] -> [(RosterSlot, Either RosterShiftIntegrityError ValidatedRosterShiftTiming)] -> [RosterSlot]
+compactDayColumnSlots slotNames slotsWithTiming =
+    map fst (sortOn slotOrder (filter (rosterSlotHasVisibleData . fst) slotsWithTiming))
   where
     definitionOrderById =
         Map.fromList
@@ -715,9 +720,11 @@ compactDayColumnSlots slotNames daySlots =
             | (slotIndex, windowLane) <- zip [0 :: Int ..] slotNames
             , lane <- Map.elems windowLane.rosterWindowLaneByDate
             ]
-    slotOrder slot =
+    slotOrder (slot, timingOutcome) =
         ( isNothing slot.startsAt
-        , rosterSlotStartTime slot
+        , case timingOutcome of
+            Right timing -> Just (rosterShiftTimingStartTime timing)
+            Left _       -> Nothing
         , Map.findWithDefault (length slotNames) slot.rosterLaneId definitionOrderById
         , slot.rowIndex
         , slot.createdAt
@@ -747,13 +754,6 @@ firstAvailableDayColumnTarget slotNames rosterDay calendarRevision daySlots =
      in case firstFree <|> fmap (\lane -> (lane, rowCount)) (listToMaybe dayLanes) of
             Nothing -> Nothing
             Just (slotName, rowIndex) -> Just (NewRosterSlotTarget rosterDay.id slotName.id (Id rosterDay.rosterGroupId) rosterDay.operationalDate calendarRevision rowIndex)
-
-rosterSlotHasVisibleData :: RosterSlot -> Bool
-rosterSlotHasVisibleData slot =
-    isJust slot.staffId
-        || isJust slot.startsAt
-        || isJust slot.endsAt
-        || isJust slot.shiftTypeId
 
 renderDayColumnRow :: (?context :: ControllerContext) => RosterRowRenderModel -> (Int, (Int, [RosterSlot])) -> Maybe Text -> Html
 renderDayColumnRow RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssignmentFilters, rowStaffMembers, rowShiftTypes, rowDayIndex, rowRosterDay, rowCalendarRevision, rowRenderIndexes, rowRosterEndTimesEnabled, rowPublishAttempted } (_, (rowIndex, rowSlots)) maybeSwapOob = [hsx|

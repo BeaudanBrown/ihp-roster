@@ -26,6 +26,8 @@ import Application.RosterPublication (rosterDaysArePublished)
 import Application.RosterTemplates (RosterTemplateLibrary,
                                     currentRosterTemplateActor,
                                     fetchRosterTemplateLibrary)
+import Application.VenueTime.Model (decodeRosterShiftTiming,
+                                    decodeTimesheetTiming)
 import Data.Coerce (coerce)
 import Data.List (find)
 import qualified Data.Map.Strict as Map
@@ -416,6 +418,7 @@ fetchRosterStaffSelfServicePanel venueConfig rosterGroups scope highlightOwnLive
                             , quickToolsRosterGroups = rosterGroups
                             , quickToolsRosterWeekStartDate = scope.rosterWindowStart
                             , quickToolsTimesheetEntries
+                            , quickToolsTimesheetTimingByEntryId = Map.fromList [(unpackId entry.id, decodeTimesheetTiming entry) | entry <- quickToolsTimesheetEntries]
                             , quickToolsStaffMembers = [staff]
                             , quickToolsShiftTypes
                             , quickToolsOperationalDay = operationalDay
@@ -457,6 +460,7 @@ buildRosterRenderIndexes rosterDays visibleSlots staffMembers slotConflicts =
                 ]
         , rosterStaffById = Map.fromList [(coerce (get #id staff), staff) | staff <- staffMembers]
         , rosterConflictsBySlotId = Map.fromList [(coerce slotId, conflicts) | (slotId, conflicts) <- slotConflicts]
+        , rosterTimingBySlotId = Map.fromList [(unpackId slot.id, decodeRosterShiftTiming slot) | slot <- visibleSlots]
         }
 
 renderVisibleRosterFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterProjectionFragment -> IO (Maybe Blaze.Html)

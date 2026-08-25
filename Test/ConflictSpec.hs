@@ -4,6 +4,7 @@ import Application.Helper.Conflict
 import Application.VenueTime (melbourneTimeZoneName)
 import Application.VenueTime.Model (resolveBoundaryInstant)
 import Data.Time.Calendar (Day, fromGregorian)
+import Data.Time.Clock (addUTCTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ModelSupport (unpackId)
@@ -17,7 +18,9 @@ tests = describe "Conflict Engine" do
     let fixtureInstant day time =
             either (error . show) Prelude.id (resolveBoundaryInstant melbourneTimeZoneName day time Nothing)
     let withStart :: Day -> TimeOfDay -> RosterSlot -> RosterSlot
-        withStart day time slot = slot { startsAt = Just (fixtureInstant day time) }
+        withStart day time slot =
+            let start = fixtureInstant day time
+             in slot { startsAt = Just start, endsAt = Just (addUTCTime (60 * 60) start) }
 
     let mockRosterDay = RosterDay
             { id = def
@@ -160,7 +163,7 @@ tests = describe "Conflict Engine" do
                     , daySlots = [assignedSlot]
                     }
         let conflicts = evaluateConflicts ctx
-        map conflictType conflicts `shouldBe` [ShiftPreferenceDayUnavailable]
+        map conflictType conflicts `shouldBe` [InvalidRosterTiming, ShiftPreferenceDayUnavailable]
 
     it "warns when the assigned start time is outside the preferred start window" do
         let assignedSlot =

@@ -135,6 +135,7 @@ timesheetDayModel panel =
      in
     TimesheetDayRenderModel
         { dayEntries = panel.quickToolsTimesheetEntries
+        , dayTimingByEntryId = panel.quickToolsTimesheetTimingByEntryId
         , daySuggestions = []
         , dayStaffMembers = panel.quickToolsStaffMembers
         , dayShiftTypes = panel.quickToolsShiftTypes

@@ -206,7 +206,8 @@ seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift sta
                         hadBreak
                         breakStartTime
                         breakEndTime
-        (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval admin.id entry
+        timing <- validatedFixtureTiming entry
+        (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval admin.id timing entry
         lockPayVersionsForApproval admin.id approvedAt staffPayVersion shiftTypePayVersion
         _ <- approveSeededTimesheetEntryWithVersions admin approvedAt staffPayVersion shiftTypePayVersion entry
         pure ()
@@ -312,7 +313,8 @@ approveSeededTimesheetEntry ::
     TimesheetEntry ->
     IO TimesheetEntry
 approveSeededTimesheetEntry admin approvedAt entry = do
-    (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval admin.id entry
+    timing <- validatedFixtureTiming entry
+    (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval admin.id timing entry
     lockPayVersionsForApproval admin.id approvedAt staffPayVersion shiftTypePayVersion
     approveSeededTimesheetEntryWithVersions admin approvedAt staffPayVersion shiftTypePayVersion entry
 
@@ -325,7 +327,8 @@ approveSeededTimesheetEntryWithVersions ::
     TimesheetEntry ->
     IO TimesheetEntry
 approveSeededTimesheetEntryWithVersions admin approvedAt staffPayVersion shiftTypePayVersion entry = do
-    ensureFreshWageSourceFacts (timesheetEntryWorkedOn entry)
+    timing <- validatedFixtureTiming entry
+    ensureFreshWageSourceFacts (timesheetTimingWorkedOn timing)
     let approvalEntry =
             entry
                 |> set #isApproved True
@@ -338,6 +341,9 @@ approveSeededTimesheetEntryWithVersions admin approvedAt staffPayVersion shiftTy
     approvalEntry
         |> set #activePayCalculationId (Just calculation.id)
         |> updateRecord
+
+validatedFixtureTiming :: TimesheetEntry -> IO ValidatedTimesheetTiming
+validatedFixtureTiming = either (fail . cs . tshow) pure . decodeTimesheetTiming
 
 seededCaseShiftType :: SeededTimesheetShiftType -> ShiftType -> ShiftType -> ShiftType
 seededCaseShiftType SeededFloorShift floorShift _     = floorShift

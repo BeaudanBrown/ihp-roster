@@ -7,6 +7,9 @@ import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime (..), addUTCTime, diffUTCTime,
                         secondsToDiffTime)
 import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..))
+import Generated.Types
+import IHP.HaskellSupport (set)
+import IHP.ModelSupport (newRecord)
 import IHP.Prelude
 import Test.Hspec
 import Test.QuickCheck (NonNegative (..), Positive (..), property)
@@ -318,6 +321,54 @@ tests =
             authoritativeBreakStartOccurrence boundaries `shouldBe` Just FirstOccurrence
             authoritativeBreakEndOccurrence boundaries `shouldBe` Just SecondOccurrence
             authoritativeBreakElapsedSeconds boundaries `shouldBe` 60 * 60
+
+        it "decodes persisted Timesheet timing into an opaque validated value" do
+            let entry =
+                    newRecord @TimesheetEntry
+                        |> set #startsAt (UTCTime (fromGregorian 2026 1 5) (secondsToDiffTime 0))
+                        |> set #endsAt (UTCTime (fromGregorian 2026 1 5) (secondsToDiffTime (60 * 60)))
+                        |> set #timezone melbourneTimeZoneName
+
+            timing <- expectRight (decodeTimesheetTiming entry)
+
+            timesheetTimingStartTime timing `shouldBe` TimeOfDay 11 0 0
+            timesheetTimingEndTime timing `shouldBe` TimeOfDay 12 0 0
+            timesheetTimingElapsedSeconds timing `shouldBe` 60 * 60
+
+        it "reports corrupt persisted Timesheet timing without throwing" do
+            let start = UTCTime (fromGregorian 2026 1 5) (secondsToDiffTime 0)
+                invalidZoneEntry =
+                    newRecord @TimesheetEntry
+                        |> set #startsAt start
+                        |> set #endsAt (addUTCTime (60 * 60) start)
+                        |> set #timezone "not-a-zone"
+                reversedEntry =
+                    invalidZoneEntry
+                        |> set #timezone melbourneTimeZoneName
+                        |> set #endsAt start
+
+            decodeTimesheetTiming invalidZoneEntry
+                `shouldBe` Left (TimesheetTimingInvalid (BoundaryUnsupportedTimezone "not-a-zone"))
+            decodeTimesheetTiming reversedEntry
+                `shouldBe` Left (TimesheetTimingInvalid (BoundaryCivilTimeError (NonPositiveResolvedInterval start start)))
+            recoverStoredInstantLocalTime invalidZoneEntry.timezone (Just start) `shouldBe` Nothing
+
+        it "decodes complete roster timing and reports missing or corrupt persisted boundaries" do
+            let start = UTCTime (fromGregorian 2026 1 5) (secondsToDiffTime 0)
+                completeSlot =
+                    newRecord @RosterSlot
+                        |> set #startsAt (Just start)
+                        |> set #endsAt (Just (addUTCTime (60 * 60) start))
+                        |> set #timezone melbourneTimeZoneName
+                missingSlot = completeSlot |> set #startsAt Nothing
+                invalidZoneSlot = completeSlot |> set #timezone "not-a-zone"
+
+            timing <- expectRight (decodeRosterShiftTiming completeSlot)
+            rosterShiftTimingElapsedSeconds timing `shouldBe` 60 * 60
+            decodeRosterShiftTiming missingSlot `shouldBe` Left (RosterShiftTimingInvalid BoundaryShiftShapeInvalid)
+            decodeRosterShiftTiming invalidZoneSlot
+                `shouldBe` Left (RosterShiftTimingInvalid (BoundaryUnsupportedTimezone "not-a-zone"))
+            rosterSlotStartTime invalidZoneSlot `shouldBe` Nothing
 
         it "integration rejects a nonexistent spring boundary instead of normalizing it" do
             let skipped = LocalTime (fromGregorian 2026 10 4) (TimeOfDay 2 30 0)

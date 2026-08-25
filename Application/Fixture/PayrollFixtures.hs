@@ -107,7 +107,8 @@ createAndApproveEntry venue staff workedOn _snapshot admin approvedAt transforms
     updatedEntry <- entry
         |> applyTimesheetFixtureTransforms workedOn transforms
         |> updateRecord
-    (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval admin.id updatedEntry
+    timing <- either (fail . cs . tshow) pure (decodeTimesheetTiming updatedEntry)
+    (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval admin.id timing updatedEntry
     lockPayVersionsForApproval admin.id approvedAt staffPayVersion shiftTypePayVersion
     approvedEntry <- withLegacyPayBackfillFixture do
         updatedEntry

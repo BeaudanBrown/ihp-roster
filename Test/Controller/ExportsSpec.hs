@@ -4,6 +4,8 @@ import Application.Fixture.PayrollFixtures (createAndApproveEntry,
                                             createPayrollSnapshot,
                                             seedWeekDayNames)
 import Application.Helper.Export
+import Application.VenueTime.Model (BoundaryModelError (BoundaryUnsupportedTimezone),
+                                    TimesheetIntegrityError (TimesheetTimingInvalid))
 import Application.Helper.FrontendContract.Surface.Admin.Resource (adminExportsResource)
 import Application.Helper.SurfaceResource
 import Application.Helper.TimesheetPayLedger (loadApprovedTimesheetPayCalculation)
@@ -434,14 +436,16 @@ tests = aroundAll withDatabaseTestContext do
                     |> set #timePickerStartMinuteOfDay (9 * 60 + 15)
                     |> set #timePickerFinalSelectableMinuteOfDay (2 * 60 + 45)
                     |> updateRecord
-                buildHourlyReportWindow configured [] `shouldBe` HourlyReportWindow 9 27
+                buildHourlyReportWindow configured [] `shouldBe` Right (HourlyReportWindow 9 27)
 
                 staff <- createStaffRecord venue Nothing "Window" "Worker"
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 6)
                     >>= updateRecord
                         . setTestStartTime (TimeOfDay 8 37 0)
                         . setTestEndTime (TimeOfDay 3 10 0)
-                buildHourlyReportWindow configured [entry] `shouldBe` HourlyReportWindow 8 28
+                buildHourlyReportWindow configured [entry] `shouldBe` Right (HourlyReportWindow 8 28)
+                buildHourlyReportWindow configured [entry |> set #timezone "not-a-zone"]
+                    `shouldBe` Left (TimesheetTimingInvalid (BoundaryUnsupportedTimezone "not-a-zone"))
 
         it "accepts ledger-rounded repeating hourly quantities in wage totals" $ withContext do
             withCleanDb do

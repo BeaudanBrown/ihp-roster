@@ -13,7 +13,8 @@ import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
 import Application.Helper.TimeRules (currentOperationalDayForVenue)
 import Application.Helper.WeekBoundaries (startOfWeekFor)
-import Application.VenueTime (RepeatedTimeOccurrence (..))
+import Application.VenueTime (RepeatedTimeOccurrence (..),
+                              melbourneTimeZoneName)
 import Application.VenueTime.Model (ShiftBoundaryInput (..),
                                     applyRosterSlotBoundaries,
                                     authoritativeBreakElapsedSeconds,
@@ -21,6 +22,7 @@ import Application.VenueTime.Model (ShiftBoundaryInput (..),
                                     authoritativeBreakStartOccurrence,
                                     authoritativeElapsedSeconds,
                                     authoritativeStartLocalTime,
+                                    decodeTimesheetTiming,
                                     resolveShiftBoundaries,
                                     storedInstantOccurrence,
                                     timesheetEntryBoundaries,
@@ -28,6 +30,7 @@ import Application.VenueTime.Model (ShiftBoundaryInput (..),
 import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar)
 import Control.Exception (SomeException, try)
+import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.Set as Set
@@ -38,7 +41,7 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
-import IHP.ModelSupport (inputValue)
+import IHP.ModelSupport (inputValue, sqlExecDiscardResult)
 import IHP.Prelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
@@ -597,8 +600,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 createdResponse `responseStatusShouldBe` status302
                 entry <- query @TimesheetEntry |> fetchOne
-                storedInstantOccurrence entry.timezone entry.startsAt `shouldBe` Just SecondOccurrence
-                timesheetEntryElapsedSeconds entry `shouldBe` 90 * 60
+                storedInstantOccurrence entry.timezone entry.startsAt `shouldBe` Right (Just SecondOccurrence)
+                timesheetEntryElapsedSeconds entry `shouldBe` Right (90 * 60)
 
         it "creates a positive repeated-hour timesheet with equal local clocks" $ withContext do
             withCleanDb do
@@ -634,9 +637,9 @@ tests = aroundAll withDatabaseTestContext do
 
                 createdResponse `responseStatusShouldBe` status302
                 entry <- query @TimesheetEntry |> fetchOne
-                storedInstantOccurrence entry.timezone entry.startsAt `shouldBe` Just FirstOccurrence
-                storedInstantOccurrence entry.timezone entry.endsAt `shouldBe` Just SecondOccurrence
-                timesheetEntryElapsedSeconds entry `shouldBe` 60 * 60
+                storedInstantOccurrence entry.timezone entry.startsAt `shouldBe` Right (Just FirstOccurrence)
+                storedInstantOccurrence entry.timezone entry.endsAt `shouldBe` Right (Just SecondOccurrence)
+                timesheetEntryElapsedSeconds entry `shouldBe` Right (60 * 60)
 
         it "creates a positive repeated-hour break with equal local clocks" $ withContext do
             withCleanDb do
@@ -676,8 +679,8 @@ tests = aroundAll withDatabaseTestContext do
                 entry <- query @TimesheetEntry |> fetchOne
                 breakStart <- maybe (expectationFailure "Expected break start" >> error "unreachable") pure entry.breakStartsAt
                 breakEnd <- maybe (expectationFailure "Expected break end" >> error "unreachable") pure entry.breakEndsAt
-                storedInstantOccurrence entry.timezone breakStart `shouldBe` Just FirstOccurrence
-                storedInstantOccurrence entry.timezone breakEnd `shouldBe` Just SecondOccurrence
+                storedInstantOccurrence entry.timezone breakStart `shouldBe` Right (Just FirstOccurrence)
+                storedInstantOccurrence entry.timezone breakEnd `shouldBe` Right (Just SecondOccurrence)
                 testBreakMinutes entry `shouldBe` 60
 
         it "rejects a nonexistent spring timesheet boundary without normalizing it" $ withContext do
@@ -820,6 +823,82 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "data-bepis-time-picker-config="
                 response `responseBodyShouldContain` "&quot;rangeStart&quot;:&quot;09:00&quot;"
                 response `responseBodyShouldContain` "&quot;rangeEnd&quot;:&quot;13:00&quot;"
+
+        it "renders, edits, and blocks approval for a corrupt persisted Timesheet without throwing" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Corrupt Timing"
+                manager <- createUserRecord "timesheet-corrupt-timing@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                importedPayItem <- createImportedXeroPayItemRecord venue manager "Corrupt timing pay" "corrupt-timing-pay" 30
+                staff <- createStaffRecord venue Nothing "Tess" "Repair"
+                    >>= updateRecord . set #payAssignmentMode XeroRate . set #importedXeroPayItemId (Just importedPayItem.id)
+                entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
+                let restoreConstraint = do
+                        sqlExecDiscardResult "UPDATE timesheet_entries SET timezone = 'Australia/Melbourne' WHERE id = ?" (Only (unpackId entry.id))
+                        sqlExecDiscardResult "ALTER TABLE timesheet_entries DROP CONSTRAINT IF EXISTS timesheet_entries_supported_timezone_check" ()
+                        sqlExecDiscardResult "ALTER TABLE timesheet_entries ADD CONSTRAINT timesheet_entries_supported_timezone_check CHECK (timezone = 'Australia/Melbourne')" ()
+                (do
+                    sqlExecDiscardResult "DO $$ DECLARE constraint_name TEXT; BEGIN SELECT conname INTO constraint_name FROM pg_constraint WHERE conrelid = 'timesheet_entries'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%timezone = %Australia/Melbourne%%'; EXECUTE format('ALTER TABLE timesheet_entries DROP CONSTRAINT %I', constraint_name); END $$" ()
+                    sqlExecDiscardResult "UPDATE timesheet_entries SET timezone = 'not-a-zone' WHERE id = ?" (Only (unpackId entry.id))
+
+                    pageResponse <- withUserAndCurrentVenue manager venue.id do
+                        callAction (ShowTimesheetWindowAction "2025-01-06")
+                    modalResponse <- withUserAndCurrentVenue manager venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callActionWithParams EditTimesheetEntryAction { timesheetEntryId = entry.id }
+                                [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
+                    approvalResponse <- withUserAndCurrentVenue manager venue.id do
+                        callActionWithParams ApproveTimesheetEntryAction { timesheetEntryId = entry.id }
+                            [("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")]
+
+                    pageResponse `responseStatusShouldBe` status200
+                    pageResponse `responseBodyShouldContain` "data-timesheet-timing-issue=\"true\""
+                    modalResponse `responseStatusShouldBe` status200
+                    modalResponse `responseBodyShouldContain` "name=\"startTime\" value=\"\""
+                    modalResponse `responseBodyShouldContain` "name=\"endTime\" value=\"\""
+                    approvalResponse `responseStatusShouldBe` status409
+                    approvalResponse `responseBodyShouldContain` "Repair the Timesheet timing before approval."
+
+                    repairResponse <- withUserAndCurrentVenue manager venue.id do
+                        callActionWithParams UpdateTimesheetEntryAction { timesheetEntryId = entry.id }
+                            [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
+                            , ("staffId", idToParam staff.id), ("shiftTypeId", cs (tshow entry.shiftTypeId))
+                            , ("workedOn", "2025-01-07"), ("startTime", "09:00"), ("endTime", "17:00")
+                            , ("hadBreak", "false")
+                            ]
+
+                    repairResponse `responseStatusShouldBe` status302
+                    persisted <- fetch entry.id
+                    persisted.isApproved `shouldBe` False
+                    persisted.timezone `shouldBe` melbourneTimeZoneName
+                    decodeTimesheetTiming persisted `shouldSatisfy` either (const False) (const True)
+                    query @TimesheetEntryVersion |> filterWhere (#timesheetEntryId, unpackId entry.id) |> fetchCount >>= (`shouldBe` 1)
+                 ) `Exception.finally` restoreConstraint
+
+        it "keeps existing Timesheets pages available while invalid venue timing disables creation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Invalid Venue Time"
+                user <- createUserRecord "timesheet-invalid-venue-time@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user Worker
+                staff <- createStaffRecord venue (Just user) "Tess" "Repair"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- makeStaffTimesheetProducing payLevel staff
+                _ <- createShiftTypeRecord venue payLevel "Ordinary"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- updateRecord (venueConfig |> set #timezone "not-a-zone")
+
+                pageResponse <- withUserAndCurrentVenue user venue.id do
+                    callAction (ShowTimesheetWindowAction "2025-01-06")
+                createResponse <- withUserAndCurrentVenue user venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams NewTimesheetEntryAction
+                            [ ("anchorDate", "2025-01-06"), ("rosterCalendarRevision", "1")
+                            , ("workedOn", "2025-01-07")
+                            ]
+
+                pageResponse `responseStatusShouldBe` status200
+                createResponse `responseStatusShouldBe` status302
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
         it "excludes trial staff from manager timesheet forms and staff filters" $ withContext do
             withCleanDb do
@@ -1369,8 +1448,8 @@ tests = aroundAll withDatabaseTestContext do
 
                 createdResponse `responseStatusShouldBe` status302
                 entry <- query @TimesheetEntry |> fetchOne
-                storedInstantOccurrence entry.timezone entry.startsAt `shouldBe` Just SecondOccurrence
-                timesheetEntryElapsedSeconds entry `shouldBe` 90 * 60
+                storedInstantOccurrence entry.timezone entry.startsAt `shouldBe` Right (Just SecondOccurrence)
+                timesheetEntryElapsedSeconds entry `shouldBe` Right (90 * 60)
                 testWorkedOn entry `shouldBe` fromGregorian 2026 4 5
                 testStartTime entry `shouldBe` TimeOfDay 2 30 0
                 testEndTime entry `shouldBe` TimeOfDay 4 0 0
@@ -1418,10 +1497,11 @@ tests = aroundAll withDatabaseTestContext do
 
                 createdResponse `responseStatusShouldBe` status302
                 entry <- query @TimesheetEntry |> fetchOne
-                storedInstantOccurrence entry.timezone entry.startsAt `shouldBe` Just FirstOccurrence
-                storedInstantOccurrence entry.timezone entry.endsAt `shouldBe` Just SecondOccurrence
-                timesheetEntryElapsedSeconds entry `shouldBe` 60 * 60
-                let shapeSegments = TimesheetsView.timesheetShapeSegments TimesheetsView.defaultTimesheetTimelineScale entry
+                storedInstantOccurrence entry.timezone entry.startsAt `shouldBe` Right (Just FirstOccurrence)
+                storedInstantOccurrence entry.timezone entry.endsAt `shouldBe` Right (Just SecondOccurrence)
+                timesheetEntryElapsedSeconds entry `shouldBe` Right (60 * 60)
+                timing <- either (\reason -> expectationFailure (cs (tshow reason)) >> fail "invalid test timing") pure (decodeTimesheetTiming entry)
+                let shapeSegments = TimesheetsView.timesheetShapeSegments TimesheetsView.defaultTimesheetTimelineScale timing
                 length shapeSegments `shouldBe` 1
                 sum (map TimesheetsView.segmentWidth shapeSegments)
                     `shouldSatisfy` (\width -> abs (width - (100 / 24)) < 0.000001)

@@ -1,9 +1,10 @@
 module Application.Helper.TimeRules where
 
-import Application.VenueTime.Model (AuthoritativeBoundaries,
+import Application.VenueTime.Model (AuthoritativeBoundaries, BoundaryModelError,
                                     authoritativeEndLocalTime,
                                     authoritativeStartLocalTime,
-                                    repeatedEndpointPairCanShareDate)
+                                    repeatedEndpointPairCanShareDate,
+                                    storedInstantLocalTime)
 import Control.Monad (guard)
 import Data.Fixed (Pico)
 import Data.Time.Calendar (Day, addDays, diffDays)
@@ -218,17 +219,21 @@ calendarDayForOperationalClock operationalDate clock
     | clock < rosterOperationalStartTime = addDays 1 operationalDate
     | otherwise = operationalDate
 
+currentOperationalDayForVenueOutcome :: VenueConfig -> UTCTime -> Either BoundaryModelError Day
+currentOperationalDayForVenueOutcome venueConfig utcTime =
+    operationalDayForLocalTime <$> storedInstantLocalTime venueConfig.timezone utcTime
+
+-- Invalid configuration cannot define an Operational day. UTC day is used only
+-- as a stable navigation anchor so existing pages remain reachable; creation
+-- and timing-sensitive workflows validate the configured timezone separately.
 currentOperationalDayForVenue :: (?modelContext :: ModelContext) => VenueConfig -> IO Day
 currentOperationalDayForVenue venueConfig = do
     now <- getCurrentTime
-    operationalDayForUtcTime venueConfig now
+    pure (either (const (utctDay now)) (\day -> day) (currentOperationalDayForVenueOutcome venueConfig now))
 
 operationalDayForUtcTime :: (?modelContext :: ModelContext) => VenueConfig -> UTCTime -> IO Day
-operationalDayForUtcTime venueConfig utcTime = do
-    localTime <- sqlQueryScalar
-        "SELECT (?::timestamptz AT TIME ZONE ?)"
-        (utcTime, venueConfig.timezone)
-    pure (operationalDayForLocalTime localTime)
+operationalDayForUtcTime venueConfig utcTime =
+    pure (either (const (utctDay utcTime)) (\day -> day) (currentOperationalDayForVenueOutcome venueConfig utcTime))
 
 ensureEditWindowOrManager :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Day -> IO ()
 ensureEditWindowOrManager workedOn =

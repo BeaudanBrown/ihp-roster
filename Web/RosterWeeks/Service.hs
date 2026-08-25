@@ -67,36 +67,31 @@ copyRosterSlotToDay venueConfig sourceDay targetDay selections slot = do
             |> set #timezone venueConfig.timezone
 
 copyRosterSlotBoundariesToDate :: VenueConfig -> Day -> Day -> ShiftCopyOccurrenceSelections -> RosterSlot -> Either BoundaryModelError (Maybe UTCTime, Maybe UTCTime)
-copyRosterSlotBoundariesToDate venueConfig sourceRosterDate targetRosterDate selections slot =
-    case (slot.startsAt, slot.endsAt) of
-        (Just startsAt, Just endsAt) -> do
-            source <- authoritativeBoundariesFromInstants slot.timezone startsAt endsAt Nothing Nothing
-            let sourceStartDate = (authoritativeStartLocalTime source).localDay
-                targetStartDate = Calendar.addDays (Calendar.diffDays sourceStartDate sourceRosterDate) targetRosterDate
-            copied <- copyAuthoritativeBoundariesToDate targetStartDate selections source
-            pure (Just (authoritativeStartsAt copied), Just (authoritativeEndsAt copied))
-        (maybeStart, maybeEnd) -> do
-            copiedStart <- traverse (copySingle selections.copyShiftStartOccurrence) maybeStart
-            copiedEnd <- traverse (copySingle selections.copyShiftEndOccurrence) maybeEnd
-            pure (copiedStart, copiedEnd)
+copyRosterSlotBoundariesToDate venueConfig sourceRosterDate targetRosterDate selections slot = do
+    sourceTiming <- either (Left . rosterIntegrityBoundaryError) Right (decodeRosterShiftTiming slot)
+    let source = rosterShiftTimingBoundaries sourceTiming
+        sourceStartDate = (authoritativeStartLocalTime source).localDay
+        targetStartDate = Calendar.addDays (Calendar.diffDays sourceStartDate sourceRosterDate) targetRosterDate
+    copied <- copyAuthoritativeBoundariesToDate targetStartDate selections source
+    pure (Just (authoritativeStartsAt copied), Just (authoritativeEndsAt copied))
   where
-    copySingle occurrence instant =
-        let localTime = storedInstantLocalTime slot.timezone instant
-            targetDate = Calendar.addDays (Calendar.diffDays localTime.localDay sourceRosterDate) targetRosterDate
-            targetOccurrence = if civilBoundaryIsRepeated targetDate localTime.localTimeOfDay then occurrence else Nothing
-         in resolveBoundaryInstant venueConfig.timezone targetDate localTime.localTimeOfDay targetOccurrence
+    rosterIntegrityBoundaryError (RosterShiftTimingInvalid failure) = failure
 
-rosterSlotCopyAmbiguousEndpoints :: VenueConfig -> RosterDay -> RosterDay -> RosterSlot -> (Bool, Bool)
-rosterSlotCopyAmbiguousEndpoints venueConfig sourceDay targetDay slot =
-    (endpointIsRepeated slot.startsAt, endpointIsRepeated slot.endsAt)
+rosterSlotCopyAmbiguousEndpoints :: VenueConfig -> RosterDay -> RosterDay -> RosterSlot -> Either BoundaryModelError (Bool, Bool)
+rosterSlotCopyAmbiguousEndpoints _venueConfig sourceDay targetDay slot = do
+    timing <- either (Left . rosterIntegrityBoundaryError) Right (decodeRosterShiftTiming slot)
+    let boundaries = rosterShiftTimingBoundaries timing
+    pure
+        ( endpointIsRepeated (authoritativeStartLocalTime boundaries)
+        , endpointIsRepeated (authoritativeEndLocalTime boundaries)
+        )
   where
     sourceRosterDate = sourceDay.operationalDate
     targetRosterDate = targetDay.operationalDate
-    endpointIsRepeated maybeInstant = fromMaybe False do
-        instant <- maybeInstant
-        let localTime = storedInstantLocalTime slot.timezone instant
-            targetDate = Calendar.addDays (Calendar.diffDays localTime.localDay sourceRosterDate) targetRosterDate
-        pure (civilBoundaryIsRepeated targetDate localTime.localTimeOfDay)
+    endpointIsRepeated localTime =
+        let targetDate = Calendar.addDays (Calendar.diffDays localTime.localDay sourceRosterDate) targetRosterDate
+         in civilBoundaryIsRepeated targetDate localTime.localTimeOfDay
+    rosterIntegrityBoundaryError (RosterShiftTimingInvalid failure) = failure
 
 resolveRosterTimelineTargetBoundaries :: Text -> NominalDiffTime -> Day -> TimeOfDay -> Maybe RepeatedTimeOccurrence -> Either BoundaryModelError AuthoritativeBoundaries
 resolveRosterTimelineTargetBoundaries timezone duration targetDate targetStartTime targetStartOccurrence = do
@@ -381,22 +376,19 @@ materializeCopyTargetDays venueId rosterGroupId sourceStart targetStart sourceDa
                 |> createRecord
     pure (Map.fromList [(day.operationalDate, day) | day <- existingOrCreated])
 
-rosterWindowCopyAmbiguousEndpoints :: (?modelContext :: ModelContext) => VenueConfig -> Id Venue -> Id RosterGroup -> Day -> Day -> IO (Bool, Bool)
+rosterWindowCopyAmbiguousEndpoints :: (?modelContext :: ModelContext) => VenueConfig -> Id Venue -> Id RosterGroup -> Day -> Day -> IO (Either BoundaryModelError (Bool, Bool))
 rosterWindowCopyAmbiguousEndpoints venueConfig venueId rosterGroupId sourceStart targetStart = do
     sourceDays <- fetchWindowDays venueId rosterGroupId sourceStart
     sourceSlots <- fetchActiveSlotsForDays sourceDays
     let sourceDayById = Map.fromList [(unpackId day.id, day) | day <- sourceDays]
-        endpointIsRepeated selectInstant slot = do
-            sourceDay <- Map.lookup slot.rosterDayId sourceDayById
-            instant <- selectInstant slot
-            let localTime = storedInstantLocalTime slot.timezone instant
-                targetRosterDate = Calendar.addDays (Calendar.diffDays sourceDay.operationalDate sourceStart) targetStart
-                targetDate = Calendar.addDays (Calendar.diffDays localTime.localDay sourceDay.operationalDate) targetRosterDate
-            pure (civilBoundaryIsRepeated targetDate localTime.localTimeOfDay)
-    pure
-        ( any (fromMaybe False . endpointIsRepeated (.startsAt)) sourceSlots
-        , any (fromMaybe False . endpointIsRepeated (.endsAt)) sourceSlots
-        )
+        slotEndpoints slot = do
+            sourceDay <- maybe (Left BoundaryShiftShapeInvalid) Right (Map.lookup slot.rosterDayId sourceDayById)
+            let targetRosterDate = Calendar.addDays (Calendar.diffDays sourceDay.operationalDate sourceStart) targetStart
+                targetDay = sourceDay |> set #operationalDate targetRosterDate
+            rosterSlotCopyAmbiguousEndpoints venueConfig sourceDay targetDay slot
+    pure do
+        endpoints <- traverse slotEndpoints (filter rosterSlotHasData sourceSlots)
+        pure (any fst endpoints, any snd endpoints)
 
 ensureRosterDayHasMinimumRows :: (?modelContext :: ModelContext) => RosterDay -> Id RosterGroup -> Int -> IO ()
 ensureRosterDayHasMinimumRows rosterDay _rosterGroupId minimumRowCount = do

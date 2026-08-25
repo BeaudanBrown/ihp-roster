@@ -31,6 +31,13 @@ tests. Future payroll behavior belongs in `docs/workstreams/`.
   relevant first/second occurrence, including equal repeated-clock intervals.
 - Input precision and picker range follow venue configuration. Existing values
   outside the current picker range remain valid and displayable.
+- Corrupt persisted timing remains visible with a repair indicator instead of
+  crashing the page. Standard edit dialogs recover only independently trusted
+  clocks and leave untrustworthy values blank; a complete valid replacement
+  repairs the entry through the normal approval-reset and audit path. Approval,
+  wage, export, and Xero operations fail closed until repair.
+- Invalid venue timezone configuration leaves existing pages available but
+  disables all new Timesheet creation with a safe blocker.
 - Generated TimePicker, Toggle, and Overlay contracts own browser mechanics.
   Haskell owns options, defaults, boolean transport, break-field activation, and
   validation; feature JavaScript must not recreate those rules.

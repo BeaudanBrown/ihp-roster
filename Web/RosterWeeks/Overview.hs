@@ -6,11 +6,11 @@ module Web.RosterWeeks.Overview
 
 import Application.Helper.RosterGroups (fetchEligibleRosterGroupStaff)
 import Application.RosterShiftAssignment (rosterShiftIsStaffAssigned)
-import Application.VenueTime.Model (rosterSlotElapsedSeconds)
+import Application.VenueTime.Model (decodeRosterShiftTiming,
+                                    rosterShiftTimingElapsedSeconds)
 import Data.Coerce (coerce)
 import Data.List (nub)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe)
 import qualified Data.Time.Calendar as Calendar
 import Web.Controller.Prelude
 import Web.RosterWeeks.AvailabilityInputs (fetchLeaveRequestsForRosterWindowByStatus)
@@ -69,12 +69,15 @@ buildRosterMonthOverviewDays _venueConfig rosterGroupId focusDate = do
                         | slot <- daySlots
                         , rosterShiftIsStaffAssigned slot
                         ]
+                assignedTimingOutcomes =
+                    [ decodeRosterShiftTiming slot
+                    | slot <- daySlots
+                    , rosterShiftIsStaffAssigned slot
+                    ]
                 scheduledElapsedSeconds =
-                    sum
-                        [ fromMaybe 0 (rosterSlotElapsedSeconds slot)
-                        | slot <- daySlots
-                        , rosterShiftIsStaffAssigned slot
-                        ]
+                    sum [rosterShiftTimingElapsedSeconds timing | Right timing <- assignedTimingOutcomes]
+                overviewInvalidTimingCount =
+                    length [() | Left _ <- assignedTimingOutcomes]
                 leaveRequestCount =
                     length
                         [ leaveRequest
@@ -89,6 +92,7 @@ buildRosterMonthOverviewDays _venueConfig rosterGroupId focusDate = do
                     , leaveRequestCount
                     , overviewAssignedShiftCount = assignedShiftCount
                     , scheduledElapsedSeconds
+                    , overviewInvalidTimingCount
                     , overviewIsClosed = maybe False (.isClosed) maybeRosterDay
                     }
 

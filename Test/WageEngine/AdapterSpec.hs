@@ -152,6 +152,12 @@ pureTests =
             loadWageEngineContextsWith unsupportedSource [WageEngineEntryRequest unsupportedEntryId]
                 `shouldReturn` Left [UnsupportedCalculationContext unsupportedEntryId (UnsupportedVenueTimeZone "Etc/UTC")]
 
+            let corruptEntryId = uuid "10000000-0000-0000-0000-000000000015"
+                corruptContext = (testEntryContext corruptEntryId beforeDate) { contextTimingIsValid = False }
+                corruptSource = source { fetchEntryContextRows = \_ -> pure [corruptContext] }
+            loadWageEngineContextsWith corruptSource [WageEngineEntryRequest corruptEntryId]
+                `shouldReturn` Left [InvalidPersistedTiming corruptEntryId]
+
 databaseTests :: Spec
 databaseTests = aroundAll withDatabaseTestContext do
     describe "database wage-engine adapter" do
@@ -286,7 +292,8 @@ databaseTests = aroundAll withDatabaseTestContext do
                 staff <- createStaffRecord venue Nothing "Strict" "Ledger"
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2026 7 6)
                 approvedAt <- getCurrentTime
-                (staffVersion, shiftVersion) <- ensurePayVersionsForTimesheetApproval approver.id entry
+                timing <- expectRight (decodeTimesheetTiming entry)
+                (staffVersion, shiftVersion) <- ensurePayVersionsForTimesheetApproval approver.id timing entry
                 ( entry
                     |> set #isApproved True
                     |> set #staffPayVersionId (Just (unpackId staffVersion.id))
@@ -321,7 +328,8 @@ databaseTests = aroundAll withDatabaseTestContext do
                 shiftType <- createShiftTypeRecord venue level "Ledger ordinary"
                 entry <- createAdapterEntry venue staff shiftType (fromGregorian 2026 7 6)
                 approvedAt <- getCurrentTime
-                (staffVersion, shiftVersion) <- ensurePayVersionsForTimesheetApproval approver.id entry
+                timing <- expectRight (decodeTimesheetTiming entry)
+                (staffVersion, shiftVersion) <- ensurePayVersionsForTimesheetApproval approver.id timing entry
                 lockPayVersionsForApproval approver.id approvedAt staffVersion shiftVersion
                 approvedEntry <- withLegacyPayBackfillFixture do
                     entry
@@ -421,7 +429,8 @@ databaseTests = aroundAll withDatabaseTestContext do
                     |> createRecord
                 entry <- createAdapterEntry venue staff shiftType (fromGregorian 2026 7 6)
                 approvedAt <- getCurrentTime
-                (staffVersion, shiftVersion) <- ensurePayVersionsForTimesheetApproval approver.id entry
+                timing <- expectRight (decodeTimesheetTiming entry)
+                (staffVersion, shiftVersion) <- ensurePayVersionsForTimesheetApproval approver.id timing entry
                 lockPayVersionsForApproval approver.id approvedAt staffVersion shiftVersion
                 approvedEntry <- withLegacyPayBackfillFixture do
                     entry
@@ -474,7 +483,8 @@ databaseTests = aroundAll withDatabaseTestContext do
                 invalidEntry <- createAdapterEntry venue invalidStaff shiftType (fromGregorian 2026 7 7)
                 approvedAt <- getCurrentTime
                 forM_ [validEntry, invalidEntry] \entry -> do
-                    (staffVersion, shiftVersion) <- ensurePayVersionsForTimesheetApproval approver.id entry
+                    timing <- expectRight (decodeTimesheetTiming entry)
+                    (staffVersion, shiftVersion) <- ensurePayVersionsForTimesheetApproval approver.id timing entry
                     lockPayVersionsForApproval approver.id approvedAt staffVersion shiftVersion
                     void $ withLegacyPayBackfillFixture do
                         entry
@@ -942,6 +952,7 @@ testEntryContext entryId workedOn =
         workedOn
         workedOn
         workedOn
+        True
         "Australia/Melbourne"
         1
         "VIC"

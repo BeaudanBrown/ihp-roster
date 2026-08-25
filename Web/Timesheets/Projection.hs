@@ -66,6 +66,7 @@ import Web.View.Timesheets.Index
 
 data TimesheetWeekProjection = TimesheetWeekProjection
     { timesheetEntries              :: [TimesheetEntry]
+    , timesheetTimingByEntryId      :: !(Map.Map UUID.UUID (Either TimesheetIntegrityError ValidatedTimesheetTiming))
     , timesheetSuggestions          :: [TimesheetSuggestion]
     , timesheetStaffMembers         :: [Staff]
     , timesheetShiftTypes           :: [ShiftType]
@@ -373,6 +374,7 @@ fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWindowStart 
     pure
         TimesheetWeekProjection
             { timesheetEntries = entries
+            , timesheetTimingByEntryId = Map.fromList [(unpackId entry.id, decodeTimesheetTiming entry) | entry <- entries]
             , timesheetSuggestions = suggestions
             , timesheetStaffMembers = staffMembers
             , timesheetShiftTypes = shiftTypes
@@ -469,6 +471,7 @@ timesheetDayRenderModelFromProjection :: TimesheetWeekProjection -> Int -> Times
 timesheetDayRenderModelFromProjection projection dayOffset =
     TimesheetDayRenderModel
         { dayEntries = projection.timesheetEntries
+        , dayTimingByEntryId = projection.timesheetTimingByEntryId
         , daySuggestions = projection.timesheetSuggestions
         , dayStaffMembers = projection.timesheetStaffMembers
         , dayShiftTypes = projection.timesheetShiftTypes
@@ -483,9 +486,10 @@ timesheetDayRenderModelFromProjection projection dayOffset =
         }
 
 timesheetIndexView :: (?context :: ControllerContext) => TimesheetWeekProjection -> IndexView
-timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetSuggestions, timesheetStaffMembers, timesheetShiftTypes, timesheetToday, timesheetEditWindowDays, timesheetWeekStartDate, timesheetWeekEndDate, timesheetCalendarRevision, timesheetHideApproved, timesheetSuggestionsVisible, timesheetShowWageEstimates, timesheetWageEstimates, timesheetRosterGroups, timesheetFilters, timesheetStaffFilterId, timesheetCurrentViewerStaffId, timesheetStaffPanelEntries } =
+timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetTimingByEntryId, timesheetSuggestions, timesheetStaffMembers, timesheetShiftTypes, timesheetToday, timesheetEditWindowDays, timesheetWeekStartDate, timesheetWeekEndDate, timesheetCalendarRevision, timesheetHideApproved, timesheetSuggestionsVisible, timesheetShowWageEstimates, timesheetWageEstimates, timesheetRosterGroups, timesheetFilters, timesheetStaffFilterId, timesheetCurrentViewerStaffId, timesheetStaffPanelEntries } =
     IndexView
         { entries = timesheetEntries
+        , timingByEntryId = timesheetTimingByEntryId
         , suggestions = timesheetSuggestions
         , staffMembers = timesheetStaffMembers
         , shiftTypes = timesheetShiftTypes

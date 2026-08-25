@@ -24,6 +24,10 @@ import Application.Helper.FrontendContract.Passkey.Runtime (PasskeySetupPromptMo
 import Application.Helper.RosterWagePrediction (RosterWagePrediction)
 import Application.RosterNotification (RosterNotificationPanelData)
 import Application.RosterTemplates (RosterTemplateLibrary)
+import Application.VenueTime.Model (RosterShiftIntegrityError,
+                                    TimesheetIntegrityError,
+                                    ValidatedRosterShiftTiming,
+                                    ValidatedTimesheetTiming)
 import Data.Map.Strict (Map)
 import Data.Time.Calendar (Day)
 import Data.Time.Clock (NominalDiffTime)
@@ -97,6 +101,7 @@ data RosterRenderIndexes = RosterRenderIndexes
     , rosterSlotByDayRowSlotName :: Map (UUID, Int, UUID) RosterSlot
     , rosterStaffById            :: Map UUID Staff
     , rosterConflictsBySlotId    :: Map UUID [RosterConflict]
+    , rosterTimingBySlotId       :: Map UUID (Either RosterShiftIntegrityError ValidatedRosterShiftTiming)
     }
 
 data RosterWeekOverviewDay = RosterWeekOverviewDay
@@ -104,6 +109,7 @@ data RosterWeekOverviewDay = RosterWeekOverviewDay
     , leaveRequestCount          :: Int
     , overviewAssignedShiftCount :: Int
     , scheduledElapsedSeconds    :: NominalDiffTime
+    , overviewInvalidTimingCount :: Int
     , overviewIsClosed           :: Bool
     }
 
@@ -145,6 +151,7 @@ data RosterStaffSelfServicePanel = RosterStaffSelfServicePanel
     , quickToolsRosterGroups            :: [RosterGroup]
     , quickToolsRosterWeekStartDate     :: Day
     , quickToolsTimesheetEntries        :: [TimesheetEntry]
+    , quickToolsTimesheetTimingByEntryId :: Map UUID (Either TimesheetIntegrityError ValidatedTimesheetTiming)
     , quickToolsStaffMembers            :: [Staff]
     , quickToolsShiftTypes              :: [ShiftType]
     , quickToolsOperationalDay          :: Day

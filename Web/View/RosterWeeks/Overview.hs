@@ -110,7 +110,7 @@ renderOverviewDayCell rosterGroupId referenceWeekStart weekOverviewDays initialD
             | detailsAvailable = maybe "0" (tshow . leaveRequestCount) maybeOverviewDay
             | otherwise = "—"
         assignedDisplay = if detailsAvailable then maybe "0" (tshow . overviewAssignedShiftCount) maybeOverviewDay else "—"
-        hoursDisplay = if detailsAvailable then maybe "0h" (formatElapsedSecondsAsHours . scheduledElapsedSeconds) maybeOverviewDay else "—"
+        hoursDisplay = if detailsAvailable then maybe "0h" overviewHoursDisplay maybeOverviewDay else "—"
         detailSummary =
             if detailsAvailable
                 then weekOverviewMetricSummaryMaybe maybeOverviewDay viewCapabilities.canViewLeaveMetrics
@@ -174,7 +174,7 @@ renderWeekOverviewDetailsCard rosterGroupId weekStartDate initialDate initialOve
                         <span class="roster-week-overview-metric-label">shifts assigned</span>
                     </div>
                     <div class="roster-week-overview-metric">
-                        <span class="roster-week-overview-metric-value" {...rosterWeekOverviewHoursValueAttrs}>{maybe "0h" (formatElapsedSecondsAsHours . scheduledElapsedSeconds) initialOverviewDay}</span>
+                        <span class="roster-week-overview-metric-value" {...rosterWeekOverviewHoursValueAttrs}>{maybe "0h" overviewHoursDisplay initialOverviewDay}</span>
                         <span class="roster-week-overview-metric-label">rostered hours</span>
                     </div>
                 </div>
@@ -207,6 +207,8 @@ weekOverviewMetricSummaryMaybe (Just daySummary) includeLeaveMetrics = weekOverv
 weekOverviewMetricSummary :: RosterWeekOverviewDay -> Bool -> Text
 weekOverviewMetricSummary daySummary includeLeaveMetrics
     | overviewIsClosed daySummary = "This day is closed for rostering."
+    | overviewInvalidTimingCount daySummary > 0 =
+        tshow (overviewInvalidTimingCount daySummary) <> " assigned shifts need timing repair."
     | not includeLeaveMetrics && overviewAssignedShiftCount daySummary == 0 = "No assigned shifts loaded for this date yet."
     | leaveRequestCount daySummary == 0 && overviewAssignedShiftCount daySummary == 0 = "No unavailable periods or assigned shifts loaded for this date yet."
     | not includeLeaveMetrics =
@@ -217,6 +219,11 @@ weekOverviewMetricSummary daySummary includeLeaveMetrics
             <> tshow (overviewAssignedShiftCount daySummary) <> " shifts assigned, "
             <> formatElapsedSecondsAsHours (scheduledElapsedSeconds daySummary) <> " rostered."
 
+
+overviewHoursDisplay :: RosterWeekOverviewDay -> Text
+overviewHoursDisplay daySummary
+    | overviewInvalidTimingCount daySummary > 0 = "Needs repair"
+    | otherwise = formatElapsedSecondsAsHours daySummary.scheduledElapsedSeconds
 
 formatElapsedSecondsAsHours :: NominalDiffTime -> Text
 formatElapsedSecondsAsHours elapsedSeconds =

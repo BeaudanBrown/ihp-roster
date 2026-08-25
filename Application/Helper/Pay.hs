@@ -4,7 +4,8 @@ import Application.Helper.Controller hiding (venueEffectiveRateDate,
                                       venueEffectiveRateEndDate)
 import Application.Helper.WeekBoundaries (WeekdayIndex)
 import qualified Application.Helper.WeekBoundaries as WeekBoundaries
-import Application.VenueTime.Model (timesheetEntryWorkedOn)
+import Application.VenueTime.Model (ValidatedTimesheetTiming,
+                                    timesheetTimingWorkedOn)
 import Control.Monad (void)
 import qualified Data.List as List
 import Data.Ord (Down (..))
@@ -115,12 +116,13 @@ ensureShiftTypePayVersionForShiftType actorUserId shiftType effectiveFrom = do
 ensurePayVersionsForTimesheetApproval ::
     (?modelContext :: ModelContext) =>
     Id User ->
+    ValidatedTimesheetTiming ->
     TimesheetEntry ->
     IO (StaffPayVersion, ShiftTypePayVersion)
-ensurePayVersionsForTimesheetApproval actorUserId entry = do
+ensurePayVersionsForTimesheetApproval actorUserId timing entry = do
     staff <- fetch (Id entry.staffId :: Id Staff)
     shiftType <- fetch (Id entry.shiftTypeId :: Id ShiftType)
-    let workedOn = timesheetEntryWorkedOn entry
+    let workedOn = timesheetTimingWorkedOn timing
     staffVersion <- ensureStaffPayVersionForStaff actorUserId staff workedOn
     shiftTypeVersion <- ensureShiftTypePayVersionForShiftType actorUserId shiftType workedOn
     pure (staffVersion, shiftTypeVersion)

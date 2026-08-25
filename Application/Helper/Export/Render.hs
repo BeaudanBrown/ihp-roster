@@ -3,13 +3,11 @@ module Application.Helper.Export.Render where
 import Application.Helper.Controller
 import Application.Helper.Export.HourlyBreakdown
 import Application.Helper.Export.Types
-import Application.VenueTime.Model (timesheetEntryBreakElapsedSeconds,
-                                    timesheetEntryBreakEndTime,
-                                    timesheetEntryBreakStartTime,
-                                    timesheetEntryEndTime,
-                                    timesheetEntryHadBreak,
-                                    timesheetEntryStartTime,
-                                    timesheetEntryWorkedOn)
+import Application.VenueTime.Model (ValidatedTimesheetTiming,
+                                    timesheetTimingBreakElapsedSeconds,
+                                    timesheetTimingEndTime,
+                                    timesheetTimingStartTime,
+                                    timesheetTimingWorkedOn)
 import Application.WagePublication (StaffHoursBucketKind (..),
                                     StaffHoursContribution (..))
 import qualified Codec.Archive.Zip as Zip
@@ -292,13 +290,13 @@ fallbackReportDayLabel reportWeekStart dayOffset =
     Text.pack (formatTime defaultTimeLocale "%A" (addDays (toInteger dayOffset) reportWeekStart))
 
 renderApprovedTimesheetCsv ::
-    [TimesheetEntry] ->
+    [(TimesheetEntry, ValidatedTimesheetTiming)] ->
     Map.Map UUID Staff ->
     Map.Map UUID User ->
     Map.Map UUID Text ->
     Text
-renderApprovedTimesheetCsv entries staffById approversById versionManifestByEntryId =
-    Text.unlines (csvHeader : map renderRow entries)
+renderApprovedTimesheetCsv entriesWithTiming staffById approversById versionManifestByEntryId =
+    Text.unlines (csvHeader : map renderRow entriesWithTiming)
     where
         csvHeader =
             Text.intercalate ","
@@ -312,13 +310,13 @@ renderApprovedTimesheetCsv entries staffById approversById versionManifestByEntr
                 , "approved_by_email"
                 ]
 
-        renderRow entry =
+        renderRow (entry, timing) =
             Text.intercalate ","
-                [ csvCell (tshow (timesheetEntryWorkedOn entry))
+                [ csvCell (tshow (timesheetTimingWorkedOn timing))
                 , csvCell (staffDisplayNameForEntry entry.staffId)
-                , csvCell (formatTimeOfDay (timesheetEntryStartTime entry))
-                , csvCell (formatTimeOfDay (timesheetEntryEndTime entry))
-                , csvCell (formatElapsedSeconds (timesheetEntryBreakElapsedSeconds entry))
+                , csvCell (formatTimeOfDay (timesheetTimingStartTime timing))
+                , csvCell (formatTimeOfDay (timesheetTimingEndTime timing))
+                , csvCell (formatElapsedSeconds (timesheetTimingBreakElapsedSeconds timing))
                 , csvCell (fromMaybe "" (Map.lookup (unpackId entry.id) versionManifestByEntryId))
                 , csvCell (maybe "" formatUtc entry.approvedAt)
                 , csvCell (maybe "" (.email) (entry.approvedByUserId >>= (`Map.lookup` approversById)))

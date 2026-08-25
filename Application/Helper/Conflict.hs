@@ -1,7 +1,8 @@
 module Application.Helper.Conflict where
 
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
-import Application.VenueTime.Model (rosterSlotStartTime)
+import Application.VenueTime.Model (decodeRosterShiftTiming,
+                                    rosterShiftTimingStartTime)
 import Data.Time.Calendar (Day)
 import Data.Time.Clock (diffUTCTime)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -15,7 +16,8 @@ data ConflictSeverity
     deriving (Eq, Show, Ord)
 
 data ConflictType
-    = DuplicateAssignment
+    = InvalidRosterTiming
+    | DuplicateAssignment
     | LeaveConflict
     | LateToEarlyConflict
     | ShiftPreferenceDayUnavailable
@@ -30,6 +32,7 @@ data RosterConflict = RosterConflict
     } deriving (Eq, Show)
 
 getConflictSeverity :: ConflictType -> ConflictSeverity
+getConflictSeverity InvalidRosterTiming           = CriticalConflict
 getConflictSeverity DuplicateAssignment           = CriticalConflict
 getConflictSeverity LeaveConflict                 = CriticalConflict
 getConflictSeverity LateToEarlyConflict           = CriticalConflict
@@ -38,6 +41,7 @@ getConflictSeverity ShiftPreferenceSlotMismatch   = AdvisoryConflict
 getConflictSeverity IdealShiftThresholdExceeded   = AdvisoryConflict
 
 conflictPriority :: ConflictType -> Int
+conflictPriority InvalidRosterTiming           = 0
 conflictPriority DuplicateAssignment           = 1
 conflictPriority LeaveConflict                 = 2
 conflictPriority LateToEarlyConflict           = 3
@@ -68,13 +72,28 @@ data ConflictContext = ConflictContext
 evaluateConflicts :: ConflictContext -> [RosterConflict]
 evaluateConflicts ctx =
     sort $ catMaybes
-        [ checkDuplicateAssignment ctx
+        [ checkRosterTimingIntegrity ctx
+        , checkDuplicateAssignment ctx
         , checkLeaveConflict ctx
         , checkLateToEarlyConflict ctx
         , checkShiftPreferenceDayUnavailable ctx
         , checkShiftPreferenceStartWindowMismatch ctx
         , checkIdealShiftThreshold ctx
         ]
+
+checkRosterTimingIntegrity :: ConflictContext -> Maybe RosterConflict
+checkRosterTimingIntegrity ctx
+    | not (slotHasVisibleData ctx.slot) = Nothing
+    | otherwise = case decodeRosterShiftTiming ctx.slot of
+        Left _ -> Just RosterConflict
+            { conflictType = InvalidRosterTiming
+            , severity = CriticalConflict
+            , message = "Shift timing needs repair."
+            }
+        Right _ -> Nothing
+  where
+    slotHasVisibleData slot =
+        isJust slot.staffId || isJust slot.startsAt || isJust slot.endsAt || isJust slot.shiftTypeId
 
 primaryConflict :: [RosterConflict] -> Maybe RosterConflict
 primaryConflict conflicts = listToMaybe (sort conflicts)
@@ -121,8 +140,10 @@ checkShiftPreferenceDayUnavailable ctx =
 
 checkShiftPreferenceStartWindowMismatch :: ConflictContext -> Maybe RosterConflict
 checkShiftPreferenceStartWindowMismatch ctx =
-    case (ctx.slot.staffId, rosterSlotStartTime ctx.slot) of
-        (Just _, Just startTime) ->
+    case (ctx.slot.staffId, decodeRosterShiftTiming ctx.slot) of
+        (Just _, Right timing) ->
+            let startTime = rosterShiftTimingStartTime timing
+             in
             case shiftPreferencesForDay ctx of
                 [] -> Nothing
                 dayPreferences ->

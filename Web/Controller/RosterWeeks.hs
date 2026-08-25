@@ -227,6 +227,7 @@ rosterCopyBoundaryErrorMessage (BoundaryCivilTimeError (NonPositiveResolvedInter
 rosterCopyBoundaryErrorMessage (BoundaryUnsupportedTimezone _) = "This venue timezone is not supported for roster copying."
 rosterCopyBoundaryErrorMessage BoundaryBreakNotContained = "The copied break would fall outside its shift."
 rosterCopyBoundaryErrorMessage BoundaryBreakShapeInvalid = "The copied break boundaries are incomplete."
+rosterCopyBoundaryErrorMessage BoundaryShiftShapeInvalid = "The copied shift boundaries are incomplete."
 
 rosterMutationMountedProjections :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterMutationProjection -> IO [RosterProjectionFragment]
 rosterMutationMountedProjections mutationProjection =
@@ -538,12 +539,14 @@ instance Controller RosterWeeksController where
                                         respondWithRosterCopyFailure targetScope message
                                     Left (RosterWeekCopyBoundaryError failure) -> do
                                         venueConfig <- fetchVenueConfig
-                                        (startIsRepeated, endIsRepeated) <- rosterWindowCopyAmbiguousEndpoints venueConfig currentVenueId rosterGroup.id sourceWindowStart targetWindowStart
-                                        case failure of
-                                            BoundaryCivilTimeError (RepeatedCivilTimeRequiresOccurrence _)
-                                                | startIsRepeated || endIsRepeated ->
-                                                    respondWithRosterCopyOccurrenceDialog sourceScope targetScope startIsRepeated endIsRepeated selections
-                                            _ -> respondWithRosterCopyFailure targetScope (rosterCopyBoundaryErrorMessage failure)
+                                        rosterWindowCopyAmbiguousEndpoints venueConfig currentVenueId rosterGroup.id sourceWindowStart targetWindowStart >>= \case
+                                            Left timingFailure -> respondWithRosterCopyFailure targetScope (rosterCopyBoundaryErrorMessage timingFailure)
+                                            Right (startIsRepeated, endIsRepeated) ->
+                                                case failure of
+                                                    BoundaryCivilTimeError (RepeatedCivilTimeRequiresOccurrence _)
+                                                        | startIsRepeated || endIsRepeated ->
+                                                            respondWithRosterCopyOccurrenceDialog sourceScope targetScope startIsRepeated endIsRepeated selections
+                                                    _ -> respondWithRosterCopyFailure targetScope (rosterCopyBoundaryErrorMessage failure)
                                     Right mutationResult -> do
                                         let successMessage = "Roster week copied from the previous week."
                                         let targetPath = rosterWindowUrl targetScope.rosterWindowStart targetScope.rosterWindowRosterGroupId

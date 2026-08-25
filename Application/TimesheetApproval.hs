@@ -21,6 +21,7 @@ import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                payVersionManifestForEntry)
 import Application.Helper.TimesheetPayLedger (persistApprovedTimesheetPayCalculation)
 import Application.TimesheetApproval.Error (TimesheetApprovalError (..))
+import Application.VenueTime.Model (decodeTimesheetTiming)
 import Application.WageSourceEnforcement (enforceFinalWageEntries)
 import qualified Control.Exception as Exception
 import Control.Monad (void)
@@ -113,14 +114,17 @@ runApprovalEngineInCurrentTransaction actorUserId mode enrichAuditPayload auditS
         Just (Only lockedEntryId) -> fetch (Id lockedEntryId :: Id TimesheetEntry) >>= runLocked
   where
     runLocked lockedEntry =
-        validateMode lockedEntry >>= \case
-            Left approvalError -> pure (Left approvalError)
-            Right (Just healthyResult) -> pure (Right healthyResult)
-            Right Nothing -> do
-                activeWrite <- hasActiveProviderWrite lockedEntry.id
-                if activeWrite
-                    then pure (Left ApprovalProviderWriteActive)
-                    else replaceApproval lockedEntry
+        case decodeTimesheetTiming lockedEntry of
+            Left _ -> pure (Left ApprovalStillBlocked)
+            Right timing ->
+                validateMode lockedEntry >>= \case
+                    Left approvalError -> pure (Left approvalError)
+                    Right (Just healthyResult) -> pure (Right healthyResult)
+                    Right Nothing -> do
+                        activeWrite <- hasActiveProviderWrite lockedEntry.id
+                        if activeWrite
+                            then pure (Left ApprovalProviderWriteActive)
+                            else replaceValidatedApproval timing lockedEntry
 
     validateMode lockedEntry = case mode of
         InitialApproval ->
@@ -145,9 +149,9 @@ runApprovalEngineInCurrentTransaction actorUserId mode enrichAuditPayload auditS
         , approvalEngineChanged = False
         }
 
-    replaceApproval lockedEntry = do
+    replaceValidatedApproval timing lockedEntry = do
         now <- getCurrentTime
-        (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval actorUserId lockedEntry
+        (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval actorUserId timing lockedEntry
         lockPayVersionsForApproval actorUserId now staffPayVersion shiftTypePayVersion
         let approvalEntry = lockedEntry
                 |> set #isApproved True

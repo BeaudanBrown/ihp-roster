@@ -88,6 +88,7 @@ data MoveRosterTimelineShiftIntent = MoveRosterTimelineShiftIntent
     , timelineTargetRowIndex       :: !Int
     , timelineTargetStartTime      :: !TimeOfDay
     , timelineMoveIsNoOp           :: !Bool
+    , timelineSourceTiming         :: !ValidatedRosterShiftTiming
     }
 
 data RosterDayDropBoundaryResolution
@@ -135,8 +136,9 @@ validateMoveRosterTimelineShiftIntent :: (?context :: ControllerContext, ?modelC
 validateMoveRosterTimelineShiftIntent scope sourceToken targetToken = do
     case (parseExistingSlotToken sourceToken, parseTimelineShiftDropTargetToken targetToken) of
         (Just sourceSlotId, Just target) -> do
-            maybeResult <- validateRosterTimelineShiftDropTarget scope sourceSlotId target
-            pure (maybe (Left "Drag the shift onto an open timeline time target.") Right maybeResult)
+            validateRosterTimelineShiftDropTarget scope sourceSlotId target >>= \case
+                Left _ -> pure (Left invalidRosterSlotTimingMessage)
+                Right maybeResult -> pure (maybe (Left "Drag the shift onto an open timeline time target.") Right maybeResult)
         _ -> pure (Left "Drag the shift onto an open timeline time target.")
 
 resolveRosterDayDropBoundaries :: (?context :: ControllerContext, ?modelContext :: ModelContext) => MoveRosterShiftIntent -> ShiftCopyOccurrenceSelections -> IO RosterDayDropBoundaryResolution
@@ -148,9 +150,11 @@ resolveRosterDayDropBoundaries intent selections = do
                 intent.sourceRosterDay
                 intent.targetRosterDay
                 intent.sourceSlot
-    pure $ case copyRosterSlotToDay venueConfig intent.sourceRosterDay intent.targetRosterDay selections intent.sourceSlot of
-        Left failure -> RosterDayDropBoundaryFailure repeatedEndpoints failure
-        Right copiedSlot -> RosterDayDropBoundaryReady copiedSlot
+    pure $ case repeatedEndpoints of
+        Left failure -> RosterDayDropBoundaryFailure (False, False) failure
+        Right endpoints -> case copyRosterSlotToDay venueConfig intent.sourceRosterDay intent.targetRosterDay selections intent.sourceSlot of
+            Left failure     -> RosterDayDropBoundaryFailure endpoints failure
+            Right copiedSlot -> RosterDayDropBoundaryReady copiedSlot
 
 resolveRosterTimelineDropBoundaries :: (?context :: ControllerContext, ?modelContext :: ModelContext) => MoveRosterTimelineShiftIntent -> Text -> IO RosterTimelineDropBoundaryResolution
 resolveRosterTimelineDropBoundaries intent startOccurrenceValue =
@@ -161,15 +165,13 @@ resolveRosterTimelineDropBoundaries intent startOccurrenceValue =
             let targetShiftDate = rosterShiftStartDate intent.timelineTargetRosterDay.operationalDate intent.timelineTargetStartTime
                 repeatedEndpoints = (civilBoundaryIsRepeated targetShiftDate intent.timelineTargetStartTime, False)
                 selections = noShiftCopyOccurrenceSelections { copyShiftStartOccurrence = startOccurrence }
-            pure $ case rosterSlotElapsedSeconds intent.timelineSourceSlot of
-                Nothing -> RosterTimelineDropInvalid invalidRosterSlotTimingMessage
-                Just duration ->
-                    case resolveRosterTimelineTargetBoundaries venueConfig.timezone duration targetShiftDate intent.timelineTargetStartTime startOccurrence of
-                        Left failure -> RosterTimelineDropBoundaryFailure repeatedEndpoints selections failure
-                        Right boundaries
-                            | not (authoritativeRosterIntervalIsOperationallyValid boundaries) ->
-                                RosterTimelineDropInvalid invalidRosterSlotTimingMessage
-                            | otherwise -> RosterTimelineDropBoundaryReady boundaries
+            let duration = rosterShiftTimingElapsedSeconds intent.timelineSourceTiming
+            pure $ case resolveRosterTimelineTargetBoundaries venueConfig.timezone duration targetShiftDate intent.timelineTargetStartTime startOccurrence of
+                Left failure -> RosterTimelineDropBoundaryFailure repeatedEndpoints selections failure
+                Right boundaries
+                    | not (authoritativeRosterIntervalIsOperationallyValid boundaries) ->
+                        RosterTimelineDropInvalid invalidRosterSlotTimingMessage
+                    | otherwise -> RosterTimelineDropBoundaryReady boundaries
 
 validateRosterShiftDropIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> Bool -> Text -> Text -> IO (Either Text MoveRosterShiftIntent)
 validateRosterShiftDropIntent scope allowSemanticDayNoOp sourceToken targetToken = do
@@ -213,6 +215,7 @@ validateRosterStaffExistingShiftDropTarget scope staffId rosterSlotId = do
         (Just staff, Just rosterSlot) -> do
             rosterDay <- fetch (Id rosterSlot.rosterDayId :: Id RosterDay)
             pure do
+                _ <- either (const Nothing) Just (decodeRosterShiftTiming rosterSlot)
                 guard (rosterDayMatchesScope scope rosterDay)
                 guard (rosterDayIsEditable rosterDay)
                 guard staffEligible
@@ -264,50 +267,54 @@ validateRosterShiftDropTarget scope allowSemanticDayNoOp sourceSlotId dropTarget
                                 pure MoveRosterShiftIntent { sourceSlot, sourceRosterDay, targetRosterDay, targetSlotDefinition, targetRowIndex, moveIsNoOp = False }
                             _ -> Nothing
 
-validateRosterTimelineShiftDropTarget :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWindowScope -> Id RosterSlot -> TimelineShiftDropTarget -> IO (Maybe MoveRosterTimelineShiftIntent)
+validateRosterTimelineShiftDropTarget :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWindowScope -> Id RosterSlot -> TimelineShiftDropTarget -> IO (Either RosterShiftIntegrityError (Maybe MoveRosterTimelineShiftIntent))
 validateRosterTimelineShiftDropTarget scope sourceSlotId target = do
     maybeSourceSlot <- fetchOneOrNothing (query @RosterSlot |> filterWhere (#id, sourceSlotId) |> filterWhere (#deletedAt, Nothing))
     case maybeSourceSlot of
-        Nothing -> pure Nothing
-        Just sourceSlot -> do
-            sourceRosterDay <- fetch (Id sourceSlot.rosterDayId :: Id RosterDay)
-            maybeTargetRosterDay <- fetchOneOrNothing (query @RosterDay |> filterWhere (#id, target.timelineTargetRosterDayId))
-            maybeTargetSlotDefinition <- case maybeTargetRosterDay of
-                Nothing -> pure Nothing
-                Just targetRosterDay -> resolveRosterLaneReference (Just targetRosterDay.id) target.timelineTargetSlotDefinitionId
-            case (maybeTargetRosterDay, maybeTargetSlotDefinition, rosterSlotStartTime sourceSlot, rosterSlotElapsedSeconds sourceSlot) of
-                (Just targetRosterDay, Just targetSlotDefinition, Just sourceStart, Just _) -> do
-                    let targetStartTime = minuteOfDayToTimeOfDay target.timelineTargetOperationalMinute
-                        targetDefinitionMatchesWeek = targetSlotDefinition.rosterDayId == unpackId targetRosterDay.id
-                        isNoOp = sourceSlot.rosterDayId == unpackId targetRosterDay.id
-                            && sourceSlot.rosterLaneId == unpackId targetSlotDefinition.id
-                            && sourceStart == targetStartTime
-                        validTargetStart = isNoOp
-                            || ( isQuarterHourMinutes target.timelineTargetOperationalMinute
-                                 && target.timelineTargetOperationalMinute >= rosterOperationalStartMinuteOfDay
-                                 && target.timelineTargetOperationalMinute <= rosterOperationalFinalSelectableMinute
-                               )
-                    maybeRowIndex <- resolveTimelineTargetRowIndex sourceSlot targetRosterDay targetSlotDefinition
-                    pure do
-                        targetRowIndex <- maybeRowIndex
-                        guard (rosterDayMatchesScope scope sourceRosterDay)
-                        guard (rosterDayMatchesScope scope targetRosterDay)
-                        guard (rosterDayIsEditable sourceRosterDay)
-                        guard (rosterDayIsEditable targetRosterDay)
-                        guard (isRight (rosterShiftAssignment sourceSlot))
-                        guard targetDefinitionMatchesWeek
-                        guard (isNothing targetSlotDefinition.deletedAt)
-                        guard validTargetStart
-                        pure MoveRosterTimelineShiftIntent
-                            { timelineSourceSlot = sourceSlot
-                            , timelineSourceRosterDay = sourceRosterDay
-                            , timelineTargetRosterDay = targetRosterDay
-                            , timelineTargetSlotDefinition = targetSlotDefinition
-                            , timelineTargetRowIndex = targetRowIndex
-                            , timelineTargetStartTime = targetStartTime
-                            , timelineMoveIsNoOp = isNoOp
-                            }
-                _ -> pure Nothing
+        Nothing -> pure (Right Nothing)
+        Just sourceSlot -> case decodeRosterShiftTiming sourceSlot of
+            Left failure -> pure (Left failure)
+            Right sourceTiming -> do
+                sourceRosterDay <- fetch (Id sourceSlot.rosterDayId :: Id RosterDay)
+                maybeTargetRosterDay <- fetchOneOrNothing (query @RosterDay |> filterWhere (#id, target.timelineTargetRosterDayId))
+                maybeTargetSlotDefinition <- case maybeTargetRosterDay of
+                    Nothing -> pure Nothing
+                    Just targetRosterDay -> resolveRosterLaneReference (Just targetRosterDay.id) target.timelineTargetSlotDefinitionId
+                case (maybeTargetRosterDay, maybeTargetSlotDefinition) of
+                    (Just targetRosterDay, Just targetSlotDefinition) -> do
+                        let sourceStart = rosterShiftTimingStartTime sourceTiming
+                            targetStartTime = minuteOfDayToTimeOfDay target.timelineTargetOperationalMinute
+                            targetDefinitionMatchesWeek = targetSlotDefinition.rosterDayId == unpackId targetRosterDay.id
+                            isNoOp = sourceSlot.rosterDayId == unpackId targetRosterDay.id
+                                && sourceSlot.rosterLaneId == unpackId targetSlotDefinition.id
+                                && sourceStart == targetStartTime
+                            validTargetStart = isNoOp
+                                || ( isQuarterHourMinutes target.timelineTargetOperationalMinute
+                                     && target.timelineTargetOperationalMinute >= rosterOperationalStartMinuteOfDay
+                                     && target.timelineTargetOperationalMinute <= rosterOperationalFinalSelectableMinute
+                                   )
+                        maybeRowIndex <- resolveTimelineTargetRowIndex sourceSlot targetRosterDay targetSlotDefinition
+                        pure $ Right do
+                            targetRowIndex <- maybeRowIndex
+                            guard (rosterDayMatchesScope scope sourceRosterDay)
+                            guard (rosterDayMatchesScope scope targetRosterDay)
+                            guard (rosterDayIsEditable sourceRosterDay)
+                            guard (rosterDayIsEditable targetRosterDay)
+                            guard (isRight (rosterShiftAssignment sourceSlot))
+                            guard targetDefinitionMatchesWeek
+                            guard (isNothing targetSlotDefinition.deletedAt)
+                            guard validTargetStart
+                            pure MoveRosterTimelineShiftIntent
+                                { timelineSourceSlot = sourceSlot
+                                , timelineSourceRosterDay = sourceRosterDay
+                                , timelineTargetRosterDay = targetRosterDay
+                                , timelineTargetSlotDefinition = targetSlotDefinition
+                                , timelineTargetRowIndex = targetRowIndex
+                                , timelineTargetStartTime = targetStartTime
+                                , timelineMoveIsNoOp = isNoOp
+                                , timelineSourceTiming = sourceTiming
+                                }
+                    _ -> pure (Right Nothing)
 
 rosterDayMatchesScope :: RosterWindowScope -> RosterDay -> Bool
 rosterDayMatchesScope scope rosterDay =

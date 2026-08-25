@@ -305,7 +305,8 @@ validateHistoricalHolidayFacts ::
     IO [(UUID, Text)]
 validateHistoricalHolidayFacts entries contexts = do
     let awardEntries = filter requiresAwardFacts entries
-        requiredYears = List.nub (concatMap entryYears awardEntries)
+        timingOutcomes = map (\entry -> (entry, timesheetEntryBoundaries entry)) awardEntries
+        requiredYears = List.nub (concatMap (either (const []) entryYears) (map snd timingOutcomes))
     holidays <- if null requiredYears
         then pure []
         else query @PublicHoliday
@@ -318,22 +319,25 @@ validateHistoricalHolidayFacts entries contexts = do
             , isJust holiday.importedAt
             ]
     pure
-        [ (unpackId entry.id, "Historical statewide holiday facts are missing for " <> tshow year <> ".")
-        | entry <- awardEntries
-        , year <- entryYears entry
-        , year `notElem` coveredYears
-        ]
+        ( [ (unpackId entry.id, "Timesheet timing is invalid and must be repaired before payroll.")
+          | (entry, Left _) <- timingOutcomes
+          ]
+            <> [ (unpackId entry.id, "Historical statewide holiday facts are missing for " <> tshow year <> ".")
+               | (entry, Right boundaries) <- timingOutcomes
+               , year <- entryYears boundaries
+               , year `notElem` coveredYears
+               ]
+        )
   where
     requiresAwardFacts entry =
         case Map.lookup (unpackId entry.id) contexts of
             Nothing -> False
             Just calculation -> any ((== HospitalityAward) . (.calculationSource)) calculation.earningsComponents
-    entryYears entry =
-        let startYear = yearOf (timesheetEntryWorkedOn entry)
-            endYear = case timesheetEntryBoundaries entry of
-                Left _           -> startYear
-                Right boundaries -> yearOf (authoritativeEndLocalTime boundaries).localDay
-         in List.nub [startYear, endYear]
+    entryYears boundaries =
+        List.nub
+            [ yearOf (authoritativeStartLocalTime boundaries).localDay
+            , yearOf (authoritativeEndLocalTime boundaries).localDay
+            ]
     yearOf day = let (year, _, _) = toGregorian day in year
 
 data RateBoundaryFacts = RateBoundaryFacts

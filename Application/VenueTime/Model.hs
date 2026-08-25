@@ -1,5 +1,29 @@
 module Application.VenueTime.Model
     ( BoundaryModelError (..)
+    , TimesheetIntegrityError (..)
+    , ValidatedTimesheetTiming
+    , decodeTimesheetTiming
+    , timesheetTimingBoundaries
+    , timesheetTimingWorkedOn
+    , timesheetTimingStartTime
+    , timesheetTimingEndTime
+    , timesheetTimingBreakStartTime
+    , timesheetTimingBreakEndTime
+    , timesheetTimingBreakElapsedSeconds
+    , timesheetTimingElapsedSeconds
+    , timesheetTimingPaidElapsedSeconds
+    , RosterShiftIntegrityError (..)
+    , ValidatedRosterShiftTiming
+    , decodeRosterShiftTiming
+    , rosterShiftTimingBoundaries
+    , rosterShiftTimingStartTime
+    , rosterShiftTimingEndTime
+    , rosterShiftTimingElapsedSeconds
+    , rosterShiftTimingStartOccurrence
+    , rosterShiftTimingEndOccurrence
+    , recoverStoredInstantLocalTime
+    , recoverStoredInstantOccurrence
+    , validatePersistedTimezone
     , BreakBoundaryInput (..)
     , ShiftBoundaryInput (..)
     , ShiftCopyOccurrenceSelections (..)
@@ -54,15 +78,13 @@ module Application.VenueTime.Model
     ) where
 
 import Application.VenueTime
-import Control.Monad (guard)
 import Data.Time.Calendar (addDays, diffDays)
-import Data.Time.Clock (NominalDiffTime, UTCTime, diffUTCTime)
+import Data.Time.Clock (NominalDiffTime, UTCTime)
 import Data.Time.LocalTime (LocalTime (..), TimeOfDay, midnight)
 import Data.Traversable (traverse)
 import Generated.Types
 import IHP.HaskellSupport (set)
 import IHP.Prelude
-import qualified IHP.Prelude as Prelude
 
 mapLeft :: (left -> mappedLeft) -> Either left value -> Either mappedLeft value
 mapLeft transform = either (Left . transform) Right
@@ -74,6 +96,21 @@ data BoundaryModelError
     | BoundaryUnsupportedTimezone !Text
     | BoundaryBreakNotContained
     | BoundaryBreakShapeInvalid
+    | BoundaryShiftShapeInvalid
+    deriving (Eq, Show)
+
+data TimesheetIntegrityError
+    = TimesheetTimingInvalid !BoundaryModelError
+    deriving (Eq, Show)
+
+newtype ValidatedTimesheetTiming = ValidatedTimesheetTiming AuthoritativeBoundaries
+    deriving (Eq, Show)
+
+newtype RosterShiftIntegrityError
+    = RosterShiftTimingInvalid BoundaryModelError
+    deriving (Eq, Show)
+
+newtype ValidatedRosterShiftTiming = ValidatedRosterShiftTiming AuthoritativeBoundaries
     deriving (Eq, Show)
 
 data BreakBoundaryInput = BreakBoundaryInput
@@ -331,6 +368,63 @@ applyRosterSlotBoundaries boundaries slot =
         |> set #endsAt (Just (authoritativeEndsAt boundaries))
         |> set #timezone (authoritativeTimezone boundaries)
 
+decodeTimesheetTiming :: TimesheetEntry -> Either TimesheetIntegrityError ValidatedTimesheetTiming
+decodeTimesheetTiming = mapLeft TimesheetTimingInvalid . fmap ValidatedTimesheetTiming . timesheetEntryBoundaries
+
+timesheetTimingBoundaries :: ValidatedTimesheetTiming -> AuthoritativeBoundaries
+timesheetTimingBoundaries (ValidatedTimesheetTiming boundaries) = boundaries
+
+timesheetTimingWorkedOn :: ValidatedTimesheetTiming -> Day
+timesheetTimingWorkedOn = (.localDay) . authoritativeStartLocalTime . timesheetTimingBoundaries
+
+timesheetTimingStartTime :: ValidatedTimesheetTiming -> TimeOfDay
+timesheetTimingStartTime = (.localTimeOfDay) . authoritativeStartLocalTime . timesheetTimingBoundaries
+
+timesheetTimingEndTime :: ValidatedTimesheetTiming -> TimeOfDay
+timesheetTimingEndTime = (.localTimeOfDay) . authoritativeEndLocalTime . timesheetTimingBoundaries
+
+timesheetTimingBreakStartTime :: ValidatedTimesheetTiming -> Maybe TimeOfDay
+timesheetTimingBreakStartTime = fmap (.localTimeOfDay) . authoritativeBreakStartLocalTime . timesheetTimingBoundaries
+
+timesheetTimingBreakEndTime :: ValidatedTimesheetTiming -> Maybe TimeOfDay
+timesheetTimingBreakEndTime = fmap (.localTimeOfDay) . authoritativeBreakEndLocalTime . timesheetTimingBoundaries
+
+timesheetTimingBreakElapsedSeconds :: ValidatedTimesheetTiming -> NominalDiffTime
+timesheetTimingBreakElapsedSeconds = authoritativeBreakElapsedSeconds . timesheetTimingBoundaries
+
+timesheetTimingElapsedSeconds :: ValidatedTimesheetTiming -> NominalDiffTime
+timesheetTimingElapsedSeconds = authoritativeElapsedSeconds . timesheetTimingBoundaries
+
+timesheetTimingPaidElapsedSeconds :: ValidatedTimesheetTiming -> NominalDiffTime
+timesheetTimingPaidElapsedSeconds = authoritativePaidElapsedSeconds . timesheetTimingBoundaries
+
+decodeRosterShiftTiming :: RosterSlot -> Either RosterShiftIntegrityError ValidatedRosterShiftTiming
+decodeRosterShiftTiming slot = do
+    startsAt <- maybe (Left (RosterShiftTimingInvalid BoundaryShiftShapeInvalid)) Right slot.startsAt
+    endsAt <- maybe (Left (RosterShiftTimingInvalid BoundaryShiftShapeInvalid)) Right slot.endsAt
+    boundaries <-
+        authoritativeBoundariesFromInstants slot.timezone startsAt endsAt Nothing Nothing
+            |> mapLeft RosterShiftTimingInvalid
+    pure (ValidatedRosterShiftTiming boundaries)
+
+rosterShiftTimingBoundaries :: ValidatedRosterShiftTiming -> AuthoritativeBoundaries
+rosterShiftTimingBoundaries (ValidatedRosterShiftTiming boundaries) = boundaries
+
+rosterShiftTimingStartTime :: ValidatedRosterShiftTiming -> TimeOfDay
+rosterShiftTimingStartTime = (.localTimeOfDay) . authoritativeStartLocalTime . rosterShiftTimingBoundaries
+
+rosterShiftTimingEndTime :: ValidatedRosterShiftTiming -> TimeOfDay
+rosterShiftTimingEndTime = (.localTimeOfDay) . authoritativeEndLocalTime . rosterShiftTimingBoundaries
+
+rosterShiftTimingElapsedSeconds :: ValidatedRosterShiftTiming -> NominalDiffTime
+rosterShiftTimingElapsedSeconds = authoritativeElapsedSeconds . rosterShiftTimingBoundaries
+
+rosterShiftTimingStartOccurrence :: ValidatedRosterShiftTiming -> Maybe RepeatedTimeOccurrence
+rosterShiftTimingStartOccurrence = authoritativeStartOccurrence . rosterShiftTimingBoundaries
+
+rosterShiftTimingEndOccurrence :: ValidatedRosterShiftTiming -> Maybe RepeatedTimeOccurrence
+rosterShiftTimingEndOccurrence = authoritativeEndOccurrence . rosterShiftTimingBoundaries
+
 timesheetEntryBoundaries :: TimesheetEntry -> Either BoundaryModelError AuthoritativeBoundaries
 timesheetEntryBoundaries entry =
     authoritativeBoundariesFromInstants
@@ -346,73 +440,73 @@ timesheetEntryOperationalDate = (.operationalDate)
 -- Local start date remains an authoritative instant projection for payroll
 -- component/calendar conditions. Timesheet planning and presentation use
 -- 'timesheetEntryOperationalDate' instead.
-timesheetEntryWorkedOn :: TimesheetEntry -> Day
-timesheetEntryWorkedOn = (.localDay) . authoritativeStartLocalTime . requireTimesheetBoundaries
+timesheetEntryWorkedOn :: TimesheetEntry -> Either TimesheetIntegrityError Day
+timesheetEntryWorkedOn = fmap timesheetTimingWorkedOn . decodeTimesheetTiming
 
-timesheetEntryStartTime :: TimesheetEntry -> TimeOfDay
-timesheetEntryStartTime = (.localTimeOfDay) . authoritativeStartLocalTime . requireTimesheetBoundaries
+timesheetEntryStartTime :: TimesheetEntry -> Either TimesheetIntegrityError TimeOfDay
+timesheetEntryStartTime = fmap timesheetTimingStartTime . decodeTimesheetTiming
 
-timesheetEntryEndTime :: TimesheetEntry -> TimeOfDay
-timesheetEntryEndTime = (.localTimeOfDay) . authoritativeEndLocalTime . requireTimesheetBoundaries
+timesheetEntryEndTime :: TimesheetEntry -> Either TimesheetIntegrityError TimeOfDay
+timesheetEntryEndTime = fmap timesheetTimingEndTime . decodeTimesheetTiming
 
 timesheetEntryHadBreak :: TimesheetEntry -> Bool
 timesheetEntryHadBreak = isJust . (.breakStartsAt)
 
-timesheetEntryBreakStartTime :: TimesheetEntry -> Maybe TimeOfDay
-timesheetEntryBreakStartTime = fmap (.localTimeOfDay) . authoritativeBreakStartLocalTime . requireTimesheetBoundaries
+timesheetEntryBreakStartTime :: TimesheetEntry -> Either TimesheetIntegrityError (Maybe TimeOfDay)
+timesheetEntryBreakStartTime = fmap timesheetTimingBreakStartTime . decodeTimesheetTiming
 
-timesheetEntryBreakEndTime :: TimesheetEntry -> Maybe TimeOfDay
-timesheetEntryBreakEndTime = fmap (.localTimeOfDay) . authoritativeBreakEndLocalTime . requireTimesheetBoundaries
+timesheetEntryBreakEndTime :: TimesheetEntry -> Either TimesheetIntegrityError (Maybe TimeOfDay)
+timesheetEntryBreakEndTime = fmap timesheetTimingBreakEndTime . decodeTimesheetTiming
 
-timesheetEntryBreakElapsedSeconds :: TimesheetEntry -> NominalDiffTime
-timesheetEntryBreakElapsedSeconds = authoritativeBreakElapsedSeconds . requireTimesheetBoundaries
+timesheetEntryBreakElapsedSeconds :: TimesheetEntry -> Either TimesheetIntegrityError NominalDiffTime
+timesheetEntryBreakElapsedSeconds = fmap timesheetTimingBreakElapsedSeconds . decodeTimesheetTiming
 
-timesheetEntryElapsedSeconds :: TimesheetEntry -> NominalDiffTime
-timesheetEntryElapsedSeconds = authoritativeElapsedSeconds . requireTimesheetBoundaries
+timesheetEntryElapsedSeconds :: TimesheetEntry -> Either TimesheetIntegrityError NominalDiffTime
+timesheetEntryElapsedSeconds = fmap timesheetTimingElapsedSeconds . decodeTimesheetTiming
 
-timesheetEntryPaidElapsedSeconds :: TimesheetEntry -> NominalDiffTime
-timesheetEntryPaidElapsedSeconds = authoritativePaidElapsedSeconds . requireTimesheetBoundaries
-
-requireTimesheetBoundaries :: TimesheetEntry -> AuthoritativeBoundaries
-requireTimesheetBoundaries entry =
-    either (error . ("Invalid persisted timesheet boundaries: " <>) . show) Prelude.id (timesheetEntryBoundaries entry)
+timesheetEntryPaidElapsedSeconds :: TimesheetEntry -> Either TimesheetIntegrityError NominalDiffTime
+timesheetEntryPaidElapsedSeconds = fmap timesheetTimingPaidElapsedSeconds . decodeTimesheetTiming
 
 rosterSlotStartTime :: RosterSlot -> Maybe TimeOfDay
-rosterSlotStartTime slot = ((.localTimeOfDay) . localTimeOfStoredInstant slot.timezone) <$> slot.startsAt
+rosterSlotStartTime slot = fmap (.localTimeOfDay) (recoverStoredInstantLocalTime slot.timezone slot.startsAt)
 
 rosterSlotEndTime :: RosterSlot -> Maybe TimeOfDay
-rosterSlotEndTime slot = ((.localTimeOfDay) . localTimeOfStoredInstant slot.timezone) <$> slot.endsAt
+rosterSlotEndTime slot = fmap (.localTimeOfDay) (recoverStoredInstantLocalTime slot.timezone slot.endsAt)
 
 rosterSlotElapsedSeconds :: RosterSlot -> Maybe NominalDiffTime
-rosterSlotElapsedSeconds slot = do
-    start <- slot.startsAt
-    end <- slot.endsAt
-    guard (end > start)
-    pure (diffUTCTime end start)
+rosterSlotElapsedSeconds = fmap rosterShiftTimingElapsedSeconds . eitherToMaybe . decodeRosterShiftTiming
 
 rosterSlotStartOccurrence :: RosterSlot -> Maybe RepeatedTimeOccurrence
-rosterSlotStartOccurrence slot = slot.startsAt >>= occurrenceOfStoredInstant slot.timezone
+rosterSlotStartOccurrence slot = eitherToMaybe (decodeRosterShiftTiming slot) >>= rosterShiftTimingStartOccurrence
 
 rosterSlotEndOccurrence :: RosterSlot -> Maybe RepeatedTimeOccurrence
-rosterSlotEndOccurrence slot = slot.endsAt >>= occurrenceOfStoredInstant slot.timezone
+rosterSlotEndOccurrence slot = eitherToMaybe (decodeRosterShiftTiming slot) >>= rosterShiftTimingEndOccurrence
 
-storedInstantLocalTime :: Text -> UTCTime -> LocalTime
-storedInstantLocalTime = localTimeOfStoredInstant
+storedInstantLocalTime :: Text -> UTCTime -> Either BoundaryModelError LocalTime
+storedInstantLocalTime timezone instant = do
+    validateTimezone timezone
+    pure (resolvedInstantLocalTime (resolvedInstantFromUTC instant))
 
-storedInstantOccurrence :: Text -> UTCTime -> Maybe RepeatedTimeOccurrence
-storedInstantOccurrence = occurrenceOfStoredInstant
+storedInstantOccurrence :: Text -> UTCTime -> Either BoundaryModelError (Maybe RepeatedTimeOccurrence)
+storedInstantOccurrence timezone instant = do
+    validateTimezone timezone
+    pure (resolvedInstantOccurrence (resolvedInstantFromUTC instant))
 
-localTimeOfStoredInstant :: Text -> UTCTime -> LocalTime
-localTimeOfStoredInstant timezone instant =
-    case validateTimezone timezone of
-        Left failure -> error ("Invalid persisted timezone snapshot: " <> show failure)
-        Right () -> resolvedInstantLocalTime (resolvedInstantFromUTC instant)
+recoverStoredInstantLocalTime :: Text -> Maybe UTCTime -> Maybe LocalTime
+recoverStoredInstantLocalTime timezone maybeInstant =
+    either (const Nothing) Just . storedInstantLocalTime timezone =<< maybeInstant
 
-occurrenceOfStoredInstant :: Text -> UTCTime -> Maybe RepeatedTimeOccurrence
-occurrenceOfStoredInstant timezone instant =
-    case validateTimezone timezone of
-        Left failure -> error ("Invalid persisted timezone snapshot: " <> show failure)
-        Right () -> resolvedInstantOccurrence (resolvedInstantFromUTC instant)
+recoverStoredInstantOccurrence :: Text -> Maybe UTCTime -> Maybe RepeatedTimeOccurrence
+recoverStoredInstantOccurrence timezone maybeInstant =
+    join (either (const Nothing) Just . storedInstantOccurrence timezone =<< maybeInstant)
+
+validatePersistedTimezone :: Text -> Either BoundaryModelError ()
+validatePersistedTimezone = validateTimezone
+
+-- Limited to lossy presentation recovery. Strict payroll, copy, publish, and
+-- approval paths must retain the full decode error instead.
+eitherToMaybe :: Either error value -> Maybe value
+eitherToMaybe = either (const Nothing) Just
 
 occurrenceParamValue :: Maybe RepeatedTimeOccurrence -> Text
 occurrenceParamValue Nothing                 = ""

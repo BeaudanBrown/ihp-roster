@@ -39,7 +39,10 @@ This document retains cross-module scheduling and state-transition rules.
 - Staff, shift type, assignment, pay disposition, venue/group scope, and
   authoritative boundaries are revalidated for every save, reassignment, move,
   duplicate, copy, template application, publication, and tampered request.
-  Existing invalid shifts may only be corrected or deleted.
+  Existing invalid shifts remain renderable with a subtle repair indicator and
+  standard edit dialog; untrustworthy clocks stay blank. They may only be
+  corrected or deleted and cannot be published, copied, projected into payroll,
+  or offered as Timesheet suggestions.
 - Effective roster-only shifts still require valid boundaries but skip Award
   projected-duration validation. Timesheet-producing shifts use the canonical
   projected-duration/pay boundary.

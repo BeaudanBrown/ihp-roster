@@ -40,7 +40,6 @@ import Data.Time.Calendar (Day)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (LocalTime (..))
 import Generated.Types
-import qualified IHP.Prelude as Prelude
 import IHP.ViewPrelude
 import Web.Types
 
@@ -101,13 +100,13 @@ renderTimesheetFormFields formOrigin entry staffMembers shiftTypes calendarRevis
         <div class="col">
             <label class="form-label">Shift Start</label>
             {renderTimePickerField (timesheetPickerConfig "startTime" startTimeValue True (hasErrorFor entry "startsAt"))}
-            {renderOccurrenceChooser entry "startsAt" "startOccurrence" "Shift start occurrence" startLocalTime (authoritativeStartOccurrence boundaries)}
+            {maybe mempty (\localTime -> renderOccurrenceChooser entry "startsAt" "startOccurrence" "Shift start occurrence" localTime startOccurrence) startLocalTime}
             {renderFieldError entry "startsAt"}
         </div>
         <div class="col">
             <label class="form-label">Shift End</label>
             {renderTimePickerField (timesheetPickerConfig "endTime" endTimeValue False (hasErrorFor entry "endsAt"))}
-            {renderOccurrenceChooser entry "endsAt" "endOccurrence" "Shift end occurrence" endLocalTime (authoritativeEndOccurrence boundaries)}
+            {maybe mempty (\localTime -> renderOccurrenceChooser entry "endsAt" "endOccurrence" "Shift end occurrence" localTime endOccurrence) endLocalTime}
             {renderFieldError entry "endsAt"}
         </div>
     </div>
@@ -116,18 +115,23 @@ renderTimesheetFormFields formOrigin entry staffMembers shiftTypes calendarRevis
         {renderTimesheetBreakToggle entry}
     </div>
 
-    {renderTimesheetBreakFields entry boundaries breakStartTimeValue breakEndTimeValue pickerStart pickerEnd pickerStep keyboardEnabled}
+    {renderTimesheetBreakFields entry breakStartLocalTime breakEndLocalTime breakStartOccurrence breakEndOccurrence breakStartTimeValue breakEndTimeValue pickerStart pickerEnd pickerStep keyboardEnabled}
     {renderTimesheetStaffCommentField entry currentViewerStaffId}
     {renderTimesheetManagerNoteField entry}
 |]
     where
-        boundaries = either (error . ("Invalid timesheet form boundaries: " <>) . show) Prelude.id (timesheetEntryBoundaries entry)
-        startLocalTime = authoritativeStartLocalTime boundaries
-        endLocalTime = authoritativeEndLocalTime boundaries
-        startTimeValue = timeOfDayToStorageValue startLocalTime.localTimeOfDay
-        endTimeValue = timeOfDayToStorageValue endLocalTime.localTimeOfDay
-        breakStartTimeValue = optionalTimeOfDayToStorageValue (timesheetEntryBreakStartTime entry)
-        breakEndTimeValue = optionalTimeOfDayToStorageValue (timesheetEntryBreakEndTime entry)
+        startLocalTime = recoverStoredInstantLocalTime entry.timezone (Just entry.startsAt)
+        endLocalTime = recoverStoredInstantLocalTime entry.timezone (Just entry.endsAt)
+        breakStartLocalTime = recoverStoredInstantLocalTime entry.timezone entry.breakStartsAt
+        breakEndLocalTime = recoverStoredInstantLocalTime entry.timezone entry.breakEndsAt
+        startOccurrence = recoverStoredInstantOccurrence entry.timezone (Just entry.startsAt)
+        endOccurrence = recoverStoredInstantOccurrence entry.timezone (Just entry.endsAt)
+        breakStartOccurrence = recoverStoredInstantOccurrence entry.timezone entry.breakStartsAt
+        breakEndOccurrence = recoverStoredInstantOccurrence entry.timezone entry.breakEndsAt
+        startTimeValue = maybe "" (timeOfDayToStorageValue . (.localTimeOfDay)) startLocalTime
+        endTimeValue = maybe "" (timeOfDayToStorageValue . (.localTimeOfDay)) endLocalTime
+        breakStartTimeValue = maybe "" (timeOfDayToStorageValue . (.localTimeOfDay)) breakStartLocalTime
+        breakEndTimeValue = maybe "" (timeOfDayToStorageValue . (.localTimeOfDay)) breakEndLocalTime
         dateValueIso = tshow entry.operationalDate :: Text
         timesheetPickerConfig fieldName value autofocus invalid =
             (defaultTimePickerConfig fieldName value pickerStart pickerEnd False)
@@ -139,19 +143,19 @@ renderTimesheetFormFields formOrigin entry staffMembers shiftTypes calendarRevis
         stateFields =
             TimesheetsAction.createTimesheetEntryFromSuggestionActionFields entry.operationalDate calendarRevision selectedStaffFilterId
 
-renderTimesheetBreakFields :: TimesheetEntry -> AuthoritativeBoundaries -> Text -> Text -> Text -> Text -> Int -> Bool -> Html
-renderTimesheetBreakFields entry boundaries breakStartTimeValue breakEndTimeValue pickerStart pickerEnd pickerStep keyboardEnabled =
+renderTimesheetBreakFields :: TimesheetEntry -> Maybe LocalTime -> Maybe LocalTime -> Maybe RepeatedTimeOccurrence -> Maybe RepeatedTimeOccurrence -> Text -> Text -> Text -> Text -> Int -> Bool -> Html
+renderTimesheetBreakFields entry breakStartLocalTime breakEndLocalTime breakStartOccurrence breakEndOccurrence breakStartTimeValue breakEndTimeValue pickerStart pickerEnd pickerStep keyboardEnabled =
     renderAppToggleBreakRegion timesheetBreakRegion (timesheetEntryHadBreak entry) "row mb-3" [hsx|
         <div class="col">
             <label class="form-label">Break Start</label>
             {renderTimePickerField (breakPickerConfig "breakStartTime" breakStartTimeValue (hasErrorFor entry "breakStartsAt"))}
-            {maybe mempty (\localTime -> renderOccurrenceChooser entry "breakStartsAt" "breakStartOccurrence" "Break start occurrence" localTime (authoritativeBreakStartOccurrence boundaries)) (authoritativeBreakStartLocalTime boundaries)}
+            {maybe mempty (\localTime -> renderOccurrenceChooser entry "breakStartsAt" "breakStartOccurrence" "Break start occurrence" localTime breakStartOccurrence) breakStartLocalTime}
             {renderFieldError entry "breakStartsAt"}
         </div>
         <div class="col">
             <label class="form-label">Break End</label>
             {renderTimePickerField (breakPickerConfig "breakEndTime" breakEndTimeValue (hasErrorFor entry "breakEndsAt"))}
-            {maybe mempty (\localTime -> renderOccurrenceChooser entry "breakEndsAt" "breakEndOccurrence" "Break end occurrence" localTime (authoritativeBreakEndOccurrence boundaries)) (authoritativeBreakEndLocalTime boundaries)}
+            {maybe mempty (\localTime -> renderOccurrenceChooser entry "breakEndsAt" "breakEndOccurrence" "Break end occurrence" localTime breakEndOccurrence) breakEndLocalTime}
             {renderFieldError entry "breakEndsAt"}
         </div>
     |]

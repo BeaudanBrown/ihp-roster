@@ -2,6 +2,8 @@ module Test.WageSourceEnforcementSpec where
 
 import Application.EmailDelivery
 import Application.Helper.Mail (AppMailSettings (..))
+import Application.Helper.XeroTimesheetReadiness (XeroReadinessBlocker (..),
+                                                   xeroWageFailureBlockers)
 import Application.WageSourceEnforcement
 import Application.WageSourceNotification.Email
 import Application.WageSourceNotifications (emitLatestAwardDriftNotifications)
@@ -100,6 +102,34 @@ tests = aroundAll withDatabaseTestContext do
                 let archivedOutcome :: WageEntryOutcome
                     archivedOutcome = fromMaybe (error "missing archived outcome") (head archivedOutcomes)
                 archivedOutcome.outcomeCalculation `shouldSatisfy` isLeft
+
+        it "fails a payroll batch closed on corrupt Timesheet timing with an entry-local safe message" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Wage Source Corrupt Timing"
+                approver <- createUserRecord "wage-source-corrupt-timing@example.com" "staff" True
+                importedStaff <- createStaffRecord venue Nothing "Imported" "Worker"
+                importedItem <- createImportedXeroPayItemRecord venue approver "Imported Ordinary" "imported-corrupt-timing" 42
+                importedStaff <- importedStaff
+                    |> set #payAssignmentMode XeroRate
+                    |> set #importedXeroPayItemId (Just importedItem.id)
+                    |> updateRecord
+                now <- getCurrentTime
+                entry <- createApprovedTimesheetEntryRecordAt venue importedStaff approver (fromGregorian 2026 5 5) now
+                let corruptEntry = entry |> set #timezone "not-a-zone"
+
+                enforcement <- enforceFinalWageEntries [corruptEntry]
+                case enforcement of
+                    Left [WageCalculationFailed entryId message] -> do
+                        entryId `shouldBe` unpackId entry.id
+                        message `shouldBe` "Timesheet timing is invalid and must be repaired before payroll."
+                        message `shouldNotSatisfy` Text.isInfixOf "not-a-zone"
+                    outcome -> expectationFailure ("Expected one corrupt-timing failure, got " <> cs (tshow outcome))
+                case xeroWageFailureBlockers enforcement of
+                    [blocker] -> do
+                        blocker.xeroBlockerTimesheetEntryId `shouldBe` Just (unpackId entry.id)
+                        blocker.xeroBlockerMessage `shouldSatisfy` Text.isInfixOf "Timesheet timing is invalid and must be repaired before payroll."
+                        blocker.xeroBlockerMessage `shouldNotSatisfy` Text.isInfixOf "not-a-zone"
+                    blockers -> expectationFailure ("Expected one Xero timing blocker, got " <> cs (tshow blockers))
 
         it "deduplicates Award drift notifications to active platform super admins only" $ withContext do
             withCleanDb do

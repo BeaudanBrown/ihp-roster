@@ -120,21 +120,30 @@ requireCurrentTimesheetCalendarValues anchorDate expectedRevision = do
         redirectToPath (timesheetWindowUrl anchorDate timesheetFiltersFromRequest.filterStaffId)
     pure (timesheetWeekScopeForAnchor venueConfig anchorDate)
 
-newTimesheetEntryForForm :: VenueConfig -> Day -> TimeOfDay -> TimeOfDay -> TimesheetEntry
-newTimesheetEntryForForm venueConfig operationalDate startTime endTime =
-    case resolveShiftBoundaries venueConfig.timezone ShiftBoundaryInput
+newTimesheetEntryForForm :: Day -> AuthoritativeBoundaries -> TimesheetEntry
+newTimesheetEntryForForm operationalDate boundaries =
+    newRecord @TimesheetEntry
+        |> set #operationalDate operationalDate
+        |> applyTimesheetEntryBoundaries boundaries
+
+defaultTimesheetBoundaries :: VenueConfig -> Day -> TimeOfDay -> TimeOfDay -> Either BoundaryModelError AuthoritativeBoundaries
+defaultTimesheetBoundaries venueConfig operationalDate startTime endTime =
+    resolveShiftBoundaries venueConfig.timezone ShiftBoundaryInput
         { shiftBoundaryDate = calendarDayForOperationalClock operationalDate startTime
         , shiftBoundaryStartTime = startTime
         , shiftBoundaryStartOccurrence = Nothing
         , shiftBoundaryEndTime = endTime
         , shiftBoundaryEndOccurrence = Nothing
         , shiftBoundaryBreak = Nothing
-        } of
-        Left failure -> error ("Cannot build default timesheet boundaries: " <> show failure)
-        Right boundaries ->
-            newRecord @TimesheetEntry
-                |> set #operationalDate operationalDate
-                |> applyTimesheetEntryBoundaries boundaries
+        }
+
+ensureTimesheetCreationTimingAvailable :: (?context :: ControllerContext, ?request :: Request) => VenueConfig -> Day -> Maybe UUID -> IO ()
+ensureTimesheetCreationTimingAvailable venueConfig windowStart staffFilterId =
+    case validatePersistedTimezone venueConfig.timezone of
+        Right () -> pure ()
+        Left _ -> do
+            setErrorMessage "Timesheet creation is unavailable until the venue timezone configuration is repaired."
+            redirectToTimesheetWindow windowStart staffFilterId
 
 instance Controller TimesheetsController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
@@ -280,16 +289,21 @@ instance Controller TimesheetsController where
             (_, _, Nothing) -> do
                 setErrorMessage "Please choose a day before creating a timesheet entry."
                 redirectToTimesheetWindow windowStart selectedStaffFilterId
-            (_, defaultShiftType : _, Just workedOn) -> do
-                hasRosterSuggestionForDay <- viewerHasTimesheetSuggestionOnDay selectedStaffFilterId workedOn
-                let timesheetEntry =
-                        newTimesheetEntryForForm venueConfig workedOn defaultStartTime defaultEndTime
-                            |> set #venueId (unpackId currentVenueId)
-                            |> (\entry -> maybe entry (\staff -> set #staffId (unpackId (get #id staff)) entry) currentUserStaff)
-                            |> set #shiftTypeId (unpackId (get #id defaultShiftType))
-                if isHtmxRequest
-                    then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes venueConfig.rosterCalendarRevision hasRosterSuggestionForDay selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
-                    else render NewView { .. }
+            (_, defaultShiftType : _, Just workedOn) ->
+                case defaultTimesheetBoundaries venueConfig workedOn defaultStartTime defaultEndTime of
+                    Left _ -> do
+                        setErrorMessage "Timesheet creation is unavailable until the venue timezone configuration is repaired."
+                        redirectToTimesheetWindow windowStart selectedStaffFilterId
+                    Right boundaries -> do
+                        hasRosterSuggestionForDay <- viewerHasTimesheetSuggestionOnDay selectedStaffFilterId workedOn
+                        let timesheetEntry =
+                                newTimesheetEntryForForm workedOn boundaries
+                                    |> set #venueId (unpackId currentVenueId)
+                                    |> (\entry -> maybe entry (\staff -> set #staffId (unpackId (get #id staff)) entry) currentUserStaff)
+                                    |> set #shiftTypeId (unpackId (get #id defaultShiftType))
+                        if isHtmxRequest
+                            then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes venueConfig.rosterCalendarRevision hasRosterSuggestionForDay selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
+                            else render NewView { .. }
 
     action currentAction@CreateTimesheetEntryAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
@@ -307,28 +321,33 @@ instance Controller TimesheetsController where
         let fallbackWorkedOn = timesheetScope.timesheetWindowStart
         let submittedWorkedOn = fromMaybe fallbackWorkedOn (paramOrNothing @Day "workedOn")
         let (defaultStartTime, defaultEndTime) = defaultShiftTimesForVenueConfig venueConfig
-        let timesheetEntryRecord =
-                newTimesheetEntryForForm venueConfig submittedWorkedOn defaultStartTime defaultEndTime
-                    |> set #venueId (unpackId currentVenueId)
-                    |> buildTimesheetEntry venueConfig currentViewerStaffId
-        hasRosterSuggestionForDay <- viewerHasTimesheetSuggestionOnDay selectedStaffFilterId submittedWorkedOn
+        case defaultTimesheetBoundaries venueConfig submittedWorkedOn defaultStartTime defaultEndTime of
+            Left _ -> do
+                setErrorMessage "Timesheet creation is unavailable until the venue timezone configuration is repaired."
+                redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
+            Right boundaries -> do
+                let timesheetEntryRecord =
+                        newTimesheetEntryForForm submittedWorkedOn boundaries
+                            |> set #venueId (unpackId currentVenueId)
+                            |> buildTimesheetEntry venueConfig currentViewerStaffId
+                hasRosterSuggestionForDay <- viewerHasTimesheetSuggestionOnDay selectedStaffFilterId submittedWorkedOn
 
-        timesheetEntryRecord
-            |> ifValid \case
-                Left timesheetEntry -> do
-                    if isHtmxRequest
-                        then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes venueConfig.rosterCalendarRevision hasRosterSuggestionForDay selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
-                        else render NewView { .. }
-                Right timesheetEntry -> do
-                    ensureStaffAssignmentAllowed timesheetEntry.staffId
-                    ensureShiftTypeAllowed timesheetEntry.shiftTypeId
-                    mutationResult <- createTimesheetEntryMutation timesheetScope timesheetEntry
-                    let createdEntry = mutationResult.liveMutationValue
-                    if isHtmxRequest
-                        then respondWithTimesheetMutationUpdate timesheetScope selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry created" True
-                        else do
-                            setSuccessMessage "Timesheet entry created"
-                            redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
+                timesheetEntryRecord
+                    |> ifValid \case
+                        Left timesheetEntry -> do
+                            if isHtmxRequest
+                                then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes venueConfig.rosterCalendarRevision hasRosterSuggestionForDay selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd pickerStep)
+                                else render NewView { .. }
+                        Right timesheetEntry -> do
+                            ensureStaffAssignmentAllowed timesheetEntry.staffId
+                            ensureShiftTypeAllowed timesheetEntry.shiftTypeId
+                            mutationResult <- createTimesheetEntryMutation timesheetScope timesheetEntry
+                            let createdEntry = mutationResult.liveMutationValue
+                            if isHtmxRequest
+                                then respondWithTimesheetMutationUpdate timesheetScope selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry created" True
+                                else do
+                                    setSuccessMessage "Timesheet entry created"
+                                    redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
 
     action currentAction@NewTimesheetEntryFromSuggestionAction { rosterSlotId } = runBepis currentAction BepisFormAction do
         let requestedStaffFilterId = timesheetFiltersFromRequest.filterStaffId
@@ -347,6 +366,7 @@ instance Controller TimesheetsController where
                 currentUserStaff <- fetchCurrentUserStaff
                 let currentViewerStaffId = unpackId . get #id <$> currentUserStaff
                 venueConfig <- fetchVenueConfig
+                ensureTimesheetCreationTimingAvailable venueConfig (timesheetSuggestionOperationalDate suggestion) selectedStaffFilterId
                 let calendarRevision = venueConfig.rosterCalendarRevision
                 let pickerStart = venueTimePickerStartTimeText venueConfig
                 let pickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
@@ -372,6 +392,7 @@ instance Controller TimesheetsController where
                 currentUserStaff <- fetchCurrentUserStaff
                 let currentViewerStaffId = unpackId . get #id <$> currentUserStaff
                 venueConfig <- fetchVenueConfig
+                ensureTimesheetCreationTimingAvailable venueConfig timesheetScope.timesheetWindowStart selectedStaffFilterId
                 let calendarRevision = venueConfig.rosterCalendarRevision
                 let pickerStart = venueTimePickerStartTimeText venueConfig
                 let pickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
@@ -518,18 +539,22 @@ instance Controller TimesheetsController where
         state <- requireTimesheetSurfaceState parseApproveTimesheetEntryState
         timesheetScope <- requireCurrentTimesheetCalendar state
         selectedStaffFilterId <- filterStaffId <$> canonicalTimesheetFilters (TimesheetViewFilters state.surfaceRequestStaffFilterId state.surfaceRequestRosterGroupFilterId)
-
-        approval <- approveTimesheetEntryMutation timesheetScope timesheetEntry
-        case approval of
-            Left reason -> do
-                setErrorMessage reason
-                redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
-            Right mutationResult ->
-                if isHtmxRequest
-                    then respondWithTimesheetMutationUpdate timesheetScope selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry approved" False
-                    else do
-                        setSuccessMessage "Timesheet entry approved"
+        case decodeTimesheetTiming timesheetEntry of
+            Left _ ->
+                respondAndStop
+                    (Wai.responseLBS status409 [("Content-Type", "text/plain")] "Repair the Timesheet timing before approval.")
+            Right _ -> do
+                approval <- approveTimesheetEntryMutation timesheetScope timesheetEntry
+                case approval of
+                    Left reason -> do
+                        setErrorMessage reason
                         redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
+                    Right mutationResult ->
+                        if isHtmxRequest
+                            then respondWithTimesheetMutationUpdate timesheetScope selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry approved" False
+                            else do
+                                setSuccessMessage "Timesheet entry approved"
+                                redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
 
     action currentAction@UnapproveTimesheetEntryAction { timesheetEntryId } = runBepis currentAction BepisPageAction do
         ensureManagerRole

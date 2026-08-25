@@ -107,11 +107,10 @@ formatShiftTimeRange shift =
         _ -> "Time to be confirmed"
 
 formatLocalTime :: Text -> UTCTime -> Text
-formatLocalTime timezone =
-    Text.pack
-        . formatTime defaultTimeLocale "%-I:%M %P"
-        . (.localTimeOfDay)
-        . storedInstantLocalTime timezone
+formatLocalTime timezone instant =
+    case storedInstantLocalTime timezone instant of
+        Left _ -> "Time unavailable"
+        Right localTime -> Text.pack (formatTime defaultTimeLocale "%-I:%M %P" localTime.localTimeOfDay)
 
 formatDayShort :: Day -> Text
 formatDayShort = Text.pack . formatTime defaultTimeLocale "%-d %B"

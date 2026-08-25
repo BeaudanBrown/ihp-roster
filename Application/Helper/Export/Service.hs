@@ -8,6 +8,7 @@ import Application.Helper.Export.Persistence
 import Application.Helper.Export.ReadModel
 import Application.Helper.Export.Render
 import Application.Helper.Export.Types
+import Application.VenueTime.Model (decodeTimesheetTiming)
 import Application.WageSourceEnforcement (enforceFinalWageEntries,
                                           renderWageEntryFailures)
 import Control.Monad (void)
@@ -18,6 +19,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Data.Time.Clock (addUTCTime, getCurrentTime)
+import Data.Traversable (traverse)
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -36,6 +38,9 @@ requestFixedExport exportType rangeStart rangeEnd
             HourlyBreakdownZip -> requestFixedHourlyBreakdownZipExport rangeStart rangeEnd
             HourlyWageTotalsZip -> requestFixedHourlyWageTotalsZipExport rangeStart rangeEnd
             PayrollEarningsCsv -> requestFixedPayrollEarningsCsvExport rangeStart rangeEnd
+
+invalidTimesheetTimingExportMessage :: Text
+invalidTimesheetTimingExportMessage = "Export blocked because a Timesheet has invalid timing. Repair and reapprove it before exporting."
 
 requestFixedStaffPayCsvExport ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -140,19 +145,20 @@ requestFixedHourlyBreakdownZipExport ::
     IO (Either Text ExportJob)
 requestFixedHourlyBreakdownZipExport rangeStart rangeEnd = do
     entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
+    venueConfig <- fetchVenueConfig
     enforcement <- enforceExportEntries entries
     case enforcement of
         Left message -> pure (Left message)
-        Right ()     -> requestWithEnforcedEntries entries
+        Right () -> case buildHourlyReportWindow venueConfig entries of
+            Left _       -> pure (Left invalidTimesheetTimingExportMessage)
+            Right window -> requestWithEnforcedEntries venueConfig window entries
   where
-    requestWithEnforcedEntries entries = do
-        venueConfig <- fetchVenueConfig
+    requestWithEnforcedEntries venueConfig window entries = do
         activeShiftTypes <- fetchCurrentVenueActiveShiftTypes
         reportShiftTypes <- fetchReportShiftTypes entries
         shiftLabelsByEntryId <- fetchApprovedEntryShiftLabels entries
         versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
         let dates = [rangeStart .. rangeEnd]
-        let window = buildHourlyReportWindow venueConfig entries
         let columns = buildHourlyShiftTypeColumns activeShiftTypes reportShiftTypes entries shiftLabelsByEntryId
         let versionManifests = List.sort (List.nub (Map.elems versionManifestsByEntryId))
         let exportVersionManifest = collapseVersionManifests versionManifests
@@ -206,18 +212,19 @@ requestFixedHourlyWageTotalsZipExport ::
     IO (Either Text ExportJob)
 requestFixedHourlyWageTotalsZipExport rangeStart rangeEnd = do
     entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
+    venueConfig <- fetchVenueConfig
     enforceFinalWageEntries entries >>= \case
         Left failures -> pure (Left (renderWageEntryFailures "Payroll output blocked: " failures))
-        Right calculations -> requestWithCalculations entries calculations
+        Right calculations -> case buildHourlyReportWindow venueConfig entries of
+            Left _       -> pure (Left invalidTimesheetTimingExportMessage)
+            Right window -> requestWithCalculations venueConfig window entries calculations
   where
-    requestWithCalculations entries calculations = do
-        venueConfig <- fetchVenueConfig
+    requestWithCalculations venueConfig window entries calculations = do
         activeShiftTypes <- fetchCurrentVenueActiveShiftTypes
         reportShiftTypes <- fetchReportShiftTypes entries
         shiftLabelsByEntryId <- fetchApprovedEntryShiftLabels entries
         versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
         let dates = [rangeStart .. rangeEnd]
-        let window = buildHourlyReportWindow venueConfig entries
         let columns = buildHourlyShiftTypeColumns activeShiftTypes reportShiftTypes entries shiftLabelsByEntryId
         let calculationsByEntryId = calculationMap entries calculations
         case buildHourlyWageCents entries calculationsByEntryId of
@@ -333,9 +340,13 @@ requestApprovedTimesheetsCsvExport rangeStart rangeEnd = do
     entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
     enforceExportEntries entries >>= \case
         Left message -> pure (Left message)
-        Right () -> Right <$> persistExport entries
+        Right () -> case traverse attachTiming entries of
+            Left _ -> pure (Left "A timesheet entry has invalid timing. Repair and reapprove it before exporting.")
+            Right entriesWithTiming -> Right <$> persistExport entriesWithTiming
   where
-    persistExport entries = do
+    attachTiming entry = (entry,) <$> decodeTimesheetTiming entry
+    persistExport entriesWithTiming = do
+        let entries = map fst entriesWithTiming
         now <- getCurrentTime
         let expiresAt = addUTCTime exportExpirySeconds now
         let exportType = exportJobTypeToText ApprovedTimesheetsCsv
@@ -365,7 +376,7 @@ requestApprovedTimesheetsCsvExport rangeStart rangeEnd = do
         versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
         let versionManifests = List.sort (List.nub (Map.elems versionManifestsByEntryId))
         let exportVersionManifest = collapseVersionManifests versionManifests
-        let csvContents = renderApprovedTimesheetCsv entries staffById approversById versionManifestsByEntryId
+        let csvContents = renderApprovedTimesheetCsv entriesWithTiming staffById approversById versionManifestsByEntryId
         let fileName = buildApprovedTimesheetExportFileName rangeStart rangeEnd
         let finalScope =
                 Aeson.object

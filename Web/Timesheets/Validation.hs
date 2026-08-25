@@ -160,6 +160,10 @@ buildTimesheetEntry venueConfig currentViewerStaffId entry =
     parsedEndOccurrence = parseOccurrenceParam (paramOrDefault "" "endOccurrence")
     parsedBreakStartOccurrence = parseOccurrenceParam (paramOrDefault "" "breakStartOccurrence")
     parsedBreakEndOccurrence = parseOccurrenceParam (paramOrDefault "" "breakEndOccurrence")
+    existingStartTime = fmap (.localTimeOfDay) (recoverStoredInstantLocalTime entry.timezone (Just entry.startsAt))
+    existingEndTime = fmap (.localTimeOfDay) (recoverStoredInstantLocalTime entry.timezone (Just entry.endsAt))
+    existingBreakStartTime = fmap (.localTimeOfDay) (recoverStoredInstantLocalTime entry.timezone entry.breakStartsAt)
+    existingBreakEndTime = fmap (.localTimeOfDay) (recoverStoredInstantLocalTime entry.timezone entry.breakEndsAt)
 
     baseEntry =
         entry
@@ -175,8 +179,8 @@ buildTimesheetEntry venueConfig currentViewerStaffId entry =
             |> attachWhen (isNothing parsedWorkedOn) #startsAt "Please choose a day"
             |> attachWhen (isNothing parsedStartTime) #startsAt "Please select a shift start time"
             |> attachWhen (isNothing parsedEndTime) #endsAt "Please select a shift end time"
-            |> attachWhen (maybe False (not . submittedTimeAllowed (Just (timesheetEntryStartTime entry))) parsedStartTime) #startsAt intervalValidationMessage
-            |> attachWhen (maybe False (not . submittedTimeAllowed (Just (timesheetEntryEndTime entry))) parsedEndTime) #endsAt intervalValidationMessage
+            |> attachWhen (maybe False (not . submittedTimeAllowed existingStartTime) parsedStartTime) #startsAt intervalValidationMessage
+            |> attachWhen (maybe False (not . submittedTimeAllowed existingEndTime) parsedEndTime) #endsAt intervalValidationMessage
             |> attachEitherError parsedStartOccurrence #startsAt
             |> attachEitherError parsedEndOccurrence #endsAt
             |> validateBreakTransport
@@ -194,8 +198,8 @@ buildTimesheetEntry venueConfig currentViewerStaffId entry =
             record
                 |> attachWhen (isNothing parsedBreakStartTime) #breakStartsAt "Please select a break start time"
                 |> attachWhen (isNothing parsedBreakEndTime) #breakEndsAt "Please select a break end time"
-                |> attachWhen (maybe False (not . submittedTimeAllowed (timesheetEntryBreakStartTime entry)) parsedBreakStartTime) #breakStartsAt intervalValidationMessage
-                |> attachWhen (maybe False (not . submittedTimeAllowed (timesheetEntryBreakEndTime entry)) parsedBreakEndTime) #breakEndsAt intervalValidationMessage
+                |> attachWhen (maybe False (not . submittedTimeAllowed existingBreakStartTime) parsedBreakStartTime) #breakStartsAt intervalValidationMessage
+                |> attachWhen (maybe False (not . submittedTimeAllowed existingBreakEndTime) parsedBreakEndTime) #breakEndsAt intervalValidationMessage
                 |> attachEitherError parsedBreakStartOccurrence #breakStartsAt
                 |> attachEitherError parsedBreakEndOccurrence #breakEndsAt
 
@@ -286,6 +290,7 @@ buildTimesheetEntry venueConfig currentViewerStaffId entry =
         case failure of
             BoundaryUnsupportedTimezone _ -> record |> attachFailure #startsAt "This venue timezone is not supported for roster and timesheet entry."
             BoundaryBreakShapeInvalid -> record |> attachFailure #breakStartsAt "Break start and end are both required."
+            BoundaryShiftShapeInvalid -> record |> attachFailure #startsAt "Shift start and end are both required."
             BoundaryBreakNotContained ->
                 record
                     |> attachFailure #breakStartsAt "Break must be within the shift"
@@ -306,17 +311,13 @@ buildTimesheetEntry venueConfig currentViewerStaffId entry =
 
     resolvedStartDate = calendarDateForSubmittedStart <$> parsedWorkedOn <*> parsedStartTime
 
-    calendarDateForSubmittedStart operationalDate startTime
-        | isNothing entry.sourceRosterSlotId
-            && entry.operationalDate == operationalDate
-            && operationalDayForLocalTime existingStartLocal /= operationalDate = existingStartLocal.localDay
-        | otherwise = calendarDayForOperationalClock operationalDate startTime
-      where
-        existingStartLocal =
-            either
-                (error . ("Invalid existing Timesheet boundaries: " <>) . show)
-                authoritativeStartLocalTime
-                (timesheetEntryBoundaries entry)
+    calendarDateForSubmittedStart operationalDate startTime =
+        case recoverStoredInstantLocalTime entry.timezone (Just entry.startsAt) of
+            Just existingStartLocal
+                | isNothing entry.sourceRosterSlotId
+                , entry.operationalDate == operationalDate
+                , operationalDayForLocalTime existingStartLocal /= operationalDate -> existingStartLocal.localDay
+            _ -> calendarDayForOperationalClock operationalDate startTime
 
     intervalValidationMessage = venueShiftTimeValidationMessage venueConfig
     submittedTimeAllowed existingTime submittedTime =

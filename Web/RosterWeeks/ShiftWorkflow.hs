@@ -330,6 +330,7 @@ validateRosterShiftDialogSubmission rosterGroupId rosterDay maybeExistingSlot su
     rosterBoundaryErrorMessage (BoundaryCivilTimeError (NonPositiveResolvedInterval _ _)) = "Shift end must be after shift start."
     rosterBoundaryErrorMessage BoundaryBreakNotContained = "Break boundaries are not valid for this roster shift."
     rosterBoundaryErrorMessage BoundaryBreakShapeInvalid = "Break boundaries are incomplete."
+    rosterBoundaryErrorMessage BoundaryShiftShapeInvalid = "Shift boundaries are incomplete."
 
 parseSubmittedRosterShiftAssignment :: Maybe Text -> Maybe RosterShiftAssignment
 parseSubmittedRosterShiftAssignment maybeValue =

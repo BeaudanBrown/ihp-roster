@@ -121,18 +121,22 @@ calculateEntryForWorkflow ::
     Map.Map UUID (Either Text WageCalculation) ->
     TimesheetEntry ->
     Either Text WageCalculation
-calculateEntryForWorkflow approvedCalculations draftContexts entry
-    | entry.isApproved =
+calculateEntryForWorkflow approvedCalculations draftContexts entry =
+    case decodeTimesheetTiming entry of
+        Left _ -> Left "Timesheet timing is invalid and must be repaired before payroll."
+        Right _ -> calculationForApprovalState
+  where
+    calculationForApprovalState
+        | entry.isApproved =
         case Map.lookup entryId approvedCalculations of
             Nothing -> Left "Approved timesheet pay calculation was not loaded."
             Just (Left message) -> Left message
             Just (Right Nothing) -> Left "Approved timesheet entry has no sealed pay calculation."
             Just (Right (Just result)) -> Right result
-    | otherwise =
-        case Map.lookup entryId draftContexts of
-            Nothing     -> Left "Timesheet calculation was not loaded."
-            Just result -> result
-  where
+        | otherwise =
+            case Map.lookup entryId draftContexts of
+                Nothing     -> Left "Timesheet calculation was not loaded."
+                Just result -> result
     entryId = unpackId entry.id
 
 sourceRequirementForEntry :: WageSourceFacts -> TimesheetEntry -> WageCalculation -> Either Text SourceRequirement
@@ -174,14 +178,14 @@ sourceDiagnosticsFor = sourceDiagnosticsForFacts
 
 entryTargetYears :: TimesheetEntry -> Set.Set Integer
 entryTargetYears entry =
-    Set.fromList (map dayYear [timesheetEntryWorkedOn entry, timesheetEntryWorkedOnAtEnd entry])
-  where
-    timesheetEntryWorkedOnAtEnd candidate =
-        let startDay = timesheetEntryWorkedOn candidate
-            endDay = case timesheetEntryBoundaries candidate of
-                Left _             -> startDay
-                Right boundaries   -> (authoritativeEndLocalTime boundaries).localDay
-         in if endDay < startDay then addDays 1 startDay else endDay
+    case decodeTimesheetTiming entry of
+        Left _ -> Set.singleton (dayYear entry.operationalDate)
+        Right timing ->
+            let boundaries = timesheetTimingBoundaries timing
+                startDay = timesheetTimingWorkedOn timing
+                projectedEndDay = (authoritativeEndLocalTime boundaries).localDay
+                endDay = if projectedEndDay < startDay then addDays 1 startDay else projectedEndDay
+             in Set.fromList (map dayYear [startDay, endDay])
 
 loadWageSourceFacts :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO WageSourceFacts
 loadWageSourceFacts entries =

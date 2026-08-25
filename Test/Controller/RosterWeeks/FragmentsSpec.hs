@@ -18,6 +18,7 @@ import Application.VenueTime (RepeatedTimeOccurrence (..))
 import Application.VenueTime.Model (ShiftBoundaryInput (..),
                                     ShiftCopyOccurrenceSelections (..),
                                     applyRosterSlotBoundaries,
+                                    decodeRosterShiftTiming,
                                     noShiftCopyOccurrenceSelections,
                                     resolveShiftBoundaries,
                                     rosterSlotElapsedSeconds,
@@ -26,6 +27,7 @@ import Application.VenueTime.Model (ShiftBoundaryInput (..),
                                     rosterSlotStartTime, storedInstantLocalTime,
                                     storedInstantOccurrence)
 import Config
+import qualified Control.Exception as Exception
 import Control.Monad (guard)
 import Data.ByteString (ByteString)
 import Data.Char (isDigit)
@@ -41,6 +43,7 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
+import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.Prelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
@@ -1238,14 +1241,14 @@ tests = aroundAll withDatabaseTestContext do
                         . setTestRosterSlotBoundaries (fromGregorian 2026 4 3) (TimeOfDay 2 30 0) (TimeOfDay 4 0 0)
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 rosterSlotCopyAmbiguousEndpoints venueConfig sourceDay targetDay sourceSlot
-                    `shouldBe` (True, False)
+                    `shouldBe` Right (True, False)
                 let selectedOccurrence = noShiftCopyOccurrenceSelections { copyShiftStartOccurrence = Just SecondOccurrence }
                 case copyRosterSlotToDay venueConfig sourceDay targetDay selectedOccurrence sourceSlot of
                     Left _ -> expectationFailure "Expected Operational dates to resolve the selected repeated occurrence"
                     Right copiedSlot -> do
                         copiedStartsAt <- maybe (expectationFailure "Expected copied roster start" >> error "unreachable") pure copiedSlot.startsAt
-                        storedInstantOccurrence copiedSlot.timezone copiedStartsAt `shouldBe` Just SecondOccurrence
-                        (storedInstantLocalTime copiedSlot.timezone copiedStartsAt).localDay `shouldBe` fromGregorian 2026 4 5
+                        storedInstantOccurrence copiedSlot.timezone copiedStartsAt `shouldBe` Right (Just SecondOccurrence)
+                        fmap (.localDay) (storedInstantLocalTime copiedSlot.timezone copiedStartsAt) `shouldBe` Right (fromGregorian 2026 4 5)
                 let sourceToken = "existing:" <> tshow sourceSlot.id
                 targetLane <- ensureRosterWeekSlotDefinitionForSlotName targetDay slotName
                 let targetToken = "new:" <> tshow targetDay.id <> ":" <> tshow targetLane.id <> ":0"
@@ -1278,7 +1281,7 @@ tests = aroundAll withDatabaseTestContext do
                 movedSlot <- fetch sourceSlot.id
                 movedSlot.rosterDayId `shouldBe` unpackId targetDay.id
                 rosterSlotStartOccurrence movedSlot `shouldBe` Just SecondOccurrence
-                fmap (.localDay) (storedInstantLocalTime movedSlot.timezone <$> movedSlot.startsAt)
+                fmap (.localDay) (movedSlot.startsAt >>= either (const Nothing) Just . storedInstantLocalTime movedSlot.timezone)
                     `shouldBe` Just (fromGregorian 2026 4 5)
 
         it "requires a target occurrence before duplicating a slot into the repeated autumn hour" $ withContext do
@@ -1384,6 +1387,7 @@ tests = aroundAll withDatabaseTestContext do
                     >>= updateRecord
                         . setTestRosterSlotBoundaries (fromGregorian 2026 4 3) (TimeOfDay 8 0 0) (TimeOfDay 9 0 0)
                 let sourceToken = "existing:" <> tshow sourceSlot.id
+                sourceTiming <- either (\reason -> expectationFailure (cs (tshow reason)) >> fail "invalid source timing") pure (decodeRosterShiftTiming sourceSlot)
                 targetLane <- ensureRosterWeekSlotDefinitionForSlotName targetDay slotName
                 let directIntent = MoveRosterTimelineShiftIntent
                         { timelineSourceSlot = sourceSlot
@@ -1393,6 +1397,7 @@ tests = aroundAll withDatabaseTestContext do
                         , timelineTargetRowIndex = 0
                         , timelineTargetStartTime = TimeOfDay 2 30 0
                         , timelineMoveIsNoOp = False
+                        , timelineSourceTiming = sourceTiming
                         }
                 directResolution <- withUserAndCurrentVenue manager venue.id do
                     withCurrentControllerContext do
@@ -1434,7 +1439,7 @@ tests = aroundAll withDatabaseTestContext do
                 rosterSlotElapsedSeconds movedSlot `shouldBe` Just (60 * 60)
                 rosterSlotStartTime movedSlot `shouldBe` Just (TimeOfDay 2 30 0)
                 rosterSlotEndTime movedSlot `shouldBe` Just (TimeOfDay 2 30 0)
-                fmap (.localDay) (storedInstantLocalTime movedSlot.timezone <$> movedSlot.startsAt)
+                fmap (.localDay) (movedSlot.startsAt >>= either (const Nothing) Just . storedInstantLocalTime movedSlot.timezone)
                     `shouldBe` Just (fromGregorian 2026 4 5)
 
         it "moves an equal-clock repeated timeline shift using its authoritative elapsed duration" $ withContext do
@@ -1760,6 +1765,39 @@ tests = aroundAll withDatabaseTestContext do
                 updatedSlot <- fetch targetSlot.id
                 updatedSlot.staffId `shouldBe` Just (unpackId replacementStaff.id)
                 response `responseBodyShouldContain` "Staff assigned."
+
+        it "rejects a tampered staff drop onto a corrupt roster shift" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Corrupt Staff Drop"
+                manager <- createUserRecord "roster-corrupt-staff-drop@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                slotName <- fetchSlotNameRecord venue "Early"
+                originalStaff <- createStaffRecord venue Nothing "Alpha" "Crew"
+                replacementStaff <- createStaffRecord venue Nothing "Beta" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                targetSlot <- createCompleteRosterSlotRecord rosterDay slotName originalStaff 0
+                let restoreConstraint = do
+                        sqlExecDiscardResult "UPDATE roster_slots SET timezone = 'Australia/Melbourne' WHERE id = ?" (Only (unpackId targetSlot.id))
+                        sqlExecDiscardResult "ALTER TABLE roster_slots DROP CONSTRAINT IF EXISTS roster_slots_supported_timezone_check" ()
+                        sqlExecDiscardResult "ALTER TABLE roster_slots ADD CONSTRAINT roster_slots_supported_timezone_check CHECK (timezone = 'Australia/Melbourne')" ()
+                (do
+                    sqlExecDiscardResult "DO $$ DECLARE constraint_name TEXT; BEGIN SELECT conname INTO constraint_name FROM pg_constraint WHERE conrelid = 'roster_slots'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%timezone = %Australia/Melbourne%%'; EXECUTE format('ALTER TABLE roster_slots DROP CONSTRAINT %I', constraint_name); END $$" ()
+                    sqlExecDiscardResult "UPDATE roster_slots SET timezone = 'not-a-zone' WHERE id = ?" (Only (unpackId targetSlot.id))
+
+                    response <- withUserAndCurrentVenue manager venue.id do
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callActionWithParams DropRosterStaffAction $
+                                rosterMutationParams 0 <> [ ("rosterGroupId", cs (tshow rosterWeek.fixtureRosterGroupId))
+                                , ("sourceItemKey", cs ("staff:" <> tshow replacementStaff.id))
+                                , ("targetDropzoneKey", cs ("existing:" <> tshow targetSlot.id))
+                                ]
+
+                    response `responseStatusShouldBe` status200
+                    updatedSlot <- fetch targetSlot.id
+                    updatedSlot.staffId `shouldBe` Just (unpackId originalStaff.id)
+                    response `responseBodyShouldContain` "Drop staff onto an editable shift in this roster week."
+                 ) `Exception.finally` restoreConstraint
 
         it "rejects dragged staff assignment on Published roster windows" $ withContext do
             withCleanDb do

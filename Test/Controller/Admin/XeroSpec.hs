@@ -17,6 +17,7 @@ import Application.Helper.XeroAdminTypes (XeroLocalEarningsBucket (..))
 import Application.Helper.XeroTimesheetReadiness (readinessBlockerCodes,
                                                   validateXeroTimesheetReadiness)
 import Application.PayAssignment
+import Application.VenueTime.Model (decodeTimesheetTiming)
 import Application.Xero.Connection (refreshXeroConnectionAccess)
 import Application.Xero.Keepalive (XeroKeepaliveSweepSummary (..),
                                    enqueueDueXeroMaintenanceJobsAt)
@@ -1840,7 +1841,8 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                         |> updateRecord
                 now <- getCurrentTime
                 historicalEntry <- createTimesheetEntryRecord fixture.venue previousStaff (addDays 1 fixture.periodStart)
-                (historicalStaffPayVersion, historicalShiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval fixture.owner.id historicalEntry
+                historicalTiming <- either (\reason -> expectationFailure (cs (tshow reason)) >> fail "invalid test timing") pure (decodeTimesheetTiming historicalEntry)
+                (historicalStaffPayVersion, historicalShiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval fixture.owner.id historicalTiming historicalEntry
                 lockPayVersionsForApproval fixture.owner.id now historicalStaffPayVersion historicalShiftTypePayVersion
                 _ <- Test.Support.withLegacyPayBackfillFixture do
                     historicalEntry

@@ -13,6 +13,7 @@ import Application.VenueTime.Model (rosterSlotElapsedSeconds,
                                     storedInstantLocalTime,
                                     storedInstantOccurrence)
 import Config
+import qualified Control.Exception as Exception
 import qualified Data.ByteString.Char8 as ByteString
 import Data.Coerce (coerce)
 import Data.List (sortOn)
@@ -26,7 +27,7 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
-import IHP.ModelSupport (inputValue)
+import IHP.ModelSupport (inputValue, sqlExecDiscardResult)
 import IHP.Prelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
@@ -130,6 +131,38 @@ tests = aroundAll withDatabaseTestContext do
                 response `responseBodyShouldContain` "roster-day-label-row-primary"
                 response `responseBodyShouldContain` "roster-day-label-row-controls"
                 response `responseBodyShouldContain` cs (rosterRowDomIdText rosterDay.id 1)
+
+        it "renders a corrupt roster shift with a repair indicator instead of throwing" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Corrupt Timing"
+                manager <- createUserRecord "roster-corrupt-timing@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slot <- createRosterSlotRecord rosterDay slotName Nothing 0
+                let restoreConstraint = do
+                        sqlExecDiscardResult "UPDATE roster_slots SET timezone = 'Australia/Melbourne' WHERE id = ?" (Only (unpackId slot.id))
+                        sqlExecDiscardResult "ALTER TABLE roster_slots DROP CONSTRAINT IF EXISTS roster_slots_supported_timezone_check" ()
+                        sqlExecDiscardResult "ALTER TABLE roster_slots ADD CONSTRAINT roster_slots_supported_timezone_check CHECK (timezone = 'Australia/Melbourne')" ()
+                (do
+                    sqlExecDiscardResult "DO $$ DECLARE constraint_name TEXT; BEGIN SELECT conname INTO constraint_name FROM pg_constraint WHERE conrelid = 'roster_slots'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%timezone = %Australia/Melbourne%%'; EXECUTE format('ALTER TABLE roster_slots DROP CONSTRAINT %I', constraint_name); END $$" ()
+                    sqlExecDiscardResult "UPDATE roster_slots SET timezone = 'not-a-zone' WHERE id = ?" (Only (unpackId slot.id))
+
+                    response <- withUserAndCurrentVenue manager venue.id do
+                        callAction (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
+                    timelineResponse <- withUserAndCurrentVenue manager venue.id do
+                        callActionWithParams (ShowRosterWindowAction (tshow (testAnchorForOffset 0)))
+                            [("rosterView", "timeline"), ("dayDate", "2025-01-06")]
+
+                    response `responseStatusShouldBe` status200
+                    response `responseBodyShouldContain` "data-roster-timing-issue=\"true\""
+                    response `responseBodyShouldNotContain` "data-bepis-source-ref=\"shift-drag-source\""
+                    timelineResponse `responseStatusShouldBe` status200
+                    timelineResponse `responseBodyShouldContain` "data-roster-timing-issue=\"true\""
+                    timelineResponse `responseBodyShouldContain` "Timing unavailable"
+                    timelineResponse `responseBodyShouldNotContain` "data-bepis-source-ref=\"timeline-shift-drag-source\""
+                 ) `Exception.finally` restoreConstraint
 
         it "shows statewide public holiday indicators on roster day labels" $ withContext do
             withCleanDb do
@@ -1299,8 +1332,8 @@ tests = aroundAll withDatabaseTestContext do
                     Right valid -> do
                         let slot = applyValidatedRosterShift valid (newRecord @RosterSlot)
                         startsAt <- maybe (expectationFailure "Expected roster start instant" >> error "unreachable") pure slot.startsAt
-                        storedInstantOccurrence slot.timezone startsAt `shouldBe` Just SecondOccurrence
-                        (storedInstantLocalTime slot.timezone startsAt).localDay `shouldBe` fromGregorian 2026 4 5
+                        storedInstantOccurrence slot.timezone startsAt `shouldBe` Right (Just SecondOccurrence)
+                        fmap (.localDay) (storedInstantLocalTime slot.timezone startsAt) `shouldBe` Right (fromGregorian 2026 4 5)
                         rosterSlotElapsedSeconds slot `shouldBe` Just (90 * 60)
 
         it "creates a positive repeated-hour roster shift with equal local clocks" $ withContext do
@@ -2725,8 +2758,8 @@ tests = aroundAll withDatabaseTestContext do
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetchOne
                 copiedStartsAt <- maybe (expectationFailure "Expected copied roster start" >> error "unreachable") pure copiedSlot.startsAt
-                storedInstantOccurrence copiedSlot.timezone copiedStartsAt `shouldBe` Just SecondOccurrence
-                (storedInstantLocalTime copiedSlot.timezone copiedStartsAt).localDay `shouldBe` fromGregorian 2026 4 5
+                storedInstantOccurrence copiedSlot.timezone copiedStartsAt `shouldBe` Right (Just SecondOccurrence)
+                fmap (.localDay) (storedInstantLocalTime copiedSlot.timezone copiedStartsAt) `shouldBe` Right (fromGregorian 2026 4 5)
                 testStartTime copiedSlot `shouldBe` Just (timeOfDay 2 30)
                 testEndTime copiedSlot `shouldBe` Just (timeOfDay 4 0)
                 testDurationMinutes copiedSlot `shouldBe` Just 90

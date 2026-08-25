@@ -33,7 +33,8 @@ import Application.Helper.TimeRules (rosterOperationalFinalSelectableTimeText,
                                      rosterOperationalStartTimeText)
 import Application.Helper.View (staffDisplayName)
 import Application.RosterShiftAssignment (rosterShiftIsOpen)
-import Application.VenueTime.Model (rosterSlotEndTime, rosterSlotStartTime)
+import Application.VenueTime.Model (rosterShiftTimingEndTime,
+                                    rosterShiftTimingStartTime)
 import Data.Coerce (coerce)
 import Data.List (find)
 import qualified Data.Map.Strict as Map
@@ -72,6 +73,7 @@ data ExistingSlotDisplay = ExistingSlotDisplay
     , displayMissingShiftType   :: Bool
     , displayHasShiftType       :: Bool
     , displayIsOpen             :: Bool
+    , displayTimingInvalid      :: Bool
     }
 
 data ReadOnlyExistingSlotCell = ReadOnlyExistingSlotCell
@@ -143,7 +145,7 @@ renderEditableExistingSlotBlockCells _assignmentFilters _staffMembers shiftTypes
 
 renderEditableEndTimeSlotCells :: (?context :: ControllerContext) => ExistingSlotDisplay -> RosterSlotCellTarget -> Text -> Int -> RosterSlot -> Html
 renderEditableEndTimeSlotCells display target groupKey blockIndex slot =
-    renderEditableShiftUnit target groupKey slot 4
+    renderEditableShiftUnit target groupKey slot display.displayTimingInvalid 4
         [ readOnlyTimeCell (classes [("slot-time-cell slot-start-time-cell", True), ("roster-block-start", blockIndex > 0), ("is-roster-shift-publish-required", display.displayMissingStartTime)]) display.displayShiftTypeColourKey display.displayStartLabel
         , readOnlyTimeCell (classes [("slot-time-cell slot-end-time-cell", True), ("is-roster-shift-publish-required", display.displayMissingEndTime)]) display.displayShiftTypeColourKey display.displayEndLabel
         , readOnlyStaffCell display
@@ -152,7 +154,7 @@ renderEditableEndTimeSlotCells display target groupKey blockIndex slot =
 
 renderEditableNoEndTimeSlotCells :: (?context :: ControllerContext) => ExistingSlotDisplay -> RosterSlotCellTarget -> Text -> Int -> RosterSlot -> Html
 renderEditableNoEndTimeSlotCells display target groupKey blockIndex slot =
-    renderEditableShiftUnit target groupKey slot 3
+    renderEditableShiftUnit target groupKey slot display.displayTimingInvalid 3
         [ readOnlyTimeCell (classes [("slot-time-cell", True), ("roster-block-start", blockIndex > 0), ("is-roster-shift-publish-required", display.displayMissingStartTime)]) display.displayShiftTypeColourKey display.displayTimeLabel
         , readOnlyStaffCell display
         , readOnlyShiftTypeCell display
@@ -162,13 +164,17 @@ renderEditableNoEndTimeSlotCells display target groupKey blockIndex slot =
 -- visual cell. Inner cells are visual-only and align to the parent grid via CSS
 -- subgrid, preserving the Start/End/Staff/Role layout without duplicating HTMX
 -- attributes across every cell.
-renderEditableShiftUnit :: (?context :: ControllerContext) => RosterSlotCellTarget -> Text -> RosterSlot -> Int -> [ReadOnlyExistingSlotCell] -> Html
-renderEditableShiftUnit target groupKey slot gridSpan cells =
-    SurfaceInteraction.withFrontendSurfaceSourceRef rosterDragSourceRef groupKey $
-        SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterExistingShiftDropzoneRef groupKey $
-            withRosterShiftGroupHighlight groupKey $
-                withRosterStaffHighlight slot.staffId groupKey $
-                    applyRosterShiftDialogLauncherAttrs (rosterSlotDialogUrl target) [hsx|
+renderEditableShiftUnit :: (?context :: ControllerContext) => RosterSlotCellTarget -> Text -> RosterSlot -> Bool -> Int -> [ReadOnlyExistingSlotCell] -> Html
+renderEditableShiftUnit target groupKey slot timingInvalid gridSpan cells =
+    if timingInvalid
+        then launcher
+        else SurfaceInteraction.withFrontendSurfaceSourceRef rosterDragSourceRef groupKey $
+            SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterExistingShiftDropzoneRef groupKey launcher
+  where
+    launcher =
+        withRosterShiftGroupHighlight groupKey $
+            withRosterStaffHighlight slot.staffId groupKey $
+                applyRosterShiftDialogLauncherAttrs (rosterSlotDialogUrl target) [hsx|
                     <div role="gridcell"
                          class={classes [("roster-shift-unit roster-shift-launcher", True), ("is-roster-shift-open", rosterShiftIsOpen slot)]}
                          style={rosterGridColumnSpanStyle gridSpan}
@@ -239,8 +245,9 @@ renderReadOnlyExistingSlotBlockCells shiftTypes endTimesEnabled publishAttempted
 
 buildExistingSlotDisplay :: [ShiftType] -> Bool -> RosterRenderIndexes -> RosterSlot -> ExistingSlotDisplay
 buildExistingSlotDisplay shiftTypes publishAttempted renderIndexes slot =
-    let currentStartTime = optionalTimeOfDayToStorageValue (rosterSlotStartTime slot)
-        currentEndTime = optionalTimeOfDayToStorageValue (rosterSlotEndTime slot)
+    let (startTime, endTime, timingInvalid) = rosterTimingDisplay renderIndexes slot
+        currentStartTime = optionalTimeOfDayToStorageValue startTime
+        currentEndTime = optionalTimeOfDayToStorageValue endTime
         currentShiftType = findShiftTypeForSlot shiftTypes slot.shiftTypeId
      in ExistingSlotDisplay
         { displayStartLabel = renderTimePickerDisplayLabel "Start" currentStartTime
@@ -255,6 +262,7 @@ buildExistingSlotDisplay shiftTypes publishAttempted renderIndexes slot =
         , displayMissingShiftType = publishAttempted && isJust slot.staffId && isNothing slot.shiftTypeId
         , displayHasShiftType = isJust slot.shiftTypeId
         , displayIsOpen = rosterShiftIsOpen slot
+        , displayTimingInvalid = timingInvalid
         }
 
 profileExistingSlotCounters :: ExistingSlotDisplay -> Bool -> Int -> Html
@@ -305,9 +313,9 @@ readOnlyTimeCell cellClasses colourKey label = ReadOnlyExistingSlotCell
 
 readOnlyStaffCell :: ExistingSlotDisplay -> ReadOnlyExistingSlotCell
 readOnlyStaffCell display = ReadOnlyExistingSlotCell
-    { readOnlyCellClasses = classes [("slot-staff-cell position-relative", True), (renderConflictClass display.displayPrimaryConflict, True), ("is-roster-shift-open", display.displayIsOpen)]
+    { readOnlyCellClasses = classes [("slot-staff-cell position-relative", True), (renderConflictClass display.displayPrimaryConflict, True), ("is-roster-shift-open", display.displayIsOpen), ("is-roster-shift-timing-invalid", display.displayTimingInvalid)]
     , readOnlyCellColourKey = display.displayShiftTypeColourKey
-    , readOnlyCellContent = renderReadOnlyStaffCell display.displayStaffLabel display.displayPrimaryConflict
+    , readOnlyCellContent = renderReadOnlyStaffCell display.displayStaffLabel display.displayPrimaryConflict <> renderRosterTimingIssue display.displayTimingInvalid
     , readOnlyCellConflictAttrs = Just (renderConflictMessage display.displayPrimaryConflict)
     , readOnlyCellExportText = display.displayStaffLabel
     , readOnlyCellExportEndEllipsis = False
@@ -328,7 +336,8 @@ renderReadOnlyExistingSlotCell cell =
     renderExistingSlotCell (Just "gridcell") cell.readOnlyCellClasses cell
 renderDayColumnRosterSlotCard :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterDay -> RosterSlot -> Html
 renderDayColumnRosterSlotCard RosterDayRenderModel { dayIsEditable, dayAssignmentFilters, dayStaffMembers, dayShiftTypes, dayCalendarRevision, dayRenderIndexes, dayRosterEndTimesEnabled, dayPublishAttempted } rosterDay slot =
-    renderDayColumnSlotCardContent dayIsEditable dayAssignmentFilters dayStaffMembers dayShiftTypes dayRosterEndTimesEnabled dayPublishAttempted dayRenderIndexes (ExistingRosterSlotTarget slot.id rosterDay.operationalDate dayCalendarRevision) (rosterShiftIsOpen slot) slot.staffId (rosterSlotStartTime slot) (rosterSlotEndTime slot) slot.shiftTypeId (primaryConflict (lookupConflicts (get #id slot) dayRenderIndexes))
+    let (startTime, endTime, timingInvalid) = rosterTimingDisplay dayRenderIndexes slot
+     in renderDayColumnSlotCardContent dayIsEditable dayAssignmentFilters dayStaffMembers dayShiftTypes dayRosterEndTimesEnabled dayPublishAttempted dayRenderIndexes (ExistingRosterSlotTarget slot.id rosterDay.operationalDate dayCalendarRevision) (rosterShiftIsOpen slot) slot.staffId startTime endTime slot.shiftTypeId (primaryConflict (lookupConflicts (get #id slot) dayRenderIndexes)) timingInvalid
 
 renderDayColumnCreateCard :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterDay -> Maybe RosterSlotCellTarget -> Html
 renderDayColumnCreateCard RosterDayRenderModel { dayIsEditable } rosterDay maybeTarget
@@ -356,11 +365,12 @@ renderDayColumnSlotCard isEditable assignmentFilters staffMembers shiftTypes end
     | otherwise =
         case laneForOperationalDate rosterDay.operationalDate windowLane >>= (\lane -> Map.lookup (unpackId rosterDay.id, rowIndex, unpackId lane.id) renderIndexes.rosterSlotByDayRowSlotName) of
             Just slot ->
-                renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted renderIndexes (ExistingRosterSlotTarget slot.id rosterDay.operationalDate calendarRevision) (rosterShiftIsOpen slot) slot.staffId (rosterSlotStartTime slot) (rosterSlotEndTime slot) slot.shiftTypeId (primaryConflict (lookupConflicts (get #id slot) renderIndexes))
+                let (startTime, endTime, timingInvalid) = rosterTimingDisplay renderIndexes slot
+                 in renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted renderIndexes (ExistingRosterSlotTarget slot.id rosterDay.operationalDate calendarRevision) (rosterShiftIsOpen slot) slot.staffId startTime endTime slot.shiftTypeId (primaryConflict (lookupConflicts (get #id slot) renderIndexes)) timingInvalid
             Nothing -> [hsx|<div class="roster-shift-card roster-shift-card-empty"></div>|]
 
-renderDayColumnSlotCardContent :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterRenderIndexes -> RosterSlotCellTarget -> Bool -> Maybe UUID -> Maybe TimeOfDay -> Maybe TimeOfDay -> Maybe UUID -> Maybe RosterConflict -> Html
-renderDayColumnSlotCardContent isEditable _assignmentFilters _staffMembers shiftTypes endTimesEnabled publishAttempted renderIndexes target isOpen staffId startTime endTime shiftTypeId currentPrimaryConflict =
+renderDayColumnSlotCardContent :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterRenderIndexes -> RosterSlotCellTarget -> Bool -> Maybe UUID -> Maybe TimeOfDay -> Maybe TimeOfDay -> Maybe UUID -> Maybe RosterConflict -> Bool -> Html
+renderDayColumnSlotCardContent isEditable _assignmentFilters _staffMembers shiftTypes endTimesEnabled publishAttempted renderIndexes target isOpen staffId startTime endTime shiftTypeId currentPrimaryConflict timingInvalid =
     let currentStartTime = optionalTimeOfDayToStorageValue startTime
         currentEndTime = optionalTimeOfDayToStorageValue endTime
         currentStaffLabel = if isOpen then "OPEN" else fromMaybe "" (renderAssignedStaffLabel staffId renderIndexes)
@@ -380,7 +390,7 @@ renderDayColumnSlotCardContent isEditable _assignmentFilters _staffMembers shift
                 |]
                 else mempty
         card = [hsx|
-            <article class={classes [("roster-shift-card", True), ("is-roster-shift-open", isOpen), ("roster-shift-card-create", not (targetHasExistingSlot target)), ("roster-shift-launcher", canLaunch)]}
+            <article class={classes [("roster-shift-card", True), ("is-roster-shift-open", isOpen), ("roster-shift-card-create", not (targetHasExistingSlot target)), ("roster-shift-launcher", canLaunch), ("is-roster-shift-timing-invalid", timingInvalid)]}
                      data-roster-shift-colour={currentShiftTypeColourKey}
                      data-roster-shift-launcher={if canLaunch then ("true" :: Text) else ""}
                      tabindex={if canLaunch then ("0" :: Text) else ""}
@@ -391,7 +401,7 @@ renderDayColumnSlotCardContent isEditable _assignmentFilters _staffMembers shift
                     </div>
                     {endTimeField}
                     <div class={classes [("roster-shift-card-field roster-shift-card-staff", True), (renderConflictClass currentPrimaryConflict, True)]}>
-                        {if targetHasExistingSlot target then renderReadOnlyStaffCell currentStaffLabel currentPrimaryConflict else renderReadOnlyCell "Add shift"}
+                        {if targetHasExistingSlot target then renderReadOnlyStaffCell currentStaffLabel currentPrimaryConflict <> renderRosterTimingIssue timingInvalid else renderReadOnlyCell "Add shift"}
                     </div>
                     <div class={classes [("roster-shift-card-field roster-shift-card-code", True), ("is-shift-type-required", missingShiftType)]}
                          data-roster-shift-colour={currentShiftTypeColourKey}>
@@ -409,7 +419,7 @@ renderDayColumnSlotCardContent isEditable _assignmentFilters _staffMembers shift
             if isEditable
                 then withRosterShiftGroupHighlight groupKey launcherCard
                 else launcherCard
-     in if isEditable && targetHasExistingSlot target
+     in if isEditable && targetHasExistingSlot target && not timingInvalid
             then SurfaceInteraction.withFrontendSurfaceSourceRef rosterDragSourceRef groupKey $
                 SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterExistingShiftDropzoneRef groupKey linkedLauncherCard
             else linkedLauncherCard
@@ -570,6 +580,16 @@ renderReadOnlyDayColumnShiftTypeBadge staffId selectedShiftType isPublishRequire
   where
     fullLabel = shiftTypeBadgeLabel staffId selectedShiftType
 
+rosterTimingDisplay :: RosterRenderIndexes -> RosterSlot -> (Maybe TimeOfDay, Maybe TimeOfDay, Bool)
+rosterTimingDisplay indexes slot =
+    case Map.lookup (unpackId slot.id) indexes.rosterTimingBySlotId of
+        Just (Right timing) -> (Just (rosterShiftTimingStartTime timing), Just (rosterShiftTimingEndTime timing), False)
+        _                   -> (Nothing, Nothing, True)
+
+renderRosterTimingIssue :: Bool -> Html
+renderRosterTimingIssue False = mempty
+renderRosterTimingIssue True = [hsx|<span class="roster-shift-timing-issue text-warning" data-roster-timing-issue="true" title="Timing needs repair">!</span>|]
+
 renderReadOnlyStaffCell :: Text -> Maybe RosterConflict -> Html
 renderReadOnlyStaffCell currentStaffLabel currentPrimaryConflict =
     mconcat
@@ -612,6 +632,7 @@ renderConflictClass :: Maybe RosterConflict -> Text
 renderConflictClass Nothing = ""
 renderConflictClass (Just conflict) =
     case conflict.conflictType of
+        InvalidRosterTiming           -> "conflict-critical"
         DuplicateAssignment           -> "conflict-critical"
         LeaveConflict                 -> "conflict-critical"
         LateToEarlyConflict           -> "conflict-critical"

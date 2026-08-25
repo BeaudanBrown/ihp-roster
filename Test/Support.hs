@@ -43,9 +43,9 @@ import IHP.ControllerPrelude
 import IHP.ControllerSupport (Respond)
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
+import qualified IHP.Log as Log
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import IHP.LoginSupport.Middleware (initAuthentication)
-import qualified IHP.Log as Log
 import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.Prelude
 import qualified IHP.Prelude as Prelude
@@ -79,12 +79,12 @@ class TestLocalTimeRecord record localTime | record -> localTime where
     setTestEndTime :: localTime -> record -> record
 
 instance TestLocalTimeRecord TimesheetEntry TimeOfDay where
-    testStartTime = timesheetEntryStartTime
-    testEndTime = timesheetEntryEndTime
+    testStartTime = timesheetTimingStartTime . testValidatedTimesheetTiming
+    testEndTime = timesheetTimingEndTime . testValidatedTimesheetTiming
     setTestStartTime startTime entry =
-        entry |> set #startsAt (resolveTestFixtureInstant entry.timezone (timesheetEntryWorkedOn entry) startTime)
+        entry |> set #startsAt (resolveTestFixtureInstant entry.timezone (timesheetTimingWorkedOn (testValidatedTimesheetTiming entry)) startTime)
     setTestEndTime endTime entry =
-        let startLocal = storedInstantLocalTime entry.timezone entry.startsAt
+        let startLocal = testStoredInstantLocalTime entry.timezone entry.startsAt
             endDay = addDays (if endTime <= startLocal.localTimeOfDay then 1 else 0) startLocal.localDay
          in entry |> set #endsAt (resolveTestFixtureInstant entry.timezone endDay endTime)
 
@@ -119,6 +119,14 @@ resolveTestFixtureInstant rawTimezone day timeOfDay =
      in either (error . ("Invalid test fixture boundary: " <>) . show) Prelude.id $
             resolveBoundaryInstant timezone day timeOfDay occurrence
 
+testValidatedTimesheetTiming :: TimesheetEntry -> ValidatedTimesheetTiming
+testValidatedTimesheetTiming =
+    either (error . ("Invalid test Timesheet timing: " <>) . show) Prelude.id . decodeTimesheetTiming
+
+testStoredInstantLocalTime :: Text -> UTCTime -> LocalTime
+testStoredInstantLocalTime timezone =
+    either (error . ("Invalid test persisted timezone: " <>) . show) Prelude.id . storedInstantLocalTime timezone
+
 testFixtureTimezone :: Text -> Text
 testFixtureTimezone timezone
     | Text.null timezone = melbourneTimeZoneName
@@ -127,11 +135,11 @@ testFixtureTimezone timezone
 rosterSlotFixtureDay :: RosterSlot -> Day
 rosterSlotFixtureDay slot =
     case slot.startsAt <|> slot.endsAt of
-        Just instant -> (storedInstantLocalTime (testFixtureTimezone slot.timezone) instant).localDay
+        Just instant -> (testStoredInstantLocalTime (testFixtureTimezone slot.timezone) instant).localDay
         Nothing -> defaultWeekEpoch
 
 testWorkedOn :: TimesheetEntry -> Day
-testWorkedOn = timesheetEntryWorkedOn
+testWorkedOn = timesheetTimingWorkedOn . testValidatedTimesheetTiming
 
 setTestWorkedOn :: Day -> TimesheetEntry -> TimesheetEntry
 setTestWorkedOn targetDay entry
@@ -149,9 +157,9 @@ setTestWorkedOn targetDay entry
          in applyTimesheetEntryBoundaries boundaries entry
     | otherwise =
         let timezone = entry.timezone
-            sourceDay = timesheetEntryWorkedOn entry
+            sourceDay = timesheetTimingWorkedOn (testValidatedTimesheetTiming entry)
             moveBoundary instant =
-                let local = storedInstantLocalTime timezone instant
+                let local = testStoredInstantLocalTime timezone instant
                     movedDay = addDays (diffDays local.localDay sourceDay) targetDay
                  in resolveTestFixtureInstant timezone movedDay local.localTimeOfDay
          in entry
@@ -195,19 +203,19 @@ instance TestBreakRecord TimesheetEntry where
              in entry
                     |> set #breakStartsAt (Just breakStart)
                     |> set #breakEndsAt (Just (addUTCTime 1800 breakStart))
-    testBreakStartTime = timesheetEntryBreakStartTime
+    testBreakStartTime = timesheetTimingBreakStartTime . testValidatedTimesheetTiming
     setTestBreakStartTime Nothing entry = entry |> set #breakStartsAt Nothing
     setTestBreakStartTime (Just breakTime) entry =
-        let startLocal = storedInstantLocalTime entry.timezone entry.startsAt
+        let startLocal = testStoredInstantLocalTime entry.timezone entry.startsAt
             breakDay = addDays (if breakTime < startLocal.localTimeOfDay then 1 else 0) startLocal.localDay
          in entry |> set #breakStartsAt (Just (resolveTestFixtureInstant entry.timezone breakDay breakTime))
-    testBreakEndTime = timesheetEntryBreakEndTime
+    testBreakEndTime = timesheetTimingBreakEndTime . testValidatedTimesheetTiming
     setTestBreakEndTime Nothing entry = entry |> set #breakEndsAt Nothing
     setTestBreakEndTime (Just breakTime) entry =
-        let startLocal = storedInstantLocalTime entry.timezone entry.startsAt
+        let startLocal = testStoredInstantLocalTime entry.timezone entry.startsAt
             breakDay = addDays (if breakTime < startLocal.localTimeOfDay then 1 else 0) startLocal.localDay
          in entry |> set #breakEndsAt (Just (resolveTestFixtureInstant entry.timezone breakDay breakTime))
-    testBreakMinutes = floor . (/ 60) . timesheetEntryBreakElapsedSeconds
+    testBreakMinutes = floor . (/ 60) . timesheetTimingBreakElapsedSeconds . testValidatedTimesheetTiming
     setTestBreakMinutes minutes entry =
         case entry.breakStartsAt of
             Nothing -> entry
@@ -608,7 +616,8 @@ createApprovedTimesheetEntryRecordAtWithShiftTimes venue staff approver shiftTyp
         |> set #operationalDate workedOn
         |> applyTimesheetEntryBoundaries boundaries
         |> createRecord
-    (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval approver.id entry
+    let timing = testValidatedTimesheetTiming entry
+    (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval approver.id timing entry
     lockPayVersionsForApproval approver.id approvedAt staffPayVersion shiftTypePayVersion
     approvedEntry <- withLegacyPayBackfillFixture do
         entry

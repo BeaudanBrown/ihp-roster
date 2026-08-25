@@ -15,13 +15,15 @@ import Application.Helper.Profiling (profileHtmlComponent)
 import Application.Helper.TimeRules (normalizeWindowEndMinute)
 import Application.RosterShiftAssignment (rosterShiftIsOpen,
                                           rosterShiftIsStaffAssigned)
-import Application.VenueTime.Model (rosterSlotElapsedSeconds, rosterSlotEndTime,
-                                    rosterSlotStartTime)
-import Control.Monad (guard)
+import Application.VenueTime.Model (RosterShiftIntegrityError,
+                                    ValidatedRosterShiftTiming,
+                                    rosterShiftTimingElapsedSeconds,
+                                    rosterShiftTimingEndTime,
+                                    rosterShiftTimingStartTime)
 import Data.Fixed (Pico)
 import Data.List (sortOn)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe, mapMaybe)
+import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
 import qualified Data.Time.Calendar as Calendar
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -38,6 +40,7 @@ import Web.RosterWeeks.FrontendSurface (RosterDayTimelineScopeValue (..),
                                         rosterDayTimelineShiftGroupLinkedHighlight,
                                         rosterDayTimelineSourceRef,
                                         rosterDayTimelineSurfaceImpl)
+import Web.RosterWeeks.Rows (rosterSlotHasVisibleData)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
 import Web.View.RosterWeeks.Grid.Cells (RosterSlotCellTarget (ExistingRosterSlotTarget),
@@ -100,10 +103,12 @@ renderRosterDayTimelineMounted RosterRenderData { rosterWindowScope } rosterDay 
                 } body
 
 data TimelineShift = TimelineShift
-    { timelineShiftSlot     :: !RosterSlot
-    , timelineShiftStartMin :: !Double
-    , timelineShiftEndMin   :: !Double
-    , timelineShiftTrack    :: !Int
+    { timelineShiftSlot          :: !RosterSlot
+    , timelineShiftStartMin      :: !Double
+    , timelineShiftEndMin        :: !Double
+    , timelineShiftTrack         :: !Int
+    , timelineShiftTimeLabel     :: !Text
+    , timelineShiftTimingInvalid :: !Bool
     }
 
 renderRosterDayTimelineContent :: Maybe Text -> RosterRenderData -> RosterDay -> Html
@@ -123,7 +128,7 @@ renderRosterDayTimelineContent maybeSwapOob rosterData rosterDay =
                  hx-swap-oob={maybeSwapOob}>
             <div class="roster-day-timeline" role="grid" aria-label={Text.pack (formatTime defaultTimeLocale "%A %d/%m roster timeline" date)}>
                 {renderTimelineScale timelineWindow}
-                {forEach rosterData.orderedSlotNames (renderTimelineLane timelineWindow editable rosterDay rosterData.rosterCalendarRevision staffById shiftTypeById slotsByDefinition)}
+                {forEach rosterData.orderedSlotNames (renderTimelineLane timelineWindow editable rosterDay rosterData.rosterCalendarRevision staffById shiftTypeById slotsByDefinition rosterData.renderIndexes.rosterTimingBySlotId)}
             </div>
         </section>
     |]
@@ -160,11 +165,11 @@ renderTimelineScaleTick timelineWindow minute = [hsx|
     </div>
 |]
 
-renderTimelineLane :: TimelineWindow -> Bool -> RosterDay -> Int -> Map.Map UUID.UUID Staff -> Map.Map UUID.UUID ShiftType -> Map.Map UUID.UUID [RosterSlot] -> RosterWindowLane -> Html
-renderTimelineLane timelineWindow editable rosterDay calendarRevision staffById shiftTypeById slotsByDefinition windowLane =
+renderTimelineLane :: TimelineWindow -> Bool -> RosterDay -> Int -> Map.Map UUID.UUID Staff -> Map.Map UUID.UUID ShiftType -> Map.Map UUID.UUID [RosterSlot] -> Map.Map UUID.UUID (Either RosterShiftIntegrityError ValidatedRosterShiftTiming) -> RosterWindowLane -> Html
+renderTimelineLane timelineWindow editable rosterDay calendarRevision staffById shiftTypeById slotsByDefinition timingBySlotId windowLane =
     let maybeLane = laneForOperationalDate rosterDay.operationalDate windowLane
-        laneSlots = maybe [] (\lane -> Map.findWithDefault [] (unpackId lane.id) slotsByDefinition) maybeLane
-        positionedShifts = assignTimelineTracks (mapMaybe (timelineShiftFromSlot timelineWindow) laneSlots)
+        laneSlots = filter rosterSlotHasVisibleData (maybe [] (\lane -> Map.findWithDefault [] (unpackId lane.id) slotsByDefinition) maybeLane)
+        positionedShifts = assignTimelineTracks (map (timelineShiftFromSlot timelineWindow timingBySlotId) laneSlots)
         trackCount = max 1 (1 + maximum (0 : map timelineShiftTrack positionedShifts))
         assignedShiftCount = length (filter (rosterShiftIsStaffAssigned . (.timelineShiftSlot)) positionedShifts)
         dropzones = if editable then maybe [] (timelineDropzones timelineWindow rosterDay) maybeLane else []
@@ -198,21 +203,24 @@ renderTimelineDropzone timelineWindow (minute, targetKey) =
     |]
 
 renderTimelineShift :: TimelineWindow -> Bool -> Map.Map UUID.UUID Staff -> Map.Map UUID.UUID ShiftType -> Day -> Int -> TimelineShift -> Html
-renderTimelineShift timelineWindow editable staffById shiftTypeById anchorDate calendarRevision TimelineShift { timelineShiftSlot, timelineShiftStartMin, timelineShiftEndMin, timelineShiftTrack } =
+renderTimelineShift timelineWindow editable staffById shiftTypeById anchorDate calendarRevision TimelineShift { timelineShiftSlot, timelineShiftStartMin, timelineShiftEndMin, timelineShiftTrack, timelineShiftTimeLabel, timelineShiftTimingInvalid } =
     let isOpen = rosterShiftIsOpen timelineShiftSlot
         canLaunch = editable || (isOpen && hasRole Manager)
         staffLabel = if isOpen then "OPEN" else maybe "Unassigned" staffTimelineLabel (timelineShiftSlot.staffId >>= (`Map.lookup` staffById))
         shiftTypeLabel = maybe "Shift" (.name) (timelineShiftSlot.shiftTypeId >>= (`Map.lookup` shiftTypeById))
         groupKey = "existing:" <> tshow timelineShiftSlot.id
         shiftArticle = [hsx|
-            <article class={classes [("roster-day-timeline-shift", True), ("is-roster-shift-open", isOpen), ("roster-shift-launcher", canLaunch), ("is-roster-shift-draggable", editable)]}
+            <article class={classes [("roster-day-timeline-shift", True), ("is-roster-shift-open", isOpen), ("roster-shift-launcher", canLaunch), ("is-roster-shift-draggable", editable && not timelineShiftTimingInvalid), ("is-roster-shift-timing-invalid", timelineShiftTimingInvalid)]}
                      tabindex={if canLaunch then ("0" :: Text) else ""}
                      aria-label={if isOpen then ("Open shift" :: Text) else staffLabel}>
-                <div class="roster-day-timeline-shift-time">{timelineShiftTimeLabel timelineShiftSlot}</div>
+                <div class="roster-day-timeline-shift-time">{timelineShiftTimeLabel}{timingIssue}</div>
                 <div class="roster-day-timeline-shift-staff">{staffLabel}</div>
                 <div class="roster-day-timeline-shift-role" title={shiftTypeLabel}>{shiftTypeLabel}</div>
             </article>
         |]
+        timingIssue = if timelineShiftTimingInvalid
+            then [hsx|<span class="roster-shift-timing-issue text-warning" data-roster-timing-issue="true" title="Timing needs repair">!</span>|]
+            else mempty
         launchableArticle =
             if canLaunch
                 then applyRosterShiftDialogLauncherAttrs (rosterSlotDialogUrl (ExistingRosterSlotTarget timelineShiftSlot.id anchorDate calendarRevision)) shiftArticle
@@ -223,7 +231,7 @@ renderTimelineShift timelineWindow editable staffById shiftTypeById anchorDate c
                 {launchableArticle}
             </div>
         |]
-     in if editable
+     in if editable && not timelineShiftTimingInvalid
             then SurfaceInteraction.withFrontendSurfaceSourceRef rosterDayTimelineSourceRef groupKey $
                 SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightSource rosterDayTimelineShiftGroupLinkedHighlight groupKey $
                     SurfaceLinkedHighlight.withFrontendSurfaceLinkedHighlightMember rosterDayTimelineShiftGroupLinkedHighlight groupKey Nothing card
@@ -238,20 +246,32 @@ normalizeTimelineMinute TimelineWindow { timelineWindowStartMinute } TimeOfDay {
     let minute = fromIntegral (todHour * 60 + todMin) + realToFrac (todSec :: Pico) / 60
      in if minute < fromIntegral timelineWindowStartMinute then minute + 24 * 60 else minute
 
-timelineShiftFromSlot :: TimelineWindow -> RosterSlot -> Maybe TimelineShift
-timelineShiftFromSlot timelineWindow slot = do
-    start <- rosterSlotStartTime slot
-    duration <- rosterSlotElapsedSeconds slot
-    guard (duration > 0)
-    let startMin = normalizeTimelineMinute timelineWindow start
-        endMin = startMin + realToFrac duration / 60
-    pure TimelineShift { timelineShiftSlot = slot, timelineShiftStartMin = startMin, timelineShiftEndMin = endMin, timelineShiftTrack = 0 }
-
-timelineShiftTimeLabel :: RosterSlot -> Text
-timelineShiftTimeLabel slot =
-    case (rosterSlotStartTime slot, rosterSlotEndTime slot) of
-        (Just start, Just end) -> timeLabel start <> "–" <> timeLabel end
-        _                      -> "Invalid time"
+timelineShiftFromSlot :: TimelineWindow -> Map.Map UUID.UUID (Either RosterShiftIntegrityError ValidatedRosterShiftTiming) -> RosterSlot -> TimelineShift
+timelineShiftFromSlot timelineWindow timingBySlotId slot =
+    case Map.lookup (unpackId slot.id) timingBySlotId of
+        Just (Right timing) ->
+            let start = rosterShiftTimingStartTime timing
+                end = rosterShiftTimingEndTime timing
+                startMin = normalizeTimelineMinute timelineWindow start
+                endMin = startMin + realToFrac (rosterShiftTimingElapsedSeconds timing) / 60
+             in TimelineShift
+                    { timelineShiftSlot = slot
+                    , timelineShiftStartMin = startMin
+                    , timelineShiftEndMin = endMin
+                    , timelineShiftTrack = 0
+                    , timelineShiftTimeLabel = timeLabel start <> "–" <> timeLabel end
+                    , timelineShiftTimingInvalid = False
+                    }
+        _ ->
+            let startMin = fromIntegral timelineWindow.timelineWindowStartMinute
+             in TimelineShift
+                    { timelineShiftSlot = slot
+                    , timelineShiftStartMin = startMin
+                    , timelineShiftEndMin = startMin + 15
+                    , timelineShiftTrack = 0
+                    , timelineShiftTimeLabel = "Timing unavailable"
+                    , timelineShiftTimingInvalid = True
+                    }
   where
     timeLabel = Text.pack . formatTime defaultTimeLocale "%H:%M"
 
