@@ -26,6 +26,7 @@ module Web.RosterWeeks.Mutations
 import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWindowScopes)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource
+import Application.Helper.LiveUpdate.DurablePublisher (persistDurableInvalidationInCurrentTransaction)
 import Application.Helper.SurfaceResource
 import Application.RosterPublication.Mutations (withRosterWindowDateLockInCurrentTransaction)
 import Application.Staff.Mutations (withStaffOperationalLocksInCurrentTransaction)
@@ -105,29 +106,34 @@ copyRosterWindowFromSourceMutation ::
     Id RosterGroup ->
     Day ->
     Day ->
-    IO (Either RosterWeekCopyError (LiveMutationResult ()))
-copyRosterWindowFromSourceMutation selections rosterGroupId sourceStart targetStart =
-    withDurableRosterMutation "roster.window.copy" do
-        venueConfig <- fetchVenueConfig
-        let targetScope = RosterWindowScope
-                { rosterWindowVenueId = currentVenueId
-                , rosterWindowRosterGroupId = rosterGroupId
-                , rosterWindowStart = targetStart
-                , rosterWindowEnd = addDays 7 targetStart
-                , rosterWindowCalendarRevision = venueConfig.rosterCalendarRevision
-                }
+    IO (Either RosterCopyError (LiveMutationResult ()))
+copyRosterWindowFromSourceMutation selections rosterGroupId sourceStart targetStart = do
+    venueConfig <- fetchVenueConfig
+    let targetScope = RosterWindowScope
+            { rosterWindowVenueId = currentVenueId
+            , rosterWindowRosterGroupId = rosterGroupId
+            , rosterWindowStart = targetStart
+            , rosterWindowEnd = addDays 7 targetStart
+            , rosterWindowCalendarRevision = venueConfig.rosterCalendarRevision
+            }
+    withRosterCopyTransaction do
         copyResult <- withRosterWindowMutationLock targetScope do
             lockedVenueConfig <- fetchVenueConfig
             calendarError <- requestRosterCalendarRevisionError lockedVenueConfig
             case calendarError of
-                Just message -> pure (Left (RosterWeekCopyPersistenceError message))
+                Just _message -> pure (Left RosterCopyPersistenceRejected)
                 Nothing -> do
                     targetWindow <- fetchRosterWindow currentVenueId rosterGroupId targetStart
                     let targetHasPublishedDay = any (maybe False ((== Published) . (.publicationState)) . (.persistedRosterDay)) targetWindow.rosterWindowProjectedDays
                     if targetHasPublishedDay
-                        then pure (Left (RosterWeekCopyPersistenceError "Published roster windows are read-only. Return it to Draft before copying."))
+                        then pure (Left RosterCopyTargetPublished)
                         else copyRosterWindowByDates selections currentVenueId rosterGroupId sourceStart targetStart
-        traverse (\() -> pure (liveMutationResult () (rosterWeekStructuralTouchedResources targetScope))) copyResult
+        case copyResult of
+            Left copyError -> pure (Left copyError)
+            Right () -> do
+                let result = liveMutationResult () (rosterWeekStructuralTouchedResources targetScope)
+                _ <- persistDurableInvalidationInCurrentTransaction "roster.window.copy" result.liveMutationTouchedResources
+                pure (Right result)
 
 toggleRosterWeekLiveStatusMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterWindowState -> Bool -> IO (Either Text (LiveMutationResult RosterWindowState))
 toggleRosterWeekLiveStatusMutation scope windowState nextLiveStatus =

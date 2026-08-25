@@ -7,7 +7,12 @@ module Web.RosterWeeks.Service
     , resolveRosterTimelineTargetBoundaries
     , rosterSlotTimesheetSourceChanged
     , rosterWindowCopyAmbiguousEndpoints
-    , RosterWeekCopyError (..)
+    , RosterCopyError (..)
+    , RosterCopyFault (..)
+    , rosterCopySafeMessage
+    , recordRosterCopyError
+    , copyRosterWindowByDatesWithFault
+    , withRosterCopyTransaction
     , publishRequiredFieldsMessage
     , rosterSlotBlocksPublish
     , rosterSlotHasValidStartEnd
@@ -16,6 +21,10 @@ module Web.RosterWeeks.Service
     , validateRosterSlotsForPersistence
     ) where
 
+import Application.Error.Domain
+import Application.Error.Telemetry (recordAppError)
+import Application.Error.Transaction (withAppResultTransaction)
+import Application.Error.Types
 import qualified Application.Helper.RosterAwardDuration as RosterAwardDuration
 import Application.Helper.TimeRules (authoritativeRosterIntervalIsOperationallyValid)
 import Application.PayAssignment
@@ -27,7 +36,11 @@ import Application.Staff.Mutations (withStaffOperationalLocksInCurrentTransactio
 import Application.VenueTime (RepeatedTimeOccurrence)
 import Application.VenueTime.Model
 import Control.Monad (void)
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
+import qualified Data.Bifunctor as Bifunctor
 import Data.Either (isRight)
+import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.List (nub)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (catMaybes, fromMaybe, isJust, isNothing, mapMaybe)
@@ -35,6 +48,7 @@ import Data.Time (NominalDiffTime, UTCTime, addUTCTime, getCurrentTime)
 import qualified Data.Time.Calendar as Calendar
 import Data.Time.LocalTime (TimeOfDay (..))
 import Data.Traversable (traverse)
+import GHC.Generics (Generic)
 import Web.Controller.Prelude
 import Web.RosterWeeks.Dom (closedRosterDayRows, minimumOpenRosterRows)
 
@@ -106,10 +120,46 @@ data RosterSlotCopyPlan = RosterSlotCopyPlan
     , copiedTimezone   :: !Text
     }
 
-data RosterWeekCopyError
-    = RosterWeekCopyBoundaryError !BoundaryModelError
-    | RosterWeekCopyPersistenceError !Text
+data RosterCopyError
+    = RosterCopyBoundaryError !BoundaryModelError
+    | RosterCopySameWindow
+    | RosterCopySourceWindowUnavailable
+    | RosterCopyOccurrenceSelectionRequired
+    | RosterCopySourceDayUnavailable
+    | RosterCopyTargetDayUnavailable
+    | RosterCopySourceLaneUnavailable
+    | RosterCopyTargetLaneUnavailable
+    | RosterCopyAssignmentInvalid
+    | RosterCopyPersistenceRejected
+    | RosterCopyStaffUnavailable
+    | RosterCopyTargetPublished
+    | RosterCopyFaultInjected
+    | RosterCopyOperationFailed
+    deriving (Eq, Generic, Show)
+
+data RosterCopyFault
+    = NoRosterCopyFault
+    | FailRosterCopyAfterTargetReset
+    | FailRosterCopySourceDayLookup
+    | FailRosterCopyTargetDayLookup
+    | FailRosterCopySourceLaneLookup
+    | FailRosterCopyTargetLaneLookup
+    | FailRosterCopyAssignment
     deriving (Eq, Show)
+
+instance DomainError RosterCopyError where
+    appErrorProjection copyError = AppErrorProjection
+        { safeMessage = rosterCopySafeMessage copyError
+        , severity = Blocking
+        , recovery = UserFixRequired
+        , retryDirective = DoNotRetry
+        }
+
+rosterCopySafeMessage :: RosterCopyError -> Text
+rosterCopySafeMessage _ = "Roster could not be copied. No changes were saved."
+
+recordRosterCopyError :: RosterCopyError -> IO ()
+recordRosterCopyError = recordAppError . projectDomainError
 
 validateRosterDaysCanPublish :: (?modelContext :: ModelContext) => Id Venue -> [RosterDay] -> IO (Maybe Text)
 validateRosterDaysCanPublish venueId rosterDays = do
@@ -244,23 +294,36 @@ data RosterWindowSlotCopyPlan = RosterWindowSlotCopyPlan
     }
 
 copyRosterWindowByDates ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    (?modelContext :: ModelContext) =>
     ShiftCopyOccurrenceSelections ->
     Id Venue ->
     Id RosterGroup ->
     Day ->
     Day ->
-    IO (Either RosterWeekCopyError ())
-copyRosterWindowByDates selections venueId rosterGroupId sourceStart targetStart = do
-    venueConfig <- fetchVenueConfig
+    IO (Either RosterCopyError ())
+copyRosterWindowByDates = copyRosterWindowByDatesWithFault NoRosterCopyFault
+
+copyRosterWindowByDatesWithFault ::
+    (?modelContext :: ModelContext) =>
+    RosterCopyFault ->
+    ShiftCopyOccurrenceSelections ->
+    Id Venue ->
+    Id RosterGroup ->
+    Day ->
+    Day ->
+    IO (Either RosterCopyError ())
+copyRosterWindowByDatesWithFault fault selections venueId rosterGroupId sourceStart targetStart = do
+    venueConfig <- query @VenueConfig
+        |> filterWhere (#venueId, unpackId venueId)
+        |> fetchOne
     sourceDays <- fetchWindowDays venueId rosterGroupId sourceStart
     targetDays <- fetchWindowDays venueId rosterGroupId targetStart
     let sourceDayById = Map.fromList [(unpackId day.id, day) | day <- sourceDays]
     sourceSlots <- fetchActiveSlotsForDays sourceDays
     let prepare sourceSlot = do
-            sourceDay <- maybe (Left (BoundaryUnsupportedTimezone "missing roster day")) Right (Map.lookup sourceSlot.rosterDayId sourceDayById)
+            sourceDay <- maybe (Left RosterCopySourceDayUnavailable) Right (Map.lookup sourceSlot.rosterDayId sourceDayById)
             let targetDate = Calendar.addDays (Calendar.diffDays sourceDay.operationalDate sourceStart) targetStart
-            (startsAt, endsAt) <- copyRosterSlotBoundariesToDate venueConfig sourceDay.operationalDate targetDate selections sourceSlot
+            (startsAt, endsAt) <- Bifunctor.first RosterCopyBoundaryError (copyRosterSlotBoundariesToDate venueConfig sourceDay.operationalDate targetDate selections sourceSlot)
             pure RosterWindowSlotCopyPlan
                 { windowCopiedSourceSlot = sourceSlot
                 , windowCopiedTargetDate = targetDate
@@ -268,7 +331,7 @@ copyRosterWindowByDates selections venueId rosterGroupId sourceStart targetStart
                 , windowCopiedEndsAt = endsAt
                 }
     case traverse prepare (filter rosterSlotHasData sourceSlots) of
-        Left failure -> pure (Left (RosterWeekCopyBoundaryError failure))
+        Left failure -> pure (Left failure)
         Right plans -> do
             let legacyPlans =
                     [ RosterSlotCopyPlan plan.windowCopiedSourceSlot
@@ -281,58 +344,105 @@ copyRosterWindowByDates selections venueId rosterGroupId sourceStart targetStart
             validation <- validateRosterWeekCopyPersistence venueId legacyPlans
             case validation of
                 Left failure -> pure (Left failure)
-                Right () -> withValidatedRosterWeekCopyStaff venueId legacyPlans do
-                    now <- getCurrentTime
-                    forM_ targetDays \day -> do
-                        activeSlots <- query @RosterSlot
-                            |> filterWhere (#rosterDayId, unpackId day.id)
-                            |> filterWhere (#deletedAt, Nothing)
-                            |> fetch
-                        forM_ activeSlots \slot -> void (slot |> set #deletedAt (Just now) |> set #deleteReason (Just "roster_window_replaced") |> updateRecord)
-                        activeLanes <- query @RosterLane |> filterWhere (#rosterDayId, unpackId day.id) |> filterWhere (#deletedAt, Nothing) |> fetch
-                        forM_ activeLanes \lane -> void (lane |> set #deletedAt (Just now) |> set #deleteReason (Just "roster_window_replaced") |> updateRecord)
-                    targetDaysByDate <- materializeCopyTargetDays venueId rosterGroupId sourceStart targetStart sourceDays targetDays
-                    sourceLanes <- if null sourceDays then pure [] else query @RosterLane
-                        |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) sourceDays)
-                        |> filterWhere (#deletedAt, Nothing)
-                        |> fetch
-                    let sourceLaneById = Map.fromList [(unpackId lane.id, lane) | lane <- sourceLanes]
-                    targetLaneBySource <- fmap Map.fromList $ forM sourceLanes \sourceLane -> do
-                        sourceDay <- maybe (fail "Roster copy source lane lost its day") pure (Map.lookup sourceLane.rosterDayId sourceDayById)
-                        let targetDate = Calendar.addDays (Calendar.diffDays sourceDay.operationalDate sourceStart) targetStart
-                        targetDay <- maybe (fail "Roster copy target day missing") pure (Map.lookup targetDate targetDaysByDate)
-                        targetLane <- newRecord @RosterLane
-                            |> set #rosterDayId (unpackId targetDay.id)
-                            |> set #name sourceLane.name
-                            |> set #sortOrder sourceLane.sortOrder
-                            |> createRecord
-                        pure (unpackId sourceLane.id, targetLane)
-                    forM_ plans \plan -> do
-                        sourceLane <- maybe (fail "Roster copy source lane missing") pure (Map.lookup plan.windowCopiedSourceSlot.rosterLaneId sourceLaneById)
-                        targetLane <- maybe (fail "Roster copy target lane missing") pure (Map.lookup (unpackId sourceLane.id) targetLaneBySource)
-                        targetDay <- maybe (fail "Roster copy target date missing") pure (Map.lookup plan.windowCopiedTargetDate targetDaysByDate)
-                        conflictingSlots <- query @RosterSlot
-                            |> filterWhere (#rosterDayId, unpackId targetDay.id)
-                            |> filterWhere (#rosterLaneId, unpackId targetLane.id)
-                            |> filterWhere (#rowIndex, plan.windowCopiedSourceSlot.rowIndex)
-                            |> filterWhere (#deletedAt, Nothing)
-                            |> fetch
-                        forM_ conflictingSlots \conflictingSlot ->
-                            void (conflictingSlot |> set #deletedAt (Just now) |> set #deleteReason (Just "roster_window_replaced") |> updateRecord)
-                        case copyRosterShiftAssignment plan.windowCopiedSourceSlot (newRecord @RosterSlot) of
-                            Left message -> fail (cs message)
-                            Right copied -> void $
-                                copied
-                                    |> set #rosterDayId (unpackId targetDay.id)
-                                    |> set #rosterLaneId (unpackId targetLane.id)
-                                    |> set #slotSortOrder targetLane.sortOrder
-                                    |> set #rowIndex plan.windowCopiedSourceSlot.rowIndex
-                                    |> set #startsAt plan.windowCopiedStartsAt
-                                    |> set #endsAt plan.windowCopiedEndsAt
-                                    |> set #timezone venueConfig.timezone
-                                    |> set #shiftTypeId plan.windowCopiedSourceSlot.shiftTypeId
-                                    |> createRecord
-                    pure (Right ())
+                Right () ->
+                    withValidatedRosterWeekCopyStaff venueId legacyPlans do
+                        runExceptT (persistRosterWindowCopy fault venueConfig venueId rosterGroupId sourceStart targetStart sourceDays targetDays sourceDayById plans)
+
+withRosterCopyTransaction ::
+    (?modelContext :: ModelContext) =>
+    ((?modelContext :: ModelContext) => IO (Either RosterCopyError value)) ->
+    IO (Either RosterCopyError value)
+withRosterCopyTransaction operation = do
+    failureRef <- newIORef Nothing
+    transactionResult <- withAppResultTransaction do
+        operation >>= \case
+            Right value -> pure (Right value)
+            Left copyError -> do
+                writeIORef failureRef (Just copyError)
+                recordRosterCopyError copyError
+                pure (Left (projectDomainError copyError))
+    case transactionResult of
+        Right value -> pure (Right value)
+        Left _ -> do
+            retainedFailure <- readIORef failureRef
+            pure (Left (fromMaybe RosterCopyOperationFailed retainedFailure))
+
+persistRosterWindowCopy ::
+    (?modelContext :: ModelContext) =>
+    RosterCopyFault ->
+    VenueConfig ->
+    Id Venue ->
+    Id RosterGroup ->
+    Day ->
+    Day ->
+    [RosterDay] ->
+    [RosterDay] ->
+    Map.Map UUID RosterDay ->
+    [RosterWindowSlotCopyPlan] ->
+    ExceptT RosterCopyError IO ()
+persistRosterWindowCopy fault venueConfig venueId rosterGroupId sourceStart targetStart sourceDays targetDays sourceDayById plans = do
+    now <- lift getCurrentTime
+    forM_ targetDays \day -> do
+        activeSlots <- lift $ query @RosterSlot
+            |> filterWhere (#rosterDayId, unpackId day.id)
+            |> filterWhere (#deletedAt, Nothing)
+            |> fetch
+        forM_ activeSlots \slot -> lift (void (slot |> set #deletedAt (Just now) |> set #deleteReason (Just "roster_window_replaced") |> updateRecord))
+        activeLanes <- lift $ query @RosterLane |> filterWhere (#rosterDayId, unpackId day.id) |> filterWhere (#deletedAt, Nothing) |> fetch
+        forM_ activeLanes \lane -> lift (void (lane |> set #deletedAt (Just now) |> set #deleteReason (Just "roster_window_replaced") |> updateRecord))
+    forM_ (injectedRosterCopyError fault) throwE
+    targetDaysByDate <- lift (materializeCopyTargetDays venueId rosterGroupId sourceStart targetStart sourceDays targetDays)
+    sourceLanes <- lift $ if null sourceDays then pure [] else query @RosterLane
+        |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) sourceDays)
+        |> filterWhere (#deletedAt, Nothing)
+        |> fetch
+    let sourceLaneById = Map.fromList [(unpackId lane.id, lane) | lane <- sourceLanes]
+    targetLaneBySource <- fmap Map.fromList $ forM sourceLanes \sourceLane -> do
+        sourceDay <- requireCopyValue RosterCopySourceDayUnavailable (Map.lookup sourceLane.rosterDayId sourceDayById)
+        let targetDate = Calendar.addDays (Calendar.diffDays sourceDay.operationalDate sourceStart) targetStart
+        targetDay <- requireCopyValue RosterCopyTargetDayUnavailable (Map.lookup targetDate targetDaysByDate)
+        targetLane <- lift $ newRecord @RosterLane
+            |> set #rosterDayId (unpackId targetDay.id)
+            |> set #name sourceLane.name
+            |> set #sortOrder sourceLane.sortOrder
+            |> createRecord
+        pure (unpackId sourceLane.id, targetLane)
+    forM_ plans \plan -> do
+        sourceLane <- requireCopyValue RosterCopySourceLaneUnavailable (Map.lookup plan.windowCopiedSourceSlot.rosterLaneId sourceLaneById)
+        targetLane <- requireCopyValue RosterCopyTargetLaneUnavailable (Map.lookup (unpackId sourceLane.id) targetLaneBySource)
+        targetDay <- requireCopyValue RosterCopyTargetDayUnavailable (Map.lookup plan.windowCopiedTargetDate targetDaysByDate)
+        conflictingSlots <- lift $ query @RosterSlot
+            |> filterWhere (#rosterDayId, unpackId targetDay.id)
+            |> filterWhere (#rosterLaneId, unpackId targetLane.id)
+            |> filterWhere (#rowIndex, plan.windowCopiedSourceSlot.rowIndex)
+            |> filterWhere (#deletedAt, Nothing)
+            |> fetch
+        forM_ conflictingSlots \conflictingSlot ->
+            lift (void (conflictingSlot |> set #deletedAt (Just now) |> set #deleteReason (Just "roster_window_replaced") |> updateRecord))
+        copied <- either (const (throwE RosterCopyAssignmentInvalid)) pure (copyRosterShiftAssignment plan.windowCopiedSourceSlot (newRecord @RosterSlot))
+        lift $ void $
+            copied
+                |> set #rosterDayId (unpackId targetDay.id)
+                |> set #rosterLaneId (unpackId targetLane.id)
+                |> set #slotSortOrder targetLane.sortOrder
+                |> set #rowIndex plan.windowCopiedSourceSlot.rowIndex
+                |> set #startsAt plan.windowCopiedStartsAt
+                |> set #endsAt plan.windowCopiedEndsAt
+                |> set #timezone venueConfig.timezone
+                |> set #shiftTypeId plan.windowCopiedSourceSlot.shiftTypeId
+                |> createRecord
+
+injectedRosterCopyError :: RosterCopyFault -> Maybe RosterCopyError
+injectedRosterCopyError NoRosterCopyFault = Nothing
+injectedRosterCopyError FailRosterCopyAfterTargetReset = Just RosterCopyFaultInjected
+injectedRosterCopyError FailRosterCopySourceDayLookup = Just RosterCopySourceDayUnavailable
+injectedRosterCopyError FailRosterCopyTargetDayLookup = Just RosterCopyTargetDayUnavailable
+injectedRosterCopyError FailRosterCopySourceLaneLookup = Just RosterCopySourceLaneUnavailable
+injectedRosterCopyError FailRosterCopyTargetLaneLookup = Just RosterCopyTargetLaneUnavailable
+injectedRosterCopyError FailRosterCopyAssignment = Just RosterCopyAssignmentInvalid
+
+requireCopyValue :: RosterCopyError -> Maybe value -> ExceptT RosterCopyError IO value
+requireCopyValue copyError = maybe (throwE copyError) pure
 
 fetchWindowDays :: (?modelContext :: ModelContext) => Id Venue -> Id RosterGroup -> Day -> IO [RosterDay]
 fetchWindowDays venueId rosterGroupId windowStart =
@@ -398,7 +508,7 @@ ensureRosterDayHasMinimumRows rosterDay _rosterGroupId minimumRowCount = do
             |> updateRecord
         pure ()
 
-withValidatedRosterWeekCopyStaff :: (?modelContext :: ModelContext) => Id Venue -> [RosterSlotCopyPlan] -> IO (Either RosterWeekCopyError value) -> IO (Either RosterWeekCopyError value)
+withValidatedRosterWeekCopyStaff :: (?modelContext :: ModelContext) => Id Venue -> [RosterSlotCopyPlan] -> IO (Either RosterCopyError value) -> IO (Either RosterCopyError value)
 withValidatedRosterWeekCopyStaff venueId plans action = do
     let staffIds = nub (mapMaybe ((.staffId) . (.copiedSourceSlot)) plans)
     maybeResult <- withStaffOperationalLocksInCurrentTransaction staffIds do
@@ -406,9 +516,9 @@ withValidatedRosterWeekCopyStaff venueId plans action = do
         case validation of
             Left failure -> pure (Left failure)
             Right ()     -> action
-    pure (fromMaybe (Left (RosterWeekCopyPersistenceError "A copied staff member is no longer available for rostering.")) maybeResult)
+    pure (fromMaybe (Left RosterCopyStaffUnavailable) maybeResult)
 
-validateRosterWeekCopyPersistence :: (?modelContext :: ModelContext) => Id Venue -> [RosterSlotCopyPlan] -> IO (Either RosterWeekCopyError ())
+validateRosterWeekCopyPersistence :: (?modelContext :: ModelContext) => Id Venue -> [RosterSlotCopyPlan] -> IO (Either RosterCopyError ())
 validateRosterWeekCopyPersistence venueId = go
   where
     go [] = pure (Right ())
@@ -420,8 +530,8 @@ validateRosterWeekCopyPersistence venueId = go
                     |> set #timezone plan.copiedTimezone
         validationError <- validateRosterSlotForPersistence venueId candidate
         case validationError of
-            Just message -> pure (Left (RosterWeekCopyPersistenceError message))
-            Nothing      -> go remainingPlans
+            Just _message -> pure (Left RosterCopyPersistenceRejected)
+            Nothing       -> go remainingPlans
 
 rosterSlotHasData :: RosterSlot -> Bool
 rosterSlotHasData slot =

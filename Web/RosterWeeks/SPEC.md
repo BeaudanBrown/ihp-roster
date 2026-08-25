@@ -32,7 +32,15 @@ This document retains cross-module scheduling and state-transition rules.
 - Local date/clock and operational day are projections. A clock before 06:00
   belongs to the following calendar date of its displayed hospitality day.
   Elapsed duration and automatic-break eligibility use instant differences.
-- Nonexistent spring clocks are rejected. Ambiguous autumn endpoints require
+- Whole-window copy replacement is one typed transaction. Missing source/target
+day or lane lookups encountered while executing a prepared copy, invalid copied
+assignment state, and persistence validation fail with a closed
+`RosterCopyError`; any failure rolls back all target-day, lane, and shift
+changes. Copy failures expose one safe operation-level message, while the
+specific cause remains telemetry-only. A repeated-time occurrence chooser is a
+preflight continuation, not a cause-specific failure response.
+
+Nonexistent spring clocks are rejected. Ambiguous autumn endpoints require
   explicit occurrence selection. Week/slot copies preserve civil clocks on the
   target date and re-resolve them; timeline moves preserve exact elapsed
   duration from the selected target start instant.
@@ -122,6 +130,11 @@ column editing, image export, week overview, and typed request context. Haskell 
 payloads, exact copy/business decisions, and opaque correlation keys. Generic
 TypeScript owns only mechanics. Raw IDs, classes, or feature-specific browser
 parsers must not become parallel authority.
+
+Direct-SQL conflict tags decode through a closed typed boundary. Unknown tags
+never abort or disappear: the affected shift receives a generic critical
+`Conflict details unavailable` warning, while telemetry records only the bounded
+error classification.
 
 The row-grid, day-column, and direct timeline URL are projections over the same
 direct read model. Timeline lane/overlap geometry is display-only and never

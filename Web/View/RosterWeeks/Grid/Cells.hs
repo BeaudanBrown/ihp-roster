@@ -632,6 +632,7 @@ renderConflictClass :: Maybe RosterConflict -> Text
 renderConflictClass Nothing = ""
 renderConflictClass (Just conflict) =
     case conflict.conflictType of
+        ConflictDetailsUnavailable    -> "conflict-critical"
         InvalidRosterTiming           -> "conflict-critical"
         DuplicateAssignment           -> "conflict-critical"
         LeaveConflict                 -> "conflict-critical"

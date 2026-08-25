@@ -16,7 +16,8 @@ data ConflictSeverity
     deriving (Eq, Show, Ord)
 
 data ConflictType
-    = InvalidRosterTiming
+    = ConflictDetailsUnavailable
+    | InvalidRosterTiming
     | DuplicateAssignment
     | LeaveConflict
     | LateToEarlyConflict
@@ -32,6 +33,7 @@ data RosterConflict = RosterConflict
     } deriving (Eq, Show)
 
 getConflictSeverity :: ConflictType -> ConflictSeverity
+getConflictSeverity ConflictDetailsUnavailable    = CriticalConflict
 getConflictSeverity InvalidRosterTiming           = CriticalConflict
 getConflictSeverity DuplicateAssignment           = CriticalConflict
 getConflictSeverity LeaveConflict                 = CriticalConflict
@@ -41,6 +43,7 @@ getConflictSeverity ShiftPreferenceSlotMismatch   = AdvisoryConflict
 getConflictSeverity IdealShiftThresholdExceeded   = AdvisoryConflict
 
 conflictPriority :: ConflictType -> Int
+conflictPriority ConflictDetailsUnavailable    = 0
 conflictPriority InvalidRosterTiming           = 0
 conflictPriority DuplicateAssignment           = 1
 conflictPriority LeaveConflict                 = 2

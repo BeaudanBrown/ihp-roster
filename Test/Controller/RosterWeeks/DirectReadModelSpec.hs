@@ -38,6 +38,13 @@ import Web.RosterWeeks.Types
 tests :: Spec
 tests = aroundAll withDatabaseTestContext do
     describe "RosterWeeksController direct read model" do
+        it "decodes unknown SQL conflict text as a typed failure with a generic critical warning" $ withContext do
+            decodeRosterConflictType "future_conflict"
+                `shouldBe` Left UnknownRosterConflictType
+            unavailableRosterConflict.conflictType `shouldBe` ConflictDetailsUnavailable
+            unavailableRosterConflict.severity `shouldBe` CriticalConflict
+            unavailableRosterConflict.message `shouldBe` "Conflict details unavailable"
+
         it "hides another same-day assignment from a dated shift dialog" $ withContext do
             let dayId = Id (fromMaybe (error "day uuid") (UUID.fromString "10000000-0000-0000-0000-000000000001")) :: Id RosterDay
             let firstSlotId = Id (fromMaybe (error "first slot uuid") (UUID.fromString "20000000-0000-0000-0000-000000000001")) :: Id RosterSlot

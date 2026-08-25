@@ -192,7 +192,10 @@ respondWithRosterCopyFailure targetScope message =
 respondWithRosterCopyOccurrenceDialog :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWindowScope -> RosterWindowScope -> Bool -> Bool -> ShiftCopyOccurrenceSelections -> IO ()
 respondWithRosterCopyOccurrenceDialog sourceScope targetScope startIsRepeated endIsRepeated selections =
     if not isHtmxRequest
-        then respondWithRosterCopyFailure targetScope "Choose repeated-time occurrences from the roster copy dialog."
+        then do
+            let copyError = RosterCopyOccurrenceSelectionRequired
+            recordRosterCopyError copyError
+            respondWithRosterCopyFailure targetScope (rosterCopySafeMessage copyError)
         else do
             let dialog = renderRosterWeekCopyOccurrenceDialog
                     (rosterCopyWeekUrl sourceScope.rosterWindowStart targetScope.rosterWindowStart targetScope.rosterWindowRosterGroupId)
@@ -508,12 +511,9 @@ instance Controller RosterWeeksController where
 
         if sourceWindowStart == targetWindowStart
             then do
-                let errorMessage = "Cannot copy a roster week onto itself."
-                if isHtmxRequest
-                    then respondWithRosterToast errorMessage "app-toast-error"
-                    else do
-                        setErrorMessage errorMessage
-                        redirectToRosterWindow targetScope
+                let copyError = RosterCopySameWindow
+                recordRosterCopyError copyError
+                respondWithRosterCopyFailure targetScope (rosterCopySafeMessage copyError)
             else do
                 sourceDays <- query @RosterDay
                     |> filterWhere (#venueId, unpackId currentVenueId)
@@ -523,40 +523,40 @@ instance Controller RosterWeeksController where
                     |> fetch
                 case sourceDays of
                     [] -> do
-                        let errorMessage = "Source week not found. Cannot copy."
-                        if isHtmxRequest
-                            then respondWithRosterToast errorMessage "app-toast-error"
-                            else do
-                                setErrorMessage errorMessage
-                                redirectToRosterWindow targetScope
+                        let copyError = RosterCopySourceWindowUnavailable
+                        recordRosterCopyError copyError
+                        respondWithRosterCopyFailure targetScope (rosterCopySafeMessage copyError)
                     _ ->
                         case copyOccurrenceSelectionsFromRosterAction of
-                            Left message -> respondWithRosterCopyFailure targetScope message
-                            Right selections -> do
-                                copyResult <- copyRosterWindowFromSourceMutation selections rosterGroup.id sourceWindowStart targetWindowStart
-                                case copyResult of
-                                    Left (RosterWeekCopyPersistenceError message) ->
-                                        respondWithRosterCopyFailure targetScope message
-                                    Left (RosterWeekCopyBoundaryError failure) -> do
-                                        venueConfig <- fetchVenueConfig
-                                        rosterWindowCopyAmbiguousEndpoints venueConfig currentVenueId rosterGroup.id sourceWindowStart targetWindowStart >>= \case
-                                            Left timingFailure -> respondWithRosterCopyFailure targetScope (rosterCopyBoundaryErrorMessage timingFailure)
-                                            Right (startIsRepeated, endIsRepeated) ->
-                                                case failure of
-                                                    BoundaryCivilTimeError (RepeatedCivilTimeRequiresOccurrence _)
-                                                        | startIsRepeated || endIsRepeated ->
-                                                            respondWithRosterCopyOccurrenceDialog sourceScope targetScope startIsRepeated endIsRepeated selections
-                                                    _ -> respondWithRosterCopyFailure targetScope (rosterCopyBoundaryErrorMessage failure)
-                                    Right mutationResult -> do
-                                        let successMessage = "Roster week copied from the previous week."
-                                        let targetPath = rosterWindowUrl targetScope.rosterWindowStart targetScope.rosterWindowRosterGroupId
-                                        if isHtmxRequest
-                                            then do
-                                                setHtmxPushUrl targetPath
-                                                respondWithRosterContentUpdate targetScope mutationResult.liveMutationTouchedResources successMessage
-                                            else do
-                                                setSuccessMessage successMessage
-                                                redirectToPath targetPath
+                            Left _ -> do
+                                let copyError = RosterCopyPersistenceRejected
+                                recordRosterCopyError copyError
+                                respondWithRosterCopyFailure targetScope (rosterCopySafeMessage copyError)
+                            Right selections ->
+                                rosterWindowCopyAmbiguousEndpoints venueConfig currentVenueId rosterGroup.id sourceWindowStart targetWindowStart >>= \case
+                                    Left failure -> do
+                                        let copyError = RosterCopyBoundaryError failure
+                                        recordRosterCopyError copyError
+                                        respondWithRosterCopyFailure targetScope (rosterCopySafeMessage copyError)
+                                    Right (startIsRepeated, endIsRepeated)
+                                        | (startIsRepeated && isNothing selections.copyShiftStartOccurrence)
+                                            || (endIsRepeated && isNothing selections.copyShiftEndOccurrence) ->
+                                            respondWithRosterCopyOccurrenceDialog sourceScope targetScope startIsRepeated endIsRepeated selections
+                                        | otherwise -> do
+                                            copyResult <- copyRosterWindowFromSourceMutation selections rosterGroup.id sourceWindowStart targetWindowStart
+                                            case copyResult of
+                                                Left copyError ->
+                                                    respondWithRosterCopyFailure targetScope (rosterCopySafeMessage copyError)
+                                                Right mutationResult -> do
+                                                    let successMessage = "Roster week copied from the previous week."
+                                                    let targetPath = rosterWindowUrl targetScope.rosterWindowStart targetScope.rosterWindowRosterGroupId
+                                                    if isHtmxRequest
+                                                        then do
+                                                            setHtmxPushUrl targetPath
+                                                            respondWithRosterContentUpdate targetScope mutationResult.liveMutationTouchedResources successMessage
+                                                        else do
+                                                            setSuccessMessage successMessage
+                                                            redirectToPath targetPath
 
     action currentAction@ToggleRosterWeekLiveStatusAction = runBepis currentAction BepisMutationAction do
         ensureManagerRole

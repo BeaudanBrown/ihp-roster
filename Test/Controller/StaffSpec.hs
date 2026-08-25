@@ -1698,8 +1698,7 @@ tests = aroundAll withDatabaseTestContext do
                         copyResponseBody :: Text <- cs <$> IHP.Test.Mocking.responseBody copyResponse
                         copyResponseBody `shouldSatisfy` \body ->
                             "Roster week copied from the previous week." `Text.isInfixOf` body
-                                || "no longer available for rostering" `Text.isInfixOf` body
-                                || "Resolve pay configuration" `Text.isInfixOf` body
+                                || "Roster could not be copied. No changes were saved." `Text.isInfixOf` body
                     _ -> expectationFailure "Expected removal and roster copy responses"
                 removedStaff <- fetch staff.id
                 removedStaff.archivedAt `shouldSatisfy` isJust
@@ -1749,8 +1748,7 @@ tests = aroundAll withDatabaseTestContext do
                         copyResponseBody :: Text <- cs <$> IHP.Test.Mocking.responseBody copyResponse
                         copyResponseBody `shouldSatisfy` \body ->
                             "Roster week copied from the previous week." `Text.isInfixOf` body
-                                || "no longer available for rostering" `Text.isInfixOf` body
-                                || "Resolve pay configuration" `Text.isInfixOf` body
+                                || "Roster could not be copied. No changes were saved." `Text.isInfixOf` body
                     _ -> expectationFailure "Expected removal and new roster copy responses"
                 removedStaff <- fetch staff.id
                 removedStaff.archivedAt `shouldSatisfy` isJust

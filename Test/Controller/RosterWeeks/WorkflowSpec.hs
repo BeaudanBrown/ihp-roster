@@ -7,7 +7,8 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
 import Application.Helper.SurfaceResource
 import Application.Helper.UserPreferences
 import Application.VenueTime (RepeatedTimeOccurrence (..))
-import Application.VenueTime.Model (rosterSlotElapsedSeconds,
+import Application.VenueTime.Model (noShiftCopyOccurrenceSelections,
+                                    rosterSlotElapsedSeconds,
                                     rosterSlotEndOccurrence,
                                     rosterSlotStartOccurrence,
                                     storedInstantLocalTime,
@@ -47,7 +48,10 @@ import Web.RosterWeeks.Mutations (rosterDayTouchedResources,
                                   rosterWeekLiveStatusTouchedResources,
                                   rosterWeekStructuralTouchedResources,
                                   rosterWeekTouchedResources)
-import Web.RosterWeeks.Service (rosterSlotHasValidStartEnd)
+import Web.RosterWeeks.Service (RosterCopyError (..), RosterCopyFault (..),
+                                copyRosterWindowByDatesWithFault,
+                                rosterSlotHasValidStartEnd,
+                                withRosterCopyTransaction)
 import Web.RosterWeeks.ShiftWorkflow (RosterShiftDialogSubmission (..),
                                       applyValidatedRosterShift,
                                       validateRosterShiftDialogSubmission)
@@ -1293,7 +1297,8 @@ tests = aroundAll withDatabaseTestContext do
                         callActionWithParams CopyRosterWeekAction (rosterCopyParams 0 1)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Resolve pay configuration for the selected staff member or shift type before saving this roster shift."
+                response `responseBodyShouldContain` "Roster could not be copied. No changes were saved."
+                response `responseBodyShouldNotContain` "LegacyUnresolved"
                 persistedTarget <- fetch targetSlot.id
                 persistedTarget.deletedAt `shouldBe` Nothing
                 persistedTarget.staffId `shouldBe` Just (unpackId targetStaff.id)
@@ -2644,6 +2649,54 @@ tests = aroundAll withDatabaseTestContext do
                 testStartTime copiedSlot `shouldBe` Just (timeOfDay 9 0)
                 testDurationMinutes copiedSlot `shouldBe` Just 480
 
+        it "rolls back every target write when an injected copy failure occurs after target reset" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Atomic roster copy"
+                manager <- createUserRecord "roster-atomic-copy@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager Manager
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Atomic" "Copy"
+                sourceWeek <- createRosterWeekRecord venue 0 True
+                sourceDay <- createRosterDayRecord sourceWeek 0
+                sourceSlot <- createCompleteRosterSlotRecord sourceDay slotName staffMember 0
+                _ <- updateRecord (sourceSlot |> setTestStartTime (Just (timeOfDay 9 0)) |> setTestDurationMinutes (Just 480))
+                targetWeek <- createRosterWeekRecord venue 1 True
+                targetDay <- createRosterDayRecord targetWeek 0
+                targetSlot <- createCompleteRosterSlotRecord targetDay slotName staffMember 0
+
+                let injectedFailures =
+                        [ (FailRosterCopyAfterTargetReset, RosterCopyFaultInjected)
+                        , (FailRosterCopySourceDayLookup, RosterCopySourceDayUnavailable)
+                        , (FailRosterCopyTargetDayLookup, RosterCopyTargetDayUnavailable)
+                        , (FailRosterCopySourceLaneLookup, RosterCopySourceLaneUnavailable)
+                        , (FailRosterCopyTargetLaneLookup, RosterCopyTargetLaneUnavailable)
+                        , (FailRosterCopyAssignment, RosterCopyAssignmentInvalid)
+                        ]
+                forM_ injectedFailures \(fault, expectedError) -> do
+                    result <- withUserAndCurrentVenue manager venue.id do
+                        withRosterCopyTransaction $
+                            copyRosterWindowByDatesWithFault
+                                fault
+                                noShiftCopyOccurrenceSelections
+                                venue.id
+                                (Id sourceDay.rosterGroupId)
+                                (testAnchorForOffset 0)
+                                (testAnchorForOffset 1)
+
+                    result `shouldBe` Left expectedError
+                    reloadedTargetSlot <- fetch targetSlot.id
+                    reloadedTargetSlot.deletedAt `shouldBe` Nothing
+                    activeTargetSlots <- query @RosterSlot
+                        |> filterWhere (#rosterDayId, unpackId targetDay.id)
+                        |> filterWhere (#deletedAt, Nothing)
+                        |> fetch
+                    map (.id) activeTargetSlots `shouldBe` [targetSlot.id]
+                    activeTargetLanes <- query @RosterLane
+                        |> filterWhere (#rosterDayId, unpackId targetDay.id)
+                        |> filterWhere (#deletedAt, Nothing)
+                        |> fetch
+                    length activeTargetLanes `shouldBe` 1
+
         it "rejects copies whose target-date DST elapsed duration breaches Part-time limits" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Roster Award Copy Venue"
@@ -2665,7 +2718,8 @@ tests = aroundAll withDatabaseTestContext do
                         callActionWithParams CopyRosterWeekAction (rosterCopyParams 63 64)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Part-time roster shifts must project between 3 and 11.5 working hours after the automatic unpaid meal break."
+                response `responseBodyShouldContain` "Roster could not be copied. No changes were saved."
+                response `responseBodyShouldNotContain` "Part-time roster shifts must project"
                 query @RosterDay
                     |> filterWhere (#venueId, unpackId venue.id)
                     |> filterWhereGreaterThanOrEqualTo (#operationalDate, testAnchorForOffset 64)
@@ -2694,7 +2748,8 @@ tests = aroundAll withDatabaseTestContext do
                         callActionWithParams CopyRosterWeekAction (rosterCopyParams 63 64)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Casual roster shifts must project no more than 12 working hours after the automatic unpaid meal break."
+                response `responseBodyShouldContain` "Roster could not be copied. No changes were saved."
+                response `responseBodyShouldNotContain` "Casual roster shifts must project"
                 query @RosterDay
                     |> filterWhere (#venueId, unpackId venue.id)
                     |> filterWhereGreaterThanOrEqualTo (#operationalDate, testAnchorForOffset 64)
@@ -2719,6 +2774,10 @@ tests = aroundAll withDatabaseTestContext do
                 _ <- ordinarySourceSlot
                     |> setTestRosterSlotBoundaries (fromGregorian 2026 3 28) (timeOfDay 9 0) (timeOfDay 17 0)
                     |> updateRecord
+
+                nonHtmxResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams CopyRosterWeekAction (rosterCopyParams 63 64)
+                nonHtmxResponse `responseStatusShouldBe` status302
 
                 chooserResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -2850,7 +2909,8 @@ tests = aroundAll withDatabaseTestContext do
                             rosterCopyParams (-1) 0 <> [("rosterGroupId", idToParam rosterGroup.id)]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Published roster windows are read-only. Return it to Draft before copying."
+                response `responseBodyShouldContain` "Roster could not be copied. No changes were saved."
+                response `responseBodyShouldNotContain` "Published roster windows are read-only"
                 query @RosterDay
                     |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
                     |> filterWhereGreaterThanOrEqualTo (#operationalDate, testAnchorForOffset 0)
@@ -2868,7 +2928,8 @@ tests = aroundAll withDatabaseTestContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams CopyRosterWeekAction $
                             rosterCopyParams (-1) 0 <> [("rosterGroupId", idToParam rosterGroup.id)]
-                partialResponse `responseBodyShouldContain` "Published roster windows are read-only. Return it to Draft before copying."
+                partialResponse `responseBodyShouldContain` "Roster could not be copied. No changes were saved."
+                partialResponse `responseBodyShouldNotContain` "Published roster windows are read-only"
                 query @RosterDay
                     |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
                     |> filterWhereGreaterThanOrEqualTo (#operationalDate, testAnchorForOffset 0)
@@ -2909,7 +2970,8 @@ tests = aroundAll withDatabaseTestContext do
                         callActionWithParams CopyRosterWeekAction (rosterCopyParams 0 1)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Published roster windows are read-only. Return it to Draft before copying."
+                response `responseBodyShouldContain` "Roster could not be copied. No changes were saved."
+                response `responseBodyShouldNotContain` "Published roster windows are read-only"
 
                 retainedDays <- fetchTestRosterWindowDays targetWeek
                 retainedDays `shouldSatisfy` all ((== Published) . (.publicationState))
@@ -2988,7 +3050,8 @@ tests = aroundAll withDatabaseTestContext do
                         callActionWithParams CopyRosterWeekAction (rosterCopyParams 0 0)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Cannot copy a roster week onto itself."
+                response `responseBodyShouldContain` "Roster could not be copied. No changes were saved."
+                response `responseBodyShouldNotContain` "onto itself"
 
                 persistedDays <- query @RosterDay
                     |> filterWhere (#venueId, unpackId venue.id)
@@ -3006,7 +3069,8 @@ tests = aroundAll withDatabaseTestContext do
                         callActionWithParams CopyRosterWeekAction (rosterCopyParams 7 8)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Source week not found. Cannot copy."
+                response `responseBodyShouldContain` "Roster could not be copied. No changes were saved."
+                response `responseBodyShouldNotContain` "Source week not found"
 
                 targetDays <- query @RosterDay
                     |> filterWhere (#venueId, unpackId venue.id)

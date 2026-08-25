@@ -10,11 +10,17 @@ module Web.RosterWeeks.DirectReadModel
     , buildRosterStaffOptionStatesForSlotsDirect
     , buildSlotConflictsDirect
     , buildSlotConflictsForSlotsDirect
+    , RosterConflictDecodeError (..)
+    , decodeRosterConflictType
+    , unavailableRosterConflict
     , fetchRosterBaseFactsDirect
     , fetchRosterNotificationWindowDays
     , fetchRosterStaffPanelEntriesDirect
     ) where
 
+import Application.Error.Domain
+import Application.Error.Telemetry (recordAppError)
+import Application.Error.Types
 import Application.Helper.Conflict
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups (fetchCurrentVenueActiveStaff)
@@ -26,6 +32,7 @@ import Data.Maybe (mapMaybe)
 import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID
 import qualified Database.PostgreSQL.Simple as PG
+import GHC.Generics (Generic)
 import IHP.ModelSupport (sqlQuery)
 import Web.Controller.Prelude
 import Web.RosterWeeks.DateRange
@@ -359,20 +366,41 @@ buildSlotConflictsForSlotsDirect _rosterGroupId lateToEarlyMinStartGapMinutes _w
             , assignedSlotIds
             , targetSlotIds
             ) :: IO [(UUID.UUID, Text)])
-        let conflictsBySlot = Map.fromListWith (<>) [(Id slotId, [conflictForType conflictTypeText]) | (slotId, conflictTypeText) <- rows]
+        decodedRows <- forM rows \(slotId, conflictTypeText) ->
+            case decodeRosterConflictType conflictTypeText of
+                Right conflict -> pure (Id slotId, [conflict])
+                Left decodeError -> do
+                    recordAppError (projectDomainError decodeError)
+                    pure (Id slotId, [unavailableRosterConflict])
+        let conflictsBySlot = Map.fromListWith (<>) decodedRows
         pure (Map.toList (Map.map sort conflictsBySlot))
     where
         assignedSlotIds = map (coerce . (.id)) (filter rosterShiftIsStaffAssigned factSlots) :: [UUID.UUID]
         targetSlotIds = map (coerce . (.id)) targetSlots :: [UUID.UUID]
 
-conflictForType :: Text -> RosterConflict
-conflictForType "duplicate_assignment" = rosterConflict DuplicateAssignment "Multiple shifts rostered on the same day."
-conflictForType "leave_conflict" = rosterConflict LeaveConflict "Staff member has an approved unavailable period."
-conflictForType "late_to_early" = rosterConflict LateToEarlyConflict "Start-to-start gap is below venue minimum."
-conflictForType "preference_day_unavailable" = rosterConflict ShiftPreferenceDayUnavailable "Preference conflict"
-conflictForType "preference_slot_mismatch" = rosterConflict ShiftPreferenceSlotMismatch "Preferred start window conflict"
-conflictForType "ideal_shift_threshold" = rosterConflict IdealShiftThresholdExceeded "Ideal shifts exceeded"
-conflictForType other = error ("Unknown roster conflict type from direct SQL: " <> cs other)
+data RosterConflictDecodeError
+    = UnknownRosterConflictType
+    deriving (Eq, Generic, Show)
+
+instance DomainError RosterConflictDecodeError where
+    appErrorProjection UnknownRosterConflictType = AppErrorProjection
+        { safeMessage = "Conflict details unavailable"
+        , severity = Critical
+        , recovery = Terminal
+        , retryDirective = DoNotRetry
+        }
+
+decodeRosterConflictType :: Text -> Either RosterConflictDecodeError RosterConflict
+decodeRosterConflictType "duplicate_assignment" = Right (rosterConflict DuplicateAssignment "Multiple shifts rostered on the same day.")
+decodeRosterConflictType "leave_conflict" = Right (rosterConflict LeaveConflict "Staff member has an approved unavailable period.")
+decodeRosterConflictType "late_to_early" = Right (rosterConflict LateToEarlyConflict "Start-to-start gap is below venue minimum.")
+decodeRosterConflictType "preference_day_unavailable" = Right (rosterConflict ShiftPreferenceDayUnavailable "Preference conflict")
+decodeRosterConflictType "preference_slot_mismatch" = Right (rosterConflict ShiftPreferenceSlotMismatch "Preferred start window conflict")
+decodeRosterConflictType "ideal_shift_threshold" = Right (rosterConflict IdealShiftThresholdExceeded "Ideal shifts exceeded")
+decodeRosterConflictType _ = Left UnknownRosterConflictType
+
+unavailableRosterConflict :: RosterConflict
+unavailableRosterConflict = rosterConflict ConflictDetailsUnavailable "Conflict details unavailable"
 
 rosterConflict :: ConflictType -> Text -> RosterConflict
 rosterConflict conflictType message =

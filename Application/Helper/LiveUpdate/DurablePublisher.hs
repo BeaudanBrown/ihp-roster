@@ -1,6 +1,7 @@
 module Application.Helper.LiveUpdate.DurablePublisher
     ( DurablePublication (..)
     , withDurableLiveMutationOutcomeTransaction
+    , persistDurableInvalidationInCurrentTransaction
     ) where
 
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)

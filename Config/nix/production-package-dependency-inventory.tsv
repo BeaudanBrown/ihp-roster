@@ -7,6 +7,8 @@ Control.Concurrent.MVar	base	Application/Bepis/Fact.hs via Main
 Control.Exception	base	Web/FrontController.hs via Main
 Control.Exception.Safe	safe-exceptions	Application/Billing/Stripe.hs via Main
 Control.Monad	base	Web/SurfaceInvalidation.hs via Main
+Control.Monad.Trans.Class	transformers	Web/RosterWeeks/Service.hs via Main
+Control.Monad.Trans.Except	transformers	Web/RosterWeeks/Service.hs via Main
 Crypto.Cipher.AES	crypton	Application/Helper/Xero.hs via Main
 Crypto.Cipher.Types	crypton	Application/Helper/Xero.hs via Main
 Crypto.Error	crypton	Application/Helper/Xero.hs via Main
