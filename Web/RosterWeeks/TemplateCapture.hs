@@ -367,9 +367,10 @@ rawShiftInput days window activeLanes slot = do
     assignment <- either (const Nothing) Just (rosterShiftAssignment slot)
     startMinute <- minuteRelativeToOperationalDate day.operationalDate startsAt
     endMinute <- minuteRelativeToOperationalDate day.operationalDate endsAt
+    sourceDay <- listToMaybe days
     guard (slot.rowIndex >= 0 && slot.rowIndex < day.rowCount)
     guard (startMinute >= 0 && endMinute > startMinute && endMinute <= 2880)
-    let sourceWindowStart = (.operationalDate) (fromMaybe (error "validated capture window is empty") (listToMaybe days))
+    let sourceWindowStart = sourceDay.operationalDate
     pure RosterTemplateShiftInput
         { inputShiftDayIndex = fromInteger (diffDays day.operationalDate sourceWindowStart)
         , inputShiftColumnSortOrder = columnSortOrder

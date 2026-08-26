@@ -5,6 +5,7 @@ module Web.View.RosterTemplates.CaptureConfirmation
     , renderRosterTemplateCaptureConfirmation
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import qualified Application.Helper.FrontendContract.Surface.Roster.Action as RosterAction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
@@ -228,7 +229,7 @@ renderWarningsConfirmation fieldBinding _ = [hsx|
 checkedToggleValue :: ToggleFieldBinding -> Text
 checkedToggleValue fieldBinding = case toggleTargetForState fieldBinding ToggleChecked of
     ToggleTargetValue value -> value
-    ToggleTargetOmitted -> error "Warnings confirmation checked state must submit a value"
+    ToggleTargetOmitted -> externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "Warnings confirmation checked state must submit a value"
 
 staffIssueLabel :: RosterTemplateCaptureStaffIssue -> Text
 staffIssueLabel CaptureStaffUnavailable = "Staff is inactive, archived, missing, or outside this venue"
