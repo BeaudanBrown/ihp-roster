@@ -9,6 +9,7 @@ module Web.View.Admin.Xero
 
 {-# LANGUAGE TypeApplications #-}
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendContract.AppShell (OpenXeroPayItemImportOverlay,
                                                      OpenXeroTimesheetPreparationOverlay)
@@ -66,7 +67,7 @@ currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =
     case currentVenueOrNothing of
         Just venue -> unpackId venue.id
-        Nothing    -> error "Admin Xero live surface requires a current venue"
+        Nothing    -> externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "Admin Xero live surface requires a current venue"
 
 renderXeroPageContentSurface :: (?context :: ControllerContext) => Html -> Html
 renderXeroPageContentSurface body =

@@ -38,8 +38,8 @@ buildHourlyReportWindow :: VenueConfig -> [TimesheetEntry] -> Either TimesheetIn
 buildHourlyReportWindow venueConfig entries = do
     entriesWithTiming <- traverse (\entry -> (entry,) <$> decodeTimesheetTiming entry) entries
     pure HourlyReportWindow
-        { hourlyWindowStartHour = minimum (configuredStartHour : map entryStartHour entriesWithTiming)
-        , hourlyWindowEndHour = maximum (configuredEndHour : map entryEndHour entriesWithTiming)
+        { hourlyWindowStartHour = foldl' min configuredStartHour (map entryStartHour entriesWithTiming)
+        , hourlyWindowEndHour = foldl' max configuredEndHour (map entryEndHour entriesWithTiming)
         }
   where
     configuredStartMinute = venueConfig.timePickerStartMinuteOfDay
@@ -364,8 +364,8 @@ nextStoredLocalHourBoundary timezone cursor local = findBoundary firstCandidateL
 
     findBoundary candidateLocal =
         case filter (> cursor) (resolvedCandidates candidateLocal) of
-            []         -> findBoundary (addLocalTime 3600 candidateLocal)
-            candidates -> minimum candidates
+            []           -> findBoundary (addLocalTime 3600 candidateLocal)
+            first : rest -> foldl' min first rest
 
     resolvedCandidates candidateLocal =
         let occurrences =

@@ -7,6 +7,7 @@ import Application.VenueTime.Model (AuthoritativeBoundaries, BoundaryModelError,
                                     storedInstantLocalTime)
 import Control.Monad (guard)
 import Data.Fixed (Pico)
+import Data.Either (fromRight)
 import Data.Time.Calendar (Day, addDays, diffDays)
 import Data.Time.Clock (UTCTime (..), getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
@@ -229,11 +230,11 @@ currentOperationalDayForVenueOutcome venueConfig utcTime =
 currentOperationalDayForVenue :: (?modelContext :: ModelContext) => VenueConfig -> IO Day
 currentOperationalDayForVenue venueConfig = do
     now <- getCurrentTime
-    pure (either (const (utctDay now)) (\day -> day) (currentOperationalDayForVenueOutcome venueConfig now))
+    pure (fromRight (utctDay now) (currentOperationalDayForVenueOutcome venueConfig now))
 
 operationalDayForUtcTime :: (?modelContext :: ModelContext) => VenueConfig -> UTCTime -> IO Day
 operationalDayForUtcTime venueConfig utcTime =
-    pure (either (const (utctDay utcTime)) (\day -> day) (currentOperationalDayForVenueOutcome venueConfig utcTime))
+    pure (fromRight (utctDay utcTime) (currentOperationalDayForVenueOutcome venueConfig utcTime))
 
 ensureEditWindowOrManager :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Day -> IO ()
 ensureEditWindowOrManager workedOn =

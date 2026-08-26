@@ -25,6 +25,7 @@ import qualified Data.Text as Text
 import Data.Time.Calendar (addDays)
 import Data.Time.LocalTime (LocalTime (..), TimeOfDay)
 import qualified Data.UUID as UUID
+import qualified Prelude
 import Web.Controller.Prelude
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue)
 import Web.Timesheets.Paths (timesheetWindowUrl)
@@ -171,7 +172,7 @@ buildTimesheetEntry venueConfig currentViewerStaffId entry =
             |> requireParam #startsAt "workedOn" "Please choose a day"
             |> requireParam #shiftTypeId "shiftTypeId" "Please choose a shift type"
             |> fill @'["staffId", "shiftTypeId"]
-            |> maybe (\value -> value) (set #operationalDate) parsedWorkedOn
+            |> maybe Prelude.id (set #operationalDate) parsedWorkedOn
             |> validateParsedFields
 
     validateParsedFields record =

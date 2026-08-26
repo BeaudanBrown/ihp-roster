@@ -1,5 +1,6 @@
 module Application.FwcMapd.RawStore where
 
+import Application.Error.ExternalRuntime (throwExternalRuntime)
 import Application.FwcMapd.Client
 import Application.FwcMapd.Config
 import Application.FwcMapd.Curation
@@ -54,7 +55,7 @@ storeCuratedMapdAwardData ::
 storeCuratedMapdAwardData fetchedAwards = do
     validatedAwards <-
         forM fetchedAwards \candidate ->
-            either (const (Exception.throwIO MapdSnapshotInvalid)) pure (validateMapdSnapshot candidate)
+            either (const (throwExternalRuntime MapdSnapshotInvalid)) pure (validateMapdSnapshot candidate)
     storeValidatedMapdSnapshots validatedAwards
 
 storeValidatedMapdSnapshots ::

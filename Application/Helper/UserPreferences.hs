@@ -22,6 +22,7 @@ module Application.Helper.UserPreferences
     , upsertCurrentUserTimesheetShowWageEstimates
     ) where
 
+import Application.Error.ExternalRuntime (throwExternalRuntime)
 import Application.Helper.Controller (effectiveCurrentUser, fetchVenueConfig,
                                       hasRole)
 import qualified Control.Exception as Exception
@@ -137,8 +138,8 @@ fetchOrInitializeCurrentUserTimesheetPreferences = do
                             Just preferences
                                 | isJust preferences.timesheetPreferencesInitializedAt -> pure preferences
                                 | otherwise -> fetchOrInitializeCurrentUserTimesheetPreferences
-                            Nothing -> Exception.throwIO sessionError
-                    | otherwise -> Exception.throwIO sessionError
+                            Nothing -> throwExternalRuntime sessionError
+                    | otherwise -> throwExternalRuntime sessionError
 
 isUniqueViolation :: HasqlSessionError -> Bool
 isUniqueViolation (HasqlSessionError sessionError) =

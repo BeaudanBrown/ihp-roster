@@ -17,6 +17,7 @@ module Application.WageSourceAlert.Types
     , wageSourceText
     ) where
 
+import Application.Error.Parser (parserFailure)
 import qualified Data.Aeson as Aeson
 import Data.Traversable (traverse)
 import IHP.Prelude
@@ -76,11 +77,11 @@ instance Aeson.ToJSON WageSourceAlertSnapshot where
 instance Aeson.FromJSON WageSourceAlertSnapshot where
     parseJSON = Aeson.withObject "WageSourceAlertSnapshot" \object -> do
         rawAlertKind <- object Aeson..: "alertKind"
-        parsedAlertKind <- maybe (fail "Unknown wage-source alert kind") pure (parseAlertKind rawAlertKind)
+        parsedAlertKind <- maybe (parserFailure "Unknown wage-source alert kind") pure (parseAlertKind rawAlertKind)
         rawSource <- object Aeson..: "source"
-        parsedSource <- maybe (fail "Unknown wage source") pure (parseWageSourceKind rawSource)
+        parsedSource <- maybe (parserFailure "Unknown wage source") pure (parseWageSourceKind rawSource)
         rawTriggerClass <- object Aeson..:? "refreshTriggerClass"
-        parsedTriggerClass <- traverse (maybe (fail "Unknown refresh trigger class") pure . parseRefreshTriggerClass) rawTriggerClass
+        parsedTriggerClass <- traverse (maybe (parserFailure "Unknown refresh trigger class") pure . parseRefreshTriggerClass) rawTriggerClass
         maximumAgeSeconds <- object Aeson..:? "freshnessMaximumAgeSeconds"
         WageSourceAlertSnapshot
             <$> pure parsedAlertKind

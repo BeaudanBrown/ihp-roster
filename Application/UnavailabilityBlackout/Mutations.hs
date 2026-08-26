@@ -7,6 +7,7 @@ module Application.UnavailabilityBlackout.Mutations
     , updateUnavailabilityBlackoutInCurrentTransaction
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import qualified Data.UUID as UUID
 import qualified Database.PostgreSQL.Simple as PG
 import Generated.Types hiding (createUnavailabilityBlackout)
@@ -22,7 +23,7 @@ lockVenueUnavailabilityBlackoutInCurrentTransaction venueId = do
         "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS unavailability_blackout_lock"
         (PG.Only lockKey)
     unless (lockResults == [PG.Only True]) do
-        error "Unable to lock unavailability blackout key"
+        externalRuntimeInvariantFailure PersistedRuntimeInvariant "Unable to lock unavailability blackout key"
 
 findOverlappingUnavailabilityBlackout ::
     (?modelContext :: ModelContext) =>
@@ -71,7 +72,7 @@ updateUnavailabilityBlackoutInCurrentTransaction submitted = do
                     Nothing -> do
                         now <- getCurrentTime
                         Right <$> (submitted |> set #updatedAt now |> updateRecord)
-            _ -> error "Blackout update lock returned an unexpected row set"
+            _ -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "Blackout update lock returned an unexpected row set"
 
 deleteUnavailabilityBlackoutInCurrentTransaction ::
     (?modelContext :: ModelContext) =>
@@ -87,4 +88,4 @@ deleteUnavailabilityBlackoutInCurrentTransaction blackout = do
             [PG.Only _] -> do
                 deleteRecord blackout
                 pure True
-            _ -> error "Blackout delete lock returned an unexpected row set"
+            _ -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "Blackout delete lock returned an unexpected row set"

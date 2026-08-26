@@ -15,6 +15,7 @@ module Web.RosterWeeks.TemplateApplication
     , previewRosterTemplateApplication
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)
 import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
@@ -320,6 +321,9 @@ validateAssignments ::
     [PreparedShift] ->
     IO ([PreparedShift], Map.Map (Id Staff) Text, Text)
 validateAssignments targetGroup availableShiftTypes plans = do
+    let targetStart = case plans of
+            [] -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "validated template application has no shift plans"
+            firstPlan : remainingPlans -> foldl' min firstPlan.preparedTargetDay.operationalDate (map (.preparedTargetDay.operationalDate) remainingPlans)
     let staffIds = nub [staffId | plan <- plans, StaffAssignment staffId <- [plan.preparedAssignment]]
     staff <- if null staffIds then pure [] else query @Staff |> filterWhereIn (#id, staffIds) |> fetch
     memberships <- if null staffIds then pure [] else query @StaffRosterGroup
@@ -331,8 +335,8 @@ validateAssignments targetGroup availableShiftTypes plans = do
         |> filterWhereIn (#staffId, map unpackId staffIds)
         |> filterWhere (#venueId, targetGroup.venueId)
         |> filterWhere (#status, LeaveRequestStatusEnumApproved)
-        |> filterWhereLessThan (#startDate, addDays 7 (minimum (map (.preparedTargetDay.operationalDate) plans)))
-        |> filterWhereGreaterThan (#endDate, minimum (map (.preparedTargetDay.operationalDate) plans))
+        |> filterWhereLessThan (#startDate, addDays 7 targetStart)
+        |> filterWhereGreaterThan (#endDate, targetStart)
         |> fetch
     let effectiveShiftTypeIds = Set.fromList (map (.preparedShiftTypeId) plans)
         effectiveShiftTypes = filter (\shiftType -> shiftType.id `Set.member` effectiveShiftTypeIds) availableShiftTypes
@@ -401,7 +405,7 @@ cleanedTemplateContent saved plans =
     dayIndexById = Map.fromList [(unpackId day.id, day.dayIndex) | day <- saved.snapshotDays]
     cleanedShift plan =
         RosterTemplateShiftInput
-            { inputShiftDayIndex = Map.findWithDefault (error "prepared template day missing") plan.preparedTemplateShift.rosterTemplateDayId dayIndexById
+            { inputShiftDayIndex = Map.findWithDefault (externalRuntimeInvariantFailure PersistedRuntimeInvariant "prepared template day missing") plan.preparedTemplateShift.rosterTemplateDayId dayIndexById
             , inputShiftColumnSortOrder = plan.preparedTemplateColumn.sortOrder
             , inputShiftRowIndex = plan.preparedTemplateShift.rowIndex
             , inputShiftStartMinute = plan.preparedTemplateShift.startMinute
@@ -411,7 +415,7 @@ cleanedTemplateContent saved plans =
                 (_, _, Just issue) | issueIsDurable issue -> OpenAssignment
                 ("staff", Just staffId, _) -> StaffAssignment (Id staffId)
                 ("open", Nothing, _) -> OpenAssignment
-                _ -> error "validated template assignment shape changed"
+                _ -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "validated template assignment shape changed"
             }
 
 resolveTemplateMinute ::
@@ -475,7 +479,7 @@ templateShiftAssignment :: RosterTemplateShift -> RosterShiftAssignment
 templateShiftAssignment shift = case (shift.assignmentState, shift.staffId) of
     ("staff", Just staffId) -> StaffAssignment (Id staffId)
     ("open", Nothing)       -> OpenAssignment
-    _                       -> error "validated template assignment shape changed"
+    _                       -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "validated template assignment shape changed"
 
 digestText :: Text -> Text
 digestText value = tshow (Hash.hash (TextEncoding.encodeUtf8 value) :: Hash.Digest Hash.SHA256)

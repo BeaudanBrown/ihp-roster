@@ -56,6 +56,5 @@ requireStripeSignatureHeader =
         Nothing -> renderPlainWithStatus status400 "Stripe-Signature header is required"
 
 renderPlainWithStatus :: (?request :: Request) => Status -> Text -> IO value
-renderPlainWithStatus status message = do
-    respondAndExit (Wai.responseLBS status [("Content-Type", "text/plain")] (cs message))
-    error "unreachable"
+renderPlainWithStatus status message =
+    respondAndStop (Wai.responseLBS status [("Content-Type", "text/plain")] (cs message))

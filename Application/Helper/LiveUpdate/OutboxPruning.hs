@@ -6,6 +6,8 @@ module Application.Helper.LiveUpdate.OutboxPruning
     , pruneExpiredLiveInvalidationOutboxAt
     ) where
 
+import Application.Error.ExternalRuntime (throwExternalRuntime)
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Control.Concurrent (threadDelay)
 import qualified Control.Exception as Exception
 import Data.Int (Int64)
@@ -66,10 +68,10 @@ pruneExpiredLiveInvalidationOutboxAt now config = do
 
 validateConfig :: LiveInvalidationOutboxPruneConfig -> IO ()
 validateConfig config = do
-    when (config.retentionSeconds < 7 * 24 * 60 * 60) (fail "Live invalidation outbox retention cannot be shorter than seven days")
-    when (config.batchSize <= 0) (fail "Live invalidation outbox batch size must be positive")
-    when (config.batchSize > 1000) (fail "Live invalidation outbox batch size cannot exceed 1000")
-    when (config.maximumRetries < 0) (fail "Live invalidation outbox retry count cannot be negative")
+    when (config.retentionSeconds < 7 * 24 * 60 * 60) (externalRuntimeInvariantFailure PersistedRuntimeInvariant "Live invalidation outbox retention cannot be shorter than seven days")
+    when (config.batchSize <= 0) (externalRuntimeInvariantFailure PersistedRuntimeInvariant "Live invalidation outbox batch size must be positive")
+    when (config.batchSize > 1000) (externalRuntimeInvariantFailure PersistedRuntimeInvariant "Live invalidation outbox batch size cannot exceed 1000")
+    when (config.maximumRetries < 0) (externalRuntimeInvariantFailure PersistedRuntimeInvariant "Live invalidation outbox retry count cannot be negative")
 
 pruneBatchWithRetry :: (?modelContext :: ModelContext) => LiveInvalidationOutboxPruneConfig -> UTCTime -> Int -> IO Int
 pruneBatchWithRetry config cutoff retryAttempt =
@@ -79,7 +81,7 @@ pruneBatchWithRetry config cutoff retryAttempt =
                 TextIO.putStrLn ("live_invalidation_outbox_prune batch_retry=true attempt=" <> tshow (retryAttempt + 1))
                 threadDelay (100000 * (retryAttempt + 1))
                 pruneBatchWithRetry config cutoff (retryAttempt + 1)
-            else Exception.throwIO exception
+            else throwExternalRuntime exception
 
 pruneBatch :: (?modelContext :: ModelContext) => LiveInvalidationOutboxPruneConfig -> UTCTime -> IO Int
 pruneBatch config cutoff =

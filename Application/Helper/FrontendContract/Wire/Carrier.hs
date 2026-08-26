@@ -52,6 +52,7 @@ module Application.Helper.FrontendContract.Wire.Carrier
     , (|:)
     ) where
 
+import Application.Error.Parser (parserFailure)
 import Application.Helper.FrontendContract.ClosedScalar (KnownClosedScalar,
                                                          closedScalarLiteral,
                                                          parseClosedScalarLiteral)
@@ -402,7 +403,7 @@ instance
 requiredObjectField :: forall marker. Typeable marker => Aeson.Object -> AesonTypes.Parser Aeson.Value
 requiredObjectField object =
     maybe
-        (fail ("missing required field " <> cs (fieldName @marker)))
+        (parserFailure ("missing required field " <> cs (fieldName @marker)))
         pure
         (KeyMap.lookup (AesonKey.fromText (fieldName @marker)) object)
 
@@ -430,13 +431,13 @@ instance KnownWireCodec 'WireBool where
 instance KnownWireCodec 'WireUUID where
     carrierWireJson = Aeson.String . UUID.toText
     parseCarrierWire = Aeson.withText "FrontendContract WireUUID" \value ->
-        maybe (fail "FrontendContract UUID field is malformed") pure (UUID.fromText value)
+        maybe (parserFailure "FrontendContract UUID field is malformed") pure (UUID.fromText value)
 
 instance KnownWireCodec 'WireDay where
     carrierWireJson = Aeson.String . cs . formatTime defaultTimeLocale "%F"
     parseCarrierWire = Aeson.withText "FrontendContract WireDay" \value ->
         maybe
-            (fail "FrontendContract day field is malformed")
+            (parserFailure "FrontendContract day field is malformed")
             pure
             (parseTimeM True defaultTimeLocale "%F" (cs value))
 
@@ -444,13 +445,13 @@ instance KnownClosedScalar value => KnownWireCodec ('WireClosed value) where
     carrierWireJson = Aeson.String . closedScalarLiteral
     parseCarrierWire = Aeson.withText "FrontendContract WireClosed" \literal ->
         maybe
-            (fail ("FrontendContract closed scalar has invalid literal: " <> cs literal))
+            (parserFailure ("FrontendContract closed scalar has invalid literal: " <> cs literal))
             pure
             (parseClosedScalarLiteral @value literal)
 
 instance NominalText value => KnownWireCodec ('WireDomain value) where
     carrierWireJson = Aeson.String . renderNominalText
-    parseCarrierWire = Aeson.withText "FrontendContract WireDomain" (either (fail . cs) pure . parseNominalText)
+    parseCarrierWire = Aeson.withText "FrontendContract WireDomain" (either (parserFailure . cs) pure . parseNominalText)
 
 instance KnownWireCodec 'WireUnknown where
     carrierWireJson = id
@@ -634,7 +635,7 @@ class ParseUnionCases (cases :: [UnionCaseSpec]) where
 
 instance ParseUnionCases '[] where
     parseDeclaredUnionCase tag _ NoUnionCaseParsers =
-        fail ("validated FrontendContract union case is unavailable: " <> cs tag)
+        parserFailure ("validated FrontendContract union case is unavailable: " <> cs tag)
 
 instance
     ( Typeable marker

@@ -43,8 +43,11 @@ submitReviewedXeroDraftTimesheetsForPreparation :: (?modelContext :: ModelContex
 submitReviewedXeroDraftTimesheetsForPreparation userId runId snapshot request =
     Submission.submitReviewedXeroDraftTimesheetsForPreparation userId runId snapshot request >>= expectSubmissionResult
 
-expectSubmissionResult :: AppResult value -> IO value
-expectSubmissionResult = either (\appError -> expectationFailure (cs (show appError)) >> fail "unexpected submission infrastructure error") pure
+expectSubmissionResult :: AppResult (XeroSubmissionOutcome value) -> IO (Either Text value)
+expectSubmissionResult = \case
+    Left appError -> expectationFailure (cs (show appError)) >> pure (Left "unexpected submission infrastructure error")
+    Right (XeroSubmissionBlocked message) -> pure (Left message)
+    Right (XeroSubmissionSucceeded value) -> pure (Right value)
 
 tests :: Spec
 tests =

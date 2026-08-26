@@ -242,8 +242,8 @@ firstVenueWeekStartingOnOrAfter weekStartsOn boundary =
         (find ((== weekStartsOn) . dayOfWeek) [addDays offset boundary | offset <- [0 .. 6]])
 
 maximumMaybe :: Ord value => [value] -> Maybe value
-maximumMaybe []     = Nothing
-maximumMaybe values = Just (maximum values)
+maximumMaybe []             = Nothing
+maximumMaybe (first : rest) = Just (foldl' max first rest)
 
 data AwardFingerprint = AwardFingerprint
     { documentChecksum   :: !Text

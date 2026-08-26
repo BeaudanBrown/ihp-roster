@@ -5,6 +5,7 @@ module Application.Billing.NotificationKind
     , parseBillingNotificationKind
     ) where
 
+import Application.Error.Parser (parserFailure)
 import qualified Data.Aeson as Aeson
 import IHP.Prelude
 
@@ -37,7 +38,7 @@ instance Aeson.ToJSON BillingNotification where
 instance Aeson.FromJSON BillingNotification where
     parseJSON = Aeson.withObject "BillingNotification" \object -> do
         rawKind <- object Aeson..: "notificationKind"
-        notificationKind <- maybe (fail "Unknown billing notification kind") pure (parseBillingNotificationKind rawKind)
+        notificationKind <- maybe (parserFailure "Unknown billing notification kind") pure (parseBillingNotificationKind rawKind)
         BillingNotification
             <$> pure notificationKind
             <*> pure Nothing

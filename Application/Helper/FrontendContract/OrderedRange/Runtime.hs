@@ -15,6 +15,8 @@ module Application.Helper.FrontendContract.OrderedRange.Runtime
     , orderedRangeStateJson
     ) where
 
+import Application.Error.Parser (parserFailure)
+import Application.Error.Startup (startupInvariantFailure)
 import qualified Application.Helper.FrontendContract.OrderedRange as Contract
 import Application.Helper.FrontendContract.Values (constantValue, domAttrValue,
                                                    enumLiteralValue)
@@ -155,23 +157,23 @@ positionPercent OrderedRangeBrowserConfig { orderedRangeMinimumValue, orderedRan
 
 validateOrderedRangeConfig :: OrderedRangeBrowserConfig -> OrderedRangeBrowserConfig
 validateOrderedRangeConfig config@OrderedRangeBrowserConfig { orderedRangeMinimumValue, orderedRangeMaximumValue, orderedRangeStepValue, orderedRangeDefaultStartValue, orderedRangeDefaultEndValue, orderedRangeValueLabels }
-    | orderedRangeMinimumValue >= orderedRangeMaximumValue = error "Ordered range minimum value must be less than maximum value"
-    | orderedRangeStepValue <= 0 = error "Ordered range step value must be positive"
-    | (orderedRangeMaximumValue - orderedRangeMinimumValue) `mod` orderedRangeStepValue /= 0 = error "Ordered range step must evenly divide the allowed range"
-    | length orderedRangeValueLabels /= length allowedValues = error "Ordered range labels must cover every allowed value"
-    | any (Text.null . Text.strip) orderedRangeValueLabels = error "Ordered range labels must not be empty"
-    | orderedRangeDefaultStartValue `notElem` allowedValues = error "Ordered range default start value is outside the allowed range"
-    | orderedRangeDefaultEndValue `notElem` allowedValues = error "Ordered range default end value is outside the allowed range"
-    | orderedRangeDefaultStartValue > orderedRangeDefaultEndValue = error "Ordered range default start value must not exceed default end value"
+    | orderedRangeMinimumValue >= orderedRangeMaximumValue = startupInvariantFailure "Ordered range minimum value must be less than maximum value"
+    | orderedRangeStepValue <= 0 = startupInvariantFailure "Ordered range step value must be positive"
+    | (orderedRangeMaximumValue - orderedRangeMinimumValue) `mod` orderedRangeStepValue /= 0 = startupInvariantFailure "Ordered range step must evenly divide the allowed range"
+    | length orderedRangeValueLabels /= length allowedValues = startupInvariantFailure "Ordered range labels must cover every allowed value"
+    | any (Text.null . Text.strip) orderedRangeValueLabels = startupInvariantFailure "Ordered range labels must not be empty"
+    | orderedRangeDefaultStartValue `notElem` allowedValues = startupInvariantFailure "Ordered range default start value is outside the allowed range"
+    | orderedRangeDefaultEndValue `notElem` allowedValues = startupInvariantFailure "Ordered range default end value is outside the allowed range"
+    | orderedRangeDefaultStartValue > orderedRangeDefaultEndValue = startupInvariantFailure "Ordered range default start value must not exceed default end value"
     | otherwise = config
   where
     allowedValues = [orderedRangeMinimumValue, orderedRangeMinimumValue + orderedRangeStepValue .. orderedRangeMaximumValue]
 
 validateOrderedRangeState :: OrderedRangeBrowserConfig -> OrderedRangeBrowserState -> OrderedRangeBrowserState
 validateOrderedRangeState rawConfig state@OrderedRangeBrowserState { orderedRangeStartValue, orderedRangeEndValue }
-    | orderedRangeStartValue `notElem` allowedValues = error "Ordered range start value is outside the allowed range"
-    | orderedRangeEndValue `notElem` allowedValues = error "Ordered range end value is outside the allowed range"
-    | orderedRangeStartValue > orderedRangeEndValue = error "Ordered range start value must not exceed end value"
+    | orderedRangeStartValue `notElem` allowedValues = startupInvariantFailure "Ordered range start value is outside the allowed range"
+    | orderedRangeEndValue `notElem` allowedValues = startupInvariantFailure "Ordered range end value is outside the allowed range"
+    | orderedRangeStartValue > orderedRangeEndValue = startupInvariantFailure "Ordered range start value must not exceed end value"
     | otherwise = state
   where
     config = validateOrderedRangeConfig rawConfig
@@ -183,12 +185,12 @@ instance ContractReference Contract.OrderedRangeCrossingPolicy where
     parseContractReference = Aeson.withText "OrderedRangeCrossingPolicy" \value ->
         if value == crossingPolicyText ClampOtherEndpoint
             then pure ClampOtherEndpoint
-            else fail "Unknown OrderedRangeCrossingPolicy"
+            else parserFailure "Unknown OrderedRangeCrossingPolicy"
 
 crossingPolicyText :: OrderedRangeCrossingPolicy -> Text
 crossingPolicyText ClampOtherEndpoint
     | generatedCaseValue == exportedPolicyValue = generatedCaseValue
-    | otherwise = error "Ordered range crossing policy constant disagrees with its generated enum case"
+    | otherwise = startupInvariantFailure "Ordered range crossing policy constant disagrees with its generated enum case"
   where
     generatedCaseValue = enumLiteralValue @Contract.OrderedRangeCrossingPolicy @Contract.ClampOtherEndpoint
     exportedPolicyValue = constantValue @Contract.OrderedRangeClampOtherEndpoint

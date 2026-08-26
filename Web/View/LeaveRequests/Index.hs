@@ -2,6 +2,7 @@
 
 module Web.View.LeaveRequests.Index where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Controller (leaveRequestIsArchivedOn)
 import Application.Helper.FrontendContract.AppShell (OpenRosterStaffEditDialog)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
@@ -794,7 +795,7 @@ renderReviewActionForm action buttonClass label =
     case action of
         ApproveLeaveRequestAction {} -> render (LeaveRequestsAction.approveLeaveRequestAction LeaveRequestsAction.approveLeaveRequestActionFields)
         DenyLeaveRequestAction {} -> render (LeaveRequestsAction.denyLeaveRequestAction LeaveRequestsAction.denyLeaveRequestActionFields)
-        _ -> error "unsupported leave request review action"
+        _ -> externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "unsupported leave request review action"
     where
         render actionContract =
             renderFrontendSurfaceActionForm

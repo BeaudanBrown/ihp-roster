@@ -12,6 +12,7 @@ module Web.RosterWeeks.RenderData
     )
 where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Conflict
 import Application.Helper.Controller
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
@@ -81,7 +82,7 @@ renderVisibleRosterReadModelFragment scope fragment =
                 currentRosterGroupOrNothing <- profileActionSpan "roster.fragment.resolve_current_group" (fetchViewableRosterGroup scope.rosterWindowRosterGroupId)
                 accessDeniedUnless (isJust currentRosterGroupOrNothing)
                 rosterData <- fetchVisibleRosterReadModel scope
-                Just <$> renderRosterContentFromProjection rosterGroups (fromMaybe (error "authorized roster group missing") currentRosterGroupOrNothing) rosterData
+                Just <$> renderRosterContentFromProjection rosterGroups (fromMaybe (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "authorized roster group missing") currentRosterGroupOrNothing) rosterData
             _ -> renderVisibleRosterFragment scope fragment
 
 renderRosterProjectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Maybe RosterRenderData -> RosterProjectionFragment -> Maybe Blaze.Html
@@ -333,7 +334,7 @@ fetchRosterRenderData scope = do
     rosterGroups <- profileActionSpan "roster.direct.fetch_roster_groups" fetchViewableRosterGroups
     currentRosterGroupOrNothing <- profileActionSpan "roster.direct.resolve_current_group" (fetchViewableRosterGroup rosterGroupId)
     accessDeniedUnless (isJust currentRosterGroupOrNothing)
-    let currentRosterGroup = fromMaybe (error "authorized roster group missing") currentRosterGroupOrNothing
+    let currentRosterGroup = fromMaybe (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "authorized roster group missing") currentRosterGroupOrNothing
     assignmentFilters <- profileActionSpan "roster.direct.fetch_assignment_filters" fetchRosterAssignmentFilters
     rosterLayoutMode <- profileActionSpan "roster.direct.fetch_layout_preference" fetchCurrentRosterLayoutMode
     userShowWageEstimates <- profileActionSpan "roster.direct.fetch_wage_preference" fetchCurrentUserShowWageEstimates
@@ -499,7 +500,7 @@ renderVisibleRosterFragment scope fragment = do
                     rosterData <- fetchVisibleRosterReadModel scope
                     pure (renderRosterProjectionFragment rosterData fragment)
                 RosterProjectionRow rosterDayUuid rowIndex -> do
-                    facts@RosterBaseFacts { baseRosterDays = rosterDays, baseVisibleSlots = visibleSlots, baseStaffMembers = staffMembers } <- fromMaybe (error "authorized roster window missing") <$> fetchRosterBaseFactsDirect scope
+                    facts@RosterBaseFacts { baseRosterDays = rosterDays, baseVisibleSlots = visibleSlots, baseStaffMembers = staffMembers } <- fromMaybe (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "authorized roster window missing") <$> fetchRosterBaseFactsDirect scope
                     venueConfig <- fetchVenueConfig
                     assignmentFilters <- fetchRosterAssignmentFilters
                     rosterLayoutMode <- fetchCurrentRosterLayoutMode
@@ -512,7 +513,7 @@ renderVisibleRosterFragment scope fragment = do
                     let renderIndexes = buildRosterRenderIndexes rosterDays visibleSlots staffMembers slotConflicts
                     pure (renderRequestedRowFragment (hasRole Manager && not rosterWeek.windowIsPublished) weekStartDate scope.rosterWindowCalendarRevision facts.baseOrderedSlotDefinitions assignmentFilters staffMembers facts.baseShiftTypes renderIndexes rosterLayoutMode venueConfig.rosterEndTimesEnabled (rosterDayUuid, rowIndex))
                 RosterProjectionDaySection rosterDayUuid -> do
-                    facts@RosterBaseFacts { baseRosterDays = rosterDays, baseVisibleSlots = visibleSlots, baseStaffMembers = staffMembers, basePanelStaff = panelStaffMembers } <- fromMaybe (error "authorized roster window missing") <$> fetchRosterBaseFactsDirect scope
+                    facts@RosterBaseFacts { baseRosterDays = rosterDays, baseVisibleSlots = visibleSlots, baseStaffMembers = staffMembers, basePanelStaff = panelStaffMembers } <- fromMaybe (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "authorized roster window missing") <$> fetchRosterBaseFactsDirect scope
                     venueConfig <- fetchVenueConfig
                     assignmentFilters <- fetchRosterAssignmentFilters
                     rosterLayoutMode <- fetchCurrentRosterLayoutMode
@@ -542,7 +543,7 @@ fetchVisibleRosterStaffPanelRenderModel panelScope scope = do
     rosterGroups <- profileActionSpan "roster.fragment.fetch_roster_groups" fetchViewableRosterGroups
     currentRosterGroupOrNothing <- profileActionSpan "roster.fragment.resolve_current_group" (fetchViewableRosterGroup rosterGroupId)
     accessDeniedUnless (isJust currentRosterGroupOrNothing)
-    let currentRosterGroup = fromMaybe (error "authorized roster group missing") currentRosterGroupOrNothing
+    let currentRosterGroup = fromMaybe (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "authorized roster group missing") currentRosterGroupOrNothing
     assignmentFilters <- profileActionSpan "roster.fragment.fetch_assignment_filters" fetchRosterAssignmentFilters
     rosterLayoutMode <- profileActionSpan "roster.fragment.fetch_layout_preference" fetchCurrentRosterLayoutMode
     userShowWageEstimates <- profileActionSpan "roster.fragment.fetch_wage_preference" fetchCurrentUserShowWageEstimates

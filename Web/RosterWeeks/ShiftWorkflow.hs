@@ -19,6 +19,7 @@ module Web.RosterWeeks.ShiftWorkflow
     , validateRosterShiftDialogSubmission
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Controller
 import Application.Helper.RosterGroups (staffIsEligibleForRosterGroup)
 import Application.Helper.TimeRules (defaultShiftTimesForVenueConfig,
@@ -71,7 +72,7 @@ data ValidatedRosterShift = ValidatedRosterShift
 fetchRosterSlotDefinitionForCreate :: (?modelContext :: ModelContext) => Id RosterDay -> Id RosterLane -> IO RosterLane
 fetchRosterSlotDefinitionForCreate rosterDayId requestedId =
     resolveRosterLaneReference (Just rosterDayId) requestedId
-        >>= maybe (error "Roster lane does not exist for the selected Operational date") pure
+        >>= maybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "Roster lane does not exist for the selected Operational date") pure
 
 fetchRosterSlotForEdit :: (?modelContext :: ModelContext) => Id RosterSlot -> IO RosterSlot
 fetchRosterSlotForEdit = fetch

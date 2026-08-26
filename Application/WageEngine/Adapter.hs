@@ -23,6 +23,7 @@ module Application.WageEngine.Adapter
     )
 where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.WeekBoundaries (venueEffectiveRateDate,
                                           venueEffectiveRateEndDate)
 import Application.VenueTime (AwardSegment, ResolvedInterval)
@@ -388,14 +389,15 @@ buildProjectedRateBook weekStartsOn workedOn awardLevels rateIndex = do
 -- validating completeness; rows within that snapshot still conflict normally.
 selectLatestEffectiveSnapshot :: [CandidateRate] -> [CandidateRate]
 selectLatestEffectiveSnapshot [] = []
-selectLatestEffectiveSnapshot rates =
+selectLatestEffectiveSnapshot rates@(first : rest) =
     filter ((== latestEffectiveFrom) . (.effectiveFrom) . (.candidateRateEffectivePeriod)) rates
   where
-    latestEffectiveFrom = maximum (map ((.effectiveFrom) . (.candidateRateEffectivePeriod)) rates)
+    effectiveFrom = (.effectiveFrom) . (.candidateRateEffectivePeriod)
+    latestEffectiveFrom = foldl' max (effectiveFrom first) (map effectiveFrom rest)
 
 minimumMay :: Ord value => [value] -> Maybe value
-minimumMay []     = Nothing
-minimumMay values = Just (minimum values)
+minimumMay []             = Nothing
+minimumMay (first : rest) = Just (foldl' min first rest)
 
 baseCandidateRate :: Map.Map UUID ProjectedAwardLevelRow -> ProjectedBaseRateRow -> Either RateBookError CandidateRate
 baseCandidateRate awardLevelById row = do
@@ -710,8 +712,8 @@ fetchDatabaseStatewideHolidayRows _ [] = pure []
 fetchDatabaseStatewideHolidayRows observeRead contextRows = do
     let componentStartDates = List.sort (map (.contextComponentStartDate) contextRows)
         componentEndDates = List.sort (map (.contextComponentEndDate) contextRows)
-        fromDate = fromMaybe (error "WageEngine holiday scope unexpectedly empty") (listToMaybe componentStartDates)
-        toDate = fromMaybe (error "WageEngine holiday scope unexpectedly empty") (listToMaybe (reverse componentEndDates))
+        fromDate = fromMaybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "WageEngine holiday scope unexpectedly empty") (listToMaybe componentStartDates)
+        toDate = fromMaybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "WageEngine holiday scope unexpectedly empty") (listToMaybe (reverse componentEndDates))
     observeRead (StatewideHolidaysRead fromDate toDate)
     holidays <- query @G.PublicHoliday
         |> filterWhere (#jurisdiction, "VIC" :: Text)

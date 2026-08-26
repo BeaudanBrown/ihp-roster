@@ -11,6 +11,7 @@ module Application.TimesheetApproval
     ) where
 
 import Application.Error.Domain (projectDomainError)
+import Application.Error.ExternalRuntime (throwExternalRuntime)
 import Application.Error.Types (AppResult)
 import Application.Helper.Audit (recordAuditEvent, recordTimesheetEntryVersion,
                                  timesheetEntrySnapshot)
@@ -90,12 +91,12 @@ refreshProblemApprovalWithAudit actorUserId venueId entryId expected enrichAudit
         runApprovalEngineInCurrentTransaction actorUserId (RefreshProblemApproval expected) enrichAuditPayload auditSourceChannel entry >>= \case
             Left approvalError -> Exception.throwIO (ApprovalEngineException approvalError)
             Right approvalResult -> pure approvalResult
-    pure case result of
-        Right (Right approvalResult) -> Right approvalResult
-        Right (Left (ApprovalEngineException approvalError)) -> Left (projectDomainError approvalError)
+    case result of
+        Right (Right approvalResult) -> pure (Right approvalResult)
+        Right (Left (ApprovalEngineException approvalError)) -> pure (Left (projectDomainError approvalError))
         Left sessionError
-            | isLockTimeout sessionError -> Left (projectDomainError ApprovalRefreshLockTimedOut)
-            | otherwise -> Exception.throw sessionError
+            | isLockTimeout sessionError -> pure (Left (projectDomainError ApprovalRefreshLockTimedOut))
+            | otherwise -> throwExternalRuntime sessionError
 
 runApprovalEngineInCurrentTransaction ::
     (?modelContext :: ModelContext) =>

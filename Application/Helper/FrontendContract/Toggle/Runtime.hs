@@ -32,6 +32,8 @@ module Application.Helper.FrontendContract.Toggle.Runtime
     , toggleTransportKey
     ) where
 
+import Application.Error.Parser (parserFailure)
+import Application.Error.Startup (startupInvariantFailure)
 import Application.Helper.FrontendContract.ClosedScalar (KnownClosedScalar)
 import Application.Helper.FrontendContract.Surface.DSL (WireType (..))
 import Application.Helper.FrontendContract.Surface.Values hiding ((&:))
@@ -211,8 +213,8 @@ namedBooleanToggleField fieldName =
 
 checkedToggleFieldBinding :: Text -> ToggleTarget -> ToggleTarget -> ToggleFieldBinding
 checkedToggleFieldBinding fieldName checkedTarget uncheckedTarget
-    | Text.null (Text.strip fieldName) = error "Toggle transport field name must not be empty"
-    | checkedTarget == uncheckedTarget = error "Toggle checked and unchecked transport targets must differ"
+    | Text.null (Text.strip fieldName) = startupInvariantFailure "Toggle transport field name must not be empty"
+    | checkedTarget == uncheckedTarget = startupInvariantFailure "Toggle checked and unchecked transport targets must differ"
     | otherwise = ToggleFieldBinding
         { fieldBindingName = fieldName
         , fieldBindingCheckedTarget = checkedTarget
@@ -235,12 +237,12 @@ toggleTargetForState binding ToggleUnchecked = binding.fieldBindingUncheckedTarg
 
 toggleTransportKey :: Text -> Text
 toggleTransportKey inputId
-    | Text.null (Text.strip inputId) = error "Toggle input id must not be empty"
+    | Text.null (Text.strip inputId) = startupInvariantFailure "Toggle input id must not be empty"
     | otherwise = "toggle-transport:" <> inputId
 
 toggleBreakRegion :: Text -> ToggleBreakRegion
 toggleBreakRegion regionId
-    | Text.null (Text.strip regionId) = error "Toggle break region id must not be empty"
+    | Text.null (Text.strip regionId) = startupInvariantFailure "Toggle break region id must not be empty"
     | otherwise = ToggleBreakRegion
         { breakRegionId = regionId
         , breakRegionKey = "toggle-break-region:" <> regionId
@@ -281,7 +283,7 @@ instance ContractReference Contract.TogglePresentationState where
         case value of
             _ | value == presentationStateText ToggleChecked -> pure ToggleChecked
             _ | value == presentationStateText ToggleUnchecked -> pure ToggleUnchecked
-            _ -> fail "Unknown TogglePresentationState"
+            _ -> parserFailure "Unknown TogglePresentationState"
 
 instance ContractReference Contract.ToggleSubmissionPolicy where
     type ContractReferenceValue Contract.ToggleSubmissionPolicy = ToggleSubmissionPolicy
@@ -290,7 +292,7 @@ instance ContractReference Contract.ToggleSubmissionPolicy where
         case value of
             _ | value == submissionPolicyText ToggleSubmitDeferred -> pure ToggleSubmitDeferred
             _ | value == submissionPolicyText ToggleSubmitImmediate -> pure ToggleSubmitImmediate
-            _ -> fail "Unknown ToggleSubmissionPolicy"
+            _ -> parserFailure "Unknown ToggleSubmissionPolicy"
 
 instance ContractReference Contract.ToggleTarget where
     type ContractReferenceValue Contract.ToggleTarget = ToggleTarget

@@ -11,6 +11,7 @@ module Web.Billing.FrontendSurface
     , currentBillingScopeValue
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Billing as Surface
 import qualified Application.Helper.FrontendContract.Surface.Billing.Live as SurfaceLive
@@ -89,4 +90,4 @@ currentVenueScopeId :: (?context :: ControllerContext) => UUID.UUID
 currentVenueScopeId =
     case currentVenueOrNothing of
         Just venue -> unpackId venue.id
-        Nothing    -> error "Billing live surface requires a current venue"
+        Nothing    -> externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "Billing live surface requires a current venue"

@@ -3,6 +3,7 @@ module Application.Helper.Conflict where
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Application.VenueTime.Model (decodeRosterShiftTiming,
                                     rosterShiftTimingStartTime)
+import qualified Data.List as List
 import Data.Time.Calendar (Day)
 import Data.Time.Clock (diffUTCTime)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -178,10 +179,16 @@ checkLateToEarlyConflict ctx
         case findIndex ((== get #id ctx.slot) . fst) timeline of
             Nothing -> Nothing
             Just currentIndex ->
-                let previousGap = if currentIndex > 0 then Just (diffUTCTime (snd (timeline !! currentIndex)) (snd (timeline !! (currentIndex - 1)))) else Nothing
-                    nextGap = if currentIndex + 1 < length timeline then Just (diffUTCTime (snd (timeline !! (currentIndex + 1))) (snd (timeline !! currentIndex))) else Nothing
+                let (earlier, currentAndLater) = List.splitAt currentIndex timeline
+                    adjacentGaps = case currentAndLater of
+                        [] -> []
+                        current : later ->
+                            catMaybes
+                                [ diffUTCTime (snd current) . snd <$> lastMay earlier
+                                , diffUTCTime . snd <$> listToMaybe later <*> pure (snd current)
+                                ]
                     thresholdSeconds = fromIntegral (ctx.lateToEarlyMinStartGapMinutes * 60)
-                    isBelowThreshold = any (< thresholdSeconds) (catMaybes [previousGap, nextGap])
+                    isBelowThreshold = any (< thresholdSeconds) adjacentGaps
                  in if isBelowThreshold
                         then Just RosterConflict
                             { conflictType = LateToEarlyConflict

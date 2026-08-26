@@ -150,15 +150,15 @@ tests = describe "Passkey contract runtime" do
 
     it "rejects empty Haskell-owned flow URLs before rendering browser configuration" do
         evaluate (attrsTextLength (passkeyLoginAttrs " " "/finish" Nothing False False))
-            `shouldThrow` errorCall "Passkey begin URL must not be empty"
+            `shouldThrow` errorCall "Bepis startup invariant failed: Passkey begin URL must not be empty"
         evaluate (attrsTextLength (passkeyRegistrationAttrs "/begin" "" Nothing))
-            `shouldThrow` errorCall "Passkey finish URL must not be empty"
+            `shouldThrow` errorCall "Bepis startup invariant failed: Passkey finish URL must not be empty"
 
     it "rejects empty optional redirects and prompt user keys" do
         evaluate (attrsTextLength (passkeyRegistrationAttrs "/begin" "/finish" (Just " ")))
-            `shouldThrow` errorCall "Passkey success redirect must not be empty"
+            `shouldThrow` errorCall "Bepis startup invariant failed: Passkey success redirect must not be empty"
         evaluate (attrsTextLength (passkeySetupPromptAttrs "" PasskeyFirstPasskey))
-            `shouldThrow` errorCall "Passkey prompt user key must not be empty"
+            `shouldThrow` errorCall "Bepis startup invariant failed: Passkey prompt user key must not be empty"
 
 sampleRegistrationOptions :: CredentialOptions 'Registration
 sampleRegistrationOptions = CredentialOptionsRegistration

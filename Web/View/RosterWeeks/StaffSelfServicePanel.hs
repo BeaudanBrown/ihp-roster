@@ -7,6 +7,7 @@ module Web.View.RosterWeeks.StaffSelfServicePanel
     , rosterStaffSelfServiceTimesheetSurfaceId
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Controller (currentUserIsUnimpersonatedSuperAdmin)
 import Application.Helper.FrontendContract.Surface.Roster.SidePanel (rosterSidePanelRenderAttrs)
 import Application.Helper.FrontendContract.Surface.Roster.StaffPanel (RosterSelfServicePanelTab (..),
@@ -126,7 +127,7 @@ renderRosterGroupSetting panel
   where
     currentRosterGroup =
         fromMaybe
-            (error "current roster group missing")
+            (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "current roster group missing")
             (find ((== panel.quickToolsRosterGroupId) . (.id)) panel.quickToolsRosterGroups)
 
 timesheetDayModel :: RosterStaffSelfServicePanel -> TimesheetDayRenderModel

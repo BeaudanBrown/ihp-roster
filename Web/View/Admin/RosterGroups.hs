@@ -5,6 +5,7 @@ module Web.View.Admin.RosterGroups
     ( renderRosterGroupsSectionFragment
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
@@ -43,7 +44,7 @@ currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =
     case currentVenueOrNothing of
         Just venue -> unpackId venue.id
-        Nothing -> error "Admin roster groups live surface requires a current venue"
+        Nothing -> externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "Admin roster groups live surface requires a current venue"
 
 renderRosterGroupsInactiveSummary :: [RosterGroup] -> Bool -> Html
 renderRosterGroupsInactiveSummary rosterGroups showInactive = [hsx|

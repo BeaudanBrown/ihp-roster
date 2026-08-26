@@ -225,8 +225,8 @@ type AppShellCustomHtmx marker reason = 'AppShellCustomHtmx marker reason
 
 type family Append (left :: [kind]) (right :: [kind]) :: [kind] where
     Append '[] right = right
-    Append (head ': tail) right = head ': Append tail right
+    Append (first ': rest) right = first ': Append rest right
 
 type family Concat (lists :: [[kind]]) :: [kind] where
     Concat '[] = '[]
-    Concat (head ': tail) = Append head (Concat tail)
+    Concat (first ': rest) = Append first (Concat rest)

@@ -9,6 +9,7 @@ module Application.FwcMapd.Sync
     , runMapdSyncWith
     ) where
 
+import Application.Error.ExternalRuntime (throwExternalRuntime)
 import Application.FwcMapd.Config
 import Application.FwcMapd.Curation
 import Application.FwcMapd.Error
@@ -61,7 +62,7 @@ runMapdSyncWith requestedAwardFixedIds syncAction = do
                     |> set #finishedAt (Just finishedAt)
                     |> updateRecord
                 )
-            Exception.throwIO syncError
+            throwExternalRuntime syncError
         Right summary -> do
             void
                 ( syncRun

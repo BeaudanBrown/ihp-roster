@@ -3,6 +3,7 @@ module Application.Staff.Mutations
     , withStaffRemovalLockInCurrentTransaction
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import qualified Data.List as List
 import qualified Data.UUID as UUID
 import qualified Database.PostgreSQL.Simple as PG
@@ -35,7 +36,7 @@ withStaffRemovalLockInCurrentTransaction staffId action = do
             [PG.Only lockedStaffId]
                 | lockedStaffId == staffId -> Just <$> action
             [] -> pure Nothing
-            _ -> error "Staff removal lock returned an unexpected row set"
+            _ -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "Staff removal lock returned an unexpected row set"
 
 fetchMatchingStaffId :: (?modelContext :: ModelContext) => UUID -> IO (Maybe UUID)
 fetchMatchingStaffId staffId = do
@@ -46,7 +47,7 @@ fetchMatchingStaffId staffId = do
         [PG.Only matchingStaffId]
             | matchingStaffId == staffId -> pure (Just matchingStaffId)
         [] -> pure Nothing
-        _ -> error "Staff operational lock returned an unexpected row set"
+        _ -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "Staff operational lock returned an unexpected row set"
 
 lockStaffOperationalKey :: (?modelContext :: ModelContext) => UUID -> IO ()
 lockStaffOperationalKey staffId = do
@@ -55,4 +56,4 @@ lockStaffOperationalKey staffId = do
         "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS staff_operational_lock"
         (PG.Only lockKey)
     unless (lockResults == [PG.Only True]) do
-        error "Unable to lock staff operational key"
+        externalRuntimeInvariantFailure PersistedRuntimeInvariant "Unable to lock staff operational key"

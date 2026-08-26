@@ -14,6 +14,8 @@ module Application.Helper.FrontendContract.Wire.Passkey
     , registrationOptionsWire
     ) where
 
+import Application.Error.Parser (parserFailure)
+import Application.Error.Startup (startupInvariantFailure)
 import qualified Application.Helper.FrontendContract.Passkey as Contract
 import Application.Helper.FrontendContract.Wire.Carrier
 import qualified Crypto.WebAuthn.Cose.SignAlg as Cose
@@ -194,17 +196,17 @@ timeoutValue label maybeTimeout =
 
 requiredOption :: Text -> Maybe value -> value
 requiredOption label =
-    fromMaybe (error (cs ("Passkey wire invariant requires " <> label)))
+    fromMaybe (startupInvariantFailure (cs ("Passkey wire invariant requires " <> label)))
 
 requireNoExtensions :: Text -> Maybe AuthenticationExtensionsClientInputs -> ()
 requireNoExtensions _ Nothing = ()
 requireNoExtensions label (Just _) =
-    error (cs ("Passkey wire contract does not declare " <> label))
+    startupInvariantFailure (cs ("Passkey wire contract does not declare " <> label))
 
 requireNoDescriptorTransports :: Maybe [AuthenticatorTransport] -> ()
 requireNoDescriptorTransports Nothing = ()
 requireNoDescriptorTransports (Just _) =
-    error "Passkey begin credential descriptors must not carry transports"
+    startupInvariantFailure "Passkey begin credential descriptors must not carry transports"
 
 -- Exact finish request carriers ----------------------------------------------
 
@@ -639,7 +641,7 @@ instance Aeson.FromJSON PasskeyAuthenticationOptions where
 
 parseWebAuthnText :: Text -> (Text -> Either Text value) -> Aeson.Value -> AesonTypes.Parser value
 parseWebAuthnText label decode =
-    Aeson.withText (cs label) (either (fail . cs) pure . decode)
+    Aeson.withText (cs label) (either (parserFailure . cs) pure . decode)
 
 base64UrlText :: ByteString -> Text
 base64UrlText = TextEncoding.decodeUtf8 . Base64Url.encodeUnpadded
@@ -650,11 +652,11 @@ base64UrlWireText (WebAuthnWire.Base64UrlString value) = base64UrlText value
 parseBase64UrlText :: Text -> AesonTypes.Parser WebAuthnWire.Base64UrlString
 parseBase64UrlText value =
     case Base64Url.decode (TextEncoding.encodeUtf8 value) of
-        Left errorMessage -> fail errorMessage
+        Left errorMessage -> parserFailure errorMessage
         Right bytes       -> pure (WebAuthnWire.Base64UrlString bytes)
 
 unsafeParsedBase64UrlText :: Text -> WebAuthnWire.Base64UrlString
 unsafeParsedBase64UrlText value =
     case AesonTypes.parseEither parseBase64UrlText value of
-        Left errorMessage -> error (cs errorMessage)
+        Left errorMessage -> startupInvariantFailure (cs errorMessage)
         Right parsed      -> parsed

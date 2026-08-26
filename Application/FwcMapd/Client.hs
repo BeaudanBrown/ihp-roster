@@ -1,5 +1,6 @@
 module Application.FwcMapd.Client where
 
+import Application.Error.ExternalRuntime (throwExternalRuntime)
 import Application.FwcMapd.Config
 import Application.FwcMapd.Error
 import Application.FwcMapd.Validation (expectedCoreClassificationFixedIds)
@@ -48,7 +49,7 @@ fetchClassificationValues config awardFixedId = do
     canonicalValues <- concat <$> forM expectedCoreClassificationFixedIds \classificationFixedId ->
         fetchPagedEndpoint config classificationPath [("classification_fixed_id", Just (cs (tshow classificationFixedId)))]
     case assembleCanonicalClassificationValues expectedCoreClassificationFixedIds pagedValues canonicalValues of
-        Left _       -> Exception.throwIO MapdResponseMalformed
+        Left _       -> throwExternalRuntime MapdResponseMalformed
         Right values -> pure values
     where
         classificationPath = awardPath awardFixedId <> "/classifications"
@@ -107,7 +108,7 @@ fetchPagedEndpoint config path extraQueryParams = do
     remainingPages <- forM [2 .. firstPage.meta.pageCount] \pageNumber ->
         fetchPage config path pageNumber extraQueryParams
     case assemblePagedResults (firstPage : remainingPages) of
-        Left _       -> Exception.throwIO MapdResponseMalformed
+        Left _       -> throwExternalRuntime MapdResponseMalformed
         Right values -> pure values
 
 assemblePagedResults :: [MapdResultsPage] -> Either Text [Aeson.Value]
@@ -131,9 +132,9 @@ fetchPage config path pageNumber extraQueryParams = do
     response <- httpLBS request
     let statusCode = getResponseStatusCode response
     when (statusCode < 200 || statusCode >= 300) do
-        Exception.throwIO MapdProviderUnavailable
+        throwExternalRuntime MapdProviderUnavailable
     case Aeson.eitherDecode (getResponseBody response) of
-        Left _     -> Exception.throwIO MapdResponseMalformed
+        Left _     -> throwExternalRuntime MapdResponseMalformed
         Right page -> pure page
 
 buildRequest :: MapdConfig -> Text -> Int -> [(ByteString.ByteString, Maybe ByteString.ByteString)] -> IO Request

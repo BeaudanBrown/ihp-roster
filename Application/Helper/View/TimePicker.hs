@@ -11,6 +11,7 @@ module Application.Helper.View.TimePicker
     , timeOfDayToStorageValue
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.FrontendContract.TimePicker.Runtime
 import Application.Helper.TimeRules (rosterOperationalFinalSelectableTime,
                                      rosterOperationalStartTime)
@@ -219,9 +220,9 @@ renderNativeMinuteTimeField config@TimePickerConfig { timePickerFieldName, timeP
 
 browserConfigFor :: TimePickerConfig -> TimePickerBrowserConfig
 browserConfigFor TimePickerConfig { timePickerRangeStart, timePickerRangeEnd, timePickerStepMinutes, timePickerEmptyLabel }
-    | null fieldOptions = error "Time picker config must resolve at least one option"
-    | timePickerStepMinutes `notElem` [1, 15] = error "Time picker config step must be 1 or 15 minutes"
-    | timePickerStepMinutes == 15 && any (`notElem` canonicalValues) fieldOptions = error "Time picker config must use canonical quarter-hour option values"
+    | null fieldOptions = externalRuntimeInvariantFailure CheckedConfigurationInvariant "Time picker config must resolve at least one option"
+    | timePickerStepMinutes `notElem` [1, 15] = externalRuntimeInvariantFailure CheckedConfigurationInvariant "Time picker config step must be 1 or 15 minutes"
+    | timePickerStepMinutes == 15 && any (`notElem` canonicalValues) fieldOptions = externalRuntimeInvariantFailure CheckedConfigurationInvariant "Time picker config must use canonical quarter-hour option values"
     | otherwise = TimePickerBrowserConfig
         { browserTimePickerRangeStart = timePickerRangeStart
         , browserTimePickerRangeEnd = timePickerRangeEnd

@@ -10,6 +10,7 @@ module Application.Helper.FrontendContract.Registry
     , validateRegisteredFrontendContract
     ) where
 
+import Application.Error.Startup (throwStartupException)
 import Application.Helper.FrontendContract.App
 import Application.Helper.FrontendContract.AppShell
 import Application.Helper.FrontendContract.ClosedScalars
@@ -33,7 +34,6 @@ import Application.Helper.FrontendContract.Toggle
 import Application.Helper.FrontendContract.UiRegion
 import Application.Helper.FrontendContract.XeroCandidateFilter
 import Control.Exception (Exception)
-import qualified Control.Exception as Exception
 import qualified Data.Bifunctor as Bifunctor
 import qualified Data.Text.IO as Text
 import IHP.Prelude
@@ -84,7 +84,7 @@ checkedRegisteredFrontendContract :: CheckedFrontendContract
 checkedRegisteredFrontendContract =
     case registeredFrontendContractValidation of
         Right checked -> checked
-        Left diagnostics -> Exception.throw (FrontendContractStartupException (renderContractDiagnostics diagnostics))
+        Left diagnostics -> throwStartupException (FrontendContractStartupException (renderContractDiagnostics diagnostics))
 
 validateFrontendContractStartup :: FrontendContractIR -> Either Text CheckedFrontendContract
 validateFrontendContractStartup contract =

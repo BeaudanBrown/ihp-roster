@@ -19,6 +19,7 @@ module Web.SurfaceInvalidation
 
 import Application.Bepis.Fact (BepisFact (..), BepisLiveFact (..),
                                BepisLiveMechanism (..), emitBepisFact)
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.FrontendContract.Surface.Authorization (authorizeFrontendSurfaceScope)
 import Application.Helper.FrontendContract.Surface.DependencyPlanner (SurfaceInvalidationTarget (..),
                                                                       planFrontendSurfaceInvalidations)
@@ -102,7 +103,7 @@ withDurableLiveMutationOutcome publicationFor businessAction =
                     recordLiveMutationDiagnostics label (LiveMutationResult () touchedResources)
                 (_, profileDetail) <- completeRequestInvalidation startedAtNs label observed observeDurationMs publication
                 pure (outcome, profileDetail)
-            _ -> error "durable live mutation outcome/publication mismatch"
+            _ -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "durable live mutation outcome/publication mismatch"
 
 completeRequestInvalidation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -163,7 +164,7 @@ withDurableLiveMutationOutcomeWithoutContext publicationFor businessAction = do
         (Just (label, resources), Just publication) ->
             completeBackgroundInvalidation startedAtNs label (LiveMutationResult outcome resources) publication
                 |> fmap (.liveMutationValue)
-        _ -> error "durable background live mutation outcome/publication mismatch"
+        _ -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "durable background live mutation outcome/publication mismatch"
 
 completeBackgroundInvalidation :: (?modelContext :: ModelContext) => Word64 -> Text -> LiveMutationResult a -> DurablePublication -> IO (LiveMutationResult a)
 completeBackgroundInvalidation startedAtNs label result publication = do

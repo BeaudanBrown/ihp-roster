@@ -6,6 +6,7 @@ module Web.View.Admin.ShiftTypes
     ( renderShiftTypesSectionFragment
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
@@ -50,7 +51,7 @@ currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =
     case currentVenueOrNothing of
         Just venue -> unpackId venue.id
-        Nothing -> error "Admin shift types live surface requires a current venue"
+        Nothing -> externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "Admin shift types live surface requires a current venue"
 
 submittedPayRateSelectionValue :: PayAssignmentModeEnum -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> ShiftTypePayRateSelection
 submittedPayRateSelectionValue RosterOnly _ _ = ShiftTypePayRateRosterOnly

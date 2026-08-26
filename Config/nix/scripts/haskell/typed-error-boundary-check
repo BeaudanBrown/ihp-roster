@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# shellcheck source=../lib/ghc.sh
+. "@scriptsRoot@/lib/ghc.sh"
+
+production-manifest-check
+mapfile -t app_sources < <(
+    awk -F '\t' 'NR > 1 && $2 == "production" && $1 ~ /\.hs$/ { print $1 }' Config/nix/production-module-inventory.tsv \
+        | grep -Ev '(^|/)Generated(/|\.|$)' \
+        | sort -u
+)
+if ((${#app_sources[@]} == 0)); then
+    echo "typed-error-boundary-check: no app-owned production sources discovered" >&2
+    exit 1
+fi
+
+# HLint owns primitive and partial collection prevention. No source-site
+# baseline is accepted: every finding fails immediately.
+hlint -j -XQuasiQuotes --only='Avoid restricted function' "${app_sources[@]}"
+
+python3 - "${app_sources[@]}" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+sources = [Path(value) for value in sys.argv[1:]]
+failures = []
+# These are category owners, not source-site exceptions. Each owner has focused
+# executable evidence and no other module may construct/rethrow directly.
+direct_throw_owners = {
+    'Application/Error/Runtime.hs': {'throwExternalRuntime', 'throwExternalRuntimeMessage'},
+    'Application/Error/Transaction.hs': {'withAppResultTransaction'},
+    'Application/Error/Boundary.hs': {'respondAndStop', 'withSynchronousAppErrorFallback'},
+    'Application/Async/Boundary.hs': {'runAppJobBoundary', 'trySynchronousAppJobAction', 'throwProjectedAppError'},
+    'Application/Bepis/Action.hs': {'runBepisActionSpan'},
+    'Application/Helper/Telemetry.hs': {'withTelemetrySpanAttributes'},
+    'Application/TimesheetApproval.hs': {'refreshProblemApprovalWithAudit'},
+    'Web/Timesheets/Mutations.hs': {'approveTimesheetEntryInCurrentTransaction'},
+}
+direct_pure_throw_owners = {
+    'Application/Error/Startup.hs': {'throwStartupException'},
+    'Application/Error/Runtime.hs': {'externalRuntimeInvariantFailure'},
+}
+
+def enclosing_function(lines, index):
+    declaration = re.compile(r'^([a-z][A-Za-z0-9_\']*)\b.*=')
+    for candidate in range(index, -1, -1):
+        match = declaration.match(lines[candidate])
+        if match:
+            return match.group(1)
+    return None
+
+for path in sources:
+    text = path.read_text()
+    lines = text.splitlines()
+    if re.search(r'AppResult\s*\(\s*Either\s+Text\b', text):
+        failures.append(f'{path}: operation result nests unclassified Either Text inside AppResult')
+    for index, line in enumerate(lines):
+        code = line.split('--', 1)[0]
+        if re.search(r'\b(?:[A-Za-z0-9_]+\.)?throwIO\b', code):
+            relative = str(path)
+            owner_functions = direct_throw_owners.get(relative, set())
+            if enclosing_function(lines, index) in owner_functions:
+                continue
+            context = '\n'.join(lines[max(0, index - 3):index + 2])
+            if 'isAsyncException' in context:
+                continue
+            failures.append(f'{path}:{index + 1}: raw throwIO outside a category owner or async rethrow')
+        if re.search(r'\b(?:[A-Za-z0-9_]+\.)?throw\b', code):
+            owner_functions = direct_pure_throw_owners.get(str(path), set())
+            if enclosing_function(lines, index) not in owner_functions:
+                failures.append(f'{path}:{index + 1}: raw pure throw outside startup category owner')
+        if re.search(r'\b(?:ioError|userError)\b', code):
+            failures.append(f'{path}:{index + 1}: raw IOException construction')
+
+if failures:
+    print('\n'.join(failures), file=sys.stderr)
+    raise SystemExit(1)
+PY
+
+fixture='Test/CompileFail/ApplicationErrorEitherTextBoundary.hs'
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
+GHC_OPTS="$(ihp_roster_ghc_opts)"
+set +e
+# shellcheck disable=SC2086 # GHC option string is an intentional argument vector.
+ghc -fno-code $GHC_OPTS "$fixture" -odir "$tmp_dir" -hidir "$tmp_dir" >"$tmp_dir/stdout" 2>"$tmp_dir/stderr"
+status=$?
+set -e
+if [ "$status" -eq 0 ]; then
+    echo "typed-error-boundary-check: Either Text operation fixture unexpectedly compiled" >&2
+    exit 1
+fi
+if ! grep -q "Couldn't match expected type" "$tmp_dir/stderr" \
+    || ! grep -q "AppError" "$tmp_dir/stderr" \
+    || ! grep -q "Text" "$tmp_dir/stderr"; then
+    echo "typed-error-boundary-check: compile-failure diagnostic drifted" >&2
+    cat "$tmp_dir/stderr" >&2
+    exit 1
+fi
+
+echo "typed-error-boundary-check: ok (${#app_sources[@]} app-owned modules; primitive inventory empty; category throws proven; AppResult rejects Either Text)"

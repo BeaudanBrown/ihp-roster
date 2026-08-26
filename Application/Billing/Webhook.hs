@@ -13,6 +13,8 @@ import Application.Billing.Persistence (lockStripeEventForWebhook,
                                         lockVenueForBilling)
 import Application.Billing.Stripe (StripeMode, StripeSubscription (..),
                                    pinnedStripeApiVersion, stripeModeIsLive)
+import Application.Error.Parser (parserFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Control.Monad (guard, void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
@@ -62,7 +64,7 @@ instance Aeson.FromJSON StripeWebhookEvent where
     parseJSON =
         Aeson.withObject "StripeWebhookEvent" \object -> do
             eventObjectType <- object Aeson..: "object"
-            unless (eventObjectType == ("event" :: Text)) (fail "Stripe webhook root object discriminator must be event")
+            unless (eventObjectType == ("event" :: Text)) (parserFailure "Stripe webhook root object discriminator must be event")
             dataObject <- object Aeson..: "data"
             stripeObject <- dataObject Aeson..: "object"
             StripeWebhookEvent
@@ -134,7 +136,7 @@ parseInvoiceParentSubscriptionId =
         Aeson.String subscriptionId -> pure (Just subscriptionId)
         Aeson.Object subscription -> subscription Aeson..:? "id"
         Aeson.Null -> pure Nothing
-        _ -> fail "Stripe invoice parent subscription must be an id or expanded object"
+        _ -> parserFailure "Stripe invoice parent subscription must be an id or expanded object"
 
 parseMetadataVenueId :: Aeson.Value -> AesonTypes.Parser (Maybe Text)
 parseMetadataVenueId =
@@ -292,7 +294,7 @@ ensureCheckoutCustomer (Just venue) event =
         case existing of
             Just customer
                 | customer.stripeCustomerId == customerId && customer.livemode == event.stripeLivemode -> pure ()
-                | otherwise -> error "Stripe webhook Customer does not match the venue billing Customer"
+                | otherwise -> externalRuntimeInvariantFailure ProviderRuntimeInvariant "Stripe webhook Customer does not match the venue billing Customer"
             Nothing ->
                 void $
                     newRecord @VenueBillingCustomer
@@ -316,7 +318,7 @@ updateCheckoutAttempt now (Just venue) event =
             when applyAttemptUpdate $
                 forM_ maybeAttempt \attempt -> do
                     unless (Just attempt.stripeCustomerId == snapshot.stripeObjectCustomerId && attempt.livemode == event.stripeLivemode) do
-                        error "Stripe webhook Checkout Session does not match its local attempt"
+                        externalRuntimeInvariantFailure ProviderRuntimeInvariant "Stripe webhook Checkout Session does not match its local attempt"
                     case event.stripeEventType of
                         "checkout.session.async_payment_failed" ->
                             void $
@@ -346,7 +348,7 @@ upsertSubscription now (Just venue) event = do
     (subscriptionId, status, priceId) <-
         case (snapshot.stripeObjectSubscriptionId <|> snapshot.stripeObjectId, snapshot.stripeObjectStatus, snapshot.stripeObjectPriceId) of
             (Just subscriptionId, Just status, Just priceId) -> pure (subscriptionId, status, priceId)
-            _ -> error "Supported Stripe subscription webhook is missing required snapshot fields"
+            _ -> externalRuntimeInvariantFailure ProviderRuntimeInvariant "Supported Stripe subscription webhook is missing required snapshot fields"
     ensureStripeEventCustomerMatchesVenue venue event
     existing <- fetchVenueSubscriptionForStripeEvent venue event
     case existing of
@@ -472,7 +474,7 @@ fetchVenueSubscriptionForStripeEvent venue event = do
             |> fetchOneOrNothing
     forM_ maybeSubscription \subscription ->
         unless (subscription.livemode == event.stripeLivemode) do
-            error "Stripe webhook mode does not match the venue Subscription mode"
+            externalRuntimeInvariantFailure ProviderRuntimeInvariant "Stripe webhook mode does not match the venue Subscription mode"
     pure maybeSubscription
 
 billingNotificationFromSnapshot :: BillingNotificationKind -> Maybe Text -> StripeObjectSnapshot -> Maybe VenueSubscription -> BillingNotification
@@ -494,7 +496,7 @@ ensureStripeEventCustomerMatchesVenue venue event =
         case maybeCustomer of
             Just customer
                 | customer.stripeCustomerId == customerId && customer.livemode == event.stripeLivemode -> pure ()
-                | otherwise -> error "Stripe webhook subscription Customer does not match the venue billing Customer"
+                | otherwise -> externalRuntimeInvariantFailure ProviderRuntimeInvariant "Stripe webhook subscription Customer does not match the venue billing Customer"
             Nothing -> pure ()
 
 shouldApplyCheckoutAttemptUpdate :: (?modelContext :: ModelContext) => StripeWebhookEvent -> Text -> IO Bool
@@ -519,7 +521,7 @@ isNewerStripeEvent event subscription =
         (Nothing, Nothing) -> True
         (Just appliedAt, Just appliedId) ->
             (event.stripeEventCreatedAt, event.stripeEventId) > (appliedAt, appliedId)
-        _ -> error "Venue Subscription has an incomplete Stripe event ordering cursor"
+        _ -> externalRuntimeInvariantFailure ProviderRuntimeInvariant "Venue Subscription has an incomplete Stripe event ordering cursor"
 
 isCheckoutPaymentFailure :: StripeWebhookEvent -> Bool
 isCheckoutPaymentFailure event =

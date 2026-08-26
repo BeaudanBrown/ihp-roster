@@ -61,7 +61,7 @@ requestFixedStaffPayCsvExport rangeStart rangeEnd = do
             let needsFallbackWindows = null includedEntries || any (\entry -> Map.notMember (unpackId entry.id) sealedWindowStartsByEntryId) includedEntries
             let fallbackWindowStarts =
                     if needsFallbackWindows
-                        then map (.weekStart) (map (.weekSelection) (rangeWeekSlices rangeStart rangeEnd fallbackWindowStart))
+                        then map ((.weekStart) . (.weekSelection)) (rangeWeekSlices rangeStart rangeEnd fallbackWindowStart)
                         else []
             let weekStarts = List.sort (List.nub (sealedWindowStarts <> fallbackWindowStarts))
             let calculationsByEntryId = calculationMap includedEntries calculations

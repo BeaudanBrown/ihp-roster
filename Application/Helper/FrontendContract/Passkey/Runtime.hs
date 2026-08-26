@@ -17,6 +17,8 @@ module Application.Helper.FrontendContract.Passkey.Runtime
     , passkeyStatusAttrs
     ) where
 
+import Application.Error.Parser (parserFailure)
+import Application.Error.Startup (startupInvariantFailure)
 import qualified Application.Helper.FrontendContract.Passkey as Contract
 import Application.Helper.FrontendContract.Values (domAttrValue,
                                                    enumLiteralValue)
@@ -139,7 +141,7 @@ instance ContractReference Contract.PasskeySetupPromptMode where
     type ContractReferenceValue Contract.PasskeySetupPromptMode = PasskeySetupPromptMode
     contractReferenceJson = Aeson.String . setupPromptModeText
     parseContractReference = Aeson.withText "PasskeySetupPromptMode" \value ->
-        maybe (fail "Unknown PasskeySetupPromptMode") pure (passkeySetupPromptModeFromValue value)
+        maybe (parserFailure "Unknown PasskeySetupPromptMode") pure (passkeySetupPromptModeFromValue value)
 
 passkeySetupPromptModeFromValue :: Text -> Maybe PasskeySetupPromptMode
 passkeySetupPromptModeFromValue value
@@ -158,7 +160,7 @@ setupPromptModeText PasskeyAdditionalDevice =
 
 requiredText :: Text -> Text -> Text
 requiredText label value
-    | Text.null (Text.strip value) = error (cs label <> " must not be empty")
+    | Text.null (Text.strip value) = startupInvariantFailure (cs label <> " must not be empty")
     | otherwise = value
 
 statusRelationshipKey :: Text

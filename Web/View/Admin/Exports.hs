@@ -6,6 +6,7 @@ module Web.View.Admin.Exports
     , renderExportsSectionFragmentWithSwap
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.Export
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
@@ -28,7 +29,7 @@ currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =
     case currentVenueOrNothing of
         Just venue -> unpackId venue.id
-        Nothing    -> error "Admin exports live surface requires a current venue"
+        Nothing    -> externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "Admin exports live surface requires a current venue"
 
 renderExportsSectionFragment :: ReportWeekSelection -> Html
 renderExportsSectionFragment =

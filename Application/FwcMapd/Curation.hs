@@ -194,8 +194,8 @@ applyAwardYearScope LatestActiveAwardYear yearOf values =
             filter (\(payload, _) -> yearOf payload == Just latestYear) values
 
 maximumMaybe :: Ord a => [a] -> Maybe a
-maximumMaybe []     = Nothing
-maximumMaybe values = Just (maximum values)
+maximumMaybe []             = Nothing
+maximumMaybe (first : rest) = Just (foldl' max first rest)
 
 isRelevantPayRate :: MapdCurationProfile -> PayRatePayload -> Bool
 isRelevantPayRate profile payRate =

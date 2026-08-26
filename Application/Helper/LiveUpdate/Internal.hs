@@ -34,6 +34,7 @@ module Application.Helper.LiveUpdate.Internal
     , unregisterSurfaceSubscriptionWithBus
     ) where
 
+import Application.Error.Parser (parserFailure)
 import qualified Control.Exception.Safe as Exception
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
@@ -45,7 +46,7 @@ import IHP.Prelude
 import qualified Network.WebSockets as WebSocket
 import System.IO.Unsafe (unsafePerformIO)
 
-import Application.Helper.FrontendContract.Surface.Identity (canonicalFrontendSurfaceScopeKey)
+import Application.Helper.FrontendContract.Surface.Identity.Registered (canonicalFrontendSurfaceScopeKey)
 import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Wire
 
 data SurfaceScope = FrontendSurfaceScope
@@ -384,13 +385,13 @@ liveUpdateSubscriptionFromWire Wire.SurfaceSubscription { scope, scopeKey, fragm
     subscriptionScope <- surfaceScopeFromWire scope
     let canonicalScopeKey = surfaceScopeKey subscriptionScope
     unless (scopeKey == canonicalScopeKey) do
-        fail "Live update subscription scope key does not match its canonical Surface scope"
+        parserFailure "Live update subscription scope key does not match its canonical Surface scope"
     forM_ fragments \Wire.SurfaceFragmentKey { surface = fragmentSurface } ->
         unless (fragmentSurface == scope.surface) do
-            fail "Live update subscription fragment key does not belong to its Surface scope"
+            parserFailure "Live update subscription fragment key does not belong to its Surface scope"
     subscriptionFragmentKeys <- mapM surfaceFragmentKeyFromWire fragments
     unless (renderedDependencyWatermark >= 0) do
-        fail "Live update dependency watermark must be non-negative"
+        parserFailure "Live update dependency watermark must be non-negative"
     pure SurfaceSubscription { subscriptionScope, subscriptionScopeKey = canonicalScopeKey, subscriptionFragmentKeys, subscriptionRenderedDependencyWatermark = renderedDependencyWatermark }
 
 liveUpdateCommandToWire :: LiveUpdateCommand -> Wire.LiveUpdateCommand

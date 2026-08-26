@@ -22,6 +22,9 @@ module Application.RosterNotification
 
 import Application.Async.Queue (activeAppJobStatuses)
 import Application.EmailDelivery.Enqueue
+import Application.Error.ExternalRuntime (throwExternalRuntimeMessage)
+import Application.Error.Parser (parserFailure)
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import qualified Application.RosterNotification.Mutations as Mutations
 import Application.RosterPublication (rosterDaysArePublished)
 import Application.RosterPublication.Mutations (withRosterWindowDateLock)
@@ -192,7 +195,7 @@ instance Aeson.FromJSON RosterNotificationSkippedReason where
         "inactive" -> pure RosterNotificationSkippedInactive
         "missing_email" -> pure RosterNotificationSkippedMissingEmail
         "invalid_scope" -> pure RosterNotificationSkippedInvalidScope
-        _ -> fail "Unknown roster notification skipped reason"
+        _ -> parserFailure "Unknown roster notification skipped reason"
 
 instance Aeson.ToJSON RosterNotificationSkippedRecipient where
     toJSON skipped =
@@ -261,7 +264,7 @@ createRosterNotificationRunForWindow actor venue rosterGroup windowStart windowE
     withRosterWindowDateLock venue.id rosterGroup.id windowStart windowEnd do
         Mutations.lockRosterNotificationWindow venue.id rosterGroup.id windowStart windowEnd
         createdRun <- createRosterNotificationRunInCurrentTransaction actor venue rosterGroup windowStart windowEnd
-        maybe (fail "Roster notification runs require at least one eligible recipient") pure createdRun
+        maybe (externalRuntimeInvariantFailure JobProvenanceInvariant "Roster notification runs require at least one eligible recipient") pure createdRun
 
 activeRunDeliveryExists :: (?modelContext :: ModelContext) => [RosterNotificationRun] -> IO Bool
 activeRunDeliveryExists runs = do
@@ -286,8 +289,8 @@ createRosterNotificationRunInCurrentTransaction actor suppliedVenue suppliedRost
     persistedActor <- fetch actor.id
     venue <- fetch suppliedVenue.id
     rosterGroup <- fetch suppliedRosterGroup.id
-    unless (rosterGroup.venueId == unpackId venue.id) (fail "Roster notification roster group is outside the venue")
-    unless (windowEnd == addDays 7 windowStart) (fail "Roster notification runs require an explicit seven-day window")
+    unless (rosterGroup.venueId == unpackId venue.id) (externalRuntimeInvariantFailure JobProvenanceInvariant "Roster notification roster group is outside the venue")
+    unless (windowEnd == addDays 7 windowStart) (externalRuntimeInvariantFailure JobProvenanceInvariant "Roster notification runs require an explicit seven-day window")
     rosterDays <- query @RosterDay
         |> filterWhere (#venueId, unpackId venue.id)
         |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
@@ -296,7 +299,7 @@ createRosterNotificationRunInCurrentTransaction actor suppliedVenue suppliedRost
         |> orderByAsc #operationalDate
         |> fetch
     unless (map (.operationalDate) rosterDays == map (`addDays` windowStart) [0 .. 6] && rosterDaysArePublished rosterDays)
-        (fail "Roster notification runs require a Published roster window")
+        (externalRuntimeInvariantFailure JobProvenanceInvariant "Roster notification runs require a Published roster window")
     snapshot <- buildRosterSnapshot venue rosterGroup rosterDays windowStart windowEnd
     audience <- fetchRosterNotificationAudience venue rosterGroup
     let recipients = audience.audienceRecipients
@@ -539,7 +542,7 @@ decodeRosterNotificationSkippedRecipients run = decodeSnapshotValue "skipped rec
 decodeSnapshotValue :: Aeson.FromJSON value => String -> Aeson.Value -> IO value
 decodeSnapshotValue label value =
     case Aeson.fromJSON value of
-        Aeson.Error message -> fail ("Invalid roster notification " <> label <> ": " <> message)
+        Aeson.Error message -> throwExternalRuntimeMessage JobProvenanceInvariant ("Invalid roster notification " <> cs label <> ": " <> cs message)
         Aeson.Success decoded -> pure decoded
 
 skippedReasonText :: RosterNotificationSkippedReason -> Text

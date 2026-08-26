@@ -29,7 +29,11 @@ Application/EmailDelivery/Persistence.hs	production	runtime	Main	Reachable from 
 Application/Error.hs	development	unreachable	-	Not reachable from an explicit production executable root
 Application/Error/Boundary.hs	production	runtime	Main	Reachable from Main
 Application/Error/Domain.hs	production	runtime	Main	Reachable from Main
+Application/Error/ExternalRuntime.hs	production	runtime	Main	Reachable from Main
 Application/Error/Foundation.hs	production	runtime	Main	Reachable from Main
+Application/Error/Parser.hs	production	runtime	Main	Reachable from Main
+Application/Error/Runtime.hs	production	runtime	Main	Reachable from Main
+Application/Error/Startup.hs	production	runtime	Main	Reachable from Main
 Application/Error/Telemetry.hs	production	runtime	Main	Reachable from Main
 Application/Error/Transaction.hs	production	runtime	Main	Reachable from Main
 Application/Error/Types.hs	production	runtime	Main	Reachable from Main
@@ -145,6 +149,8 @@ Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs	developme
 Application/Helper/FrontendContract/Surface/HaskellAdapter/Request.hs	development	build-tooling	-	Generator or architecture tooling outside deployed runtime closure
 Application/Helper/FrontendContract/Surface/HaskellAdapter/Resource.hs	development	build-tooling	-	Generator or architecture tooling outside deployed runtime closure
 Application/Helper/FrontendContract/Surface/Identity.hs	production	runtime	Main	Reachable from Main
+Application/Helper/FrontendContract/Surface/Identity/Registered.hs	production	runtime	Main	Reachable from Main
+Application/Helper/FrontendContract/Surface/Identity/Types.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/Interaction.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/LeaveRequests.hs	production	runtime	Main	Reachable from Main
 Application/Helper/FrontendContract/Surface/LeaveRequests/Action.hs	production	runtime	Main	Reachable from Main

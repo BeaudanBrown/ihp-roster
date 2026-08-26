@@ -3,6 +3,7 @@
 module Web.Controller.RosterTemplates where
 
 import Application.Bepis.Controller
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Controller (ensureCurrentVenueOrSupportRedirect,
                                       ensureManagerRole, ensureProfileCompleted,
                                       ensureVenueWritable, fetchVenueConfig)
@@ -113,7 +114,7 @@ instance Controller RosterTemplatesController where
                 , windowIsPublished = rosterWindowIsPublished window
                 , windowHasPublishedDays = any ((== Published) . (.publicationState)) (mapMaybe (.persistedRosterDay) window.rosterWindowProjectedDays)
                 }
-        respondHtml (renderRosterTemplateLibraryFragment scope.rosterWindowStart scope.rosterWindowCalendarRevision rosterGroup (Just windowState) (fromMaybe (error "authorized template library missing") maybeLibrary))
+        respondHtml (renderRosterTemplateLibraryFragment scope.rosterWindowStart scope.rosterWindowCalendarRevision rosterGroup (Just windowState) (fromMaybe (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "authorized template library missing") maybeLibrary))
 
     action currentAction@PreviewRosterTemplateCaptureAction { rosterGroupId } = runBepis currentAction BepisPageAction do
         actor <- authorizedTemplateActor
@@ -415,4 +416,4 @@ fetchScopedRosterGroup rosterGroupId = do
         |> filterWhere (#venueId, unpackId currentVenueId)
         |> fetchOneOrNothing
     accessDeniedUnless (isJust maybeRosterGroup)
-    pure (fromMaybe (error "authorized roster group missing") maybeRosterGroup)
+    pure (fromMaybe (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "authorized roster group missing") maybeRosterGroup)

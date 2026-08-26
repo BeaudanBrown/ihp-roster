@@ -1,8 +1,11 @@
 module Test.TimePickerSpec where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (CheckedConfigurationInvariant),
+                                  externalRuntimeExceptionCategory)
 import Application.Helper.View.TimePicker
 import Config
 import Control.Exception (evaluate)
+import qualified Control.Exception as Exception
 import qualified Data.Text as Text
 import IHP.Prelude
 import IHP.Test.Mocking
@@ -88,8 +91,10 @@ tests = aroundAll withDatabaseTestContext do
         it "rejects a field range that cannot use the canonical Haskell option inventory" $ withContext do
             withCurrentControllerContext do
                 let config = defaultTimePickerConfig "startTime" "09:10" "09:10" "13:10" False
-                evaluate (Text.length (renderText (renderTimePickerField config)))
-                    `shouldThrow` errorCall "Time picker config must use canonical quarter-hour option values"
+                result <- Exception.try (evaluate (Text.length (renderText (renderTimePickerField config)))) :: IO (Either Exception.SomeException Int)
+                case result of
+                    Left exception -> externalRuntimeExceptionCategory exception `shouldBe` Just CheckedConfigurationInvariant
+                    Right _ -> expectationFailure "invalid time-picker configuration unexpectedly rendered"
 
 renderText :: Html -> Text
 renderText = cs . HtmlRenderer.renderHtml

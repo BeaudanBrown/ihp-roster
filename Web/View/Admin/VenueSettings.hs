@@ -7,6 +7,7 @@ module Web.View.Admin.VenueSettings
     , renderVenueSettingsSectionFragmentWithSwap
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
@@ -30,7 +31,7 @@ currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =
     case currentVenueOrNothing of
         Just venue -> unpackId venue.id
-        Nothing -> error "Admin venue settings live surface requires a current venue"
+        Nothing -> externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "Admin venue settings live surface requires a current venue"
 
 renderVenueSettingsSectionFragment :: (?context :: ControllerContext) => VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
 renderVenueSettingsSectionFragment =

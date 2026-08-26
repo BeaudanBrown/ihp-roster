@@ -17,6 +17,7 @@ module Web.Controller.Prelude
 , respondFragmentHtml
 , parseIsoDayRouteParam
 , respondAndStop
+, terminateAfterIhpResponseControl
 )
 where
 
@@ -24,7 +25,8 @@ import Application.Bepis.Prelude
 import Application.Bepis.Response (bepisFileResponse, bepisHtmlResponse,
                                    bepisHtmxFragmentResponse, bepisJsonResponse,
                                    bepisRedirectResponse)
-import Application.Error.Boundary (respondAndStop)
+import Application.Error.Boundary (respondAndStop,
+                                   terminateAfterIhpResponseControl)
 import Application.Helper.Conflict
 import Application.Helper.Controller
 import Application.Helper.Telemetry

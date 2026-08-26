@@ -1,7 +1,9 @@
+{-# LANGUAGE DeriveFunctor #-}
 {-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
 module Application.Xero.Timesheets.Submission
-    ( XeroSubmissionResult
+    ( XeroSubmissionOutcome (..)
+    , XeroSubmissionResult
     , XeroTimesheetReviewedSubmissionOutcome (..)
     , duplicateCheckSnapshotJson
     , fetchRemoteTimesheetsForDuplicateCheck
@@ -15,6 +17,7 @@ where
 
 import Application.Error.Boundary (withSynchronousAppErrorFallback)
 import Application.Error.Domain (projectDomainError)
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Error.Types (AppResult)
 import Application.Helper.Xero
 import Application.Helper.XeroTimesheetReadiness
@@ -33,7 +36,6 @@ import Application.Xero.WorkflowState (xeroSubmissionIsInProgress,
                                        xeroSubmissionRunStatusFromStatuses)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as AesonKeyMap
-import qualified Data.Bifunctor as Bifunctor
 import qualified Data.List as List
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
@@ -47,13 +49,18 @@ data XeroTimesheetReviewedSubmissionOutcome
     | XeroTimesheetReviewedStateChanged !Aeson.Value
     deriving (Eq, Show)
 
-type XeroSubmissionResult value = AppResult (Either Text value)
+data XeroSubmissionOutcome value
+    = XeroSubmissionBlocked !Text
+    | XeroSubmissionSucceeded value
+    deriving (Eq, Functor, Show)
+
+type XeroSubmissionResult value = AppResult (XeroSubmissionOutcome value)
 
 submissionFailure :: Text -> XeroSubmissionResult value
-submissionFailure = Right . Left
+submissionFailure = Right . XeroSubmissionBlocked
 
 submissionSuccess :: value -> XeroSubmissionResult value
-submissionSuccess = Right . Right
+submissionSuccess = Right . XeroSubmissionSucceeded
 
 data XeroTimesheetSubmissionPersistenceOutcome
     = XeroTimesheetSubmissionPersisted !XeroSubmissionRun
@@ -85,9 +92,9 @@ submitXeroDraftTimesheets ::
 submitXeroDraftTimesheets submittedByUserId request =
     submitXeroDraftTimesheetsWithPreparation submittedByUserId Nothing Nothing request >>= \case
         Left appError -> pure (Left appError)
-        Right (Left message) -> pure (submissionFailure message)
-        Right (Right (XeroTimesheetReviewedSubmissionCompleted run)) -> pure (submissionSuccess run)
-        Right (Right (XeroTimesheetReviewedStateChanged _)) -> pure (submissionFailure "Xero reconciliation state changed unexpectedly.")
+        Right (XeroSubmissionBlocked message) -> pure (submissionFailure message)
+        Right (XeroSubmissionSucceeded (XeroTimesheetReviewedSubmissionCompleted run)) -> pure (submissionSuccess run)
+        Right (XeroSubmissionSucceeded (XeroTimesheetReviewedStateChanged _)) -> pure (submissionFailure "Xero reconciliation state changed unexpectedly.")
 
 submitReviewedXeroDraftTimesheetsForPreparation ::
     (?modelContext :: ModelContext) =>
@@ -119,8 +126,8 @@ submitXeroDraftTimesheetsWithPreparation submittedByUserId maybePreparationRunId
     withFreshRemoteTimesheets request \xeroClient accessToken connection remoteTimesheets -> do
         buildFreshSubmissionPlan request connection remoteTimesheets >>= \case
             Left appError -> pure (Left appError)
-            Right (Left message) -> pure (submissionFailure message)
-            Right (Right plan)
+            Right (XeroSubmissionBlocked message) -> pure (submissionFailure message)
+            Right (XeroSubmissionSucceeded plan)
                 | Just reviewedSnapshot <- maybeReviewedSnapshot
                 , reviewedSnapshot /= plan.freshPlanReviewSnapshot ->
                     pure (submissionSuccess (XeroTimesheetReviewedStateChanged plan.freshPlanReviewSnapshot))
@@ -187,7 +194,7 @@ withFreshRemoteTimesheets request action =
                                 request.readinessPayrollCalendarId
                                 request.readinessPeriodStart
                                 request.readinessPeriodEnd >>= \case
-                                    Left message -> pure (submissionFailure message)
+                                    Left _ -> pure (Left (projectDomainError XeroPreparationStateUnavailable))
                                     Right remoteTimesheets -> action xeroClient accessToken refreshedConnection remoteTimesheets
 
 buildFreshSubmissionPlan ::
@@ -293,7 +300,7 @@ previewReservation connection preview = do
     sourceEntries <- fetchPreviewSourceEntries preview
     let staffId = case preview.previewStaffIds of
             staffIdValue : _ -> staffIdValue
-            []              -> error "Xero timesheet preview has no source staff id."
+            []              -> externalRuntimeInvariantFailure ProviderRuntimeInvariant "Xero timesheet preview has no source staff id."
     pure
         XeroTimesheetReservation
             { reservationConnectionId = unpackId connection.id
@@ -393,7 +400,7 @@ recoverAfterProviderResponse ::
     IO XeroTimesheetSubmission
 recoverAfterProviderResponse remainingRecoveries xeroClient accessToken connection submission operation now writeError = do
     run <- fetch (Id submission.xeroSubmissionRunId :: Id XeroSubmissionRun)
-    fetchRemoteTimesheetsForDuplicateCheckResult
+    fetchRemoteTimesheetsForDuplicateCheck
         xeroClient
         accessToken
         connection.tenantId
@@ -561,13 +568,8 @@ blockedReadinessSummary readiness =
         |> List.nub
         |> Text.intercalate "\n"
 
-fetchRemoteTimesheetsForDuplicateCheck :: XeroClient -> Text -> Text -> Maybe Text -> Day -> Day -> IO (Either Text [XeroTimesheetRef])
+fetchRemoteTimesheetsForDuplicateCheck :: XeroClient -> Text -> Text -> Maybe Text -> Day -> Day -> IO (Either XeroClientError [XeroTimesheetRef])
 fetchRemoteTimesheetsForDuplicateCheck xeroClient accessToken tenantId maybeCalendarId periodStart periodEnd =
-    fetchRemoteTimesheetsForDuplicateCheckResult xeroClient accessToken tenantId maybeCalendarId periodStart periodEnd
-        |> fmap (Bifunctor.first (("Xero duplicate check failed: " <>) . durableXeroClientErrorText))
-
-fetchRemoteTimesheetsForDuplicateCheckResult :: XeroClient -> Text -> Text -> Maybe Text -> Day -> Day -> IO (Either XeroClientError [XeroTimesheetRef])
-fetchRemoteTimesheetsForDuplicateCheckResult xeroClient accessToken tenantId maybeCalendarId periodStart periodEnd =
     fetchTimesheetsForPeriod xeroClient accessToken tenantId maybeCalendarId periodStart periodEnd
 
 duplicateCheckSnapshotJson :: [XeroTimesheetRef] -> Aeson.Value

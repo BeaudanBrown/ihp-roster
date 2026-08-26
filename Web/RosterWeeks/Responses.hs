@@ -14,6 +14,7 @@ module Web.RosterWeeks.Responses
     , respondWithRosterTemplateDeleteUpdate
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
 import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh,
                                       setActorLocalFragmentsRefresh)
@@ -140,7 +141,7 @@ respondWithRosterContentOob scope = do
     rosterGroups <- fetchViewableRosterGroups
     currentRosterGroupOrNothing <- fetchViewableRosterGroup rosterGroupId
     accessDeniedUnless (isJust currentRosterGroupOrNothing)
-    let currentRosterGroup = fromMaybe (error "authorized roster group missing") currentRosterGroupOrNothing
+    let currentRosterGroup = fromMaybe (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "authorized roster group missing") currentRosterGroupOrNothing
     rosterData <- fetchVisibleRosterReadModel scope
     case rosterData of
         Nothing -> do
@@ -202,7 +203,7 @@ respondWithRosterContentToast scope publishAttempted toast = do
     rosterGroups <- fetchViewableRosterGroups
     currentRosterGroupOrNothing <- fetchViewableRosterGroup rosterGroupId
     accessDeniedUnless (isJust currentRosterGroupOrNothing)
-    let currentRosterGroup = fromMaybe (error "authorized roster group missing") currentRosterGroupOrNothing
+    let currentRosterGroup = fromMaybe (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "authorized roster group missing") currentRosterGroupOrNothing
     rosterData <- fetchVisibleRosterReadModel scope
     respondHtmlProfiled $
         mconcat

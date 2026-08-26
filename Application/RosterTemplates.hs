@@ -28,6 +28,7 @@ module Application.RosterTemplates
     , softDeleteRosterTemplateInCurrentTransaction
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.ControllerAccess (hasRole,
                                             isCurrentVenueManuallyReadOnly)
 import Application.Helper.ControllerContext (authenticatedCurrentUser,
@@ -414,8 +415,8 @@ createTemplateShift ::
     RosterTemplateShiftInput ->
     IO RosterTemplateShift
 createTemplateShift template daysByIndex columnsBySortOrder input = do
-    let day = fromMaybe (error "validated template day missing") (Map.lookup input.inputShiftDayIndex daysByIndex)
-    let column = fromMaybe (error "validated template column missing") (Map.lookup input.inputShiftColumnSortOrder columnsBySortOrder)
+    let day = fromMaybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "validated template day missing") (Map.lookup input.inputShiftDayIndex daysByIndex)
+    let column = fromMaybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "validated template column missing") (Map.lookup input.inputShiftColumnSortOrder columnsBySortOrder)
     let (assignmentState, staffId) = case input.inputShiftAssignment of
             StaffAssignment assignedStaffId -> ("staff", Just (unpackId assignedStaffId))
             OpenAssignment -> ("open", Nothing)

@@ -13,6 +13,7 @@ module Application.PublicHolidays.Sync
     , runDataVicPublicHolidaySyncForYears
     ) where
 
+import Application.Error.ExternalRuntime (throwExternalRuntime)
 import Application.Helper.FrontendContract.Surface.Support.Resource (supportPublicHolidaysResource)
 import Application.PublicHolidays.Policy (targetPublicHolidayYears)
 import qualified Application.PublicHolidays.Policy as PublicHolidayPolicy
@@ -143,10 +144,10 @@ fetchDataVicPublicHolidayRecords = do
     response <- httpLBS requestWithQuery
     let statusCode = getResponseStatusCode response
     when (statusCode < 200 || statusCode >= 300) do
-        Exception.throwIO PublicHolidayProviderUnavailable
+        throwExternalRuntime PublicHolidayProviderUnavailable
     case decodeDataVicPublicHolidayResponse (getResponseBody response) of
         Left _ ->
-            Exception.throwIO PublicHolidayResponseMalformed
+            throwExternalRuntime PublicHolidayResponseMalformed
         Right records -> pure records
 
 decodeDataVicPublicHolidayResponse :: LByteString.ByteString -> Either String [DataVicHolidayRecord]
@@ -173,7 +174,7 @@ importDataVicPublicHolidayRecordsForYears years records = do
             Right holidayImport -> pure (Right holidayImport)
     let invalidReasons = [reason | Left reason <- parsedImports]
     unless (null invalidReasons) do
-        Exception.throwIO PublicHolidayImportInvalid
+        throwExternalRuntime PublicHolidayImportInvalid
 
     let validImports = [holidayImport | Right holidayImport <- parsedImports]
     let targetImports = filter (\holidayImport -> dayYear holidayImport.holidayDate `elem` targetYears) validImports

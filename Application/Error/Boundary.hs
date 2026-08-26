@@ -8,6 +8,7 @@ module Application.Error.Boundary
     , appErrorJsonResponse
     , appErrorRequestKind
     , respondAndStop
+    , terminateAfterIhpResponseControl
     , respondWithAppErrorAndStop
     , runAppResultBoundary
     , withSynchronousAppErrorFallback
@@ -79,6 +80,14 @@ appErrorStatus appError =
 -- action-stop mechanism, so callers never need an @error "unreachable"@ tail.
 respondAndStop :: Response -> IO value
 respondAndStop = Exception.throwIO . ResponseException
+
+-- | Lift IHP helpers whose legacy type is @IO ()@ into explicit polymorphic
+-- response control. The fallback is reached only if an IHP helper violates its
+-- contract and returns instead of throwing 'ResponseException'.
+terminateAfterIhpResponseControl :: IO () -> IO value
+terminateAfterIhpResponseControl responseControl = do
+    responseControl
+    respondAndStop (responseLBS status500 [(hContentType, "text/plain; charset=utf-8")] "Bepis could not complete this response.")
 
 respondWithAppErrorAndStop :: AppErrorRequestKind -> AppError -> IO value
 respondWithAppErrorAndStop requestKind appError = do

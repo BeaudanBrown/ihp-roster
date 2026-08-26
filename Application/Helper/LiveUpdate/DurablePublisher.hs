@@ -4,6 +4,7 @@ module Application.Helper.LiveUpdate.DurablePublisher
     , persistDurableInvalidationInCurrentTransaction
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)
 import Application.Helper.LiveUpdate.DurableCodec
 import Control.Monad (void)
@@ -40,15 +41,14 @@ withDurableLiveMutationOutcomeTransaction ::
 withDurableLiveMutationOutcomeTransaction publicationFor businessAction =
     withTransaction do
         outcome <- businessAction
-        publication <- forM (publicationFor outcome) \(source, touchedResources) ->
-            persistDurableInvalidationInCurrentTransaction source touchedResources
+        publication <- forM (publicationFor outcome) (uncurry persistDurableInvalidationInCurrentTransaction)
         pure (outcome, publication)
 
 persistDurableInvalidationInCurrentTransaction :: (?modelContext :: ModelContext) => Text -> Set.Set SurfaceResourceValue -> IO DurablePublication
 persistDurableInvalidationInCurrentTransaction source resources = do
     startedAtNs <- getMonotonicTimeNSec
-    unless (validSource source) (error "invalid live invalidation source")
-    encoded <- either (error . cs) pure (mapM encodeDurableResource (Set.toAscList resources))
+    unless (validSource source) (externalRuntimeInvariantFailure PersistedRuntimeInvariant "invalid live invalidation source")
+    encoded <- either (externalRuntimeInvariantFailure PersistedRuntimeInvariant . cs) pure (mapM encodeDurableResource (Set.toAscList resources))
     -- Deliberate focused raw-SQL boundary: QueryBuilder cannot express the
     -- commit-ordered advisory lock, RETURNING allocation, monotonic
     -- ON CONFLICT version guard, and transactional NOTIFY as one primitive.
@@ -56,7 +56,7 @@ persistDurableInvalidationInCurrentTransaction source resources = do
     -- alone is not commit ordered, while retained-event replay is.
     void (sqlQueryScalar "SELECT 1 FROM pg_advisory_xact_lock(?)" (Only durablePublicationLockKey) :: IO Int)
     eventIds :: [(UUID, Int)] <- sqlQuery "INSERT INTO live_invalidation_events (source) VALUES (?) RETURNING id, sequence_number" (Only source)
-    (eventId, eventSequence) <- case eventIds of [value] -> pure value; _ -> error "live invalidation event insert did not return one id"
+    (eventId, eventSequence) <- case eventIds of [value] -> pure value; _ -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "live invalidation event insert did not return one id"
     forM_ encoded \resource -> do
         void $ sqlExec "INSERT INTO live_invalidation_event_resources (event_id, resource_key, resource_payload) VALUES (?, ?, ?::jsonb)" (eventId, resource.durableResourceKey, resource.durableResourcePayload)
         void $ sqlExec "INSERT INTO live_resource_versions (resource_key, resource_payload, latest_event_id, latest_event_sequence) VALUES (?, ?::jsonb, ?, ?) ON CONFLICT (resource_key) DO UPDATE SET resource_payload = EXCLUDED.resource_payload, latest_event_id = EXCLUDED.latest_event_id, latest_event_sequence = EXCLUDED.latest_event_sequence, updated_at = NOW() WHERE live_resource_versions.latest_event_sequence < EXCLUDED.latest_event_sequence" (resource.durableResourceKey, resource.durableResourcePayload, eventId, eventSequence)

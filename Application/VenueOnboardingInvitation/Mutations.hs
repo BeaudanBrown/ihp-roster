@@ -5,6 +5,7 @@ module Application.VenueOnboardingInvitation.Mutations
     , withVenueOnboardingInvitationRenewalLock
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import qualified Database.PostgreSQL.Simple as PG
 import IHP.ControllerPrelude
 
@@ -32,7 +33,7 @@ withVenueOnboardingInvitationRenewalLock invitationId correctedEmail action =
             "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS onboarding_email_lock"
             (PG.Only correctedEmail)
         unless (emailLockResults == [PG.Only True]) do
-            error "Unable to lock onboarding invitation renewal email"
+            externalRuntimeInvariantFailure PersistedRuntimeInvariant "Unable to lock onboarding invitation renewal email"
         lockVenueOnboardingInvitation invitationId action
 
 lockVenueOnboardingInvitation ::
@@ -47,4 +48,4 @@ lockVenueOnboardingInvitation invitationId action = do
     case lockedIds of
         [_] -> Just <$> action
         []  -> pure Nothing
-        _   -> error "Onboarding invitation lock returned multiple rows"
+        _   -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "Onboarding invitation lock returned multiple rows"

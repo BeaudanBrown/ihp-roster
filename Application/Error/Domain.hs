@@ -15,6 +15,7 @@ module Application.Error.Domain
     , projectDomainError
     ) where
 
+import Application.Error.Startup (startupInvariantFailure)
 import Application.Error.Types
 import Application.Error.Types.Internal (mkAppError)
 import Application.Helper.FrontendContract.Naming (nameToKebab)
@@ -85,4 +86,7 @@ instance (GenericErrorConstructors left, GenericErrorConstructors right) => Gene
 
 instance Constructor constructor => GenericErrorConstructors (M1 C constructor fields) where
     genericConstructorName constructor = Text.pack (conName constructor)
-    genericConstructorNames _ = [nameToKebab (Text.pack (conName (undefined :: M1 C constructor fields ())))]
+    genericConstructorNames _ =
+        [ nameToKebab
+            (Text.pack (conName (M1 (startupInvariantFailure "generic error constructor metadata forced its fields") :: M1 C constructor fields ())))
+        ]

@@ -1,5 +1,8 @@
+{-# LANGUAGE DeriveFunctor #-}
+
 module Application.Xero.Timesheets.Prepare
-    ( XeroPreparationResult
+    ( XeroPreparationOutcome (..)
+    , XeroPreparationResult
     , PayItemRequirementsBlocker (..)
     , PayItemRequirementsState (..)
     , XeroPreparationStaffDecision (..)
@@ -49,13 +52,18 @@ import Data.Time.Calendar (Day)
 import Generated.Types
 import IHP.ControllerPrelude
 
-type XeroPreparationResult value = AppResult (Either Text value)
+data XeroPreparationOutcome value
+    = XeroPreparationOutcomeBlocked !Text
+    | XeroPreparationOutcomeAvailable value
+    deriving (Eq, Functor, Show)
+
+type XeroPreparationResult value = AppResult (XeroPreparationOutcome value)
 
 preparationFailure :: Text -> XeroPreparationResult value
-preparationFailure = Right . Left
+preparationFailure = Right . XeroPreparationOutcomeBlocked
 
 preparationSuccess :: value -> XeroPreparationResult value
-preparationSuccess = Right . Right
+preparationSuccess = Right . XeroPreparationOutcomeAvailable
 
 data PayItemRequirementsBlocker
     = PayItemRequirementsPeriodBlocked !SelectedPreparationPeriodError
@@ -362,7 +370,7 @@ ensurePreparationPayItemsReady ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroTimesheetPreparationRun ->
     Maybe Text ->
-    IO (AppResult (Either Text ()))
+    IO (XeroPreparationResult ())
 ensurePreparationPayItemsReady run maybeAccountCode = do
     connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
     xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
@@ -370,7 +378,10 @@ ensurePreparationPayItemsReady run maybeAccountCode = do
     case requirementsResult of
         Left appError -> pure (Left appError)
         Right (PayItemRequirementsBlocked blocker) -> pure (preparationFailure (preparationPayItemRequirementsError blocker))
-        Right (PayItemRequirementsAvailable requirements) -> Right <$> ensureRequirementsReady connection requirements
+        Right (PayItemRequirementsAvailable requirements) ->
+            ensureRequirementsReady connection requirements >>= \case
+                Left message -> pure (preparationFailure message)
+                Right () -> pure (preparationSuccess ())
   where
     ensureRequirementsReady connection requirements = do
         accountCodeOptions <- fetchCurrentVenueXeroPayItemAccountCodeOptions (Just connection)
@@ -481,15 +492,15 @@ submitXeroTimesheetPreparation ::
 submitXeroTimesheetPreparation runId maybeAccountCode =
     loadXeroTimesheetPreparationView runId >>= \case
         Left appError -> pure (Left appError)
-        Right (Left message) -> pure (preparationFailure message)
-        Right (Right view)
+        Right (XeroPreparationOutcomeBlocked message) -> pure (preparationFailure message)
+        Right (XeroPreparationOutcomeAvailable view)
             | not view.preparationCanSubmit ->
                 pure (preparationFailure "Resolve Xero preparation blockers before submitting draft timesheets.")
             | otherwise ->
                 ensurePreparationPayItemsReady view.preparationRun maybeAccountCode >>= \case
                     Left appError -> pure (Left appError)
-                    Right (Left message) -> pure (preparationFailure message)
-                    Right (Right ()) -> do
+                    Right (XeroPreparationOutcomeBlocked message) -> pure (preparationFailure message)
+                    Right (XeroPreparationOutcomeAvailable ()) -> do
                         refreshedRun <- fetch view.preparationRun.id
                         let remoteTimesheets = remoteTimesheetsFromRun refreshedRun
                         case preparationReadinessRequest refreshedRun remoteTimesheets of
@@ -502,10 +513,10 @@ submitXeroTimesheetPreparation runId maybeAccountCode =
                                         | otherwise ->
                                             submitXeroDraftTimesheetsForPreparation currentUser.id refreshedRun.id readinessRequest >>= \case
                                                 Left appError -> pure (Left appError)
-                                                Right (Left message) -> pure (preparationFailure message)
-                                                Right (Right (XeroTimesheetReviewedStateChanged snapshot)) ->
+                                                Right (XeroSubmissionBlocked message) -> pure (preparationFailure message)
+                                                Right (XeroSubmissionSucceeded (XeroTimesheetReviewedStateChanged snapshot)) ->
                                                     pure (preparationFailure (reconciliationStateChangedMessage snapshot))
-                                                Right (Right (XeroTimesheetReviewedSubmissionCompleted submissionRun))
+                                                Right (XeroSubmissionSucceeded (XeroTimesheetReviewedSubmissionCompleted submissionRun))
                                                     | submissionRun.status == XeroSubmissionRunStatusEnumBlocked ->
                                                         pure (preparationFailure (fromMaybe "Xero submission is blocked." submissionRun.errorSummary))
                                                     | otherwise -> do

@@ -6,6 +6,7 @@ module Application.AccountSecurityEmail.TokenCipher
     , encryptAccountSecurityDeliveryToken
     ) where
 
+import Application.Error.ExternalRuntime (throwExternalRuntime)
 import qualified Control.Exception as Exception
 import qualified "crypton" Crypto.Cipher.AES as AES
 import qualified "crypton" Crypto.Cipher.Types as Cipher
@@ -109,14 +110,14 @@ loadAccountSecurityKeyMaterial = do
             lookupEnv "IHP_SESSION_SECRET" >>= \case
                 Just value ->
                     case Base64.decode (TextEncoding.encodeUtf8 (cs value)) of
-                        Left _ -> Exception.throwIO AccountSecurityTokenCipherConfigurationUnavailable
+                        Left _ -> throwExternalRuntime AccountSecurityTokenCipherConfigurationUnavailable
                         Right keyMaterial -> pure keyMaterial
                 Nothing -> do
                     let developmentPath = "Config/client_session_key.aes"
                     exists <- Directory.doesFileExist developmentPath
                     if exists
                         then readKeyFile developmentPath
-                        else Exception.throwIO AccountSecurityTokenCipherConfigurationUnavailable
+                        else throwExternalRuntime AccountSecurityTokenCipherConfigurationUnavailable
 
 decodeBase64 :: Text -> Either Text ByteString
 decodeBase64 encoded =
@@ -130,13 +131,13 @@ encodeBase64 = TextEncoding.decodeUtf8 . Base64.encode
 readKeyFile :: FilePath -> IO ByteString
 readKeyFile path =
     Exception.try (ByteString.readFile path) >>= \case
-        Left (_ :: Exception.IOException) -> Exception.throwIO AccountSecurityTokenCipherConfigurationUnavailable
+        Left (_ :: Exception.IOException) -> throwExternalRuntime AccountSecurityTokenCipherConfigurationUnavailable
         Right keyMaterial -> pure keyMaterial
 
 cryptoOrFail :: Text -> Crypto.CryptoFailable value -> IO value
 cryptoOrFail _ = \case
     Crypto.CryptoPassed value -> pure value
-    Crypto.CryptoFailed _     -> Exception.throwIO AccountSecurityTokenCipherOperationFailed
+    Crypto.CryptoFailed _     -> throwExternalRuntime AccountSecurityTokenCipherOperationFailed
 
 cryptoToEither :: Text -> Crypto.CryptoFailable value -> Either Text value
 cryptoToEither message = \case

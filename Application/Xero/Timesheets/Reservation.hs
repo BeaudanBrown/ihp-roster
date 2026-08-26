@@ -10,6 +10,8 @@ module Application.Xero.Timesheets.Reservation
     , reviewXeroTimesheetReservations
     ) where
 
+import Application.Error.ExternalRuntime (throwExternalRuntime)
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Xero.Types (XeroTimesheetRef (..))
 import Application.Xero.Timesheets.ProviderWrite
 import Application.Xero.Timesheets.Reconciliation
@@ -87,7 +89,7 @@ reserveXeroTimesheetSubmissionRun runTemplate reservations remoteTimesheets =
                 Right outcome -> pure outcome
                 Left sessionError
                     | isUniqueViolation sessionError -> recoverExpectedUniqueRace sessionError reservations
-                    | otherwise -> Exception.throwIO sessionError
+                    | otherwise -> throwExternalRuntime sessionError
 
 lockReservationSourceEntries ::
     (?modelContext :: ModelContext) =>
@@ -296,7 +298,7 @@ persistReservation run (reservation, existing, decision) = do
     operation <-
         case xeroTimesheetOperationForDecision decision of
             Just value -> pure value
-            Nothing -> error "Non-write Xero reconciliation decision reached reservation persistence"
+            Nothing -> externalRuntimeInvariantFailure ProviderRuntimeInvariant "Non-write Xero reconciliation decision reached reservation persistence"
     supersedeExisting existing
     submissionId <- UUIDv4.nextRandom
     let idempotencyKey = xeroTimesheetWriteIdempotencyKey submissionId 0 operation
@@ -343,7 +345,7 @@ insertSubmissionEntry submission entry =
                     |> set #entryUpdatedAtAtPreview entry.updatedAt
                     |> set #entryApprovedAtAtPreview approvedAt
                     |> createRecord
-        _ -> error "Xero reservation source entry is not approval-version locked"
+        _ -> externalRuntimeInvariantFailure ProviderRuntimeInvariant "Xero reservation source entry is not approval-version locked"
 
 fetchActiveReservation ::
     (?modelContext :: ModelContext) =>
@@ -368,7 +370,7 @@ lockReservation reservation = do
             "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS xero_timesheet_reservation_lock"
             (PG.Only (reservationLockKey reservation))
     unless (locked == [PG.Only True]) do
-        error "Unable to lock Xero timesheet reservation"
+        externalRuntimeInvariantFailure ProviderRuntimeInvariant "Unable to lock Xero timesheet reservation"
 
 reservationLockKey :: XeroTimesheetReservation -> Text
 reservationLockKey reservation =
@@ -413,7 +415,7 @@ recoverExpectedUniqueRace sessionError reservations = do
                 |> List.sort
     case pendingRunIds of
         _ : _ -> pure (XeroTimesheetReservationsInProgress pendingRunIds)
-        []    -> Exception.throwIO sessionError
+        []    -> throwExternalRuntime sessionError
   where
     pendingRunId submission
         | xeroSubmissionIsInProgress submission.status = Just (Id submission.xeroSubmissionRunId)

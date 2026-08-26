@@ -1,5 +1,7 @@
 module Application.FwcMapd.Payload where
 
+import Application.Error.ExternalRuntime (throwExternalRuntime)
+import Application.Error.Parser (parserFailure)
 import Application.FwcMapd.Error
 import qualified Control.Exception as Exception
 import qualified Data.Aeson as Aeson
@@ -221,7 +223,7 @@ textFromJsonValue = \case
     Aeson.String value -> pure value
     Aeson.Number value -> pure (cs (show value))
     Aeson.Bool value -> pure (if value then "true" else "false")
-    Aeson.Null -> fail "expected non-null JSON value"
+    Aeson.Null -> parserFailure "expected non-null JSON value"
     Aeson.Array values -> pure (cs (show (Vector.toList values)))
     Aeson.Object value -> pure (cs (show value))
 
@@ -229,5 +231,5 @@ decodePayloads :: Aeson.FromJSON a => Text -> [Aeson.Value] -> IO [(a, Aeson.Val
 decodePayloads _label rawValues =
     forM rawValues \rawValue ->
         case Aeson.parseEither Aeson.parseJSON rawValue of
-            Left _        -> Exception.throwIO MapdResponseMalformed
+            Left _        -> throwExternalRuntime MapdResponseMalformed
             Right payload -> pure (payload, rawValue)

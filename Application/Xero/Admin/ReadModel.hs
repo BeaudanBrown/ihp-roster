@@ -546,7 +546,7 @@ scoreXeroEmployeeSuggestion :: XeroStaffMappingRow -> XeroEmployee -> ScoredXero
 scoreXeroEmployeeSuggestion row employee =
     ScoredXeroEmployeeSuggestion
         { scoredSuggestionEmployee = employee
-        , scoredSuggestionScore = minimum (emailScore : nameScores)
+        , scoredSuggestionScore = foldl' min emailScore nameScores
         }
     where
         staff = row.mappingRowStaff
@@ -590,7 +590,7 @@ normalizedLevenshteinDistance left right
 
 levenshteinDistance :: String -> String -> Int
 levenshteinDistance source target =
-    List.last (List.foldl' transform [0 .. length target] source)
+    fromMaybe 0 (lastMay (List.foldl' transform [0 .. length target] source))
     where
         transform previous sourceChar =
             case previous of
@@ -599,11 +599,7 @@ levenshteinDistance source target =
                     scanl compute (firstPrevious + 1) (zip3 target previous (List.drop 1 previous))
                     where
                         compute left (targetChar, diagonal, above) =
-                            minimum
-                                [ left + 1
-                                , above + 1
-                                , diagonal + if sourceChar == targetChar then 0 else 1
-                                ]
+                            min (left + 1) (min (above + 1) (diagonal + if sourceChar == targetChar then 0 else 1))
 
 normalizeName :: Text -> Text
 normalizeName =

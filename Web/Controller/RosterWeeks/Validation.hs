@@ -33,7 +33,7 @@ normalizeRosterSlotDefinitionName submittedName =
 
 firstAvailableDefaultName :: [Text] -> Text
 firstAvailableDefaultName existingNames =
-    fromMaybe "New column" (head (filter (`notElem` existingNames) candidateNames))
+    fromMaybe "New column" (listToMaybe (filter (`notElem` existingNames) candidateNames))
   where
     candidateNames =
         "New column" : map (\index -> "New column " <> tshow index) [2 :: Int ..]

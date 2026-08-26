@@ -62,7 +62,7 @@ import Application.Xero.ReferenceTrust.ReadModel (XeroReferenceTrustState (..),
                                                   fetchXeroReferenceTrustState)
 import Application.Xero.ReferenceTrust.Service
 import Application.Xero.Timesheets.Error (XeroPreparationError (..))
-import Application.Xero.Timesheets.Prepare (XeroPreparationResult,
+import Application.Xero.Timesheets.Prepare (XeroPreparationOutcome (..), XeroPreparationResult,
                                             XeroPreparationStaffDecision (..),
                                             loadXeroTimesheetPreparationView)
 import qualified Data.Text as Text
@@ -373,11 +373,15 @@ resolvePreparationResult ::
     (?request :: Request) =>
     IO (XeroPreparationResult value) ->
     IO (Either Text value)
-resolvePreparationResult operation =
-    runAppResultBoundary
-        (appErrorRequestKind ?request)
-        (withSynchronousAppErrorFallback operation (const (pure (Left (projectDomainError XeroPreparationStateUnavailable)))))
-        pure
+resolvePreparationResult operation = do
+    outcome <-
+        runAppResultBoundary
+            (appErrorRequestKind ?request)
+            (withSynchronousAppErrorFallback operation (const (pure (Left (projectDomainError XeroPreparationStateUnavailable)))))
+            pure
+    pure case outcome of
+        XeroPreparationOutcomeBlocked message -> Left message
+        XeroPreparationOutcomeAvailable value -> Right value
 
 resolvePreparationMutation ::
     (?request :: Request) =>

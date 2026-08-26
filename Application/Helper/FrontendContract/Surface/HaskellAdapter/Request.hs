@@ -17,6 +17,7 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Request
     , renderSurfaceIntentAdapterModules
     ) where
 
+import Application.Error.Startup (startupInvariantFailure)
 import Application.Helper.FrontendContract.Naming (wordsFromTypeName)
 import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.HaskellAdapter.Core
@@ -633,7 +634,7 @@ renderPromotedWire aliases = \case
     WireOptionalIR inner -> "('WireOptional " <> renderPromotedWire aliases inner <> ")"
     WireNullableIR inner -> "('WireNullable " <> renderPromotedWire aliases inner <> ")"
     WireRefIR marker -> "('WireRef " <> marker <> ")"
-    unsupported -> error ("Operation-local Action generator received unsupported wire " <> show unsupported)
+    unsupported -> startupInvariantFailure (cs ("Operation-local Action generator received unsupported wire " <> show unsupported))
 
 renderOperationLocalMetadata ::
     RequestAdapterRenderer kind ->
@@ -642,7 +643,7 @@ renderOperationLocalMetadata ::
 renderOperationLocalMetadata renderer adapter
     | renderer.requestAdapterOperationPrefix == "Action" =
         case payload.surfaceRequestDeclarationAction of
-            Nothing -> error "Operation-local Action adapter is missing checked Action metadata"
+            Nothing -> startupInvariantFailure "Operation-local Action adapter is missing checked Action metadata"
             Just action ->
                 [ evidenceName <> " :: ActionEvidence " <> token
                 , evidenceName <> " ="
@@ -655,7 +656,7 @@ renderOperationLocalMetadata renderer adapter
                 ]
     | otherwise =
         case payload.surfaceRequestDeclarationIntent of
-            Nothing -> error "Operation-local Intent adapter is missing checked Intent metadata"
+            Nothing -> startupInvariantFailure "Operation-local Intent adapter is missing checked Intent metadata"
             Just intent ->
                 [ evidenceName <> " :: IntentEvidence " <> token
                 , evidenceName <> " ="
@@ -964,7 +965,7 @@ intentProofOperationType ::
 intentProofOperationType registration adapter =
     if isJust registration.checkedSurfaceRequestAdapterOperations
         then "Generated." <> proofIntentOperationTokenName adapter
-        else error "Operation-local Intent proof cannot omit a generated Intent declaration"
+        else startupInvariantFailure "Operation-local Intent proof cannot omit a generated Intent declaration"
 
 proofIntentOperationTokenName :: RenderableAdapter payload -> Text
 proofIntentOperationTokenName adapter =

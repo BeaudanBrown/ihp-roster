@@ -4,6 +4,7 @@ module Web.RosterWeeks.TemplateApplication.Persistence
     ( applyPreparedApplication
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Application.RosterShiftAssignment (RosterShiftAssignment (..),
                                           applyRosterShiftAssignment)
@@ -38,7 +39,8 @@ applyPreparedApplication actor prepared = do
     lanes <- ensureTargetLanes prepared
     let laneByDayAndName = Map.fromList [((lane.rosterDayId, Text.toCaseFold (Text.strip lane.name)), lane) | lane <- lanes]
     forM_ prepared.preparedShiftPlans \plan -> do
-        let lane = laneByDayAndName Map.! (unpackId plan.preparedTargetDay.id, Text.toCaseFold (Text.strip plan.preparedTemplateColumn.name))
+        let lane = fromMaybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "prepared roster template lane missing")
+                (Map.lookup (unpackId plan.preparedTargetDay.id, Text.toCaseFold (Text.strip plan.preparedTemplateColumn.name)) laneByDayAndName)
         newRecord @RosterSlot
             |> set #rosterDayId (unpackId plan.preparedTargetDay.id)
             |> set #rosterLaneId (unpackId lane.id)
@@ -63,13 +65,13 @@ persistCleanedTemplateSnapshot actor prepared = case prepared.preparedCleanedTem
     Just cleanedContent -> do
         remediated <- replaceRosterTemplateContentInCurrentTransaction actor prepared.preparedSaved.snapshotTemplate.id cleanedContent
         case remediated of
-            Left templateError -> error ("validated roster template remediation failed: " <> show templateError)
+            Left _ -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "validated roster template remediation failed"
             Right _ -> pure True
 
 applyDayStates :: (?modelContext :: ModelContext) => PreparedApplication -> IO ()
 applyDayStates prepared = do
     let templateDayByWeekday = Map.fromList
-            [ (fromMaybe (error "validated Week snapshot lost weekday identity") day.weekdayIndex, day)
+            [ (fromMaybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "validated Week snapshot lost weekday identity") day.weekdayIndex, day)
             | day <- prepared.preparedSaved.snapshotDays
             ]
     forM_ prepared.preparedTargetDays \targetDay -> do

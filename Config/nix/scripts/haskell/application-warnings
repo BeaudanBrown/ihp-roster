@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# shellcheck source=../lib/ghc.sh
+. "@scriptsRoot@/lib/ghc.sh"
+
+build_dir="${APPLICATION_WARNINGS_BUILD_DIR:-$(ihp_roster_verification_build_dir)/application-warnings}"
+base_ghc_opts="$(ihp_roster_ghc_opts)"
+warning_ghc_opts="$base_ghc_opts -Werror=incomplete-patterns -Werror=incomplete-uni-patterns -Werror=incomplete-record-updates -Werror=partial-fields"
+
+mapfile -t production_sources < <(
+    awk -F '\t' 'NR > 1 && $2 == "production" && $1 ~ /\.hs$/ { print $1 }' Config/nix/production-module-inventory.tsv
+)
+mapfile -t app_sources < <(
+    printf '%s\n' "${production_sources[@]}" \
+        | grep -Ev '(^|/)Generated(/|\.|$)' \
+        | sort -u
+)
+if ((${#app_sources[@]} == 0)); then
+    echo "application-warnings: no app-owned production sources discovered" >&2
+    exit 1
+fi
+
+ihp_roster_prepare_ghc_build_dir "$build_dir" "$base_ghc_opts | $warning_ghc_opts | -fwrite-interface"
+# Compile the complete graph without application warning authority first, so
+# generated IHP and dependency sources contribute interfaces only.
+# shellcheck disable=SC2086 # GHC option strings are intentional argument vectors.
+ghc -fno-code -fwrite-interface $base_ghc_opts "${production_sources[@]}" \
+    -odir "$build_dir/obj" \
+    -hidir "$build_dir/hi"
+# Then compile only repository-owned production modules with strict totality
+# warnings. Generated model/contract modules are deliberately dependencies, not
+# application warning authority.
+# shellcheck disable=SC2086 # GHC option strings are intentional argument vectors.
+ghc -fno-code -c $warning_ghc_opts -i"$build_dir/hi" "${app_sources[@]}" \
+    -odir "$build_dir/obj" \
+    -hidir "$build_dir/hi"
+
+echo "application-warnings: ok (${#app_sources[@]} app-owned production modules)"

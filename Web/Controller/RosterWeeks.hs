@@ -6,6 +6,7 @@
 
 module Web.Controller.RosterWeeks where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Controller
 import Application.Helper.FrontendContract.AppShell (ConfirmDeleteRosterSlotOverlay,
                                                      ConfirmRemoveRosterRowOverlay,
@@ -146,9 +147,8 @@ rosterSurfaceRequestErrorMessage errors =
     "Check the roster controls: " <> surfaceRequestFieldErrorsMessage errors
 
 respondRosterNotificationBadRequest :: (?request :: Request) => Text -> IO value
-respondRosterNotificationBadRequest message = do
-    respondAndExit (Wai.responseLBS status400 [("Content-Type", "text/plain")] (cs message))
-    error "unreachable"
+respondRosterNotificationBadRequest message =
+    respondAndStop (Wai.responseLBS status400 [("Content-Type", "text/plain")] (cs message))
 
 copyOccurrenceSelectionsFromValues :: Maybe Text -> Maybe Text -> Either Text ShiftCopyOccurrenceSelections
 copyOccurrenceSelectionsFromValues startValue endValue = do
@@ -373,7 +373,7 @@ instance Controller RosterWeeksController where
             |> filterWhere (#venueId, unpackId currentVenueId)
             |> fetchOneOrNothing
         accessDeniedUnless (isJust maybeRosterGroup)
-        let rosterGroup = fromMaybe (error "authorized notification roster group missing") maybeRosterGroup
+        let rosterGroup = fromMaybe (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "authorized notification roster group missing") maybeRosterGroup
         venueConfig <- fetchVenueConfig
         accessDeniedUnless (expectedCalendarRevision == venueConfig.rosterCalendarRevision)
         accessDeniedUnless (windowStart == startOfWeekFor venueConfig.rosterWeekStartsOn windowStart && windowEnd == Calendar.addDays 7 windowStart)
@@ -399,7 +399,7 @@ instance Controller RosterWeeksController where
             |> filterWhere (#venueId, unpackId currentVenueId)
             |> fetchOneOrNothing
         accessDeniedUnless (isJust maybeRosterGroup)
-        let rosterGroup = fromMaybe (error "authorized notification roster group missing") maybeRosterGroup
+        let rosterGroup = fromMaybe (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "authorized notification roster group missing") maybeRosterGroup
         venueConfig <- fetchVenueConfig
         accessDeniedUnless (expectedCalendarRevision == venueConfig.rosterCalendarRevision)
         accessDeniedUnless (windowStart == startOfWeekFor venueConfig.rosterWeekStartsOn windowStart && windowEnd == Calendar.addDays 7 windowStart)
@@ -1160,14 +1160,13 @@ requireRosterShiftCalendarAppShellContext requestFields =
 
 requireCurrentRosterCalendarRevision :: (?context :: ControllerContext, ?request :: Request) => VenueConfig -> Int -> IO ()
 requireCurrentRosterCalendarRevision venueConfig expectedRevision =
-    when (expectedRevision /= venueConfig.rosterCalendarRevision) do
-        respondAndExit
+    when (expectedRevision /= venueConfig.rosterCalendarRevision) $
+        respondAndStop
             ( Wai.responseLBS
                 status409
                 [("Content-Type", "text/plain"), ("HX-Refresh", "true")]
                 "The roster calendar changed. Review the refreshed window and try again."
             )
-        error "unreachable"
 
 rosterShiftDialogSubmissionFromRequest :: (?context :: ControllerContext, ?request :: Request) => RosterShiftDialogSubmission
 rosterShiftDialogSubmissionFromRequest =
@@ -1315,7 +1314,7 @@ resolveRequestedRosterGroup = do
     rosterGroups <- fetchViewableRosterGroups
     let maybeRosterGroup = maybe (listToMaybe rosterGroups) (\rosterGroupId -> find ((== rosterGroupId) . (.id)) rosterGroups) requestedRosterGroupId
     accessDeniedUnless (isJust maybeRosterGroup)
-    pure (fromMaybe (error "authorized roster group missing") maybeRosterGroup)
+    pure (fromMaybe (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "authorized roster group missing") maybeRosterGroup)
 
 renderNoRosterGroupPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IO ()
 renderNoRosterGroupPage = do
@@ -1505,14 +1504,13 @@ markStaleRosterCalendarResponseForRefresh =
     when isHtmxRequest $
         forM_ (paramOrNothing @Int "rosterCalendarRevision") \expectedRevision -> do
             venueConfig <- fetchVenueConfig
-            when (expectedRevision /= venueConfig.rosterCalendarRevision) do
-                respondAndExit
+            when (expectedRevision /= venueConfig.rosterCalendarRevision) $
+                respondAndStop
                     ( Wai.responseLBS
                         status409
                         [("Content-Type", "text/plain"), ("HX-Refresh", "true")]
                         "The roster calendar changed. Review the refreshed window and try again."
                     )
-                error "unreachable"
 
 redirectToRosterWindow :: (?context :: ControllerContext, ?request :: Request) => RosterWindowScope -> IO ()
 redirectToRosterWindow scope =
@@ -1619,7 +1617,7 @@ renderRosterWeekPage requestedScope =
                                 , rosterTimelineTodayUrl = Just timelineTodayUrl
                                 }
             Nothing ->
-                error "Roster date range could not be projected for the selected roster group"
+                externalRuntimeInvariantFailure PersistedRuntimeInvariant "Roster date range could not be projected for the selected roster group"
 
 respondWithRosterWeekView :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => ShowView -> IO ()
 respondWithRosterWeekView showView =

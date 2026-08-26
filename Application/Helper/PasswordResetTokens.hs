@@ -8,6 +8,7 @@ module Application.Helper.PasswordResetTokens
 
 import Application.AccountSecurityEmail.Enqueue (enqueuePasswordResetDelivery)
 import Application.AccountSecurityEmail.TokenCipher (encryptAccountSecurityDeliveryToken)
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.OpaqueToken (generateOpaqueToken, hashOpaqueToken)
 import Application.PasswordReset.Mutations (withPasswordResetUserLock)
 import Control.Monad (void)
@@ -60,7 +61,7 @@ issuePasswordResetTokenWith targetUser requestedByUserId venueId afterIssue = do
         pure token
     case maybeToken of
         Just token -> pure (token, rawToken)
-        Nothing -> error "Password reset target disappeared while issuing token"
+        Nothing -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "Password reset target disappeared while issuing token"
 
 findActivePasswordResetToken :: (?modelContext :: ModelContext) => Text -> IO (Maybe PasswordResetToken)
 findActivePasswordResetToken rawToken =

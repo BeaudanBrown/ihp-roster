@@ -30,6 +30,7 @@ module Application.Helper.Xero.Types
     )
 where
 
+import Application.Error.Parser (parserFailure)
 import Control.Applicative ((<|>))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Key
@@ -106,7 +107,7 @@ instance Aeson.FromJSON XeroEmployeeRef where
             <*> optionalText object ["Email", "email"]
             <*> optionalText object ["Status", "status"]
             <*> pure value
-    parseJSON _ = fail "Expected Xero employee object"
+    parseJSON _ = parserFailure "Expected Xero employee object"
 
 data XeroEarningsRateRef = XeroEarningsRateRef
     { xeroEarningsRateId          :: !Text
@@ -133,7 +134,7 @@ instance Aeson.FromJSON XeroEarningsRateRef where
             <*> optionalScientific object ["RatePerUnit", "ratePerUnit"]
             <*> activeFromObject object
             <*> pure value
-    parseJSON _ = fail "Expected Xero earnings rate object"
+    parseJSON _ = parserFailure "Expected Xero earnings rate object"
 
 data XeroAccountRef = XeroAccountRef
     { xeroAccountId     :: !Text
@@ -154,7 +155,7 @@ instance Aeson.FromJSON XeroAccountRef where
             <*> optionalText object ["Type", "type"]
             <*> optionalText object ["Status", "status"]
             <*> pure value
-    parseJSON _ = fail "Expected Xero account object"
+    parseJSON _ = parserFailure "Expected Xero account object"
 
 data XeroPayrollCalendarRef = XeroPayrollCalendarRef
     { xeroPayrollCalendarId          :: !Text
@@ -175,7 +176,7 @@ instance Aeson.FromJSON XeroPayrollCalendarRef where
             <*> optionalDay object ["StartDate", "startDate"]
             <*> optionalDay object ["PaymentDate", "paymentDate"]
             <*> pure value
-    parseJSON _ = fail "Expected Xero payroll calendar object"
+    parseJSON _ = parserFailure "Expected Xero payroll calendar object"
 
 data XeroPayRunRef = XeroPayRunRef
     { xeroPayRunId          :: !Text
@@ -198,7 +199,7 @@ instance Aeson.FromJSON XeroPayRunRef where
             <*> optionalDay object ["PaymentDate", "paymentDate"]
             <*> optionalText object ["PayRunStatus", "payRunStatus", "Status", "status"]
             <*> pure value
-    parseJSON _ = fail "Expected Xero pay run object"
+    parseJSON _ = parserFailure "Expected Xero pay run object"
 
 data XeroTimesheetLineRef = XeroTimesheetLineRef
     { xeroTimesheetLineEarningsRateId :: !(Maybe Text)
@@ -215,7 +216,7 @@ instance Aeson.FromJSON XeroTimesheetLineRef where
             <*> optionalText object ["TrackingItemID", "trackingItemID", "trackingItemId"]
             <*> optionalScientificList object ["NumberOfUnits", "numberOfUnits"]
             <*> pure value
-    parseJSON _ = fail "Expected Xero timesheet line object"
+    parseJSON _ = parserFailure "Expected Xero timesheet line object"
 
 data XeroTimesheetRef = XeroTimesheetRef
     { xeroTimesheetId         :: !(Maybe Text)
@@ -240,7 +241,7 @@ instance Aeson.FromJSON XeroTimesheetRef where
             <*> optionalScientific object ["Hours", "hours", "TotalHours", "totalHours"]
             <*> optionalTimesheetLines object
             <*> pure value
-    parseJSON _ = fail "Expected Xero timesheet object"
+    parseJSON _ = parserFailure "Expected Xero timesheet object"
 
 data XeroTimesheetQuery = XeroTimesheetQuery
     { xeroTimesheetIfModifiedSince :: !(Maybe UTCTime)
@@ -361,11 +362,11 @@ instance Aeson.FromJSON XeroPayrollSettingsAccountsResponse where
     parseJSON = Aeson.withObject "XeroPayrollSettingsAccountsResponse" \object -> do
         settingsValue <- case firstPresent object ["Settings", "settings"] of
             Just value -> pure value
-            Nothing    -> fail "Missing Xero payroll settings"
+            Nothing    -> parserFailure "Missing Xero payroll settings"
         accounts <- Aeson.withObject "Xero payroll settings" (\settingsObject -> do
             accountsValue <- case firstPresent settingsObject ["Accounts", "accounts"] of
                 Just value -> pure value
-                Nothing    -> fail "Missing Xero payroll settings accounts"
+                Nothing    -> parserFailure "Missing Xero payroll settings accounts"
             Aeson.parseJSON accountsValue) settingsValue
         pure (XeroPayrollSettingsAccountsResponse accounts)
 
@@ -399,23 +400,23 @@ parseXeroListResponse wrap key = \case
         values <-
             case KeyMap.lookup (Key.fromText key) object of
                 Just value -> Aeson.parseJSON value
-                Nothing    -> fail ("Missing Xero response list: " <> cs key)
+                Nothing    -> parserFailure ("Missing Xero response list: " <> cs key)
         wrap <$> mapM Aeson.parseJSON (values :: [Aeson.Value])
-    _ -> fail "Expected Xero list response"
+    _ -> parserFailure "Expected Xero list response"
 
 extractEarningsRates :: Aeson.Value -> AesonTypes.Parser [XeroEarningsRateRef]
 extractEarningsRates = Aeson.withObject "Xero pay items" \object -> do
     values <-
         case firstPresent object ["EarningsRates", "earningsRates"] of
             Just value -> Aeson.parseJSON value
-            Nothing    -> fail "Missing Xero pay items earnings rates"
+            Nothing    -> parserFailure "Missing Xero pay items earnings rates"
     mapM Aeson.parseJSON (values :: [Aeson.Value])
 
 requiredText :: Aeson.Object -> [Text] -> AesonTypes.Parser Text
 requiredText object keys =
     case firstPresent object keys of
         Just value -> Aeson.parseJSON value
-        Nothing    -> fail ("Missing required Xero field: " <> cs (Text.intercalate "/" keys))
+        Nothing    -> parserFailure ("Missing required Xero field: " <> cs (Text.intercalate "/" keys))
 
 optionalText :: Aeson.Object -> [Text] -> AesonTypes.Parser (Maybe Text)
 optionalText object keys =
@@ -438,7 +439,7 @@ requiredDay object keys =
     case firstPresent object keys of
         Just (Aeson.String value) -> parseXeroDayText value
         Just value                -> Aeson.parseJSON value
-        Nothing                   -> fail ("Missing required Xero date field: " <> cs (Text.intercalate "/" keys))
+        Nothing                   -> parserFailure ("Missing required Xero date field: " <> cs (Text.intercalate "/" keys))
 
 optionalScientific :: Aeson.Object -> [Text] -> AesonTypes.Parser (Maybe Scientific)
 optionalScientific object keys =
@@ -463,7 +464,7 @@ parseXeroDayText :: Text -> AesonTypes.Parser Day
 parseXeroDayText value =
     case parseIsoDay value <|> parseIsoDateTimeDay value <|> parseMicrosoftJsonDate value of
         Just day -> pure day
-        Nothing  -> fail ("could not parse Xero date: " <> cs value)
+        Nothing  -> parserFailure ("could not parse Xero date: " <> cs value)
 
 parseIsoDay :: Text -> Maybe Day
 parseIsoDay value =
@@ -506,7 +507,7 @@ requiredBool :: Aeson.Object -> [Text] -> AesonTypes.Parser Bool
 requiredBool object keys =
     case firstPresent object keys of
         Just value -> Aeson.parseJSON value
-        Nothing    -> fail ("Missing required Xero boolean field: " <> cs (Text.intercalate "/" keys))
+        Nothing    -> parserFailure ("Missing required Xero boolean field: " <> cs (Text.intercalate "/" keys))
 
 firstPresent :: Aeson.Object -> [Text] -> Maybe Aeson.Value
 firstPresent object keys =

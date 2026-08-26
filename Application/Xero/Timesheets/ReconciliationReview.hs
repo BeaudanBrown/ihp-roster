@@ -10,6 +10,7 @@ module Application.Xero.Timesheets.ReconciliationReview
     , reconciliationReviewSnapshotJson
     ) where
 
+import Application.Error.Parser (parserFailure)
 import Application.Xero.Timesheets.Reconciliation
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
@@ -79,7 +80,7 @@ parseSnapshot = Bifunctor.first cs . AesonTypes.parseEither parser
   where
     parser = Aeson.withObject "Xero reconciliation review snapshot" \object -> do
         version <- object Aeson..: "version"
-        unless (version == (1 :: Int)) (fail "Unsupported Xero reconciliation review snapshot version")
+        unless (version == (1 :: Int)) (parserFailure "Unsupported Xero reconciliation review snapshot version")
         ReconciliationReviewSnapshot
             <$> object Aeson..: "employees"
             <*> object Aeson..: "confirmed"
@@ -110,7 +111,7 @@ parseDecision = Aeson.withObject "Xero reconciliation decision" \object -> do
         "block_distinct" -> BlockDistinctXeroTimesheets <$> object Aeson..: "timesheetIds"
         "block_unknown_status" -> BlockUnknownXeroStatus <$> object Aeson..: "timesheetId" <*> object Aeson..: "status"
         "block_missing_id" -> BlockMissingXeroTimesheetId <$> object Aeson..: "status"
-        _ -> fail "Unknown Xero reconciliation decision kind"
+        _ -> parserFailure "Unknown Xero reconciliation decision kind"
 
 decisionJson :: XeroTimesheetReconciliationDecision -> Aeson.Value
 decisionJson CreateXeroTimesheet = Aeson.object ["kind" Aeson..= ("create" :: Text)]

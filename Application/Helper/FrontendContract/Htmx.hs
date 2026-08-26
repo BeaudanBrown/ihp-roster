@@ -17,6 +17,7 @@ module Application.Helper.FrontendContract.Htmx
     , htmxStandardMethodText
     ) where
 
+import Application.Error.Startup (startupInvariantFailure)
 import qualified Application.Helper.FrontendContract.IR as IR
 import IHP.Prelude
 
@@ -109,7 +110,7 @@ htmxActionOptionAttrPairs metadata =
 htmxCustomAttrPairs :: HtmxActionMetadata -> Text -> Text -> [(Text, Text)] -> [(Text, Text)]
 htmxCustomAttrPairs metadata actionName marker attrs
     | marker `elem` declaredMarkers = attrs
-    | otherwise = error ("undeclared custom HTMX marker " <> cs marker <> " for action " <> cs actionName)
+    | otherwise = startupInvariantFailure ("undeclared custom HTMX marker " <> cs marker <> " for action " <> cs actionName)
     where
         declaredMarkers = fmap (.customMarker) metadata.htmxCustom
 

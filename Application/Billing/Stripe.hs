@@ -46,6 +46,7 @@ module Application.Billing.Stripe
     )
 where
 
+import Application.Error.Parser (parserFailure)
 import qualified Control.Exception as Exception
 import qualified Control.Exception.Safe as SafeException
 import qualified "crypton" Crypto.Hash as Hash
@@ -259,9 +260,9 @@ instance Aeson.FromJSON StripeSubscription where
     parseJSON = Aeson.withObject "StripeSubscription" \object -> do
         expectStripeObjectType object "subscription"
         item <- object Aeson..: "items" >>= parseSingleSubscriptionItem
-        unless (item.subscriptionItemQuantity == 1) (fail "Stripe Subscription item quantity must be one")
+        unless (item.subscriptionItemQuantity == 1) (parserFailure "Stripe Subscription item quantity must be one")
         case validateVenueMonthlyPrice item.subscriptionItemPrice of
-            Left message -> fail (cs message)
+            Left message -> parserFailure (cs message)
             Right _      -> pure ()
         StripeSubscription
             <$> object Aeson..: "id"
@@ -308,13 +309,13 @@ parseSingleSubscriptionItem = Aeson.withObject "StripeSubscriptionItems" \object
     items <- object Aeson..: "data"
     case items of
         [item] -> Aeson.parseJSON item
-        []     -> fail "Stripe Subscription must contain one fixed-price item"
-        _      -> fail "Stripe Subscription must not contain multiple items"
+        []     -> parserFailure "Stripe Subscription must contain one fixed-price item"
+        _      -> parserFailure "Stripe Subscription must not contain multiple items"
 
 expectStripeObjectType :: Aeson.Object -> Text -> AesonTypes.Parser ()
 expectStripeObjectType object expectedType = do
     actualType <- object Aeson..: "object"
-    unless (actualType == expectedType) (fail "Stripe response object discriminator did not match the expected contract")
+    unless (actualType == expectedType) (parserFailure "Stripe response object discriminator did not match the expected contract")
 
 data StripeClientError
     = StripeHttpError !Text

@@ -18,6 +18,7 @@ module Application.Helper.FrontendContract.TimePicker.Runtime
     , timePickerValueAttrs
     ) where
 
+import Application.Error.Startup (startupInvariantFailure)
 import qualified Application.Helper.FrontendContract.TimePicker as Contract
 import Application.Helper.FrontendContract.Values (domAttrValue, domIdValue)
 import Application.Helper.FrontendContract.Wire.Carrier
@@ -112,10 +113,10 @@ timePickerClearAttrs = roleAttrs canonicalTimePickerDom.timePickerClearAttribute
 
 timePickerConfigJson :: TimePickerBrowserConfig -> Text
 timePickerConfigJson TimePickerBrowserConfig { browserTimePickerRangeStart, browserTimePickerRangeEnd, browserTimePickerStepMinutes, browserTimePickerEmptyLabel }
-    | not (validTimeValue browserTimePickerRangeStart) = error "Time picker range start must use HH:MM"
-    | not (validTimeValue browserTimePickerRangeEnd) = error "Time picker range end must use HH:MM"
-    | browserTimePickerStepMinutes <= 0 || browserTimePickerStepMinutes > 24 * 60 = error "Time picker step must be between 1 and 1440 minutes"
-    | Text.null (Text.strip browserTimePickerEmptyLabel) = error "Time picker empty label must not be empty"
+    | not (validTimeValue browserTimePickerRangeStart) = startupInvariantFailure "Time picker range start must use HH:MM"
+    | not (validTimeValue browserTimePickerRangeEnd) = startupInvariantFailure "Time picker range end must use HH:MM"
+    | browserTimePickerStepMinutes <= 0 || browserTimePickerStepMinutes > 24 * 60 = startupInvariantFailure "Time picker step must be between 1 and 1440 minutes"
+    | Text.null (Text.strip browserTimePickerEmptyLabel) = startupInvariantFailure "Time picker empty label must not be empty"
     | otherwise = encodeContractValue $ recordValue @Contract.TimePickerConfig
         ( requiredField @Contract.RangeStart browserTimePickerRangeStart
             &: requiredField @Contract.RangeEnd browserTimePickerRangeEnd
@@ -126,8 +127,8 @@ timePickerConfigJson TimePickerBrowserConfig { browserTimePickerRangeStart, brow
 
 timePickerOptionJson :: TimePickerOptionValue -> Text
 timePickerOptionJson TimePickerOptionValue { timePickerOptionValue, timePickerOptionLabel }
-    | not (validTimeValue timePickerOptionValue) = error "Time picker option value must use HH:MM"
-    | Text.null (Text.strip timePickerOptionLabel) = error "Time picker option label must not be empty"
+    | not (validTimeValue timePickerOptionValue) = startupInvariantFailure "Time picker option value must use HH:MM"
+    | Text.null (Text.strip timePickerOptionLabel) = startupInvariantFailure "Time picker option label must not be empty"
     | otherwise = encodeContractValue $ recordValue @Contract.TimePickerOption
         ( requiredField @Contract.Value timePickerOptionValue
             &: requiredField @Contract.Label timePickerOptionLabel

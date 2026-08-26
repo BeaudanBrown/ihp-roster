@@ -7,6 +7,7 @@ module Application.RosterTemplates.Mutations
     , lockRosterTemplateName
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import qualified Data.Text as Text
 import Database.PostgreSQL.Simple (Only (..))
 import Generated.Types
@@ -125,7 +126,8 @@ lockTargetRows venueId rosterGroupId windowStart windowEnd = do
 lockRosterTemplateName :: (?modelContext :: ModelContext) => Id RosterGroup -> Text -> IO ()
 lockRosterTemplateName rosterGroupId normalizedName = do
     let lockKey = "roster-template-name:" <> tshow (unpackId rosterGroupId) <> ":" <> Text.toCaseFold normalizedName
-    _lockResults :: [Only Bool] <- sqlQuery
+    lockResults :: [Only Bool] <- sqlQuery
         "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS roster_template_name_lock"
-        (Only lockKey)
-    pure ()
+        (Only (Text.take 300 lockKey))
+    unless (lockResults == [Only True]) do
+        externalRuntimeInvariantFailure PersistedRuntimeInvariant "Unable to lock roster template name key"

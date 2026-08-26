@@ -55,15 +55,8 @@ module Application.VenueTime.Model
     , applyRosterSlotBoundaries
     , timesheetEntryBoundaries
     , timesheetEntryOperationalDate
-    , timesheetEntryWorkedOn
-    , timesheetEntryStartTime
-    , timesheetEntryEndTime
     , timesheetEntryHadBreak
-    , timesheetEntryBreakStartTime
-    , timesheetEntryBreakEndTime
-    , timesheetEntryBreakElapsedSeconds
     , timesheetEntryElapsedSeconds
-    , timesheetEntryPaidElapsedSeconds
     , rosterSlotStartTime
     , rosterSlotEndTime
     , rosterSlotElapsedSeconds
@@ -437,35 +430,11 @@ timesheetEntryBoundaries entry =
 timesheetEntryOperationalDate :: TimesheetEntry -> Day
 timesheetEntryOperationalDate = (.operationalDate)
 
--- Local start date remains an authoritative instant projection for payroll
--- component/calendar conditions. Timesheet planning and presentation use
--- 'timesheetEntryOperationalDate' instead.
-timesheetEntryWorkedOn :: TimesheetEntry -> Either TimesheetIntegrityError Day
-timesheetEntryWorkedOn = fmap timesheetTimingWorkedOn . decodeTimesheetTiming
-
-timesheetEntryStartTime :: TimesheetEntry -> Either TimesheetIntegrityError TimeOfDay
-timesheetEntryStartTime = fmap timesheetTimingStartTime . decodeTimesheetTiming
-
-timesheetEntryEndTime :: TimesheetEntry -> Either TimesheetIntegrityError TimeOfDay
-timesheetEntryEndTime = fmap timesheetTimingEndTime . decodeTimesheetTiming
-
 timesheetEntryHadBreak :: TimesheetEntry -> Bool
 timesheetEntryHadBreak = isJust . (.breakStartsAt)
 
-timesheetEntryBreakStartTime :: TimesheetEntry -> Either TimesheetIntegrityError (Maybe TimeOfDay)
-timesheetEntryBreakStartTime = fmap timesheetTimingBreakStartTime . decodeTimesheetTiming
-
-timesheetEntryBreakEndTime :: TimesheetEntry -> Either TimesheetIntegrityError (Maybe TimeOfDay)
-timesheetEntryBreakEndTime = fmap timesheetTimingBreakEndTime . decodeTimesheetTiming
-
-timesheetEntryBreakElapsedSeconds :: TimesheetEntry -> Either TimesheetIntegrityError NominalDiffTime
-timesheetEntryBreakElapsedSeconds = fmap timesheetTimingBreakElapsedSeconds . decodeTimesheetTiming
-
 timesheetEntryElapsedSeconds :: TimesheetEntry -> Either TimesheetIntegrityError NominalDiffTime
 timesheetEntryElapsedSeconds = fmap timesheetTimingElapsedSeconds . decodeTimesheetTiming
-
-timesheetEntryPaidElapsedSeconds :: TimesheetEntry -> Either TimesheetIntegrityError NominalDiffTime
-timesheetEntryPaidElapsedSeconds = fmap timesheetTimingPaidElapsedSeconds . decodeTimesheetTiming
 
 rosterSlotStartTime :: RosterSlot -> Maybe TimeOfDay
 rosterSlotStartTime slot = fmap (.localTimeOfDay) (recoverStoredInstantLocalTime slot.timezone slot.startsAt)
@@ -505,7 +474,7 @@ validatePersistedTimezone = validateTimezone
 
 -- Limited to lossy presentation recovery. Strict payroll, copy, publish, and
 -- approval paths must retain the full decode error instead.
-eitherToMaybe :: Either error value -> Maybe value
+eitherToMaybe :: Either problem value -> Maybe value
 eitherToMaybe = either (const Nothing) Just
 
 occurrenceParamValue :: Maybe RepeatedTimeOccurrence -> Text

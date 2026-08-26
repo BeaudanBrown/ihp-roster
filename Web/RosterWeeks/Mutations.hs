@@ -23,6 +23,7 @@ module Web.RosterWeeks.Mutations
     , removeRosterWindowLaneMutation
     ) where
 
+import Application.Error.Boundary (respondAndStop)
 import Application.Helper.FrontendContract.Surface.Roster.Resource
 import Application.Helper.FrontendContract.Surface.Timesheets.Live (activeTimesheetWindowScopes)
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource
@@ -55,8 +56,8 @@ import Web.SurfaceInvalidation (withDurableLiveMutationOutcome)
 withDurableRosterMutation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Text ->
-    ((?modelContext :: ModelContext) => IO (Either error (LiveMutationResult value))) ->
-    IO (Either error (LiveMutationResult value))
+    ((?modelContext :: ModelContext) => IO (Either problem (LiveMutationResult value))) ->
+    IO (Either problem (LiveMutationResult value))
 withDurableRosterMutation label =
     withDurableLiveMutationOutcome (either (const Nothing) (\result -> Just (label, result.liveMutationTouchedResources)))
 
@@ -145,7 +146,7 @@ toggleRosterWeekLiveStatusMutation scope windowState nextLiveStatus =
                 Just message -> pure (Left message)
                 Nothing -> do
                     let windowStartDate = scope.rosterWindowStart
-                    when (not nextLiveStatus) do
+                    unless nextLiveStatus do
                         window <- fetchRosterWindow scope.rosterWindowVenueId scope.rosterWindowRosterGroupId windowStartDate
                         forM_ (mapMaybe (.persistedRosterDay) window.rosterWindowProjectedDays) \day ->
                             void (day |> set #publicationState Draft |> updateRecord)
@@ -215,14 +216,13 @@ requestRosterCalendarRevisionError venueConfig =
         _ -> pure Nothing
   where
     staleCalendarError message
-        | isHtmxRequest = do
-            respondAndExit
+        | isHtmxRequest =
+            respondAndStop
                 ( Wai.responseLBS
                     status409
                     [("Content-Type", "text/plain"), ("HX-Refresh", "true")]
                     (cs message)
                 )
-            error "unreachable"
         | otherwise = pure (Just message)
 
 guardPublishedWindow :: RosterWindow -> Maybe Text

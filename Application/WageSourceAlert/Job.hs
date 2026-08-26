@@ -10,6 +10,7 @@ import Application.Async.Boundary (throwAppJobError)
 import Application.Async.Error (AppJobError (..))
 import Application.Async.Queue
 import Application.EmailDelivery
+import Application.Error.Parser (parserFailure)
 import Application.PublicHolidays.Policy (targetPublicHolidayYears)
 import Application.VenueTime (resolvedInstantFromUTC, resolvedInstantLocalTime)
 import Application.WageSourceAlert.Types
@@ -55,9 +56,9 @@ instance Aeson.ToJSON HealthCheckPayload where
 instance Aeson.FromJSON HealthCheckPayload where
     parseJSON = Aeson.withObject "WageSourceHealthCheckPayload" \object -> do
         rawSource <- object Aeson..: "source"
-        source <- maybe (fail "Unknown wage source") pure (parseWageSourceKind rawSource)
+        source <- maybe (parserFailure "Unknown wage source") pure (parseWageSourceKind rawSource)
         rawTrigger <- object Aeson..: "trigger"
-        trigger <- maybe (fail "Unknown wage-source health-check trigger") pure (parseRefreshTrigger rawTrigger)
+        trigger <- maybe (parserFailure "Unknown wage-source health-check trigger") pure (parseRefreshTrigger rawTrigger)
         HealthCheckPayload
             <$> pure source
             <*> pure trigger
@@ -552,9 +553,9 @@ weekdayIndexToDayOfWeek = \case
     _ -> Monday
 
 maximumMaybe :: Ord value => [value] -> Maybe value
-maximumMaybe []     = Nothing
-maximumMaybe values = Just (maximum values)
+maximumMaybe []             = Nothing
+maximumMaybe (first : rest) = Just (foldl' max first rest)
 
 minimumMaybe :: Ord value => [value] -> Maybe value
-minimumMaybe []     = Nothing
-minimumMaybe values = Just (minimum values)
+minimumMaybe []             = Nothing
+minimumMaybe (first : rest) = Just (foldl' min first rest)

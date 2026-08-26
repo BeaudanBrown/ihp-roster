@@ -143,6 +143,8 @@ in
         enum-authority-check = script ../scripts/haskell/enum-authority-check;
         typed-contract-authority-check = script ../scripts/haskell/typed-contract-authority-check;
         frontend-contract-warnings = script ../scripts/haskell/frontend-contract-warnings;
+        application-warnings = script ../scripts/haskell/application-warnings;
+        typed-error-boundary-check = script ../scripts/haskell/typed-error-boundary-check;
         weeder-check = script ../scripts/haskell/weeder-check;
         weeder-policy-test = script ../scripts/haskell/weeder-policy-test;
         regen-types = script ../scripts/haskell/regen-types;

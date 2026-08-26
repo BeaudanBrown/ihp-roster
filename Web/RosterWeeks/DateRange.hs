@@ -24,6 +24,7 @@ module Web.RosterWeeks.DateRange
     , fetchRosterWindow
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.WeekBoundaries (startOfWeekFor)
 import Application.RosterPublication (rosterDaysArePublished)
 import Control.Monad (void)
@@ -162,7 +163,7 @@ laneForOperationalDate date lane = Map.lookup date lane.rosterWindowLaneByDate
 
 rosterWindowLaneRepresentative :: RosterWindowLane -> RosterLane
 rosterWindowLaneRepresentative lane =
-    snd (fromMaybe (error "Roster window lane has no date-local lane") (Map.lookupMin lane.rosterWindowLaneByDate))
+    snd (fromMaybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "Roster window lane has no date-local lane") (Map.lookupMin lane.rosterWindowLaneByDate))
 
 projectedRosterDay :: Id Venue -> Id RosterGroup -> RosterWindowDay -> RosterDay
 projectedRosterDay venueId rosterGroupId windowDay =
@@ -178,7 +179,7 @@ projectedRosterDay venueId rosterGroupId windowDay =
 
 projectedRosterDayId :: Id RosterGroup -> Day -> Id RosterDay
 projectedRosterDayId rosterGroupId operationalDate =
-    Id (fromMaybe (error "MD5 roster-day projection did not produce a UUID") (UUID.fromText uuidText))
+    Id (fromMaybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "MD5 roster-day projection did not produce a UUID") (UUID.fromText uuidText))
   where
     digest :: Hash.Digest Hash.MD5
     digest = Hash.hash (TextEncoding.encodeUtf8 (tshow rosterGroupId <> ":" <> tshow operationalDate))
@@ -267,7 +268,7 @@ materializeRosterWindow scope = do
         startDate = scope.rosterWindowStart
     window <- fetchRosterWindow venueId rosterGroupId startDate
     when (any (maybe False ((/= Draft) . (.publicationState)) . (.persistedRosterDay)) window.rosterWindowProjectedDays) $
-        error "Published roster days cannot be materialized as a Draft planning window"
+        externalRuntimeInvariantFailure PersistedRuntimeInvariant "Published roster days cannot be materialized as a Draft planning window"
     materializedDays <- forM window.rosterWindowProjectedDays \windowDay ->
         case windowDay.persistedRosterDay of
             Just day -> pure day
@@ -411,7 +412,7 @@ removeRosterWindowLane scope requestedLaneId deletedByUserId = do
                                                 |> set #slotSortOrder lane.sortOrder
                                                 |> set #rowIndex rowIndex
                                                 |> updateRecord
-                                    let requiredRows = 1 + maximum (0 : [rowIndex | (_, _, rowIndex) <- placements])
+                                    let requiredRows = 1 + foldl' max 0 [rowIndex | (_, _, rowIndex) <- placements]
                                     when (requiredRows > day.rowCount) $
                                         void (day |> set #rowCount requiredRows |> updateRecord)
                                     forM_ removedLanes \lane ->
@@ -541,14 +542,14 @@ allocateLanePlacements :: Set.Set (UUID, Int) -> [(RosterLane, Int)] -> [RosterS
 allocateLanePlacements _ _ [] = []
 allocateLanePlacements occupied candidates (slot : remainingSlots) =
     case find (\(lane, rowIndex) -> (unpackId lane.id, rowIndex) `Set.notMember` occupied) candidates of
-        Nothing -> error "Infinite roster lane placement candidates were exhausted"
+        Nothing -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "Infinite roster lane placement candidates were exhausted"
         Just (lane, rowIndex) ->
             (slot, lane, rowIndex)
                 : allocateLanePlacements (Set.insert (unpackId lane.id, rowIndex) occupied) candidates remainingSlots
 
 projectedRosterLaneId :: Id RosterDay -> Text -> Id RosterLane
 projectedRosterLaneId rosterDayId name =
-    Id (fromMaybe (error "MD5 roster-lane projection did not produce a UUID") (UUID.fromText uuidText))
+    Id (fromMaybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "MD5 roster-lane projection did not produce a UUID") (UUID.fromText uuidText))
   where
     digest :: Hash.Digest Hash.MD5
     digest = Hash.hash (TextEncoding.encodeUtf8 (tshow rosterDayId <> ":lane:" <> normalizeLaneName name))

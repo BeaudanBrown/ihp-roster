@@ -2,6 +2,7 @@
 
 module Application.Helper.ControllerContext where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Data.Coerce (coerce)
 import Data.List (find, sortOn)
 import Generated.Types
@@ -28,7 +29,7 @@ withRequestContext action =
 authenticatedCurrentUser :: (?context :: ControllerContext) => User
 authenticatedCurrentUser =
     fromMaybe
-        (error "authenticatedCurrentUser: initAuthentication has not populated the current user")
+        (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "authenticatedCurrentUser: initAuthentication has not populated the current user")
         (currentUserOrNothing @User)
 {-# INLINE authenticatedCurrentUser #-}
 
@@ -133,7 +134,7 @@ currentVenueOrNothing = unsafePerformIO (join <$> maybeFromContext @(Maybe Venue
 
 currentVenue :: (?context :: ControllerContext) => Venue
 currentVenue =
-    fromMaybe (error "currentVenue: no active venue in controller context") currentVenueOrNothing
+    fromMaybe (externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "currentVenue: no active venue in controller context") currentVenueOrNothing
 
 currentVenueId :: (?context :: ControllerContext) => Id Venue
 currentVenueId = get #id currentVenue

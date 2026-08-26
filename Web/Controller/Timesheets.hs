@@ -1,5 +1,6 @@
 module Web.Controller.Timesheets where
 
+import Application.Error.Types (appErrorSafeMessage)
 import Application.Helper.FrontendContract.Surface.Request (SurfaceRequestFieldError,
                                                             surfaceRequestFieldErrorsMessage)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
@@ -104,13 +105,12 @@ markStaleTimesheetCalendarResponseForRefresh =
         forM_ (paramOrNothing @Int "rosterCalendarRevision") \expectedRevision -> do
             venueConfig <- fetchVenueConfig
             when (expectedRevision /= venueConfig.rosterCalendarRevision) do
-                respondAndExit
+                respondAndStop
                     ( Wai.responseLBS
                         status409
                         [("Content-Type", "text/plain"), ("HX-Refresh", "true")]
                         "The roster calendar changed. Review the refreshed window and try again."
                     )
-                error "unreachable"
 
 requireCurrentTimesheetCalendarValues :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Day -> Int -> IO TimesheetWeekScopeValue
 requireCurrentTimesheetCalendarValues anchorDate expectedRevision = do
@@ -418,7 +418,7 @@ instance Controller TimesheetsController where
                             if shouldApproveSuggestion
                                 then materializeAndApproveTimesheetSuggestionMutation timesheetScope suggestion validEntry >>= \case
                                     Left approvalError -> do
-                                        setErrorMessage approvalError
+                                        setErrorMessage (appErrorSafeMessage approvalError)
                                         redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
                                     Right Nothing -> do
                                         setErrorMessage "That rostered shift changed before the timesheet entry was approved. Review the current suggestion and try again."
@@ -546,8 +546,8 @@ instance Controller TimesheetsController where
             Right _ -> do
                 approval <- approveTimesheetEntryMutation timesheetScope timesheetEntry
                 case approval of
-                    Left reason -> do
-                        setErrorMessage reason
+                    Left appError -> do
+                        setErrorMessage (appErrorSafeMessage appError)
                         redirectToTimesheetWindow timesheetScope.timesheetWindowStart selectedStaffFilterId
                     Right mutationResult ->
                         if isHtmxRequest

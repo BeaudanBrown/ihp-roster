@@ -170,7 +170,7 @@ renderTimelineLane timelineWindow editable rosterDay calendarRevision staffById 
     let maybeLane = laneForOperationalDate rosterDay.operationalDate windowLane
         laneSlots = filter rosterSlotHasVisibleData (maybe [] (\lane -> Map.findWithDefault [] (unpackId lane.id) slotsByDefinition) maybeLane)
         positionedShifts = assignTimelineTracks (map (timelineShiftFromSlot timelineWindow timingBySlotId) laneSlots)
-        trackCount = max 1 (1 + maximum (0 : map timelineShiftTrack positionedShifts))
+        trackCount = max 1 (1 + foldl' max 0 (map timelineShiftTrack positionedShifts))
         assignedShiftCount = length (filter (rosterShiftIsStaffAssigned . (.timelineShiftSlot)) positionedShifts)
         dropzones = if editable then maybe [] (timelineDropzones timelineWindow rosterDay) maybeLane else []
      in [hsx|

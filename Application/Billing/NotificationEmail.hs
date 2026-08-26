@@ -7,6 +7,7 @@ module Application.Billing.NotificationEmail
     ) where
 
 import Application.Billing.NotificationKind
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Mail
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
@@ -139,7 +140,7 @@ isBillingSupportRecipient user =
 fetchEventVenue :: (?modelContext :: ModelContext) => BillingEvent -> IO Venue
 fetchEventVenue event =
     case event.venueId of
-        Nothing      -> fail "Billing notification event has no venue"
+        Nothing      -> externalRuntimeInvariantFailure JobProvenanceInvariant "Billing notification event has no venue"
         Just venueId -> fetch (Id venueId :: Id Venue)
 
 decodeNotificationSnapshot :: Aeson.Value -> Maybe [BillingNotification]

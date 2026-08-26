@@ -150,10 +150,10 @@ ensureCanSendStaffCredentialLink = do
     ensureFreshPasskeyReadyFor staffPasskeyReturnPath
 
 rejectStaffCredentialTarget :: (?context :: ControllerContext, ?request :: Request) => IO a
-rejectStaffCredentialTarget = do
-    setErrorMessage "Choose an active linked staff login from this venue."
-    redirectTo AdminAction
-    error "unreachable"
+rejectStaffCredentialTarget =
+    terminateAfterIhpResponseControl do
+        setErrorMessage "Choose an active linked staff login from this venue."
+        redirectTo AdminAction
 
 staffPasskeyReturnPath :: (?request :: Request) => Text
 staffPasskeyReturnPath =

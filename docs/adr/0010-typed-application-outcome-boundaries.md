@@ -28,6 +28,17 @@ Response control, record-not-found masking, and asynchronous cancellation pass
 through unchanged. A typed `Left` inside a transaction is translated to a
 private, immediately caught rollback exception.
 
+Application-owned breaking primitives are centralized by category. Parser
+rejection uses `parserFailure`; deterministic checked construction uses the
+startup diagnostic owner; impossible PostgreSQL, cryptographic, provider, or
+already-authorized framework values use the external-runtime owner and are
+sanitized by the outer request/job boundary. Pure invariants and dynamic
+messages retain a closed runtime category in a private exception; already-typed
+provider and persistence exceptions retain their original constructor identity
+so existing classifiers and transaction recovery remain authoritative. Raw throws remain only for IHP
+response control, immediate private transaction rollback, the final job
+boundary, and asynchronous rethrow. No source-site baseline is retained.
+
 ## Consequences
 
 Domain additions must extend an exhaustive safe projection and the registered
@@ -46,5 +57,6 @@ safe fallback.
 
 ## Links
 
-- Tickets: #432, #433
+- Tickets: #432, #433, #443
 - Living docs: `Application/Helper/FrontendContract/README.md`
+- Enforcement: `typed-error-boundary-check`, `application-warnings`, and `lint`

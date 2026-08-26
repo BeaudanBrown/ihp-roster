@@ -93,7 +93,7 @@ passwordResetTokenParamOrInvalid =
     maybe invalidPasswordResetLink pure (paramOrNothing @Text "token")
 
 invalidPasswordResetLink :: (?context :: ControllerContext, ?request :: Request) => IO a
-invalidPasswordResetLink = do
-    setErrorMessage "This password reset link is invalid or has expired."
-    redirectTo NewSessionAction
-    error "unreachable"
+invalidPasswordResetLink =
+    terminateAfterIhpResponseControl do
+        setErrorMessage "This password reset link is invalid or has expired."
+        redirectTo NewSessionAction

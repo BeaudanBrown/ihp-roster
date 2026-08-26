@@ -6,6 +6,7 @@ module Application.RosterNotification.Email
     , rosterNotificationMailKind
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)
 import Application.Helper.FrontendContract.Surface.Roster.Resource (rosterNotificationStatusResource)
 import Application.Helper.Mail
@@ -59,23 +60,23 @@ loadRosterNotificationMail mailKind recipientAccountId recipientAddress runId jo
 validateRunIdentity :: RosterNotificationRun -> RosterNotificationSnapshot -> Maybe UUID -> IO ()
 validateRunIdentity run snapshot jobVenueId = do
     unless (run.snapshotSchemaVersion == rosterNotificationSnapshotSchemaVersion) $
-        fail "Unsupported roster notification snapshot schema version"
+        externalRuntimeInvariantFailure JobProvenanceInvariant "Unsupported roster notification snapshot schema version"
     unless (jobVenueId == Just run.venueId) $
-        fail "Roster notification job venue does not match its run"
+        externalRuntimeInvariantFailure JobProvenanceInvariant "Roster notification job venue does not match its run"
     unless
         ( snapshot.snapshotVenueId == run.venueId
             && snapshot.snapshotRosterGroupId == run.rosterGroupId
             && snapshot.snapshotWeekStart == run.weekStart
             && addDays 1 snapshot.snapshotWeekEnd == run.windowEnd
         ) $
-        fail "Roster notification run identity does not match its snapshot"
+        externalRuntimeInvariantFailure JobProvenanceInvariant "Roster notification run identity does not match its snapshot"
 
 validateRecipient :: UUID -> Text -> [RosterNotificationRecipient] -> IO RosterNotificationRecipient
 validateRecipient recipientAccountId recipientAddress recipients =
     case find ((== recipientAccountId) . (.recipientUserId)) recipients of
         Just recipient
             | recipient.recipientEmail == recipientAddress -> pure recipient
-        _ -> fail "Roster notification recipient does not match the immutable run snapshot"
+        _ -> externalRuntimeInvariantFailure JobProvenanceInvariant "Roster notification recipient does not match the immutable run snapshot"
 
 rosterNotificationStatusResources ::
     (?modelContext :: ModelContext) =>

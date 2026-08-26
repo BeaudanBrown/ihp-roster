@@ -142,7 +142,7 @@ OpenTelemetry.Context	hs-opentelemetry-api	Application/Helper/Telemetry.hs via M
 OpenTelemetry.Context.ThreadLocal	hs-opentelemetry-api	Application/Helper/Telemetry.hs via Main
 OpenTelemetry.Instrumentation.Wai	hs-opentelemetry-instrumentation-wai	Application/Helper/Telemetry.hs via Main
 OpenTelemetry.Trace	hs-opentelemetry-sdk	Application/Helper/Telemetry.hs via Main
-Prelude	base	Application/Helper/FrontendContract/Passkey.hs via Main
+Prelude	base	Application/Error/Startup.hs via Main
 System.Directory	directory	Web/Controller/StaffDocuments.hs via Main
 System.Environment	base	Application/Helper/LiveUpdate/DurableListener.hs via Main
 System.Exit	base	Application/Helper/FrontendContract/Registry.hs via Main

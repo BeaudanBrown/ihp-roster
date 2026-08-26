@@ -35,11 +35,11 @@ tests = describe "Horizontal scroll contract runtime" do
 
     it "rejects invalid Haskell-owned configuration" do
         evaluate (attrsTextLength (horizontalSnapAttrs (HorizontalSnapNearestItem "  ")))
-            `shouldThrow` errorCall "Horizontal snap item selector must not be empty"
+            `shouldThrow` errorCall "Bepis startup invariant failed: Horizontal snap item selector must not be empty"
         evaluate (attrsTextLength (horizontalSnapAttrs (HorizontalSnapEqualGroups (HorizontalSnapGroupCount 0))))
-            `shouldThrow` errorCall "Horizontal snap group count must be positive"
+            `shouldThrow` errorCall "Bepis startup invariant failed: Horizontal snap group count must be positive"
         evaluate (attrsTextLength (horizontalDragAttrs (HorizontalDragConfig (Just ""))))
-            `shouldThrow` errorCall "Horizontal drag ignore selector must not be empty"
+            `shouldThrow` errorCall "Bepis startup invariant failed: Horizontal drag ignore selector must not be empty"
 
 attrsTextLength :: [(Text, Text)] -> Int
 attrsTextLength = Text.length . Text.concat . fmap snd

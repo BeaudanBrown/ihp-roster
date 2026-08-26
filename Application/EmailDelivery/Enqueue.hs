@@ -7,6 +7,7 @@ module Application.EmailDelivery.Enqueue
     ) where
 
 import Application.EmailDelivery.Persistence
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import qualified "crypton" Crypto.Hash as Hash
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
@@ -70,8 +71,8 @@ enqueueEmailDeliveryWithStatus request = do
                     |> fetchOneOrNothing
             case existing of
                 Just appJob -> pure (ExistingEmailDelivery appJob)
-                Nothing -> error "Email delivery dedupe conflict occurred without an existing job"
-        _ -> error "Email delivery insert unexpectedly returned multiple rows"
+                Nothing -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "Email delivery dedupe conflict occurred without an existing job"
+        _ -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "Email delivery insert unexpectedly returned multiple rows"
 
 emailDeliveryPayload :: EmailDeliveryRequest -> Aeson.Value
 emailDeliveryPayload request =

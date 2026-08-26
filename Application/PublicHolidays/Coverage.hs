@@ -71,5 +71,5 @@ holidayYear holiday =
      in year
 
 maximumMaybe :: Ord a => [a] -> Maybe a
-maximumMaybe []     = Nothing
-maximumMaybe values = Just (maximum values)
+maximumMaybe []             = Nothing
+maximumMaybe (first : rest) = Just (foldl' max first rest)

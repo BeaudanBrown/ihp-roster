@@ -9,6 +9,7 @@ module Application.WagePublication
     , staffHoursContributions
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.VenueTime (resolvedInstantFromUTC, resolvedInstantLocalTime)
 import Application.WageEngine
 import qualified Data.List as List
@@ -81,7 +82,7 @@ datedEarningsComponentsWithOrdinal calculation =
     hourlyDates = map (.paidTimeLocalDate) paidSegments
     eveningDates = qualifyingDates StaffHoursEvening
     earlyDates = qualifyingDates StaffHoursEarlyMorning
-    fallbackDate = maybe (error "approved wage calculation has no paid-time date") (.paidTimeLocalDate) (lastMay paidSegments)
+    fallbackDate = maybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "approved wage calculation has no paid-time date") (.paidTimeLocalDate) (lastMay paidSegments)
     initialState = (hourlyDates, eveningDates, earlyDates)
 
     go state [] = (state, [])

@@ -35,7 +35,7 @@ pureTests = do
         it "rejects an empty Haskell-owned search projection" do
             evaluate
                 (attrsTextLength (xeroCandidateFilterCandidateAttrs (xeroCandidateSearchProjection ["  ", "\t"])))
-                `shouldThrow` errorCall "Xero candidate search projection must not be empty"
+                `shouldThrow` errorCall "Bepis startup invariant failed: Xero candidate search projection must not be empty"
 
 databaseTests :: Spec
 databaseTests = do

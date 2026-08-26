@@ -58,6 +58,8 @@ module Application.Helper.Xero
     )
 where
 
+import Application.Error.ExternalRuntime (throwExternalRuntimeMessage)
+import Application.Error.Runtime (ExternalRuntimeCategory (..))
 import Application.Helper.Xero.Types
 import Control.Applicative ((<|>))
 import qualified Control.Exception as Exception
@@ -187,7 +189,7 @@ decodeBase64Text value =
 aesCipherFromSecret :: Text -> IO AES256
 aesCipherFromSecret secret =
     case cipherFromSecret secret of
-        Left err     -> Exception.throwIO (userError (cs (showCryptoError err)))
+        Left err     -> throwExternalRuntimeMessage ProviderRuntimeInvariant (showCryptoError err)
         Right cipher -> pure cipher
 
 cipherFromSecret :: Text -> Either CryptoError AES256
@@ -200,7 +202,7 @@ ivFromBytes :: ByteString -> IO (IV AES256)
 ivFromBytes bytes =
     case makeIV bytes of
         Just iv -> pure iv
-        Nothing -> Exception.throwIO (userError "Failed to build Xero token IV")
+        Nothing -> throwExternalRuntimeMessage ProviderRuntimeInvariant "Failed to build Xero token IV"
 
 xeroEncryptionKeyBytes :: Text -> ByteString
 xeroEncryptionKeyBytes secret =

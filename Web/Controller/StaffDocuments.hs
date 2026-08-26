@@ -263,7 +263,7 @@ normalizeContentType contentType =
 normalizeUploadFileName :: Text -> Text
 normalizeUploadFileName rawFileName =
     let pathParts = Text.splitOn "/" (Text.replace "\\" "/" rawFileName)
-        baseName = fromMaybe rawFileName (last pathParts)
+        baseName = fromMaybe rawFileName (lastMay pathParts)
         cleaned =
             baseName
                 |> Text.replace "\"" ""

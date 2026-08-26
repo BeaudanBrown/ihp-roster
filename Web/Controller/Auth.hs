@@ -437,10 +437,10 @@ setupTokenParamOrJsonError =
     maybe (jsonError status422 "This passkey setup link is invalid or has expired.") pure (paramOrNothing @Text "token")
 
 invalidSetupLink :: (?request :: Request) => IO a
-invalidSetupLink = do
-    setErrorMessage "This passkey setup link is invalid or has expired."
-    redirectTo NewSessionAction
-    error "unreachable"
+invalidSetupLink =
+    terminateAfterIhpResponseControl do
+        setErrorMessage "This passkey setup link is invalid or has expired."
+        redirectTo NewSessionAction
 
 fetchPasskeysForUser :: (?modelContext :: ModelContext) => Id User -> IO [Passkey]
 fetchPasskeysForUser userId =
@@ -509,14 +509,14 @@ clearSetupRegistrationSession = do
 
 jsonError :: (?request :: Request) => Status -> Text -> IO a
 jsonError statusCode errorMessage =
-    renderJsonWithStatusCode statusCode (PasskeyWire.PasskeyFailure errorMessage)
-        >> error "unreachable"
+    terminateAfterIhpResponseControl $
+        renderJsonWithStatusCode statusCode (PasskeyWire.PasskeyFailure errorMessage)
 
 jsonRedirectError :: (?request :: Request) => Status -> Text -> Text -> IO a
 jsonRedirectError statusCode errorMessage redirectTo =
-    renderJsonWithStatusCode statusCode
-        (PasskeyWire.PasskeyRedirectFailure errorMessage redirectTo)
-        >> error "unreachable"
+    terminateAfterIhpResponseControl $
+        renderJsonWithStatusCode statusCode
+            (PasskeyWire.PasskeyRedirectFailure errorMessage redirectTo)
 
 auditPasskeyStepUpFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> IO ()
 auditPasskeyStepUpFailure reason =
@@ -530,6 +530,6 @@ auditPasskeyStepUpFailure reason =
                 ]
             )
 
-validationErrors :: Show error => NonEmpty.NonEmpty error -> Text
-validationErrors errors =
-    Text.intercalate "; " (map (cs . show) (NonEmpty.toList errors))
+validationErrors :: Show problem => NonEmpty.NonEmpty problem -> Text
+validationErrors problems =
+    Text.intercalate "; " (map (cs . show) (NonEmpty.toList problems))

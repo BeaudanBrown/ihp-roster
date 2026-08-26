@@ -6,6 +6,7 @@ module Application.Xero.ReferenceSyncRequest
 
 import Application.Async.Boundary (trySynchronousAppJobAction)
 import Application.Async.Queue
+import Application.Error.Parser (parserFailure)
 import Application.Xero.Admin.ReferenceData (XeroReferenceDataSyncResult (..))
 import Application.Xero.ReferenceSyncJob
 import qualified Control.Exception as Exception
@@ -107,7 +108,7 @@ completedReferenceSyncCounts =
     Aeson.parseMaybe $ Aeson.withObject "completed Xero reference sync result" \object -> do
         status <- object Aeson..: "status"
         if status /= ("succeeded" :: Text)
-            then fail "Xero reference sync did not succeed"
+            then parserFailure "Xero reference sync did not succeed"
             else
                 CompletedReferenceSyncCounts
                     <$> object Aeson..: "employeesCount"

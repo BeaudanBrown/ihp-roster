@@ -239,8 +239,7 @@ rosterWeekGridMountedFragments scope plan =
 
 rosterDayTimelineCandidateMountedFragments :: RosterDayTimelineScopeValue -> [FrontendSurfaceMountedFragment]
 rosterDayTimelineCandidateMountedFragments scope =
-    map (withRosterCalendarRevision scope.rosterDayTimelineCalendarRevision)
-        [rosterDayTimelineContentMountedFragment scope]
+    [withRosterCalendarRevision scope.rosterDayTimelineCalendarRevision (rosterDayTimelineContentMountedFragment scope)]
 
 withRosterCalendarRevision :: Int -> FrontendSurfaceMountedFragment -> FrontendSurfaceMountedFragment
 withRosterCalendarRevision calendarRevision fragment =

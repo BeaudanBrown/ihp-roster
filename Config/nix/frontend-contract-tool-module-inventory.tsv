@@ -10,6 +10,9 @@ Application/Bepis/Response.hs	shared-authority	Application.Script.GenerateFronte
 Application/Error/Boundary.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Error/Domain.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Error/Foundation.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
+Application/Error/Parser.hs	shared-authority	Application.Script.GenerateFrontendSurfaceAdapters	Canonical Haskell authority consumed by runtime and frontend-contract tooling
+Application/Error/Runtime.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
+Application/Error/Startup.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Error/Telemetry.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Error/Types.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Error/Types/Internal.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
@@ -60,7 +63,7 @@ Application/Helper/FrontendContract/Surface/HaskellAdapter/Live.hs	tooling-only	
 Application/Helper/FrontendContract/Surface/HaskellAdapter/Registry.hs	tooling-only	Application.Script.GenerateFrontendSurfaceAdapters	Generator-only inventory of adapter homes and operations
 Application/Helper/FrontendContract/Surface/HaskellAdapter/Request.hs	tooling-only	Application.Script.GenerateFrontendSurfaceAdapters	Generator implementation for managed Action and Intent source
 Application/Helper/FrontendContract/Surface/HaskellAdapter/Resource.hs	tooling-only	Application.Script.GenerateFrontendSurfaceAdapters	Generator implementation for managed Resource adapter source
-Application/Helper/FrontendContract/Surface/Identity.hs	shared-authority	Application.Script.GenerateFrontendSurfaceAdapters	Canonical Haskell authority consumed by runtime and frontend-contract tooling
+Application/Helper/FrontendContract/Surface/Identity/Types.hs	shared-authority	Application.Script.GenerateFrontendSurfaceAdapters	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Helper/FrontendContract/Surface/Interaction.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Helper/FrontendContract/Surface/LeaveRequests.hs	shared-authority	Application.Script.GenerateFrontendContracts	Canonical Haskell authority consumed by runtime and frontend-contract tooling
 Application/Helper/FrontendContract/Surface/LeaveRequests/HaskellAdapter.hs	shared-authority	Application.Script.GenerateFrontendSurfaceAdapters	Canonical Haskell authority consumed by runtime and frontend-contract tooling

@@ -5,6 +5,7 @@ module Application.Billing.Persistence
     )
 where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Data.Tuple.Only (Only (..))
 import IHP.ControllerPrelude
 import IHP.ModelSupport (sqlQuery)
@@ -18,7 +19,7 @@ lockStripeEventForWebhook eventId = do
             "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS event_lock"
             (Only eventId)
     unless (lockResults == [Only True]) do
-        error "Unable to lock the Stripe webhook event"
+        externalRuntimeInvariantFailure ProviderRuntimeInvariant "Unable to lock the Stripe webhook event"
 
 -- IHP QueryBuilder does not expose SELECT ... FOR UPDATE. Keep the unavoidable
 -- locking SQL isolated here rather than embedding it in the Checkout or webhook
@@ -30,7 +31,7 @@ lockVenueForBilling venueId = do
             "SELECT id FROM venues WHERE id = ? FOR UPDATE"
             (Only venueId)
     unless (length lockedVenueIds == 1) do
-        error "Unable to lock the venue for billing"
+        externalRuntimeInvariantFailure ProviderRuntimeInvariant "Unable to lock the venue for billing"
 
 lockVenueForCheckout :: (?modelContext :: ModelContext) => UUID -> IO ()
 lockVenueForCheckout = lockVenueForBilling

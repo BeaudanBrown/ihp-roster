@@ -59,6 +59,7 @@ module Application.Helper.FrontendContract.Surface.HaskellAdapter.Family
     , surfaceOperationLocalIntentAdapter
     ) where
 
+import Application.Error.Startup (startupInvariantFailure)
 import Application.Helper.FrontendContract.Surface.ContractIR (ContractDiagnostic (..),
                                                                SurfaceContractIR)
 import Application.Helper.FrontendContract.Surface.DSL
@@ -345,7 +346,7 @@ singleSurfaceAdapterHome =
         @kind
         @'[SurfaceAdapterHome kind adapterFamily declaration] of
         [home] -> home
-        _      -> error "single Surface adapter reflection did not produce exactly one typed home"
+        _      -> startupInvariantFailure "single Surface adapter reflection did not produce exactly one typed home"
 
 surfaceAdapterOperationIsGenerated :: SurfaceAdapterOperationEligibility -> Bool
 surfaceAdapterOperationIsGenerated GenerateSurfaceAdapterOperation    = True
@@ -380,7 +381,7 @@ resolveSurfaceRequestAdapterRegistrations layout contract families declarations 
     checkedRegistration adapter =
         let registration =
                 fromMaybe
-                    (error "resolved Surface request adapter has no inventory registration")
+                    (startupInvariantFailure "resolved Surface request adapter has no inventory registration")
                     (find ((== adapter.resolvedAdapterHome) . requestAdapterRegistrationHome) registrations)
          in CheckedSurfaceRequestAdapterRegistration
                 { checkedSurfaceRequestAdapter = adapter

@@ -8,6 +8,7 @@ module Application.VenueInvitation.Mutations
     , withVenueInvitationRenewalLockInCurrentTransaction
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import qualified Database.PostgreSQL.Simple as PG
 import IHP.ControllerPrelude
 
@@ -63,7 +64,7 @@ withTrialStaffInvitationLockInCurrentTransaction staffId email action = do
     case lockedStaffIds of
         [_] -> Just <$> action
         []  -> pure Nothing
-        _   -> error "Trial staff lock returned multiple rows"
+        _   -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "Trial staff lock returned multiple rows"
 
 lockVenueInvitationEmail :: (?modelContext :: ModelContext) => Text -> IO ()
 lockVenueInvitationEmail email = do
@@ -71,7 +72,7 @@ lockVenueInvitationEmail email = do
         "SELECT TRUE FROM (SELECT pg_advisory_xact_lock(hashtext(?))) AS venue_invitation_email_lock"
         (PG.Only email)
     unless (lockResults == [PG.Only True]) do
-        error "Unable to lock venue invitation email"
+        externalRuntimeInvariantFailure PersistedRuntimeInvariant "Unable to lock venue invitation email"
 
 lockTrialStaff :: (?modelContext :: ModelContext) => UUID -> IO ()
 lockTrialStaff staffId = do
@@ -79,7 +80,7 @@ lockTrialStaff staffId = do
         "SELECT id FROM staff WHERE id = ? FOR UPDATE"
         (PG.Only staffId)
     unless (lockedStaffIds == [PG.Only staffId]) do
-        error "Unable to lock trial staff"
+        externalRuntimeInvariantFailure PersistedRuntimeInvariant "Unable to lock trial staff"
 
 lockVenueInvitation ::
     (?modelContext :: ModelContext) =>
@@ -93,4 +94,4 @@ lockVenueInvitation invitationId action = do
     case lockedInvitationIds of
         [_] -> Just <$> action
         []  -> pure Nothing
-        _   -> error "Venue invitation lock returned multiple rows"
+        _   -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "Venue invitation lock returned multiple rows"

@@ -8,6 +8,7 @@ module Application.Async.Queue
     , fetchLatestAppJobByKind
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import qualified Data.Aeson as Aeson
 import Generated.Types
 import IHP.ControllerPrelude
@@ -89,9 +90,9 @@ insertAppJobHandlingDedupeRace request = do
                 existingJob <- fetchActiveAppJobByDedupeKey key
                 case existingJob of
                     Just appJob -> pure (ExistingActiveAppJob appJob)
-                    Nothing     -> error "App job dedupe conflict occurred but no active job could be fetched"
-            Nothing -> error "App job insert returned no row without a dedupe key"
-        _ -> error "App job insert unexpectedly returned multiple rows"
+                    Nothing     -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "App job dedupe conflict occurred but no active job could be fetched"
+            Nothing -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "App job insert returned no row without a dedupe key"
+        _ -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "App job insert unexpectedly returned multiple rows"
 
 insertAppJobIgnoringActiveDedupeConflict ::
     (?modelContext :: ModelContext) =>

@@ -75,7 +75,7 @@ hydrateDurableStateFromConnection connection = do
         connection do
             PG.query_ connection "SELECT resource_key, resource_payload, latest_event_sequence FROM live_resource_versions ORDER BY resource_key"
     let decoded = partitionEithers (map (\(key, payload, _) -> decodeDurableResource key payload) rows)
-    let cursor = maximum (0 : map (\(_, _, eventSequence) -> eventSequence) rows)
+    let cursor = foldl' max 0 (map (\(_, _, eventSequence) -> eventSequence) rows)
     replaceDurableResourceVersions (map (\(key, _, eventSequence) -> (key, eventSequence)) rows) cursor
     writeDurableListenerDiagnostic ("[live-invalidation-listener] hydrated=true cursor=" <> tshow cursor <> " resources=" <> tshow (length (snd decoded)) <> " decode_failures=" <> tshow (length (fst decoded)))
     pure (cursor, snd decoded)

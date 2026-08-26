@@ -2,6 +2,7 @@
 
 module Web.View.Admin.Index where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.Export (ReportWeekSelection)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
@@ -73,7 +74,7 @@ currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =
     case currentVenueOrNothing of
         Just venue -> unpackId venue.id
-        Nothing    -> error "Admin page surface requires a current venue"
+        Nothing    -> externalRuntimeInvariantFailure AuthorizedFrameworkInvariant "Admin page surface requires a current venue"
 
 renderConfigSectionsAccordion :: UTCTime -> [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [VenueInvitation] -> ReportWeekSelection -> Bool -> Html
 renderConfigSectionsAccordion currentTime rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes venueConfig awardLevels awardLevelBaseRates importedPayItems invitations exportWeekSelection exportSectionOpen = [hsx|

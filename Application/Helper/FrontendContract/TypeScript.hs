@@ -7,6 +7,7 @@ module Application.Helper.FrontendContract.TypeScript
     ( renderFrontendContractTypeScript
     ) where
 
+import Application.Error.Startup (startupInvariantFailure)
 import Application.Helper.FrontendContract.IR
 import qualified Data.Char as Char
 import qualified Data.List as List
@@ -36,13 +37,13 @@ wirePrimitiveTypeName :: WireIR -> Text
 wirePrimitiveTypeName wire =
     case List.find ((== wire) . (.primitiveWire)) wirePrimitiveTypes of
         Just primitive -> primitive.primitiveTypeName
-        Nothing        -> error ("No TypeScript primitive alias registered for " <> show wire)
+        Nothing        -> startupInvariantFailure (cs ("No TypeScript primitive alias registered for " <> show wire))
 
 wirePrimitiveRuntimeType :: WireIR -> Text
 wirePrimitiveRuntimeType wire =
     case List.find ((== wire) . (.primitiveWire)) wirePrimitiveTypes of
         Just primitive -> primitive.primitiveTsRuntime
-        Nothing        -> error ("No TypeScript primitive runtime type registered for " <> show wire)
+        Nothing        -> startupInvariantFailure (cs ("No TypeScript primitive runtime type registered for " <> show wire))
 
 renderWirePrimitiveAliases :: FrontendContractIR -> [Text]
 renderWirePrimitiveAliases contract =
@@ -610,7 +611,7 @@ renderCompleteSetSort surface sortDefinition = objectLiteral
     rowDtoName =
         case List.find ((== sortDefinition.completeSetSortRowDtoMarker) . snd . schemaNameAndMarker . (.surfaceDtoSchema)) surface.surfaceDtos of
             Just dto -> fst (schemaNameAndMarker dto.surfaceDtoSchema)
-            Nothing -> error ("Missing checked complete-set sort row DTO " <> cs sortDefinition.completeSetSortRowDtoMarker)
+            Nothing -> startupInvariantFailure ("Missing checked complete-set sort row DTO " <> cs sortDefinition.completeSetSortRowDtoMarker)
 
 renderCompleteSetSortKey :: Text -> CompleteSetSortKeyIR -> Text
 renderCompleteSetSortKey rowDtoName key = objectLiteral

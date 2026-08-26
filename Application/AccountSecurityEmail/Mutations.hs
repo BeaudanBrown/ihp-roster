@@ -4,6 +4,7 @@ module Application.AccountSecurityEmail.Mutations
     , withPasswordResetTokenLock
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import qualified Database.PostgreSQL.Simple as PG
 import IHP.ControllerPrelude
 
@@ -52,4 +53,4 @@ withTokenLock lockQuery tokenId action =
         case lockedIds of
             [_] -> Just <$> action
             []  -> pure Nothing
-            _   -> error "Account-security token lock returned multiple rows"
+            _   -> externalRuntimeInvariantFailure PersistedRuntimeInvariant "Account-security token lock returned multiple rows"

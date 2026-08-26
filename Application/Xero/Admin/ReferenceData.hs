@@ -13,6 +13,7 @@ module Application.Xero.Admin.ReferenceData
     , upsertXeroPayrollCalendar
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Audit (AuditEventType (XeroReferenceSyncFailedAudit, XeroReferenceSyncSucceededAudit),
                                  AuditSourceChannel (ApplicationAuditSource),
                                  recordAuditEvent)
@@ -83,7 +84,7 @@ completeXeroReferenceDataSync maybeActorUserId syncRun connection employees earn
     completedRun <- liveMutationValue <$> withDurableLiveMutationWithoutContext "xero.reference_sync.data_completed" do
         activeSyncRun <- fetch syncRun.id
         when (activeSyncRun.syncStatus /= Running) $
-            fail "Xero reference sync run is no longer active."
+            externalRuntimeInvariantFailure ProviderRuntimeInvariant "Xero reference sync run is no longer active."
         mapM_ (upsertXeroEmployee connection now) employees
         mapM_ (upsertXeroEarningsRate connection now) earningsRates
         mapM_ (upsertXeroPayrollCalendar connection now) payrollCalendars

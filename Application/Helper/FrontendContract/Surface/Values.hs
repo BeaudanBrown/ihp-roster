@@ -126,6 +126,7 @@ module Application.Helper.FrontendContract.Surface.Values
     , (&:)
     ) where
 
+import Application.Error.Parser (parserFailure)
 import Application.Helper.FrontendContract.ClosedScalar (KnownClosedScalar,
                                                          closedScalarLiteral,
                                                          parseClosedScalarLiteral)
@@ -134,7 +135,7 @@ import Application.Helper.FrontendContract.Surface.ContractIR hiding
                                                               (intentFields)
 import Application.Helper.FrontendContract.Surface.Diagnostics
 import Application.Helper.FrontendContract.Surface.DSL
-import Application.Helper.FrontendContract.Surface.Identity (SurfaceScopeIdentitySegment (..))
+import Application.Helper.FrontendContract.Surface.Identity.Types (SurfaceScopeIdentitySegment (..))
 import Application.Helper.FrontendContract.Surface.Reflect
 import Application.Helper.FrontendContract.TypeError (BepisTypeError)
 import Application.Helper.NominalText (NominalText (..))
@@ -572,27 +573,27 @@ instance KnownSurfaceWireValue 'WireUUID where
     surfaceWireJson = Aeson.String . UUID.toText
     surfaceWireText = UUID.toText
     parseSurfaceWireValue = Aeson.withText "Surface WireUUID" \value ->
-        maybe (fail "Surface UUID field is malformed") pure (UUID.fromText value)
+        maybe (parserFailure "Surface UUID field is malformed") pure (UUID.fromText value)
 
 instance KnownSurfaceWireValue 'WireDay where
     surfaceWireJson = Aeson.String . surfaceWireText @'WireDay
     surfaceWireText = cs . formatTime defaultTimeLocale "%F"
     parseSurfaceWireValue = Aeson.withText "Surface WireDay" \value ->
-        maybe (fail "Surface day field is malformed") pure (parseTimeM True defaultTimeLocale "%F" (cs value))
+        maybe (parserFailure "Surface day field is malformed") pure (parseTimeM True defaultTimeLocale "%F" (cs value))
 
 instance KnownClosedScalar value => KnownSurfaceWireValue ('WireClosed value) where
     surfaceWireJson = Aeson.String . closedScalarLiteral
     surfaceWireText = closedScalarLiteral
     parseSurfaceWireValue = Aeson.withText "Surface WireClosed" \literal ->
         maybe
-            (fail ("Surface closed scalar has invalid literal: " <> cs literal))
+            (parserFailure ("Surface closed scalar has invalid literal: " <> cs literal))
             pure
             (parseClosedScalarLiteral @value literal)
 
 instance NominalText value => KnownSurfaceWireValue ('WireDomain value) where
     surfaceWireJson = Aeson.String . renderNominalText
     surfaceWireText = renderNominalText
-    parseSurfaceWireValue = Aeson.withText "Surface WireDomain" (either (fail . cs) pure . parseNominalText)
+    parseSurfaceWireValue = Aeson.withText "Surface WireDomain" (either (parserFailure . cs) pure . parseNominalText)
 
 instance KnownSurfaceWireValue inner => KnownSurfaceWireValue ('WireList inner) where
     surfaceWireJson = Aeson.toJSON . fmap (surfaceWireJson @inner)
@@ -711,7 +712,7 @@ surfaceFieldNameFrom _ = surfaceFieldName @marker
 requiredNamedFieldValue :: Text -> Aeson.Object -> Aeson.Types.Parser Aeson.Value
 requiredNamedFieldValue fieldName object =
     maybe
-        (fail ("Missing Surface field: " <> cs fieldName))
+        (parserFailure ("Missing Surface field: " <> cs fieldName))
         pure
         (Aeson.KeyMap.lookup (Aeson.Key.fromText fieldName) object)
 
@@ -821,17 +822,17 @@ parseSurfaceFieldValues value = do
     object <- case value of
         Aeson.Object object -> pure object
         Aeson.Null | null (surfaceFieldValueNames @fields) -> pure mempty
-        _ -> fail "Surface field values must be an object"
+        _ -> parserFailure "Surface field values must be an object"
     let allowed = fmap Aeson.Key.fromText (surfaceFieldValueNames @fields)
     let unknown = filter (`notElem` allowed) (Aeson.KeyMap.keys object)
     unless (null unknown) do
-        fail (cs ("Surface field values contain unknown fields: " <> tshow unknown))
+        parserFailure (cs ("Surface field values contain unknown fields: " <> tshow unknown))
     parseSurfaceFieldValuesObject @fields object
 
 requiredFieldValue :: forall marker. Typeable marker => Aeson.Object -> Aeson.Types.Parser Aeson.Value
 requiredFieldValue object =
     maybe
-        (fail ("Missing Surface field: " <> cs (surfaceFieldName @marker)))
+        (parserFailure ("Missing Surface field: " <> cs (surfaceFieldName @marker)))
         pure
         (Aeson.KeyMap.lookup (Aeson.Key.fromText (surfaceFieldName @marker)) object)
 

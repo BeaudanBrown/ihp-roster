@@ -25,6 +25,12 @@ documentation-repository-check
 echo "verify-full: typecheck"
 typecheck
 
+echo "verify-full: app-owned production totality warnings"
+application-warnings
+
+echo "verify-full: typed error primitive and category boundaries"
+typed-error-boundary-check
+
 # Keep the complete default selection; never substitute a feedback-only lane here.
 echo "verify-full: complete Hspec"
 hspec-test

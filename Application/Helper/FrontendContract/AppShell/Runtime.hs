@@ -17,7 +17,6 @@ module Application.Helper.FrontendContract.AppShell.Runtime
     , AppShellFieldValue (..)
     , RegisteredAppShellAction
     , appShellActionByMarker
-    , appShellActionByName
     , appShellActionHtmxAttrPairs
     , applyAppShellActionAttrs
     , renderAppShellActionForm
@@ -33,8 +32,7 @@ import Application.Helper.FrontendContract.IR
 import Application.Helper.FrontendContract.Naming (FrontendSurfaceNameContext (ActionName),
                                                    deriveFrontendSurfaceTypeName)
 import Application.Helper.FrontendContract.Reflect (ReflectAppShellActionPrimitive (..))
-import Application.Helper.FrontendContract.Registry (RegisteredFrontendContracts,
-                                                     checkedRegisteredFrontendContract)
+import Application.Helper.FrontendContract.Registry (RegisteredFrontendContracts)
 import Data.Kind (Type)
 import Data.Typeable (Typeable)
 import GHC.TypeLits (ErrorMessage (..), TypeError)
@@ -95,17 +93,6 @@ appShellActionByMarker ::
     ) =>
     AppShellActionIR
 appShellActionByMarker = reflectAppShellActionPrimitive @(FindAppShellAction marker RegisteredFrontendContracts)
-
-appShellActionByName :: Text -> Maybe AppShellActionIR
-appShellActionByName name =
-    find ((== name) . (.appShellActionName))
-        [ action
-        | global <- checkedContractIR.contractGlobals
-        , GlobalAppShellActionIR action <- global.globalPrimitives
-        ]
-
-checkedContractIR :: FrontendContractIR
-checkedContractIR = frontendContractIR checkedRegisteredFrontendContract
 
 applyAppShellActionAttrs :: AppShellActionIR -> AppShellActionRoute -> Blaze.Html -> Blaze.Html
 applyAppShellActionAttrs action route element =

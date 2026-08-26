@@ -45,3 +45,24 @@
 
 - ignore:
     name: Functor law
+
+# Breaking primitives are forbidden in application code. Parser failure and the
+# few exception-backed runtime categories are checked semantically by
+# typed-error-boundary-check rather than exempted here.
+- functions:
+  - {name: error, within: [Application.Error.Startup, Application.Error.Runtime], message: "Use a typed error or an approved category boundary"}
+  - {name: fail, within: Application.Error.Parser, message: "Use parserFailure only while constructing a typed parser result"}
+  - {name: ioError, within: [], message: "Return AppResult or use an approved category boundary"}
+  - {name: userError, within: [], message: "Return AppResult or use an approved category boundary"}
+  - {name: undefined, within: [], message: "Use a total value"}
+  - {name: fromJust, within: [], message: "Pattern-match the Maybe result"}
+  - {name: head, within: [], message: "Use NonEmpty or a total projection"}
+  - {name: tail, within: [], message: "Use NonEmpty or a total projection"}
+  - {name: init, within: [], message: "Use NonEmpty or a total projection"}
+  - {name: last, within: [], message: "Use NonEmpty or a total projection"}
+  - {name: "!!", within: [], message: "Use a total lookup"}
+  - {name: read, within: [], message: "Use a typed parser"}
+  - {name: foldl1, within: [], message: "Use NonEmpty or an explicit seed"}
+  - {name: foldr1, within: [], message: "Use NonEmpty or an explicit seed"}
+  - {name: maximum, within: [], message: "Use NonEmpty or a total projection"}
+  - {name: minimum, within: [], message: "Use NonEmpty or a total projection"}

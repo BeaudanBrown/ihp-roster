@@ -26,6 +26,7 @@ module Web.Admin.Mutations
     , updateShiftTypeMutation
     ) where
 
+import Application.Error.Runtime (ExternalRuntimeCategory (..), externalRuntimeInvariantFailure)
 import Application.Helper.Audit
 import Application.Helper.FrontendContract.Surface.Admin.Resource
 import Application.Helper.FrontendContract.Surface.LeaveRequests.Resource (leaveAvailabilityWarningsResource)
@@ -80,7 +81,7 @@ issueStaffPasskeySetupLinkMutation staffId purpose targetUser =
 staffPasskeySetupAuditEvent :: PasskeySetupTokenPurpose -> AuditEventType
 staffPasskeySetupAuditEvent StaffNewDevicePasskeySetup = StaffPasskeySetupRequestedAudit
 staffPasskeySetupAuditEvent StaffPasskeyRecovery = StaffPasskeyRecoveryRequestedAudit
-staffPasskeySetupAuditEvent SelfNewDevicePasskeySetup = error "Self passkey setup cannot use the staff credential mutation"
+staffPasskeySetupAuditEvent SelfNewDevicePasskeySetup = externalRuntimeInvariantFailure PersistedRuntimeInvariant "Self passkey setup cannot use the staff credential mutation"
 
 data AdminShiftTypeMutationResult = AdminShiftTypeMutationResult
     { adminShiftTypeMutationShiftType         :: !ShiftType
@@ -170,7 +171,7 @@ createVenueInvitationMutation email = do
                             |> createRecord
                         void (enqueueVenueInvitationEmail (Just currentUser.id) invitation)
                         pure (Right invitation)
-    pure (fmap (\invitation -> liveMutationResult invitation resources) creation)
+    pure (fmap (`liveMutationResult` resources) creation)
     where
         resources = [adminInvitesResource (unpackId currentVenueId)]
         publicationFor = either (const Nothing) (const (Just ("admin.invite.create", Set.fromList resources)))
@@ -272,7 +273,7 @@ createShiftTypeMutation name isActive overrideAwardLevelId importedXeroPayItemId
         sortOrder <- nextShiftTypeSortOrder
         colourKey <- resolveSubmittedShiftTypeColourKey Nothing isActive maybeSubmittedColourKey blankShiftTypeColourKey
         now <- getCurrentTime
-        let payAssignmentMode = if submittedRosterOnly then RosterOnly else fromMaybe (error "validated shift pay selection contains conflicting rate sources") (selectableShiftAssignmentMode overrideAwardLevelId importedXeroPayItemId)
+        let payAssignmentMode = if submittedRosterOnly then RosterOnly else fromMaybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "validated shift pay selection contains conflicting rate sources") (selectableShiftAssignmentMode overrideAwardLevelId importedXeroPayItemId)
         shiftType <- newRecord @ShiftType
             |> set #venueId (unpackId currentVenueId)
             |> set #name name
@@ -299,7 +300,7 @@ updateShiftTypeMutation shiftType name isActive overrideAwardLevelId importedXer
                 then nextShiftTypeSortOrder
                 else pure shiftType.sortOrder
         colourKey <- resolveSubmittedShiftTypeColourKey (Just shiftType.id) isActive maybeSubmittedColourKey shiftType.colourKey
-        let payAssignmentMode = if submittedRosterOnly then RosterOnly else fromMaybe (error "validated shift pay selection contains conflicting rate sources") (selectableShiftAssignmentMode overrideAwardLevelId importedXeroPayItemId)
+        let payAssignmentMode = if submittedRosterOnly then RosterOnly else fromMaybe (externalRuntimeInvariantFailure PersistedRuntimeInvariant "validated shift pay selection contains conflicting rate sources") (selectableShiftAssignmentMode overrideAwardLevelId importedXeroPayItemId)
         updatedShiftType <- shiftType
             |> set #name name
             |> set #sortOrder sortOrder
