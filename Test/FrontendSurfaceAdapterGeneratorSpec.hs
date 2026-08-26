@@ -508,7 +508,7 @@ tests = describe "FrontendSurfaceAdapterGenerator" do
         extraDiagnosticCodes `shouldContain` ["missing-adapter-scope-home"]
 
     it "publishes one authoritative inventory decision for every Action declaration" do
-        length registeredSurfaceAdapterRegistry.surfaceActionAdapterRegistrations `shouldBe` 75
+        length registeredSurfaceAdapterRegistry.surfaceActionAdapterRegistrations `shouldBe` 74
         case generateSurfaceActionAdapterModules registeredFrontendSurfaceContractIR registeredSurfaceAdapterRegistry of
             Left diagnostics -> expectationFailure (cs (show diagnostics))
             Right generatedModules ->
