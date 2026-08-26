@@ -334,6 +334,20 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER prevent_hard_delete_xero_timesheet_submissions BEFORE DELETE ON xero_timesheet_submissions"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER prevent_hard_delete_xero_timesheet_submission_entries BEFORE DELETE ON xero_timesheet_submission_entries"
 
+    it "persists immutable late Xero routing without rewriting approved wage components" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        migrationSqlText <- TextIO.readFile "Application/Migration/1788100200.sql"
+        forM_ [schemaSqlText, migrationSqlText] \sqlText -> do
+            sqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE timesheet_pay_component_xero_bindings"
+            sqlText `shouldSatisfy` Text.isInfixOf "UNIQUE (timesheet_pay_earnings_component_id, xero_connection_id)"
+            sqlText `shouldSatisfy` Text.isInfixOf "late Xero component bindings are immutable"
+            sqlText `shouldSatisfy` Text.isInfixOf "component.xero_local_bucket_key IS NULL"
+            sqlText `shouldSatisfy` Text.isInfixOf "connection.venue_id = entry.venue_id"
+            sqlText `shouldSatisfy` Text.isInfixOf "entry.active_pay_calculation_id = calculation.id"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "UPDATE timesheet_pay_earnings_components"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DELETE FROM"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "DROP TABLE"
+
     it "makes pre-deployment pending Xero submissions recoverable without deleting audit history" do
         migrationSqlText <- TextIO.readFile "Application/Migration/1788000100.sql"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "UPDATE xero_timesheet_submissions"

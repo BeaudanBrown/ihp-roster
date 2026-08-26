@@ -89,6 +89,7 @@ applicationTableNames =
     , "timesheet_pay_calculations"
     , "timesheet_pay_time_segments"
     , "timesheet_pay_earnings_components"
+    , "timesheet_pay_component_xero_bindings"
     , "timesheet_entry_versions"
     , "export_job_entries"
     , "xero_submission_runs"
