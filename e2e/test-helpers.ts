@@ -894,6 +894,9 @@ async function submitRosterDayAction(button: Locator) {
             element.click();
         }),
     ]);
+    // waitForResponse resolves before HTMX removes its request state. A second
+    // day-row mutation in that interval is intentionally dropped by hx-sync.
+    await button.page().waitForFunction(() => document.querySelector('.htmx-request') === null);
 }
 
 async function rosterDayIdForSection(section: Locator) {
