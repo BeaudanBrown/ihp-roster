@@ -26,12 +26,20 @@ function disconnectDurableInvalidationListeners() {
 async function ensureCompleteDraftWindow(page: Page) {
     const anchorDate = new URL(page.url()).searchParams.get('anchorDate');
     if (anchorDate === null) throw new Error('Expected canonical roster anchor date');
+    const windowStart = querySql(`
+        SELECT (
+            DATE '${anchorDate}'
+            - ((EXTRACT(DOW FROM DATE '${anchorDate}')::INT - roster_week_starts_on + 7) % 7)
+        )::TEXT
+        FROM venue_config
+        WHERE venue_id = 'a1000000-0000-0000-0000-000000000001';
+    `).trim();
     runSql(`
         INSERT INTO roster_days (venue_id, roster_group_id, operational_date, publication_state, is_closed, row_count)
         SELECT
             'a1000000-0000-0000-0000-000000000001',
             '${defaultE2ERosterGroupId}',
-            DATE '${anchorDate}' + day_index,
+            DATE '${windowStart}' + day_index,
             'draft',
             FALSE,
             2
@@ -41,6 +49,7 @@ async function ensureCompleteDraftWindow(page: Page) {
     `);
     await page.reload();
     await expect(page.locator('#roster-week-shell')).toBeVisible();
+    return windowStart;
 }
 
 async function openTemplatesTab(page: Page) {
@@ -260,9 +269,7 @@ test.describe('Roster Week-template modals', () => {
 
     test('keeps Save and Delete available while any Published target day disables Apply', async ({ page }) => {
         const templateName = uniqueE2EValue('Published target');
-        await ensureCompleteDraftWindow(page);
-        const anchorDate = new URL(page.url()).searchParams.get('anchorDate');
-        if (anchorDate === null) throw new Error('Expected canonical roster anchor date');
+        const windowStart = await ensureCompleteDraftWindow(page);
 
         try {
             runSql(`
@@ -299,7 +306,7 @@ test.describe('Roster Week-template modals', () => {
                 UPDATE roster_days
                 SET publication_state = 'published'
                 WHERE roster_group_id = '${defaultE2ERosterGroupId}'
-                  AND operational_date = DATE '${anchorDate}' + 3;
+                  AND operational_date = DATE '${windowStart}' + 3;
             `);
             await page.reload();
             await openTemplatesTab(page);
@@ -317,8 +324,8 @@ test.describe('Roster Week-template modals', () => {
                 UPDATE roster_days
                 SET publication_state = 'draft'
                 WHERE roster_group_id = '${defaultE2ERosterGroupId}'
-                  AND operational_date >= DATE '${anchorDate}'
-                  AND operational_date < DATE '${anchorDate}' + 7;
+                  AND operational_date >= DATE '${windowStart}'
+                  AND operational_date < DATE '${windowStart}' + 7;
             `);
         }
     });

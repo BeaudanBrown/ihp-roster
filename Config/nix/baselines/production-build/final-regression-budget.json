@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "issue": 403,
-  "authority": "Stable production app-library and inventory regression ceilings measured after the date-native roster and Week-template snapshot retirements, shared email, durable live-listener cutovers, and nominal frontend wire domains; measured memory is opt-in and builder-specific",
+  "authority": "Stable production app-library and inventory regression ceilings measured after the date-native roster and Week-template snapshot retirements, immutable Xero late-binding addition, shared email, durable live-listener cutovers, and nominal frontend wire domains; measured memory is opt-in and builder-specific",
   "measurement_profile": "Config/nix/baselines/production-build/epic-364-post-staging-rebase.json",
   "app_library": {
     "self_size_bytes_max": 1073741824,
-    "module_count_max": 518,
+    "module_count_max": 519,
     "default_interface_bytes_max": 16777216,
     "interface_exceptions": [
       {
@@ -60,7 +60,7 @@
       }
     ],
     "required_artifacts": {
-      ".hi": { "count": 518, "bytes_max": 629145600 },
+      ".hi": { "count": 519, "bytes_max": 629145600 },
       ".a": { "count": 1 },
       ".conf": { "count": 1 },
       "[no extension]": { "count": 1 }
@@ -69,7 +69,7 @@
     "allowed_artifacts": [".hi", ".a", ".conf", "[no extension]"]
   },
   "production_inventory": {
-    "module_rows_max": 519,
+    "module_rows_max": 520,
     "dependency_packages_max": 42,
     "executable_rows_max": 10,
     "module_inventory": "../../production-module-inventory.tsv",

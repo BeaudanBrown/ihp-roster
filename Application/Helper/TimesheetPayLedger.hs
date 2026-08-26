@@ -324,11 +324,6 @@ loadRateBoundaryFacts calculations = do
         , allowanceOperativeFromById = Map.fromList [(unpackId row.id, row.operativeFrom) | row <- allowances]
         }
 
-persist :: (?modelContext :: ModelContext) => TimesheetEntry -> WageCalculation -> IO TimesheetPayCalculation
-persist entry calculation = do
-    rateBoundaryFacts <- loadRateBoundaryFacts [calculation]
-    persistWithRateBoundaryFacts True rateBoundaryFacts entry calculation
-
 persistWithRateBoundaryFacts :: (?modelContext :: ModelContext) => Bool -> RateBoundaryFacts -> TimesheetEntry -> WageCalculation -> IO TimesheetPayCalculation
 persistWithRateBoundaryFacts sealXeroMapping rateBoundaryFacts entry calculation = do
     approvedAt <- maybe (fail "approved entry missing approved_at") pure entry.approvedAt
