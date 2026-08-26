@@ -39,6 +39,16 @@ ADTs; Haskell wire modules do not repeat field or case strings.
 
 ## Runtime Boundaries
 
+The complete reflected global and Surface registry is validated into the opaque
+`CheckedFrontendContract` before use. Contract generation consumes that checked
+value, compile-fail fixtures prevent unchecked construction and unknown
+AppShell markers, and `Config/Config.hs` forces the same validation before any
+listener starts. Invalid code/configuration emits deterministic diagnostics and
+exits before traffic. Runtime constants, AppShell actions, Surface metadata,
+typed field lookup, and live scope identity use type-indexed reflection or the
+checked registry; they do not rescan unchecked registries or carry request-time
+`error` fallbacks.
+
 Haskell owns routes, authorization, business meaning, workflow copy, server DOM,
 and exact payload shapes. TypeScript consumes generated constants,
 parsers/encoders, and minimal registries while keeping browser/platform mechanics
@@ -62,8 +72,9 @@ do not leak into either registry.
 Frontend-contract generation is a separate Nix output, not a production runtime
 entry point. `.#frontend-contract-tools` owns the TypeScript contract renderer,
 Surface Haskell-adapter renderer, and typed architecture emitter. Its checked
-module inventory distinguishes 12 tooling-only modules from 81 shared canonical
-authority modules; shared reflection remains in production only where runtime
+module inventory distinguishes tooling-only modules from shared canonical
+authority modules without duplicating those source-derived counts here; shared
+reflection remains in production only where runtime
 builders, parsers, values, or metadata actually import it. The optimized server
 closure must never reference the tooling output. Package-backed CI freshness
 checks regenerate TypeScript, all managed Haskell adapters and private proofs,

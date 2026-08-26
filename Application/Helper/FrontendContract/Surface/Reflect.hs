@@ -9,7 +9,22 @@
 
 module Application.Helper.FrontendContract.Surface.Reflect
     ( ReflectedPrimitive (..)
+    , ReflectActionPrimitive (..)
+    , ReflectActivationRefPrimitive (..)
+    , ReflectBrowserClosedStatePrimitive (..)
+    , ReflectBrowserRolePrimitive (..)
+    , ReflectBrowserStatePrimitive (..)
+    , ReflectCompleteSetSortPrimitive (..)
+    , ReflectDomTokenPrimitive (..)
+    , ReflectDropzoneRefPrimitive (..)
+    , ReflectFragmentPrimitive (..)
+    , ReflectIntentPrimitive (..)
+    , ReflectLinkedHighlightPrimitive (..)
     , ReflectPrimitive (..)
+    , ReflectScopePrimitive (..)
+    , ReflectSidePanelPrimitive (..)
+    , ReflectSourceRefPrimitive (..)
+    , ReflectTabSetPrimitive (..)
     , ReflectResource (..)
     , ReflectSurfaceRegistry (..)
     , ReflectSurfaceSpec (..)
@@ -83,13 +98,19 @@ data ReflectedPrimitive
 class ReflectPrimitive (primitive :: SurfacePrimitive) where
     reflectPrimitive :: ReflectedPrimitive
 
-instance (Typeable marker, ReflectFieldList fields, ReflectScopeOptionList options) => ReflectPrimitive ('Scope marker fields options) where
-    reflectPrimitive = ReflectedScope ScopeIR
+class ReflectScopePrimitive (primitive :: SurfacePrimitive) where
+    reflectScopePrimitive :: ScopeIR
+
+instance (Typeable marker, ReflectFieldList fields, ReflectScopeOptionList options) => ReflectScopePrimitive ('Scope marker fields options) where
+    reflectScopePrimitive = ScopeIR
         { scopeMarker = typeMarker @marker
         , scopeName = protocolName @marker ScopeName
         , scopeFields = reflectFieldList @fields
         , scopeOptions = reflectScopeOptionList @options
         }
+
+instance ReflectScopePrimitive ('Scope marker fields options) => ReflectPrimitive ('Scope marker fields options) where
+    reflectPrimitive = ReflectedScope (reflectScopePrimitive @('Scope marker fields options))
 
 instance (Typeable marker, ReflectFieldList fields) => ReflectPrimitive ('MountState marker fields) where
     reflectPrimitive = ReflectedMountState MountStateIR
@@ -98,34 +119,55 @@ instance (Typeable marker, ReflectFieldList fields) => ReflectPrimitive ('MountS
         , mountStateFields = reflectFieldList @fields
         }
 
-instance (Typeable marker, ReflectFieldList fields, ReflectOptionList options) => ReflectPrimitive ('Fragment marker fields options) where
-    reflectPrimitive = ReflectedFragment FragmentIR
+class ReflectFragmentPrimitive (primitive :: SurfacePrimitive) where
+    reflectFragmentPrimitive :: FragmentIR
+
+instance (Typeable marker, ReflectFieldList fields, ReflectOptionList options) => ReflectFragmentPrimitive ('Fragment marker fields options) where
+    reflectFragmentPrimitive = FragmentIR
         { fragmentMarker = typeMarker @marker
         , fragmentName = protocolName @marker FragmentName
         , fragmentParams = reflectFieldList @fields
         , fragmentOptions = reflectOptionList @options
         }
 
-instance (Typeable marker, ReflectFieldList fields, ReflectOptionList options) => ReflectPrimitive ('Action marker fields options) where
-    reflectPrimitive = ReflectedHtmxAction HtmxActionIR
+instance ReflectFragmentPrimitive ('Fragment marker fields options) => ReflectPrimitive ('Fragment marker fields options) where
+    reflectPrimitive = ReflectedFragment (reflectFragmentPrimitive @('Fragment marker fields options))
+
+class ReflectActionPrimitive (primitive :: SurfacePrimitive) where
+    reflectActionPrimitive :: HtmxActionIR
+
+instance (Typeable marker, ReflectFieldList fields, ReflectOptionList options) => ReflectActionPrimitive ('Action marker fields options) where
+    reflectActionPrimitive = HtmxActionIR
         { htmxActionMarker = typeMarker @marker
         , htmxActionName = protocolName @marker ActionName
         , htmxActionFields = reflectFieldList @fields
         , htmxActionOptions = reflectOptionList @options
         }
 
-instance (Typeable marker, ReflectFieldList fields, ReflectOptionList options) => ReflectPrimitive ('Intent marker fields options) where
-    reflectPrimitive = ReflectedIntent IntentIR
+instance ReflectActionPrimitive ('Action marker fields options) => ReflectPrimitive ('Action marker fields options) where
+    reflectPrimitive = ReflectedHtmxAction (reflectActionPrimitive @('Action marker fields options))
+
+class ReflectIntentPrimitive (primitive :: SurfacePrimitive) where
+    reflectIntentPrimitive :: IntentIR
+
+instance (Typeable marker, ReflectFieldList fields, ReflectOptionList options) => ReflectIntentPrimitive ('Intent marker fields options) where
+    reflectIntentPrimitive = IntentIR
         { intentMarker = typeMarker @marker
         , intentName = protocolName @marker IntentName
         , intentFields = reflectFieldList @fields
         , intentOptions = reflectOptionList @options
         }
 
-instance (Typeable marker, ReflectOptionList options) => ReflectPrimitive ('SourceRef marker options) where
-    reflectPrimitive =
+instance ReflectIntentPrimitive ('Intent marker fields options) => ReflectPrimitive ('Intent marker fields options) where
+    reflectPrimitive = ReflectedIntent (reflectIntentPrimitive @('Intent marker fields options))
+
+class ReflectSourceRefPrimitive (primitive :: SurfacePrimitive) where
+    reflectSourceRefPrimitive :: InteractionSourceRefIR
+
+instance (Typeable marker, ReflectOptionList options) => ReflectSourceRefPrimitive ('SourceRef marker options) where
+    reflectSourceRefPrimitive =
         let options = reflectOptionList @options
-         in ReflectedSourceRef InteractionSourceRefIR
+         in InteractionSourceRefIR
             { sourceRefMarker = typeMarker @marker
             , sourceRefName = protocolName @marker InteractionRefName
             , sourceRefSession = requiredOption "source ref" (typeMarker @marker) "SessionOption" [name | SessionOptionIR name <- options]
@@ -135,20 +177,32 @@ instance (Typeable marker, ReflectOptionList options) => ReflectPrimitive ('Sour
             , sourceRefVariants = [variant | ModifierVariantOption variant <- options]
             }
 
-instance (Typeable marker, ReflectOptionList options) => ReflectPrimitive ('DropzoneRef marker options) where
-    reflectPrimitive =
+instance ReflectSourceRefPrimitive ('SourceRef marker options) => ReflectPrimitive ('SourceRef marker options) where
+    reflectPrimitive = ReflectedSourceRef (reflectSourceRefPrimitive @('SourceRef marker options))
+
+class ReflectDropzoneRefPrimitive (primitive :: SurfacePrimitive) where
+    reflectDropzoneRefPrimitive :: InteractionDropzoneRefIR
+
+instance (Typeable marker, ReflectOptionList options) => ReflectDropzoneRefPrimitive ('DropzoneRef marker options) where
+    reflectDropzoneRefPrimitive =
         let options = reflectOptionList @options
-         in ReflectedDropzoneRef InteractionDropzoneRefIR
+         in InteractionDropzoneRefIR
             { dropzoneRefMarker = typeMarker @marker
             , dropzoneRefName = protocolName @marker InteractionRefName
             , dropzoneRefSession = requiredOption "dropzone ref" (typeMarker @marker) "SessionOption" [name | SessionOptionIR name <- options]
             , dropzoneRefTargetField = requiredOption "dropzone ref" (typeMarker @marker) "TargetField" [name | TargetFieldOption name <- options]
             }
 
-instance (Typeable marker, ReflectOptionList options) => ReflectPrimitive ('ActivationRef marker options) where
-    reflectPrimitive =
+instance ReflectDropzoneRefPrimitive ('DropzoneRef marker options) => ReflectPrimitive ('DropzoneRef marker options) where
+    reflectPrimitive = ReflectedDropzoneRef (reflectDropzoneRefPrimitive @('DropzoneRef marker options))
+
+class ReflectActivationRefPrimitive (primitive :: SurfacePrimitive) where
+    reflectActivationRefPrimitive :: InteractionActivationRefIR
+
+instance (Typeable marker, ReflectOptionList options) => ReflectActivationRefPrimitive ('ActivationRef marker options) where
+    reflectActivationRefPrimitive =
         let options = reflectOptionList @options
-         in ReflectedActivationRef InteractionActivationRefIR
+         in InteractionActivationRefIR
             { activationRefMarker = typeMarker @marker
             , activationRefName = protocolName @marker InteractionRefName
             , activationRefIntent = requiredOption "activation ref" (typeMarker @marker) "Submits" [name | SubmitsOption name <- options]
@@ -156,18 +210,42 @@ instance (Typeable marker, ReflectOptionList options) => ReflectPrimitive ('Acti
             , activationRefTrigger = "click"
             }
 
-instance Typeable marker => ReflectPrimitive ('BrowserRole marker) where
-    reflectPrimitive = ReflectedBrowserRole (reflectedBrowserAttribute @marker BrowserRoleName)
+instance ReflectActivationRefPrimitive ('ActivationRef marker options) => ReflectPrimitive ('ActivationRef marker options) where
+    reflectPrimitive = ReflectedActivationRef (reflectActivationRefPrimitive @('ActivationRef marker options))
 
-instance Typeable marker => ReflectPrimitive ('BrowserState marker) where
-    reflectPrimitive = ReflectedBrowserState (reflectedBrowserAttribute @marker BrowserStateName)
+class ReflectBrowserRolePrimitive (primitive :: SurfacePrimitive) where
+    reflectBrowserRolePrimitive :: BrowserAttributeIR
 
-instance (Typeable marker, ReflectMarkerList values) => ReflectPrimitive ('BrowserClosedState marker values) where
-    reflectPrimitive = ReflectedBrowserClosedState BrowserClosedStateIR
+instance Typeable marker => ReflectBrowserRolePrimitive ('BrowserRole marker) where
+    reflectBrowserRolePrimitive = reflectedBrowserAttribute @marker BrowserRoleName
+
+instance ReflectBrowserRolePrimitive ('BrowserRole marker) => ReflectPrimitive ('BrowserRole marker) where
+    reflectPrimitive = ReflectedBrowserRole (reflectBrowserRolePrimitive @('BrowserRole marker))
+
+class ReflectBrowserStatePrimitive (primitive :: SurfacePrimitive) where
+    reflectBrowserStatePrimitive :: BrowserAttributeIR
+
+instance Typeable marker => ReflectBrowserStatePrimitive ('BrowserState marker) where
+    reflectBrowserStatePrimitive = reflectedBrowserAttribute @marker BrowserStateName
+
+instance ReflectBrowserStatePrimitive ('BrowserState marker) => ReflectPrimitive ('BrowserState marker) where
+    reflectPrimitive = ReflectedBrowserState (reflectBrowserStatePrimitive @('BrowserState marker))
+
+class ReflectBrowserClosedStatePrimitive (primitive :: SurfacePrimitive) where
+    reflectBrowserClosedStatePrimitive :: BrowserClosedStateIR
+
+instance (Typeable marker, ReflectMarkerList values) => ReflectBrowserClosedStatePrimitive ('BrowserClosedState marker values) where
+    reflectBrowserClosedStatePrimitive = BrowserClosedStateIR
         { browserClosedStateMarker = typeMarker @marker
         , browserClosedStateAttribute = reflectedBrowserAttribute @marker BrowserStateName
         , browserClosedStateValues = reflectMarkerList @values BrowserStateValueName
         }
+
+instance ReflectBrowserClosedStatePrimitive ('BrowserClosedState marker values) => ReflectPrimitive ('BrowserClosedState marker values) where
+    reflectPrimitive = ReflectedBrowserClosedState (reflectBrowserClosedStatePrimitive @('BrowserClosedState marker values))
+
+class ReflectLinkedHighlightPrimitive (primitive :: SurfacePrimitive) where
+    reflectLinkedHighlightPrimitive :: LinkedHighlightIR
 
 instance
     ( Typeable marker
@@ -175,8 +253,8 @@ instance
     , Typeable memberRole
     , ReflectLinkedHighlightActivationList activations
     , ReflectLinkedHighlightEffectList effects
-    ) => ReflectPrimitive ('LinkedHighlight marker sourceRole memberRole activations effects) where
-    reflectPrimitive = ReflectedLinkedHighlight LinkedHighlightIR
+    ) => ReflectLinkedHighlightPrimitive ('LinkedHighlight marker sourceRole memberRole activations effects) where
+    reflectLinkedHighlightPrimitive = LinkedHighlightIR
         { linkedHighlightMarker = typeMarker @marker
         , linkedHighlightName = protocolName @marker DomTokenName
         , linkedHighlightSourceRole = reflectedBrowserAttribute @sourceRole BrowserRoleName
@@ -184,6 +262,12 @@ instance
         , linkedHighlightActivations = reflectLinkedHighlightActivationList @activations
         , linkedHighlightEffects = reflectLinkedHighlightEffectList @effects
         }
+
+instance ReflectLinkedHighlightPrimitive ('LinkedHighlight marker sourceRole memberRole activations effects) => ReflectPrimitive ('LinkedHighlight marker sourceRole memberRole activations effects) where
+    reflectPrimitive = ReflectedLinkedHighlight (reflectLinkedHighlightPrimitive @('LinkedHighlight marker sourceRole memberRole activations effects))
+
+class ReflectCompleteSetSortPrimitive (primitive :: SurfacePrimitive) where
+    reflectCompleteSetSortPrimitive :: CompleteSetSortIR
 
 instance
     ( Typeable marker
@@ -194,8 +278,8 @@ instance
     , ReflectCompleteSetSortKeyList keys
     , Typeable defaultKey
     , ReflectCompleteSetSortDirection defaultDirection
-    ) => ReflectPrimitive ('CompleteSetSort marker rootRole rowRole controlRole rowDto keys defaultKey defaultDirection) where
-    reflectPrimitive = ReflectedCompleteSetSort CompleteSetSortIR
+    ) => ReflectCompleteSetSortPrimitive ('CompleteSetSort marker rootRole rowRole controlRole rowDto keys defaultKey defaultDirection) where
+    reflectCompleteSetSortPrimitive = CompleteSetSortIR
         { completeSetSortMarker = typeMarker @marker
         , completeSetSortName = protocolName @marker DomTokenName
         , completeSetSortRootRole = reflectedBrowserAttribute @rootRole BrowserRoleName
@@ -207,19 +291,31 @@ instance
         , completeSetSortDefaultDirection = reflectCompleteSetSortDirection @defaultDirection
         }
 
+instance ReflectCompleteSetSortPrimitive ('CompleteSetSort marker rootRole rowRole controlRole rowDto keys defaultKey defaultDirection) => ReflectPrimitive ('CompleteSetSort marker rootRole rowRole controlRole rowDto keys defaultKey defaultDirection) where
+    reflectPrimitive = ReflectedCompleteSetSort (reflectCompleteSetSortPrimitive @('CompleteSetSort marker rootRole rowRole controlRole rowDto keys defaultKey defaultDirection))
+
+class ReflectTabSetPrimitive (primitive :: SurfacePrimitive) where
+    reflectTabSetPrimitive :: TabSetIR
+
 instance
     ( Typeable marker
     , Typeable tabRole
     , ReflectMarkerList keys
     , Typeable defaultKey
-    ) => ReflectPrimitive ('TabSet marker tabRole keys defaultKey) where
-    reflectPrimitive = ReflectedTabSet TabSetIR
+    ) => ReflectTabSetPrimitive ('TabSet marker tabRole keys defaultKey) where
+    reflectTabSetPrimitive = TabSetIR
         { tabSetMarker = typeMarker @marker
         , tabSetName = protocolName @marker DomTokenName
         , tabSetRole = reflectedBrowserAttribute @tabRole BrowserRoleName
         , tabSetKeys = reflectMarkerList @keys TabKeyName
         , tabSetDefaultKey = protocolName @defaultKey TabKeyName
         }
+
+instance ReflectTabSetPrimitive ('TabSet marker tabRole keys defaultKey) => ReflectPrimitive ('TabSet marker tabRole keys defaultKey) where
+    reflectPrimitive = ReflectedTabSet (reflectTabSetPrimitive @('TabSet marker tabRole keys defaultKey))
+
+class ReflectSidePanelPrimitive (primitive :: SurfacePrimitive) where
+    reflectSidePanelPrimitive :: SidePanelIR
 
 instance
     ( Typeable marker
@@ -231,8 +327,8 @@ instance
     , Typeable state
     , Typeable collapsed
     , Typeable expanded
-    ) => ReflectPrimitive ('SidePanel marker rootRole mainRole panelRole toggleRole labelRole state collapsed expanded) where
-    reflectPrimitive = ReflectedSidePanel SidePanelIR
+    ) => ReflectSidePanelPrimitive ('SidePanel marker rootRole mainRole panelRole toggleRole labelRole state collapsed expanded) where
+    reflectSidePanelPrimitive = SidePanelIR
         { sidePanelMarker = typeMarker @marker
         , sidePanelName = protocolName @marker DomTokenName
         , sidePanelRootRole = reflectedBrowserAttribute @rootRole BrowserRoleName
@@ -248,6 +344,9 @@ instance
         , sidePanelCollapsedValue = protocolName @collapsed BrowserStateValueName
         , sidePanelExpandedValue = protocolName @expanded BrowserStateValueName
         }
+
+instance ReflectSidePanelPrimitive ('SidePanel marker rootRole mainRole panelRole toggleRole labelRole state collapsed expanded) => ReflectPrimitive ('SidePanel marker rootRole mainRole panelRole toggleRole labelRole state collapsed expanded) where
+    reflectPrimitive = ReflectedSidePanel (reflectSidePanelPrimitive @('SidePanel marker rootRole mainRole panelRole toggleRole labelRole state collapsed expanded))
 
 instance (Typeable marker, ReflectInteractionSessionOptionList options) => ReflectPrimitive ('Session marker options) where
     reflectPrimitive =
@@ -269,11 +368,20 @@ instance (ReflectSessionSelector session, ReflectFragmentSelector fragment, Refl
 instance (Typeable marker, ReflectFieldList fields) => ReflectPrimitive ('Event marker fields) where
     reflectPrimitive = ReflectedClientEvent (protocolName @marker EventName) (reflectFieldList @fields)
 
-instance Typeable marker => ReflectPrimitive ('DomToken marker) where
-    reflectPrimitive = ReflectedDomToken (protocolName @marker DomTokenName)
+class ReflectDomTokenPrimitive (primitive :: SurfacePrimitive) where
+    reflectDomTokenPrimitive :: Text
 
-instance Typeable marker => ReflectPrimitive ('BrowserDomToken marker) where
-    reflectPrimitive = ReflectedBrowserDomToken (protocolName @marker DomTokenName)
+instance Typeable marker => ReflectDomTokenPrimitive ('DomToken marker) where
+    reflectDomTokenPrimitive = protocolName @marker DomTokenName
+
+instance Typeable marker => ReflectDomTokenPrimitive ('BrowserDomToken marker) where
+    reflectDomTokenPrimitive = protocolName @marker DomTokenName
+
+instance ReflectDomTokenPrimitive ('DomToken marker) => ReflectPrimitive ('DomToken marker) where
+    reflectPrimitive = ReflectedDomToken (reflectDomTokenPrimitive @('DomToken marker))
+
+instance ReflectDomTokenPrimitive ('BrowserDomToken marker) => ReflectPrimitive ('BrowserDomToken marker) where
+    reflectPrimitive = ReflectedBrowserDomToken (reflectDomTokenPrimitive @('BrowserDomToken marker))
 
 instance (ReflectBrowserReachability reachability, Typeable marker, ReflectFieldList fields) => ReflectPrimitive ('SurfaceDto reachability marker fields) where
     reflectPrimitive = ReflectedDto (reflectBrowserReachability @reachability) (typeMarker @marker) (reflectFieldList @fields)
@@ -719,15 +827,19 @@ requiredOption :: Text -> Text -> Text -> [Text] -> Text
 requiredOption kind marker optionName values =
     case values of
         [value] -> value
-        [] -> error (cs (kind <> " " <> marker <> " must declare " <> optionName))
-        _ -> error (cs (kind <> " " <> marker <> " declares " <> optionName <> " more than once"))
+        []      -> invalidOption "missing" kind marker optionName
+        _       -> invalidOption "duplicate" kind marker optionName
 
 optionalUniqueOption :: Text -> Text -> Text -> [Text] -> Maybe Text
 optionalUniqueOption kind marker optionName values =
     case values of
-        [] -> Nothing
+        []      -> Nothing
         [value] -> Just value
-        _ -> error (cs (kind <> " " <> marker <> " declares " <> optionName <> " more than once"))
+        _       -> Just (invalidOption "duplicate" kind marker optionName)
+
+invalidOption :: Text -> Text -> Text -> Text -> Text
+invalidOption problem kind marker optionName =
+    "__invalid-frontend-contract-option:" <> problem <> ":" <> kind <> ":" <> marker <> ":" <> optionName
 
 class ReflectSessionSelector (selector :: SessionSelector) where
     reflectSessionSelector :: SessionSelectorIR

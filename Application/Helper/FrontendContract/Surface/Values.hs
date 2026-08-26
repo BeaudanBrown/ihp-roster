@@ -1,17 +1,18 @@
-{-# LANGUAGE AllowAmbiguousTypes  #-}
-{-# LANGUAGE ConstraintKinds      #-}
-{-# LANGUAGE DataKinds            #-}
-{-# LANGUAGE FlexibleContexts     #-}
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE GADTs                #-}
-{-# LANGUAGE LambdaCase           #-}
-{-# LANGUAGE PolyKinds            #-}
-{-# LANGUAGE RoleAnnotations      #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE TypeApplications     #-}
-{-# LANGUAGE TypeFamilies         #-}
-{-# LANGUAGE TypeOperators        #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE AllowAmbiguousTypes   #-}
+{-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE RoleAnnotations       #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 module Application.Helper.FrontendContract.Surface.Values
     ( ActionFieldSpecs
@@ -26,12 +27,14 @@ module Application.Helper.FrontendContract.Surface.Values
     , AssertIntentAuthority
     , AssertBrowserReachableSurfaceDto
     , FindMountTarget
+    , ConsSurfaceField
     , KnownMountTarget
     , KnownSurfaceFieldLookup
     , KnownSurfaceFieldValues
     , KnownSurfaceWireValue (..)
     , DeclaredRequestFields
     , LookupSurfaceField
+    , LookupSurfaceFieldBundle
     , RequireBrowserClosedStateValue
     , RequireCompleteSetSortKey
     , RequireSurfaceField
@@ -88,6 +91,7 @@ module Application.Helper.FrontendContract.Surface.Values
     , surfaceActionNameValue
     , surfaceField
     , surfaceFieldNameFrom
+    , surfaceFieldsIdentitySegments
     , surfaceFieldsJson
     , surfaceFieldsText
     , surfaceFieldValue
@@ -130,6 +134,7 @@ import Application.Helper.FrontendContract.Surface.ContractIR hiding
                                                               (intentFields)
 import Application.Helper.FrontendContract.Surface.Diagnostics
 import Application.Helper.FrontendContract.Surface.DSL
+import Application.Helper.FrontendContract.Surface.Identity (SurfaceScopeIdentitySegment (..))
 import Application.Helper.FrontendContract.Surface.Reflect
 import Application.Helper.FrontendContract.TypeError (BepisTypeError)
 import Application.Helper.NominalText (NominalText (..))
@@ -173,13 +178,30 @@ data SurfaceFields (fields :: [FieldSpec]) where
     NoSurfaceFields ::
         AssertSurfaceFieldsEnd fields =>
         SurfaceFields fields
-    (:&) ::
-        AssertSurfaceFieldHead presence marker (SurfaceFieldInputWire fields fallback) fields =>
-        SurfaceFieldInput presence marker (SurfaceFieldInputWire fields fallback) ->
-        SurfaceFields (SurfaceFieldsTail fields) ->
-        SurfaceFields fields
+    RequiredSurfaceFields ::
+        SurfaceFieldInput 'SurfaceRequired marker wire ->
+        SurfaceFields rest ->
+        SurfaceFields (('Field marker wire) ': rest)
+    OptionalSurfaceFields ::
+        SurfaceFieldInput 'SurfaceOptional marker wire ->
+        SurfaceFields rest ->
+        SurfaceFields (('OptionalField marker wire) ': rest)
+    NullableSurfaceFields ::
+        SurfaceFieldInput 'SurfaceNullable marker wire ->
+        SurfaceFields rest ->
+        SurfaceFields (('NullableField marker wire) ': rest)
 
-infixr 5 :&
+class ConsSurfaceField (presence :: SurfaceFieldPresence) (marker :: Type) (wire :: WireType) (fields :: [FieldSpec]) where
+    consSurfaceField :: SurfaceFieldInput presence marker wire -> SurfaceFields (SurfaceFieldsTail fields) -> SurfaceFields fields
+
+instance ConsSurfaceField 'SurfaceRequired marker wire (('Field marker wire) ': rest) where
+    consSurfaceField = RequiredSurfaceFields
+
+instance ConsSurfaceField 'SurfaceOptional marker wire (('OptionalField marker wire) ': rest) where
+    consSurfaceField = OptionalSurfaceFields
+
+instance ConsSurfaceField 'SurfaceNullable marker wire (('NullableField marker wire) ': rest) where
+    consSurfaceField = NullableSurfaceFields
 
 -- | Complete an exact declaration without exposing its raw data constructor.
 noSurfaceFields ::
@@ -191,26 +213,20 @@ noSurfaceFields = NoSurfaceFields
 -- destructure and re-index a completed field bundle.
 (&:) ::
     forall presence marker fields fallback.
-    AssertSurfaceFieldHead presence marker (SurfaceFieldInputWire fields fallback) fields =>
+    ( AssertSurfaceFieldHead presence marker (SurfaceFieldInputWire fields fallback) fields
+    , ConsSurfaceField presence marker (SurfaceFieldInputWire fields fallback) fields
+    ) =>
     SurfaceFieldInput presence marker (SurfaceFieldInputWire fields fallback) ->
     SurfaceFields (SurfaceFieldsTail fields) ->
     SurfaceFields fields
-(&:) field rest = (:&) @presence @marker @fields @fallback field rest
+(&:) = consSurfaceField @presence @marker @(SurfaceFieldInputWire fields fallback) @fields
 
 infixr 5 &:
 
--- | Internal first-field-plus-tail representation for one nominal operation.
--- Unlike 'SurfaceFields', its first input may carry an existential wire from a
--- parser; the closed head assertion still proves that it is the declared field.
-data BoundSurfaceFields (fields :: [FieldSpec]) where
-    NoBoundSurfaceFields ::
-        AssertSurfaceFieldsEnd fields =>
-        BoundSurfaceFields fields
-    BoundSurfaceField ::
-        AssertSurfaceFieldHead presence marker wire fields =>
-        SurfaceFieldInput presence marker wire ->
-        SurfaceFields (SurfaceFieldsTail fields) ->
-        BoundSurfaceFields fields
+-- | Internal exact fields retained by one nominal operation wrapper. Keeping
+-- the complete indexed bundle avoids reparsing values at runtime.
+newtype BoundSurfaceFields (fields :: [FieldSpec]) =
+    BoundSurfaceFields (SurfaceFields fields)
 
 -- | Nominal, operation-indexed request bundles exposed by generated adapters.
 -- The declaration-shaped values remain private, while the owning Surface and
@@ -362,15 +378,17 @@ noDeclaredRequestFields ::
     forall owner fields.
     AssertSurfaceFieldsEnd fields =>
     DeclaredRequestFields owner fields
-noDeclaredRequestFields = DeclaredRequestFields NoBoundSurfaceFields
+noDeclaredRequestFields = DeclaredRequestFields (BoundSurfaceFields NoSurfaceFields)
 
 declaredRequestFields ::
     forall owner fields presence fieldMarker fallback.
-    AssertSurfaceFieldHead
+    ( AssertSurfaceFieldHead
         presence
         fieldMarker
         (SurfaceFieldInputWire fields fallback)
-        fields =>
+        fields
+    , ConsSurfaceField presence fieldMarker (SurfaceFieldInputWire fields fallback) fields
+    ) =>
     SurfaceFieldInput
         presence
         fieldMarker
@@ -378,21 +396,23 @@ declaredRequestFields ::
     SurfaceFields (SurfaceFieldsTail fields) ->
     DeclaredRequestFields owner fields
 declaredRequestFields field rest =
-    DeclaredRequestFields (BoundSurfaceField field rest)
+    DeclaredRequestFields (BoundSurfaceFields ((&:) @presence @fieldMarker @fields @fallback field rest))
 
 noActionFields ::
     forall operation.
     AssertSurfaceFieldsEnd (ActionFieldSpecs operation) =>
     ActionFields operation
-noActionFields = ActionFields NoBoundSurfaceFields
+noActionFields = ActionFields (BoundSurfaceFields NoSurfaceFields)
 
 actionFields ::
     forall operation presence fieldMarker fallback.
-    AssertSurfaceFieldHead
+    ( AssertSurfaceFieldHead
         presence
         fieldMarker
         (SurfaceFieldInputWire (ActionFieldSpecs operation) fallback)
-        (ActionFieldSpecs operation) =>
+        (ActionFieldSpecs operation)
+    , ConsSurfaceField presence fieldMarker (SurfaceFieldInputWire (ActionFieldSpecs operation) fallback) (ActionFieldSpecs operation)
+    ) =>
     SurfaceFieldInput
         presence
         fieldMarker
@@ -400,21 +420,23 @@ actionFields ::
     SurfaceFields (SurfaceFieldsTail (ActionFieldSpecs operation)) ->
     ActionFields operation
 actionFields field rest =
-    ActionFields (BoundSurfaceField field rest)
+    ActionFields (BoundSurfaceFields ((&:) @presence @fieldMarker @(ActionFieldSpecs operation) @fallback field rest))
 
 noIntentFields ::
     forall operation.
     AssertSurfaceFieldsEnd (IntentFieldSpecs operation) =>
     IntentFields operation
-noIntentFields = IntentFields NoBoundSurfaceFields
+noIntentFields = IntentFields (BoundSurfaceFields NoSurfaceFields)
 
 intentFields ::
     forall operation presence fieldMarker fallback.
-    AssertSurfaceFieldHead
+    ( AssertSurfaceFieldHead
         presence
         fieldMarker
         (SurfaceFieldInputWire (IntentFieldSpecs operation) fallback)
-        (IntentFieldSpecs operation) =>
+        (IntentFieldSpecs operation)
+    , ConsSurfaceField presence fieldMarker (SurfaceFieldInputWire (IntentFieldSpecs operation) fallback) (IntentFieldSpecs operation)
+    ) =>
     SurfaceFieldInput
         presence
         fieldMarker
@@ -422,21 +444,23 @@ intentFields ::
     SurfaceFields (SurfaceFieldsTail (IntentFieldSpecs operation)) ->
     IntentFields operation
 intentFields field rest =
-    IntentFields (BoundSurfaceField field rest)
+    IntentFields (BoundSurfaceFields ((&:) @presence @fieldMarker @(IntentFieldSpecs operation) @fallback field rest))
 
 noSurfaceActionFields ::
     forall spec operation.
     AssertSurfaceFieldsEnd (SurfaceActionFieldSpecs spec operation) =>
     SurfaceActionFields spec operation
-noSurfaceActionFields = SurfaceActionFields NoBoundSurfaceFields
+noSurfaceActionFields = SurfaceActionFields (BoundSurfaceFields NoSurfaceFields)
 
 surfaceActionFields ::
     forall spec operation presence fieldMarker fallback.
-    AssertSurfaceFieldHead
+    ( AssertSurfaceFieldHead
         presence
         fieldMarker
         (SurfaceFieldInputWire (SurfaceActionFieldSpecs spec operation) fallback)
-        (SurfaceActionFieldSpecs spec operation) =>
+        (SurfaceActionFieldSpecs spec operation)
+    , ConsSurfaceField presence fieldMarker (SurfaceFieldInputWire (SurfaceActionFieldSpecs spec operation) fallback) (SurfaceActionFieldSpecs spec operation)
+    ) =>
     SurfaceFieldInput
         presence
         fieldMarker
@@ -444,21 +468,23 @@ surfaceActionFields ::
     SurfaceFields (SurfaceFieldsTail (SurfaceActionFieldSpecs spec operation)) ->
     SurfaceActionFields spec operation
 surfaceActionFields field rest =
-    SurfaceActionFields (BoundSurfaceField field rest)
+    SurfaceActionFields (BoundSurfaceFields ((&:) @presence @fieldMarker @(SurfaceActionFieldSpecs spec operation) @fallback field rest))
 
 noSurfaceIntentFields ::
     forall spec operation.
     AssertSurfaceFieldsEnd (SurfaceIntentFieldSpecs spec operation) =>
     SurfaceIntentFields spec operation
-noSurfaceIntentFields = SurfaceIntentFields NoBoundSurfaceFields
+noSurfaceIntentFields = SurfaceIntentFields (BoundSurfaceFields NoSurfaceFields)
 
 surfaceIntentFields ::
     forall spec operation presence fieldMarker fallback.
-    AssertSurfaceFieldHead
+    ( AssertSurfaceFieldHead
         presence
         fieldMarker
         (SurfaceFieldInputWire (SurfaceIntentFieldSpecs spec operation) fallback)
-        (SurfaceIntentFieldSpecs spec operation) =>
+        (SurfaceIntentFieldSpecs spec operation)
+    , ConsSurfaceField presence fieldMarker (SurfaceFieldInputWire (SurfaceIntentFieldSpecs spec operation) fallback) (SurfaceIntentFieldSpecs spec operation)
+    ) =>
     SurfaceFieldInput
         presence
         fieldMarker
@@ -466,7 +492,7 @@ surfaceIntentFields ::
     SurfaceFields (SurfaceFieldsTail (SurfaceIntentFieldSpecs spec operation)) ->
     SurfaceIntentFields spec operation
 surfaceIntentFields field rest =
-    SurfaceIntentFields (BoundSurfaceField field rest)
+    SurfaceIntentFields (BoundSurfaceFields ((&:) @presence @fieldMarker @(SurfaceIntentFieldSpecs spec operation) @fallback field rest))
 
 type family SurfaceWireValue (wire :: WireType) :: Type where
     SurfaceWireValue 'WireText = Text
@@ -491,7 +517,7 @@ type family SurfaceFieldValues (fields :: [FieldSpec]) :: Type where
     SurfaceFieldValues (('NullableField marker wire) ': rest) = (Maybe (SurfaceWireValue wire), SurfaceFieldValues rest)
 
 -- | Presence and wire information for one marker inside an exact field bundle.
--- Looking up a marker not owned by the bundle is a compile-time error.
+-- Looking up a marker not owned by the bundle fails during compilation.
 data SurfaceFieldLookup
     = SurfaceFieldRequired WireType
     | SurfaceFieldOptional WireType
@@ -523,6 +549,8 @@ type family SurfaceFieldLookupValue (lookup :: SurfaceFieldLookup) :: Type where
 class KnownSurfaceWireValue (wire :: WireType) where
     surfaceWireJson :: SurfaceWireValue wire -> Aeson.Value
     surfaceWireText :: SurfaceWireValue wire -> Text
+    surfaceWireIdentitySegment :: SurfaceWireValue wire -> SurfaceScopeIdentitySegment
+    surfaceWireIdentitySegment value = SurfaceScopePresent (surfaceWireText @wire value)
     parseSurfaceWireValue :: Aeson.Value -> Aeson.Types.Parser (SurfaceWireValue wire)
 
 instance KnownSurfaceWireValue 'WireText where
@@ -574,12 +602,14 @@ instance KnownSurfaceWireValue inner => KnownSurfaceWireValue ('WireList inner) 
 instance KnownSurfaceWireValue inner => KnownSurfaceWireValue ('WireOptional inner) where
     surfaceWireJson = maybe Aeson.Null (surfaceWireJson @inner)
     surfaceWireText = maybe "" (surfaceWireText @inner)
+    surfaceWireIdentitySegment = maybe SurfaceScopeNull (surfaceWireIdentitySegment @inner)
     parseSurfaceWireValue Aeson.Null = pure Nothing
     parseSurfaceWireValue value      = Just <$> parseSurfaceWireValue @inner value
 
 instance KnownSurfaceWireValue inner => KnownSurfaceWireValue ('WireNullable inner) where
     surfaceWireJson = maybe Aeson.Null (surfaceWireJson @inner)
     surfaceWireText = maybe "" (surfaceWireText @inner)
+    surfaceWireIdentitySegment = maybe SurfaceScopeNull (surfaceWireIdentitySegment @inner)
     parseSurfaceWireValue Aeson.Null = pure Nothing
     parseSurfaceWireValue value      = Just <$> parseSurfaceWireValue @inner value
 
@@ -609,28 +639,62 @@ instance KnownSurfaceWireValue wire => KnownSurfaceFieldLookup ('SurfaceFieldNul
             Aeson.Null -> pure Nothing
             present    -> Just <$> parseSurfaceWireValue @wire present
 
--- | Read one declared value from a complete typed field bundle. The marker must
--- occur in the bundle at compile time; runtime parsing can only fail if the
--- internal 'SurfaceFields' serialization invariant is broken.
+-- | Read one declared value directly from a complete typed field bundle. The
+-- marker must occur in the bundle at compile time.
+class LookupSurfaceFields (marker :: Type) (fields :: [FieldSpec]) where
+    lookupSurfaceFields :: SurfaceFields fields -> SurfaceFieldValue marker fields
+
+instance LookupSurfaceFields marker (('Field marker wire) ': rest) where
+    lookupSurfaceFields (RequiredSurfaceFields (RequiredSurfaceField value) _) = value
+
+instance LookupSurfaceFields marker (('OptionalField marker wire) ': rest) where
+    lookupSurfaceFields (OptionalSurfaceFields (OptionalSurfaceField value) _) = value
+
+instance LookupSurfaceFields marker (('NullableField marker wire) ': rest) where
+    lookupSurfaceFields (NullableSurfaceFields (NullableSurfaceField value) _) = value
+
+instance {-# OVERLAPPABLE #-}
+    ( LookupSurfaceFields marker rest
+    , SurfaceFieldValue marker (field ': rest) ~ SurfaceFieldValue marker rest
+    ) => LookupSurfaceFields marker (field ': rest) where
+    lookupSurfaceFields (RequiredSurfaceFields _ rest) = lookupSurfaceFields @marker rest
+    lookupSurfaceFields (OptionalSurfaceFields _ rest) = lookupSurfaceFields @marker rest
+    lookupSurfaceFields (NullableSurfaceFields _ rest) = lookupSurfaceFields @marker rest
+
+class LookupBoundSurfaceFields (marker :: Type) (fields :: [FieldSpec]) where
+    lookupBoundSurfaceFields :: BoundSurfaceFields fields -> SurfaceFieldValue marker fields
+
+instance LookupSurfaceFields marker fields => LookupBoundSurfaceFields marker fields where
+    lookupBoundSurfaceFields (BoundSurfaceFields fields) = lookupSurfaceFields @marker fields
+
+class LookupSurfaceFieldBundle (marker :: Type) bundle where
+    lookupSurfaceFieldBundle :: bundle -> SurfaceFieldValue marker (SurfaceFieldBundleSpecs bundle)
+
+instance LookupSurfaceFields marker fields => LookupSurfaceFieldBundle marker (SurfaceFields fields) where
+    lookupSurfaceFieldBundle = lookupSurfaceFields @marker
+
+instance LookupBoundSurfaceFields marker fields => LookupSurfaceFieldBundle marker (DeclaredRequestFields owner fields) where
+    lookupSurfaceFieldBundle (DeclaredRequestFields fields) = lookupBoundSurfaceFields @marker fields
+
+instance LookupBoundSurfaceFields marker (ActionFieldSpecs operation) => LookupSurfaceFieldBundle marker (ActionFields operation) where
+    lookupSurfaceFieldBundle (ActionFields fields) = lookupBoundSurfaceFields @marker fields
+
+instance LookupBoundSurfaceFields marker (IntentFieldSpecs operation) => LookupSurfaceFieldBundle marker (IntentFields operation) where
+    lookupSurfaceFieldBundle (IntentFields fields) = lookupBoundSurfaceFields @marker fields
+
+instance LookupBoundSurfaceFields marker (SurfaceActionFieldSpecs spec operation) => LookupSurfaceFieldBundle marker (SurfaceActionFields spec operation) where
+    lookupSurfaceFieldBundle (SurfaceActionFields fields) = lookupBoundSurfaceFields @marker fields
+
+instance LookupBoundSurfaceFields marker (SurfaceIntentFieldSpecs spec operation) => LookupSurfaceFieldBundle marker (SurfaceIntentFields spec operation) where
+    lookupSurfaceFieldBundle (SurfaceIntentFields fields) = lookupBoundSurfaceFields @marker fields
+
 surfaceFieldValue ::
     forall marker bundle.
     ( SurfaceFieldBundle bundle
-    , Typeable marker
-    , KnownSurfaceFieldLookup (LookupSurfaceField marker (SurfaceFieldBundleSpecs bundle))
+    , LookupSurfaceFieldBundle marker bundle
     ) =>
     bundle -> SurfaceFieldValue marker (SurfaceFieldBundleSpecs bundle)
-surfaceFieldValue fields =
-    case Aeson.Types.parseEither parser (surfaceFieldsJson fields) of
-        Right value -> value
-        Left message -> error ("Typed Surface field lookup invariant failed: " <> cs message)
-  where
-    parser =
-        Aeson.withObject
-            "SurfaceFields"
-            ( parseSurfaceFieldLookup
-                @(LookupSurfaceField marker (SurfaceFieldBundleSpecs bundle))
-                (surfaceFieldName @marker)
-            )
+surfaceFieldValue = lookupSurfaceFieldBundle @marker
 
 -- | Canonical form/input name for a marker proven to belong to this complete
 -- bundle. Unlike the removed owner-only accessors, obtaining a name requires
@@ -689,21 +753,21 @@ prependRequiredSurfaceField ::
     (Typeable marker, KnownSurfaceWireValue wire) =>
     SurfaceWireValue wire -> SurfaceFields rest -> SurfaceFields (('Field marker wire) ': rest)
 prependRequiredSurfaceField value rest =
-    RequiredSurfaceField @marker @wire value :& rest
+    RequiredSurfaceFields (RequiredSurfaceField @marker @wire value) rest
 
 prependOptionalSurfaceField ::
     forall marker wire rest.
     (Typeable marker, KnownSurfaceWireValue wire) =>
     Maybe (SurfaceWireValue wire) -> SurfaceFields rest -> SurfaceFields (('OptionalField marker wire) ': rest)
 prependOptionalSurfaceField value rest =
-    OptionalSurfaceField @marker @wire value :& rest
+    OptionalSurfaceFields (OptionalSurfaceField @marker @wire value) rest
 
 prependNullableSurfaceField ::
     forall marker wire rest.
     (Typeable marker, KnownSurfaceWireValue wire) =>
     Maybe (SurfaceWireValue wire) -> SurfaceFields rest -> SurfaceFields (('NullableField marker wire) ': rest)
 prependNullableSurfaceField value rest =
-    NullableSurfaceField @marker @wire value :& rest
+    NullableSurfaceFields (NullableSurfaceField @marker @wire value) rest
 
 class KnownSurfaceFieldValues (fields :: [FieldSpec]) where
     surfaceFieldValueNames :: [Text]
@@ -771,6 +835,16 @@ requiredFieldValue object =
         pure
         (Aeson.KeyMap.lookup (Aeson.Key.fromText (surfaceFieldName @marker)) object)
 
+surfaceFieldsIdentitySegments :: SurfaceFields fields -> [SurfaceScopeIdentitySegment]
+surfaceFieldsIdentitySegments = \case
+    NoSurfaceFields -> []
+    RequiredSurfaceFields (RequiredSurfaceField @_ @wire value) rest ->
+        surfaceWireIdentitySegment @wire value : surfaceFieldsIdentitySegments rest
+    OptionalSurfaceFields (OptionalSurfaceField @_ @wire value) rest ->
+        maybe SurfaceScopeMissing (surfaceWireIdentitySegment @wire) value : surfaceFieldsIdentitySegments rest
+    NullableSurfaceFields (NullableSurfaceField @_ @wire value) rest ->
+        maybe SurfaceScopeNull (surfaceWireIdentitySegment @wire) value : surfaceFieldsIdentitySegments rest
+
 surfaceFieldsJson :: SurfaceFieldBundle bundle => bundle -> Aeson.Value
 surfaceFieldsJson = Aeson.object . surfaceFieldBundleJsonPairs
 
@@ -780,12 +854,12 @@ surfaceFieldsText = surfaceFieldBundleTextValue
 surfaceFieldsTextValue :: SurfaceFields fields -> [(Text, Text)]
 surfaceFieldsTextValue = \case
     NoSurfaceFields -> []
-    field :& rest -> surfaceFieldInputText field <> surfaceFieldsTextValue rest
+    RequiredSurfaceFields field rest -> surfaceFieldInputText field <> surfaceFieldsTextValue rest
+    OptionalSurfaceFields field rest -> surfaceFieldInputText field <> surfaceFieldsTextValue rest
+    NullableSurfaceFields field rest -> surfaceFieldInputText field <> surfaceFieldsTextValue rest
 
 boundSurfaceFieldsTextValue :: BoundSurfaceFields fields -> [(Text, Text)]
-boundSurfaceFieldsTextValue = \case
-    NoBoundSurfaceFields -> []
-    BoundSurfaceField field rest -> surfaceFieldInputText field <> surfaceFieldsTextValue rest
+boundSurfaceFieldsTextValue (BoundSurfaceFields fields) = surfaceFieldsTextValue fields
 
 surfaceFieldInputText :: SurfaceFieldInput presence marker wire -> [(Text, Text)]
 surfaceFieldInputText = \case
@@ -800,12 +874,12 @@ surfaceFieldInputText = \case
 surfaceFieldJsonPairs :: SurfaceFields fields -> [Aeson.Types.Pair]
 surfaceFieldJsonPairs = \case
     NoSurfaceFields -> []
-    field :& rest -> surfaceFieldInputJsonPairs field <> surfaceFieldJsonPairs rest
+    RequiredSurfaceFields field rest -> surfaceFieldInputJsonPairs field <> surfaceFieldJsonPairs rest
+    OptionalSurfaceFields field rest -> surfaceFieldInputJsonPairs field <> surfaceFieldJsonPairs rest
+    NullableSurfaceFields field rest -> surfaceFieldInputJsonPairs field <> surfaceFieldJsonPairs rest
 
 boundSurfaceFieldJsonPairs :: BoundSurfaceFields fields -> [Aeson.Types.Pair]
-boundSurfaceFieldJsonPairs = \case
-    NoBoundSurfaceFields -> []
-    BoundSurfaceField field rest -> surfaceFieldInputJsonPairs field <> surfaceFieldJsonPairs rest
+boundSurfaceFieldJsonPairs (BoundSurfaceFields fields) = surfaceFieldJsonPairs fields
 
 surfaceFieldInputJsonPairs :: SurfaceFieldInput presence marker wire -> [Aeson.Types.Pair]
 surfaceFieldInputJsonPairs = \case
@@ -1065,13 +1139,10 @@ type family RequireSurfaceResource (spec :: SurfaceSpec) (marker :: Type) (resul
 surfaceNameValue :: forall spec. ReflectSurfaceSpec spec => Text
 surfaceNameValue = (reflectSurfaceSpec @spec).surfaceName
 
-surfaceScopeValue :: forall spec marker. ReflectPrimitive (SurfaceScopePrimitive spec marker) => ScopeIR
-surfaceScopeValue =
-    case reflectPrimitive @(SurfaceScopePrimitive spec marker) of
-        ReflectedScope scope -> scope
-        _ -> error "impossible: scope lookup reflected a different primitive"
+surfaceScopeValue :: forall spec marker. ReflectScopePrimitive (SurfaceScopePrimitive spec marker) => ScopeIR
+surfaceScopeValue = reflectScopePrimitive @(SurfaceScopePrimitive spec marker)
 
-surfaceFragmentNameValue :: forall spec marker. ReflectPrimitive (SurfaceFragmentPrimitive spec marker) => Text
+surfaceFragmentNameValue :: forall spec marker. ReflectFragmentPrimitive (SurfaceFragmentPrimitive spec marker) => Text
 surfaceFragmentNameValue = (surfaceFragmentValue @spec @marker).fragmentName
 
 surfaceFragmentTargetId ::
@@ -1082,32 +1153,20 @@ surfaceFragmentTargetId ::
 surfaceFragmentTargetId fields =
     Text.intercalate "-" (mountTargetName @(FindMountTarget (SurfaceFragmentOptionSpecs spec marker)) : map snd (surfaceFieldsText fields))
 
-surfaceFragmentValue :: forall spec marker. ReflectPrimitive (SurfaceFragmentPrimitive spec marker) => FragmentIR
-surfaceFragmentValue =
-    case reflectPrimitive @(SurfaceFragmentPrimitive spec marker) of
-        ReflectedFragment fragment -> fragment
-        _ -> error "impossible: fragment lookup reflected a different primitive"
+surfaceFragmentValue :: forall spec marker. ReflectFragmentPrimitive (SurfaceFragmentPrimitive spec marker) => FragmentIR
+surfaceFragmentValue = reflectFragmentPrimitive @(SurfaceFragmentPrimitive spec marker)
 
-surfaceActionNameValue :: forall spec marker. ReflectPrimitive (SurfaceActionPrimitive spec marker) => Text
-surfaceActionNameValue =
-    case reflectPrimitive @(SurfaceActionPrimitive spec marker) of
-        ReflectedHtmxAction action -> action.htmxActionName
-        _ -> error "impossible: action lookup reflected a different primitive"
+surfaceActionNameValue :: forall spec marker. ReflectActionPrimitive (SurfaceActionPrimitive spec marker) => Text
+surfaceActionNameValue = (reflectActionPrimitive @(SurfaceActionPrimitive spec marker)).htmxActionName
 
-surfaceIntentNameValue :: forall spec marker. ReflectPrimitive (SurfaceIntentPrimitive spec marker) => Text
-surfaceIntentNameValue =
-    case reflectPrimitive @(SurfaceIntentPrimitive spec marker) of
-        ReflectedIntent intent -> intent.intentName
-        _ -> error "impossible: intent lookup reflected a different primitive"
+surfaceIntentNameValue :: forall spec marker. ReflectIntentPrimitive (SurfaceIntentPrimitive spec marker) => Text
+surfaceIntentNameValue = (reflectIntentPrimitive @(SurfaceIntentPrimitive spec marker)).intentName
 
 surfaceResourceValue :: forall spec marker. ReflectResource (SurfaceResourceSpec spec marker) => ResourceIR
 surfaceResourceValue = reflectResource @(SurfaceResourceSpec spec marker)
 
-surfaceActivationRefValue :: forall spec marker. ReflectPrimitive (SurfaceActivationRefPrimitive spec marker) => InteractionActivationRefIR
-surfaceActivationRefValue =
-    case reflectPrimitive @(SurfaceActivationRefPrimitive spec marker) of
-        ReflectedActivationRef ref -> ref
-        _ -> error "impossible: activation-ref lookup reflected a different primitive"
+surfaceActivationRefValue :: forall spec marker. ReflectActivationRefPrimitive (SurfaceActivationRefPrimitive spec marker) => InteractionActivationRefIR
+surfaceActivationRefValue = reflectActivationRefPrimitive @(SurfaceActivationRefPrimitive spec marker)
 
 qualifySurfaceLinkedHighlight :: forall spec. ReflectSurfaceSpec spec => LinkedHighlightIR -> LinkedHighlightIR
 qualifySurfaceLinkedHighlight highlight =
@@ -1136,27 +1195,18 @@ qualifySurfaceBrowserAttribute attribute =
             Naming.deriveSurfaceBrowserAttributeName (surfaceNameValue @spec) attribute.browserAttributeName
         }
 
-surfaceBrowserRoleValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectPrimitive (SurfaceBrowserRolePrimitive spec marker)) => BrowserAttributeIR
-surfaceBrowserRoleValue =
-    case reflectPrimitive @(SurfaceBrowserRolePrimitive spec marker) of
-        ReflectedBrowserRole attribute -> qualifySurfaceBrowserAttribute @spec attribute
-        _ -> error "impossible: browser-role lookup reflected a different primitive"
+surfaceBrowserRoleValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectBrowserRolePrimitive (SurfaceBrowserRolePrimitive spec marker)) => BrowserAttributeIR
+surfaceBrowserRoleValue = qualifySurfaceBrowserAttribute @spec (reflectBrowserRolePrimitive @(SurfaceBrowserRolePrimitive spec marker))
 
-surfaceBrowserStateValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectPrimitive (SurfaceBrowserStatePrimitive spec marker)) => BrowserAttributeIR
-surfaceBrowserStateValue =
-    case reflectPrimitive @(SurfaceBrowserStatePrimitive spec marker) of
-        ReflectedBrowserState attribute -> qualifySurfaceBrowserAttribute @spec attribute
-        _ -> error "impossible: browser-state lookup reflected a different primitive"
+surfaceBrowserStateValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectBrowserStatePrimitive (SurfaceBrowserStatePrimitive spec marker)) => BrowserAttributeIR
+surfaceBrowserStateValue = qualifySurfaceBrowserAttribute @spec (reflectBrowserStatePrimitive @(SurfaceBrowserStatePrimitive spec marker))
 
-surfaceBrowserClosedStateValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectPrimitive (SurfaceBrowserClosedStatePrimitive spec marker)) => BrowserClosedStateIR
+surfaceBrowserClosedStateValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectBrowserClosedStatePrimitive (SurfaceBrowserClosedStatePrimitive spec marker)) => BrowserClosedStateIR
 surfaceBrowserClosedStateValue =
-    case reflectPrimitive @(SurfaceBrowserClosedStatePrimitive spec marker) of
-        ReflectedBrowserClosedState state ->
-            state
-                { browserClosedStateAttribute =
-                    qualifySurfaceBrowserAttribute @spec state.browserClosedStateAttribute
-                }
-        _ -> error "impossible: browser-closed-state lookup reflected a different primitive"
+    let state = reflectBrowserClosedStatePrimitive @(SurfaceBrowserClosedStatePrimitive spec marker)
+     in state
+        { browserClosedStateAttribute = qualifySurfaceBrowserAttribute @spec state.browserClosedStateAttribute
+        }
 
 surfaceBrowserClosedStateLiteral ::
     forall spec marker value.
@@ -1167,60 +1217,42 @@ surfaceBrowserClosedStateLiteral ::
 surfaceBrowserClosedStateLiteral =
     Naming.deriveFrontendSurfaceTypeName @value Naming.BrowserStateValueName
 
-surfaceCompleteSetSortValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectPrimitive (SurfaceCompleteSetSortPrimitive spec marker)) => CompleteSetSortIR
+surfaceCompleteSetSortValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectCompleteSetSortPrimitive (SurfaceCompleteSetSortPrimitive spec marker)) => CompleteSetSortIR
 surfaceCompleteSetSortValue =
-    case reflectPrimitive @(SurfaceCompleteSetSortPrimitive spec marker) of
-        ReflectedCompleteSetSort sortDefinition ->
-            sortDefinition
-                { completeSetSortRootRole = qualifySurfaceBrowserAttribute @spec sortDefinition.completeSetSortRootRole
-                , completeSetSortRowRole = qualifySurfaceBrowserAttribute @spec sortDefinition.completeSetSortRowRole
-                , completeSetSortControlRole = qualifySurfaceBrowserAttribute @spec sortDefinition.completeSetSortControlRole
-                }
-        _ -> error "impossible: complete-set-sort lookup reflected a different primitive"
+    let sortDefinition = reflectCompleteSetSortPrimitive @(SurfaceCompleteSetSortPrimitive spec marker)
+     in sortDefinition
+        { completeSetSortRootRole = qualifySurfaceBrowserAttribute @spec sortDefinition.completeSetSortRootRole
+        , completeSetSortRowRole = qualifySurfaceBrowserAttribute @spec sortDefinition.completeSetSortRowRole
+        , completeSetSortControlRole = qualifySurfaceBrowserAttribute @spec sortDefinition.completeSetSortControlRole
+        }
 
-surfaceSidePanelValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectPrimitive (SurfaceSidePanelPrimitive spec marker)) => SidePanelIR
+surfaceSidePanelValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectSidePanelPrimitive (SurfaceSidePanelPrimitive spec marker)) => SidePanelIR
 surfaceSidePanelValue =
-    case reflectPrimitive @(SurfaceSidePanelPrimitive spec marker) of
-        ReflectedSidePanel sidePanel -> sidePanel
-            { sidePanelRootRole = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelRootRole
-            , sidePanelMainRole = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelMainRole
-            , sidePanelPanelRole = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelPanelRole
-            , sidePanelToggleRole = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelToggleRole
-            , sidePanelLabelRole = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelLabelRole
-            , sidePanelState = sidePanel.sidePanelState
-                { browserClosedStateAttribute = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelState.browserClosedStateAttribute
-                }
+    let sidePanel = reflectSidePanelPrimitive @(SurfaceSidePanelPrimitive spec marker)
+     in sidePanel
+        { sidePanelRootRole = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelRootRole
+        , sidePanelMainRole = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelMainRole
+        , sidePanelPanelRole = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelPanelRole
+        , sidePanelToggleRole = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelToggleRole
+        , sidePanelLabelRole = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelLabelRole
+        , sidePanelState = sidePanel.sidePanelState
+            { browserClosedStateAttribute = qualifySurfaceBrowserAttribute @spec sidePanel.sidePanelState.browserClosedStateAttribute
             }
-        _ -> error "impossible: side-panel lookup reflected a different primitive"
+        }
 
-surfaceTabSetValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectPrimitive (SurfaceTabSetPrimitive spec marker)) => TabSetIR
+surfaceTabSetValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectTabSetPrimitive (SurfaceTabSetPrimitive spec marker)) => TabSetIR
 surfaceTabSetValue =
-    case reflectPrimitive @(SurfaceTabSetPrimitive spec marker) of
-        ReflectedTabSet tabSet ->
-            tabSet { tabSetRole = qualifySurfaceBrowserAttribute @spec tabSet.tabSetRole }
-        _ -> error "impossible: tab-set lookup reflected a different primitive"
+    let tabSet = reflectTabSetPrimitive @(SurfaceTabSetPrimitive spec marker)
+     in tabSet { tabSetRole = qualifySurfaceBrowserAttribute @spec tabSet.tabSetRole }
 
-surfaceLinkedHighlightValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectPrimitive (SurfaceLinkedHighlightPrimitive spec marker)) => LinkedHighlightIR
-surfaceLinkedHighlightValue =
-    case reflectPrimitive @(SurfaceLinkedHighlightPrimitive spec marker) of
-        ReflectedLinkedHighlight highlight -> qualifySurfaceLinkedHighlight @spec highlight
-        _ -> error "impossible: linked-highlight lookup reflected a different primitive"
+surfaceLinkedHighlightValue :: forall spec marker. (ReflectSurfaceSpec spec, ReflectLinkedHighlightPrimitive (SurfaceLinkedHighlightPrimitive spec marker)) => LinkedHighlightIR
+surfaceLinkedHighlightValue = qualifySurfaceLinkedHighlight @spec (reflectLinkedHighlightPrimitive @(SurfaceLinkedHighlightPrimitive spec marker))
 
-surfaceDomTokenValue :: forall spec marker. ReflectPrimitive (SurfaceDomTokenPrimitive spec marker) => Text
-surfaceDomTokenValue =
-    case reflectPrimitive @(SurfaceDomTokenPrimitive spec marker) of
-        ReflectedDomToken token -> token
-        ReflectedBrowserDomToken token -> token
-        _ -> error "impossible: DOM-token lookup reflected a different primitive"
+surfaceDomTokenValue :: forall spec marker. ReflectDomTokenPrimitive (SurfaceDomTokenPrimitive spec marker) => Text
+surfaceDomTokenValue = reflectDomTokenPrimitive @(SurfaceDomTokenPrimitive spec marker)
 
-surfaceSourceRefValue :: forall spec marker. ReflectPrimitive (SurfaceSourceRefPrimitive spec marker) => InteractionSourceRefIR
-surfaceSourceRefValue =
-    case reflectPrimitive @(SurfaceSourceRefPrimitive spec marker) of
-        ReflectedSourceRef ref -> ref
-        _ -> error "impossible: source-ref lookup reflected a different primitive"
+surfaceSourceRefValue :: forall spec marker. ReflectSourceRefPrimitive (SurfaceSourceRefPrimitive spec marker) => InteractionSourceRefIR
+surfaceSourceRefValue = reflectSourceRefPrimitive @(SurfaceSourceRefPrimitive spec marker)
 
-surfaceDropzoneRefValue :: forall spec marker. ReflectPrimitive (SurfaceDropzoneRefPrimitive spec marker) => InteractionDropzoneRefIR
-surfaceDropzoneRefValue =
-    case reflectPrimitive @(SurfaceDropzoneRefPrimitive spec marker) of
-        ReflectedDropzoneRef ref -> ref
-        _ -> error "impossible: dropzone-ref lookup reflected a different primitive"
+surfaceDropzoneRefValue :: forall spec marker. ReflectDropzoneRefPrimitive (SurfaceDropzoneRefPrimitive spec marker) => InteractionDropzoneRefIR
+surfaceDropzoneRefValue = reflectDropzoneRefPrimitive @(SurfaceDropzoneRefPrimitive spec marker)

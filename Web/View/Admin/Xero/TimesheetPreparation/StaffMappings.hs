@@ -14,6 +14,7 @@ import Application.Helper.FrontendContract.AppShell.Request (AppShellActionField
                                                              appShellActionFields,
                                                              appShellActionFor)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             RegisteredAppShellAction,
                                                              renderAppShellActionForm)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import qualified Application.Helper.FrontendContract.Surface.Admin.Action as AdminAction
@@ -22,7 +23,8 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
 import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.XeroAdminTypes
 import Application.Xero.Admin.ReadModel (xeroEmployeeAvailableForStaff)
-import Application.Xero.EmployeeId (XeroEmployeeSelection (..), parseXeroEmployeeId)
+import Application.Xero.EmployeeId (XeroEmployeeSelection (..),
+                                    parseXeroEmployeeId)
 import Application.Xero.WorkflowState
 import Control.Monad (guard)
 import qualified Data.Text as Text
@@ -38,7 +40,7 @@ xeroPreparationAppShellActionRoute actionUrl =
         , appShellActionRouteExtraAttrs = []
         }
 
-renderXeroPreparationOverlayForm :: Typeable action => AppShellActionFields action -> Text -> [(Text, Text)] -> Html -> Html
+renderXeroPreparationOverlayForm :: (Typeable action, RegisteredAppShellAction action) => AppShellActionFields action -> Text -> [(Text, Text)] -> Html -> Html
 renderXeroPreparationOverlayForm fields actionUrl attrs =
     renderAppShellActionForm
         (appShellActionFor fields)

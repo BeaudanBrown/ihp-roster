@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE KindSignatures      #-}
 {-# LANGUAGE TypeApplications    #-}
 
 module Application.Helper.FrontendContract.FeedbackDiagnostics.Runtime
@@ -11,7 +12,9 @@ import qualified Application.Helper.FrontendContract.FeedbackDiagnostics as Cont
 import Application.Helper.FrontendContract.Naming (FrontendSurfaceNameContext (FieldName),
                                                    deriveFrontendSurfaceTypeName)
 import Application.Helper.FrontendContract.Surface.Values (surfaceFieldNameFrom)
-import Application.Helper.FrontendContract.Values (domAttrValue)
+import Application.Helper.FrontendContract.Values (RegisteredDomAttr,
+                                                   domAttrValue)
+import Data.Kind (Type)
 import Data.Typeable (Typeable)
 import IHP.Prelude
 import Text.Blaze (toValue)
@@ -27,7 +30,7 @@ renderFeedbackDiagnosticInputs fields = do
     renderDiagnosticInput @Contract.FeedbackDevicePixelRatioInput (surfaceFieldNameFrom @AppShell.FeedbackDevicePixelRatioField fields)
     renderDiagnosticInput @Contract.FeedbackDisplayModeInput (surfaceFieldNameFrom @AppShell.FeedbackDisplayModeField fields)
 
-renderDiagnosticInput :: forall inputMarker. Typeable inputMarker => Text -> Html5.Html
+renderDiagnosticInput :: forall (inputMarker :: Type). (Typeable inputMarker, RegisteredDomAttr inputMarker) => Text -> Html5.Html
 renderDiagnosticInput fieldName =
     Html5.input
         ! Attr.type_ "hidden"

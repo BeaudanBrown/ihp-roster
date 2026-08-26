@@ -16,7 +16,7 @@ import IHP.Prelude
 renderFrontendContractTypeScript :: FrontendContractIR -> Either Text Text
 renderFrontendContractTypeScript contract = do
     checked <- case checkedFrontendContractIR contract of
-        Right value -> Right value
+        Right value -> Right (frontendContractIR value)
         Left diagnostics -> Left (Text.intercalate "\n" (fmap (.diagnosticMessage) diagnostics))
     pure (Text.unlines (header checked <> renderDerivedSurfaceWireTypes checked.contractSurfaces <> renderAppErrorContract checked <> concatMap renderGlobal checked.contractGlobals <> concatMap renderSurface checked.contractSurfaces <> renderFrontendSurfaceRuntime checked.contractSurfaces))
 

@@ -19,7 +19,7 @@ module Application.Helper.View.SidePanel
     , renderSidePanelToggle
     ) where
 
-import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive,
+import Application.Helper.FrontendContract.Surface.Reflect (ReflectSidePanelPrimitive,
                                                             ReflectSurfaceSpec)
 import Application.Helper.FrontendContract.Surface.SidePanel
 import Application.Helper.FrontendContract.Surface.Values (SurfaceSidePanelPrimitive)
@@ -57,7 +57,7 @@ data SidePanelTabConfig = SidePanelTabConfig
 
 sidePanelRenderAttrs :: forall spec marker.
     ( ReflectSurfaceSpec spec
-    , ReflectPrimitive (SurfaceSidePanelPrimitive spec marker)
+    , ReflectSidePanelPrimitive (SurfaceSidePanelPrimitive spec marker)
     ) => SidePanelRenderAttrs
 sidePanelRenderAttrs = SidePanelRenderAttrs
     { sidePanelRootAttrs = surfaceSidePanelRootAttrs @spec @marker

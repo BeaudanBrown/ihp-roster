@@ -31,6 +31,7 @@ import Application.Helper.FrontendContract.AppShell.Request (AppShellActionField
                                                              noAppShellActionFields)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              AppShellFieldValue (..),
+                                                             RegisteredAppShellAction,
                                                              appShellActionByMarker,
                                                              renderAppShellActionForm)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
@@ -63,7 +64,7 @@ xeroPreparationAppShellActionRoute actionUrl =
         , appShellActionRouteExtraAttrs = []
         }
 
-renderXeroPreparationOverlayForm :: Typeable action => AppShellActionFields action -> Text -> [(Text, Text)] -> Html -> Html
+renderXeroPreparationOverlayForm :: (Typeable action, RegisteredAppShellAction action) => AppShellActionFields action -> Text -> [(Text, Text)] -> Html -> Html
 renderXeroPreparationOverlayForm fields actionUrl attrs =
     renderAppShellActionForm
         (appShellActionFor fields)

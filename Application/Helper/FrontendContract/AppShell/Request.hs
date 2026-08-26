@@ -22,7 +22,8 @@ module Application.Helper.FrontendContract.AppShell.Request
     ) where
 
 import Application.Helper.FrontendContract.AppShell (AppShellContract)
-import Application.Helper.FrontendContract.AppShell.Runtime (appShellActionByMarker)
+import Application.Helper.FrontendContract.AppShell.Runtime (RegisteredAppShellAction,
+                                                             appShellActionByMarker)
 import qualified Application.Helper.FrontendContract.DSL as Global
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import Application.Helper.FrontendContract.Surface.Diagnostics (AssertSurfaceFieldHead,
@@ -35,7 +36,8 @@ import Application.Helper.FrontendContract.Surface.Request (KnownSurfaceRequestF
                                                             SurfaceRequestFieldError,
                                                             parseDeclaredRequestParamPairs,
                                                             parseDeclaredRequestParams)
-import Application.Helper.FrontendContract.Surface.Values (DeclaredRequestFields,
+import Application.Helper.FrontendContract.Surface.Values (ConsSurfaceField,
+                                                           DeclaredRequestFields,
                                                            SurfaceFieldInput,
                                                            SurfaceFields,
                                                            declaredRequestFields,
@@ -107,11 +109,13 @@ noAppShellActionFields =
 
 appShellActionFields ::
     forall action presence fieldMarker fallback.
-    AssertSurfaceFieldHead
+    ( AssertSurfaceFieldHead
         presence
         fieldMarker
         (SurfaceFieldInputWire (AppShellActionFieldSpecs action) fallback)
-        (AppShellActionFieldSpecs action) =>
+        (AppShellActionFieldSpecs action)
+    , ConsSurfaceField presence fieldMarker (SurfaceFieldInputWire (AppShellActionFieldSpecs action) fallback) (AppShellActionFieldSpecs action)
+    ) =>
     SurfaceFieldInput
         presence
         fieldMarker
@@ -128,7 +132,9 @@ appShellActionFields =
 
 appShellActionFor ::
     forall action.
-    Typeable action =>
+    ( Typeable action
+    , RegisteredAppShellAction action
+    ) =>
     AppShellActionFields action ->
     AppShellActionIR
 appShellActionFor _ = appShellActionByMarker @action

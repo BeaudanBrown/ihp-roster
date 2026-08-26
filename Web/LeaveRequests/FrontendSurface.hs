@@ -23,7 +23,7 @@ import qualified Application.Helper.FrontendContract.Surface.LeaveRequests.Live 
 import Application.Helper.FrontendContract.Surface.Live (SurfaceFragmentKey,
                                                          SurfaceScope,
                                                          surfaceScopeKey)
-import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive)
+import Application.Helper.FrontendContract.Surface.Reflect (ReflectFragmentPrimitive)
 import Application.Helper.FrontendContract.Surface.Runtime
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave as SelfServiceLeave
 import qualified Application.Helper.FrontendContract.Surface.SelfServiceLeave.Live as SelfServiceLeaveLive
@@ -170,7 +170,7 @@ leaveRequestsSectionMountedFragmentsFor section =
         FrontendSurfaceReplace
     ]
 
-leaveRequestsFragmentUrl :: forall marker. ReflectPrimitive (SurfaceFragmentPrimitive Surface.LeaveRequestsSurface marker) => LeaveSectionValue -> Text
+leaveRequestsFragmentUrl :: forall marker. ReflectFragmentPrimitive (SurfaceFragmentPrimitive Surface.LeaveRequestsSurface marker) => LeaveSectionValue -> Text
 leaveRequestsFragmentUrl section =
     appendQueryParams
         (pathTo ShowleaveRequestsContentLiveFragmentAction)

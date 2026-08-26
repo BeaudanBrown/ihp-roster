@@ -28,7 +28,7 @@ Data.Aeson	aeson	Application/Helper/LiveUpdate/DurableListener.hs via Main
 Data.Aeson.Key	aeson	Application/Helper/LiveUpdate/DurableCodec.hs via Main
 Data.Aeson.KeyMap	aeson	Application/Helper/LiveUpdate/DurableCodec.hs via Main
 Data.Aeson.Types	aeson	Application/Billing/Stripe.hs via Main
-Data.Bifunctor	base	Application/Helper/FrontendContract/Surface/Request.hs via Main
+Data.Bifunctor	base	Application/Helper/FrontendContract/Registry.hs via Main
 Data.ByteArray	memory	Application/Billing/Stripe.hs via Main
 Data.ByteString	bytestring	Application/Helper/Telemetry.hs via Main
 Data.ByteString.Base64	base64-bytestring	Web/Controller/Exports.hs via Main
@@ -48,7 +48,7 @@ Data.HashMap.Strict	unordered-containers	Application/Helper/Telemetry.hs via Mai
 Data.Hourglass	hourglass	Web/Controller/Auth.hs via Main
 Data.IORef	base	Application/Helper/Profiling.hs via Main
 Data.Int	base	Application/Helper/LiveUpdate/OutboxPruning.hs via Application.Script.LiveInvalidationOutboxPrune
-Data.Kind	base	Application/Helper/FrontendContract/Surface/Request.hs via Main
+Data.Kind	base	Application/Helper/FrontendContract/DSL.hs via Main
 Data.List	base	Application/Helper/Profiling.hs via Main
 Data.List.NonEmpty	base	Web/Controller/Auth.hs via Main
 Data.Map.Strict	containers	Application/Helper/Profiling.hs via Main
@@ -86,7 +86,7 @@ Database.PostgreSQL.Simple.Types	postgresql-simple	Web/Controller/Auth.hs via Ma
 GHC.Clock	base	Application/Helper/Profiling.hs via Main
 GHC.Generics	base	Application/Bepis/Fact.hs via Main
 GHC.Records	base	Application/Helper/Pay.hs via Main
-GHC.TypeLits	base	Application/Helper/FrontendContract/Surface/Values.hs via Main
+GHC.TypeLits	base	Application/Helper/FrontendContract/DSL.hs via Main
 Generated.Enums	app-models	Application/FwcMapd/Validation.hs via Main
 Generated.Types	app-models	Web/Types.hs via Main
 Hasql.Errors	hasql	Application/Helper/UserPreferences.hs via Main
@@ -145,8 +145,8 @@ OpenTelemetry.Trace	hs-opentelemetry-sdk	Application/Helper/Telemetry.hs via Mai
 Prelude	base	Application/Helper/FrontendContract/Passkey.hs via Main
 System.Directory	directory	Web/Controller/StaffDocuments.hs via Main
 System.Environment	base	Application/Helper/LiveUpdate/DurableListener.hs via Main
-System.Exit	base	Application/StaffDocuments/RsaExtraction.hs via Main
-System.IO	base	Application/Helper/LiveUpdate/DurableListener.hs via Main
+System.Exit	base	Application/Helper/FrontendContract/Registry.hs via Main
+System.IO	base	Application/Helper/FrontendContract/Registry.hs via Main
 System.IO.Error	base	Application/Billing/Stripe.hs via Main
 System.IO.Unsafe	base	Application/Helper/Profiling.hs via Main
 System.Process	process	Application/StaffDocuments/RsaExtraction.hs via Main

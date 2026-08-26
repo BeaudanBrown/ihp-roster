@@ -19,7 +19,7 @@ import Application.Helper.FrontendContract.Naming (FrontendSurfaceNameContext (S
 import Application.Helper.FrontendContract.Surface.ContractIR (BrowserAttributeIR (..),
                                                                CompleteSetSortIR (..))
 import Application.Helper.FrontendContract.Surface.Dto (surfaceBrowserDtoJson)
-import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive,
+import Application.Helper.FrontendContract.Surface.Reflect (ReflectCompleteSetSortPrimitive,
                                                             ReflectSurfaceSpec)
 import Application.Helper.FrontendContract.Surface.Values
 import Data.Typeable (Typeable)
@@ -28,7 +28,7 @@ import IHP.Prelude
 surfaceCompleteSetSortRootAttrs ::
     forall spec sortMarker.
     ( ReflectSurfaceSpec spec
-    , ReflectPrimitive (SurfaceCompleteSetSortPrimitive spec sortMarker)
+    , ReflectCompleteSetSortPrimitive (SurfaceCompleteSetSortPrimitive spec sortMarker)
     ) =>
     [(Text, Text)]
 surfaceCompleteSetSortRootAttrs =
@@ -39,7 +39,7 @@ surfaceCompleteSetSortRootAttrs =
 surfaceCompleteSetSortRowAttrs ::
     forall spec sortMarker.
     ( ReflectSurfaceSpec spec
-    , ReflectPrimitive (SurfaceCompleteSetSortPrimitive spec sortMarker)
+    , ReflectCompleteSetSortPrimitive (SurfaceCompleteSetSortPrimitive spec sortMarker)
     , AssertBrowserReachableSurfaceDto
         (SurfaceDtoPrimitive spec (SurfaceCompleteSetSortRowDto spec sortMarker))
     ) =>
@@ -59,7 +59,7 @@ surfaceCompleteSetSortRowAttrs fields =
 surfaceCompleteSetSortControlAttrs ::
     forall spec sortMarker key.
     ( ReflectSurfaceSpec spec
-    , ReflectPrimitive (SurfaceCompleteSetSortPrimitive spec sortMarker)
+    , ReflectCompleteSetSortPrimitive (SurfaceCompleteSetSortPrimitive spec sortMarker)
     , RequireCompleteSetSortKey (SurfaceCompleteSetSortPrimitive spec sortMarker) key
     , Typeable key
     ) =>

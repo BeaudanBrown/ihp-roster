@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE KindSignatures      #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 
@@ -21,7 +22,9 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import Application.Helper.FrontendContract.Overlay.Runtime
-import Application.Helper.FrontendContract.Values (domAttrValue)
+import Application.Helper.FrontendContract.Values (RegisteredDomAttr,
+                                                   domAttrValue)
+import Data.Kind (Type)
 import qualified Data.Text as Text
 import Data.Typeable (Typeable)
 import Generated.Types
@@ -79,7 +82,7 @@ renderDialogOverlay = renderDialogOverlayWithOptions [] False
 renderKeyboardDialogOverlay :: DialogOverlayConfig -> Html
 renderKeyboardDialogOverlay = renderDialogOverlayWithOptions [] True
 
-renderDialogOverlayWithCloseRole :: forall marker. Typeable marker => DialogOverlayConfig -> Html
+renderDialogOverlayWithCloseRole :: forall (marker :: Type). (Typeable marker, RegisteredDomAttr marker) => DialogOverlayConfig -> Html
 renderDialogOverlayWithCloseRole =
     renderDialogOverlayWithOptions [(domAttrValue @marker, "true")] False
 

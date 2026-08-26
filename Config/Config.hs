@@ -1,5 +1,6 @@
 module Config where
 
+import Application.Helper.FrontendContract.Registry (ensureRegisteredFrontendContract)
 import Application.Helper.LiveUpdate.DurableListener (startDurableInvalidationListener)
 import Application.Helper.Profiling (profilingMiddleware)
 import Application.Helper.Telemetry (telemetryMiddleware)
@@ -33,6 +34,7 @@ config = do
             , encryption = smtpEncryption
             }
     option $ CustomMiddleware (telemetryMiddleware . profilingMiddleware)
+    addInitializer ensureRegisteredFrontendContract
     addInitializer (startDurableInvalidationListener dispatchDurableInvalidation)
 
     pure ()

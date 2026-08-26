@@ -17,7 +17,7 @@ module Application.Helper.FrontendContract.Surface.SidePanel
 import Application.Helper.FrontendContract.Surface.Attributes (roleAttrs)
 import Application.Helper.FrontendContract.Surface.ContractIR (BrowserClosedStateIR (..),
                                                                SidePanelIR (..))
-import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive,
+import Application.Helper.FrontendContract.Surface.Reflect (ReflectSidePanelPrimitive,
                                                             ReflectSurfaceSpec)
 import Application.Helper.FrontendContract.Surface.SemanticIR (BrowserAttributeIR (..))
 import Application.Helper.FrontendContract.Surface.Values
@@ -44,5 +44,5 @@ surfaceSidePanelLabelAttrs = roleAttrs (surfaceSidePanelValue @spec @marker).sid
 
 type SidePanelConstraints spec marker =
     ( ReflectSurfaceSpec spec
-    , ReflectPrimitive (SurfaceSidePanelPrimitive spec marker)
+    , ReflectSidePanelPrimitive (SurfaceSidePanelPrimitive spec marker)
     )

@@ -10,13 +10,15 @@ import Application.Helper.FrontendContract.DSL hiding (Enum)
 import qualified Application.Helper.FrontendContract.DSL as DSL
 import Application.Helper.FrontendContract.IR
 import Application.Helper.FrontendContract.Reflect
+import Application.Helper.FrontendContract.Registry (validateFrontendContractStartup,
+                                                     validateRegisteredFrontendContract)
 import Application.Helper.FrontendContract.TypeScript
 import Application.Helper.FrontendContract.Wire.Carrier
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as AesonTypes
-import Data.Either (isLeft)
+import Data.Either (isLeft, isRight)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import IHP.ModelSupport (InputValue (..))
@@ -124,6 +126,12 @@ tests = describe "FrontendContract foundation" do
         case checkedFrontendContractIR contract of
             Right _          -> pure ()
             Left diagnostics -> expectationFailure (cs (show diagnostics))
+
+    it "rejects invalid startup registries with deterministic diagnostics before traffic" do
+        let invalidContract = reflectFrontendContracts @DuplicateContracts
+        validateFrontendContractStartup invalidContract
+            `shouldBe` Left "schema-name-collision: Duplicate schema name DuplicateName from DuplicateName\n"
+        validateRegisteredFrontendContract `shouldSatisfy` isRight
 
     it "validates duplicate declarations and unresolved refs" do
         validateFrontendContractIR (reflectFrontendContracts @DuplicateContracts)

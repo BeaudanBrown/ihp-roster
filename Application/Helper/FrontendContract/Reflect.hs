@@ -8,7 +8,8 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Application.Helper.FrontendContract.Reflect
-    ( ReflectFrontendContractRegistry (..)
+    ( ReflectAppShellActionPrimitive (..)
+    , ReflectFrontendContractRegistry (..)
     , ReflectFrontendContractSpec (..)
     , reflectFrontendContracts
     ) where
@@ -136,13 +137,19 @@ instance (DomainError domainError, ReflectDomainErrorList rest) => ReflectDomain
         | code <- domainErrorCodes @domainError
         ] <> reflectDomainErrorList @rest
 
-instance (Typeable marker, ReflectFieldList fields, ReflectAppShellActionOptionList options) => ReflectGlobalPrimitive ('AppShellAction marker fields options) where
-    reflectGlobalPrimitive = GlobalAppShellActionIR AppShellActionIR
+class ReflectAppShellActionPrimitive (primitive :: GlobalPrimitive) where
+    reflectAppShellActionPrimitive :: AppShellActionIR
+
+instance (Typeable marker, ReflectFieldList fields, ReflectAppShellActionOptionList options) => ReflectAppShellActionPrimitive ('AppShellAction marker fields options) where
+    reflectAppShellActionPrimitive = AppShellActionIR
         { appShellActionMarker = typeMarker @marker
         , appShellActionName = protocolName @marker Naming.ActionName
         , appShellActionFields = reflectFieldList @fields
         , appShellActionOptions = reflectAppShellActionOptionList @options
         }
+
+instance (Typeable marker, ReflectFieldList fields, ReflectAppShellActionOptionList options) => ReflectGlobalPrimitive ('AppShellAction marker fields options) where
+    reflectGlobalPrimitive = GlobalAppShellActionIR (reflectAppShellActionPrimitive @('AppShellAction marker fields options))
 
 class ReflectAppShellActionOptionList (options :: [AppShellActionOption]) where
     reflectAppShellActionOptionList :: [HtmxActionOptionIR]

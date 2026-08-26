@@ -55,7 +55,8 @@ import qualified Application.Helper.FrontendContract.Naming as Naming
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.DSL
 import qualified Application.Helper.FrontendContract.Surface.Live as Live
-import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive,
+import Application.Helper.FrontendContract.Surface.Reflect (ReflectFragmentPrimitive,
+                                                            ReflectScopePrimitive,
                                                             ReflectSurfaceSpec)
 import Application.Helper.FrontendContract.Surface.Request.Runtime (FrontendSurfaceAction,
                                                                     FrontendSurfaceHtmxMethod (..),
@@ -150,7 +151,7 @@ instance {-# OVERLAPPABLE #-} KnownLazyOptions rest => KnownLazyOptions (option 
 mkSurfaceImplFromValues ::
     forall spec scopeMarker.
     ( ReflectSurfaceSpec spec
-    , ReflectPrimitive (SurfaceScopePrimitive spec scopeMarker)
+    , ReflectScopePrimitive (SurfaceScopePrimitive spec scopeMarker)
     ) =>
     Text ->
     SurfaceFields (SurfaceScopeFieldSpecs spec scopeMarker) ->
@@ -227,7 +228,7 @@ data FrontendSurfaceProtection
 frontendSurfaceMountedFragmentFor ::
     forall spec marker.
     ( ReflectSurfaceSpec spec
-    , ReflectPrimitive (SurfaceFragmentPrimitive spec marker)
+    , ReflectFragmentPrimitive (SurfaceFragmentPrimitive spec marker)
     , KnownFragmentOptions (SurfaceFragmentOptionSpecs spec marker)
     , KnownMountTarget (FindMountTarget (SurfaceFragmentOptionSpecs spec marker))
     ) =>

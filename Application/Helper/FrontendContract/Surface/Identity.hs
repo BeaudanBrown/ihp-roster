@@ -3,12 +3,14 @@
 {-# LANGUAGE TypeApplications    #-}
 
 module Application.Helper.FrontendContract.Surface.Identity
-    ( canonicalFrontendSurfaceScopeKey
+    ( SurfaceScopeIdentitySegment (..)
+    , canonicalFrontendSurfaceScopeKey
     , canonicalFrontendSurfaceScopeKeyFromFields
+    , canonicalFrontendSurfaceScopeKeyFromTypedValues
     ) where
 
 import qualified Application.Helper.FrontendContract.IR as Contract
-import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
+import Application.Helper.FrontendContract.Registry (checkedRegisteredFrontendContract)
 import Application.Helper.FrontendContract.Wire.Json (validateSurfaceScopeValue)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Aeson.Key
@@ -21,6 +23,9 @@ import qualified Data.Text.Encoding as TextEncoding
 import qualified Data.UUID as UUID
 import IHP.Prelude
 
+checkedContractIR :: Contract.FrontendContractIR
+checkedContractIR = Contract.frontendContractIR checkedRegisteredFrontendContract
+
 -- | Derive the transport identity from the registered typed Surface scope.
 -- Browser-supplied scope keys are only assertions of this value; they are never
 -- used to construct server scope identity.
@@ -31,13 +36,30 @@ canonicalFrontendSurfaceScopeKey surfaceName scopePayload = do
         maybe
             (fail ("Unknown frontend Surface scope: " <> cs surfaceName))
             pure
-            (find ((== surfaceName) . (.surfaceName)) registeredFrontendContractIR.contractSurfaces)
+            (find ((== surfaceName) . (.surfaceName)) checkedContractIR.contractSurfaces)
     fields <-
         case surface.surfaceScopes of
             [scope] -> pure scope.scopeFields
             [] -> fail ("Frontend Surface has no registered scope: " <> cs surfaceName)
             _ -> fail ("Frontend Surface has multiple registered scopes: " <> cs surfaceName)
     canonicalFrontendSurfaceScopeKeyFromFields surfaceName fields scopePayload
+
+-- | Total projection for a marker-indexed typed field bundle. Surface scope
+-- validation permits only required scalar identity fields, and the bundle
+-- preserves declaration order, so no JSON lookup or reparsing is needed.
+data SurfaceScopeIdentitySegment
+    = SurfaceScopePresent !Text
+    | SurfaceScopeMissing
+    | SurfaceScopeNull
+    deriving (Eq, Show)
+
+canonicalFrontendSurfaceScopeKeyFromTypedValues :: Text -> [SurfaceScopeIdentitySegment] -> Text
+canonicalFrontendSurfaceScopeKeyFromTypedValues surfaceName segments =
+    Text.intercalate ":" (surfaceName : fmap renderSegment segments)
+  where
+    renderSegment (SurfaceScopePresent value) = escapeSegment value
+    renderSegment SurfaceScopeMissing         = "~missing"
+    renderSegment SurfaceScopeNull            = "~null"
 
 -- | Canonicalize a scope already checked and constructed through a
 -- marker-indexed Surface declaration. Unlike the wire-boundary entrypoint this

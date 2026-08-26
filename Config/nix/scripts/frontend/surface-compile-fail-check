@@ -514,6 +514,19 @@ expect_compile_failure \
     "Test/CompileFail/XeroEmployeeIdRawConstruction.hs" \
     "Illegal term-level use of the type constructor ‘XeroEmployeeId’"
 
+expect_compile_failure \
+    "Test/CompileFail/FrontendContractUncheckedConstruction.hs" \
+    "Couldn't match expected type ‘CheckedFrontendContract’" \
+    "with actual type ‘FrontendContractIR’"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendContractUnknownAppShellAction.hs" \
+    "No registered FrontendContract AppShellAction for marker Text"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendContractUnknownConstant.hs" \
+    "No registered FrontendContract value declaration for marker Text"
+
 for filter in "${filters[@]}"; do
     if [[ -z "${matched_filters[$filter]:-}" ]]; then
         echo "surface-compile-fail-check: unknown fixture filter: $filter" >&2

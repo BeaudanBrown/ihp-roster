@@ -1,5 +1,8 @@
 fixture	guarantee	pilot_seam	full_rollout	roster_action_equivalent
 Test/CompileFail/ApplicationErrorIncompleteProjection.hs	closed	unchanged	unchanged	-
+Test/CompileFail/FrontendContractUncheckedConstruction.hs	opaque	unchanged	unchanged	-
+Test/CompileFail/FrontendContractUnknownAppShellAction.hs	owner	unchanged	unchanged	-
+Test/CompileFail/FrontendContractUnknownConstant.hs	owner	unchanged	unchanged	-
 Test/CompileFail/FrontendSurfaceRawMountedTarget.hs	opaque	unchanged	unchanged	-
 Test/CompileFail/FrontendSurfaceWrongFragmentMarker.hs	owner	unchanged	unchanged	-
 Test/CompileFail/FrontendSurfaceWrongFragmentField.hs	fields	unchanged	unchanged	-

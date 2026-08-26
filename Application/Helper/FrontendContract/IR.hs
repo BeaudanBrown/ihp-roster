@@ -8,11 +8,14 @@ module Application.Helper.FrontendContract.IR
     , module Surface
     , AppShellActionIR (..)
     , ErrorCodeIR (..)
+    , CheckedFrontendContract
     , FrontendContractIR (..)
     , GlobalIR (..)
     , GlobalPrimitiveIR (..)
     , GlobalProjectionIR (..)
     , checkedFrontendContractIR
+    , frontendContractIR
+    , renderContractDiagnostics
     , validateFrontendContractIR
     ) where
 
@@ -28,6 +31,7 @@ import Application.Helper.FrontendContract.Surface.ContractIR as Surface hiding
                                                                           WireIR (..))
 import qualified Data.List as List
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import IHP.Prelude
 
 data FrontendContractIR = FrontendContractIR
@@ -35,6 +39,15 @@ data FrontendContractIR = FrontendContractIR
     , contractSurfaces :: ![SurfaceIR]
     }
     deriving (Eq, Show)
+
+-- | A complete registry that passed every global and Surface diagnostic.
+-- The constructor stays private so runtime consumers cannot receive unchecked
+-- reflected declarations.
+newtype CheckedFrontendContract = CheckedFrontendContract FrontendContractIR
+    deriving (Eq, Show)
+
+frontendContractIR :: CheckedFrontendContract -> FrontendContractIR
+frontendContractIR (CheckedFrontendContract contract) = contract
 
 data GlobalIR = GlobalIR
     { globalMarker     :: !Text
@@ -77,11 +90,18 @@ data AppShellActionIR = AppShellActionIR
     }
     deriving (Eq, Show)
 
-checkedFrontendContractIR :: FrontendContractIR -> Either [ContractDiagnostic] FrontendContractIR
+checkedFrontendContractIR :: FrontendContractIR -> Either [ContractDiagnostic] CheckedFrontendContract
 checkedFrontendContractIR contract =
     case validateFrontendContractIR contract of
-        []          -> Right contract
+        []          -> Right (CheckedFrontendContract contract)
         diagnostics -> Left diagnostics
+
+renderContractDiagnostics :: [ContractDiagnostic] -> Text
+renderContractDiagnostics diagnostics =
+    Text.unlines
+        [ diagnostic.diagnosticCode <> ": " <> diagnostic.diagnosticMessage
+        | diagnostic <- diagnostics
+        ]
 
 validateFrontendContractIR :: FrontendContractIR -> [ContractDiagnostic]
 validateFrontendContractIR contract =

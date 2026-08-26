@@ -1,14 +1,21 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE NoImplicitPrelude   #-}
-{-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE AllowAmbiguousTypes  #-}
+{-# LANGUAGE ConstraintKinds      #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE NoImplicitPrelude    #-}
+{-# LANGUAGE OverloadedRecordDot  #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE TypeOperators        #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Application.Helper.FrontendContract.AppShell.Runtime
     ( AppShellActionRoute (..)
     , AppShellCustomHtmxAttrs (..)
     , AppShellFieldValue (..)
+    , RegisteredAppShellAction
     , appShellActionByMarker
     , appShellActionByName
     , appShellActionHtmxAttrPairs
@@ -18,12 +25,19 @@ module Application.Helper.FrontendContract.AppShell.Runtime
     , renderAppShellActionLink
     ) where
 
+import Application.Helper.FrontendContract.DSL (FrontendContract (..),
+                                                FrontendContractSpec,
+                                                GlobalPrimitive (..))
 import qualified Application.Helper.FrontendContract.Htmx as Htmx
 import Application.Helper.FrontendContract.IR
 import Application.Helper.FrontendContract.Naming (FrontendSurfaceNameContext (ActionName),
                                                    deriveFrontendSurfaceTypeName)
-import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
+import Application.Helper.FrontendContract.Reflect (ReflectAppShellActionPrimitive (..))
+import Application.Helper.FrontendContract.Registry (RegisteredFrontendContracts,
+                                                     checkedRegisteredFrontendContract)
+import Data.Kind (Type)
 import Data.Typeable (Typeable)
+import GHC.TypeLits (ErrorMessage (..), TypeError)
 import IHP.ViewPrelude
 import Text.Blaze (toValue)
 import qualified Text.Blaze.Html as Blaze
@@ -51,14 +65,47 @@ data AppShellActionRoute = AppShellActionRoute
     }
     deriving (Eq, Show)
 
-appShellActionByMarker :: forall marker. Typeable marker => AppShellActionIR
-appShellActionByMarker = appShellActionByName (deriveFrontendSurfaceTypeName @marker ActionName)
+data AppShellActionSearch
+    = MissingAppShellAction
+    | FoundAppShellAction GlobalPrimitive
 
-appShellActionByName :: Text -> AppShellActionIR
+type family FindAppShellAction (marker :: Type) (contracts :: [FrontendContractSpec]) :: GlobalPrimitive where
+    FindAppShellAction marker '[] =
+        TypeError ('Text "No registered FrontendContract AppShellAction for marker " ':<>: 'ShowType marker)
+    FindAppShellAction marker ('Global root primitives ': rest) =
+        ResolveAppShellAction marker (FindAppShellActionPrimitive marker primitives) rest
+
+type family FindAppShellActionPrimitive (marker :: Type) (primitives :: [GlobalPrimitive]) :: AppShellActionSearch where
+    FindAppShellActionPrimitive marker '[] = 'MissingAppShellAction
+    FindAppShellActionPrimitive marker ('AppShellAction marker fields options ': rest) =
+        'FoundAppShellAction ('AppShellAction marker fields options)
+    FindAppShellActionPrimitive marker (other ': rest) = FindAppShellActionPrimitive marker rest
+
+type family ResolveAppShellAction (marker :: Type) (result :: AppShellActionSearch) (rest :: [FrontendContractSpec]) :: GlobalPrimitive where
+    ResolveAppShellAction marker ('FoundAppShellAction primitive) rest = primitive
+    ResolveAppShellAction marker 'MissingAppShellAction rest = FindAppShellAction marker rest
+
+type RegisteredAppShellAction marker =
+    ReflectAppShellActionPrimitive (FindAppShellAction marker RegisteredFrontendContracts)
+
+appShellActionByMarker ::
+    forall marker.
+    ( Typeable marker
+    , RegisteredAppShellAction marker
+    ) =>
+    AppShellActionIR
+appShellActionByMarker = reflectAppShellActionPrimitive @(FindAppShellAction marker RegisteredFrontendContracts)
+
+appShellActionByName :: Text -> Maybe AppShellActionIR
 appShellActionByName name =
-    case [action | global <- registeredFrontendContractIR.contractGlobals, GlobalAppShellActionIR action <- global.globalPrimitives, action.appShellActionName == name] of
-        action : _ -> action
-        []         -> error ("Unknown app shell action " <> cs name)
+    find ((== name) . (.appShellActionName))
+        [ action
+        | global <- checkedContractIR.contractGlobals
+        , GlobalAppShellActionIR action <- global.globalPrimitives
+        ]
+
+checkedContractIR :: FrontendContractIR
+checkedContractIR = frontendContractIR checkedRegisteredFrontendContract
 
 applyAppShellActionAttrs :: AppShellActionIR -> AppShellActionRoute -> Blaze.Html -> Blaze.Html
 applyAppShellActionAttrs action route element =

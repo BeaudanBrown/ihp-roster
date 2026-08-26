@@ -5,11 +5,15 @@ module Application.Helper.FrontendContract.Contracts
     , TypeScriptDeclarationOrigin (..)
     , frontendContractDeclarations
     , frontendContractsTypeScript
+    , renderRegisteredFrontendContracts
     , renderTypeScriptDeclarations
     ) where
 
-import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
+import Application.Helper.FrontendContract.IR (frontendContractIR)
+import Application.Helper.FrontendContract.Registry (validateRegisteredFrontendContract)
 import Application.Helper.FrontendContract.TypeScript (renderFrontendContractTypeScript)
+import Control.Exception (Exception)
+import qualified Control.Exception as Exception
 import qualified Data.Text as Text
 import IHP.Prelude
 
@@ -23,12 +27,32 @@ data TypeScriptDeclaration = TypeScriptDeclaration
     , source :: !Text
     } deriving (Eq, Show)
 
+newtype FrontendContractGenerationException = FrontendContractGenerationException Text
+    deriving (Show)
+
+instance Exception FrontendContractGenerationException
+
 frontendContractGlobalDeclaration :: TypeScriptDeclaration
 frontendContractGlobalDeclaration = TypeScriptDeclaration
     { name = "FrontendContractGlobals"
     , origin = HaskellSchemaGenerated
-    , source = either error id (renderFrontendContractTypeScript registeredFrontendContractIR)
+    , source =
+        case renderRegisteredFrontendContractSource of
+            Right rendered -> rendered
+            Left diagnostics -> Exception.throw (FrontendContractGenerationException diagnostics)
     }
+
+renderRegisteredFrontendContractSource :: Either Text Text
+renderRegisteredFrontendContractSource = do
+    checked <- validateRegisteredFrontendContract
+    renderFrontendContractTypeScript (frontendContractIR checked)
+
+renderRegisteredFrontendContracts :: Either Text Text
+renderRegisteredFrontendContracts =
+    renderTypeScriptDeclarations
+        . pure
+        . TypeScriptDeclaration "FrontendContractGlobals" HaskellSchemaGenerated
+        <$> renderRegisteredFrontendContractSource
 
 frontendContractDeclarations :: [TypeScriptDeclaration]
 frontendContractDeclarations =

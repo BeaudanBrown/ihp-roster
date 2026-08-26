@@ -16,6 +16,7 @@ import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendContract.Surface.DSL
 import Application.Helper.FrontendContract.Surface.Dto (surfaceBrowserDtoRoleAttrs)
+import Application.Helper.FrontendContract.Surface.Identity (canonicalFrontendSurfaceScopeKeyFromTypedValues)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendContract.Surface.LinkedHighlight as SurfaceLinkedHighlight
 import Application.Helper.FrontendContract.Surface.Live (frontendSurfaceFragmentKey)
@@ -634,6 +635,14 @@ tests = describe "FrontendSurface DSL foundation" do
         let nestedOptionalFields :: SurfaceFields '[ 'OptionalField NestedOptionalTestField ('WireOptional 'WireInt)]
             nestedOptionalFields = surfaceOptionalField @NestedOptionalTestField (Just Nothing) &: noSurfaceFields
         surfaceFieldValue @NestedOptionalTestField nestedOptionalFields `shouldBe` Just Nothing
+        canonicalFrontendSurfaceScopeKeyFromTypedValues "fixture" (surfaceFieldsIdentitySegments absentOptionalFields)
+            `shouldBe` "fixture:~missing"
+        canonicalFrontendSurfaceScopeKeyFromTypedValues "fixture" (surfaceFieldsIdentitySegments nullFields)
+            `shouldBe` "fixture:~null"
+        let wrappedNullableFields :: SurfaceFields '[ Field NullableTestField ('WireNullable 'WireText)]
+            wrappedNullableFields = surfaceField @NullableTestField (Nothing :: Maybe Text) &: noSurfaceFields
+        canonicalFrontendSurfaceScopeKeyFromTypedValues "fixture" (surfaceFieldsIdentitySegments wrappedNullableFields)
+            `shouldBe` "fixture:~null"
         let actionFields =
                 surfaceField @TimesheetsSurface.AnchorDate (fromGregorian 2025 1 20)
                     &: surfaceOptionalField @TimesheetsSurface.StaffFilterId Nothing
@@ -1277,6 +1286,7 @@ tests = describe "FrontendSurface DSL foundation" do
         let conflictingShared = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[SharedScopeA, SharedScopeB]))
         let missingDtoRef = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[MissingDtoRefSurface]))
         let missingAuth = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[MissingAuthSurface]))
+        let unsupportedOptionalScope = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[UnsupportedOptionalScopeSurface]))
         let invalidAuthFields = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[InvalidAuthFieldsSurface]))
         let duplicateAuthFields = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateAuthFieldsSurface]))
         let invalidAuthWire = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[InvalidAuthWireSurface]))
@@ -1288,6 +1298,8 @@ tests = describe "FrontendSurface DSL foundation" do
         let duplicateResourceSource = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateResourceSourceSurface]))
         let conflictingResources = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateResourceSurfaceA, DuplicateResourceSurfaceB]))
         let invalidInteractionRef = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[InvalidInteractionRefSurface]))
+        let missingInteractionOption = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[MissingInteractionOptionSurface]))
+        let duplicateInteractionOption = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateInteractionOptionSurface]))
         let missingEffectLayer = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[MissingInteractionEffectLayerSurface]))
         let fixtureWithIncompleteEffect =
                 (reflectSurfaceSpec @SurfaceFixture.FrontendSurfaceFixture)
@@ -1311,6 +1323,7 @@ tests = describe "FrontendSurface DSL foundation" do
         diagnosticMessages conflictingShared `shouldContain` ["conflicting shared declaration: scope shared"]
         diagnosticMessages missingDtoRef `shouldContain` ["field missingPayload references missing dto MissingPayload on surface missing-dto-ref"]
         diagnosticMessages missingAuth `shouldContain` ["surface missing-auth scope test must declare exactly one authorization policy"]
+        diagnosticMessages unsupportedOptionalScope `shouldContain` ["surface unsupported-optional-scope scope test field panelId cannot use top-level WireOptional because absent wire values have no canonical scope-key representation"]
         diagnosticMessages invalidAuthFields `shouldContain` ["surface invalid-auth-fields scope test authorization current-venue expects 1 fields but declares 2"]
         diagnosticMessages duplicateAuthFields `shouldContain` ["surface duplicate-auth-fields scope test authorization current-venue-user repeats field venueId"]
         diagnosticMessages invalidAuthWire `shouldContain` ["surface invalid-auth-wire scope test authorization current-venue field venueId must be a required UUID"]
@@ -1323,6 +1336,8 @@ tests = describe "FrontendSurface DSL foundation" do
         diagnosticMessages conflictingResources `shouldContain` ["conflicting shared declaration: resource test-resource"]
         diagnosticMessages invalidInteractionRef `shouldContain` ["source ref bad references missing session missing-fragment on surface invalid-interaction-ref"]
         diagnosticMessages invalidInteractionRef `shouldContain` ["source ref bad references missing intent field missingPayload for intent bad on surface invalid-interaction-ref"]
+        diagnosticMessages missingInteractionOption `shouldSatisfy` any (Text.isInfixOf "__invalid-frontend-contract-option:missing:source ref:Bad:SessionOption")
+        diagnosticMessages duplicateInteractionOption `shouldSatisfy` any (Text.isInfixOf "__invalid-frontend-contract-option:duplicate:source ref:Bad:SessionOption")
         diagnosticMessages missingEffectLayer `shouldContain` ["surface missing-effect-layer session layerless effect clone-shadow references missing layer missing"]
         diagnosticMessages incompleteEffect `shouldContain` ["surface contract-fixture session drag has incomplete or non-canonical clone-shadow effect"]
         diagnosticMessages invalidHtmxTargetRef `shouldContain` ["htmx action bad references missing dom token missing-fragment on surface invalid-htmx-target-ref"]
@@ -1440,6 +1455,7 @@ data MismatchedResource
 data MissingFragment
 data MissingDtoRef
 data MissingAuth
+data UnsupportedOptionalScope
 data InvalidAuthFields
 data DuplicateAuthFields
 data InvalidAuthWire
@@ -1452,6 +1468,8 @@ data DuplicateResourceSource
 data DuplicateResourceA
 data DuplicateResourceB
 data InvalidInteractionRef
+data MissingInteractionOption
+data DuplicateInteractionOption
 data MissingEffectLayer
 data MissingLayer
 data LayerlessSession
@@ -1490,6 +1508,11 @@ type MissingDtoRefSurface =
     Surface MissingDtoRef
         '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Dto Bad '[ Field MissingPayload ('WireRef MissingPayload) ]
+         ]
+
+type UnsupportedOptionalScopeSurface =
+    Surface UnsupportedOptionalScope
+        '[ Scope TestScope '[ Field PanelId ('WireOptional 'WireText) ] '[ 'NoAuth ]
          ]
 
 type MissingAuthSurface =
@@ -1599,6 +1622,22 @@ type InvalidInteractionRefSurface =
         '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Intent Bad '[ Field PanelId 'WireUUID ] '[]
          , SourceRef Bad '[ 'SessionOption MissingFragment, 'Submits Bad, 'SourceField MissingPayload ]
+         ]
+
+type MissingInteractionOptionSurface =
+    Surface MissingInteractionOption
+        '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+         , Intent Bad '[ Field PanelId 'WireUUID ] '[]
+         , SourceRef Bad '[ 'Submits Bad, 'SourceField PanelId ]
+         ]
+
+type DuplicateInteractionOptionSurface =
+    Surface DuplicateInteractionOption
+        '[ Scope TestScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+         , Session MissingFragment '[]
+         , Session MissingPayload '[]
+         , Intent Bad '[ Field PanelId 'WireUUID ] '[]
+         , SourceRef Bad '[ 'SessionOption MissingFragment, 'SessionOption MissingPayload, 'Submits Bad, 'SourceField PanelId ]
          ]
 
 type MissingInteractionEffectLayerSurface =

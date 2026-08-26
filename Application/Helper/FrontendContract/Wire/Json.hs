@@ -14,7 +14,7 @@ module Application.Helper.FrontendContract.Wire.Json
     ) where
 
 import qualified Application.Helper.FrontendContract.IR as Contract
-import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
+import Application.Helper.FrontendContract.Registry (checkedRegisteredFrontendContract)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as KeyMap
@@ -26,8 +26,11 @@ import IHP.Prelude
 -- | Validate an Aeson value against the schema or event detail selected by its
 -- declaration marker. Carrier code uses this marker-indexed entrypoint so the
 -- reflected registry remains the only source of schema names.
+checkedContractIR :: Contract.FrontendContractIR
+checkedContractIR = Contract.frontendContractIR checkedRegisteredFrontendContract
+
 validateContractMarkerValue :: forall marker. Typeable marker => Aeson.Value -> AesonTypes.Parser ()
-validateContractMarkerValue = validateContractMarkerValueWith @marker registeredFrontendContractIR
+validateContractMarkerValue = validateContractMarkerValueWith @marker checkedContractIR
 
 validateContractMarkerValueWith :: forall marker. Typeable marker => Contract.FrontendContractIR -> Aeson.Value -> AesonTypes.Parser ()
 validateContractMarkerValueWith contract value =
@@ -109,7 +112,7 @@ validateStringMember label allowed = \case
     _ -> fail (cs label <> " must be a string")
 
 validateSurfaceScopeValue :: Aeson.Value -> AesonTypes.Parser ()
-validateSurfaceScopeValue = validateSurfaceScopeValueWith registeredFrontendContractIR
+validateSurfaceScopeValue = validateSurfaceScopeValueWith checkedContractIR
 
 validateSurfaceScopeValueWith :: Contract.FrontendContractIR -> Aeson.Value -> AesonTypes.Parser ()
 validateSurfaceScopeValueWith contract = \case
@@ -130,7 +133,7 @@ validateSurfaceScopeValueWith contract = \case
     scopeFieldName = Contract.surfaceWireFieldName Contract.SurfaceWireScopeField
 
 validateSurfaceFragmentKeyValue :: Aeson.Value -> AesonTypes.Parser ()
-validateSurfaceFragmentKeyValue = validateSurfaceFragmentKeyValueWith registeredFrontendContractIR
+validateSurfaceFragmentKeyValue = validateSurfaceFragmentKeyValueWith checkedContractIR
 
 validateSurfaceFragmentKeyValueWith :: Contract.FrontendContractIR -> Aeson.Value -> AesonTypes.Parser ()
 validateSurfaceFragmentKeyValueWith contract = \case
@@ -171,7 +174,7 @@ validateField contract object field = do
         (Just fieldValue, _) -> validateWireValueWith contract field.fieldName field.fieldWire fieldValue
 
 validateWireValue :: Text -> Contract.WireIR -> Aeson.Value -> AesonTypes.Parser ()
-validateWireValue = validateWireValueWith registeredFrontendContractIR
+validateWireValue = validateWireValueWith checkedContractIR
 
 validateWireValueWith :: Contract.FrontendContractIR -> Text -> Contract.WireIR -> Aeson.Value -> AesonTypes.Parser ()
 validateWireValueWith contract fieldName wire value =
