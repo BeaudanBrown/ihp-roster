@@ -74,12 +74,10 @@ fetchPeriodXeroLocalEarningsBucketsExcludingEntries venueId periodStart periodEn
         buckets <- fmap concat $ forM entryCalculations \(entry, calculation) -> do
             staff <- maybeToEither ("Missing staff for approved entry " <> tshow (unpackId entry.id)) (Map.lookup entry.staffId staffMap)
             payCalculation <- maybeToEither ("Missing sealed Operational-window facts for approved entry " <> tshow (unpackId entry.id)) (Map.lookup (unpackId entry.id) payCalculationsByEntryId)
-            forM (datedEarningsComponents calculation) \(componentDate, component@EarningsComponent { publishedXeroLocalBucketKey, publishedXeroEarningsRateId, publishedXeroMappingLegacyFallback }) -> do
+            forM (datedEarningsComponents calculation) \(componentDate, component@EarningsComponent { publishedXeroLocalBucketKey, publishedXeroEarningsRateId }) -> do
                 key <- case (publishedXeroLocalBucketKey, publishedXeroEarningsRateId) of
                     (Just sealedBucketKey, Just _) -> pure sealedBucketKey
-                    (Nothing, Nothing)
-                        | publishedXeroMappingLegacyFallback -> componentBucketKey payCalculation.rosterWeekStartsOn context entry staff component componentDate
-                        | otherwise -> Left ("Approved component has no sealed Xero earnings mapping; unapprove and reapprove entry " <> tshow (unpackId entry.id))
+                    (Nothing, Nothing) -> componentBucketKey payCalculation.rosterWeekStartsOn context entry staff component componentDate
                     _ -> Left ("Approved component has an incomplete sealed Xero earnings mapping for entry " <> tshow (unpackId entry.id))
                 pure XeroLocalEarningsBucket { localBucketKey = key, localBucketLabel = key }
         pure (dedupeBuckets buckets)

@@ -184,23 +184,24 @@ buildFreshSubmissionPlan request connection remoteTimesheets = do
         request.readinessPeriodEnd
     let readinessRequest = request { readinessRemoteTimesheets = remoteTimesheets }
     readiness <- validateXeroTimesheetReadiness readinessRequest
-    previewInput <- fetchPreviewInput readinessRequest connection
-    enforceFinalWageEntries previewInput.previewTimesheetEntries >>= \case
-        Left failures -> pure (Left (renderWageEntryFailures "Xero submission blocked: " failures))
-        Right _ -> case buildXeroTimesheetPreviewRun previewInput of
-            Left message -> pure (Left message)
-            Right previewRun -> do
-                reservations <- mapM (previewReservation connection) previewRun.previewRunTimesheets
-                reviews <- reviewXeroTimesheetReservations reservations remoteTimesheets
-                let reviewSnapshot = reconciliationReviewSnapshotJson reviews
-                pure $ Right FreshSubmissionPlan
-                    { freshPlanRequest = readinessRequest
-                    , freshPlanReadiness = readiness
-                    , freshPlanDuplicateSnapshot = duplicateSnapshotWithReview remoteTimesheets reviewSnapshot
-                    , freshPlanPreviewRun = previewRun
-                    , freshPlanReservations = reservations
-                    , freshPlanReviewSnapshot = reviewSnapshot
-                    }
+    fetchPreparedPreviewInput readinessRequest connection >>= \case
+        Left message -> pure (Left message)
+        Right previewInput -> enforceFinalWageEntries previewInput.previewTimesheetEntries >>= \case
+            Left failures -> pure (Left (renderWageEntryFailures "Xero submission blocked: " failures))
+            Right _ -> case buildXeroTimesheetPreviewRun previewInput of
+                Left message -> pure (Left message)
+                Right previewRun -> do
+                    reservations <- mapM (previewReservation connection) previewRun.previewRunTimesheets
+                    reviews <- reviewXeroTimesheetReservations reservations remoteTimesheets
+                    let reviewSnapshot = reconciliationReviewSnapshotJson reviews
+                    pure $ Right FreshSubmissionPlan
+                        { freshPlanRequest = readinessRequest
+                        , freshPlanReadiness = readiness
+                        , freshPlanDuplicateSnapshot = duplicateSnapshotWithReview remoteTimesheets reviewSnapshot
+                        , freshPlanPreviewRun = previewRun
+                        , freshPlanReservations = reservations
+                        , freshPlanReviewSnapshot = reviewSnapshot
+                        }
 
 persistAndSubmitPreview ::
     (?modelContext :: ModelContext) =>

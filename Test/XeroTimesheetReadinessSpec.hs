@@ -131,7 +131,7 @@ tests = do
 
     aroundAll withDatabaseTestContext do
       describe "Xero draft-timesheet readiness" do
-        it "requires reapproval when an active Xero connection had no approval-time earnings mapping" $ withContext do
+        it "accepts a verified mapping added after approval for late binding" $ withContext do
             withCleanDb do
                 fixture <- createReadinessFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
                 requirements <- query @XeroPayItemRequirementRecord |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
@@ -151,8 +151,9 @@ tests = do
 
                 readinessBlockerCodes readiness `shouldNotSatisfy` elem "staff_mapping_not_verified"
                 map (.xeroBlockerCode) readiness.xeroReadinessWarnings `shouldSatisfy` elem "staff_mapping_not_verified"
-                readinessBlockerCodes readiness `shouldSatisfy` elem "wage_publication_failed"
-                map (.xeroBlockerMessage) readiness.xeroReadinessBlockers `shouldSatisfy` any (Text.isInfixOf "unapprove and reapprove")
+                readinessBlockerCodes readiness `shouldNotSatisfy` elem "wage_publication_failed"
+                readinessBlockerCodes readiness `shouldNotSatisfy` elem "earnings_mapping_not_verified"
+                readiness.xeroTimesheetReady `shouldBe` True
 
         it "uses a fresh successful snapshot even when a later maintenance attempt failed" $ withContext do
             withCleanDb do
@@ -310,7 +311,7 @@ tests = do
 
                 map (.localBucketKey) buckets `shouldSatisfy` any (Text.isInfixOf ":penalty:saturday_penalty:")
 
-        it "keeps approval-time missing mappings blocked after requirements are ignored" $ withContext do
+        it "keeps late-bindable components blocked when requirements are ignored" $ withContext do
             withCleanDb do
                 fixture <- createReadinessFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
                 requirements <- query @XeroPayItemRequirementRecord |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
@@ -319,8 +320,8 @@ tests = do
 
                 readiness <- validateXeroTimesheetReadiness fixture.request
 
-                readinessBlockerCodes readiness `shouldSatisfy` elem "wage_publication_failed"
-                map (.xeroBlockerMessage) readiness.xeroReadinessBlockers `shouldSatisfy` any (Text.isInfixOf "unapprove and reapprove")
+                readinessBlockerCodes readiness `shouldNotSatisfy` elem "wage_publication_failed"
+                readinessBlockerCodes readiness `shouldSatisfy` elem "earnings_mapping_not_verified"
 
         it "ignores deleted approved history when active approved entries remain" $ withContext do
             withCleanDb do

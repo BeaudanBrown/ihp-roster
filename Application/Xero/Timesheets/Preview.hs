@@ -6,6 +6,7 @@ module Application.Xero.Timesheets.Preview
     , buildXeroTimesheetPreviewRun
     , createPersistedXeroTimesheetPreview
     , fetchPreviewInput
+    , fetchPreparedPreviewInput
     , periodDays
     , xeroReadinessSnapshotJson
     , xeroTimesheetPreviewRunJson
@@ -17,11 +18,12 @@ import Application.Helper.WeekBoundaries (WeekdayIndex)
 import Application.Helper.Xero (XeroTimesheetRef (..))
 import Application.Helper.XeroTimesheetReadiness
 import Application.WageEngine
-import Application.WagePublication (datedEarningsComponents)
+import Application.WagePublication (datedEarningsComponentsWithOrdinal)
 import Application.WageSourceEnforcement (enforceFinalWageEntries,
                                           renderWageEntryFailures)
 import Application.Xero.Timesheets.Buckets (XeroComponentBucketContext (..),
                                             componentBucketKey)
+import Application.Xero.Timesheets.LateBindings
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.List as List
@@ -48,6 +50,8 @@ data XeroTimesheetPreviewInput = XeroTimesheetPreviewInput
     , previewPayItemRequirements      :: ![XeroPayItemRequirementRecord]
     , previewCalculationsByEntryId    :: !(Map.Map UUID WageCalculation)
     , previewPayCalculationsByEntryId :: !(Map.Map UUID TimesheetPayCalculation)
+    , previewComponentRowsByCalculationId :: !(Map.Map UUID [TimesheetPayEarningsComponent])
+    , previewLateBindingsByComponentId :: !(Map.Map UUID TimesheetPayComponentXeroBinding)
     , previewAwardLevels              :: ![AwardLevel]
     , previewRemoteTimesheets         :: ![XeroTimesheetRef]
     }
@@ -162,33 +166,51 @@ createPersistedXeroTimesheetPreviewWithPreparation submittedByUserId maybePrepar
         case maybeConnection of
             Nothing -> pure (Left "Active Xero connection was not found.")
             Just connection -> do
-                previewInput <- fetchPreviewInput request connection
-                enforceFinalWageEntries previewInput.previewTimesheetEntries >>= \case
-                    Left failures -> pure (Left (renderWageEntryFailures "Xero preview blocked: " failures))
-                    Right _ -> case buildXeroTimesheetPreviewRun previewInput of
-                        Left err -> pure (Left err)
-                        Right previewRun -> do
-                            run <-
-                                newRecord @XeroSubmissionRun
-                                    |> set #venueId (unpackId request.readinessVenueId)
-                                    |> set #xeroConnectionId (unpackId connection.id)
-                                    |> set #submittedByUserId (unpackId submittedByUserId)
-                                    |> set #payPeriodStart request.readinessPeriodStart
-                                    |> set #payPeriodEnd request.readinessPeriodEnd
-                                    |> set #xeroTimesheetPreparationRunId maybePreparationRunId
-                                    |> set #selectedPayrollCalendarId request.readinessPayrollCalendarId
-                                    |> set #selectedPayrollCalendarName request.readinessPayrollCalendarName
-                                    |> set #selectedPeriodKey request.readinessSelectedPeriodKey
-                                    |> set #paymentDate request.readinessPaymentDate
-                                    |> set #xeroPayRunId request.readinessXeroPayRunId
-                                    |> set #xeroPayRunStatus request.readinessXeroPayRunStatus
-                                    |> set #sourceKind ApprovedTimesheets
-                                    |> set #status XeroSubmissionRunStatusEnumPreviewed
-                                    |> set #previewPayloadJson (xeroTimesheetPreviewRunJson previewRun)
-                                    |> set #readinessSnapshotJson (xeroReadinessSnapshotJson readiness)
-                                    |> set #xeroDuplicateCheckJson duplicateCheckJson
-                                    |> createRecord
-                            pure (Right run)
+                fetchPreparedPreviewInput request connection >>= \case
+                    Left message -> pure (Left message)
+                    Right previewInput -> do
+                        wageBoundary <- enforceFinalWageEntries previewInput.previewTimesheetEntries
+                        case wageBoundary of
+                            Left failures -> pure (Left (renderWageEntryFailures "Xero preview blocked: " failures))
+                            Right _ -> case buildXeroTimesheetPreviewRun previewInput of
+                                Left err -> pure (Left err)
+                                Right previewRun -> do
+                                    run <-
+                                        newRecord @XeroSubmissionRun
+                                            |> set #venueId (unpackId request.readinessVenueId)
+                                            |> set #xeroConnectionId (unpackId connection.id)
+                                            |> set #submittedByUserId (unpackId submittedByUserId)
+                                            |> set #payPeriodStart request.readinessPeriodStart
+                                            |> set #payPeriodEnd request.readinessPeriodEnd
+                                            |> set #xeroTimesheetPreparationRunId maybePreparationRunId
+                                            |> set #selectedPayrollCalendarId request.readinessPayrollCalendarId
+                                            |> set #selectedPayrollCalendarName request.readinessPayrollCalendarName
+                                            |> set #selectedPeriodKey request.readinessSelectedPeriodKey
+                                            |> set #paymentDate request.readinessPaymentDate
+                                            |> set #xeroPayRunId request.readinessXeroPayRunId
+                                            |> set #xeroPayRunStatus request.readinessXeroPayRunStatus
+                                            |> set #sourceKind ApprovedTimesheets
+                                            |> set #status XeroSubmissionRunStatusEnumPreviewed
+                                            |> set #previewPayloadJson (xeroTimesheetPreviewRunJson previewRun)
+                                            |> set #readinessSnapshotJson (xeroReadinessSnapshotJson readiness)
+                                            |> set #xeroDuplicateCheckJson duplicateCheckJson
+                                            |> createRecord
+                                    pure (Right run)
+
+fetchPreparedPreviewInput ::
+    (?modelContext :: ModelContext) =>
+    XeroTimesheetReadinessRequest ->
+    XeroConnection ->
+    IO (Either Text XeroTimesheetPreviewInput)
+fetchPreparedPreviewInput request connection = do
+    input <- fetchPreviewInput request connection
+    case lateBindingProposals input of
+        Left message -> pure (Left message)
+        Right [] -> pure (Right input)
+        Right proposals ->
+            persistLateXeroBindings connection.id proposals >>= \case
+                Left message -> pure (Left message)
+                Right _ -> Right <$> fetchPreviewInput request connection
 
 fetchPreviewInput ::
     (?modelContext :: ModelContext) =>
@@ -261,6 +283,14 @@ fetchPreviewInput request connection = do
     payCalculations <- query @TimesheetPayCalculation
         |> filterWhereIn (#id, mapMaybe (.activePayCalculationId) entries)
         |> fetch
+    componentRows <- query @TimesheetPayEarningsComponent
+        |> filterWhereIn (#timesheetPayCalculationId, map (unpackId . (.id)) payCalculations)
+        |> orderBy #ordinal
+        |> fetch
+    lateBindings <- query @TimesheetPayComponentXeroBinding
+        |> filterWhere (#xeroConnectionId, unpackId connection.id)
+        |> filterWhereIn (#timesheetPayEarningsComponentId, map (unpackId . (.id)) componentRows)
+        |> fetch
     loadedCalculations <- loadApprovedTimesheetPayCalculations entries
     let calculations = Map.mapMaybe (\case Left _ -> Nothing; Right calculation -> calculation) loadedCalculations
     awardLevels <- query @AwardLevel |> fetch
@@ -278,6 +308,8 @@ fetchPreviewInput request connection = do
         , previewPayItemRequirements = payItemRequirements
         , previewCalculationsByEntryId = calculations
         , previewPayCalculationsByEntryId = Map.fromList [(calculation.timesheetEntryId, calculation) | calculation <- payCalculations]
+        , previewComponentRowsByCalculationId = Map.fromListWith (<>) [(row.timesheetPayCalculationId, [row]) | row <- componentRows]
+        , previewLateBindingsByComponentId = Map.fromList [(binding.timesheetPayEarningsComponentId, binding) | binding <- lateBindings]
         , previewAwardLevels = awardLevels
         , previewRemoteTimesheets = request.readinessRemoteTimesheets
         }
@@ -313,6 +345,44 @@ fetchActivePreviewXeroConnection venueId =
         |> orderByDesc #connectedAt
         |> fetchOneOrNothing
 
+lateBindingProposals :: XeroTimesheetPreviewInput -> Either Text [LateXeroBindingProposal]
+lateBindingProposals input = fmap concat (mapM entryProposals input.previewTimesheetEntries)
+  where
+    entryProposals entry = do
+        staff <- maybeToEither ("Missing staff for timesheet entry " <> tshow (unpackId entry.id)) (find (\candidate -> unpackId candidate.id == entry.staffId) input.previewStaff)
+        staffVersionId <- maybeToEither ("Missing staff pay version for timesheet entry " <> tshow (unpackId entry.id)) entry.staffPayVersionId
+        shiftVersionId <- maybeToEither ("Missing shift type pay version for timesheet entry " <> tshow (unpackId entry.id)) entry.shiftTypePayVersionId
+        calculation <- maybeToEither ("Missing sealed pay calculation for timesheet entry " <> tshow (unpackId entry.id)) (Map.lookup (unpackId entry.id) input.previewCalculationsByEntryId)
+        payCalculation <- maybeToEither ("Missing sealed Operational-window facts for timesheet entry " <> tshow (unpackId entry.id)) (Map.lookup (unpackId entry.id) input.previewPayCalculationsByEntryId)
+        rows <- maybeToEither ("Missing sealed earnings rows for timesheet entry " <> tshow (unpackId entry.id)) (Map.lookup (unpackId payCalculation.id) input.previewComponentRowsByCalculationId)
+        fmap concat $ forM (zip [0 ..] calculation.earningsComponents) \(ordinal, component) -> do
+            row <- maybeToEither ("Missing sealed earnings component ordinal " <> tshow ordinal <> " for entry " <> tshow (unpackId entry.id)) (find ((== ordinal) . (.ordinal)) rows)
+            if component.quantity <= 0 || Map.member (unpackId row.id) input.previewLateBindingsByComponentId
+                then pure []
+                else case (component.publishedXeroLocalBucketKey, component.publishedXeroEarningsRateId) of
+                    (Just _, Just _) -> pure []
+                    (Nothing, Nothing)
+                        | component.publishedXeroMappingLegacyFallback -> pure []
+                        | otherwise -> do
+                            let componentDate = fromMaybe payCalculation.operationalDate component.publishedComponentDate
+                            localBucketKey <- componentBucketKey payCalculation.rosterWeekStartsOn (previewBucketContext input) entry staff component componentDate
+                            (earningsRateId, resolutionSource) <- case component.sourceCondition of
+                                ImportedFlatRateCondition itemId -> do
+                                    item <- maybeToEither ("Missing approval-pinned imported Xero earnings rate for component " <> itemId) (approvedImportedPayItemForVersions input staffVersionId shiftVersionId)
+                                    if inputValue item.id == itemId
+                                        then pure (item.xeroEarningsRateId, "imported_pay_item")
+                                        else Left ("Approved imported Xero pay item does not match component " <> itemId)
+                                _ -> earningsRoutingForBucket input localBucketKey
+                            pure
+                                [ LateXeroBindingProposal
+                                    { proposalComponentId = row.id
+                                    , proposalLocalBucketKey = localBucketKey
+                                    , proposalXeroEarningsRateId = earningsRateId
+                                    , proposalResolutionSource = resolutionSource
+                                    }
+                                ]
+                    _ -> Left ("Approved component has an incomplete sealed Xero earnings mapping for entry " <> tshow (unpackId entry.id))
+
 entryContributions :: XeroTimesheetPreviewInput -> TimesheetEntry -> Either Text [SegmentContribution]
 entryContributions input entry = do
     staff <- maybeToEither ("Missing staff for timesheet entry " <> tshow (unpackId entry.id)) (find (\candidate -> unpackId candidate.id == entry.staffId) input.previewStaff)
@@ -321,13 +391,16 @@ entryContributions input entry = do
     shiftVersionId <- maybeToEither ("Missing shift type pay version for timesheet entry " <> tshow (unpackId entry.id)) entry.shiftTypePayVersionId
     calculation <- maybeToEither ("Missing sealed pay calculation for timesheet entry " <> tshow (unpackId entry.id)) (Map.lookup (unpackId entry.id) input.previewCalculationsByEntryId)
     payCalculation <- maybeToEither ("Missing sealed Operational-window facts for timesheet entry " <> tshow (unpackId entry.id)) (Map.lookup (unpackId entry.id) input.previewPayCalculationsByEntryId)
+    componentRows <- maybeToEither ("Missing sealed earnings rows for timesheet entry " <> tshow (unpackId entry.id)) (Map.lookup (unpackId payCalculation.id) input.previewComponentRowsByCalculationId)
     unless
         (calculation.publishedOperationalDate == Just payCalculation.operationalDate && payCalculation.operationalDate == entry.operationalDate)
         (Left ("Sealed Operational-day facts do not match timesheet entry " <> tshow (unpackId entry.id)))
     entry.approvedAt |> maybeToEither ("Missing approval timestamp for timesheet entry " <> tshow (unpackId entry.id)) |> const (pure ())
-    datedEarningsComponents calculation
-        |> filter ((> 0) . (.quantity) . snd)
-        |> mapM (componentContribution input payCalculation entry staff xeroEmployeeId staffVersionId shiftVersionId)
+    datedEarningsComponentsWithOrdinal calculation
+        |> filter (\(_, _, component) -> component.quantity > 0)
+        |> mapM (\dated@(ordinal, _, _) -> do
+            componentRow <- maybeToEither ("Missing sealed earnings component ordinal " <> tshow ordinal <> " for entry " <> tshow (unpackId entry.id)) (find ((== ordinal) . (.ordinal)) componentRows)
+            componentContribution input payCalculation entry staff xeroEmployeeId staffVersionId shiftVersionId componentRow dated)
 
 componentContribution ::
     XeroTimesheetPreviewInput ->
@@ -337,9 +410,10 @@ componentContribution ::
     Text ->
     UUID ->
     UUID ->
-    (Day, EarningsComponent) ->
+    TimesheetPayEarningsComponent ->
+    (Int, Day, EarningsComponent) ->
     Either Text SegmentContribution
-componentContribution input payCalculation entry staff xeroEmployeeId staffVersionId shiftVersionId (componentDate, component) = do
+componentContribution input payCalculation entry staff xeroEmployeeId staffVersionId shiftVersionId componentRow (_, componentDate, component) = do
     (localBucketKey, earningsRateId) <- case (component.publishedXeroLocalBucketKey, component.publishedXeroEarningsRateId) of
         (Just sealedBucketKey, Just sealedEarningsRateId) -> pure (sealedBucketKey, sealedEarningsRateId)
         (Nothing, Nothing)
@@ -353,7 +427,9 @@ componentContribution input payCalculation entry staff xeroEmployeeId staffVersi
                             else Left ("Approved imported Xero pay item does not match component " <> itemId)
                     _ -> earningsRateIdForBucket input historicalBucketKey
                 pure (historicalBucketKey, historicalEarningsRateId)
-            | otherwise -> Left ("Approved component has no sealed Xero earnings mapping; unapprove and reapprove entry " <> tshow (unpackId entry.id))
+            | otherwise -> do
+                binding <- maybeToEither ("Approved component has no Xero earnings routing for entry " <> tshow (unpackId entry.id)) (Map.lookup (unpackId componentRow.id) input.previewLateBindingsByComponentId)
+                pure (binding.localBucketKey, binding.xeroEarningsRateId)
         _ -> Left ("Approved component has an incomplete sealed Xero earnings mapping for entry " <> tshow (unpackId entry.id))
     pure SegmentContribution
         { contributionStaffId = unpackId staff.id
@@ -395,16 +471,21 @@ staffXeroEmployeeId input entry =
         mapping.xeroEmployeeId
 
 earningsRateIdForBucket :: XeroTimesheetPreviewInput -> Text -> Either Text Text
-earningsRateIdForBucket input localBucketKey =
+earningsRateIdForBucket input localBucketKey = fst <$> earningsRoutingForBucket input localBucketKey
+
+earningsRoutingForBucket :: XeroTimesheetPreviewInput -> Text -> Either Text (Text, Text)
+earningsRoutingForBucket input localBucketKey =
     maybeToEither ("Missing verified Xero earnings-rate mapping for bucket " <> localBucketKey) do
-        mappedEarningsRateId <|> managedRequirementEarningsRateId
+        mappedEarningsRouting <|> managedRequirementRouting
     where
-        mappedEarningsRateId = do
+        mappedEarningsRouting = do
             mapping <- find (\candidate -> candidate.localBucketKey == localBucketKey) input.previewEarningsMappings
-            mapping.xeroEarningsRateId
-        managedRequirementEarningsRateId = do
+            earningsRateId <- mapping.xeroEarningsRateId
+            pure (earningsRateId, "verified_mapping")
+        managedRequirementRouting = do
             requirement <- find (\candidate -> candidate.requirementKey == localBucketKey) input.previewPayItemRequirements
-            requirement.xeroEarningsRateId
+            earningsRateId <- requirement.xeroEarningsRateId
+            pure (earningsRateId, "managed_pay_item")
 
 accumulateTimesheet :: XeroTimesheetPreviewInput -> Map.Map Text TimesheetAggregation -> SegmentContribution -> Map.Map Text TimesheetAggregation
 accumulateTimesheet input acc contribution =

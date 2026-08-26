@@ -1553,7 +1553,7 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                 preparationRun.payPeriodEnd `shouldBe` Just fixture.periodEnd
                 (AesonTypes.parseMaybe AesonTypes.parseJSON preparationRun.eventsJson :: Maybe [Aeson.Value]) `shouldSatisfy` maybe False (not . null)
 
-        it "shows a toast instead of failing when approved wage facts have no sealed Xero mapping" $ withContext do
+        it "routes approved wage facts without sealed Xero mapping into pay-item setup" $ withContext do
             withCleanDb do
                 fixture <-
                     Preview.createPreviewFixture
@@ -1605,14 +1605,14 @@ tests = aroundAll withFastXeroReferenceSyncRuntime $ aroundAll withDatabaseTestC
                                     [("periodKey", fixturePeriodKey fixture)]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "toast-overlay-mount"
-                response `responseBodyShouldContain` "This pay period includes approved timesheets that were approved before Xero pay mappings were ready."
-                response `responseBodyShouldContain` "Unapprove and reapprove those timesheets, then try again."
-                response `responseBodyShouldContain` "Choose the Xero payroll period to upload."
+                response `responseBodyShouldContain` "Xero account"
+                response `responseBodyShouldContain` "Choose the account for new Xero pay items."
+                response `responseBodyShouldContain` "Continue"
+                response `responseBodyShouldNotContain` "Unapprove and reapprove"
                 response `responseBodyShouldNotContain` tshow unmappedEntry.id
                 response `responseBodyShouldNotContain` "Approved component has no sealed Xero earnings mapping"
                 refreshedRun <- fetch run.id
-                refreshedRun.status `shouldBe` XeroTimesheetPreparationRunStatusEnumBlocked
+                refreshedRun.status `shouldBe` ReadyForPreview
                 refreshedRun.selectedPeriodKey `shouldBe` Just (fixturePeriodKey fixture)
 
         it "keeps staff rows visible while manual changes auto-save and Continue approves suggestions" $ withContext do
