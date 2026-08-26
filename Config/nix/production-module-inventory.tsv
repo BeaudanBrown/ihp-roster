@@ -44,6 +44,7 @@ Application/Fixture/DevFixtures/Leave.hs	development	development-fixture	-	Synth
 Application/Fixture/DevFixtures/Payroll.hs	development	development-fixture	-	Synthetic local development data only
 Application/Fixture/DevFixtures/Roster.hs	development	development-fixture	-	Synthetic local development data only
 Application/Fixture/DevFixtures/Staff.hs	development	development-fixture	-	Synthetic local development data only
+Application/Fixture/Error.hs	development	fixture	-	Seed, profile, or test fixture outside deployed runtime closure
 Application/Fixture/PayrollFixtures.hs	development	fixture	-	Seed, profile, or test fixture outside deployed runtime closure
 Application/Fixture/Reset.hs	development	fixture	-	Seed, profile, or test fixture outside deployed runtime closure
 Application/Fixture/Seed/Scenario.hs	development	fixture	-	Seed, profile, or test fixture outside deployed runtime closure
@@ -307,6 +308,7 @@ Application/InvitationDelivery/Enqueue.hs	production	runtime	Main	Reachable from
 Application/InvitationDelivery/Types.hs	production	runtime	Main	Reachable from Main
 Application/Job/App.hs	production	runtime	Main	Reachable from Main
 Application/Legal/Documents.hs	production	runtime	Main	Reachable from Main
+Application/Operator/Error.hs	production	operational-script-closure	Application.Script.BackfillTimesheetPayLedger	Reachable from Application.Script.BackfillTimesheetPayLedger
 Application/PasswordReset/Mutations.hs	production	runtime	Main	Reachable from Main
 Application/PayAssignment.hs	production	runtime	Main	Reachable from Main
 Application/PayRateSelection.hs	production	runtime	Main	Reachable from Main

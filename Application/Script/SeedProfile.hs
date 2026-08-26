@@ -3,6 +3,7 @@ module Application.Script.SeedProfile where
 import Application.Helper.Url (appendQueryParams, replaceQueryParams)
 import Application.Helper.WeekBoundaries (defaultRosterWeekStartsOn,
                                           startOfWeekFor)
+import Application.Operator.Error
 import Application.VenueTime (melbourneTimeZoneName)
 import Application.VenueTime.Model (resolveBoundaryInstant)
 import Control.Monad (foldM)
@@ -31,9 +32,11 @@ run = do
     options <- parseOptions
     today <- utctDay <$> getCurrentTime
     let currentWindowStart = profileWindowStartForDay today
-    createDirectoryIfMissing True options.outputDir
     let plan = buildProfileSeedPlan options currentWindowStart
-    writeProfileSeed options.outputDir plan
+    outputResult <- tryScriptIO "profile seed output" do
+        createDirectoryIfMissing True options.outputDir
+        writeProfileSeed options.outputDir plan
+    requireScriptResult outputResult >>= requireScriptResult
     printSummary options plan
 
 profileWindowStartForDay :: Day -> Day
@@ -109,12 +112,15 @@ buildProfileSeedPlan options currentWindowStart =
         timesheetEntryCount = venueCount options * staffPerVenue options * min 52 (max 1 (weeksHistory options))
         leaveRequestCount = venueCount options * staffPerVenue options * 3
 
-writeProfileSeed :: FilePath -> ProfileSeedPlan -> IO ()
-writeProfileSeed dir plan = do
-    either (fail . cs . tshow) pure (validateProfileTableDescriptors plan profileTableDescriptors)
-    forM_ profileTableDescriptors (writeProfileTable dir plan)
-    TextIO.writeFile (dir </> "load.sql") (renderLoadSql dir)
-    TextIO.writeFile (dir </> "manifest.json") (renderProfileSeedManifest plan)
+writeProfileSeed :: FilePath -> ProfileSeedPlan -> IO (Either ScriptError ())
+writeProfileSeed dir plan =
+    case validateProfileTableDescriptors plan profileTableDescriptors of
+        Left validationErrors -> pure (Left (ScriptOperationFailed ("profile seed table validation failed: " <> tshow validationErrors)))
+        Right () -> do
+            forM_ profileTableDescriptors (writeProfileTable dir plan)
+            TextIO.writeFile (dir </> "load.sql") (renderLoadSql dir)
+            TextIO.writeFile (dir </> "manifest.json") (renderProfileSeedManifest plan)
+            pure (Right ())
 
 writeProfileTable :: FilePath -> ProfileSeedPlan -> ProfileTableDescriptor -> IO ()
 writeProfileTable dir plan descriptor =
@@ -824,10 +830,10 @@ xeroStaffMappingRows plan =
 assignedStaffIndex :: ProfileSeedPlan -> Int -> Int -> Int -> Int -> Int -> Int -> Maybe Int
 assignedStaffIndex plan venueIndex groupIndex windowOrdinal dayIndex rowIndex slotIndex
     | deterministicIndex plan [venueIndex, groupIndex, windowOrdinal, dayIndex, rowIndex, slotIndex] 100 >= rosterFill plan.options = Nothing
-    | otherwise = Just selectedStaffIndex
+    | otherwise = listToMaybe (drop selectedIndex candidates)
     where
         candidates = eligibleStaffIndexesForGroup plan groupIndex
-        selectedStaffIndex = candidates !! deterministicIndex plan [venueIndex, groupIndex, windowOrdinal, dayIndex, rowIndex, slotIndex, 99] (length candidates)
+        selectedIndex = deterministicIndex plan [venueIndex, groupIndex, windowOrdinal, dayIndex, rowIndex, slotIndex, 99] (length candidates)
 
 eligibleStaffIndexesForGroup :: ProfileSeedPlan -> Int -> [Int]
 eligibleStaffIndexesForGroup plan groupIndex =
@@ -887,9 +893,12 @@ addTimeMinutes (TimeOfDay hour minute _) addedMinutes =
     let totalMinutes = hour * 60 + minute + addedMinutes
      in TimeOfDay (totalMinutes `div` 60) (totalMinutes `mod` 60) 0
 
+-- Profile rows only call this with the locally closed clock set in 'timeFor'
+-- plus 09:00, 12:00, 12:30, and 17:00. None intersects Melbourne's 02:00 DST
+-- gap/repetition. 'ProfileSeedSpec' exercises the set on both transition days.
 instantText :: Day -> TimeOfDay -> Text
 instantText day timeOfDay =
-    either (error . ("Invalid profile-seed boundary: " <>) . show) tshow $
+    either (error . ("Profile seed clock-set proof violated: " <>) . show) tshow $
         resolveBoundaryInstant melbourneTimeZoneName day timeOfDay Nothing
 
 leaveStatus :: Int -> Text
@@ -933,11 +942,29 @@ hex12 value = padLeft 12 (showHexText value)
 
 showHexText :: Int -> String
 showHexText value =
-    let digits = "0123456789abcdef"
-        go number
-            | number < 16 = [digits !! number]
-            | otherwise = go (number `div` 16) <> [digits !! (number `mod` 16)]
+    let go number
+            | number < 16 = [hexDigit number]
+            | otherwise = go (number `div` 16) <> [hexDigit (number `mod` 16)]
      in go (abs value)
+
+hexDigit :: Int -> Char
+hexDigit = \case
+    0 -> '0'
+    1 -> '1'
+    2 -> '2'
+    3 -> '3'
+    4 -> '4'
+    5 -> '5'
+    6 -> '6'
+    7 -> '7'
+    8 -> '8'
+    9 -> '9'
+    10 -> 'a'
+    11 -> 'b'
+    12 -> 'c'
+    13 -> 'd'
+    14 -> 'e'
+    _ -> 'f'
 
 padLeft :: Int -> String -> String
 padLeft width value =
@@ -1085,32 +1112,55 @@ parseOptions = do
     when ("--help" `elem` args || "-h" `elem` args) do
         printUsage
         exitSuccess
-    foldM parseArg defaultOptions args
+    requireScriptResult (parseProfileSeedArgs args)
 
-parseArg :: ProfileSeedOptions -> String -> IO ProfileSeedOptions
-parseArg options arg
-    | "--output-dir=" `List.isPrefixOf` arg = pure options { outputDir = readStringFlag "--output-dir=" arg }
-    | "--venues=" `List.isPrefixOf` arg = pure options { venueCount = max 1 (readIntFlag "--venues=" arg) }
-    | "--staff-per-venue=" `List.isPrefixOf` arg = pure options { staffPerVenue = max 1 (readIntFlag "--staff-per-venue=" arg) }
-    | "--managers-per-venue=" `List.isPrefixOf` arg = pure options { managerPerVenue = max 1 (readIntFlag "--managers-per-venue=" arg) }
-    | "--weeks-history=" `List.isPrefixOf` arg = pure options { weeksHistory = max 1 (readIntFlag "--weeks-history=" arg) }
-    | "--weeks-future=" `List.isPrefixOf` arg = pure options { weeksFuture = max 0 (readIntFlag "--weeks-future=" arg) }
-    | "--rows-per-day=" `List.isPrefixOf` arg = pure options { rowsPerDay = max 1 (readIntFlag "--rows-per-day=" arg) }
-    | "--roster-fill=" `List.isPrefixOf` arg = pure options { rosterFill = max 0 (min 100 (readIntFlag "--roster-fill=" arg)) }
-    | "--seed=" `List.isPrefixOf` arg = pure options { seedValue = readIntFlag "--seed=" arg }
-    | "--xero-employees=" `List.isPrefixOf` arg = pure options { xeroEmployees = max 1 (readIntFlag "--xero-employees=" arg) }
-    | "--xero-mapped-staff=" `List.isPrefixOf` arg = pure options { xeroMappedStaff = max 0 (readIntFlag "--xero-mapped-staff=" arg) }
-    | "--scenario=large-roster-history" == arg = pure options
-    | otherwise = error ("Unsupported seed-profile option: " <> cs arg)
+parseProfileSeedArgs :: [String] -> Either ScriptError ProfileSeedOptions
+parseProfileSeedArgs = foldM parseProfileSeedArg defaultOptions
+
+parseProfileSeedArg :: ProfileSeedOptions -> String -> Either ScriptError ProfileSeedOptions
+parseProfileSeedArg options arg
+    | "--output-dir=" `List.isPrefixOf` arg =
+        case readStringFlag "--output-dir=" arg of
+            ""   -> Left (InvalidScriptArgument "--output-dir requires a path")
+            path -> Right options { outputDir = path }
+    | "--venues=" `List.isPrefixOf` arg = setPositive "--venues=" arg \value -> options { venueCount = value }
+    | "--staff-per-venue=" `List.isPrefixOf` arg = setPositive "--staff-per-venue=" arg \value -> options { staffPerVenue = value }
+    | "--managers-per-venue=" `List.isPrefixOf` arg = setPositive "--managers-per-venue=" arg \value -> options { managerPerVenue = value }
+    | "--weeks-history=" `List.isPrefixOf` arg = setPositive "--weeks-history=" arg \value -> options { weeksHistory = value }
+    | "--weeks-future=" `List.isPrefixOf` arg = setNonNegative "--weeks-future=" arg \value -> options { weeksFuture = value }
+    | "--rows-per-day=" `List.isPrefixOf` arg = setPositive "--rows-per-day=" arg \value -> options { rowsPerDay = value }
+    | "--roster-fill=" `List.isPrefixOf` arg = do
+        value <- readIntFlag "--roster-fill=" arg
+        if value >= 0 && value <= 100
+            then Right options { rosterFill = value }
+            else Left (InvalidScriptArgument "--roster-fill must be between 0 and 100")
+    | "--seed=" `List.isPrefixOf` arg = do
+        value <- readIntFlag "--seed=" arg
+        Right options { seedValue = value }
+    | "--xero-employees=" `List.isPrefixOf` arg = setPositive "--xero-employees=" arg \value -> options { xeroEmployees = value }
+    | "--xero-mapped-staff=" `List.isPrefixOf` arg = setNonNegative "--xero-mapped-staff=" arg \value -> options { xeroMappedStaff = value }
+    | "--scenario=large-roster-history" == arg = Right options
+    | otherwise = Left (InvalidScriptArgument ("unsupported seed-profile option: " <> cs arg))
+  where
+    setPositive prefix valueArg update = do
+        value <- readIntFlag prefix valueArg
+        if value > 0
+            then Right (update value)
+            else Left (InvalidScriptArgument (cs prefix <> " value must be greater than zero"))
+    setNonNegative prefix valueArg update = do
+        value <- readIntFlag prefix valueArg
+        if value >= 0
+            then Right (update value)
+            else Left (InvalidScriptArgument (cs prefix <> " value must be non-negative"))
 
 readStringFlag :: String -> String -> FilePath
 readStringFlag prefix arg = drop (length prefix) arg
 
-readIntFlag :: String -> String -> Int
+readIntFlag :: String -> String -> Either ScriptError Int
 readIntFlag prefix arg =
     case TextRead.readMaybe (drop (length prefix) arg) of
-        Just value -> value
-        Nothing    -> error ("Expected integer for flag: " <> cs arg)
+        Just value -> Right value
+        Nothing    -> Left (InvalidScriptArgument ("expected integer for flag: " <> cs arg))
 
 printUsage :: IO ()
 printUsage = do

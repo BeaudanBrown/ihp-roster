@@ -5,6 +5,7 @@ module Application.Fixture.DevFixtures.Leave
 import Application.Fixture.DevFixtures.Deterministic
 import Application.Fixture.Seed.Scenario
 import Control.Monad (void)
+import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays, diffDays)
 import Data.Time.Clock (getCurrentTime)
@@ -64,12 +65,13 @@ spreadLeaveDatesAcrossSeedWindow fixtureWeekStart count
 
 leaveNoteFor :: LeaveRequestStatusEnum -> Int -> Text
 leaveNoteFor status index =
-    noteBank !! deterministicIndex (textHash statusText + 7001) [index, Text.length statusText] (length noteBank)
+    deterministicChoice (textHash statusText + 7001) [index, Text.length statusText] noteBank
     where
         statusText = inputValue status
+        noteBank :: NonEmpty Text
         noteBank =
-            [ "Family event"
-            , "Medical appointment"
+            "Family event" :|
+            [ "Medical appointment"
             , "Interstate travel"
             , "Study leave"
             , "School holiday care"

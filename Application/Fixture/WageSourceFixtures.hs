@@ -3,6 +3,7 @@ module Application.Fixture.WageSourceFixtures
     , sealApprovedFixtureCalculation
     ) where
 
+import Application.Fixture.Error
 import Application.Helper.TimesheetPayLedger (persistApprovedTimesheetPayCalculation)
 import Application.VenueTime.Model (decodeTimesheetTiming,
                                     timesheetTimingWorkedOn)
@@ -48,11 +49,11 @@ ensureFreshWageSourceFacts workedOn = do
 -- immutable-ledger path used by production approval.
 sealApprovedFixtureCalculation :: (?modelContext :: ModelContext) => TimesheetEntry -> IO TimesheetEntry
 sealApprovedFixtureCalculation entry = do
-    timing <- either (fail . cs . tshow) pure (decodeTimesheetTiming entry)
+    timing <- requireFixtureResult (either (Left . InvalidFixtureBoundary . tshow) Right (decodeTimesheetTiming entry))
     ensureFreshWageSourceFacts (timesheetTimingWorkedOn timing)
     result <- persistApprovedTimesheetPayCalculation entry
     case result of
-        Left reason -> fail (cs reason)
+        Left reason -> requireFixtureResult (Left (InvalidFixtureBoundary reason))
         Right calculation ->
             entry
                 |> set #activePayCalculationId (Just calculation.id)

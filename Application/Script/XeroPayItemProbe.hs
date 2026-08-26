@@ -1,6 +1,7 @@
 module Application.Script.XeroPayItemProbe where
 
 import Application.Helper.Xero
+import Application.Operator.Error
 import Application.Script.Prelude
 import Application.Xero.Connection
 import qualified Data.Aeson as Aeson
@@ -18,7 +19,7 @@ import qualified Data.Vector as Vector
 import IHP.ModelSupport (inputValue)
 import Network.HTTP.Simple
 import System.Environment (lookupEnv)
-import System.Exit (exitFailure, exitSuccess)
+import System.Exit (exitSuccess)
 
 data ProbeOptions = ProbeOptions
     { optionConnectionId         :: !(Maybe Text)
@@ -30,6 +31,7 @@ data ProbeOptions = ProbeOptions
     , optionGetPayItems          :: !Bool
     , optionProbeEarningsRatesV2 :: !Bool
     }
+    deriving (Eq, Show)
 
 defaultProbeOptions :: ProbeOptions
 defaultProbeOptions =
@@ -47,13 +49,12 @@ defaultProbeOptions =
 run :: Script
 run = do
     args <- liftIO getArgs
-    options <- liftIO (parseOptions defaultProbeOptions args)
-    case validateEarningsRatesV2ProbeOptions options of
-        Left message -> liftIO (liftIOError message)
-        Right ()     -> pure ()
+    when ("--help" `elem` args) (liftIO usageAndExitSuccess)
+    options <- liftIO (requireScriptResult (parseOptions defaultProbeOptions args))
+    liftIO (requireScriptResult (either (Left . InvalidScriptArgument) Right (validateProbeOptions options)))
     when options.optionConnections listConnections
     when options.optionConnections do
-        when (isNothing options.optionConnectionId && isNothing options.optionRequirementKey && not options.optionList && not options.optionGetPayItems) do
+        when (isNothing options.optionRequirementKey && not options.optionList && not options.optionGetPayItems && not options.optionProbeEarningsRatesV2) do
             liftIO exitSuccess
     connection <- resolveConnection options.optionConnectionId
     liftIO do
@@ -71,8 +72,7 @@ run = do
         accessToken <- readStoredAccessTokenForProbe connection
         liftIO (probeEarningsRatesV2 connection accessToken)
     case options.optionRequirementKey of
-        Nothing ->
-            when (not options.optionList && not options.optionGetPayItems && not options.optionProbeEarningsRatesV2) (liftIO usageAndExitFailure)
+        Nothing -> pure ()
         Just requirementKey -> do
             requirement <- fetchRequirement connection requirementKey
             accountCode <- fetchVerifiedAccountCode connection
@@ -94,21 +94,35 @@ run = do
                     TextIO.putStrLn ""
                     TextIO.putStrLn "Not posting. Re-run with --confirm-post to hit Xero POST /PayItems."
 
-parseOptions :: ProbeOptions -> [Text] -> IO ProbeOptions
-parseOptions options [] = pure options
+parseOptions :: ProbeOptions -> [Text] -> Either ScriptError ProbeOptions
+parseOptions options [] = Right options
 parseOptions options (arg : rest)
-    | arg == "--help" = usageAndExitSuccess
     | arg == "--confirm-post" = parseOptions options { optionConfirmPost = True } rest
     | arg == "--connections" = parseOptions options { optionConnections = True } rest
     | arg == "--list" = parseOptions options { optionList = True } rest
     | arg == "--get-pay-items" = parseOptions options { optionGetPayItems = True } rest
     | arg == "--probe-earnings-rates-v2" = parseOptions options { optionProbeEarningsRatesV2 = True } rest
-    | Just value <- stripPrefixText "--connection-id=" arg = parseOptions options { optionConnectionId = Just value } rest
-    | Just value <- stripPrefixText "--requirement-key=" arg = parseOptions options { optionRequirementKey = Just value } rest
-    | Just value <- stripPrefixText "--idempotency-key=" arg = parseOptions options { optionIdempotencyKey = Just value } rest
-    | otherwise = do
-        TextIO.putStrLn ("Unknown option: " <> arg)
-        usageAndExitFailure
+    | Just value <- stripPrefixText "--connection-id=" arg = parseRequiredOption "--connection-id" value (options { optionConnectionId = Just value }) rest
+    | Just value <- stripPrefixText "--requirement-key=" arg = parseRequiredOption "--requirement-key" value (options { optionRequirementKey = Just value }) rest
+    | Just value <- stripPrefixText "--idempotency-key=" arg = parseRequiredOption "--idempotency-key" value (options { optionIdempotencyKey = Just value }) rest
+    | otherwise = Left (InvalidScriptArgument ("unknown Xero pay-item probe option: " <> arg))
+  where
+    parseRequiredOption optionName value nextOptions remaining
+        | Text.null value = Left (InvalidScriptArgument (optionName <> " requires a value"))
+        | otherwise = parseOptions nextOptions remaining
+
+validateProbeOptions :: ProbeOptions -> Either Text ()
+validateProbeOptions options
+    | not (probeHasAction options) = Left "No probe action selected; use --help for usage."
+    | otherwise = validateEarningsRatesV2ProbeOptions options
+
+probeHasAction :: ProbeOptions -> Bool
+probeHasAction options =
+    options.optionConnections
+        || options.optionList
+        || options.optionGetPayItems
+        || options.optionProbeEarningsRatesV2
+        || isJust options.optionRequirementKey
 
 validateEarningsRatesV2ProbeOptions :: ProbeOptions -> Either Text ()
 validateEarningsRatesV2ProbeOptions options
@@ -129,11 +143,6 @@ probeHasIncompatibleOptions options =
 stripPrefixText :: Text -> Text -> Maybe Text
 stripPrefixText prefix arg =
     Text.stripPrefix prefix arg
-
-usageAndExitFailure :: IO a
-usageAndExitFailure = do
-    usage
-    exitFailure
 
 usageAndExitSuccess :: IO a
 usageAndExitSuccess = do
@@ -174,7 +183,11 @@ resolveConnection :: (?modelContext :: ModelContext) => Maybe Text -> IO XeroCon
 resolveConnection (Just connectionIdText) =
     case UUID.fromText connectionIdText of
         Nothing -> liftIOError ("Invalid Xero connection UUID: " <> connectionIdText)
-        Just connectionUuid -> fetch (Id connectionUuid :: Id XeroConnection)
+        Just connectionUuid ->
+            query @XeroConnection
+                |> filterWhere (#id, (Id connectionUuid :: Id XeroConnection))
+                |> fetchOneOrNothing
+                >>= maybe (liftIOError "The selected Xero connection does not exist.") pure
 resolveConnection Nothing = do
     connections <-
         query @XeroConnection
@@ -208,15 +221,17 @@ fetchRequirement connection requirementKey =
     query @XeroPayItemRequirementRecord
         |> filterWhere (#xeroConnectionId, unpackId connection.id)
         |> filterWhere (#requirementKey, requirementKey)
-        |> fetchOne
+        |> fetchOneOrNothing
+        >>= maybe (liftIOError "The selected Xero pay item requirement does not exist.") pure
 
 fetchVerifiedAccountCode :: (?modelContext :: ModelContext) => XeroConnection -> IO Text
 fetchVerifiedAccountCode connection = do
-    selection <-
+    maybeSelection <-
         query @XeroPayItemAccountCodeSelection
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
             |> filterWhere (#selectionStatus, XeroPayItemAccountCodeSelectionStatusEnumVerified)
-            |> fetchOne
+            |> fetchOneOrNothing
+    selection <- maybe (liftIOError "The selected Xero connection has no verified pay item account code.") pure maybeSelection
     case Text.strip <$> selection.accountCode of
         Just accountCode | not (Text.null accountCode) -> pure accountCode
         _ -> liftIOError "The selected Xero pay item account code is blank."
@@ -375,5 +390,4 @@ idempotencySlug =
             else '-'
 
 liftIOError :: Text -> IO a
-liftIOError message =
-    error (cs message)
+liftIOError = exitWithScriptError . ScriptOperationFailed

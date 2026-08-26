@@ -1,6 +1,7 @@
 module Application.Fixture.DevFixtures.Deterministic
     ( dayAtOffset
     , deterministicIndex
+    , deterministicChoice
     , deterministicPercent
     , freshUUIDs
     , minutesToTimeOfDay
@@ -11,6 +12,7 @@ module Application.Fixture.DevFixtures.Deterministic
     ) where
 
 import Control.Monad (replicateM)
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays)
@@ -21,6 +23,14 @@ import IHP.Prelude
 
 -- Stable pseudo-random helpers keep scenario projections reproducible without
 -- introducing a mutable random generator into domain fixture modules.
+deterministicChoice :: Int -> [Int] -> NonEmpty value -> value
+deterministicChoice seedValue keys (firstValue :| remainingValues) =
+    choose (deterministicIndex seedValue keys (1 + length remainingValues)) firstValue remainingValues
+  where
+    choose 0 selected _              = selected
+    choose _ selected []             = selected
+    choose remaining _ (next : rest) = choose (remaining - 1) next rest
+
 deterministicPercent :: Int -> [Int] -> Int
 deterministicPercent seedValue values = deterministicIndex seedValue values 100
 

@@ -37,3 +37,9 @@ Shared row builders have one implementation here. `Test.Support` keeps its publi
 Existing `DevSeed`, controller, payroll golden, schema, and context-lifecycle suites characterize fixture row IDs, names, labels, password validity, transaction boundaries, and reset timing. Namespace moves must keep those outputs unchanged.
 
 Do not copy builders or reset SQL into test/support modules. Add a named input here when a new intentional variant shares the underlying construction.
+
+## Typed fixture composition failures
+
+Configurable and composed fixture values use `Either FixtureError`; missing catalog entries, required values, references, identifiers, and invalid civil-time boundaries retain a focused cause. Database interpreters cross the single `requireFixtureResult` compatibility boundary after composition. Fixture failures remain development/test startup failures and are never projected to `AppError`.
+
+Deterministic catalog selection uses non-empty catalogs or total checked lookup. Do not add `fromJust`, unchecked `head`/`!!`, or scattered `error` calls. A locally proven fixed bound must be documented beside the operation and covered on its boundary cases by a registered deterministic test.

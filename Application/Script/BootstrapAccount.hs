@@ -1,7 +1,9 @@
 module Application.Script.BootstrapAccount where
 
+import Application.Operator.Error
 import Application.Script.Prelude
-import Control.Monad (guard)
+import qualified Control.Exception as Exception
+import Control.Monad (guard, void)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Generated.Types
@@ -14,38 +16,53 @@ data BootstrapConfig = BootstrapConfig
 
 run :: Script
 run = do
-    bootstrapConfig <- liftIO loadBootstrapConfig
+    bootstrapConfig <- liftIO (loadBootstrapConfig >>= requireScriptResult)
     existingSuperAdmin <- fetchExistingSuperAdmin
     case existingSuperAdmin of
         Just _ -> liftIO (putStrLn "Super-admin already exists; bootstrap skipped.")
         Nothing -> do
-            _ <- createBootstrapUser bootstrapConfig.email bootstrapConfig.password
-            pure ()
+            void (createBootstrapUser bootstrapConfig.email bootstrapConfig.password >>= liftIO . requireScriptResult)
 
-loadBootstrapConfig :: IO BootstrapConfig
+loadBootstrapConfig :: IO (Either ScriptError BootstrapConfig)
 loadBootstrapConfig = do
     lookupEnv "BOOTSTRAP_ACCOUNT_SECRET_FILE" >>= \case
         Just secretFile -> loadBootstrapConfigFromSecretFile (cs secretFile)
-        Nothing -> loadBootstrapConfigFromLegacyEnv
+        Nothing         -> loadBootstrapConfigFromLegacyEnv
 
-loadBootstrapConfigFromSecretFile :: Text -> IO BootstrapConfig
+loadBootstrapConfigFromSecretFile :: Text -> IO (Either ScriptError BootstrapConfig)
 loadBootstrapConfigFromSecretFile secretFile = do
-    secretValues <- parseSecretFile <$> TextIO.readFile (cs secretFile)
-    config <-
-        BootstrapConfig
-            <$> requireSecretValue secretValues "BOOTSTRAP_ACCOUNT_EMAIL"
-            <*> requireSecretValue secretValues "BOOTSTRAP_ACCOUNT_PASSWORD"
-    validateBootstrapConfig config
-    pure config
+    readResult <- readConfigurationFile "bootstrap secret file" (cs secretFile)
+    pure do
+        rawSecret <- readResult
+        let secretValues = parseSecretFile rawSecret
+        config <-
+            BootstrapConfig
+                <$> requireSecretValue secretValues "BOOTSTRAP_ACCOUNT_EMAIL"
+                <*> requireSecretValue secretValues "BOOTSTRAP_ACCOUNT_PASSWORD"
+        validateBootstrapConfig config
+        Right config
 
-loadBootstrapConfigFromLegacyEnv :: IO BootstrapConfig
+loadBootstrapConfigFromLegacyEnv :: IO (Either ScriptError BootstrapConfig)
 loadBootstrapConfigFromLegacyEnv = do
-    email <- requireEnvText "BOOTSTRAP_ACCOUNT_EMAIL"
-    passwordFile <- requireEnvText "BOOTSTRAP_ACCOUNT_PASSWORD_FILE"
-    password <- Text.strip <$> TextIO.readFile (cs passwordFile)
-    let config = BootstrapConfig { email, password }
-    validateBootstrapConfig config
-    pure config
+    maybeEmail <- lookupEnv "BOOTSTRAP_ACCOUNT_EMAIL"
+    maybePasswordFile <- lookupEnv "BOOTSTRAP_ACCOUNT_PASSWORD_FILE"
+    case (maybeEmail, maybePasswordFile) of
+        (Nothing, _) -> pure (Left (InvalidScriptConfiguration "missing required environment variable BOOTSTRAP_ACCOUNT_EMAIL"))
+        (_, Nothing) -> pure (Left (InvalidScriptConfiguration "missing required environment variable BOOTSTRAP_ACCOUNT_PASSWORD_FILE"))
+        (Just emailValue, Just passwordFile) -> do
+            passwordResult <- readConfigurationFile "bootstrap password file" passwordFile
+            pure do
+                password <- Text.strip <$> passwordResult
+                let config = BootstrapConfig { email = cs emailValue, password }
+                validateBootstrapConfig config
+                Right config
+
+readConfigurationFile :: Text -> FilePath -> IO (Either ScriptError Text)
+readConfigurationFile label path = do
+    readResult <- Exception.try (TextIO.readFile path)
+    pure case readResult of
+        Left (_ :: Exception.IOException) -> Left (InvalidScriptConfiguration (label <> " could not be read"))
+        Right contents -> Right contents
 
 parseSecretFile :: Text -> [(Text, Text)]
 parseSecretFile rawSecret =
@@ -63,31 +80,30 @@ parseSecretFile rawSecret =
 
 unquote :: Text -> Text
 unquote value
-    | Text.length value >= 2 && Text.head value == '"' && Text.last value == '"' = Text.init (Text.tail value)
-    | Text.length value >= 2 && Text.head value == '\'' && Text.last value == '\'' = Text.init (Text.tail value)
-    | otherwise = value
+    | Text.length value < 2 = value
+    | otherwise =
+        case (Text.uncons value, Text.unsnoc value) of
+            (Just ('"', _), Just (_, '"'))   -> Text.dropEnd 1 (Text.drop 1 value)
+            (Just ('\'', _), Just (_, '\'')) -> Text.dropEnd 1 (Text.drop 1 value)
+            _                                -> value
 
-requireSecretValue :: [(Text, Text)] -> Text -> IO Text
+requireSecretValue :: [(Text, Text)] -> Text -> Either ScriptError Text
 requireSecretValue values key =
-    case lookup key values of
-        Just value -> pure value
-        Nothing -> error ("Missing required bootstrap secret key: " <> cs key)
+    maybe
+        (Left (InvalidScriptConfiguration ("missing required bootstrap secret key " <> key)))
+        Right
+        (lookup key values)
 
-validateBootstrapConfig :: BootstrapConfig -> IO ()
+validateBootstrapConfig :: BootstrapConfig -> Either ScriptError ()
 validateBootstrapConfig config = do
     requireNonEmpty "BOOTSTRAP_ACCOUNT_EMAIL" config.email
     requireNonEmpty "BOOTSTRAP_ACCOUNT_PASSWORD" config.password
 
-requireNonEmpty :: Text -> Text -> IO ()
+requireNonEmpty :: Text -> Text -> Either ScriptError ()
 requireNonEmpty name value =
-    when (Text.null (Text.strip value)) do
-        error (cs name <> " is empty")
-
-requireEnvText :: String -> IO Text
-requireEnvText name =
-    lookupEnv name >>= \case
-        Just value -> pure (cs value)
-        Nothing -> error ("Missing required environment variable: " <> cs name)
+    if Text.null (Text.strip value)
+        then Left (InvalidScriptConfiguration (name <> " is empty"))
+        else Right ()
 
 fetchExistingSuperAdmin :: (?modelContext :: ModelContext) => IO (Maybe User)
 fetchExistingSuperAdmin =
@@ -95,20 +111,22 @@ fetchExistingSuperAdmin =
         |> filterWhere (#platformRole, Just (SuperAdmin))
         |> fetchOneOrNothing
 
-createBootstrapUser :: (?modelContext :: ModelContext) => Text -> Text -> IO User
+createBootstrapUser :: (?modelContext :: ModelContext) => Text -> Text -> IO (Either ScriptError User)
 createBootstrapUser email password =
     query @User
         |> filterWhere (#email, email)
         |> fetchOneOrNothing
         >>= \case
-            Just _ -> error "Bootstrap account email already exists, but no super-admin exists; refusing to modify existing user."
+            Just _ -> pure (Left (ScriptOperationFailed "bootstrap account email already exists but no super-admin exists; refusing to modify the existing user"))
             Nothing -> do
                 passwordHash <- hashPassword password
-                newRecord @User
-                    |> set #email email
-                    |> set #passwordHash passwordHash
-                    |> set #userRole "staff"
-                    |> set #platformRole (Just (SuperAdmin))
-                    |> set #isProfileCompleted True
-                    |> set #emailVerifiedAt (Just def)
-                    |> createRecord
+                user <-
+                    newRecord @User
+                        |> set #email email
+                        |> set #passwordHash passwordHash
+                        |> set #userRole "staff"
+                        |> set #platformRole (Just (SuperAdmin))
+                        |> set #isProfileCompleted True
+                        |> set #emailVerifiedAt (Just def)
+                        |> createRecord
+                pure (Right user)

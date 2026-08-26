@@ -13,12 +13,15 @@ import qualified Application.Helper.FrontendContract.Surface.Timesheets.Live as 
 import Application.Helper.FrontendContract.Surface.Timesheets.Resource (timesheetWeekResource)
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
+import Application.Operator.Error
+import Control.Monad (foldM)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (Day, addDays, fromGregorian)
+import Data.Traversable (traverse)
 import Data.UUID (UUID, fromWords)
 import GHC.Clock (getMonotonicTimeNSec)
 import IHP.Prelude
@@ -34,9 +37,9 @@ import Web.SurfaceInvalidation (SurfaceInvalidationTarget (..),
 run :: IO ()
 run = do
     options <- parseOptions
-    createDirectoryIfMissing True options.outputDir
+    requireScriptResult =<< tryScriptIO "live invalidation profile output directory" (createDirectoryIfMissing True options.outputDir)
     results <- concat <$> mapM (runScenario options) options.scenarios
-    writeSummary options results
+    requireScriptResult =<< tryScriptIO "live invalidation profile output" (writeSummary options results)
     printSummary results
 
 data ProfileLiveInvalidationOptions = ProfileLiveInvalidationOptions
@@ -281,23 +284,29 @@ durationBetweenMs startedAtNs completedAtNs =
 parseOptions :: IO ProfileLiveInvalidationOptions
 parseOptions = do
     args <- map cs <$> Environment.getArgs
-    go defaultOptions args
-    where
-        go options [] = pure options
-        go options (arg : rest)
-            | Just value <- Text.stripPrefix "--output-dir=" arg =
-                go options { outputDir = cs value } rest
-            | Just value <- Text.stripPrefix "--scopes=" arg =
-                go options { scopeCounts = parseIntList "--scopes" value } rest
-            | Just value <- Text.stripPrefix "--iterations=" arg =
-                go options { iterations = parsePositiveInt "--iterations" value } rest
-            | Just value <- Text.stripPrefix "--scenario=" arg =
-                go options { scenarios = parseScenarioList value } rest
-            | arg `elem` ["--help", "-h"] = do
-                TextIO.putStrLn usageText
-                exitSuccess
-            | otherwise =
-                error ("Unknown profile-live-invalidation argument: " <> cs arg)
+    when (any (`elem` ["--help", "-h"]) args) do
+        TextIO.putStrLn usageText
+        exitSuccess
+    requireScriptResult (parseProfileLiveInvalidationArgs args)
+
+parseProfileLiveInvalidationArgs :: [Text] -> Either ScriptError ProfileLiveInvalidationOptions
+parseProfileLiveInvalidationArgs = foldM parseArg defaultOptions
+  where
+    parseArg options arg
+        | Just value <- Text.stripPrefix "--output-dir=" arg =
+            if Text.null value
+                then Left (InvalidScriptArgument "--output-dir requires a path")
+                else Right options { outputDir = cs value }
+        | Just value <- Text.stripPrefix "--scopes=" arg = do
+            scopeCounts <- parseIntList "--scopes" value
+            Right options { scopeCounts }
+        | Just value <- Text.stripPrefix "--iterations=" arg = do
+            iterations <- parsePositiveInt "--iterations" value
+            Right options { iterations }
+        | Just value <- Text.stripPrefix "--scenario=" arg = do
+            scenarios <- parseScenarioList value
+            Right options { scenarios }
+        | otherwise = Left (InvalidScriptArgument ("unknown profile-live-invalidation argument: " <> arg))
 
 usageText :: Text
 usageText =
@@ -311,40 +320,38 @@ usageText =
         , "  --scenario=name[,name...]        billing-direct|timesheet-week|xero-connection|roster-week-fanout|mixed-context-free"
         ]
 
-parseIntList :: Text -> Text -> [Int]
-parseIntList optionName value =
-    case map (parseNonNegativeInt optionName) (Text.splitOn "," value) of
-        []     -> error (cs optionName <> " requires at least one value")
-        values -> values
+parseIntList :: Text -> Text -> Either ScriptError [Int]
+parseIntList optionName value
+    | Text.null value = Left (InvalidScriptArgument (optionName <> " requires at least one value"))
+    | otherwise = traverse (parseNonNegativeInt optionName) (Text.splitOn "," value)
 
-parseScenarioList :: Text -> [LiveInvalidationBenchmarkScenario]
-parseScenarioList value =
-    case map parseScenario (Text.splitOn "," value) of
-        []     -> error "--scenario requires at least one value"
-        values -> values
+parseScenarioList :: Text -> Either ScriptError [LiveInvalidationBenchmarkScenario]
+parseScenarioList value
+    | Text.null value = Left (InvalidScriptArgument "--scenario requires at least one value")
+    | otherwise = traverse parseScenario (Text.splitOn "," value)
 
-parseScenario :: Text -> LiveInvalidationBenchmarkScenario
+parseScenario :: Text -> Either ScriptError LiveInvalidationBenchmarkScenario
 parseScenario value =
     case value of
-        "billing-direct" -> BillingDirectScenario
-        "timesheet-week" -> TimesheetWeekScenario
-        "xero-connection" -> XeroConnectionScenario
-        "roster-week-fanout" -> RosterWeekFanoutScenario
-        "mixed-context-free" -> MixedContextFreeScenario
-        _ -> error ("Unsupported live invalidation profile scenario: " <> cs value)
+        "billing-direct" -> Right BillingDirectScenario
+        "timesheet-week" -> Right TimesheetWeekScenario
+        "xero-connection" -> Right XeroConnectionScenario
+        "roster-week-fanout" -> Right RosterWeekFanoutScenario
+        "mixed-context-free" -> Right MixedContextFreeScenario
+        _ -> Left (InvalidScriptArgument ("unsupported live invalidation profile scenario: " <> value))
 
-parsePositiveInt :: Text -> Text -> Int
-parsePositiveInt optionName value =
-    let parsed = parseNonNegativeInt optionName value
-     in if parsed > 0
-            then parsed
-            else error (cs optionName <> " must be greater than zero")
+parsePositiveInt :: Text -> Text -> Either ScriptError Int
+parsePositiveInt optionName value = do
+    parsed <- parseNonNegativeInt optionName value
+    if parsed > 0
+        then Right parsed
+        else Left (InvalidScriptArgument (optionName <> " must be greater than zero"))
 
-parseNonNegativeInt :: Text -> Text -> Int
+parseNonNegativeInt :: Text -> Text -> Either ScriptError Int
 parseNonNegativeInt optionName value =
     case TextRead.readMaybe (cs value) of
-        Just parsed | parsed >= 0 -> parsed
-        _ -> error (cs optionName <> " expects a non-negative integer: " <> cs value)
+        Just parsed | parsed >= 0 -> Right parsed
+        _ -> Left (InvalidScriptArgument (optionName <> " expects a non-negative integer: " <> value))
 
 writeSummary :: ProfileLiveInvalidationOptions -> [BenchmarkResult] -> IO ()
 writeSummary options results = do

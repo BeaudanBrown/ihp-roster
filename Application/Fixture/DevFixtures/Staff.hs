@@ -8,11 +8,13 @@ module Application.Fixture.DevFixtures.Staff
 
 import Application.Fixture
 import Application.Fixture.DevFixtures.Deterministic
+import Application.Fixture.Error
 import Application.Fixture.Seed.Scenario (SeedScenario (..))
 import Application.Helper.VenueBootstrap (provisionVenueUser)
 import Control.Monad (void)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
+import Data.Traversable (traverse)
 import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude
@@ -48,13 +50,15 @@ seedAccounts :: (?modelContext :: ModelContext) => Venue -> SeedScenario -> IO S
 seedAccounts venue scenario = do
     passwordHashes <- hashDistinctSeedPasswords [testPassword, "venue2", "admin", "staff", "manager", "venue", "owner"]
     let passwordHash password =
-            fromMaybe (error ("Missing dev seed password hash for " <> cs password)) (Map.lookup password passwordHashes)
-        defaultPasswordHash = passwordHash testPassword
-    admin <- createSeededUserRecordWithPasswordHash "venue2@bepis.lol" (passwordHash "venue2") "admin" Nothing True
+            fixtureRequired (MissingFixtureReference ("dev seed password hash for " <> password)) (Map.lookup password passwordHashes)
+    defaultPasswordHash <- requireFixtureResult (passwordHash testPassword)
+    venue2PasswordHash <- requireFixtureResult (passwordHash "venue2")
+    admin <- createSeededUserRecordWithPasswordHash "venue2@bepis.lol" venue2PasswordHash "admin" Nothing True
     _ <- provisionVenueUser venue admin VenueAdmin "venue2" "bepis"
-    supportAdmin <- createSeededUserRecordWithPasswordHash "admin@bepis.lol" (passwordHash "admin") "admin" (Just SuperAdmin) True
+    supportAdminPasswordHash <- requireFixtureResult (passwordHash "admin")
+    supportAdmin <- createSeededUserRecordWithPasswordHash "admin@bepis.lol" supportAdminPasswordHash "admin" (Just SuperAdmin) True
     managerUsers <- createManagerUsers venue defaultPasswordHash scenario.managerCount
-    let managerUser = fromMaybe (error "Expected at least one seeded manager user") (listToMaybe managerUsers)
+    managerUser <- requireFixtureResult (fixtureRequired (EmptyFixtureCollection "seeded manager users") (listToMaybe managerUsers))
     workerUser <- createSeededUserRecordWithPasswordHash "dev-worker@example.com" defaultPasswordHash "staff" Nothing True
     (_, provisionedWorkerStaff) <- provisionVenueUser venue workerUser Worker "Willa" "Worker"
     aliasStaff <- seedSandboxRoleAliasAccounts venue passwordHashes
@@ -70,9 +74,9 @@ seedStaff venue scenario accounts = do
     let backOnlyStaff = takeByAssignment BackOnly generatedStaff
     let crossGroupStaff = takeByAssignment CrossGroup generatedStaff
     trialStaffs <- createTrialStaff venue scenario.trialStaffCount
-    let awardStaff = fromMaybe (error "Dev seed requires at least one manager staff profile") (listToMaybe managerStaffs)
+    awardStaff <- requireFixtureResult (fixtureRequired (EmptyFixtureCollection "seeded manager staff profiles") (listToMaybe managerStaffs))
     let xeroStaff = workerStaff
-    let rosterOnlyStaff = fromMaybe (error "Dev seed requires at least one generated staff profile") (listToMaybe generatedStaff)
+    rosterOnlyStaff <- requireFixtureResult (fixtureRequired (EmptyFixtureCollection "generated staff profiles") (listToMaybe generatedStaff))
     let allOperationalStaff = managerStaffs <> [workerStaff] <> generatedStaff <> trialStaffs
     pure SeededStaff { .. }
 
@@ -94,25 +98,24 @@ applySeededPayAssignments awardLevelId importedPayItemId aliasStaff fixture = do
     awardStaff <- fixture.awardStaff |> set #payAssignmentMode AwardRate |> set #defaultAwardLevelId (Just awardLevelId) |> set #importedXeroPayItemId Nothing |> updateRecord
     xeroStaff <- fixture.xeroStaff |> set #payAssignmentMode XeroRate |> set #defaultAwardLevelId Nothing |> set #importedXeroPayItemId (Just importedPayItemId) |> updateRecord
     rosterOnlyStaff <- fixture.rosterOnlyStaff |> set #payAssignmentMode RosterOnly |> set #defaultAwardLevelId Nothing |> set #importedXeroPayItemId Nothing |> updateRecord
-    remediationStaff <- maybe (fail "Dev seed requires a linked remediation profile") pure (listToMaybe aliasStaff)
+    remediationStaff <- requireFixtureResult (fixtureRequired (EmptyFixtureCollection "linked remediation profiles") (listToMaybe aliasStaff))
     remediationStaff |> set #payAssignmentMode LegacyUnresolved |> set #defaultAwardLevelId Nothing |> set #importedXeroPayItemId Nothing |> updateRecord |> void
     refreshedStaff <-
         query @Staff
             |> filterWhere (#venueId, fixture.workerStaff.venueId)
             |> fetch
     let refreshedById = Map.fromList [(staff.id, staff) | staff <- refreshedStaff]
-        refreshOne staff = fromMaybe (error ("Missing refreshed dev staff " <> show staff.id)) (Map.lookup staff.id refreshedById)
-        refreshSet = map refreshOne
-        managerStaffs = refreshSet fixture.managerStaffs
-        generatedStaff = refreshSet fixture.generatedStaff
-        frontOnlyStaff = refreshSet fixture.frontOnlyStaff
-        backOnlyStaff = refreshSet fixture.backOnlyStaff
-        crossGroupStaff = refreshSet fixture.crossGroupStaff
-        trialStaffs = refreshSet fixture.trialStaffs
-        refreshedAwardStaff = refreshOne awardStaff
-        refreshedXeroStaff = refreshOne xeroStaff
-        refreshedRosterOnlyStaff = refreshOne rosterOnlyStaff
-        allOperationalStaff = managerStaffs <> [refreshedXeroStaff] <> generatedStaff <> trialStaffs
+        refreshOne staff = fixtureRequired (MissingFixtureReference ("refreshed dev staff " <> tshow staff.id)) (Map.lookup staff.id refreshedById)
+    managerStaffs <- requireFixtureResult (traverse refreshOne fixture.managerStaffs)
+    generatedStaff <- requireFixtureResult (traverse refreshOne fixture.generatedStaff)
+    frontOnlyStaff <- requireFixtureResult (traverse refreshOne fixture.frontOnlyStaff)
+    backOnlyStaff <- requireFixtureResult (traverse refreshOne fixture.backOnlyStaff)
+    crossGroupStaff <- requireFixtureResult (traverse refreshOne fixture.crossGroupStaff)
+    trialStaffs <- requireFixtureResult (traverse refreshOne fixture.trialStaffs)
+    refreshedAwardStaff <- requireFixtureResult (refreshOne awardStaff)
+    refreshedXeroStaff <- requireFixtureResult (refreshOne xeroStaff)
+    refreshedRosterOnlyStaff <- requireFixtureResult (refreshOne rosterOnlyStaff)
+    let allOperationalStaff = managerStaffs <> [refreshedXeroStaff] <> generatedStaff <> trialStaffs
     pure fixture
         { managerStaffs = managerStaffs
         , workerStaff = refreshedXeroStaff
@@ -139,13 +142,10 @@ seedSandboxRoleAliasAccounts venue passwordHashes = do
     (_, venueOwnerProfile) <- provisionVenueUser venue venueOwnerUser VenueOwner "owner" "bepis"
     pure [staffProfile, managerProfile, venueAdminProfile, venueOwnerProfile]
   where
-    seededAliasUser emailAddress password globalRole =
-        createSeededUserRecordWithPasswordHash
-            emailAddress
-            (fromMaybe (error ("Missing dev seed alias password hash for " <> cs password)) (Map.lookup password passwordHashes))
-            globalRole
-            Nothing
-            True
+    seededAliasUser emailAddress password globalRole = do
+        passwordHash <- requireFixtureResult $
+            fixtureRequired (MissingFixtureReference ("dev seed alias password hash for " <> password)) (Map.lookup password passwordHashes)
+        createSeededUserRecordWithPasswordHash emailAddress passwordHash globalRole Nothing True
 
 hashDistinctSeedPasswords :: [Text] -> IO (Map.Map Text Text)
 hashDistinctSeedPasswords passwords =

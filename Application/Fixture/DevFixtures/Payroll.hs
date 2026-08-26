@@ -1,5 +1,6 @@
 module Application.Fixture.DevFixtures.Payroll
     ( PayFixture (..)
+    , applyDevTimesheetBoundaries
     , ensurePayReferenceData
     , seedShiftTypes
     , seedTimesheetProjection
@@ -7,6 +8,7 @@ module Application.Fixture.DevFixtures.Payroll
 
 import Application.Fixture
 import Application.Fixture.DevFixtures.Deterministic
+import Application.Fixture.Error
 import Application.Fixture.Seed.Scenario
 import Application.Fixture.WageSourceFixtures (ensureFreshWageSourceFacts)
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
@@ -20,9 +22,11 @@ import Application.VenueTime (melbourneTimeZoneName)
 import Application.VenueTime.Model
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Time.Calendar (Day, addDays, fromGregorian)
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Data.Time.LocalTime (TimeOfDay (..))
+import Data.Traversable (traverse)
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import Generated.Types
@@ -30,7 +34,6 @@ import IHP.ControllerPrelude
 import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.ModelSupport.Types (CanCreate (createMany))
 import IHP.Prelude
-import qualified IHP.Prelude as Prelude
 
 data PayFixture = PayFixture
     { floorShift      :: !ShiftType
@@ -60,28 +63,30 @@ seedTimesheetProjection ::
 seedTimesheetProjection fixtureWeekStart venue admin scenario payFixture staff approvedAt =
     seedTimesheets fixtureWeekStart venue admin scenario payFixture.floorShift payFixture.kitchenShift staff approvedAt
 
-applyDevTimesheetBoundaries :: Day -> TimeOfDay -> TimeOfDay -> Bool -> Maybe TimeOfDay -> Maybe TimeOfDay -> TimesheetEntry -> TimesheetEntry
-applyDevTimesheetBoundaries workedOn startTime endTime hadBreak maybeBreakStart maybeBreakEnd entry =
-    let breakInput =
-            if hadBreak
-                then Just BreakBoundaryInput
-                    { breakBoundaryStartTime = fromMaybe (error "Missing seeded break start") maybeBreakStart
+applyDevTimesheetBoundaries :: Day -> TimeOfDay -> TimeOfDay -> Bool -> Maybe TimeOfDay -> Maybe TimeOfDay -> TimesheetEntry -> Either FixtureError TimesheetEntry
+applyDevTimesheetBoundaries workedOn startTime endTime hadBreak maybeBreakStart maybeBreakEnd entry = do
+    breakInput <-
+        if hadBreak
+            then do
+                breakStart <- fixtureRequired (MissingFixtureValue "seeded break start") maybeBreakStart
+                breakEnd <- fixtureRequired (MissingFixtureValue "seeded break end") maybeBreakEnd
+                Right (Just BreakBoundaryInput
+                    { breakBoundaryStartTime = breakStart
                     , breakBoundaryStartOccurrence = Nothing
-                    , breakBoundaryEndTime = fromMaybe (error "Missing seeded break end") maybeBreakEnd
+                    , breakBoundaryEndTime = breakEnd
                     , breakBoundaryEndOccurrence = Nothing
-                    }
-                else Nothing
-        boundaries =
-            either (error . ("Invalid seeded timesheet boundaries: " <>) . show) Prelude.id $
-                resolveShiftBoundaries entry.timezone ShiftBoundaryInput
-                    { shiftBoundaryDate = workedOn
-                    , shiftBoundaryStartTime = startTime
-                    , shiftBoundaryStartOccurrence = Nothing
-                    , shiftBoundaryEndTime = endTime
-                    , shiftBoundaryEndOccurrence = Nothing
-                    , shiftBoundaryBreak = breakInput
-                    }
-     in applyTimesheetEntryBoundaries boundaries entry
+                    })
+            else Right Nothing
+    boundaries <- either (Left . InvalidFixtureBoundary . tshow) Right $
+        resolveShiftBoundaries entry.timezone ShiftBoundaryInput
+            { shiftBoundaryDate = workedOn
+            , shiftBoundaryStartTime = startTime
+            , shiftBoundaryStartOccurrence = Nothing
+            , shiftBoundaryEndTime = endTime
+            , shiftBoundaryEndOccurrence = Nothing
+            , shiftBoundaryBreak = breakInput
+            }
+    Right (applyTimesheetEntryBoundaries boundaries entry)
 
 
 createSeedShiftTypeRecord :: (?modelContext :: ModelContext) => Venue -> User -> Day -> Text -> Int -> ShiftTypeColourKeyEnum -> PayAssignmentModeEnum -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> IO ShiftType
@@ -140,15 +145,11 @@ createSeedImportedXeroPayItem venue importedBy = do
 
 seededFloorAwardLevelId :: Id AwardLevel
 seededFloorAwardLevelId =
-    seededHospitalityAwardLevelId "2cba4998-4691-4eeb-9bd3-e79263c54769"
+    Id (UUID.fromWords 0x2cba4998 0x46914eeb 0x9bd3e792 0x63c54769)
 
 seededKitchenAwardLevelId :: Id AwardLevel
 seededKitchenAwardLevelId =
-    seededHospitalityAwardLevelId "8a53b7c8-574c-49f8-abd4-0caf3b46a22f"
-
-seededHospitalityAwardLevelId :: Text -> Id AwardLevel
-seededHospitalityAwardLevelId value =
-    Id (fromMaybe (error ("Invalid dev award level id: " <> cs value)) (UUID.fromText value))
+    Id (UUID.fromWords 0x8a53b7c8 0x574c49f8 0xabd40caf 0x3b46a22f)
 
 
 ensureSeedShiftTypeAwardLevels :: (?modelContext :: ModelContext) => IO ()
@@ -175,7 +176,8 @@ seedTimesheets ::
     IO ()
 seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift staffPool approvedAt = do
     let timesheetStaffPool = filter staffCanProduceTimesheets staffPool
-    when (null timesheetStaffPool) $ fail "Dev seed requires at least one Timesheet-eligible staff profile"
+    when (null timesheetStaffPool) $
+        requireFixtureResult (Left (EmptyFixtureCollection "Timesheet-eligible staff profiles"))
     seededXeroCaseCount <-
         seedXeroPayCalendarTimesheets
             venue
@@ -197,15 +199,10 @@ seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift sta
         let (hadBreak, breakStartTime, breakEndTime, _breakMinutes) =
                 seededBreakFields scenario.scenarioSeed globalIndex shiftStartTime shiftEndTime
         let workedOn = seededTimesheetWorkedOn fixtureWeekStart globalIndex
-        entry <-
-            createTimesheetEntryRecordForShiftType venue staff shiftType workedOn
-                >>= updateRecord
-                    . applyDevTimesheetBoundaries workedOn
-                        shiftStartTime
-                        shiftEndTime
-                        hadBreak
-                        breakStartTime
-                        breakEndTime
+        baseEntry <- createTimesheetEntryRecordForShiftType venue staff shiftType workedOn
+        transformedEntry <- requireFixtureResult $
+            applyDevTimesheetBoundaries workedOn shiftStartTime shiftEndTime hadBreak breakStartTime breakEndTime baseEntry
+        entry <- updateRecord transformedEntry
         timing <- validatedFixtureTiming entry
         (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval admin.id timing entry
         lockPayVersionsForApproval admin.id approvedAt staffPayVersion shiftTypePayVersion
@@ -215,32 +212,29 @@ seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift sta
         pendingInputs = zip [0 ..] (take scenario.pendingTimesheets (drop scenario.approvedTimesheets (cycle pendingStaffPool)))
     pendingIds <- map Id <$> freshUUIDs (length pendingInputs)
     pendingCreatedAt <- getCurrentTime
-    let pendingEntries =
-            [ let globalIndex = scenario.approvedTimesheets + index
-                  shiftStartTime = TimeOfDay (9 + (index `mod` 3)) 0 0
-                  shiftEndTime = TimeOfDay (15 + (index `mod` 3)) 0 0
-                  (hadBreak, breakStartTime, breakEndTime, _breakMinutes) =
-                      seededBreakFields scenario.scenarioSeed globalIndex shiftStartTime shiftEndTime
-                  workedOn = seededTimesheetWorkedOn fixtureWeekStart (globalIndex + 2)
-               in newRecord @TimesheetEntry
+    pendingEntries <- requireFixtureResult $
+        traverse (buildPendingEntry pendingCreatedAt) (zip pendingIds pendingInputs)
+    unless (null pendingEntries) (void (createMany pendingEntries))
+  where
+    buildPendingEntry pendingCreatedAt (pendingId, (index, staff)) = do
+        let globalIndex = scenario.approvedTimesheets + index
+            shiftStartTime = TimeOfDay (9 + (index `mod` 3)) 0 0
+            shiftEndTime = TimeOfDay (15 + (index `mod` 3)) 0 0
+            (hadBreak, breakStartTime, breakEndTime, _breakMinutes) =
+                seededBreakFields scenario.scenarioSeed globalIndex shiftStartTime shiftEndTime
+            workedOn = seededTimesheetWorkedOn fixtureWeekStart (globalIndex + 2)
+            baseEntry =
+                newRecord @TimesheetEntry
                     |> set #id pendingId
                     |> set #venueId (unpackId venue.id)
                     |> set #staffId (unpackId staff.id)
                     |> set #shiftTypeId (unpackId floorShift.id)
                     |> set #operationalDate workedOn
                     |> set #timezone melbourneTimeZoneName
-                    |> applyDevTimesheetBoundaries workedOn
-                        shiftStartTime
-                        shiftEndTime
-                        hadBreak
-                        breakStartTime
-                        breakEndTime
                     |> set #createdAt pendingCreatedAt
                     |> set #updatedAt pendingCreatedAt
-            | (pendingId, (index, staff)) <- zip pendingIds pendingInputs
-            ]
-    unless (null pendingEntries) (void (createMany pendingEntries))
-  where
+        applyDevTimesheetBoundaries workedOn shiftStartTime shiftEndTime hadBreak breakStartTime breakEndTime baseEntry
+
     staffCanProduceTimesheets staff =
         staffAssignmentAllowsTimesheets
             (StaffPayAssignment staff.payAssignmentMode staff.defaultAwardLevelId staff.importedXeroPayItemId)
@@ -294,16 +288,17 @@ createApprovedSeededTimesheetCase ::
 createApprovedSeededTimesheetCase venue admin floorShift kitchenShift staff approvedAt seedCase = do
     let (hadBreak, breakStartTime, breakEndTime) = seededBreakBoundaries seedCase.caseBreak
     let shiftType = seededCaseShiftType seedCase.caseShiftType floorShift kitchenShift
-    entry <-
-        createTimesheetEntryRecordForShiftType venue staff shiftType seedCase.caseWorkedOn
-            >>= updateRecord
-                . applyDevTimesheetBoundaries
-                    seedCase.caseWorkedOn
-                    seedCase.caseStartTime
-                    seedCase.caseEndTime
-                    hadBreak
-                    breakStartTime
-                    breakEndTime
+    baseEntry <- createTimesheetEntryRecordForShiftType venue staff shiftType seedCase.caseWorkedOn
+    transformedEntry <- requireFixtureResult $
+        applyDevTimesheetBoundaries
+            seedCase.caseWorkedOn
+            seedCase.caseStartTime
+            seedCase.caseEndTime
+            hadBreak
+            breakStartTime
+            breakEndTime
+            baseEntry
+    entry <- updateRecord transformedEntry
     approveSeededTimesheetEntry admin approvedAt entry
 
 approveSeededTimesheetEntry ::
@@ -337,13 +332,13 @@ approveSeededTimesheetEntryWithVersions admin approvedAt staffPayVersion shiftTy
                 |> set #approvedAt (Just approvedAt)
                 |> set #approvedByUserId (Just (unpackId admin.id))
     persisted <- persistDevSeedApprovedTimesheetPayCalculation approvalEntry
-    calculation <- either (fail . cs) pure persisted
+    calculation <- requireFixtureResult (either (Left . InvalidFixtureBoundary) Right persisted)
     approvalEntry
         |> set #activePayCalculationId (Just calculation.id)
         |> updateRecord
 
 validatedFixtureTiming :: TimesheetEntry -> IO ValidatedTimesheetTiming
-validatedFixtureTiming = either (fail . cs . tshow) pure . decodeTimesheetTiming
+validatedFixtureTiming = requireFixtureResult . either (Left . InvalidFixtureBoundary . tshow) Right . decodeTimesheetTiming
 
 seededCaseShiftType :: SeededTimesheetShiftType -> ShiftType -> ShiftType -> ShiftType
 seededCaseShiftType SeededFloorShift floorShift _     = floorShift
@@ -386,7 +381,7 @@ seededXeroCalendarWindowCases startDate endDate staffNames =
 
 seededXeroCaseForDay :: Int -> Text -> Text -> (Int, Day) -> SeededXeroTimesheetCase
 seededXeroCaseForDay staffIndex firstName lastName (dayIndex, workedOn) =
-    let template = seededXeroTimesheetTemplates !! ((staffIndex * 3 + dayIndex) `mod` length seededXeroTimesheetTemplates)
+    let template = deterministicChoice 0 [staffIndex * 3 + dayIndex] seededXeroTimesheetTemplates
      in xeroCase firstName lastName workedOn template.templateShiftType template.templateStartTime template.templateEndTime template.templateBreak
 
 dateRange :: Day -> Day -> [Day]
@@ -400,10 +395,10 @@ data SeededXeroTimesheetTemplate = SeededXeroTimesheetTemplate
     , templateBreak     :: !SeededTimesheetBreak
     }
 
-seededXeroTimesheetTemplates :: [SeededXeroTimesheetTemplate]
+seededXeroTimesheetTemplates :: NonEmpty SeededXeroTimesheetTemplate
 seededXeroTimesheetTemplates =
-    [ xeroTemplate SeededFloorShift (TimeOfDay 9 0 0) (TimeOfDay 17 0 0) (SeededBreak (TimeOfDay 15 30 0) (TimeOfDay 16 0 0) 30)
-    , xeroTemplate SeededFloorShift (TimeOfDay 18 0 0) (TimeOfDay 1 0 0) (SeededBreak (TimeOfDay 21 30 0) (TimeOfDay 22 0 0) 30)
+    xeroTemplate SeededFloorShift (TimeOfDay 9 0 0) (TimeOfDay 17 0 0) (SeededBreak (TimeOfDay 15 30 0) (TimeOfDay 16 0 0) 30) :|
+    [ xeroTemplate SeededFloorShift (TimeOfDay 18 0 0) (TimeOfDay 1 0 0) (SeededBreak (TimeOfDay 21 30 0) (TimeOfDay 22 0 0) 30)
     , xeroTemplate SeededKitchenShift (TimeOfDay 10 0 0) (TimeOfDay 16 0 0) (SeededBreak (TimeOfDay 12 30 0) (TimeOfDay 13 0 0) 30)
     , xeroTemplate SeededFloorShift (TimeOfDay 22 0 0) (TimeOfDay 2 0 0) (SeededBreak (TimeOfDay 23 30 0) (TimeOfDay 0 0 0) 30)
     , xeroTemplate SeededKitchenShift (TimeOfDay 8 0 0) (TimeOfDay 14 0 0) SeededNoBreak
